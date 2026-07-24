@@ -3056,6 +3056,68 @@ export type Database = {
           },
         ]
       }
+      compliance_copilot_run_dispositions: {
+        Row: {
+          created_at: string
+          decided_by: string
+          disposition: string
+          disposition_note: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          run_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_by: string
+          disposition: string
+          disposition_note?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          run_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_by?: string
+          disposition?: string
+          disposition_note?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_copilot_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compliance_copilot_runs: {
         Row: {
           as_of_date: string
@@ -36507,6 +36569,10 @@ export type Database = {
           p_value_secondary?: number
           p_value_text?: string
         }
+        Returns: string
+      }
+      record_copilot_run_disposition: {
+        Args: { p_disposition: string; p_note: string; p_run_id: string }
         Returns: string
       }
       record_credential_renewal_extraction: {

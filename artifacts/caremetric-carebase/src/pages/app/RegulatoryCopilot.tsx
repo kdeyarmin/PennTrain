@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Mic, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -10,11 +10,23 @@ import { useListViolations } from "@/hooks/useViolations";
 import {
   useAskComplianceCopilot,
   useComplianceCopilotHistory,
+  useCopilotDispositions,
+  useRecordCopilotDisposition,
+  type CopilotDispositionRow,
   type CopilotResult as CopilotResultData,
   type CopilotEvidence,
   type CopilotIntent,
   type CopilotRuleSource,
 } from "@/hooks/useComplianceCopilot";
+import {
+  DISPOSITION_OPTIONS,
+  dispositionBadgeClass,
+  dispositionLabel,
+  dispositionRequiresNote,
+  isDispositionNoteValid,
+  latestDispositionByRun,
+  type CopilotDisposition,
+} from "@/lib/copilotDisposition";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -126,9 +138,14 @@ export default function RegulatoryCopilot() {
   const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined });
   const { data: violations } = useListViolations({ facilityId: activeFacilityId || undefined });
   const history = useComplianceCopilotHistory(activeFacilityId || undefined);
+  const dispositions = useCopilotDispositions(activeFacilityId || undefined);
   const ask = useAskComplianceCopilot();
   const createActionDraft = useCreateCopilotActionDraft();
+  const recordDisposition = useRecordCopilotDisposition(activeFacilityId || undefined);
   const selectedIntent = INTENTS.find((option) => option.value === intent)!;
+  // Only a manager may record a disposition; auditors/read-only roles see the state but can't set it.
+  const canDisposition = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const latestDisposition = useMemo(() => latestDispositionByRun(dispositions.data ?? []), [dispositions.data]);
 
   useEffect(() => {
     if (skipNextIntentSync.current) { skipNextIntentSync.current = false; return; }
@@ -183,6 +200,12 @@ export default function RegulatoryCopilot() {
 
           {ask.data && <CopilotResult
             result={ask.data}
+            disposition={<CopilotDispositionControl
+              runId={ask.data.runId}
+              current={latestDisposition.get(ask.data.runId)}
+              canRecord={canDisposition}
+              mutation={recordDisposition}
+            />}
             evidenceById={evidenceById}
             canCreateDraft={["org_admin", "facility_manager"].includes(user?.role ?? "") && ask.data.response.recommended_next_steps.length > 0}
             creatingDraft={createActionDraft.isPending}
@@ -208,18 +231,19 @@ export default function RegulatoryCopilot() {
         )}
         <TabsContent value="history">
           <Card><CardHeader><CardTitle>Immutable response receipts</CardTitle><CardDescription>History includes failed attempts, request/response checksums, the facility scope, model, determination label, and cited snapshots. Prior rows cannot be edited or deleted.</CardDescription></CardHeader><CardContent className="space-y-3">
-            {history.isLoading ? <p className="text-sm text-muted-foreground">Loading history…</p> : (history.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No copilot history for this facility.</p> : (history.data ?? []).map((run) => <div key={run.id} className="rounded-lg border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-medium">{run.question}</p><p className="text-xs text-muted-foreground">{displayDate(run.created_at)} · {run.intent.replaceAll("_", " ")} · as of {run.as_of_date}</p></div><div className="flex gap-2"><Badge variant={run.status === "completed" ? "secondary" : "destructive"}>{run.status}</Badge><Badge variant="outline">{run.determination_kind.replaceAll("_", " ")}</Badge></div></div>{run.error_message && <p className="mt-2 text-sm text-destructive">{run.error_message}</p>}<p className="mt-2 break-all text-[11px] text-muted-foreground">Request SHA-256: {run.request_checksum_sha256}{run.response_checksum_sha256 ? ` · Response SHA-256: ${run.response_checksum_sha256}` : ""}</p></div>)}</CardContent></Card>
+            {history.isLoading ? <p className="text-sm text-muted-foreground">Loading history…</p> : (history.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No copilot history for this facility.</p> : (history.data ?? []).map((run) => { const runDisposition = latestDisposition.get(run.id); return <div key={run.id} className="rounded-lg border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-medium">{run.question}</p><p className="text-xs text-muted-foreground">{displayDate(run.created_at)} · {run.intent.replaceAll("_", " ")} · as of {run.as_of_date}</p></div><div className="flex flex-wrap gap-2"><Badge variant={run.status === "completed" ? "secondary" : "destructive"}>{run.status}</Badge><Badge variant="outline">{run.determination_kind.replaceAll("_", " ")}</Badge>{runDisposition && <Badge className={dispositionBadgeClass(runDisposition.disposition)}>{dispositionLabel(runDisposition.disposition)}</Badge>}</div></div>{run.error_message && <p className="mt-2 text-sm text-destructive">{run.error_message}</p>}<p className="mt-2 break-all text-[11px] text-muted-foreground">Request SHA-256: {run.request_checksum_sha256}{run.response_checksum_sha256 ? ` · Response SHA-256: ${run.response_checksum_sha256}` : ""}</p>{run.status === "completed" && <div className="mt-3"><CopilotDispositionControl runId={run.id} current={runDisposition} canRecord={canDisposition} mutation={recordDisposition} /></div>}</div>; })}</CardContent></Card>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function CopilotResult({ result, evidenceById, canCreateDraft, creatingDraft, onCreateDraft }: { result: CopilotResultData; evidenceById: Map<string, CopilotEvidence>; canCreateDraft: boolean; creatingDraft: boolean; onCreateDraft: () => void }) {
+function CopilotResult({ result, disposition, evidenceById, canCreateDraft, creatingDraft, onCreateDraft }: { result: CopilotResultData; disposition?: ReactNode; evidenceById: Map<string, CopilotEvidence>; canCreateDraft: boolean; creatingDraft: boolean; onCreateDraft: () => void }) {
   const recommendation = result.determinationKind === "recommendation";
   return <div className="space-y-5">
     <Alert variant={recommendation ? "default" : undefined}>{recommendation ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}<AlertTitle>{recommendation ? "Recommendation — human review required" : "Confirmed system snapshot — human interpretation still required"}</AlertTitle><AlertDescription>{result.jurisdictionCode} · {result.facilityType === "ALR" ? "ALF" : result.facilityType} · as of {result.asOfDate} · model {result.model}</AlertDescription></Alert>
     <Card><CardHeader><CardTitle>Answer</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap text-sm leading-6">{result.response.answer}</p></CardContent></Card>
+    {disposition}
     {result.response.findings.length > 0 && <Card><CardHeader><CardTitle>Grounded findings</CardTitle></CardHeader><CardContent className="space-y-3">{result.response.findings.map((finding, index) => <div key={`${finding.title}-${index}`} className="rounded-lg border p-3"><p className="font-medium">{finding.title}</p><p className="mt-1 text-sm text-muted-foreground">{finding.detail}</p><div className="mt-2 flex flex-wrap gap-2">{finding.evidence_ids.map((id) => { const item = evidenceById.get(id); return item ? <Button key={id} asChild variant="outline" size="sm"><Link href={item.route}>{item.label}<ExternalLink className="ml-2 h-3 w-3" /></Link></Button> : null; })}</div></div>)}</CardContent></Card>}
     <div className="grid gap-5 xl:grid-cols-2">
       <Card><CardHeader><CardTitle>Regulatory sources</CardTitle><CardDescription>Only exact governed rule versions validated against the model’s source IDs.</CardDescription></CardHeader><CardContent className="space-y-3">{result.ruleSources.length === 0 ? <p className="text-sm text-muted-foreground">No matching active governed rule version was available; see missing information.</p> : result.ruleSources.map((source) => <RuleSource key={source.id} source={source} />)}</CardContent></Card>
@@ -233,4 +257,49 @@ function CopilotResult({ result, evidenceById, canCreateDraft, creatingDraft, on
 function RuleSource({ source }: { source: CopilotRuleSource }) {
   const url = safeSourceUrl(source.sourceUri);
   return <div className="rounded-lg border p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><Badge variant="outline">{source.citation}</Badge><p className="mt-2 font-medium">{source.rulePackName} · version {source.versionNumber}</p><p className="text-xs text-muted-foreground">{source.jurisdictionCode} · {source.authorityName} · effective {displayDate(source.effectiveFrom)}{source.effectiveTo ? ` through ${displayDate(source.effectiveTo)}` : ""}</p></div>{url && <Button asChild variant="outline" size="sm"><a href={url} target="_blank" rel="noreferrer">Regulatory source<ExternalLink className="ml-2 h-3 w-3" /></a></Button>}</div>{!url && <p className="mt-2 text-xs text-amber-700">No HTTPS source URI is recorded for this governed rule version.</p>}<p className="mt-2 break-all text-[11px] text-muted-foreground">Source SHA-256: {source.sourceChecksumSha256} · Content SHA-256: {source.contentChecksumSha256}</p></div>;
+}
+
+// Records a reviewer's accept / reject / needs-review decision against a copilot run receipt. The
+// decision is append-only server-side (latest wins; prior decisions retained); a note is required
+// to reject or flag for review. Renders read-only state for roles that cannot decide.
+function CopilotDispositionControl({ runId, current, canRecord, mutation }: {
+  runId: string;
+  current: CopilotDispositionRow | undefined;
+  canRecord: boolean;
+  mutation: ReturnType<typeof useRecordCopilotDisposition>;
+}) {
+  const { toast } = useToast();
+  const [note, setNote] = useState("");
+  const pendingHere = mutation.isPending && mutation.variables?.runId === runId;
+
+  const submit = (disposition: CopilotDisposition) => {
+    mutation.mutate({ runId, disposition, note: note.trim() }, {
+      onSuccess: () => { setNote(""); toast({ title: "Disposition recorded", description: `Answer marked “${dispositionLabel(disposition)}”.` }); },
+      onError: (error: Error) => toast({ title: "Could not record disposition", description: error.message, variant: "destructive" }),
+    });
+  };
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">Human disposition</span>
+        {current
+          ? <Badge className={dispositionBadgeClass(current.disposition)}>{dispositionLabel(current.disposition)}</Badge>
+          : <span className="text-xs text-muted-foreground">Not yet recorded</span>}
+      </div>
+      {current?.disposition_note && <p className="text-xs text-muted-foreground">Note: {current.disposition_note}</p>}
+      {current && <p className="text-[11px] text-muted-foreground">Recorded {displayDate(current.created_at)}. Recording again updates the current decision; prior decisions are retained immutably.</p>}
+      {canRecord ? <>
+        <Textarea rows={2} value={note} maxLength={2000} placeholder="Optional to Accept; required (≥ 5 characters) to Reject or flag for review" onChange={(event) => setNote(event.target.value)} />
+        <div className="flex flex-wrap gap-2">{DISPOSITION_OPTIONS.map((option) => <Button
+          key={option.value}
+          size="sm"
+          variant={option.value === "accepted" ? "default" : "outline"}
+          title={option.description}
+          disabled={pendingHere || (dispositionRequiresNote(option.value) && !isDispositionNoteValid(option.value, note))}
+          onClick={() => submit(option.value)}
+        >{pendingHere && mutation.variables?.disposition === option.value && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{option.label}</Button>)}</div>
+      </> : <p className="text-xs text-muted-foreground">Only an org admin or the facility manager can record a disposition.</p>}
+    </div>
+  );
 }
