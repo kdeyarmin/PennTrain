@@ -50,7 +50,10 @@ export function useUploadViolationDocument() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        await supabase.storage.from("violation-documents").remove([path]);
+        throw error;
+      }
       return data;
     },
     onSuccess: (_data, variables) => queryClient.invalidateQueries({ queryKey: ["violation_documents", variables.violationId] }),

@@ -61,7 +61,7 @@ export function getRequiredStateFormLabel(itemType: string, facilityType: string
 // actual state-approved form is attached.
 export function getRequiredStateFormInfo(itemType: string, facilityType: string | undefined): StateApprovedFormInfo {
   if (facilityType !== "PCH" && facilityType !== "ALR") {
-    return { label: "PA DHS state-approved resident compliance form", url: DHS_FORMS_INDEX_URL, sourceLabel: "PA DHS PCH/ALR Compliance Forms index" };
+    return { label: "PA DHS state-approved resident compliance form", url: DHS_FORMS_INDEX_URL, sourceLabel: "PA DHS PCH/ALF Compliance Forms index" };
   }
 
   const isAlr = facilityType === "ALR";
@@ -80,7 +80,7 @@ export function getRequiredStateFormInfo(itemType: string, facilityType: string 
   if (facilityType === "ALR") {
     return { label: "ASP (Assessment-Support Plan)", url: DHS_ALR_FORMS.asp, sourceLabel: "PA DHS Assisted Living Facility (ALF) ASP form" };
   }
-  return { label: "PA DHS state-approved resident compliance form", url: DHS_FORMS_INDEX_URL, sourceLabel: "PA DHS PCH/ALR Compliance Forms index" };
+  return { label: "PA DHS state-approved resident compliance form", url: DHS_FORMS_INDEX_URL, sourceLabel: "PA DHS PCH/ALF Compliance Forms index" };
 }
 
 // Lower rank = worse. Used to roll many items (one resident, or a whole facility) up into a

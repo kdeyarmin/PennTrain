@@ -108,6 +108,10 @@ async function remoteVersions(projectRef, token) {
 }
 
 async function run() {
+  // Always validate local migration filenames first so duplicate versions and
+  // malformed names fail without requiring network credentials.
+  const local = await localVersions();
+
   const token = process.env.SUPABASE_ACCESS_TOKEN;
   if (!token) {
     console.error(
@@ -119,7 +123,6 @@ async function run() {
   }
 
   const projectRef = await resolveProjectRef();
-  const local = await localVersions();
   const remote = await remoteVersions(projectRef, token);
 
   const pending = [...local.keys()].filter((version) => !remote.has(version)).sort();

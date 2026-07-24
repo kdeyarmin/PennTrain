@@ -42,6 +42,14 @@ type Form = Record<string, string>;
 const human = (value: string) =>
   value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+const LICENSE_TYPE_LABELS: Record<string, string> = {
+  personal_care_home: "Personal Care Home (PCH)",
+  // Stored code mirrors Pennsylvania's "assisted living residence" license class;
+  // customer-facing copy uses Assisted Living Facility (ALF).
+  assisted_living_residence: "Assisted Living Facility (ALF)",
+  other: "Other",
+};
+
 function dueTone(date: unknown) {
   if (!date) return "outline" as const;
   const days = Math.ceil(
@@ -475,6 +483,7 @@ function LicensingEditor({
                       "assisted_living_residence",
                       "other",
                     ]}
+                    labels={LICENSE_TYPE_LABELS}
                   />
                 </Field>
                 <Field label="License number">
@@ -831,10 +840,12 @@ function Choice({
   value,
   set,
   values,
+  labels,
 }: {
   value: string;
   set: (value: string) => void;
   values: string[];
+  labels?: Record<string, string>;
 }) {
   return (
     <Select value={value} onValueChange={set}>
@@ -842,9 +853,9 @@ function Choice({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {values.map((value) => (
-          <SelectItem key={value} value={value}>
-            {human(value)}
+        {values.map((option) => (
+          <SelectItem key={option} value={option}>
+            {labels?.[option] ?? human(option)}
           </SelectItem>
         ))}
       </SelectContent>

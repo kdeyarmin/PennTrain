@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
 import { buildSubscribeWelcomeEmail } from "../_shared/marketingEmails.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 // Public, unauthenticated newsletter/regulatory-update signup (requires verify_jwt:false for
 // [functions.subscribe-updates] in supabase/config.toml, the same registration as request-demo).
@@ -149,8 +150,9 @@ Deno.serve(async (req: Request) => {
     turnstile_token?: string;
   };
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
     return json({ error: "Invalid JSON body" }, 400);
   }
 

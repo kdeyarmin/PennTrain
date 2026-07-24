@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 // Public evidence-room guest download. Guests have no Supabase session -- their whole
 // identity is the grant token, so authorization happens in the database:
@@ -45,8 +46,9 @@ Deno.serve(async (req: Request) => {
 
   let body: { token?: string; artifactId?: string } = {};
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
     return json({ error: "Invalid JSON body" }, 400);
   }
   if (typeof body.token !== "string" || body.token.length < 16 || typeof body.artifactId !== "string") {

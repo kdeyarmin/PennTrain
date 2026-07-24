@@ -8,8 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useGetInspectionItem } from "@/hooks/useInspectionItems";
-import {
-  useDeleteMaintenanceDocument,
+import { useDeleteMaintenanceDocument,
   useGetWorkOrder,
   useListMaintenanceDocuments,
   useListWorkOrderHistory,
@@ -29,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 
 const DOCUMENT_TYPES = [
   "problem_photo", "before_photo", "after_photo", "part_invoice", "vendor_report", "warranty", "service_contract", "other",
@@ -52,7 +52,7 @@ export default function WorkOrderDetail() {
   const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
   const canVerify = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDeleteDocuments = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
-  const { data: order, isLoading } = useGetWorkOrder(id);
+  const { data: order, isLoading, isError, error, refetch } = useGetWorkOrder(id);
   const { data: history } = useListWorkOrderHistory(id);
   const { data: documents } = useListMaintenanceDocuments({ workOrderId: id });
   const { data: facilities } = useListFacilities();
@@ -99,6 +99,7 @@ export default function WorkOrderDetail() {
   const facilityName = facilities?.find((facility) => facility.id === order?.facility_id)?.name;
 
   if (isLoading) return <div className="space-y-5"><Skeleton className="h-8 w-64" /><Skeleton className="h-36" /><Skeleton className="h-64" /></div>;
+  if (isError) return <QueryError what="this work order" error={error} onRetry={() => void refetch()} />;
   if (!order) return <div className="py-16 text-center"><p>Work order not found.</p><Button asChild variant="outline" className="mt-4"><Link href="/app/maintenance">Back to maintenance</Link></Button></div>;
 
   const openTransition = (nextStatus: string) => {

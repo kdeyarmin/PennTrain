@@ -85,7 +85,7 @@ export default function DhsFormsLibrary() {
           <p>
             Mirrored from the{" "}
             <a href={DHS_FORMS_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-              PA DHS PCH/ALR compliance forms page
+              PA DHS PCH/ALF compliance forms page
             </a>{" "}
             (last verified {DHS_FORMS_LAST_VERIFIED}) -- verify against that page before each
             annual survey window in case DHS has posted a newer version.

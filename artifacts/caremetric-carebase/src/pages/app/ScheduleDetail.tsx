@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
 import { toDateTimeLocal } from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios } from "@/lib/scheduleAnalytics";
+import { QueryError } from "@/components/QueryState";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -80,7 +81,7 @@ export default function ScheduleDetail() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const { data: schedule, isLoading: scheduleLoading } = useGetSchedule(id);
+  const { data: schedule, isLoading: scheduleLoading, isError: scheduleError, error: scheduleErr, refetch: refetchSchedule } = useGetSchedule(id);
   const facilityId = schedule?.facility_id;
   const { data: facility } = useGetFacility(facilityId);
   const { data: units } = useListFacilityUnits({ facilityId });
@@ -404,10 +405,22 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
     }
   }
 
-  if (scheduleLoading || !schedule) {
+  if (scheduleLoading) {
     return (
       <div className="flex items-center justify-center py-24">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (scheduleError) {
+    return <QueryError what="this schedule" error={scheduleErr} onRetry={() => void refetchSchedule()} />;
+  }
+
+  if (!schedule) {
+    return (
+      <div className="py-16 text-center text-muted-foreground">
+        Schedule not found.
       </div>
     );
   }

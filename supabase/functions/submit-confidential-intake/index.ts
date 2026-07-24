@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +25,13 @@ Deno.serve(async (req) => {
   if (!url || !key || !secret) return json({ error: "intake_not_configured" }, 500);
 
   const admin = createClient(url, key, { auth: { persistSession: false } });
-  const body = await req.json().catch(() => null);
+  let body: Record<string, any>;
+  try {
+    body = await readJsonBody(req, 65_536);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message === "Invalid JSON body" ? "invalid_json" : "payload_too_large" }, error.status);
+    return json({ error: "invalid_json" }, 400);
+  }
   if (!body?.turnstile_token) return json({ error: "verification_required" }, 400);
   const ip = clientIp(req);
   const ipHash = await sha256(`${Deno.env.get("INTAKE_RATE_LIMIT_SALT") ?? secret}:${ip}`);

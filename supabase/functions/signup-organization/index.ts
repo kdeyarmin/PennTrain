@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 // Public, unauthenticated signup endpoint by design (see verify_jwt:false in
 // supabase/config.toml). Abuse controls live here because there is no caller session yet:
@@ -188,8 +189,9 @@ Deno.serve(async (req: Request) => {
     baa_version?: string;
   };
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
     return json({ error: "Invalid JSON body" }, 400);
   }
 
