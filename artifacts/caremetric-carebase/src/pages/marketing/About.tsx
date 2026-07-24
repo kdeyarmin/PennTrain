@@ -35,6 +35,15 @@ const FOUNDER_BIO = [
   "CareBase is the software I designed to close that gap. It handles compliance paperwork, resident care, billing and financial management, staff education, and your state documentation — so when the state surveyor walks in, you're already ready. It's the software you always hoped for, and could never find.",
 ] as const;
 
+const FOUNDER_CREDENTIALS = [
+  "MSW",
+  "Doctorate, Naturopathic Medicine",
+  "Certified Medication Administration Trainer (~10 yrs)",
+  "Certified Hospice & Palliative Care Administrator",
+  "Certified Diabetic Educator",
+  "Nationally Certified Guardian",
+] as const;
+
 const PARTNER_NOTES = [
   {
     lead: "You get:",
@@ -124,6 +133,16 @@ export default function About() {
                   Founder — CareMetric CareBase
                 </div>
               </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {FOUNDER_CREDENTIALS.map((credential) => (
+                  <li
+                    key={credential}
+                    className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11.5px] font-semibold text-[#1b4a78]"
+                  >
+                    {credential}
+                  </li>
+                ))}
+              </ul>
               {FOUNDER_BIO.map((paragraph) => (
                 <p key={paragraph} className="text-pretty text-[15px] leading-7 text-[#33465c]">
                   {paragraph}
