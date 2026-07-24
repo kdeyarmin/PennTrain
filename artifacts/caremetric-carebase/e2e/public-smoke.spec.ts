@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 test.describe("public release smoke journeys", () => {
-  // The marketing pages fade content in on scroll (framer-motion Reveal).
+  // The marketing pages fade content in on scroll (the Reveal primitive).
   // Axe must measure settled colors, not mid-fade opacity blends, so run the
   // suite with reduced motion — Reveal renders static content in that mode.
   test.use({ contextOptions: { reducedMotion: "reduce" } });
