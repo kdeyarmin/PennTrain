@@ -129,6 +129,7 @@ const WORKFORCE_PATHS = [
 // Regulatory readiness: inspections, survey day, violations, complaints, forms, evidence, QAPI,
 // policies, and the regulatory copilot.
 const COMPLIANCE_PATHS = [
+  "/app/compliance-command-center",
   "/app/inspections",
   "/app/inspection-readiness",
   "/app/survey-day",

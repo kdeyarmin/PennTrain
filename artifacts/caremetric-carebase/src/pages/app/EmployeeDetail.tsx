@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { computeEmployeeReadiness } from "@/lib/employeeReadiness";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +29,7 @@ import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingType
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
-import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
+import { useListEmployeeCredentials, useEmployeeRequiredItems } from "@/hooks/useEmployeeCredentials";
 import {
   useListEmployeeFacilityAssignments, useAddEmployeeFacilityAssignment, useRemoveEmployeeFacilityAssignment,
 } from "@/hooks/useEmployeeFacilityAssignments";
@@ -133,6 +135,22 @@ export default function EmployeeDetail() {
   const { data: documents, isLoading: documentsLoading } = useListDocuments({ employeeId: id });
   const { data: credentials, isLoading: credentialsLoading } = useListEmployeeCredentials({ employeeId: id });
   const { data: auditLogs, isLoading: activityLoading } = useListAuditLogs({ entityId: id, limit: 20 });
+
+  // Per-employee readiness verdict (Area 3): aggregates clearance, employment status, credential and
+  // training status into one of Ready / Conditionally Ready / Expiring Soon / Incomplete / Restricted
+  // / Not Eligible, with a plain-language "why" shown on the badge tooltip.
+  const { data: requiredItems } = useEmployeeRequiredItems(id);
+  const readiness = useMemo(() => {
+    if (!employee) return null;
+    const typeName = new Map((trainingTypes ?? []).map((t) => [t.id, t.name] as const));
+    return computeEmployeeReadiness({
+      clearedForUnsupervisedDuty: employee.cleared_for_unsupervised_duty,
+      employmentStatus: employee.status,
+      credentials: (credentials ?? []).map((c) => ({ label: c.credential_label ?? c.credential_type, status: c.status, expiration_date: c.expiration_date })),
+      training: (trainingRecords ?? []).map((r) => ({ label: typeName.get(r.training_type_id), status: r.status })),
+      requiredItems: requiredItems ?? [],
+    });
+  }, [employee, credentials, trainingRecords, trainingTypes, requiredItems]);
   const { data: onboardingItems, isLoading: onboardingLoading } = useListEmployeeOnboardingItems(id);
   const { data: checkinLogs } = useListEmployeeCheckinLogs(id);
   const { mutate: updateOnboardingItem } = useUpdateEmployeeOnboardingItem();
@@ -355,6 +373,19 @@ export default function EmployeeDetail() {
               <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
                 {employee.cleared_for_unsupervised_duty ? "Cleared for Unsupervised Duty" : "Onboarding In Progress"}
               </Badge>
+              {readiness && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge className={`cursor-help ${readiness.badgeClass}`} variant="outline">Readiness: {readiness.label}</Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-72 text-left">
+                    <p className="mb-1 font-medium">Why — {readiness.label}</p>
+                    <ul className="ml-3 list-disc space-y-0.5">
+                      {readiness.reasons.map((reason, i) => <li key={i}>{reason}</li>)}
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </div>
         </div>

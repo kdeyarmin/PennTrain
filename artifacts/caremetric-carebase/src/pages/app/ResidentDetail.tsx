@@ -7,6 +7,7 @@ import {
   useListResidentDocuments, useUploadResidentDocument, useResidentDocumentSignedUrl, useDeleteResidentDocument,
 } from "@/hooks/useResidentDocuments";
 import { useListResidentAssessmentForms } from "@/hooks/useResidentAssessmentForms";
+import { ResidentSupportPlanSection } from "@/components/residents/ResidentSupportPlanSection";
 import { StateFormWorkflowStepper } from "@/components/residents/StateFormWorkflowStepper";
 import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
 import {
@@ -344,6 +345,8 @@ export default function ResidentDetail() {
       )}
 
       <Resident360Summary residentId={resident.id} />
+
+      {isTrackedFacilityType && <ResidentSupportPlanSection residentId={resident.id} canManage={canManage} />}
 
       <ResidentAdministrativeMaster
         resident={resident}

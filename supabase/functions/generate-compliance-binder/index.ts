@@ -42,20 +42,30 @@ function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
 }
 
 class PdfWriter {
+  private tocEntries: { title: string; page: number }[] = [];
+  private cover: { orgName: string; subtitle: string; meta: string[] } | null = null;
+
   private constructor(
     private doc: PDFDocument,
     private font: PDFFont,
     private bold: PDFFont,
     private page: PDFPage,
     private y: number,
+    private tocPage: PDFPage,
   ) {}
 
   static async create() {
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    // Reserve the first page for the cover + table of contents; content starts on page 2.
+    const tocPage = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    return new PdfWriter(doc, font, bold, page, PAGE_HEIGHT - MARGIN);
+    return new PdfWriter(doc, font, bold, page, PAGE_HEIGHT - MARGIN, tocPage);
+  }
+
+  setCover(orgName: string, subtitle: string, meta: string[]) {
+    this.cover = { orgName, subtitle, meta };
   }
 
   private ensureSpace(height: number) {
@@ -78,6 +88,9 @@ class PdfWriter {
     this.ensureSpace(34);
     this.y -= 10;
     this.text(str, { size: 13, bold: true, gap: 10 });
+    // Record the 1-based page this heading landed on for the table of contents (page 1 is the
+    // reserved cover/TOC page, so content headings resolve to page 2+).
+    this.tocEntries.push({ title: str, page: this.doc.getPages().indexOf(this.page) + 1 });
   }
 
   table(headers: string[], rows: string[][], widths: number[]) {
@@ -105,7 +118,50 @@ class PdfWriter {
     for (const row of rows) drawRow(row, false);
   }
 
+  // Draws the cover title block and a table of contents onto the reserved first page. The cover is
+  // drawn first (plain drawText, effectively never throws), so a later failure never leaves a blank
+  // page. Assumes the TOC fits on one page (binders have ~15 sections); extra entries are dropped.
+  private renderFrontMatter() {
+    const p = this.tocPage;
+    let y = PAGE_HEIGHT - MARGIN;
+    if (this.cover) {
+      p.drawText(this.cover.orgName, { x: MARGIN, y, size: 20, font: this.bold, color: rgb(0, 0, 0) });
+      y -= 26;
+      p.drawText(this.cover.subtitle, { x: MARGIN, y, size: 14, font: this.font, color: rgb(0, 0, 0) });
+      y -= 22;
+      for (const line of this.cover.meta) {
+        p.drawText(line, { x: MARGIN, y, size: 9, font: this.font, color: rgb(0.4, 0.4, 0.4) });
+        y -= 13;
+      }
+      y -= 16;
+    }
+    p.drawText("Table of Contents", { x: MARGIN, y, size: 14, font: this.bold, color: rgb(0, 0, 0) });
+    y -= 20;
+    for (const entry of this.tocEntries) {
+      if (y < MARGIN + 16) break;
+      const num = String(entry.page);
+      const numWidth = this.font.widthOfTextAtSize(num, 10);
+      const title = truncate(entry.title, PAGE_WIDTH - 2 * MARGIN - numWidth - 16, this.font, 10);
+      p.drawText(title, { x: MARGIN, y, size: 10, font: this.font, color: rgb(0.1, 0.1, 0.1) });
+      p.drawText(num, { x: PAGE_WIDTH - MARGIN - numWidth, y, size: 10, font: this.font, color: rgb(0.1, 0.1, 0.1) });
+      y -= 15;
+    }
+  }
+
+  private drawFooters() {
+    const pages = this.doc.getPages();
+    const total = pages.length;
+    for (let i = 0; i < total; i++) {
+      const label = `Page ${i + 1} of ${total}`;
+      const w = this.font.widthOfTextAtSize(label, 8);
+      pages[i].drawText(label, { x: PAGE_WIDTH - MARGIN - w, y: 24, size: 8, font: this.font, color: rgb(0.5, 0.5, 0.5) });
+    }
+  }
+
   async save() {
+    // Both are best-effort: a failure here must never lose the assembled binder content.
+    try { this.renderFrontMatter(); } catch (_e) { /* keep the binder without a TOC */ }
+    try { this.drawFooters(); } catch (_e) { /* page numbers are best-effort */ }
     return await this.doc.save();
   }
 }
@@ -584,14 +640,8 @@ async function buildBinderPdf(
   const pdf = await PdfWriter.create();
   const generatedAt = new Date().toISOString();
 
-  pdf.text(org.name, { size: 20, bold: true, gap: 4 });
-  pdf.text("Compliance Binder", { size: 14, gap: 16 });
-  pdf.text(`Generated: ${generatedAt}`, { size: 9, color: [0.4, 0.4, 0.4] });
-  pdf.text(`Requested by: ${requestedByLabel}`, {
-    size: 9,
-    color: [0.4, 0.4, 0.4],
-    gap: 20,
-  });
+  // Cover title block + table of contents render onto the reserved first page (see PdfWriter).
+  pdf.setCover(org.name, "Compliance Binder", [`Generated: ${generatedAt}`, `Requested by: ${requestedByLabel}`]);
 
   pdf.heading("Citation-Weighted Readiness Summary (Entrance Conference View)");
   pdf.text(

@@ -3056,6 +3056,68 @@ export type Database = {
           },
         ]
       }
+      compliance_copilot_run_dispositions: {
+        Row: {
+          created_at: string
+          decided_by: string
+          disposition: string
+          disposition_note: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          run_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_by: string
+          disposition: string
+          disposition_note?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          run_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_by?: string
+          disposition?: string
+          disposition_note?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_copilot_run_dispositions_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_copilot_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compliance_copilot_runs: {
         Row: {
           as_of_date: string
@@ -3401,6 +3463,430 @@ export type Database = {
             columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_requirement_documents: {
+        Row: {
+          created_at: string
+          document_label: string | null
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          instance_id: string | null
+          organization_id: string
+          requirement_id: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_label?: string | null
+          facility_id: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          instance_id?: string | null
+          organization_id: string
+          requirement_id: string
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_profile_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_label?: string | null
+          facility_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          instance_id?: string | null
+          organization_id?: string
+          requirement_id?: string
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_requirement_documents_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_documents_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_requirement_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_documents_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_documents_uploaded_by_profile_id_fkey"
+            columns: ["uploaded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_requirement_events: {
+        Row: {
+          actor_profile_id: string | null
+          created_at: string
+          event_type: string
+          facility_id: string | null
+          id: string
+          instance_id: string | null
+          metadata: Json
+          new_status: string | null
+          note: string | null
+          organization_id: string
+          prior_status: string | null
+          requirement_id: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type: string
+          facility_id?: string | null
+          id?: string
+          instance_id?: string | null
+          metadata?: Json
+          new_status?: string | null
+          note?: string | null
+          organization_id: string
+          prior_status?: string | null
+          requirement_id: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type?: string
+          facility_id?: string | null
+          id?: string
+          instance_id?: string | null
+          metadata?: Json
+          new_status?: string | null
+          note?: string | null
+          organization_id?: string
+          prior_status?: string | null
+          requirement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_requirement_events_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_events_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_requirement_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_events_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_requirements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_requirement_instances: {
+        Row: {
+          building_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          completion_note: string | null
+          created_at: string
+          due_date: string
+          escalation_level: number
+          evidence_count: number
+          exception_approved_at: string | null
+          exception_approved_by: string | null
+          exception_reason: string | null
+          facility_id: string
+          id: string
+          last_escalated_at: string | null
+          na_reason: string | null
+          organization_id: string
+          period_start: string | null
+          reminder_sent_on: string | null
+          requirement_id: string
+          responsible_profile_id: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          building_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completion_note?: string | null
+          created_at?: string
+          due_date: string
+          escalation_level?: number
+          evidence_count?: number
+          exception_approved_at?: string | null
+          exception_approved_by?: string | null
+          exception_reason?: string | null
+          facility_id: string
+          id?: string
+          last_escalated_at?: string | null
+          na_reason?: string | null
+          organization_id: string
+          period_start?: string | null
+          reminder_sent_on?: string | null
+          requirement_id: string
+          responsible_profile_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completion_note?: string | null
+          created_at?: string
+          due_date?: string
+          escalation_level?: number
+          evidence_count?: number
+          exception_approved_at?: string | null
+          exception_approved_by?: string | null
+          exception_reason?: string | null
+          facility_id?: string
+          id?: string
+          last_escalated_at?: string | null
+          na_reason?: string | null
+          organization_id?: string
+          period_start?: string | null
+          reminder_sent_on?: string | null
+          requirement_id?: string
+          responsible_profile_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_requirement_instances_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "facility_buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_instances_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_instances_exception_approved_by_fkey"
+            columns: ["exception_approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_instances_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_instances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_instances_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_instances_responsible_profile_id_fkey"
+            columns: ["responsible_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirement_instances_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_requirements: {
+        Row: {
+          anchor_date: string | null
+          building_id: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          custom_interval_days: number | null
+          description: string | null
+          facility_id: string | null
+          id: string
+          is_active: boolean
+          is_template: boolean
+          organization_id: string
+          recurrence: string
+          regulation_chapter: string | null
+          regulation_citation: string | null
+          requires_evidence: boolean
+          requires_review: boolean
+          responsible_profile_id: string | null
+          source_template_id: string | null
+          title: string
+          updated_at: string
+          warning_days: number
+        }
+        Insert: {
+          anchor_date?: string | null
+          building_id?: string | null
+          category: string
+          created_at?: string
+          created_by?: string | null
+          custom_interval_days?: number | null
+          description?: string | null
+          facility_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_template?: boolean
+          organization_id: string
+          recurrence?: string
+          regulation_chapter?: string | null
+          regulation_citation?: string | null
+          requires_evidence?: boolean
+          requires_review?: boolean
+          responsible_profile_id?: string | null
+          source_template_id?: string | null
+          title: string
+          updated_at?: string
+          warning_days?: number
+        }
+        Update: {
+          anchor_date?: string | null
+          building_id?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          custom_interval_days?: number | null
+          description?: string | null
+          facility_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_template?: boolean
+          organization_id?: string
+          recurrence?: string
+          regulation_chapter?: string | null
+          regulation_citation?: string | null
+          requires_evidence?: boolean
+          requires_review?: boolean
+          responsible_profile_id?: string | null
+          source_template_id?: string | null
+          title?: string
+          updated_at?: string
+          warning_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_requirements_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "facility_buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirements_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirements_responsible_profile_id_fkey"
+            columns: ["responsible_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_requirements_source_template_id_fkey"
+            columns: ["source_template_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_requirements"
             referencedColumns: ["id"]
           },
         ]
@@ -32795,6 +33281,33 @@ export type Database = {
         }
         Returns: string
       }
+      add_compliance_note: {
+        Args: {
+          p_instance_id: string
+          p_note: string
+          p_requirement_id: string
+        }
+        Returns: {
+          actor_profile_id: string | null
+          created_at: string
+          event_type: string
+          facility_id: string | null
+          id: string
+          instance_id: string | null
+          metadata: Json
+          new_status: string | null
+          note: string | null
+          organization_id: string
+          prior_status: string | null
+          requirement_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "compliance_requirement_events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_emergency_corrective_action: {
         Args: {
           p_description: string
@@ -33086,6 +33599,42 @@ export type Database = {
         Args: { p_compliance_item_id: string; p_resident_id: string }
         Returns: undefined
       }
+      assign_compliance_instance: {
+        Args: { p_instance_id: string; p_note?: string; p_profile_id: string }
+        Returns: {
+          building_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          completion_note: string | null
+          created_at: string
+          due_date: string
+          escalation_level: number
+          evidence_count: number
+          exception_approved_at: string | null
+          exception_approved_by: string | null
+          exception_reason: string | null
+          facility_id: string
+          id: string
+          last_escalated_at: string | null
+          na_reason: string | null
+          organization_id: string
+          period_start: string | null
+          reminder_sent_on: string | null
+          requirement_id: string
+          responsible_profile_id: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "compliance_requirement_instances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assign_employee_to_shift: {
         Args: {
           p_employee_id: string
@@ -33162,6 +33711,37 @@ export type Database = {
           p_resident_id: string
         }
         Returns: string
+      }
+      attach_compliance_evidence: {
+        Args: {
+          p_document_label?: string
+          p_file_name: string
+          p_file_size?: number
+          p_file_type: string
+          p_instance_id: string
+          p_storage_path: string
+        }
+        Returns: {
+          created_at: string
+          document_label: string | null
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          instance_id: string | null
+          organization_id: string
+          requirement_id: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "compliance_requirement_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       authenticate_integration_api_credential: {
         Args: {
@@ -33636,6 +34216,10 @@ export type Database = {
       convert_shift_report_entry: {
         Args: { p_destination: string; p_entry_id: string; p_reason: string }
         Returns: Json
+      }
+      copy_compliance_requirement: {
+        Args: { p_facility_ids: string[]; p_template_id: string }
+        Returns: number
       }
       correct_completed_class_attendee: {
         Args: {
@@ -34588,6 +35172,10 @@ export type Database = {
       generate_class_checkin_token: {
         Args: { p_class_id: string; p_long_lived?: boolean }
         Returns: string
+      }
+      generate_compliance_instances_now: {
+        Args: { p_requirement_id: string }
+        Returns: number
       }
       generate_due_preventive_maintenance_work_orders: {
         Args: { p_as_of?: string }
@@ -35983,6 +36571,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_copilot_run_disposition: {
+        Args: { p_disposition: string; p_note: string; p_run_id: string }
+        Returns: string
+      }
       record_credential_renewal_extraction: {
         Args: {
           p_confidence: Json
@@ -36378,6 +36970,10 @@ export type Database = {
       release_audit_legal_hold: {
         Args: { p_hold_id: string; p_reason: string }
         Returns: undefined
+      }
+      remove_compliance_evidence: {
+        Args: { p_document_id: string }
+        Returns: boolean
       }
       remove_work_item_dependency: {
         Args: { p_dependency_id: string }
@@ -36801,6 +37397,10 @@ export type Database = {
           connection_key: string
           credential_secret: string
         }[]
+      }
+      run_compliance_requirement_maintenance: {
+        Args: { p_today?: string }
+        Returns: number
       }
       run_data_lifecycle_policy: {
         Args: { p_limit?: number; p_policy_key: string; p_request_id?: string }
@@ -37299,6 +37899,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_compliance_requirement_active: {
+        Args: { p_active: boolean; p_note?: string; p_requirement_id: string }
+        Returns: {
+          anchor_date: string | null
+          building_id: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          custom_interval_days: number | null
+          description: string | null
+          facility_id: string | null
+          id: string
+          is_active: boolean
+          is_template: boolean
+          organization_id: string
+          recurrence: string
+          regulation_chapter: string | null
+          regulation_citation: string | null
+          requires_evidence: boolean
+          requires_review: boolean
+          responsible_profile_id: string | null
+          source_template_id: string | null
+          title: string
+          updated_at: string
+          warning_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "compliance_requirements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_confidential_intake_status: {
         Args: { p_intake_id: string; p_reason: string; p_target_status: string }
         Returns: boolean
@@ -37739,6 +38372,42 @@ export type Database = {
         }
         Returns: Json
       }
+      transition_compliance_instance: {
+        Args: { p_action: string; p_instance_id: string; p_note?: string }
+        Returns: {
+          building_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          completion_note: string | null
+          created_at: string
+          due_date: string
+          escalation_level: number
+          evidence_count: number
+          exception_approved_at: string | null
+          exception_approved_by: string | null
+          exception_reason: string | null
+          facility_id: string
+          id: string
+          last_escalated_at: string | null
+          na_reason: string | null
+          organization_id: string
+          period_start: string | null
+          reminder_sent_on: string | null
+          requirement_id: string
+          responsible_profile_id: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "compliance_requirement_instances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       transition_emergency_event: {
         Args: {
           p_emergency_event_id: string
@@ -38078,6 +38747,57 @@ export type Database = {
           p_reason?: string
         }
         Returns: string
+      }
+      upsert_compliance_requirement: {
+        Args: {
+          p_anchor_date: string
+          p_building_id: string
+          p_category: string
+          p_custom_interval_days: number
+          p_description: string
+          p_facility_id: string
+          p_id: string
+          p_is_template?: boolean
+          p_organization_id?: string
+          p_recurrence: string
+          p_regulation_chapter: string
+          p_regulation_citation: string
+          p_requires_evidence: boolean
+          p_requires_review: boolean
+          p_responsible_profile_id: string
+          p_title: string
+          p_warning_days: number
+        }
+        Returns: {
+          anchor_date: string | null
+          building_id: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          custom_interval_days: number | null
+          description: string | null
+          facility_id: string | null
+          id: string
+          is_active: boolean
+          is_template: boolean
+          organization_id: string
+          recurrence: string
+          regulation_chapter: string | null
+          regulation_citation: string | null
+          requires_evidence: boolean
+          requires_review: boolean
+          responsible_profile_id: string | null
+          source_template_id: string | null
+          title: string
+          updated_at: string
+          warning_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "compliance_requirements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       upsert_enterprise_role_template: {
         Args: {

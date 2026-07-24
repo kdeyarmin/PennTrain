@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import type { CopilotDisposition } from "@/lib/copilotDisposition";
 
 export type ComplianceCopilotRun = Tables<"compliance_copilot_runs">;
 export type CopilotIntent =
@@ -109,5 +110,45 @@ export function useAskComplianceCopilot() {
       return data as CopilotResult;
     },
     onSuccess: (_data, input) => queryClient.invalidateQueries({ queryKey: ["compliance-copilot-runs", input.facilityId] }),
+  });
+}
+
+export type CopilotDispositionRow = Pick<
+  Tables<"compliance_copilot_run_dispositions">,
+  "id" | "run_id" | "disposition" | "disposition_note" | "decided_by" | "created_at"
+>;
+
+// The human decision recorded against each run receipt. Read-only for everyone who can see the run;
+// scoped to the facility by RLS. Reduced to the latest-per-run in the UI (see latestDispositionByRun).
+export function useCopilotDispositions(facilityId: string | undefined) {
+  return useQuery({
+    queryKey: ["compliance-copilot-dispositions", facilityId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("compliance_copilot_run_dispositions")
+        .select("id,run_id,disposition,disposition_note,decided_by,created_at")
+        .eq("facility_id", facilityId!)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data as CopilotDispositionRow[];
+    },
+    enabled: Boolean(facilityId),
+  });
+}
+
+export function useRecordCopilotDisposition(facilityId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { runId: string; disposition: CopilotDisposition; note: string }) => {
+      const { data, error } = await supabase.rpc("record_copilot_run_disposition", {
+        p_run_id: input.runId,
+        p_disposition: input.disposition,
+        p_note: input.note,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["compliance-copilot-dispositions", facilityId] }),
   });
 }
