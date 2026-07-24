@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useCheckinViaToken } from "@/hooks/useTrainingClasses";
-import { consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CheckCircle2, XCircle, Loader2, LogOut } from "lucide-react";
 
@@ -19,6 +19,15 @@ export default function CheckIn() {
     if (accessToken) checkin(accessToken);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
+
+  // A PostgrestError with a code is the server rejecting this token
+  // (expired/rotated/revoked); drop it so it is not replayed on the next visit
+  // to /checkin. Network failures carry no code and leave the token in place.
+  useEffect(() => {
+    if (error && typeof (error as { code?: unknown }).code === "string") {
+      clearStoredPublicAccessToken("checkin-access-token");
+    }
+  }, [error]);
 
   const checkedOut = data?.checked_out_at != null;
 

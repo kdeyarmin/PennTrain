@@ -78,7 +78,6 @@ function displayDate(value: string | null | undefined) {
 
 export default function SurveyDay() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const initialFacility = useMemo(() => new URLSearchParams(window.location.search).get("facility") ?? "", []);
   const [facilityId, setFacilityId] = useState(initialFacility);
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
@@ -149,62 +148,67 @@ export default function SurveyDay() {
       )}
     </div>
   );
+}
 
-  function ActivationCard({ facilityId, facilityName, facilityType, organizationId, onActivated }: {
-    facilityId: string; facilityName: string; facilityType: string; organizationId: string; onActivated: () => void;
-  }) {
-    const activate = useActivateSurveyDay();
-    const { data: binders } = useListBinderExports({ organizationId: organizationId || undefined });
-    const { data: collections } = useListEvidenceCollections({ organizationId: organizationId || undefined });
-    const latestBinder = (binders ?? []).find((b: any) => b.status === "succeeded" && Array.isArray(b.facility_ids) && b.facility_ids.length === 1 && b.facility_ids[0] === facilityId);
-    const latestCollection = (collections ?? []).find((c: any) => c.facility_id === facilityId && c.status === "published");
+// Module scope (the Workspace pattern), not declared inside SurveyDay's body:
+// an inline component is a brand-new type on every parent render, so React
+// remounted it -- resetting the confirm-dialog state -- whenever a refetch
+// re-rendered the page.
+function ActivationCard({ facilityId, facilityName, facilityType, organizationId, onActivated }: {
+  facilityId: string; facilityName: string; facilityType: string; organizationId: string; onActivated: () => void;
+}) {
+  const { toast } = useToast();
+  const activate = useActivateSurveyDay();
+  const { data: binders } = useListBinderExports({ organizationId: organizationId || undefined });
+  const { data: collections } = useListEvidenceCollections({ organizationId: organizationId || undefined });
+  const latestBinder = (binders ?? []).find((b: any) => b.status === "succeeded" && Array.isArray(b.facility_ids) && b.facility_ids.length === 1 && b.facility_ids[0] === facilityId);
+  const latestCollection = (collections ?? []).find((c: any) => c.facility_id === facilityId && c.status === "published");
 
-    const start = () => activate.mutate(facilityId, {
-      onSuccess: onActivated,
-      onError: (error: Error) => toast({ title: "Could not start Survey Day", description: error.message, variant: "destructive" }),
-    });
+  const start = () => activate.mutate(facilityId, {
+    onSuccess: onActivated,
+    onError: (error: Error) => toast({ title: "Could not start Survey Day", description: error.message, variant: "destructive" }),
+  });
 
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Start Survey Day for {facilityName}</CardTitle>
-          <CardDescription>{facilityType === "ALR" ? "Assisted Living Facility" : facilityType || "Facility"}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border p-3 text-sm">
-              <p className="font-medium">Latest single-facility binder</p>
-              <p className="text-muted-foreground">{latestBinder ? displayDate(latestBinder.completed_at) : "No completed binder yet"}</p>
-            </div>
-            <div className="rounded-lg border p-3 text-sm">
-              <p className="font-medium">Latest published documentation collection</p>
-              <p className="text-muted-foreground">{latestCollection ? (latestCollection as any).name : "No published collection yet"}</p>
-            </div>
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Start Survey Day for {facilityName}</CardTitle>
+        <CardDescription>{facilityType === "ALR" ? "Assisted Living Facility" : facilityType || "Facility"}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border p-3 text-sm">
+            <p className="font-medium">Latest single-facility binder</p>
+            <p className="text-muted-foreground">{latestBinder ? displayDate(latestBinder.completed_at) : "No completed binder yet"}</p>
           </div>
-          <Alert>
-            <ClipboardCheck className="h-4 w-4" />
-            <AlertTitle>Starting Survey Day is audit-logged</AlertTitle>
-            <AlertDescription>Activation records who started the mode, for which facility, and when. Existing binder, documentation, and guest-access controls remain explicit and unchanged.</AlertDescription>
-          </Alert>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button size="lg" disabled={activate.isPending}>{activate.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><ShieldCheck className="mr-2 h-4 w-4" />Start Survey Day</>}</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Start Survey Day for {facilityName}?</AlertDialogTitle>
-                <AlertDialogDescription>This opens the focused survey workspace and records an audit event. You can close it at any time with a reason.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={start}>Start Survey Day</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
-    );
-  }
+          <div className="rounded-lg border p-3 text-sm">
+            <p className="font-medium">Latest published documentation collection</p>
+            <p className="text-muted-foreground">{latestCollection ? (latestCollection as any).name : "No published collection yet"}</p>
+          </div>
+        </div>
+        <Alert>
+          <ClipboardCheck className="h-4 w-4" />
+          <AlertTitle>Starting Survey Day is audit-logged</AlertTitle>
+          <AlertDescription>Activation records who started the mode, for which facility, and when. Existing binder, documentation, and guest-access controls remain explicit and unchanged.</AlertDescription>
+        </Alert>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="lg" disabled={activate.isPending}>{activate.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</> : <><ShieldCheck className="mr-2 h-4 w-4" />Start Survey Day</>}</Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Start Survey Day for {facilityName}?</AlertDialogTitle>
+              <AlertDialogDescription>This opens the focused survey workspace and records an audit event. You can close it at any time with a reason.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={start}>Start Survey Day</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CardContent>
+    </Card>
+  );
 }
 
 function Workspace({ sessionId, facilityId, facilityName, canManage }: { sessionId: string; facilityId: string; facilityName: string; canManage: boolean }) {
