@@ -130,6 +130,14 @@ export function useRefreshSurveyDay(facilityId: string | undefined) {
     onSuccess: (_data, sessionId) => {
       queryClient.invalidateQueries({ queryKey: ["survey-day-workspace", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["survey-day-active", facilityId] });
+      // "Refresh live checks" must actually refresh the live data: the staff roster RPC
+      // plus the four sources the entrance-conference chips derive from. Without these,
+      // a gap fixed mid-survey stays "Attention" until the 60s staleTime lapses.
+      queryClient.invalidateQueries({ queryKey: ["survey-day-roster"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      queryClient.invalidateQueries({ queryKey: ["employee_credentials"] });
+      queryClient.invalidateQueries({ queryKey: ["inspection_items"] });
     },
   });
 }

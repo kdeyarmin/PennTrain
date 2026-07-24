@@ -105,7 +105,10 @@ export function useAddAdministratorCeEntry() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries", data.administrator_profile_id] }),
+    // Prefix-invalidate every CE list: the per-profile key (..., "ce_entries", <profileId>)
+    // AND the org-wide key (..., "ce_entries", "org", <orgId>) that Inspection Readiness and
+    // Facility Detail read -- invalidating only the profile key leaves readiness math stale.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries"] }),
   });
 }
 
@@ -117,7 +120,7 @@ export function useDeleteAdministratorCeEntry() {
       if (error) throw error;
       return { administratorProfileId };
     },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries", data.administratorProfileId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["administrator_profiles", "ce_entries"] }),
   });
 }
 
