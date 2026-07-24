@@ -858,6 +858,7 @@ export type Database = {
       billing_provider_operations: {
         Row: {
           attempted_at: string | null
+          attempts: number
           created_at: string
           error_code: string | null
           id: string
@@ -877,6 +878,7 @@ export type Database = {
         }
         Insert: {
           attempted_at?: string | null
+          attempts?: number
           created_at?: string
           error_code?: string | null
           id?: string
@@ -896,6 +898,7 @@ export type Database = {
         }
         Update: {
           attempted_at?: string | null
+          attempts?: number
           created_at?: string
           error_code?: string | null
           id?: string
