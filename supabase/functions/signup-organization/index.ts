@@ -251,7 +251,7 @@ Deno.serve(async (req: Request) => {
       .eq("key", "default_trial_days")
       .maybeSingle();
     if (trialDaysError) throw new HttpError(500, "settings_unavailable", "Signup is temporarily unavailable. Please try again later.", trialDaysError.message);
-    const trialDays = typeof trialDaysSetting?.value === "number" ? trialDaysSetting.value : 14;
+    const trialDays = typeof trialDaysSetting?.value === "number" ? trialDaysSetting.value : 30;
     const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
 
     const redirectTo = resolveRedirectTo(body.redirect_to);
