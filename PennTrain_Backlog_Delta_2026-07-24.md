@@ -4,30 +4,34 @@
 **Scope:** new work only. PT-001..PT-050 remain in the prior backlogs; statuses for previously-open items are in the companion report. Numbering continues from PT-050.
 **Overlap notice:** open draft PR #265 independently fixes parts of PT-051 (migration rename) and several appendix nits; reconcile before starting work.
 
-## PT-051 — Fix duplicate migration version 20260724140000 and gate duplicates pre-merge
+## PT-051 — Reconcile the migration chain with production before re-arming deploys (duplicate version + wholesale bookkeeping divergence)
 
-**Labels:** `priority:P1`, `area:deploy`, `area:database`
-**Outcome:** the migration chain replays cleanly (`db reset`, CI, preview branches), the deploy drift gate goes green, and duplicate versions from parallel PRs are caught in PR CI, not at deploy.
+**Labels:** `priority:P0`, `area:deploy`, `area:database`
+**Outcome:** the repo's migration chain replays cleanly (`db reset`, CI, preview branches), matches what production actually recorded, and the next `db push` applies only content production does not already have. Duplicate versions from parallel PRs are caught in PR CI, not at deploy.
 
-**Evidence**
+**Evidence** (see the review's same-day addendum for the full mapping)
 
-- `supabase/migrations/20260724140000_add_standalone_annual_courses_fire_abuse_rights.sql` (#264) and `..._rename_savings_model_facility_count_to_resident_count.sql` (#263) share one version.
-- `scripts/check-migration-drift.mjs:58-59` throws on duplicate versions (verified by execution, exit 1); it is the final verify step of `.github/workflows/deploy-migrations.yml:79`.
-- Third occurrence of this collision class (#232 and #264 both renamed for the same reason previously).
+- `supabase/migrations/20260724140000_add_standalone_annual_courses_fire_abuse_rights.sql` (#264) and `..._rename_savings_model_facility_count_to_resident_count.sql` (#263) share one version; `scripts/check-migration-drift.mjs:58-59` throws (verified, exit 1) as the final verify step of `.github/workflows/deploy-migrations.yml:79`. Third occurrence of this collision class.
+- Production's `schema_migrations` (checked via the management API) recorded the 07-24 batch under **different versions** than the committed files (e.g. `rename_savings_model...` as `20260724042821` vs file `20260724140000`; standalone courses as four split files `0512xx` vs the consolidated pair), holds **six migrations with no repo counterpart** (`042226`, `043912`, `044044`, `051549`, `051753`, `053705` — SQL recoverable from `schema_migrations.statements`), and **never applied** `20260724130000_modular_pillar_packages.sql` (verified: no Essentials/Professional rows in `public.packages`).
+- Consequence: renaming the duplicate alone (PR #265's fix) arms a deploy where `db push` re-runs already-applied content — the column rename hard-fails mid-sequence and the consolidated course seeds collide with the split-file content.
 
 **Implementation slice**
 
-1. Rename the #264 pair to unclaimed versions after `20260724150000` (preserve `add` before `publish` order), or land PR #265's rename.
-2. Add a duplicate-version rule to `scripts/check-migration-policies.mjs` (runs in PR CI via `check:all`) with a self-test fixture.
-3. Re-run the deploy workflow and confirm the drift step passes.
+1. Reconcile bookkeeping first: rename repo files to production's recorded versions where content is identical, or mark them applied with `supabase migration repair --status applied`; verify content equivalence for the consolidated-vs-split course migrations before choosing.
+2. Commit the six production-only migrations into the repo (recover SQL from `schema_migrations.statements`), restoring git as the source of truth.
+3. Resolve the duplicate `20260724140000` as part of the renumbering (this also unblocks `db reset`/CI).
+4. Make a deliberate decision on `modular_pillar_packages`: apply it to production (shipping the tier catalog — coordinate with PT-055) or hold it explicitly; today's frontend-ahead-of-database skew should be closed one way or the other.
+5. Add a duplicate-version rule to `scripts/check-migration-policies.mjs` (runs in PR CI via `check:all`) with a self-test fixture.
+6. Only then re-run the deploy workflow and confirm `db push` + the drift step pass.
 
 **Acceptance criteria**
 
 - `supabase db reset --no-seed` completes on a fresh stack.
-- `check-migration-drift` passes locally and in the deploy workflow.
+- `check-migration-drift` passes locally and in the deploy workflow with zero repo-only and zero production-only versions.
+- A dry-run `db push` against production lists no already-applied content.
 - A synthetic branch with two same-version migrations fails `check:migration-policies` in PR CI.
 
-**Effort:** S.
+**Effort:** M.
 
 ## PT-052 — Enforce the 30-day trial
 
