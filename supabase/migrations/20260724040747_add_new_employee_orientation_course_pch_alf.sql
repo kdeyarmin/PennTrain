@@ -3,25 +3,38 @@
 -- This is the first course in the catalog to actually use the HeyGen AI-avatar
 -- pipeline (every other comprehensive course today is text/quiz-only). It fills a
 -- genuine gap: the ORIENT training type (New Employee Orientation, 3.00 hours, both
--- PCH and ALF) has never had any course, text or video, mapped to it. Two of the
--- instructional steps are real, already-rendered Kevin Deyarmin HeyGen videos
--- (avatar_id 3fd2086f9f31438cb28ae57134b6affa, the founder's own professional-look
--- photo avatar, cloned voice 2ba78236f7a64ca8b182d14c23399c88, both already used for
--- the founder/persona marketing videos). Their course_blocks rows are inserted with
--- an in-progress heygen job state on purpose: poll-heygen-video-statuses (pg_cron,
--- every 5 minutes) will pick them up, confirm completion with HeyGen, and re-host
--- them into the course-videos bucket exactly the way a platform_admin clicking
--- "check status" in the course editor would. A third planned video (the welcome
--- segment) hit HeyGen's MOVIO_PAYMENT_INSUFFICIENT_CREDIT on three separate attempts
--- while shorter scripts rendered fine in the same window -- an account-level credit
--- ceiling, not a content problem -- so it ships as text instead; nothing here is
--- blocked on that account limit being raised later.
+-- PCH and ALF) has never had any course, text or video, mapped to it.
 --
--- The course_version stays 'draft' in this migration: two blocks have no video_url
--- yet, and the publish trigger correctly refuses to publish until they do. A short
--- follow-up migration flips it to 'published' once the cron job has re-hosted both
--- clips (verified via get_comprehensive_course_version_issues returning an empty
--- array).
+-- Block 8 is a real, already-rendered and already-re-hosted Kevin Deyarmin HeyGen
+-- video (avatar_id 3fd2086f9f31438cb28ae57134b6affa, the founder's own
+-- professional-look photo avatar, cloned voice 2ba78236f7a64ca8b182d14c23399c88,
+-- both already used for the founder/persona marketing videos). Operationally this
+-- was authored the same way a platform_admin would from the course editor: a
+-- generate-course-video call started the HeyGen job, and poll-heygen-video-statuses
+-- (pg_cron, every 5 minutes) polled it, confirmed completion, and re-hosted the file
+-- into the course-videos bucket at system/0787360c-785c-4f20-9163-e5a9fc9d1be7.mp4.
+-- This migration inserts that block with the resulting finished video_url and a
+-- heygen.status of "completed" directly -- not the transient "processing" state the
+-- live authoring flow passes through -- so that replaying migrations against a
+-- fresh database (CI, a new preview branch, a local reset) reaches the same
+-- publish-ready end state without depending on a live HeyGen job or cron run that
+-- can only ever happen once, against the original project.
+--
+-- Block 5 was also scripted as a video and its HeyGen render genuinely succeeded,
+-- but re-hosting failed repeatedly (see the 20260724042226 migration for why) and
+-- it never got a resolved video_url, so it stays inserted here as a video block in
+-- the same in-progress "processing" heygen state it actually had at authoring time
+-- -- an accurate record of what was attempted -- before that follow-up migration
+-- converts it to text. A third planned video (the welcome segment) hit HeyGen's
+-- MOVIO_PAYMENT_INSUFFICIENT_CREDIT on three separate attempts while shorter
+-- scripts rendered fine in the same window -- an account-level credit ceiling, not
+-- a content problem -- so it was never inserted as a video block at all; it ships
+-- as text from the start.
+--
+-- The course_version stays 'draft' in this migration: block 5 has no video_url yet
+-- and the publish trigger correctly refuses to publish until every video block
+-- does. Follow-up migrations convert block 5 to text and then publish once
+-- get_comprehensive_course_version_issues returns an empty array.
 
 do $update_orient$
 declare
@@ -112,7 +125,8 @@ insert into public.course_blocks (
   id, course_version_id, organization_id, block_type, sort_order, title, body, video_url
 ) values (
   '0787360c-785c-4f20-9163-e5a9fc9d1be7'::uuid, '23ca08d4-afef-4b88-9db6-2f693d58588f'::uuid, null, 'video', 8, $txt$Medications, boundaries, and asking for help$txt$,
-  $jsonbody${"estimated_minutes": 3, "activity_type": "guided_instruction", "script": "I want to spend a few minutes on something I've seen go wrong more than almost anything else with new hires, and it comes from a good place. People want to be helpful. They see a resident struggling with a pill bottle, or asking for something that sounds simple, and their instinct is to just take care of it. In this field, that instinct, without the right training first, is exactly how serious mistakes happen.\n\nHere is the boundary I need you to take seriously starting today. Unless you have completed Pennsylvania's medication administration training and your facility has authorized you, you do not administer medication. That means you don't hand a resident their pills and watch them take it if that crosses into administration under your facility's policy, you don't open a medication package for them, you don't decide a dose can wait or should be given early, and you absolutely do not give a resident anyone else's medication for any reason. Some residents are able to self-administer their own medication with only reminders or the kind of assistance any new employee can properly provide, and I'll be honest, the line between allowed self-administration support and medication administration that requires certification isn't always obvious on day one. That's exactly why the rule for a new employee is simple: if you're not sure which side of that line a task falls on, you treat it as outside your role and you ask, every single time, until someone with the right training tells you otherwise.\n\nThe same logic applies far beyond medication. If a resident's condition changes and you're not sure whether it's serious, you ask. If you're asked to do a physical transfer you haven't been trained on, you ask for help instead of trying your best. If a family member asks you a question about a resident's medical condition, prognosis, or care plan that feels like it's outside what you're authorized to discuss, you say you'll have the right person follow up, rather than answering from instinct. None of that is a weakness, and none of it will be held against you. It is exactly what a responsible new employee is supposed to do.\n\nI'll tell you honestly, from twenty years of hiring and training people for this work: the employees I've trusted fastest were never the ones who acted the most confident on day one. They were the ones who knew what they didn't know yet, and who asked. That habit is what keeps residents safe while you're still learning everything else this job requires, and it's a habit I want you to start building in this very first week, not after something has already gone wrong.", "heygen": {"video_id": "1753cd897d994e538455e994a464da4b", "status": "processing", "avatar_id": "3fd2086f9f31438cb28ae57134b6affa", "voice_id": "2ba78236f7a64ca8b182d14c23399c88", "requested_at": "2026-07-24T03:53:00Z"}}$jsonbody$::jsonb, null
+  $jsonbody${"estimated_minutes": 3, "activity_type": "guided_instruction", "script": "I want to spend a few minutes on something I've seen go wrong more than almost anything else with new hires, and it comes from a good place. People want to be helpful. They see a resident struggling with a pill bottle, or asking for something that sounds simple, and their instinct is to just take care of it. In this field, that instinct, without the right training first, is exactly how serious mistakes happen.\n\nHere is the boundary I need you to take seriously starting today. Unless you have completed Pennsylvania's medication administration training and your facility has authorized you, you do not administer medication. That means you don't hand a resident their pills and watch them take it if that crosses into administration under your facility's policy, you don't open a medication package for them, you don't decide a dose can wait or should be given early, and you absolutely do not give a resident anyone else's medication for any reason. Some residents are able to self-administer their own medication with only reminders or the kind of assistance any new employee can properly provide, and I'll be honest, the line between allowed self-administration support and medication administration that requires certification isn't always obvious on day one. That's exactly why the rule for a new employee is simple: if you're not sure which side of that line a task falls on, you treat it as outside your role and you ask, every single time, until someone with the right training tells you otherwise.\n\nThe same logic applies far beyond medication. If a resident's condition changes and you're not sure whether it's serious, you ask. If you're asked to do a physical transfer you haven't been trained on, you ask for help instead of trying your best. If a family member asks you a question about a resident's medical condition, prognosis, or care plan that feels like it's outside what you're authorized to discuss, you say you'll have the right person follow up, rather than answering from instinct. None of that is a weakness, and none of it will be held against you. It is exactly what a responsible new employee is supposed to do.\n\nI'll tell you honestly, from twenty years of hiring and training people for this work: the employees I've trusted fastest were never the ones who acted the most confident on day one. They were the ones who knew what they didn't know yet, and who asked. That habit is what keeps residents safe while you're still learning everything else this job requires, and it's a habit I want you to start building in this very first week, not after something has already gone wrong.", "heygen": {"video_id": "1753cd897d994e538455e994a464da4b", "status": "completed", "avatar_id": "3fd2086f9f31438cb28ae57134b6affa", "voice_id": "2ba78236f7a64ca8b182d14c23399c88", "requested_at": "2026-07-24T03:53:00Z", "completed_at": "2026-07-24T04:10:10.380Z"}}$jsonbody$::jsonb,
+  'https://xsqobvvreaovwibxwyvv.supabase.co/storage/v1/object/public/course-videos/system/0787360c-785c-4f20-9163-e5a9fc9d1be7.mp4'
 );
 
 insert into public.course_blocks (
