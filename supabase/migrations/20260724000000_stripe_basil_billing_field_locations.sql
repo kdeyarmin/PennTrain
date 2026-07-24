@@ -105,10 +105,11 @@ begin
   v_customer_id := nullif(v_object->>'customer', '');
   -- Post-Basil, an invoice references its subscription through
   -- parent.subscription_details.subscription; older payloads used the top-level
-  -- subscription field. Subscription events still identify themselves by id.
+  -- subscription field. Prefer the post-Basil location and treat the top-level
+  -- field as a legacy fallback. Subscription events still identify themselves by id.
   v_subscription_id := nullif(coalesce(
-    v_object->>'subscription',
     v_object #>> '{parent,subscription_details,subscription}',
+    v_object->>'subscription',
     case when p_event_type like 'customer.subscription.%' then v_object->>'id' end), '');
   v_org_id := app_private.try_uuid(v_object #>> '{metadata,organization_id}');
   if v_org_id is null then
@@ -197,14 +198,15 @@ begin
       v_org_id, v_account_id, v_package_id, v_object->>'id',
       v_provider_status, v_state,
       greatest(coalesce((v_object #>> '{items,data,0,quantity}')::integer, 1), 1),
-      -- Basil moved the billing period onto subscription items; fall back to the
-      -- pre-Basil top-level field for legacy payloads and stored-event replays.
+      -- Basil moved the billing period onto subscription items; read the item-level
+      -- field first and fall back to the pre-Basil top-level field for legacy
+      -- payloads and stored-event replays.
       app_private.stripe_epoch(coalesce(
-        v_object->>'current_period_start',
-        v_object #>> '{items,data,0,current_period_start}')),
+        v_object #>> '{items,data,0,current_period_start}',
+        v_object->>'current_period_start')),
       app_private.stripe_epoch(coalesce(
-        v_object->>'current_period_end',
-        v_object #>> '{items,data,0,current_period_end}')),
+        v_object #>> '{items,data,0,current_period_end}',
+        v_object->>'current_period_end')),
       app_private.stripe_epoch(v_object->>'trial_end'),
       coalesce((v_object->>'cancel_at_period_end')::boolean, false),
       app_private.stripe_epoch(v_object->>'canceled_at'),
@@ -283,10 +285,11 @@ begin
     end if;
   elsif p_event_type like 'invoice.%' then
     -- Basil moved the invoice -> subscription reference under
-    -- parent.subscription_details.subscription; keep the pre-Basil field as a fallback.
+    -- parent.subscription_details.subscription; read it first and keep the
+    -- pre-Basil top-level field as a fallback.
     v_subscription_id := nullif(coalesce(
-      v_object->>'subscription',
-      v_object #>> '{parent,subscription_details,subscription}'), '');
+      v_object #>> '{parent,subscription_details,subscription}',
+      v_object->>'subscription'), '');
     select s.id into v_subscription_pk
     from public.billing_subscriptions s
     where s.stripe_subscription_id = v_subscription_id;
