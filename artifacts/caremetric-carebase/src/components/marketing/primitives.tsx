@@ -54,11 +54,11 @@ export function TechGrid({ className = "" }: { className?: string }) {
 export function TechIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
     <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
-      <span aria-hidden className="absolute left-0 top-0 h-2.5 w-2.5 border-l border-t border-[#59b2ff]/40" />
-      <span aria-hidden className="absolute right-0 top-0 h-2.5 w-2.5 border-r border-t border-[#59b2ff]/40" />
-      <span aria-hidden className="absolute bottom-0 left-0 h-2.5 w-2.5 border-b border-l border-[#59b2ff]/40" />
-      <span aria-hidden className="absolute bottom-0 right-0 h-2.5 w-2.5 border-b border-r border-[#59b2ff]/40" />
-      <Icon className="h-5 w-5 text-[#59b2ff]" />
+      <span aria-hidden className="absolute left-0 top-0 h-2.5 w-2.5 border-l border-t border-[var(--mkt-accent)]/40" />
+      <span aria-hidden className="absolute right-0 top-0 h-2.5 w-2.5 border-r border-t border-[var(--mkt-accent)]/40" />
+      <span aria-hidden className="absolute bottom-0 left-0 h-2.5 w-2.5 border-b border-l border-[var(--mkt-accent)]/40" />
+      <span aria-hidden className="absolute bottom-0 right-0 h-2.5 w-2.5 border-b border-r border-[var(--mkt-accent)]/40" />
+      <Icon className="h-5 w-5 text-[var(--mkt-accent)]" />
     </div>
   );
 }
@@ -79,12 +79,12 @@ export function PageHero({
   highlights?: string[];
 }) {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-[#0a1a2e] via-[#102a43] to-[#16324f] text-white">
+    <section className="relative overflow-hidden bg-gradient-to-br from-[var(--mkt-navy-900)] via-[var(--mkt-navy-800)] to-[var(--mkt-navy-700)] text-white">
       <TechGrid />
-      <div className="absolute top-0 right-0 h-[420px] w-[420px] -translate-y-1/3 translate-x-1/4 rounded-full bg-[#59b2ff]/[0.10] blur-3xl" />
+      <div className="absolute top-0 right-0 h-[420px] w-[420px] -translate-y-1/3 translate-x-1/4 rounded-full bg-[var(--mkt-accent)]/[0.10] blur-3xl" />
       <div className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 lg:px-8 lg:py-24">
         {eyebrow && (
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-[#b9e4ff]">
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-[var(--mkt-accent-soft)]">
             <CheckCircle2 className="h-3.5 w-3.5" />
             {eyebrow}
           </div>
@@ -120,7 +120,7 @@ export function PageHero({
           <div className="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/10 pt-6">
             {highlights.map((highlight) => (
               <div key={highlight} className="flex items-center gap-2 text-xs text-white/66">
-                <CheckCircle2 className="h-3.5 w-3.5 text-[#59b2ff]" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-[var(--mkt-accent)]" />
                 {highlight}
               </div>
             ))}

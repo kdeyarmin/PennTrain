@@ -41,6 +41,21 @@
   --color-info: hsl(var(--info));
   --color-info-foreground: hsl(var(--info-foreground));
 
+  /* Darker semantic text shades — for colored text on the soft tinted (`/10`) surfaces used
+     by StatusBadge and the semantic Alert variants, where the base success/warning/info
+     color is too light to hit AA contrast. */
+  --color-success-strong: hsl(var(--success-strong));
+  --color-warning-strong: hsl(var(--warning-strong));
+  --color-info-strong: hsl(var(--info-strong));
+  --color-destructive-strong: hsl(var(--destructive-strong));
+
+  /* Slightly darker edge shades so the button variants that ask for
+     `border-primary-border` / `border-secondary-border` / `border-destructive-border`
+     actually render a crisp border instead of falling back to the default. */
+  --color-primary-border: hsl(var(--primary-border));
+  --color-secondary-border: hsl(var(--secondary-border));
+  --color-destructive-border: hsl(var(--destructive-border));
+
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
@@ -58,6 +73,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* One subtle two-layer elevation language shared by Card, .premium-card and .stat-card
+     so every surface reads at the same weight (the stock shadcn `shadow` was noticeably
+     heavier). Exposed as `shadow-card` / `shadow-card-hover` utilities. */
+  --shadow-card: 0 1px 3px 0 rgb(15 23 42 / 0.04), 0 1px 2px -1px rgb(15 23 42 / 0.05);
+  --shadow-card-hover: 0 6px 16px -4px rgb(15 23 42 / 0.10), 0 2px 6px -2px rgb(15 23 42 / 0.06);
 }
 
 :root {
@@ -76,7 +97,9 @@
   --primary-foreground: 210 40% 98%;
 
   --secondary: 220 14% 96%;
-  --secondary-foreground: 220 9% 46%;
+  /* Darkened from 46% so secondary text/buttons clear WCAG AA (4.5:1) on the
+     --secondary (#f3f4f6) fill; at 46% the pairing was 4.39:1 (axe failure). */
+  --secondary-foreground: 220 9% 43%;
 
   --muted: 220 14% 96%;
   --muted-foreground: 220 9% 46%;
@@ -86,19 +109,44 @@
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
+  --destructive-strong: 0 72% 41%;
 
   --success: 142 71% 45%;
   --success-foreground: 0 0% 100%;
+  --success-strong: 142 72% 29%;
 
   --warning: 38 92% 50%;
   --warning-foreground: 0 0% 100%;
+  --warning-strong: 32 81% 29%;
 
   --info: 217 91% 60%;
   --info-foreground: 0 0% 100%;
+  --info-strong: 217 91% 40%;
 
   --border: 220 13% 91%;
   --input: 220 13% 91%;
   --ring: 221 83% 53%;
+
+  /* Interaction layer (light theme only). The elevate tints are what give every Button and
+     Badge its hover/press feedback; the *-outline vars are the subtle edges for the outline
+     variants; the *-border HSL triplets are slightly darker edges for the solid variants. */
+  --elevate-1: rgb(15 23 42 / 0.04);
+  --elevate-2: rgb(15 23 42 / 0.09);
+  --button-outline: rgb(15 23 42 / 0.12);
+  --badge-outline: rgb(15 23 42 / 0.08);
+  --primary-border: 221 83% 45%;
+  --secondary-border: 220 13% 87%;
+  --destructive-border: 0 72% 43%;
+
+  /* Marketing surface palette — the dark-navy hero/footer gradient stops and the light-blue
+     accent. Values match the hex the marketing components already shipped (no visual drift);
+     centralized here so the public palette is tweakable in one place. */
+  --mkt-navy-950: #071626;
+  --mkt-navy-900: #0a1a2e;
+  --mkt-navy-800: #102a43;
+  --mkt-navy-700: #16324f;
+  --mkt-accent: #59b2ff;
+  --mkt-accent-soft: #b9e4ff;
 
   --sidebar: 222 47% 11%;
   --sidebar-foreground: 220 14% 96%;
@@ -144,10 +192,10 @@
 
   .stat-card {
     @apply relative overflow-hidden rounded-xl border bg-card p-6 transition-all duration-200;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-card);
   }
   .stat-card:hover {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-card-hover);
     transform: translateY(-1px);
   }
   .stat-card .stat-icon {
@@ -183,11 +231,11 @@
   }
 
   .premium-card {
-    @apply rounded-xl border bg-card overflow-hidden;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+    @apply rounded-xl border bg-card overflow-hidden transition-shadow duration-200;
+    box-shadow: var(--shadow-card);
   }
   .premium-card:hover {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-card-hover);
   }
 
   .filter-bar {
@@ -196,6 +244,54 @@
 
   .section-title {
     @apply text-base font-semibold text-foreground flex items-center gap-2;
+  }
+}
+
+@layer utilities {
+  /* Elevate overlay system (Replit-style). Buttons and badges already ask for these classes
+     but the CSS was never ported, so every control shipped with no hover/press feedback.
+     A translucent ::after darkens the surface on hover/active. `isolation: isolate` creates a
+     stacking context and `z-index: -1` paints the overlay ABOVE the element's own background
+     but BELOW its text/icons (per CSS paint order), so solid buttons never dim their label. */
+  .hover-elevate,
+  .active-elevate,
+  .active-elevate-2 {
+    position: relative;
+    isolation: isolate;
+  }
+  .hover-elevate::after,
+  .active-elevate::after,
+  .active-elevate-2::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: transparent;
+    transition: background-color 0.15s ease;
+  }
+  .hover-elevate:hover::after,
+  .active-elevate:hover::after {
+    background-color: var(--elevate-1);
+  }
+  .active-elevate:active::after,
+  .active-elevate-2:active::after {
+    background-color: var(--elevate-2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hover-elevate::after,
+    .active-elevate::after,
+    .active-elevate-2::after {
+      transition: none;
+    }
+  }
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
 

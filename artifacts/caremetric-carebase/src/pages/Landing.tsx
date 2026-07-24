@@ -661,7 +661,7 @@ export default function Landing() {
             <h1 className="text-balance text-[clamp(2.75rem,8vw,3.625rem)] font-extrabold leading-[1.05] tracking-[-0.02em]">
               <span className="block">Run the facility. </span>
               <span className="block">See the risk. </span>
-              <span className="block text-[#8ec8ff]">Prove the work.</span>
+              <span className="block text-[#8ec8ff]">Stay survey-ready.</span>
             </h1>
             <Reveal delay={0.08}>
               <p className="max-w-[34ch] text-[19px] leading-[1.5] text-white/85">

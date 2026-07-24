@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { BarChart3, ChevronRight, Plus, Target } from "lucide-react";
+import { BarChart } from "@/components/charts";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -144,6 +145,24 @@ export default function QapiDashboard() {
               </Card>
             ))}
           </div>
+          {metricEntries.length > 1 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Source metrics at a glance</CardTitle>
+                <CardDescription>Operational signals feeding your improvement projects for the selected period.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <BarChart
+                  aria-label="QAPI source metrics"
+                  horizontal
+                  data={metricEntries
+                    .map(([k, v]) => ({ label: human(k), value: Number(v) }))
+                    .sort((a, b) => b.value - a.value)
+                    .slice(0, 8)}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
           <Card>
             <CardHeader>
               <CardTitle>Improvement projects</CardTitle>

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Donut, RangeBar } from "@/components/charts";
 import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload, Download, HelpCircle, Info, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { supabase } from "@/lib/supabase";
@@ -126,50 +127,6 @@ function buildActionPlan({
   });
 
   return actions.slice(0, 4);
-}
-
-function DonutChart({ percentage, size = 140, strokeWidth = 12 }: { percentage: number; size?: number; strokeWidth?: number }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (percentage / 100) * circumference;
-  const color = percentage >= 90 ? "#10b981" : percentage >= 75 ? "#f59e0b" : "#ef4444";
-  const bgColor = percentage >= 90 ? "#d1fae5" : percentage >= 75 ? "#fef3c7" : "#fee2e2";
-
-  return (
-    <div
-      className="relative inline-flex items-center justify-center"
-      style={{ width: size, height: size }}
-      role="img"
-      aria-label={`Overall compliance: ${percentage} percent`}
-    >
-      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={bgColor}
-          strokeWidth={strokeWidth}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold tracking-tighter" style={{ color }}>{percentage}%</span>
-        <span className="text-[10px] text-muted-foreground font-medium">Compliant</span>
-      </div>
-    </div>
-  );
 }
 
 function StatLabel({ label, tooltip }: { label: string; tooltip: string }) {
@@ -398,13 +355,29 @@ export default function OrgDashboard() {
             </div>
             <Badge variant="outline">{benchmarkQuery.data.cohort?.organizationCount} organizations / {benchmarkQuery.data.cohort?.facilityCount} facilities</Badge>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.facilityMetrics?.trainingComplianceRate ?? benchmarkFacility.complianceScore)}%</p><p className="text-xs text-muted-foreground">your training compliance</p></div>
-            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.metrics?.trainingComplianceRate?.p50 ?? 0)}%</p><p className="text-xs text-muted-foreground">peer median compliance</p></div>
-            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.facilityMetrics?.medianCredentialRenewalDays ?? 0)}</p><p className="text-xs text-muted-foreground">your renewal runway days</p></div>
-            <div><p className="text-2xl font-semibold">{Math.round(benchmarkQuery.data.metrics?.medianCredentialRenewalDays?.p50 ?? 0)}</p><p className="text-xs text-muted-foreground">peer renewal runway days</p></div>
-            <div><p className="text-2xl font-semibold">{Number(benchmarkQuery.data.facilityMetrics?.incidentsPer100OccupiedBeds ?? 0).toFixed(1)}</p><p className="text-xs text-muted-foreground">your incidents / 100 beds</p></div>
-            <div><p className="text-2xl font-semibold">{Number(benchmarkQuery.data.metrics?.incidentsPer100OccupiedBeds?.p50 ?? 0).toFixed(1)}</p><p className="text-xs text-muted-foreground">peer incidents / 100 beds</p></div>
+          <div className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+            <RangeBar
+              label="Training compliance"
+              format={(n) => `${Math.round(n)}%`}
+              max={100}
+              value={Math.round(benchmarkQuery.data.facilityMetrics?.trainingComplianceRate ?? benchmarkFacility.complianceScore)}
+              p50={Math.round(benchmarkQuery.data.metrics?.trainingComplianceRate?.p50 ?? 0)}
+              p25={benchmarkQuery.data.metrics?.trainingComplianceRate?.p25 != null ? Math.round(benchmarkQuery.data.metrics.trainingComplianceRate.p25) : undefined}
+              p75={benchmarkQuery.data.metrics?.trainingComplianceRate?.p75 != null ? Math.round(benchmarkQuery.data.metrics.trainingComplianceRate.p75) : undefined}
+            />
+            <RangeBar
+              label="Credential renewal runway"
+              format={(n) => `${Math.round(n)}d`}
+              value={Math.round(benchmarkQuery.data.facilityMetrics?.medianCredentialRenewalDays ?? 0)}
+              p50={Math.round(benchmarkQuery.data.metrics?.medianCredentialRenewalDays?.p50 ?? 0)}
+            />
+            <RangeBar
+              label="Incidents / 100 beds"
+              format={(n) => n.toFixed(1)}
+              higherIsBetter={false}
+              value={Number(benchmarkQuery.data.facilityMetrics?.incidentsPer100OccupiedBeds ?? 0)}
+              p50={Number(benchmarkQuery.data.metrics?.incidentsPer100OccupiedBeds?.p50 ?? 0)}
+            />
           </div>
           {benchmarkQuery.data.metrics?.topCitationTopics?.length ? <div className="mt-4 rounded-lg border p-3">
             <p className="text-sm font-medium">Peer citation topics meeting the same k-anonymity threshold</p>
@@ -479,7 +452,7 @@ export default function OrgDashboard() {
           </div>
         </QueryLoading>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-500">
           <div className="stat-card">
             <div className="flex items-start justify-between">
               <div>
@@ -705,7 +678,7 @@ export default function OrgDashboard() {
               {summaryLoading ? (
                 <Skeleton className="h-[140px] w-[140px] rounded-full" />
               ) : (
-                <DonutChart percentage={compliancePct} />
+                <Donut value={compliancePct} aria-label={`Overall compliance: ${compliancePct} percent`} />
               )}
               <div className="flex-1">
                 <p className={`text-lg font-semibold ${complianceColor}`}>

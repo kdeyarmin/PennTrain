@@ -2,15 +2,17 @@
 
 ## Decision
 
-CareMetric should use a **base subscription with included usage and a value-aligned overage**, with monthly and annual cadences:
+CareMetric should use a **base subscription with included usage and a value-aligned overage**, with monthly and annual cadences. The catalog is a **tier ladder** that bundles the operational pillars (`train`, `workforce`, `compliance`, `billing`, `carebase`):
 
-| Package | Product access | Recommended value metric | Launch offer | Annual offer |
+| Tier | Bundled modules | Recommended value metric | Launch offer | Annual offer |
 |---|---|---|---|---|
 | CareMetric Train | Train | Monthly active learner | $239/month includes 25 active learners, then $4/additional active learner | $2,390/year includes 25, then $40/additional active learner/year |
-| CareMetric CareBase | CareBase + Train | Active resident | $499/month includes 25 active residents, then $4/additional active resident | $4,990/year includes 25, then $40/additional active resident/year |
-| CareMetric Portfolio | CareBase + Train | Negotiated facility/resident commitment | Custom annual contract | Custom annual contract |
+| CareMetric Essentials | Train + Compliance | Active resident | $299/month includes 25 active residents, then $4/additional active resident | $2,990/year includes 25, then $40/additional active resident/year |
+| CareMetric Professional | Train + Compliance + Workforce + Billing | Active resident | $399/month includes 25 active residents, then $4/additional active resident | $3,990/year includes 25, then $40/additional active resident/year |
+| CareMetric CareBase | All pillars (full care operations) | Active resident | $499/month includes 25 active residents, then $4/additional active resident | $4,990/year includes 25, then $40/additional active resident/year |
+| CareMetric Portfolio | All pillars | Negotiated facility/resident commitment | Custom annual contract | Custom annual contract |
 
-The amounts are launch hypotheses, not code constants. Platform administrators manage them in **Admin > Packages & billing**. A production Stripe Price ID must be attached before a self-serve configuration is checkout-ready.
+The resident-priced tiers ascend Essentials → Professional → CareBase in $100/month steps, keeping the established CareBase base fee unchanged so no existing subscription is repriced. Train stays learner-priced because a training-only facility has no residents. The amounts are launch hypotheses, not code constants. Platform administrators manage them in **Admin > Packages & billing**. A production Stripe Price ID must be attached before a self-serve configuration is checkout-ready.
 
 ## Why this model fits the product
 
@@ -75,8 +77,14 @@ Create each self-serve Price as a recurring, graduated-tier Stripe Price. The fi
 |---|---|---|---|
 | Train monthly | Monthly | `$239` flat amount and `$0` per unit | `$4` per unit |
 | Train annual | Yearly | `$2,390` flat amount and `$0` per unit | `$40` per unit |
+| Essentials monthly | Monthly | `$299` flat amount and `$0` per unit | `$4` per unit |
+| Essentials annual | Yearly | `$2,990` flat amount and `$0` per unit | `$40` per unit |
+| Professional monthly | Monthly | `$399` flat amount and `$0` per unit | `$4` per unit |
+| Professional annual | Yearly | `$3,990` flat amount and `$0` per unit | `$40` per unit |
 | CareBase monthly | Monthly | `$499` flat amount and `$0` per unit | `$4` per unit |
 | CareBase annual | Yearly | `$4,990` flat amount and `$0` per unit | `$40` per unit |
+
+Essentials and Professional use the same active-resident graduated structure as CareBase. Their four draft prices are seeded without Stripe Price IDs; connect an immutable Stripe Price to each before enabling checkout, exactly as for Train and CareBase.
 
 Use `quantity = actual active records` in Stripe. A quantity from 1 through 25 bills only the first-tier flat amount; higher quantities add second-tier unit charges. Keep Stripe's tax behavior, currency, interval, tiers, and trial configuration aligned with the CareMetric display record.
 

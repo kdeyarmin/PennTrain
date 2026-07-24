@@ -12,7 +12,7 @@ test.describe("public release smoke journeys", () => {
 
     await expect(page.getByRole("heading", {
       level: 1,
-      name: "Run the facility. See the risk. Prove the work.",
+      name: "Run the facility. See the risk. Stay survey-ready.",
     })).toBeVisible();
     await expect(page.getByRole("link", { name: "Start a Free Trial" }).first()).toHaveAttribute("href", "/signup");
     await expect(page.getByRole("link", { name: "Log In" }).first()).toHaveAttribute("href", "/login");
