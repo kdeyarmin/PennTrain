@@ -6,7 +6,9 @@
 // with SPA fallback routing, and (b) expose GET /health for Railway's
 // healthcheck, since `vite preview` cannot do either safely in production.
 import { createServer } from "node:http";
+import { createReadStream } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -249,6 +251,18 @@ function parseRange(header, size) {
   return { start, end };
 }
 
+// Streams a file (or a byte range of it) to the response. Browsers abort media
+// range requests constantly while seeking, so a connection dropped mid-stream is
+// normal operation, not a server error worth logging or rethrowing.
+async function streamFileBody(filePath, res, options) {
+  try {
+    await pipeline(createReadStream(filePath, options), res);
+  } catch (error) {
+    if (error?.code === "ERR_STREAM_PREMATURE_CLOSE" || error?.code === "ECONNRESET") return;
+    throw error;
+  }
+}
+
 async function serveFile(filePath, req, res, { cacheable }) {
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
@@ -258,8 +272,6 @@ async function serveFile(filePath, req, res, { cacheable }) {
     "Cache-Control": cacheable ? "public, max-age=31536000, immutable" : "no-cache",
   };
 
-  let data = null;
-  let encoded = false;
   if (COMPRESSIBLE_EXTENSIONS.has(ext)) {
     // Cache correctness even when we answer with the identity body: the response
     // still varies on Accept-Encoding.
@@ -267,44 +279,55 @@ async function serveFile(filePath, req, res, { cacheable }) {
     const picked = pickEncoding(req.headers["accept-encoding"]);
     if (picked) {
       try {
-        data = await readFile(filePath + picked.suffix);
+        // Precompressed siblings only exist for small text assets; buffering them
+        // whole is fine. Range requests don't apply to content-encoded bodies (a
+        // client's range refers to the identity resource, not compressed bytes).
+        const data = await readFile(filePath + picked.suffix);
         headers["Content-Encoding"] = picked.encoding;
-        encoded = true;
+        headers["Content-Length"] = data.byteLength;
+        res.writeHead(200, headers);
+        res.end(req.method === "HEAD" ? undefined : data);
+        return;
       } catch (error) {
         if (error?.code !== "ENOENT") throw error;
         // No precompressed sibling -- fall back to identity.
       }
     }
   }
-  if (data === null) data = await readFile(filePath);
 
-  // Byte-range support for identity bodies so browser media controls can fetch
-  // metadata and seek without pulling the whole file (mp4 posters/videos).
-  // Skipped for content-encoded bodies, where a client's range refers to the
-  // identity resource, not the compressed bytes we would send.
-  if (!encoded) {
-    headers["Accept-Ranges"] = "bytes";
-    const range = parseRange(req.headers["range"], data.byteLength);
-    if (range === "unsatisfiable") {
-      res.writeHead(416, { ...headers, "Content-Range": `bytes */${data.byteLength}` });
+  // Identity bodies stream straight from disk -- never buffered whole -- so large
+  // media (multi-MB marketing mp4s) can't pile up in memory. That matters most for
+  // byte ranges: a browser seeking a video issues many small ranges against the
+  // same large file, and buffering the full file for each one is an OOM risk.
+  const info = await stat(filePath);
+  headers["Accept-Ranges"] = "bytes";
+  const range = parseRange(req.headers["range"], info.size);
+  if (range === "unsatisfiable") {
+    res.writeHead(416, { ...headers, "Content-Range": `bytes */${info.size}` });
+    res.end();
+    return;
+  }
+  if (range) {
+    res.writeHead(206, {
+      ...headers,
+      "Content-Range": `bytes ${range.start}-${range.end}/${info.size}`,
+      "Content-Length": range.end - range.start + 1,
+    });
+    if (req.method === "HEAD") {
       res.end();
       return;
     }
-    if (range) {
-      const chunk = data.subarray(range.start, range.end + 1);
-      res.writeHead(206, {
-        ...headers,
-        "Content-Range": `bytes ${range.start}-${range.end}/${data.byteLength}`,
-        "Content-Length": chunk.byteLength,
-      });
-      res.end(chunk);
-      return;
-    }
+    await streamFileBody(filePath, res, { start: range.start, end: range.end });
+    return;
   }
 
-  headers["Content-Length"] = data.byteLength;
+  headers["Content-Length"] = info.size;
   res.writeHead(200, headers);
-  res.end(data);
+  if (req.method === "HEAD") {
+    res.end();
+    return;
+  }
+  await streamFileBody(filePath, res);
 }
 
 const server = createServer(async (req, res) => {
