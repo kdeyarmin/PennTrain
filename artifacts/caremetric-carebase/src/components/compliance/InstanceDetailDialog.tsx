@@ -241,7 +241,7 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
                         <span className="truncate">{doc.document_label || doc.file_name}</span>
                       </button>
                       {canManage && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeDoc.mutate(doc.id)}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeDoc.mutate(doc)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}

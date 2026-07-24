@@ -74,10 +74,14 @@ export default function IncidentDetail() {
   usePageTitle(incident ? humanize(incident.incident_type) : undefined);
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
-  // QAPI routes are PCH/ALF facility-type gated -- only surface the escalate action when the viewer
-  // can reach the QAPI workspace, so the deep link never bounces off the route guard.
+  // QAPI routes are PCH/ALF facility-type gated. Surface the escalate action only when THIS
+  // incident's own facility is PCH/ALF (a QAPI project is created there, not at some other visible
+  // facility) AND the viewer can reach the QAPI workspace, so the deep link never bounces off the guard.
   const { facilityTypes } = useVisibleFacilityTypes();
-  const hasPchAlr = hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
+  const incidentFacilityType = facilities?.find((f) => f.id === incident?.facility_id)?.facility_type ?? null;
+  const hasPchAlr = incidentFacilityType != null
+    && hasAnyFacilityType(new Set([incidentFacilityType]), PCH_ALR_ONLY_FACILITY_TYPES)
+    && hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
   const { data: profiles } = useListProfiles();
   // Scoped to this incident's facility -- used only to resolve resident_identifier into a display
   // name when it holds a resident id (see residentDisplay below), not to power a picker here.

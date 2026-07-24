@@ -33,6 +33,7 @@ export interface RateAgreementLike {
   resident_id: string;
   level_of_care_charge: number;
   effective_from: string;
+  effective_through?: string | null;
   version_number: number;
 }
 export interface AssessmentDateLike {
@@ -60,10 +61,17 @@ export interface CareLevelReviewRow {
   status: CareLevelStatus;
 }
 
-/** Pick the operative (highest-version) rate agreement per resident. */
-export function currentRatesByResident(rates: RateAgreementLike[]): Map<string, RateAgreementLike> {
+/**
+ * Pick the rate agreement actually in force today per resident (highest version among those whose
+ * effective window contains today). A future-dated amendment must not be treated as the current
+ * billed rate, and an expired one is no longer in force.
+ */
+export function currentRatesByResident(rates: RateAgreementLike[], today: Date = new Date()): Map<string, RateAgreementLike> {
   const current = new Map<string, RateAgreementLike>();
   for (const rate of rates) {
+    const startsBy = (daysUntil(rate.effective_from, today) ?? 0) <= 0;
+    const notEnded = !rate.effective_through || (daysUntil(rate.effective_through, today) ?? 0) >= 0;
+    if (!startsBy || !notEnded) continue;
     const existing = current.get(rate.resident_id);
     if (!existing || rate.version_number > existing.version_number) current.set(rate.resident_id, rate);
   }
@@ -164,7 +172,7 @@ export function buildCareLevelReview(
   assessmentSources: AssessmentDateLike[][],
   today: Date = new Date(),
 ): CareLevelReviewRow[] {
-  const currentRates = currentRatesByResident(rates);
+  const currentRates = currentRatesByResident(rates, today);
   const lastAssessed = latestAssessmentByResident(...assessmentSources);
   return residents.map((resident) =>
     computeResidentCareLevelReview(resident, currentRates.get(resident.id) ?? null, lastAssessed.get(resident.id) ?? null, today),

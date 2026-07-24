@@ -124,11 +124,13 @@ export interface InstanceLike {
 /**
  * The status to show/count today. The nightly maintenance job flips past-due occurrences to
  * "overdue", but the UI derives the same verdict immediately so it is never stale between runs:
- * a not_started / in_progress occurrence whose due date has passed reads as overdue.
+ * a not_started / in_progress occurrence whose due date has passed reads as overdue. An
+ * awaiting_review occurrence past its due date is also overdue — the obligation is late and its
+ * approval is outstanding, so it must stay actionable and must not count as compliant.
  */
 export function effectiveStatus(instance: InstanceLike, today: Date = new Date()): ComplianceStatus {
   const s = instance.status;
-  if (s === "not_started" || s === "in_progress") {
+  if (s === "not_started" || s === "in_progress" || s === "awaiting_review") {
     const d = daysUntil(instance.due_date, today);
     if (d !== null && d < 0) return "overdue";
   }

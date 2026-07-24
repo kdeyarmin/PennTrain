@@ -38,6 +38,17 @@ function asArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
 }
 
+// A plan must carry actual content before it can advance; approving an empty draft would activate a
+// RASP with no needs/goals/services and generate no care tasks. Content arrives by copying the active
+// plan into the draft or by accepting an assessment proposal (this section has no free-form editor).
+function planHasContent(plan: ResidentSupportPlan): boolean {
+  return asArray(plan.needs).length > 0
+    || asArray(plan.goals).length > 0
+    || asArray(plan.services).length > 0
+    || asArray(plan.interventions).length > 0
+    || (typeof plan.staff_instructions === "string" && plan.staff_instructions.trim().length > 0);
+}
+
 function itemLabel(item: Record<string, unknown>): string {
   for (const key of ["name", "service_name", "need", "goal", "intervention", "description", "text", "title"]) {
     const v = item[key];
@@ -78,7 +89,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   const [reviewDueDate, setReviewDueDate] = useState("");
   const [attested, setAttested] = useState(false);
   const [reviewFor, setReviewFor] = useState<SupportPlanProposal | null>(null);
-  const [decision, setDecision] = useState<"accepted" | "modified" | "rejected">("accepted");
+  const [decision, setDecision] = useState<"accepted" | "rejected">("accepted");
   const [rationale, setRationale] = useState("");
 
   const plans = plansQuery.data ?? [];
@@ -105,6 +116,14 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   }
 
   async function submit(plan: ResidentSupportPlan) {
+    if (!planHasContent(plan)) {
+      toast({
+        title: "Add plan content first",
+        description: "An empty support plan can't be submitted. Start the draft from the active plan or accept an assessment proposal so it has needs, goals, services, or interventions.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       await submitPlan.mutateAsync(plan.id);
       toast({ title: "Submitted for review" });
@@ -246,7 +265,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                     </button>
                     {canManage && (
                       <div className="flex gap-1.5">
-                        {plan.state === "draft" && <Button size="sm" variant="outline" onClick={() => submit(plan)} disabled={submitPlan.isPending}>Submit for review</Button>}
+                        {plan.state === "draft" && <Button size="sm" variant="outline" onClick={() => submit(plan)} disabled={submitPlan.isPending || !planHasContent(plan)} title={!planHasContent(plan) ? "Add plan content before submitting" : undefined}>Submit for review</Button>}
                         {plan.state === "in_review" && <Button size="sm" onClick={() => openApprove(plan)}>Approve</Button>}
                       </div>
                     )}
@@ -299,7 +318,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Review support-plan proposal</DialogTitle>
-            <DialogDescription>Record your decision. Accepting or modifying keeps the proposal for planning; rejecting closes it.</DialogDescription>
+            <DialogDescription>Record your decision. Accepting keeps the proposal for planning; rejecting closes it.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
@@ -308,7 +327,6 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="accepted">Accept</SelectItem>
-                  <SelectItem value="modified">Accept with modifications</SelectItem>
                   <SelectItem value="rejected">Reject</SelectItem>
                 </SelectContent>
               </Select>

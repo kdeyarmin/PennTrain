@@ -19,15 +19,25 @@ const rate = (resident_id: string, over: Partial<RateAgreementLike> = {}): RateA
 });
 
 describe("currentRatesByResident", () => {
-  it("keeps the highest-version rate per resident", () => {
+  it("keeps the highest-version in-force rate per resident", () => {
     const map = currentRatesByResident([
       rate("a", { version_number: 1, level_of_care_charge: 100 }),
       rate("a", { version_number: 3, level_of_care_charge: 300 }),
       rate("a", { version_number: 2, level_of_care_charge: 200 }),
       rate("b", { version_number: 1, level_of_care_charge: 50 }),
-    ]);
+    ], TODAY);
     expect(map.get("a")?.level_of_care_charge).toBe(300);
     expect(map.get("b")?.level_of_care_charge).toBe(50);
+  });
+
+  it("ignores a future-dated amendment and an expired rate", () => {
+    const map = currentRatesByResident([
+      rate("a", { version_number: 1, level_of_care_charge: 100, effective_from: "2026-01-01" }),
+      rate("a", { version_number: 2, level_of_care_charge: 500, effective_from: "2026-12-01" }), // future
+      rate("b", { version_number: 1, level_of_care_charge: 80, effective_from: "2025-01-01", effective_through: "2025-12-31" }), // expired
+    ], TODAY);
+    expect(map.get("a")?.level_of_care_charge).toBe(100); // the not-yet-effective v2 is ignored
+    expect(map.has("b")).toBe(false); // an expired rate is not in force today
   });
 });
 

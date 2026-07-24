@@ -52,10 +52,13 @@ describe("effectiveStatus", () => {
     expect(effectiveStatus(inst({ status: "in_progress", due_date: "2026-07-01" }), TODAY)).toBe("overdue");
   });
 
-  it("does not override terminal or review statuses", () => {
+  it("does not override terminal statuses, but a past-due review reads as overdue", () => {
     expect(effectiveStatus(inst({ status: "complete", due_date: "2026-07-01" }), TODAY)).toBe("complete");
     expect(effectiveStatus(inst({ status: "not_applicable", due_date: "2026-07-01" }), TODAY)).toBe("not_applicable");
-    expect(effectiveStatus(inst({ status: "awaiting_review", due_date: "2026-07-01" }), TODAY)).toBe("awaiting_review");
+    // Awaiting review before its due date stays awaiting_review...
+    expect(effectiveStatus(inst({ status: "awaiting_review", due_date: "2026-08-10" }), TODAY)).toBe("awaiting_review");
+    // ...but once past due it is overdue (the approval is late and must stay actionable, not "good").
+    expect(effectiveStatus(inst({ status: "awaiting_review", due_date: "2026-07-01" }), TODAY)).toBe("overdue");
   });
 
   it("keeps a future not_started as not_started", () => {
@@ -97,8 +100,9 @@ describe("computeComplianceScore", () => {
     expect(computeComplianceScore([inst({ status: "complete", due_date: "2026-07-01" }), inst({ status: "not_applicable", due_date: "2026-07-01" })], TODAY)).toBe(100);
   });
 
-  it("counts awaiting_review as good", () => {
-    expect(computeComplianceScore([inst({ status: "awaiting_review", due_date: "2026-07-01" })], TODAY)).toBe(100);
+  it("counts a not-yet-due awaiting_review as good, but a past-due one as overdue", () => {
+    expect(computeComplianceScore([inst({ status: "awaiting_review", due_date: "2026-08-01" })], TODAY)).toBe(100);
+    expect(computeComplianceScore([inst({ status: "awaiting_review", due_date: "2026-07-01" })], TODAY)).toBe(0);
   });
 
   it("returns null when there is nothing scoreable yet", () => {
@@ -114,7 +118,7 @@ describe("summarizeInstances", () => {
         inst({ status: "complete", due_date: "2026-07-01" }),
         inst({ status: "not_started", due_date: "2026-06-01" }), // overdue
         inst({ status: "in_progress", due_date: "2026-07-30", requires_evidence: true }), // due soon + missing evidence
-        inst({ status: "awaiting_review", due_date: "2026-07-10" }),
+        inst({ status: "awaiting_review", due_date: "2026-08-10" }), // not yet due -> stays awaiting_review
         inst({ status: "not_applicable", due_date: "2026-07-01" }),
         inst({ status: "not_started", due_date: "2026-12-01" }), // future, neutral
       ],

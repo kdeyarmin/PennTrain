@@ -27,6 +27,24 @@ end $$;
 revoke all on function app_private.assert_compliance_manager(uuid, uuid) from public, anon, authenticated, service_role;
 
 ------------------------------------------------------------------------------------------------
+-- Stricter guard for org-wide templates (no facility to scope by): require an org admin. A facility
+-- manager is scoped to assigned facilities and must not create/edit/archive shared org templates.
+------------------------------------------------------------------------------------------------
+create or replace function app_private.assert_compliance_org_admin(p_org uuid)
+returns void language plpgsql stable security definer set search_path = '' as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role' or public.is_platform_admin() then
+    return;
+  end if;
+  if auth.uid() is null
+     or (select public.current_org_id()) is distinct from p_org
+     or (select public.current_role()) <> 'org_admin' then
+    raise exception 'Only an organization administrator can manage org-wide compliance templates' using errcode = '42501';
+  end if;
+end $$;
+revoke all on function app_private.assert_compliance_org_admin(uuid) from public, anon, authenticated, service_role;
+
+------------------------------------------------------------------------------------------------
 -- Cadence -> interval (null for one_time). Pure helper.
 ------------------------------------------------------------------------------------------------
 create or replace function app_private.compliance_interval(p_recurrence text, p_custom_days integer)
@@ -158,6 +176,7 @@ begin
       raise exception 'An organization is required' using errcode = '22023';
     end if;
     perform app_private.assert_compliance_manager(v_org, p_facility_id);
+    if p_is_template then perform app_private.assert_compliance_org_admin(v_org); end if;
 
     if p_building_id is not null and not exists (
       select 1 from public.facility_buildings b where b.id = p_building_id and b.facility_id = p_facility_id
@@ -193,6 +212,7 @@ begin
     select * into r from public.compliance_requirements where id = p_id for update;
     if not found then raise exception 'Requirement not found' using errcode = 'P0002'; end if;
     perform app_private.assert_compliance_manager(r.organization_id, r.facility_id);
+    if r.is_template then perform app_private.assert_compliance_org_admin(r.organization_id); end if;
 
     if p_building_id is not null and r.facility_id is not null and not exists (
       select 1 from public.facility_buildings b where b.id = p_building_id and b.facility_id = r.facility_id
@@ -248,6 +268,7 @@ begin
   select * into r from public.compliance_requirements where id = p_requirement_id for update;
   if not found then raise exception 'Requirement not found' using errcode = 'P0002'; end if;
   perform app_private.assert_compliance_manager(r.organization_id, r.facility_id);
+  if r.is_template then perform app_private.assert_compliance_org_admin(r.organization_id); end if;
 
   update public.compliance_requirements set is_active = coalesce(p_active, is_active)
   where id = r.id returning * into r;
@@ -359,16 +380,28 @@ begin
 
   v_prior := i.status;
 
+  -- Enforce the allowed source states server-side. This RPC -- not which buttons the UI renders --
+  -- is the write boundary, so an action on a state it does not apply to (e.g. starting a completed
+  -- occurrence, or completing one already awaiting review) must be rejected here.
   if p_action = 'start' then
+    if i.status not in ('not_started', 'in_progress', 'overdue') then
+      raise exception 'This occurrence cannot be started from its current state' using errcode = '22023';
+    end if;
     v_new := 'in_progress';
   elsif p_action = 'submit_review' then
     if not r.requires_review then raise exception 'This requirement does not use review' using errcode = '22023'; end if;
+    if i.status not in ('not_started', 'in_progress', 'overdue') then
+      raise exception 'This occurrence cannot be submitted for review from its current state' using errcode = '22023';
+    end if;
     if r.requires_evidence and i.evidence_count = 0 then
       raise exception 'Attach evidence before submitting for review' using errcode = '55000';
     end if;
     v_new := 'awaiting_review';
   elsif p_action = 'complete' then
     if r.requires_review then raise exception 'Submit for review instead of completing directly' using errcode = '22023'; end if;
+    if i.status not in ('not_started', 'in_progress', 'overdue') then
+      raise exception 'This occurrence cannot be completed from its current state' using errcode = '22023';
+    end if;
     if r.requires_evidence and i.evidence_count = 0 then
       raise exception 'Attach evidence before marking complete' using errcode = '55000';
     end if;
@@ -378,12 +411,21 @@ begin
     v_new := 'complete';
   elsif p_action = 'mark_not_applicable' then
     if v_note is null then raise exception 'A reason is required to mark not applicable' using errcode = '22023'; end if;
+    if i.status not in ('not_started', 'in_progress', 'overdue', 'awaiting_review') then
+      raise exception 'This occurrence cannot be marked not applicable from its current state' using errcode = '22023';
+    end if;
     v_new := 'not_applicable';
   elsif p_action = 'approve_exception' then
     if v_note is null then raise exception 'A justification is required to approve an exception' using errcode = '22023'; end if;
+    if i.status not in ('not_started', 'in_progress', 'overdue', 'awaiting_review') then
+      raise exception 'This occurrence cannot receive an exception from its current state' using errcode = '22023';
+    end if;
     v_new := 'exception_approved';
   elsif p_action = 'reopen' then
     if v_note is null then raise exception 'A reason is required to reopen' using errcode = '22023'; end if;
+    if i.status not in ('complete', 'not_applicable', 'exception_approved', 'awaiting_review') then
+      raise exception 'Only a completed, closed, or awaiting-review occurrence can be reopened' using errcode = '22023';
+    end if;
     v_new := 'in_progress';
   else
     raise exception 'Unsupported action' using errcode = '22023';
@@ -527,6 +569,18 @@ begin
   if length(btrim(coalesce(p_storage_path, ''))) < 1 or length(btrim(coalesce(p_file_name, ''))) < 1 then
     raise exception 'A stored file is required' using errcode = '22023';
   end if;
+  -- Bind the evidence to a real, in-scope object: the path must live under this occurrence's
+  -- {org}/{facility}/{instance}/ prefix and a matching row must exist in the private bucket. This
+  -- stops a direct RPC call from registering a fabricated path and passing the evidence gate.
+  if position((i.organization_id::text || '/' || i.facility_id::text || '/' || i.id::text || '/') in btrim(p_storage_path)) <> 1 then
+    raise exception 'Evidence path is outside this occurrence''s scope' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from storage.objects o
+    where o.bucket_id = 'compliance-evidence' and o.name = btrim(p_storage_path)
+  ) then
+    raise exception 'The evidence file was not found in storage' using errcode = '22023';
+  end if;
 
   insert into public.compliance_requirement_documents
     (organization_id, facility_id, requirement_id, instance_id, storage_path, file_name, file_type, file_size, document_label, uploaded_by_profile_id)
@@ -586,10 +640,20 @@ begin
     perform app_private.ensure_compliance_instances(r.id, p_today + greatest(r.warning_days, 30));
   end loop;
 
-  -- 2. Flip past-due, non-terminal occurrences to overdue.
-  update public.compliance_requirement_instances
-  set status = 'overdue'
-  where status in ('not_started', 'in_progress') and due_date < p_today;
+  -- 2. Flip past-due, non-terminal occurrences to overdue, recording each transition in the
+  --    occurrence timeline so the history shows exactly when it became overdue.
+  for i in
+    select id, organization_id, facility_id, requirement_id, status as prior_status
+    from public.compliance_requirement_instances
+    where status in ('not_started', 'in_progress') and due_date < p_today
+  loop
+    update public.compliance_requirement_instances set status = 'overdue' where id = i.id;
+    insert into public.compliance_requirement_events
+      (organization_id, facility_id, requirement_id, instance_id, event_type, prior_status, new_status, metadata)
+    values (i.organization_id, i.facility_id, i.requirement_id, i.id, 'status_changed', i.prior_status, 'overdue',
+      jsonb_build_object('source', 'maintenance'));
+    v_touched := v_touched + 1;
+  end loop;
 
   -- 3. Due-soon reminders (once per occurrence) to the responsible person, or to facility
   --    managers + org admins when unassigned.
@@ -628,7 +692,8 @@ begin
     select ci.*, cr.title
     from public.compliance_requirement_instances ci
     join public.compliance_requirements cr on cr.id = ci.requirement_id
-    where ci.status = 'overdue'
+    where (ci.status = 'overdue' or (ci.status = 'awaiting_review' and ci.due_date < p_today))
+      and coalesce(ci.escalation_level, 0) < 20
       and (ci.last_escalated_at is null or ci.last_escalated_at < p_today::timestamptz)
       and cr.is_active
   loop

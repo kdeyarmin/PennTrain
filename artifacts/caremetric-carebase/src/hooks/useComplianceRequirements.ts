@@ -267,7 +267,13 @@ export function useUploadComplianceEvidence() {
 export function useRemoveComplianceEvidence() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (documentId: string) => callRpc<boolean>("remove_compliance_evidence", { p_document_id: documentId }),
+    mutationFn: async (document: ComplianceDocument) => {
+      // Delete the stored file first so a sensitive evidence object never orphans in the private
+      // bucket; only if that succeeds do we drop the metadata row + evidence count via the RPC.
+      const del = await supabase.storage.from(document.storage_bucket).remove([document.storage_path]);
+      if (del.error) throw new Error(del.error.message);
+      return callRpc<boolean>("remove_compliance_evidence", { p_document_id: document.id });
+    },
     onSuccess: () => invalidateAll(queryClient),
   });
 }

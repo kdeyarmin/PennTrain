@@ -118,7 +118,7 @@ export function RequirementEditorDialog({ open, onOpenChange, requirement, isTem
         recurrence: form.recurrence,
         customIntervalDays: form.recurrence === "custom" ? Number(form.customIntervalDays) : null,
         anchorDate: form.anchorDate || null,
-        warningDays: Number(form.warningDays) || 14,
+        warningDays: Number.isFinite(Number(form.warningDays)) && Number(form.warningDays) >= 0 ? Number(form.warningDays) : 14,
         requiresEvidence: form.requiresEvidence,
         requiresReview: form.requiresReview,
         isTemplate: effectiveTemplate,
