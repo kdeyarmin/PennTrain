@@ -16747,6 +16747,9 @@ export type Database = {
       organizations: {
         Row: {
           address: string | null
+          ai_features_enabled: boolean
+          baa_accepted_at: string | null
+          baa_version: string | null
           city: string | null
           contact_email: string | null
           contact_name: string | null
@@ -16770,6 +16773,9 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_features_enabled?: boolean
+          baa_accepted_at?: string | null
+          baa_version?: string | null
           city?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -16793,6 +16799,9 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_features_enabled?: boolean
+          baa_accepted_at?: string | null
+          baa_version?: string | null
           city?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -33900,6 +33909,7 @@ export type Database = {
         }
         Returns: string
       }
+      org_ai_allowed: { Args: { p_org: string }; Returns: boolean }
       org_feature_enabled: { Args: { p_feature_key: string }; Returns: boolean }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       pin_survey_day_binder: {
@@ -34328,6 +34338,15 @@ export type Database = {
           p_resident_id: string
           p_reviewed_at: string
           p_risk_level: string
+        }
+        Returns: string
+      }
+      record_organization_signup: {
+        Args: {
+          p_baa_version: string
+          p_name: string
+          p_slug: string
+          p_trial_ends_at: string
         }
         Returns: string
       }
@@ -35538,6 +35557,10 @@ export type Database = {
           p_sms_estimate_usd: number
           p_warning_percent?: number
         }
+        Returns: undefined
+      }
+      set_organization_baa_acceptance: {
+        Args: { p_baa_version?: string; p_org: string }
         Returns: undefined
       }
       set_organization_entitlement_grant: {

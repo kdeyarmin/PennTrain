@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
+import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -249,12 +250,17 @@ Deno.serve(async (req: Request) => {
   if (!serviceRoleKey) return json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
   const privilegedClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
-  const { data: aiGenerationSetting, error: aiGenerationSettingError } = await callerClient
-    .rpc("get_platform_setting", { p_key: "ai_wellness_summary_generation_enabled" });
+  // get_platform_setting() was dropped by 20260706043940; read the settings row directly
+  // with the privileged client, the same pattern compliance-copilot uses. Fail closed.
+  const { data: aiGenerationSetting, error: aiGenerationSettingError } = await privilegedClient
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "ai_wellness_summary_generation_enabled")
+    .maybeSingle();
   if (aiGenerationSettingError) {
     return json({ error: "Failed to read platform AI settings" }, 500);
   }
-  if (aiGenerationSetting !== true) {
+  if (aiGenerationSetting?.value !== true) {
     return json({ error: "AI wellness summary generation is currently disabled by the platform administrator." }, 403);
   }
 
@@ -279,6 +285,14 @@ Deno.serve(async (req: Request) => {
 
   const form = formRaw as ResidentAssessmentFormRow;
   if (form.status !== "draft") return json({ error: "AI summaries can only be generated for draft forms" }, 409);
+
+  // PT-019: per-organization BAA gate, on top of the platform switch above. The
+  // assessment form's organization_id is the org derivation this function already
+  // uses for its audit rows -- and the assessment content is PHI, so this endpoint
+  // must never reach the provider without a recorded BAA (or a demo org).
+  if (!(await orgAiAllowed(callerClient, form.organization_id))) {
+    return json(orgAiDisabledBody(), 403);
+  }
 
   const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
   const requestedModel = modelCandidates[0];

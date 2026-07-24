@@ -251,17 +251,22 @@ Deno.serve(async (req: Request) => {
     let organization: { id: string; name: string } | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const slug = attempt === 0 ? baseSlug : `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`;
-      const { data, error } = await adminClient
-        .from("organizations")
-        .insert({ name: organizationName, slug, trial_ends_at: trialEndsAt })
-        .select("id, name")
-        .single();
-      if (!error) {
-        organization = data;
-        organizationId = data.id;
+      // PT-019: record_organization_signup creates the organization AND stamps the
+      // accepted BAA version/timestamp onto it in one statement, so the per-org AI
+      // gate (org_ai_allowed) passes for self-service signups from day one. A slug
+      // collision surfaces as SQLSTATE 23505, preserving the retry loop.
+      const { data: newOrgId, error } = await adminClient.rpc("record_organization_signup", {
+        p_name: organizationName,
+        p_slug: slug,
+        p_trial_ends_at: trialEndsAt,
+        p_baa_version: baaVersion,
+      });
+      if (!error && typeof newOrgId === "string") {
+        organization = { id: newOrgId, name: organizationName };
+        organizationId = newOrgId;
         break;
       }
-      if (error.code !== "23505") throw new HttpError(400, "organization_create_failed", "We could not create your organization. Please check your details and try again.", error.message);
+      if (error?.code !== "23505") throw new HttpError(400, "organization_create_failed", "We could not create your organization. Please check your details and try again.", error?.message);
     }
     if (!organization) {
       throw new HttpError(500, "organization_slug_failed", "Could not allocate a unique organization slug -- try again");

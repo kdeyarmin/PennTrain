@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
+import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
 import {
   COPILOT_SAFEGUARDS,
   COPILOT_SYSTEM_PROMPT,
@@ -468,6 +469,12 @@ Deno.serve(async (req: Request) => {
   if (facilityError || !facility) return json({ error: "Facility not found or outside caller scope" }, 404);
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
     return json({ error: "The compliance copilot is limited to PCH and ALF facilities." }, 400);
+  }
+  // PT-019: per-organization BAA gate, on top of the platform switch above. The
+  // facility row (caller-scoped RLS read) is the org derivation this function
+  // already uses for its audit rows.
+  if (!(await orgAiAllowed(callerClient, facility.organization_id))) {
+    return json(orgAiDisabledBody(), 403);
   }
   const authorizedUser = user;
   const scopedFacility = facility;
