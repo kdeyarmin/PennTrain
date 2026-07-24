@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
  * public/ too: logo.svg (full stacked lockup), logo-mark.svg.
  */
 
-export const BRAND_BLUE = "#1d4fd7";
+// Aligned to the app's --primary token (hsl(221 83% 53%) ≈ #2563eb) so the marketing
+// wordmark and the auth H1 read as the same blue as every primary button and CTA.
+export const BRAND_BLUE = "#2563eb";
 export const BRAND_GRAY = "#59616d";
 
 /**

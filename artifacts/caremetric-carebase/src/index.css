@@ -136,6 +136,16 @@
   --secondary-border: 220 13% 87%;
   --destructive-border: 0 72% 43%;
 
+  /* Marketing surface palette — the dark-navy hero/footer gradient stops and the light-blue
+     accent. Values match the hex the marketing components already shipped (no visual drift);
+     centralized here so the public palette is tweakable in one place. */
+  --mkt-navy-950: #071626;
+  --mkt-navy-900: #0a1a2e;
+  --mkt-navy-800: #102a43;
+  --mkt-navy-700: #16324f;
+  --mkt-accent: #59b2ff;
+  --mkt-accent-soft: #b9e4ff;
+
   --sidebar: 222 47% 11%;
   --sidebar-foreground: 220 14% 96%;
   --sidebar-border: 217 25% 20%;
