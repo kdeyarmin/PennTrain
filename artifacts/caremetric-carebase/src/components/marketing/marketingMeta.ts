@@ -23,13 +23,13 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     title:
       "CareMetric CareBase — Survey-Ready Operations for PA Personal Care Homes & Assisted Living",
     description:
-      "Training compliance, resident assessments, incidents, scheduling, one-click survey binders, and a citation-backed compliance copilot for Pennsylvania PCH and ALF operators. Per-facility pricing, free trial.",
+      "Training compliance, resident assessments, incidents, scheduling, one-click survey binders, and a citation-backed compliance copilot for Pennsylvania PCH and ALF operators. Usage-based pricing, free trial.",
   },
   "/features": {
     title:
       "CareBase Features — 50+ Capabilities for PCH & Assisted Living | CareMetric",
     description:
-      "Every CareBase capability: training compliance, AI course creation, a grounded compliance copilot, Survey Day Mode, resident assessments, incidents, scheduling, credentials, and survey documentation — one per-facility price.",
+      "Every CareBase capability: training compliance, AI course creation, a grounded compliance copilot, Survey Day Mode, resident assessments, incidents, scheduling, credentials, and survey documentation — all included in your plan.",
   },
   "/security": {
     title: "Security & Trust — CareBase for PA Senior Care Facilities",

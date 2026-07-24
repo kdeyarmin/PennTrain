@@ -78,8 +78,8 @@ type Plan = {
 type Faq = { question: string; answer: ReactNode };
 
 const TRIAL_DAYS = 30;
-const STARTER_PRICE = "$349";
-const GROWTH_PRICE = "$299";
+const TRAIN_PRICE = "$239";
+const CAREBASE_PRICE = "$499";
 
 const HERO_ROWS = [
   { label: "Annual in-service hours", status: "On track", value: 92 },
@@ -318,40 +318,40 @@ const NEW_FEATURES: NewFeature[] = [
 
 const PLANS: Plan[] = [
   {
-    name: "Single facility",
-    price: STARTER_PRICE,
-    suffix: " / facility / month",
+    name: "CareMetric Train",
+    price: TRAIN_PRICE,
+    suffix: " /month · 25 active learners included",
     features: [
-      "All modules — residents, workforce, facility, documentation",
-      "Unlimited employees & residents",
-      "Email + SMS alerts, binder exports",
+      "Course builder, AI-generated courses, live QR-code classes",
+      "Training records, certificates, compliance mapping",
+      "$4/month per additional active learner",
       "Self-serve setup, CSV roster import",
     ],
     cta: `Start ${TRIAL_DAYS}-day free trial`,
     href: "/signup",
   },
   {
-    name: "Organization · 3+ facilities",
-    price: GROWTH_PRICE,
-    suffix: " / facility / month",
+    name: "CareMetric CareBase",
+    price: CAREBASE_PRICE,
+    suffix: " /month · 25 active residents included",
     featured: true,
     features: [
-      "Everything in Single facility",
-      "Org-wide rollups & facility comparisons",
-      "Cross-facility float staff scheduling",
-      "Controlled documentation rooms for auditors",
+      "Everything in CareMetric Train, plus:",
+      "Resident records, workforce, facility & incident management",
+      "Documentation rooms, binder exports, compliance alerts",
+      "$4/month per additional active resident",
     ],
     cta: `Start ${TRIAL_DAYS}-day free trial`,
     href: "/signup",
   },
   {
-    name: "Enterprise & groups",
+    name: "CareMetric Portfolio",
     price: "Custom",
     tone: "muted",
     features: [
-      "Volume pricing across 10+ facilities",
-      "Guided migration & onboarding",
-      "Contract, hosting & security review",
+      "CareBase across a multi-facility portfolio",
+      "Portfolio reporting & rollout support",
+      "Guided migration, contract & security review",
       "Priority support",
     ],
     cta: "Talk to us",
@@ -379,8 +379,9 @@ const FAQS: Faq[] = [
     question: "How much does it cost?",
     answer: (
       <>
-        From {GROWTH_PRICE}/facility/month for multi-site organizations, {STARTER_PRICE} for a single facility — every module,
-        unlimited staff. <a href="#pricing">See pricing.</a>
+        {TRAIN_PRICE}/month for CareMetric Train (25 active learners included) or {CAREBASE_PRICE}/month for CareMetric
+        CareBase (25 active residents included) — then $4/month per additional person on either plan.{" "}
+        <a href="#pricing">See pricing.</a>
       </>
     ),
   },
@@ -901,7 +902,7 @@ export default function Landing() {
         <div className="mx-auto flex max-w-[1160px] flex-col gap-5 px-6 py-9 sm:flex-row sm:items-center sm:justify-between">
           <Reveal>
             <h2 className="text-xl font-bold">Seen enough to be curious?</h2>
-            <p className="mt-1 text-sm text-white/85">Import your roster this afternoon — the trial is self-serve and every module is included.</p>
+            <p className="mt-1 text-sm text-white/85">Import your roster this afternoon — the trial is self-serve and starts the moment you sign up.</p>
           </Reveal>
           <Reveal className="flex flex-wrap gap-3">
             <Button asChild className="bg-white font-bold text-[#0d2742] hover:bg-[#dcebfa]"><Link href="/signup">Start free trial</Link></Button>
@@ -914,13 +915,13 @@ export default function Landing() {
         <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
           <Reveal className="mx-auto max-w-[560px] text-center">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Pricing</p>
-            <h2 className="mt-2.5 text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Priced per facility. Every module included.</h2>
-            <p className="mt-2 text-[15px] text-[#44566b]">No per-person math, no add-on modules to buy. Unlimited employees and residents on every plan.</p>
+            <h2 className="mt-2.5 text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Simple, usage-based pricing.</h2>
+            <p className="mt-2 text-[15px] text-[#44566b]">Every plan includes 25 active learners or residents, then $4/month for each additional person. No facility-count math, no per-module upsells.</p>
           </Reveal>
           <div className="mt-9 grid gap-4 lg:grid-cols-3">
             {PLANS.map((plan, i) => (
               <Reveal key={plan.name} delay={i * 0.05} className={`relative flex flex-col gap-3.5 rounded-[14px] p-6 ${plan.featured ? "border-2 border-[#1b6fc2] bg-white shadow-[0_16px_40px_rgba(27,111,194,0.12)]" : plan.tone === "muted" ? "border border-[#dfe6ee] bg-[#fafbfc]" : "border border-[#dfe6ee] bg-white"}`}>
-                {plan.featured ? <span className="absolute -top-3 left-6 rounded-full bg-[#1b6fc2] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em] text-white">Multi-site</span> : null}
+                {plan.featured ? <span className="absolute -top-3 left-6 rounded-full bg-[#1b6fc2] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em] text-white">Most popular</span> : null}
                 <h3 className="text-base font-extrabold text-[#0d2742]">{plan.name}</h3>
                 <div><span className="text-[38px] font-extrabold tracking-[-0.02em] text-[#0d2742]">{plan.price}</span>{plan.suffix ? <span className={`text-sm ${aaMutedText}`}>{plan.suffix}</span> : null}</div>
                 <div className="space-y-2">
@@ -939,7 +940,7 @@ export default function Landing() {
       <section className="bg-[#071626] text-white">
         <div className="mx-auto flex max-w-[1160px] flex-wrap items-center justify-center gap-x-6 gap-y-2 px-6 py-6 text-center text-[13.5px]">
           <span className="text-white/88">No guaranteed survey outcomes</span><span className="text-white/35">·</span>
-          <span className="text-white/88">No per-person fees</span><span className="text-white/35">·</span>
+          <span className="text-white/88">No long-term contract</span><span className="text-white/35">·</span>
           <span className="text-white/88">Your data exports if you leave</span>
           <Link href="/how-it-works#promises" className="font-bold text-[#8ec8ff] hover:text-white hover:underline">Read our promises →</Link>
         </div>
@@ -950,7 +951,7 @@ export default function Landing() {
           <Reveal className="flex flex-col gap-3">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Fully self-service</p>
             <h2 className="text-balance text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Signup to survey-ready, without talking to anyone</h2>
-            <p className="text-[15px] text-[#44566b]">No sales call. No onboarding call. No "book time with our team." Every module is live the moment your organization is created.</p>
+            <p className="text-[15px] text-[#44566b]">No sales call. No onboarding call. No "book time with our team." Your plan is live the moment your organization is created.</p>
             <div className="mt-2 space-y-2.5 text-[13.5px] text-[#33465c]">
               {START_STEPS.map(([title, detail], index) => (
                 <div key={title} className="flex gap-2.5"><span className="font-extrabold text-[#1b6fc2]">{index + 1}</span><span><strong>{title}</strong> — {detail}</span></div>
@@ -967,7 +968,7 @@ export default function Landing() {
             </div>
             <Button asChild size="lg" className="bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]"><Link href="/signup">Create your organization — free for {TRIAL_DAYS} days</Link></Button>
             <Link href="/demo" className="text-center text-[13px] font-semibold text-[#1b6fc2] hover:underline" data-testid="link-start-demo">Prefer to look around first? Explore the live demo — no signup needed →</Link>
-            <div className={`text-center text-xs ${aaMutedText}`}>Every module included · unlimited staff · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
+            <div className={`text-center text-xs ${aaMutedText}`}>25 active people included on every plan · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
           </Reveal>
         </div>
       </section>

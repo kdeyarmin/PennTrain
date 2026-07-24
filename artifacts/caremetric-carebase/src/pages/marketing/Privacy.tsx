@@ -62,7 +62,7 @@ const PRIVACY_SECTIONS = [
   {
     title: "6. Sharing and subprocessors",
     body:
-      "We share data only with service providers needed to operate CareBase — cloud hosting and database infrastructure, and email/SMS delivery providers for the notifications your organization enables — under agreements limiting their use of the data. We may disclose information when required by law. A current subprocessor list is available on request at hello@caremetric.ai.",
+      "We share data only with service providers needed to operate CareBase — cloud hosting and database infrastructure, payment processing for subscription billing, and email/SMS delivery providers for the notifications your organization enables — under agreements limiting their use of the data. We may disclose information when required by law. A current subprocessor list is available on request at hello@caremetric.ai.",
   },
   {
     title: "7. Retention and deletion",
