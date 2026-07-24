@@ -34,6 +34,258 @@ export type Database = {
   }
   public: {
     Tables: {
+      compliance_requirements: {
+        Row: {
+          anchor_date: string | null
+          building_id: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          custom_interval_days: number | null
+          description: string | null
+          facility_id: string | null
+          id: string
+          is_active: boolean
+          is_template: boolean
+          organization_id: string
+          recurrence: string
+          regulation_chapter: string | null
+          regulation_citation: string | null
+          requires_evidence: boolean
+          requires_review: boolean
+          responsible_profile_id: string | null
+          source_template_id: string | null
+          title: string
+          updated_at: string
+          warning_days: number
+        }
+        Insert: {
+          anchor_date?: string | null
+          building_id?: string | null
+          category: string
+          created_at?: string
+          created_by?: string | null
+          custom_interval_days?: number | null
+          description?: string | null
+          facility_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_template?: boolean
+          organization_id: string
+          recurrence?: string
+          regulation_chapter?: string | null
+          regulation_citation?: string | null
+          requires_evidence?: boolean
+          requires_review?: boolean
+          responsible_profile_id?: string | null
+          source_template_id?: string | null
+          title: string
+          updated_at?: string
+          warning_days?: number
+        }
+        Update: {
+          anchor_date?: string | null
+          building_id?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          custom_interval_days?: number | null
+          description?: string | null
+          facility_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_template?: boolean
+          organization_id?: string
+          recurrence?: string
+          regulation_chapter?: string | null
+          regulation_citation?: string | null
+          requires_evidence?: boolean
+          requires_review?: boolean
+          responsible_profile_id?: string | null
+          source_template_id?: string | null
+          title?: string
+          updated_at?: string
+          warning_days?: number
+        }
+        Relationships: []
+      }
+      compliance_requirement_instances: {
+        Row: {
+          building_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          completion_note: string | null
+          created_at: string
+          due_date: string
+          escalation_level: number
+          evidence_count: number
+          exception_approved_at: string | null
+          exception_approved_by: string | null
+          exception_reason: string | null
+          facility_id: string
+          id: string
+          last_escalated_at: string | null
+          na_reason: string | null
+          organization_id: string
+          period_start: string | null
+          reminder_sent_on: string | null
+          requirement_id: string
+          responsible_profile_id: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          building_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completion_note?: string | null
+          created_at?: string
+          due_date: string
+          escalation_level?: number
+          evidence_count?: number
+          exception_approved_at?: string | null
+          exception_approved_by?: string | null
+          exception_reason?: string | null
+          facility_id: string
+          id?: string
+          last_escalated_at?: string | null
+          na_reason?: string | null
+          organization_id: string
+          period_start?: string | null
+          reminder_sent_on?: string | null
+          requirement_id: string
+          responsible_profile_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          completion_note?: string | null
+          created_at?: string
+          due_date?: string
+          escalation_level?: number
+          evidence_count?: number
+          exception_approved_at?: string | null
+          exception_approved_by?: string | null
+          exception_reason?: string | null
+          facility_id?: string
+          id?: string
+          last_escalated_at?: string | null
+          na_reason?: string | null
+          organization_id?: string
+          period_start?: string | null
+          reminder_sent_on?: string | null
+          requirement_id?: string
+          responsible_profile_id?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      compliance_requirement_events: {
+        Row: {
+          actor_profile_id: string | null
+          created_at: string
+          event_type: string
+          facility_id: string | null
+          id: string
+          instance_id: string | null
+          metadata: Json
+          new_status: string | null
+          note: string | null
+          organization_id: string
+          prior_status: string | null
+          requirement_id: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type: string
+          facility_id?: string | null
+          id?: string
+          instance_id?: string | null
+          metadata?: Json
+          new_status?: string | null
+          note?: string | null
+          organization_id: string
+          prior_status?: string | null
+          requirement_id: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          created_at?: string
+          event_type?: string
+          facility_id?: string | null
+          id?: string
+          instance_id?: string | null
+          metadata?: Json
+          new_status?: string | null
+          note?: string | null
+          organization_id?: string
+          prior_status?: string | null
+          requirement_id?: string
+        }
+        Relationships: []
+      }
+      compliance_requirement_documents: {
+        Row: {
+          created_at: string
+          document_label: string | null
+          facility_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          id: string
+          instance_id: string | null
+          organization_id: string
+          requirement_id: string
+          storage_bucket: string
+          storage_path: string
+          uploaded_by_profile_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_label?: string | null
+          facility_id: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          instance_id?: string | null
+          organization_id: string
+          requirement_id: string
+          storage_bucket?: string
+          storage_path: string
+          uploaded_by_profile_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_label?: string | null
+          facility_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          instance_id?: string | null
+          organization_id?: string
+          requirement_id?: string
+          storage_bucket?: string
+          storage_path?: string
+          uploaded_by_profile_id?: string | null
+        }
+        Relationships: []
+      }
       administrator_ce_entries: {
         Row: {
           administrator_profile_id: string
