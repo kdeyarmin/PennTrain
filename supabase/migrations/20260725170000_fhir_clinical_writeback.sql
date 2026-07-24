@@ -141,14 +141,20 @@ begin
   return query
   update public.fhir_writeback_queue q set status = 'in_flight', attempts = q.attempts + 1, updated_at = now()
   where q.id in (
-    select id from public.fhir_writeback_queue
-    where target_url is not null and (
-      status = 'pending'
-      or (status = 'in_flight'
-          and updated_at < now() - make_interval(secs => greatest(coalesce(p_stale_after_seconds, 300), 30)))
+    select w.id from public.fhir_writeback_queue w
+    where w.target_url is not null and (
+      w.status = 'pending'
+      or (w.status = 'in_flight'
+          and w.updated_at < now() - make_interval(secs => greatest(coalesce(p_stale_after_seconds, 300), 30)))
     )
-    order by created_at limit least(greatest(coalesce(p_limit, 20), 1), 100)
-    for update skip locked
+    -- Re-check the source opt-in at claim time: if write-back was disabled (or the source
+    -- paused) after the row was queued, never POST the PHI -- the row is left un-drained.
+    and exists (
+      select 1 from public.fhir_integration_sources s
+      where s.id = w.source_id and s.writeback_enabled and s.status = 'active'
+    )
+    order by w.created_at limit least(greatest(coalesce(p_limit, 20), 1), 100)
+    for update of w skip locked
   )
   returning q.*;
 end;

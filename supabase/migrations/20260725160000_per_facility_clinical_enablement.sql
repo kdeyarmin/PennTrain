@@ -50,6 +50,11 @@ begin
   if not app_private.facility_clinical_enabled(p_fac) then
     raise exception 'Clinical capability is not enabled for this facility' using errcode = '42501';
   end if;
+  -- SECURITY DEFINER charting bypasses the restrictive product_module_entitlement RLS on the
+  -- clinical tables, so enforce the CareBase module here too (the read path already checks it).
+  if not app_private.has_product_module('modules.carebase') then
+    raise exception 'The CareBase module is not entitled for this organization' using errcode = '42501';
+  end if;
   if public.current_role() = 'org_admin' then
     return;
   end if;

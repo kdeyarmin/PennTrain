@@ -1,5 +1,5 @@
 begin;
-select plan(32);
+select plan(33);
 
 -- Structure + hardened grants -----------------------------------------------------------
 select has_table('public', 'fhir_writeback_queue', 'outbound FHIR write-back queue exists');
@@ -248,6 +248,26 @@ select is(
   (select count(*)::integer from public.claim_fhir_writeback_batch(10, 300)),
   1,
   'a write-back stuck in_flight past the staleness window is reclaimed by the drain'
+);
+
+-- A queued row whose source write-back opt-in is revoked after enqueue is not drained.
+reset role;
+update public.fhir_integration_sources set writeback_enabled = false
+where id = 'e5000000-0000-4000-8000-000000000401';
+insert into public.fhir_writeback_queue(
+  organization_id, facility_id, source_id, resident_id, fhir_patient_id,
+  resource_type, origin_kind, origin_id, fhir_payload, status, target_url
+) values (
+  'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011',
+  'e5000000-0000-4000-8000-000000000401', 'e5000000-0000-4000-8000-000000000301', 'patient-301',
+  'Observation', 'clinical_observation', 'e5000000-0000-4000-8000-0000000004fe',
+  '{"resourceType":"Observation"}'::jsonb, 'pending', 'https://fhir.test.invalid/r4'
+);
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000000', 'service_role');
+select is(
+  (select count(*)::integer from public.claim_fhir_writeback_batch(10, 300)),
+  0,
+  'a queued write-back whose source opt-in was revoked is not claimed for delivery'
 );
 
 -- Browser roles cannot drive the drain.

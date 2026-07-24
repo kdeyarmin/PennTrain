@@ -1,5 +1,5 @@
 begin;
-select plan(25);
+select plan(28);
 
 select has_table('public', 'clinical_care_plans', 'native care plans exist');
 select has_table('public', 'clinical_assessments', 'native clinical assessments exist');
@@ -36,8 +36,9 @@ select set_config('app.privileged_write', 'off', true);
 insert into public.employees(id, organization_id, facility_id, profile_id, first_name, last_name, email, job_title, hire_date, status) values
   ('c1000000-0000-4000-8000-000000000112', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000011', 'c1000000-0000-4000-8000-000000000102', 'Cody', 'Aide', 'c-emp1@test.local', 'Direct Care Staff', current_date, 'active'),
   ('c1000000-0000-4000-8000-000000000113', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000012', 'c1000000-0000-4000-8000-000000000103', 'Cleo', 'Aide', 'c-emp2@test.local', 'Direct Care Staff', current_date, 'active');
-insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
-values ('c1000000-0000-4000-8000-000000000301', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000011', 'Cameron', 'Resident', current_date - 30, 'active');
+insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
+  ('c1000000-0000-4000-8000-000000000301', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000011', 'Cameron', 'Resident', current_date - 30, 'active'),
+  ('c1000000-0000-4000-8000-000000000302', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000012', 'Dana', 'Resident', current_date - 25, 'active');
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
 returns void language plpgsql as $$
@@ -115,6 +116,23 @@ reset role;
 select throws_ok($$delete from public.clinical_progress_note_versions
   where note_id = (select id from care_ids where key = 'note')$$,
   '55000', null, 'note version evidence cannot be deleted');
+
+-- Cross-facility authorization: a facility-scoped caller cannot edit another facility's
+-- plan/note by passing one of their own residents plus a foreign plan/note id.
+select pg_temp.act_as('c1000000-0000-4000-8000-000000000103');
+select lives_ok($$insert into care_ids(key, id) values ('plan_a2', public.save_clinical_care_plan(
+  'c1000000-0000-4000-8000-000000000302', 'A2 plan', 'safety', 'active'))$$,
+  'the A2 employee can author a care plan for their own resident');
+select throws_ok($$select public.save_clinical_care_plan(
+  'c1000000-0000-4000-8000-000000000302', 'Hijack', 'safety', 'active',
+  null, null, null, (select id from care_ids where key = 'plan'))$$,
+  '42501', null,
+  'an A2 employee cannot update an A1 resident''s care plan via a cross-facility id');
+select throws_ok($$select public.save_clinical_progress_note(
+  'c1000000-0000-4000-8000-000000000302', 'nursing', 'Hijack body', now(),
+  null, null, (select id from care_ids where key = 'note'))$$,
+  '42501', null,
+  'an A2 employee cannot edit an A1 resident''s note via a cross-facility id');
 
 select * from finish();
 rollback;

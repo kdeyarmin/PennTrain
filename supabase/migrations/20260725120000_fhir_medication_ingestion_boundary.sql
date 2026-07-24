@@ -102,7 +102,7 @@ create table public.fhir_medication_requests (
   medication_display text not null check (length(btrim(medication_display)) between 1 and 300),
   dosage_text text,
   request_status text not null check (request_status in (
-    'active', 'on-hold', 'cancelled', 'completed', 'stopped', 'draft', 'unknown'
+    'active', 'on-hold', 'cancelled', 'completed', 'entered-in-error', 'stopped', 'draft', 'unknown'
   )),
   intent text,
   authored_on timestamptz,
@@ -383,7 +383,7 @@ begin
         v_source.organization_id, v_source.facility_id, v_source.id, p_command_id, left(v_key, 240),
         'invalid_resource', 'high', 'A FHIR MedicationRequest failed contract validation.',
         nullif(v_record->>'fhirPatientId', '')
-      ) on conflict (source_id, exception_key) do update set last_seen_at = now(), status = 'open';
+      ) on conflict (source_id, exception_key) do update set last_seen_at = now(), status = 'open', resolved_at = null, resolved_by = null;
       v_exceptions := v_exceptions + 1;
     end;
   end loop;
@@ -400,7 +400,7 @@ begin
         v_source.organization_id, v_source.facility_id, v_source.id, p_command_id, v_key,
         'unmatched_patient', 'high', 'A FHIR MedicationAdministration cannot be matched to a resident.',
         nullif(v_record->>'fhirPatientId', '')
-      ) on conflict (source_id, exception_key) do update set last_seen_at = now(), status = 'open';
+      ) on conflict (source_id, exception_key) do update set last_seen_at = now(), status = 'open', resolved_at = null, resolved_by = null;
       v_exceptions := v_exceptions + 1;
       continue;
     end if;
@@ -427,7 +427,7 @@ begin
         v_source.organization_id, v_source.facility_id, v_source.id, p_command_id, left(v_key, 240),
         'invalid_resource', 'urgent', 'A FHIR MedicationAdministration failed contract validation.',
         nullif(v_record->>'fhirPatientId', '')
-      ) on conflict (source_id, exception_key) do update set last_seen_at = now(), status = 'open';
+      ) on conflict (source_id, exception_key) do update set last_seen_at = now(), status = 'open', resolved_at = null, resolved_by = null;
       v_exceptions := v_exceptions + 1;
     end;
   end loop;

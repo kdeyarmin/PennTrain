@@ -126,7 +126,10 @@ Deno.serve(async (req: Request) => {
   const { data: commandRows, error: commandError } = await admin.rpc("accept_integration_command", {
     p_credential_id: credential.credential_id,
     p_idempotency_key: idempotencyKey,
-    p_request_sha256: await phase2IntegrationSha256(rawBody),
+    // Bind the request fingerprint to the target source too: one credential can serve multiple
+    // FHIR sources, so the same Bundle body replayed for a different x-fhir-source-id must not
+    // collide with the first source's command (sourceId comes from the header, not rawBody).
+    p_request_sha256: await phase2IntegrationSha256(`${sourceId}\n${rawBody}`),
     p_command_type: "fhir.bundle.import",
     p_schema_version: PHASE2_INTEGRATION_SCHEMA_VERSION,
     p_payload: payload,

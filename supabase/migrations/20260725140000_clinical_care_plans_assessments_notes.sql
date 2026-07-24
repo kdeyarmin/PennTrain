@@ -132,7 +132,7 @@ create or replace function public.save_clinical_care_plan(
   p_support_plan_id uuid default null, p_period_start date default null,
   p_period_end date default null, p_care_plan_id uuid default null
 ) returns uuid language plpgsql security definer set search_path = '' as $$
-declare v_res public.residents%rowtype; v_id uuid;
+declare v_res public.residents%rowtype; v_plan public.clinical_care_plans%rowtype; v_id uuid;
 begin
   select * into v_res from public.residents where id = p_resident_id;
   if not found then raise exception 'Resident not found' using errcode = 'P0002'; end if;
@@ -151,13 +151,20 @@ begin
       p_support_plan_id, p_period_start, p_period_end, auth.uid()
     ) returning id into v_id;
   else
+    -- Authorize against the plan's OWN facility and require it to belong to this resident, so a
+    -- facility-scoped caller cannot edit another facility's plan by passing a cross-facility id.
+    select * into v_plan from public.clinical_care_plans where id = p_care_plan_id;
+    if v_plan.id is null then raise exception 'Care plan not found' using errcode = 'P0002'; end if;
+    perform app_private.assert_clinical_contributor(v_plan.organization_id, v_plan.facility_id, false);
+    if v_plan.resident_id <> p_resident_id then
+      raise exception 'Care plan does not belong to this resident' using errcode = '42501';
+    end if;
     update public.clinical_care_plans set
       title = btrim(p_title), category = coalesce(nullif(btrim(p_category), ''), 'general'),
       status = p_status, support_plan_id = p_support_plan_id,
       period_start = p_period_start, period_end = p_period_end, updated_at = now()
-    where id = p_care_plan_id and organization_id = v_res.organization_id
+    where id = v_plan.id
     returning id into v_id;
-    if v_id is null then raise exception 'Care plan not found' using errcode = 'P0002'; end if;
   end if;
   return v_id;
 end;
@@ -267,13 +274,19 @@ begin
   else
     select * into v_existing from public.clinical_progress_notes where id = p_note_id for update;
     if v_existing.id is null then raise exception 'Progress note not found' using errcode = 'P0002'; end if;
+    -- Authorize against the note's OWN facility and require it to belong to this resident, so a
+    -- facility-scoped caller cannot edit another facility's draft note by passing a cross-facility id.
+    perform app_private.assert_clinical_contributor(v_existing.organization_id, v_existing.facility_id, false);
+    if v_existing.resident_id <> p_resident_id then
+      raise exception 'Progress note does not belong to this resident' using errcode = '42501';
+    end if;
     if v_existing.status <> 'draft' then
       raise exception 'A signed note can only be changed through an amendment' using errcode = '55000';
     end if;
     update public.clinical_progress_notes set
       note_type = p_note_type, body = btrim(p_body), authored_at = p_authored_at,
       care_plan_id = p_care_plan_id, change_event_id = p_change_event_id, updated_at = now()
-    where id = p_note_id returning id into v_id;
+    where id = v_existing.id returning id into v_id;
   end if;
   return v_id;
 end;

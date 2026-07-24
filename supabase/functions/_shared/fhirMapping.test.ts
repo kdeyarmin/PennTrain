@@ -50,6 +50,18 @@ Deno.test("mapMedicationRequest extracts RxNorm, display, dosage, and patient", 
   assertEquals(normalized.sourceUpdatedAt, "2026-07-20T00:00:00Z");
 });
 
+Deno.test("mapMedicationRequest falls back to medicationReference display", () => {
+  const normalized = mapMedicationRequest({
+    resourceType: "MedicationRequest",
+    id: "mr2",
+    status: "active",
+    subject: { reference: "Patient/p1" },
+    medicationReference: { reference: "Medication/med-1", display: "Lisinopril 10 MG Oral Tablet" },
+  }, "2026-07-25T00:00:00Z");
+  assertEquals(normalized.rxnormCode, null);
+  assertEquals(normalized.medicationDisplay, "Lisinopril 10 MG Oral Tablet");
+});
+
 Deno.test("mapFhirBundle splits requests, administrations, and unsupported resources", () => {
   const bundle = mapFhirBundle({
     resourceType: "Bundle",

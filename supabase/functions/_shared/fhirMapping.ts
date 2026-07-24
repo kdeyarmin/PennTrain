@@ -23,6 +23,7 @@ interface FhirResource {
   authoredOn?: string;
   requester?: Reference;
   medicationCodeableConcept?: CodeableConcept;
+  medicationReference?: Reference;
   code?: CodeableConcept;
   type?: CodeableConcept;
   clinicalStatus?: CodeableConcept;
@@ -183,7 +184,10 @@ export function mapMedicationRequest(resource: FhirResource, nowIso: string): No
     fhirPatientId: referenceId(resource.subject?.reference),
     fhirResourceId: String(resource.id ?? ""),
     rxnormCode: rxnorm?.code ?? null,
-    medicationDisplay: conceptDisplay(concept) ?? "Unspecified medication",
+    // FHIR orders may carry the drug as medicationReference instead of a codeable concept; fall
+    // back to the reference display so the chart shows the drug name rather than a placeholder.
+    // (Full contained/bundled Medication resolution is a follow-up.)
+    medicationDisplay: conceptDisplay(concept) ?? resource.medicationReference?.display ?? "Unspecified medication",
     dosageText: resource.dosageInstruction?.[0]?.text ?? null,
     status: resource.status ?? "unknown",
     intent: resource.intent ?? null,
