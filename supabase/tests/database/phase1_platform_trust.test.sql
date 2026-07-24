@@ -332,8 +332,8 @@ select is(
 
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  22::bigint,
-  'the control plane registers every platform job, including organization exports and the weekly manager digest'
+  23::bigint,
+  'the control plane registers every platform job, including organization exports, the weekly manager digest, and the regulatory digest send'
 );
 
 create temporary table phase1_hold_ids as

@@ -322,10 +322,12 @@ export default function Features() {
               Everything included
             </p>
             <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
-              50+ capabilities. One price. No add-on modules.
+              50+ capabilities. CareBase includes every module.
             </h2>
             <p className="m-0 text-[15px] text-[#44566b]">
-              Every plan ships the complete platform — this is the full index.
+              CareMetric CareBase ships everything below; CareMetric Train covers
+              the training and live-class capabilities on their own. This is the
+              full index.
             </p>
           </Reveal>
 

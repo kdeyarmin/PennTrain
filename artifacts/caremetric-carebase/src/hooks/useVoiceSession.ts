@@ -155,7 +155,16 @@ export function useVoiceSession(facilityId: string) {
       });
       if (!res.ok) {
         stream.getTracks().forEach((track) => track.stop());
-        if (res.status === 503) fail("The voice assistant isn't set up yet. Ask your administrator to configure the voice gateway.");
+        // 503 is both "not configured" and the daily budget kill-switch —
+        // the body's error code tells them apart.
+        let errorCode = "";
+        try {
+          errorCode = ((await res.json()) as { error?: string }).error ?? "";
+        } catch {
+          // Non-JSON body; fall through to the status-based message.
+        }
+        if (res.status === 503 && errorCode === "voice_budget_exhausted") fail("The voice assistant has reached its daily usage limit. It resets overnight — until then, the Ask tab answers the same questions.");
+        else if (res.status === 503) fail("The voice assistant isn't set up yet. Ask your administrator to configure the voice gateway.");
         else if (res.status === 429) fail("A voice session is already running for your account. Close it and try again.");
         else if (res.status === 403) fail("Your role doesn't have access to the voice assistant.");
         else fail("The voice assistant could not start a session. Try again in a moment.");

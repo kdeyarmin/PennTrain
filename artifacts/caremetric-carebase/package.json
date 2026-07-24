@@ -42,7 +42,6 @@
     "@vitejs/plugin-react": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
-    "framer-motion": "catalog:",
     "lucide-react": "catalog:",
     "qrcode": "^1.5.4",
     "react": "catalog:",

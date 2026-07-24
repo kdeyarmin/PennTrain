@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
+  phase2CheckoutTrialDays,
   phase2StripePost,
   phase2MeasuredBillingQuantity,
   resolvePhase2BillingQuantity,
@@ -102,9 +103,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: { code: "invalid_action" } }, 400);
   }
 
+  // Return URLs are validated against configured origins only; the request
+  // Origin header is caller-controlled and must not extend the allowlist.
   const configuredOrigins = (Deno.env.get("BILLING_RETURN_URL_ORIGINS") ?? "")
     .split(",").map((value) => value.trim()).filter(Boolean);
-  const requestOrigin = req.headers.get("origin");
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: account } = await admin.from("billing_accounts")
     .select("id, stripe_customer_id, billing_state").eq("organization_id", organizationId).maybeSingle();
@@ -124,7 +126,7 @@ Deno.serve(async (req: Request) => {
   if (action === "portal") {
     if (!account?.stripe_customer_id) return json({ error: { code: "billing_customer_missing" } }, 409);
     const returnUrl = body.returnUrl;
-    if (!returnUrl || !validatePhase2BillingReturnUrl(returnUrl, requestOrigin, configuredOrigins)) {
+    if (!returnUrl || !validatePhase2BillingReturnUrl(returnUrl, configuredOrigins)) {
       return json({ error: { code: "invalid_return_url" } }, 400);
     }
     stripeResult = await phase2StripePost(
@@ -193,14 +195,33 @@ Deno.serve(async (req: Request) => {
       return json({ error: { code: "billing_quantity_outside_self_service_range" } }, 409);
     }
     if (!body.successUrl || !body.cancelUrl ||
-      !validatePhase2BillingReturnUrl(body.successUrl, requestOrigin, configuredOrigins) ||
-      !validatePhase2BillingReturnUrl(body.cancelUrl, requestOrigin, configuredOrigins)) {
+      !validatePhase2BillingReturnUrl(body.successUrl, configuredOrigins) ||
+      !validatePhase2BillingReturnUrl(body.cancelUrl, configuredOrigins)) {
       return json({ error: { code: "invalid_return_url" } }, 400);
     }
     const packageConfiguration = Array.isArray(price.packages) ? price.packages[0] : price.packages;
-    const trialDays = typeof packageConfiguration?.trial_days === "number"
+    const configuredTrialDays = typeof packageConfiguration?.trial_days === "number"
       ? packageConfiguration.trial_days
       : 0;
+    // One trial budget (PT-052): the in-app trial stamped at signup and the
+    // Stripe trial must not stack. Checkout forwards only the days still
+    // remaining on organizations.trial_ends_at; a consumed or never-stamped
+    // window starts billing immediately.
+    const { data: organization, error: organizationError } = await admin
+      .from("organizations")
+      .select("trial_ends_at")
+      .eq("id", organizationId)
+      .maybeSingle();
+    if (organizationError) {
+      return json({ error: { code: "billing_state_unavailable" } }, 503);
+    }
+    if (!organization) {
+      return json({ error: { code: "invalid_organization" } }, 403);
+    }
+    const trialDays = phase2CheckoutTrialDays(
+      typeof organization.trial_ends_at === "string" ? organization.trial_ends_at : null,
+      configuredTrialDays,
+    );
     stripeResult = await phase2StripePost(
       "/v1/checkout/sessions",
       stripeSecretKey,
@@ -208,7 +229,12 @@ Deno.serve(async (req: Request) => {
         mode: "subscription",
         client_reference_id: organizationId,
         customer: account?.stripe_customer_id ?? undefined,
-        customer_email: account?.stripe_customer_id ? undefined : profile.email,
+        // A platform operator creating a tenant's first Stripe customer must
+        // not bind the operator's own email to it (the tenant would never see
+        // its invoices); Stripe Checkout collects the payer email instead.
+        customer_email: account?.stripe_customer_id || profile.role === "platform_admin"
+          ? undefined
+          : profile.email,
         success_url: body.successUrl,
         cancel_url: body.cancelUrl,
         line_items: [{ price: price.stripe_price_id, quantity }],

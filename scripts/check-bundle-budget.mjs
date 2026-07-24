@@ -1,9 +1,20 @@
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+
+// This check runs in CI (check:all) AND in Railway's buildCommand (railway.json) right
+// after the production build. Railway rebuilds from source on its own machines, so the
+// bundle it serves is NOT the immutable artifact CI published -- running the same budget
+// gate in both places keeps the deploy build honest, but the deployed-bundle-vs-CI-artifact
+// gap itself only closes with registry image deploys (see DEPLOYMENT.md, PT-016 residual).
 
 const assetDirectory = path.resolve(
   process.cwd(),
   "artifacts/caremetric-carebase/dist/public/assets",
+);
+
+const viteConfigPath = path.resolve(
+  process.cwd(),
+  "artifacts/caremetric-carebase/vite.config.ts",
 );
 
 // These budgets are regression tripwires, not exact ledgers. They exist to catch
@@ -61,8 +72,73 @@ const routeBudgets = [
   { label: "Work Queue route", pattern: /^WorkQueue-.+\.js$/, budget: 20 * 1024 },
 ];
 
-const initialShellPattern =
-  /^(index|router|query|radix|supabase|motion|icons)-.+\.(?:js|css)$/;
+// The initial application shell is the entry chunk (`index-*`, Vite's default entry name)
+// plus every chunk Rollup emits for a `manualChunks` key -- those are all loaded eagerly by
+// the entry, so together they are what a first page load actually downloads. Derive the
+// name list from vite.config.ts's manualChunks keys instead of hardcoding it, so renaming
+// or adding a manual chunk cannot silently move bytes out of this metric (N-12c). A regex
+// extraction of the object keys is deliberate and acceptable here: importing the TS config
+// from a plain .mjs script would need a transpile step, and the balanced-brace scan below
+// fails loudly if the object form changes (e.g. to a manualChunks *function*), forcing this
+// script to be updated alongside it rather than silently measuring nothing.
+export function extractManualChunkNames(viteConfigSource) {
+  const marker = viteConfigSource.indexOf("manualChunks:");
+  if (marker === -1) {
+    throw new Error(
+      `Could not find a manualChunks entry in ${viteConfigPath}; update extractManualChunkNames in scripts/check-bundle-budget.mjs to match the config's current shape.`,
+    );
+  }
+  const braceStart = viteConfigSource.indexOf("{", marker);
+  // Guard against manualChunks being switched to the function form (or anything other than
+  // an object literal directly after the key) without this script being updated.
+  const between = viteConfigSource.slice(marker + "manualChunks:".length, braceStart === -1 ? undefined : braceStart);
+  if (braceStart === -1 || between.trim() !== "") {
+    throw new Error(
+      `manualChunks in ${viteConfigPath} is not an object literal; update extractManualChunkNames in scripts/check-bundle-budget.mjs.`,
+    );
+  }
+  let depth = 0;
+  let braceEnd = -1;
+  for (let i = braceStart; i < viteConfigSource.length; i += 1) {
+    const char = viteConfigSource[i];
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        braceEnd = i;
+        break;
+      }
+    }
+  }
+  if (braceEnd === -1) {
+    throw new Error(`Unbalanced braces after manualChunks in ${viteConfigPath}.`);
+  }
+  // Strip comments so prose containing a colon is never mistaken for a key, then collect
+  // `key:` / `"key":` / `'key':` at the top level of the object (values are string arrays,
+  // so no nested `key:` forms exist inside them).
+  const body = viteConfigSource
+    .slice(braceStart + 1, braceEnd)
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ");
+  const names = [...body.matchAll(/(?:^|[,{])\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z_$][\w$-]*))\s*:/g)]
+    .map((match) => match[1] ?? match[2] ?? match[3]);
+  if (names.length === 0) {
+    throw new Error(
+      `No manualChunks keys could be parsed from ${viteConfigPath}; update extractManualChunkNames in scripts/check-bundle-budget.mjs.`,
+    );
+  }
+  return names;
+}
+
+const manualChunkNames = extractManualChunkNames(await readFile(viteConfigPath, "utf8"));
+const initialShellNames = ["index", ...manualChunkNames];
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const initialShellPattern = new RegExp(
+  `^(?:${initialShellNames.map(escapeRegExp).join("|")})-.+\\.(?:js|css)$`,
+);
+console.log(
+  `Initial-shell chunk names (entry + vite.config.ts manualChunks): ${initialShellNames.join(", ")}`,
+);
 
 function formatBytes(bytes) {
   return `${(bytes / 1024).toFixed(1)} KiB`;

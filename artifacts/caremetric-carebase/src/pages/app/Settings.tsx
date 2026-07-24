@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw, Database, FlaskConical, LockKeyhole, PanelLeftClose, Download } from "lucide-react";
+import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw, Database, FlaskConical, LockKeyhole, PanelLeftClose, Download, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } from "@/hooks/useProductExperience";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useGetOrganization } from "@/hooks/useOrganizations";
+import { useGetOrganization, useUpdateOrganization } from "@/hooks/useOrganizations";
 
 const DEFAULT_WARNING_DAYS = 90;
 const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
@@ -77,6 +77,7 @@ export default function Settings() {
   const sandboxActions = useSandboxActions();
   const demoBaseline = useRestoreDemoBaseline();
   const { data: organization } = useGetOrganization(user?.organizationId ?? undefined);
+  const { mutate: updateOrganization, isPending: updatingOrganization } = useUpdateOrganization();
   const { data: facilities = [] } = useListFacilities({ organizationId: user?.organizationId ?? undefined }, !!user?.organizationId);
   const sandbox = facilities.find((facility) => facility.is_sandbox && facility.is_active);
 
@@ -315,6 +316,65 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+
+          {organization && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5" />
+                  AI Features
+                </CardTitle>
+                <CardDescription>
+                  AI-assisted tools (compliance copilot, wellness summary drafts, document analysis) for this organization.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border border-border/60 p-3.5">
+                  <div>
+                    <p className="text-sm font-medium">Enable AI features</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Turning this off immediately blocks every AI-assisted request for your organization.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={organization.ai_features_enabled}
+                    onCheckedChange={(v) =>
+                      updateOrganization(
+                        { id: organization.id, ai_features_enabled: v },
+                        {
+                          onSuccess: () => toast({ title: v ? "AI features enabled" : "AI features disabled" }),
+                          onError: (err: Error) =>
+                            toast({ title: "Failed to update AI features", description: err.message, variant: "destructive" }),
+                        },
+                      )
+                    }
+                    disabled={user?.role !== "org_admin" || updatingOrganization}
+                  />
+                </div>
+                <div className="rounded-lg border border-border/60 p-3.5 text-sm">
+                  <p className="font-medium">Business Associate Agreement</p>
+                  {organization.is_demo ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Demo workspace: AI features run on fictional starter data only, so no signed Business Associate
+                      Agreement is required here.
+                    </p>
+                  ) : organization.baa_version ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      On file: {organization.baa_version}
+                      {organization.baa_accepted_at
+                        ? ` — accepted ${new Date(organization.baa_accepted_at).toLocaleDateString()}`
+                        : ""}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Not on file. AI features stay unavailable for your organization until a signed Business Associate
+                      Agreement is recorded — contact support to complete one.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

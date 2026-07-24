@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
+import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -265,6 +266,14 @@ Deno.serve(async (req: Request) => {
   }
   if (!title_hint?.trim() && !source_material?.trim() && !notes?.trim() && !plan_name?.trim()) {
     return json({ error: "at least one of plan_name, title_hint, source_material, or notes is required" }, 400);
+  }
+
+  // PT-019: per-organization BAA gate, on top of the platform switch above. The only
+  // org context this platform_admin-only endpoint carries is the training-plan target
+  // organization; a plain course draft is platform-catalog work (courses.organization_id
+  // stays NULL) with no tenant in scope, so only the platform switch gates it.
+  if (isTrainingPlan && !(await orgAiAllowed(callerClient, organization_id))) {
+    return json(orgAiDisabledBody(), 403);
   }
 
   // Best-effort: pull the training type's own name/description/citation_note (if any) into the

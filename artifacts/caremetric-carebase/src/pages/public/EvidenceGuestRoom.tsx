@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useParams } from "wouter";
 import {
   useEvidenceGuestRoom,
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Download, FolderLock, Loader2, ShieldCheck, ShieldX } from "lucide-react";
-import { consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
 
 const SESSION_TOKEN_KEY = "carebase-evidence-room-token";
 
@@ -54,6 +54,15 @@ export default function EvidenceGuestRoom() {
   const { data: room, isLoading, isError, refetch } = useEvidenceGuestRoom(token);
   const acceptTerms = useAcceptEvidenceGuestTerms();
   const download = useEvidenceGuestDownload();
+
+  // The room RPC resolving with authorized=false (and no terms step) is the
+  // server definitively rejecting this token (expired/revoked). Drop the stored
+  // copy so the dead credential is not replayed on the next /evidence-access
+  // visit. isError alone can be a transient network failure, so it never clears.
+  const serverRejected = !!room && !room.authorized && !room.needsTerms;
+  useEffect(() => {
+    if (serverRejected) clearStoredPublicAccessToken(SESSION_TOKEN_KEY);
+  }, [serverRejected]);
 
   if (isLoading) {
     return (

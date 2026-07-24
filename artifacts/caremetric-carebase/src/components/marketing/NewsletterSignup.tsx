@@ -40,7 +40,6 @@ export function NewsletterSignup({ topics, showNameFields = false, className }: 
   const [name, setName] = useState("");
   const [organization, setOrganization] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileError, setTurnstileError] = useState<string | null>(null);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
@@ -135,8 +134,7 @@ export function NewsletterSignup({ topics, showNameFields = false, className }: 
         turnstileToken,
       },
       {
-        onSuccess: (data) => {
-          setAlreadySubscribed(Boolean(data?.alreadySubscribed));
+        onSuccess: () => {
           setSubmitted(true);
         },
         onError: (error) => {
@@ -163,13 +161,10 @@ export function NewsletterSignup({ topics, showNameFields = false, className }: 
       >
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
         <div>
-          <p className="font-semibold text-foreground">
-            {alreadySubscribed ? "You're already on the list" : "You're subscribed"}
-          </p>
+          <p className="font-semibold text-foreground">You're subscribed</p>
           <p className="mt-1 text-muted-foreground">
-            {alreadySubscribed
-              ? "This email is already receiving CareBase regulatory updates."
-              : "We'll email a plain-language note whenever PA regulations change."}
+            We post changes on our regulatory-updates page and email subscribers periodic
+            plain-language digests.
           </p>
         </div>
       </div>

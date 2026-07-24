@@ -103,6 +103,61 @@ export function useCancelSystemJob() {
   });
 }
 
+// PT-057: dead-lettered Stripe webhook events (processing_status='failed' in
+// app_private.stripe_billing_events) surfaced through a platform-admin-only
+// RPC, with a retry that replays the stored signed payload.
+export interface FailedBillingEvent {
+  event_id: string;
+  event_type: string;
+  event_created_at: string;
+  organization_id: string | null;
+  organization_name: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_invoice_id: string | null;
+  processing_error: string | null;
+  failed_at: string | null;
+  received_at: string;
+  correlation_id: string;
+}
+
+const FAILED_BILLING_EVENTS_QUERY_KEY = ["failed-billing-events"] as const;
+
+export function useFailedBillingEvents() {
+  return useQuery({
+    queryKey: FAILED_BILLING_EVENTS_QUERY_KEY,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_failed_stripe_billing_events", {
+        p_limit: 50,
+      });
+      if (error) throw error;
+      return (data ?? []) as unknown as FailedBillingEvent[];
+    },
+    refetchInterval: 60000,
+  });
+}
+
+export function useRetryFailedBillingEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (eventId: string) => {
+      const { data, error } = await supabase.rpc("retry_failed_stripe_billing_event", {
+        p_event_id: eventId,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as {
+        was_applied: boolean;
+        processing_status: string;
+        processing_error: string | null;
+      } | undefined;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: FAILED_BILLING_EVENTS_QUERY_KEY });
+    },
+  });
+}
+
 export function useSetSystemJobKillSwitch() {
   const refresh = useRefreshSystemJobs();
   return useMutation({

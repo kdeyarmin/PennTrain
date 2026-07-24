@@ -1,0 +1,29 @@
+{
+  "20260724042226": {
+    "reason": "PT-051 reconciliation (2026-07-24): recovered from production statements with a provenance header, and replay-adapted to no-op when block 5 already carries the final trimmed-render state shipped by the committed orientation seed."
+  },
+  "20260724043912": {
+    "reason": "PT-051 reconciliation (2026-07-24): recovered from production statements with a provenance header, and replay-adapted because the committed orientation seed already inserts the renamed catalog_code."
+  },
+  "20260724044044": {
+    "reason": "PT-051 reconciliation (2026-07-24): recovered from production statements with a provenance header, and replay-adapted around the committed seed's end-state video wiring."
+  },
+  "20260724051217": {
+    "reason": "PT-051 reconciliation (2026-07-24): fire-safety course reconstructed under production's recorded version from the reviewed consolidated file (PR #264); not byte-identical to the deployed statements."
+  },
+  "20260724051357": {
+    "reason": "PT-051 reconciliation (2026-07-24): abuse-reporting course reconstructed under production's recorded version from the reviewed consolidated file (PR #264); not byte-identical to the deployed statements."
+  },
+  "20260724051535": {
+    "reason": "PT-051 reconciliation (2026-07-24): resident-rights course reconstructed under production's recorded version from the reviewed consolidated file (PR #264); not byte-identical to the deployed statements."
+  },
+  "20260724051549": {
+    "reason": "PT-051 reconciliation (2026-07-24): recovered verbatim from production statements; the added provenance header alone changes the file hash."
+  },
+  "20260724051753": {
+    "reason": "PT-051 reconciliation (2026-07-24): recovered verbatim from production statements; the added provenance header alone changes the file hash."
+  },
+  "20260724053705": {
+    "reason": "PT-051 reconciliation (2026-07-24): recovered from production statements with a provenance header, and replay-adapted because the committed seed already ships the corrected block-4 text."
+  }
+}

@@ -108,6 +108,22 @@ export default function WorkQueue() {
   }, []);
   const now = useMemo(() => new Date(nowIso), [nowIso]);
 
+  // Debounce the search box (~300ms): every committed search value fires two
+  // RPCs (page + tiles), so per-keystroke commits doubled the query load. The
+  // committed value still flows through setFilters exactly as before -- same
+  // URL/query-key behavior, same page reset to 1 -- it just lands once the
+  // user pauses. The sync effect keeps the input following external URL
+  // changes (Back/Forward, shared links).
+  const [searchInput, setSearchInput] = useState(filters.search);
+  useEffect(() => {
+    setSearchInput(filters.search);
+  }, [filters.search]);
+  useEffect(() => {
+    if (searchInput === filters.search) return;
+    const id = setTimeout(() => setFilters({ search: searchInput, page: "1" }), 300);
+    return () => clearTimeout(id);
+  }, [searchInput, filters.search, setFilters]);
+
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const facilityScope = effectiveScope === "facility" && filters.facilityId !== "all" ? filters.facilityId : undefined;
   const ownerScope = effectiveScope === "mine" ? user?.id : undefined;
@@ -226,8 +242,8 @@ export default function WorkQueue() {
         <CardContent className="space-y-4 pt-6">
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             <Input
-              value={filters.search}
-              onChange={event => setFilters({ search: event.target.value, page: "1" })}
+              value={searchInput}
+              onChange={event => setSearchInput(event.target.value)}
               placeholder="Search title or description"
               aria-label="Search work"
             />

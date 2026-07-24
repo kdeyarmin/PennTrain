@@ -47,6 +47,10 @@ const CONFIG: GatewayConfig = {
   idleTimeoutSeconds: 60,
   maxConcurrentSessions: 5,
   maxSessionsPerUser: 2,
+  maxConcurrentPhoneSessions: 3,
+  phoneCallsPerHour: 10,
+  phoneMinutesPerHour: 60,
+  dailyMinutesBudget: 240,
   toolTimeoutMs: 5_000,
   playbackGraceMs: 10,
   twilioAuthToken: AUTH_TOKEN,
@@ -203,8 +207,17 @@ describe("shared phone number", () => {
     const darkBase = await startServer({
       config: { ...CONFIG, twilioAuthToken: undefined },
     });
+    // HTTP 200: Twilio ignores TwiML bodies on 5xx, so the polite
+    // "unavailable" message must ride a success status.
     const dark = await fetch(`${darkBase}/phone/inbound`, { method: "POST" });
-    expect(dark.status).toBe(503);
+    expect(dark.status).toBe(200);
+    const twiml = await dark.text();
+    expect(twiml).toContain("<Say>");
+    expect(twiml).toContain("<Hangup");
+
+    const darkAfter = await fetch(`${darkBase}/phone/after`, { method: "POST" });
+    expect(darkAfter.status).toBe(200);
+    expect(await darkAfter.text()).toContain("<Hangup");
   });
 
   it("runs triage and hands off in-session to a gateway app", async () => {

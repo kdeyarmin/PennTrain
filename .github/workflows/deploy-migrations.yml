@@ -1,9 +1,11 @@
 name: Deploy migrations
 
-# Deploys committed migrations to the production Supabase project -- but only after CI has
-# validated the exact commit on main. Root cause this closes (see MIGRATION_DEPLOYMENT_AUDIT.md):
-# CI validated the migration chain on a throwaway local stack but nothing deployed it to the
-# remote, so migrations merged to main could sit undeployed indefinitely.
+# Deploys committed migrations AND edge functions to the production Supabase project -- but
+# only after CI has validated the exact commit on main. Root cause this closes (see
+# MIGRATION_DEPLOYMENT_AUDIT.md): CI validated the migration chain on a throwaway local stack
+# but nothing deployed it to the remote, so migrations merged to main could sit undeployed
+# indefinitely. PT-068 extended the same fix to edge functions, which previously deployed
+# only by manual CLI invocation (DEPLOYMENT.md) and could likewise sit undeployed.
 #
 # Why `workflow_run` and not `push`: triggering directly on push to main would let
 # `supabase db push` mutate production in parallel with -- and possibly before -- the CI
@@ -77,3 +79,11 @@ jobs:
 
       - name: Verify no migration drift remains
         run: node scripts/check-migration-drift.mjs
+
+      # Deploy every edge function with its supabase/config.toml settings (verify_jwt et al.)
+      # after the database is migrated, so functions never run ahead of the schema they need.
+      # Deploy success implies every local function directory now exists remotely at this
+      # commit's content; a content-level drift check (deployed hash vs local) remains open
+      # under PT-068's residual slice.
+      - name: Deploy edge functions
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"

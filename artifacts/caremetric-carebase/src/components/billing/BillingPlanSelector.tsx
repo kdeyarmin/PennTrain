@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   AlertTriangle,
+  CalendarClock,
   Check,
   CreditCard,
   Loader2,
@@ -10,6 +11,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { billingSessionFailureCopy, type BillingSessionErrorCopy } from "@/lib/billingErrors";
+import { isLiveSubscriptionState, resolveTrialPresentation } from "@/lib/trialStatus";
 import { cn } from "@/lib/utils";
 import type { Json } from "@/lib/database.types";
 import {
@@ -78,6 +81,18 @@ function subscriptionStateLabel(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function billingFailureDescription(copy: BillingSessionErrorCopy) {
+  if (!copy.actionPath) return copy.description;
+  return (
+    <span>
+      {copy.description}{" "}
+      <Link href={copy.actionPath} className="font-medium underline underline-offset-2">
+        {copy.actionLabel ?? "Open Account Security"}
+      </Link>
+    </span>
+  );
+}
+
 export function BillingPlanSelector() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -101,6 +116,16 @@ export function BillingPlanSelector() {
     [packagesQuery.data],
   );
   const currentSubscription = billingAccountQuery.data?.subscription;
+  const trialPresentation = useMemo(
+    () => (organizationQuery.data && billingAccountQuery.data
+      ? resolveTrialPresentation({
+        trialEndsAt: organizationQuery.data.trial_ends_at,
+        billingState: billingAccountQuery.data.account?.billing_state,
+        hasLiveSubscription: isLiveSubscriptionState(billingAccountQuery.data.subscription?.billing_state),
+      })
+      : { kind: "none" as const }),
+    [organizationQuery.data, billingAccountQuery.data],
+  );
   const currentPackageId = currentSubscription?.package_id ?? organizationQuery.data?.package_id;
   const hasManagedSubscription = !!currentSubscription;
   const hasCustomerPortal = !!billingAccountQuery.data?.account?.stripe_customer_id;
@@ -129,9 +154,10 @@ export function BillingPlanSelector() {
       });
       window.location.assign(result.data.url);
     } catch (error) {
+      const copy = billingSessionFailureCopy(error, "Billing portal could not be opened");
       toast({
-        title: "Billing portal could not be opened",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: copy.title,
+        description: billingFailureDescription(copy),
         variant: "destructive",
       });
     }
@@ -162,9 +188,10 @@ export function BillingPlanSelector() {
       });
       window.location.assign(result.data.url);
     } catch (error) {
+      const copy = billingSessionFailureCopy(error, "Secure checkout could not be opened");
       toast({
-        title: "Secure checkout could not be opened",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: copy.title,
+        description: billingFailureDescription(copy),
         variant: "destructive",
       });
     }
@@ -231,6 +258,28 @@ export function BillingPlanSelector() {
                   </TabsList>
                 </Tabs>
               </div>
+
+              {trialPresentation.kind === "trialing" ? (
+                <Alert>
+                  <CalendarClock className="h-4 w-4" />
+                  <AlertTitle>
+                    Trial ends {trialPresentation.endsAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}{" "}
+                    ({trialPresentation.daysLeft} {trialPresentation.daysLeft === 1 ? "day" : "days"} left)
+                  </AlertTitle>
+                  <AlertDescription>
+                    Choose a plan before the trial ends to keep uninterrupted access to your subscribed modules.
+                  </AlertDescription>
+                </Alert>
+              ) : trialPresentation.kind === "ended" ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Trial ended — choose a plan to continue</AlertTitle>
+                  <AlertDescription>
+                    The free trial ended on {trialPresentation.endsAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}.
+                    Module access is paused until a plan is selected; starting secure checkout below restores it immediately.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
               {isCatalogLoading ? (
                 <div className="flex items-center gap-2 rounded-lg border p-4 text-sm text-muted-foreground">

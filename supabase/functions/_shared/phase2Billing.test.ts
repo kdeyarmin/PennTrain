@@ -1,6 +1,7 @@
 import {
   buildPhase2StripeForm,
   phase2BillingHmac,
+  phase2CheckoutTrialDays,
   phase2MeasuredBillingQuantity,
   phase2BillingStateForStripeStatus,
   phase2ProviderEventIsNewer,
@@ -77,7 +78,30 @@ Deno.test("billing status and provider ordering are deterministic", () => {
   assertEquals(phase2ProviderEventIsNewer("2026-07-10T12:00:00Z", "evt_z", "2026-07-11T12:00:00Z", "evt_a"), false);
 });
 
-Deno.test("billing redirects stay on configured origins", () => {
-  assertEquals(validatePhase2BillingReturnUrl("https://app.example.test/billing", null, ["https://app.example.test"]), true);
-  assertEquals(validatePhase2BillingReturnUrl("https://evil.example/collect", "https://app.example.test", []), false);
+Deno.test("billing redirects stay on configured origins only", () => {
+  assertEquals(validatePhase2BillingReturnUrl("https://app.example.test/billing", ["https://app.example.test"]), true);
+  assertEquals(validatePhase2BillingReturnUrl("https://evil.example/collect", []), false);
+  // The caller's Origin header must never extend the allowlist (N-6a).
+  assertEquals(validatePhase2BillingReturnUrl("https://evil.example/collect", ["https://app.example.test"]), false);
+  // localhost works only when explicitly configured.
+  assertEquals(validatePhase2BillingReturnUrl("http://localhost:5173/billing", ["http://localhost:5173"]), true);
+  assertEquals(validatePhase2BillingReturnUrl("http://localhost:5173/billing", ["https://app.example.test"]), false);
+  // A malformed configured entry does not disable the valid ones.
+  assertEquals(validatePhase2BillingReturnUrl("https://app.example.test/billing", ["not a url", "https://app.example.test"]), true);
+});
+
+Deno.test("checkout forwards only the remaining in-app trial days", () => {
+  const now = Date.parse("2026-07-24T12:00:00Z");
+  const days = (count: number) => new Date(now + count * 86_400_000).toISOString();
+  // Mid-trial: remaining days, capped by the package configuration.
+  assertEquals(phase2CheckoutTrialDays(days(10), 30, now), 10);
+  assertEquals(phase2CheckoutTrialDays(days(45), 30, now), 30);
+  // A partially elapsed final day still grants one day (min 1).
+  assertEquals(phase2CheckoutTrialDays(new Date(now + 3_600_000).toISOString(), 30, now), 1);
+  // Consumed, never stamped, or unparsable trial windows grant nothing.
+  assertEquals(phase2CheckoutTrialDays(days(-1), 30, now), 0);
+  assertEquals(phase2CheckoutTrialDays(null, 30, now), 0);
+  assertEquals(phase2CheckoutTrialDays("not-a-date", 30, now), 0);
+  // A package without a trial never grants one.
+  assertEquals(phase2CheckoutTrialDays(days(10), 0, now), 0);
 });

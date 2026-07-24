@@ -162,7 +162,12 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto bg-background focus:outline-none">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            <EndUserExperiencePanel />
+            {/* Own boundary: a crash in the guidance panel must never blank the
+                route content (and vice versa) -- previously it rendered outside
+                any error boundary entirely. */}
+            <RouteErrorBoundary>
+              <EndUserExperiencePanel />
+            </RouteErrorBoundary>
             <RouteErrorBoundary>{children}</RouteErrorBoundary>
           </div>
         </main>

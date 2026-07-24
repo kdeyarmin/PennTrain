@@ -37,7 +37,15 @@ Security posture (inherited from PennFit's ADR):
   immutable `compliance_copilot_runs` receipt, which voice questions
   produce automatically).
 - Cost controls: max session duration, idle timeout, global and per-user
-  concurrency caps, per-response token backstop.
+  concurrency caps, a separate phone-channel concurrency budget, per-caller
+  rolling-hour call/minute caps, a global daily minutes kill-switch, and a
+  per-response token backstop.
+- Platform kill-switch reach: the `voice_assistant_enabled` platform
+  setting hides the in-app voice UI and makes `voice-tools` refuse every
+  tool call (fail-closed), but it does NOT reach the Realtime conversation
+  itself — an already-open session can keep talking from public knowledge.
+  Fully stopping the voice channel still requires env-level shutdown
+  (unset `OPENAI_API_KEY` / scale the service down) and a redeploy.
 
 ## Environment variables
 
@@ -52,13 +60,19 @@ Security posture (inherited from PennFit's ADR):
 | `OPENAI_REALTIME_MODEL` | no | Model override (default `gpt-realtime-2`). |
 | `VOICE_DEFAULT_VOICE` | no | Realtime voice (default `cedar`). |
 | `VOICE_PUBLIC_WS_ORIGIN` | no | e.g. `wss://voice-gateway.up.railway.app`; derived from forwarded headers when unset. |
-| `VOICE_MAX_SESSION_SECONDS` | no | Hard cap per session (default 600). |
-| `VOICE_IDLE_TIMEOUT_SECONDS` | no | End after silence (default 90). |
-| `VOICE_MAX_CONCURRENT_SESSIONS` | no | Global cap (default 5). |
+| `VOICE_MAX_SESSION_SECONDS` | no | Hard cap per session (default 600; boot validation clamps anything above 3600 and warns). |
+| `VOICE_IDLE_TIMEOUT_SECONDS` | no | End after silence (default 90; must outlast `VOICE_TOOL_TIMEOUT_MS` — boot validation clamps it up past the tool timeout and warns otherwise). |
+| `VOICE_MAX_CONCURRENT_SESSIONS` | no | Global cap, both channels (default 5). |
 | `VOICE_MAX_SESSIONS_PER_USER` | no | Per-user cap (default 1). |
+| `VOICE_MAX_CONCURRENT_PHONE_SESSIONS` | no | Phone-channel concurrency budget (default 3). Phone sessions count against this AND the global cap; browser sessions only against the global cap — phone traffic can never exhaust the pool in-app users share. |
+| `VOICE_PHONE_CALLS_PER_HOUR` | no | Per-caller (Twilio `From`) cap: calls answered per rolling hour (default 4). Over-cap callers hear the polite busy line before any Realtime session opens. |
+| `VOICE_PHONE_MINUTES_PER_HOUR` | no | Per-caller (Twilio `From`) cap: cumulative session minutes per rolling hour (default 20). |
+| `VOICE_DAILY_MINUTES_BUDGET` | no | Global kill-switch: cumulative session minutes per UTC day across both channels (default 240). Exhausted → phone answers busy TwiML, new browser sessions get 503 `voice_budget_exhausted`. |
 | `VOICE_TOOL_TIMEOUT_MS` | no | Tool callback timeout (default 75000 — must outlast voice-tools' 65s copilot window so app-owned, speakable errors surface instead of a generic dispatcher failure). |
+| `VOICE_PLAYBACK_GRACE_MS` | no | How long the browser sink waits for delivered audio to finish playing before a graceful close (default 1500). The browser transport has no playback acknowledgement channel, so this fixed grace keeps a goodbye from being clipped. |
 | `TWILIO_AUTH_TOKEN` | phone | Validates `X-Twilio-Signature` on phone webhooks. Absent → phone channel dark (503), browser voice unaffected. |
 | `VOICE_PUBLIC_BASE_URL` | phone | Public https origin of this gateway (e.g. `https://voice-gateway.up.railway.app`) — used for signature validation and the TwiML stream/action URLs. |
+| `VOICE_STATE_DATABASE_URL` | phone go-live | Postgres URL (any Postgres — the Railway Postgres plugin in practice) for the DURABLE phone handoff stores: pending-call tickets and parked transfer numbers survive deploys, and claim-once holds across instances. Schema (`voice_gateway.*`) is auto-created on boot; a boot log line names the mode (`memory` vs `postgres`). Unset → in-memory fallback (fine for local dev and the single-instance pilot) plus a boot warning when the Twilio vars are set. This is a plain state database, NOT Supabase — the gateway still holds no service keys. |
 | `PENNFIT_TRANSFER_NUMBER` | no | PennFit's existing Twilio number (E.164). Present → the triage agent offers PennFit and warm-transfers callers to it. |
 
 ## Deploying on Railway (one-time UI steps)
@@ -82,6 +96,18 @@ Media Streams on it). Keep the WS origin on the `*.railway.app` host — a
 CDN/WAF in front of a custom domain can silently break WS upgrades.
 
 ## Shared phone number (one number for everything)
+
+> **Go-live checklist for a publicly published number: set
+> `VOICE_STATE_DATABASE_URL`.** With it set, the phone claim/transfer
+> stores (`PhonePendingStore`, `TransferActionStore`) are Postgres-backed:
+> tickets survive deploys mid-handoff (pennfit's error-31920 lesson) and
+> claim-once holds across instances. The abuse caps already exist —
+> per-caller rolling-hour call/minute limits, a separate phone-channel
+> concurrency budget, a daily minutes kill-switch, CallSid idempotency
+> (unique-indexed in the durable store), and an unclaimed-socket cap.
+> Without the env var the stores fall back to in-memory (boot warns): fine
+> for local dev and a pilot number shared privately, not for a published
+> one.
 
 One Twilio number fronts every product. A triage agent answers, asks which
 software the call is about, and routes:
@@ -129,7 +155,11 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 
 - `pnpm --filter @workspace/voice-gateway test` — no network, no key, no
   mic: bridge/tool-loop/transcript units, GA session-shape assertions, and
-  a full HTTP+WS session-flow suite against a fake Realtime socket.
+  a full HTTP+WS session-flow suite against a fake Realtime socket. The
+  durable-store tests (`test/phone-stores.test.ts`) initdb a throwaway
+  local Postgres cluster when `initdb`/`pg_ctl` are installed (or use
+  `VOICE_PG_TEST_URL` if set) and run the claim-once/idempotency/TTL suite
+  against the real database; without Postgres those tests skip and say so.
 - `deno test supabase/functions/_shared/voiceTools.test.ts` — tool logic.
 - `OPENAI_API_KEY=sk-... pnpm --filter @workspace/voice-gateway exec tsx test/e2e-live.ts`
   — OPT-IN, costs money: proves the GA schema + PCM16 formats against the
@@ -155,11 +185,16 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 
 ## Known limits / follow-ups
 
-- **In-memory stores**: a deploy drops in-flight browser handoffs (one-click
-  retry) and — more importantly — LIVE phone calls mid-handshake (pennfit's
-  error-31920 lesson). Accepted for the pilot; DB-backed
-  `PendingSessionStore`/`PhonePendingStore`/`TransferActionStore` swaps
-  behind the same interfaces are the prerequisite for scaling out.
+- **Store durability**: the PHONE handoff stores
+  (`PhonePendingStore`/`TransferActionStore`) are Postgres-backed when
+  `VOICE_STATE_DATABASE_URL` is set — the go-live prerequisite is done; set
+  the env var. The BROWSER `PendingSessionStore` stays in-memory on
+  purpose: a deploy in its 60s window costs one click to retry, not a live
+  call. The usage-limit stores (per-caller rolling-hour meters, daily
+  minutes budget, concurrency trackers) are also in-memory on purpose —
+  they are per-instance counters and the deployment is single-instance;
+  scaling the gateway OUT (multiple instances) would need those budgets
+  rethought (shared or divided), not just persisted.
 - **Phone brains are knowledge-only**: anonymous callers get no app tools.
   Caller-ID account lookup (like PennFit's patient flow) is a separate
   schema + threat-model project.

@@ -1,8 +1,38 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
+import { writeFileSync } from "fs";
+
+// Opt-in bundle composition dump for scripts/check-bundle-budget.mjs investigations.
+// `BUNDLE_ANALYZE=/abs/path.json pnpm build` writes, per emitted JS chunk, the rendered
+// size of every module bundled into it -- enough to find modules duplicated across many
+// lazy route chunks (each copy counts toward the all-JS budget) without adding a
+// visualizer dependency. No effect on normal builds.
+function bundleAnalyzePlugin(): Plugin {
+  return {
+    name: "bundle-analyze-dump",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const outPath = process.env.BUNDLE_ANALYZE;
+      if (!outPath) return;
+      const chunks: Record<
+        string,
+        { bytes: number; modules: Record<string, number> }
+      > = {};
+      for (const [fileName, output] of Object.entries(bundle)) {
+        if (output.type !== "chunk") continue;
+        const modules: Record<string, number> = {};
+        for (const [id, mod] of Object.entries(output.modules)) {
+          modules[id] = mod.renderedLength;
+        }
+        chunks[fileName] = { bytes: output.code.length, modules };
+      }
+      writeFileSync(outPath, JSON.stringify(chunks));
+    },
+  };
+}
 
 const rawPort = process.env.PORT;
 const port =
@@ -38,6 +68,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      bundleAnalyzePlugin(),
       // Installable PWA course player (ROADMAP.md Tier 3.4). generateSW precaches the built app
       // shell (JS/CSS/HTML) with a default cache-first strategy for those static assets --
       // Protected course content is deliberately excluded from Workbox runtime caches. Phase 4
@@ -93,7 +124,6 @@ export default defineConfig(({ command, mode }) => {
             "**/query-*.js",
             "**/radix-*.js",
             "**/supabase-*.js",
-            "**/motion-*.js",
             "**/*.css",
           ],
           runtimeCaching: [
@@ -134,17 +164,24 @@ export default defineConfig(({ command, mode }) => {
     build: {
       outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
+      // Terser over the default esbuild minifier: measured ~11 KiB smaller across all
+      // chunks and ~4 KiB off the entry chunk (the tightest scripts/check-bundle-budget.mjs
+      // metric) for ~12s of extra build time. experimentalMinChunkSize and
+      // cssMinify:"lightningcss" were both tried here and rejected on measurement:
+      // chunk merging moved shared modules INTO the entry chunk (+19 to +93 KiB on the
+      // largest-chunk budget for <17 KiB of total savings), and lightningcss emitted a
+      // *larger* stylesheet than esbuild on this Tailwind output (157.5 vs 152.4 KiB).
+      minify: "terser",
+      terserOptions: {
+        compress: { passes: 3, pure_getters: true },
+      },
       rollupOptions: {
         output: {
           manualChunks: {
             router: ["wouter"],
-            // framer-motion is eagerly reachable (marketing Reveal primitive via the
-            // eager Landing page), so it loads up front either way -- splitting it out
-            // keeps the entry chunk under the largest-chunk bundle budget and lets it
-            // cache independently. lucide-react is deliberately NOT listed: forcing it
+            // lucide-react is deliberately NOT listed: forcing it
             // into one chunk shipped every icon used by ~150 lazy app pages to
             // anonymous marketing visitors; per-chunk tree-shaking is the point.
-            motion: ["framer-motion"],
             radix: [
               "@radix-ui/react-accordion",
               "@radix-ui/react-alert-dialog",

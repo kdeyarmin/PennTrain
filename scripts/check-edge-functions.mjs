@@ -2,6 +2,14 @@ import { readFile, readdir } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { spawn } from "node:child_process";
 
+// Ratcheting floor for per-function runtime test coverage (N-12a). A function counts as
+// runtime-tested when a *.test.ts sits in the same directory as its index.ts entrypoint
+// (_shared unit tests do not count -- they never exercise a handler's request path).
+// Currently runtime-tested: capture-product-event, report-client-error, run-data-lifecycle.
+// Whenever a function gains its first runtime test, RAISE this floor to the new count in
+// the same PR so coverage can only ratchet up. Never lower it.
+const RUNTIME_TEST_FLOOR = 3;
+
 async function findEntrypoints(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const paths = [];
@@ -95,8 +103,10 @@ try {
   console.log(
     `Edge handler runtime tests: ${runtimeTestedDirectories.size}/${functionDirectories.size} functions`,
   );
-  if (runtimeTestedDirectories.size < 3) {
-    throw new Error("Edge handler runtime test coverage regressed below the established minimum of 3 functions");
+  if (runtimeTestedDirectories.size < RUNTIME_TEST_FLOOR) {
+    throw new Error(
+      `Edge handler runtime test coverage regressed below the established minimum of ${RUNTIME_TEST_FLOOR} functions`,
+    );
   }
   if (tests.length > 0) {
     await runDeno(["test", "--node-modules-dir=auto", ...tests]);

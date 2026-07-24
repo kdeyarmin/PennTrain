@@ -91,7 +91,7 @@ export default function Faq() {
           <Reveal className="flex flex-col items-center gap-2.5 rounded-[14px] border border-[#cfe2f4] bg-[#eaf3fc] p-6 text-center">
             <h2 className="text-xl font-bold leading-tight text-[#0d2742]">Want to see it on your own data?</h2>
             <p className="max-w-[48ch] text-sm leading-6 text-[#44566b]">
-              The trial includes every module — create your organization, import your roster, and see your facility's real compliance picture today.
+              The CareBase trial includes every module — create your organization, import your roster, and see your facility's real compliance picture today.
             </p>
             <Button asChild className="mt-1 bg-[#1b6fc2] px-[18px] py-[11px] text-sm font-bold hover:bg-[#14548f]">
               <Link href="/signup">
