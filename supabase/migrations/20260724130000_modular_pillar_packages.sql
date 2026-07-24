@@ -115,7 +115,12 @@ set search_path = ''
 as $$
 begin
   if coalesce((new.features ->> 'modules.carebase')::boolean, true) then
+    -- Persist modules.carebase alongside the bundled pillars. A legacy package with no
+    -- modules.carebase key is treated as CareBase-enabled here, so it must be written back as such;
+    -- otherwise the editor would see the generated pillar flags without CareBase selected and a later
+    -- save would strip full Care Operations from that package.
     new.features := coalesce(new.features, '{}'::jsonb) || jsonb_build_object(
+      'modules.carebase', true,
       'modules.train', true,
       'modules.workforce', true,
       'modules.compliance', true,
