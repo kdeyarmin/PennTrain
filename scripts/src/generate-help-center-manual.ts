@@ -11,6 +11,10 @@ const MARGIN = 56;
 // that don't actually change the manual's content.
 const EDITION = "Edition 2";
 const EDITION_DATE = "July 2026";
+// pdf-lib stamps CreationDate/ModDate with the wall clock unless overridden, which made
+// every build rewrite the checked-in PDF and dirty the worktree. Pin both to the edition
+// so the bytes only change when the manual's content (or edition) changes.
+const EDITION_TIMESTAMP = new Date("2026-07-01T00:00:00Z");
 
 const TITLE_COLOR: [number, number, number] = [0.16, 0.22, 0.44];
 const BODY_COLOR: [number, number, number] = [0.12, 0.12, 0.12];
@@ -290,6 +294,8 @@ class PdfWriter {
     doc.setTitle("CareMetric CareBase — User Manual");
     doc.setAuthor("CareMetric CareBase");
     doc.setSubject("CareMetric CareBase User Manual");
+    doc.setCreationDate(EDITION_TIMESTAMP);
+    doc.setModificationDate(EDITION_TIMESTAMP);
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);

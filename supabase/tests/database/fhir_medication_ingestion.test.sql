@@ -78,7 +78,7 @@ select lives_ok($$
   insert into fhir_ids(key, id)
   select 'command', command_id from public.accept_integration_command(
     'f1000000-0000-4000-8000-000000000401', 'fhirsync-0001', repeat('a', 64),
-    'fhir.bundle.import', '2026-07-11',
+    'fhir.bundle.import', '2026-07-25',
     jsonb_build_object(
       'sourceId', (select id from fhir_ids where key = 'source'),
       'medicationRequests', jsonb_build_array(jsonb_build_object(
@@ -133,7 +133,7 @@ select lives_ok($$
   insert into fhir_ids(key, id)
   select 'command2', command_id from public.accept_integration_command(
     'f1000000-0000-4000-8000-000000000401', 'fhirsync-0002', repeat('b', 64),
-    'fhir.bundle.import', '2026-07-11',
+    'fhir.bundle.import', '2026-07-25',
     jsonb_build_object(
       'sourceId', (select id from fhir_ids where key = 'source'),
       'medicationRequests', jsonb_build_array(jsonb_build_object(

@@ -162,10 +162,10 @@ export default function About() {
               Founding-partner pricing for early Pennsylvania operators
             </h2>
             <p className="text-[15px] leading-7 text-white/85">
-              A limited group of early PCH and ALF operators get founding-partner terms: direct access to the team, priority on their highest-risk workflow, and locked-in pricing for life. We ask for real usage and honest feedback.
+              A limited group of early PCH and ALF operators get founding-partner terms: direct access to the team, priority on their highest-risk workflow, and founding-partner pricing we honor for the life of your subscription. We ask for real usage and honest feedback. To be enrolled, email hello@caremetric.ai.
             </p>
             <Button asChild variant="secondary" className="mt-1.5 self-start bg-white px-5 py-3 text-[14.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]">
-              <Link href="/signup">Start your trial — partner terms apply automatically</Link>
+              <a href="mailto:hello@caremetric.ai?subject=Founding%20partner%20enrollment">Email hello@caremetric.ai to enroll</a>
             </Button>
           </Reveal>
           <Reveal delay={0.1} className="flex flex-col gap-2.5">

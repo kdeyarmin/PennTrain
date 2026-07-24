@@ -765,7 +765,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     title: "Official DHS Forms Index",
     category: "Admin, License & Reference Tools",
     description: "Use this page to prevent confusion between official DHS forms and internal readiness worksheets.",
-    note: "Open the DHS Forms Library in this app (Reporting & Documents) for direct download links to every current official form, organized the same way as this table. Before each annual survey window, verify against the current PA DHS PCH/ALR compliance forms page.",
+    note: "Open the DHS Forms Library in this app (Reporting & Documents) for direct download links to every current official form, organized the same way as this table. Before each annual survey window, verify against the current PA DHS personal care home / assisted living compliance forms page.",
     body: {
       kind: "reference", columns: ["Form category", "How to use", "Examples / notes"],
       rows: [
@@ -784,7 +784,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     description: "A facility should verify that the binder reflects current DHS/BHSL expectations at least annually.",
     body: {
       kind: "table", columns: ["Source to verify", "Date checked", "Reviewed by", "Update needed?", "Notes"],
-      fixedFirstColumn: ["55 Pa. Code Chapter 2600 regulations", "DHS/BHSL Regulatory Compliance Guide", "PCH/ALR compliance forms page", "Entrance Conference Guide", "Medication administration training guidance", "Annual BHSL report / top citations", "DHS listserv or regulatory clarifications"],
+      fixedFirstColumn: ["55 Pa. Code Chapter 2600 regulations", "DHS/BHSL Regulatory Compliance Guide", "PCH/ALF compliance forms page (DHS)", "Entrance Conference Guide", "Medication administration training guidance", "Annual BHSL report / top citations", "DHS listserv or regulatory clarifications"],
     },
     footer: true,
   },
@@ -886,7 +886,7 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     note: "Review at least quarterly and before final survey-window preparation.",
     body: {
       kind: "table", columns: ["Source", "URL", "Review status"],
-      fixedFirstColumn: ["55 Pa. Code Chapter 2600 — Personal Care Homes", "PA DHS PCH/ALR Licensing page", "PA DHS PCH/ALR Compliance Forms", "DHS/BHSL Regulatory Compliance Guide — Chapter 2600", "DHS/BHSL Annual Report and PCH reports", "PCH Field Offices"],
+      fixedFirstColumn: ["55 Pa. Code Chapter 2600 — Personal Care Homes", "PA DHS personal care home / assisted living licensing page", "PA DHS personal care home / assisted living compliance forms", "DHS/BHSL Regulatory Compliance Guide — Chapter 2600", "DHS/BHSL Annual Report and PCH reports", "PCH Field Offices"],
     },
   },
   {

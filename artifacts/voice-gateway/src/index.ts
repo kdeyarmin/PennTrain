@@ -17,15 +17,13 @@ import {
   type PhoneRuntime,
 } from "./transports/twilio-media.js";
 import { buildPhoneTargets } from "./phone/targets.js";
-import {
-  PhonePendingStore,
-  TransferActionStore,
-} from "./phone/pending-calls.js";
+import { createPhoneStateStores } from "./phone/postgres-stores.js";
 import {
   InMemoryPendingSessionStore,
   type PendingSessionStore,
 } from "./session/pending-sessions.js";
 import { ActiveSessionTracker } from "./session/voice-session.js";
+import { createUsageLimits } from "./session/usage-limits.js";
 
 export interface GatewayServerOptions {
   config: GatewayConfig | null;
@@ -48,16 +46,29 @@ function buildPhoneRuntime(opts: GatewayServerOptions): PhoneRuntime | null {
     opts.env ?? process.env,
   );
   if (targets.length === 0) return null;
+  // Durable (Postgres) handoff stores when VOICE_STATE_DATABASE_URL is
+  // set; in-memory fallback (pilot-only — a deploy drops live calls
+  // mid-handoff) otherwise.
+  const stores = createPhoneStateStores(opts.config.voiceStateDatabaseUrl);
+  console.log(
+    JSON.stringify({
+      evt: "voice.gateway.phone.state_store",
+      mode: stores.mode,
+    }),
+  );
   return {
     targets,
-    pendingStore: new PhonePendingStore(),
-    transferStore: new TransferActionStore(),
+    pendingStore: stores.pendingStore,
+    transferStore: stores.transferStore,
+    closeStores: stores.close,
+    unclaimedSockets: { count: 0 },
   };
 }
 
 export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   const pendingStore = opts.pendingStore ?? new InMemoryPendingSessionStore();
   const tracker = new ActiveSessionTracker();
+  const usage = createUsageLimits();
   const phone = buildPhoneRuntime(opts);
 
   const app = buildHttpApp({
@@ -65,6 +76,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
     registry: opts.registry,
     pendingStore,
     tracker,
+    usage,
     phone,
     fetchImpl: opts.fetchImpl,
   });
@@ -89,6 +101,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
           registry: opts.registry,
           pendingStore,
           tracker,
+          usage,
           fetchImpl: opts.fetchImpl,
           webSocketFactory: opts.webSocketFactory,
         },
@@ -113,6 +126,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
           registry: opts.registry,
           phone,
           tracker,
+          usage,
           webSocketFactory: opts.webSocketFactory,
         },
         wss,
@@ -132,6 +146,11 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   // static server).
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
+
+  // Release the durable-store pool (and its sweep timer) with the server.
+  server.on("close", () => {
+    void phone?.closeStores?.().catch(() => undefined);
+  });
 
   return server;
 }

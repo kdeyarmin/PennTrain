@@ -1,7 +1,12 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
-import { buildSubscribeWelcomeEmail } from "../_shared/marketingEmails.ts";
+import {
+  buildSubscribeWelcomeEmail,
+  buildUnsubscribeUrl,
+  listUnsubscribeHeaders,
+} from "../_shared/marketingEmails.ts";
+import { clientIp } from "../_shared/clientIp.ts";
 
 // Public, unauthenticated newsletter/regulatory-update signup (requires verify_jwt:false for
 // [functions.subscribe-updates] in supabase/config.toml, the same registration as request-demo).
@@ -38,15 +43,6 @@ function json(body: unknown, status = 200) {
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function clientIp(req: Request): string {
-  return (
-    req.headers.get("cf-connecting-ip") ??
-    req.headers.get("x-real-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -101,7 +97,12 @@ async function enforceIpRateLimit(adminClient: ReturnType<typeof createClient>, 
 
 // Best-effort welcome email. Never throws into the request path: a missing SendGrid key or a
 // transient send failure must not fail the subscription (the row is already saved).
-async function sendWelcomeEmail(params: { email: string; name: string | null; siteUrl: string }): Promise<void> {
+async function sendWelcomeEmail(params: {
+  email: string;
+  name: string | null;
+  siteUrl: string;
+  unsubscribeUrl: string;
+}): Promise<void> {
   const apiKey = Deno.env.get("SENDGRID_API_KEY");
   if (!apiKey) return;
   try {
@@ -112,7 +113,7 @@ async function sendWelcomeEmail(params: { email: string; name: string | null; si
       email: params.email,
       name: params.name,
       siteUrl: params.siteUrl,
-      unsubscribeUrl: `mailto:hello@caremetric.ai?subject=${encodeURIComponent(`Unsubscribe: ${params.email}`)}`,
+      unsubscribeUrl: params.unsubscribeUrl,
     });
     const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
@@ -121,6 +122,12 @@ async function sendWelcomeEmail(params: { email: string; name: string | null; si
         personalizations: [{ to: [{ email: params.email }] }],
         from,
         subject: message.subject,
+        // RFC 8058 one-click unsubscribe headers so mailbox providers surface their native
+        // unsubscribe affordance (a Gmail/Yahoo bulk-sender requirement). Only meaningful for
+        // an https unsubscribe endpoint, not the defensive mailto fallback.
+        ...(params.unsubscribeUrl.startsWith("http")
+          ? { headers: listUnsubscribeHeaders(params.unsubscribeUrl) }
+          : {}),
         content: [
           { type: "text/plain", value: message.text },
           { type: "text/html", value: message.html },
@@ -128,12 +135,35 @@ async function sendWelcomeEmail(params: { email: string; name: string | null; si
       }),
     });
     if (!resp.ok) {
-      const detail = await resp.text().catch(() => "");
-      console.warn("subscribe-updates welcome email failed", resp.status, detail.slice(0, 300));
+      // Status code only -- the provider error body can echo recipient details.
+      console.warn("subscribe-updates welcome email failed", resp.status);
     }
   } catch (error) {
     console.warn("subscribe-updates welcome email error", error instanceof Error ? error.message : error);
   }
+}
+
+// Global hourly ceiling on welcome-email sends (all callers combined). Per-IP caps alone are a
+// weak backstop for a function that emails arbitrary addresses -- forged forwarding headers
+// turn a per-IP cap into unbounded sends. Rows touched in the last hour over-count sends
+// slightly (duplicate re-subscribes bump updated_at without sending), which errs on the safe
+// side. Fails closed on the send only: subscriptions still succeed past the ceiling.
+async function welcomeSendCeilingReached(adminClient: ReturnType<typeof createClient>): Promise<boolean> {
+  const globalMaxPerHour = parsePositiveInteger(Deno.env.get("NEWSLETTER_GLOBAL_MAX_WELCOME_SENDS_PER_HOUR"), 50);
+  const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count, error } = await adminClient
+    .from("newsletter_subscribers")
+    .select("id", { count: "exact", head: true })
+    .gte("updated_at", windowStart);
+  if (error) {
+    console.warn("subscribe-updates welcome ceiling check failed; skipping send", error.message);
+    return true;
+  }
+  if ((count ?? 0) > globalMaxPerHour) {
+    console.warn(`subscribe-updates global hourly welcome-send ceiling reached (${globalMaxPerHour}/hour)`);
+    return true;
+  }
+  return false;
 }
 
 Deno.serve(async (req: Request) => {
@@ -201,7 +231,7 @@ Deno.serve(async (req: Request) => {
     // updating their preferences isn't blocked by the flood cap.
     const { data: existing, error: lookupError } = await adminClient
       .from("newsletter_subscribers")
-      .select("id, status, topics")
+      .select("id, status, topics, unsubscribe_token")
       .eq("email", email)
       .maybeSingle();
     if (lookupError) {
@@ -209,7 +239,7 @@ Deno.serve(async (req: Request) => {
     }
 
     let sendWelcome = false;
-    let alreadySubscribed = false;
+    let unsubscribeToken: string | null = null;
 
     if (existing) {
       const mergedTopics = Array.from(new Set([...(existing.topics ?? []), ...topics]));
@@ -224,30 +254,43 @@ Deno.serve(async (req: Request) => {
       if (updateError) {
         throw new HttpError(500, "subscribe_failed", "We could not process your subscription. Please try again later.", updateError.message);
       }
-      alreadySubscribed = existing.status === "subscribed";
+      unsubscribeToken = existing.unsubscribe_token ?? null;
       // Re-welcome someone who had previously unsubscribed/bounced; stay silent for a duplicate submit.
       sendWelcome = existing.status !== "subscribed";
     } else {
       await enforceIpRateLimit(adminClient, ipHash);
-      const { error: insertError } = await adminClient.from("newsletter_subscribers").insert({
-        email,
-        name,
-        organization,
-        source_path: sourcePath,
-        topics,
-        ip_hash: ipHash,
-      });
+      const { data: inserted, error: insertError } = await adminClient
+        .from("newsletter_subscribers")
+        .insert({
+          email,
+          name,
+          organization,
+          source_path: sourcePath,
+          topics,
+          ip_hash: ipHash,
+        })
+        .select("unsubscribe_token")
+        .single();
       if (insertError) {
         throw new HttpError(500, "subscribe_failed", "We could not process your subscription. Please try again later.", insertError.message);
       }
+      unsubscribeToken = inserted?.unsubscribe_token ?? null;
       sendWelcome = true;
     }
 
-    if (sendWelcome) {
-      await sendWelcomeEmail({ email, name, siteUrl });
+    if (sendWelcome && !(await welcomeSendCeilingReached(adminClient))) {
+      // One-click unsubscribe hits the public unsubscribe-updates function; the per-subscriber
+      // token is the credential. Fall back to the mailto only if the token could not be read.
+      const unsubscribeUrl = unsubscribeToken
+        ? buildUnsubscribeUrl(supabaseUrl, unsubscribeToken)
+        : `mailto:hello@caremetric.ai?subject=${encodeURIComponent(`Unsubscribe: ${email}`)}`;
+      await sendWelcomeEmail({ email, name, siteUrl, unsubscribeUrl });
     }
 
-    return json({ ok: true, alreadySubscribed });
+    // Deliberately identical response whether this email was new, already subscribed, or
+    // reactivated -- an anonymous caller must not be able to use this endpoint as an oracle
+    // for whether an address is on the list.
+    return json({ ok: true });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     const isHttpError = error instanceof HttpError;

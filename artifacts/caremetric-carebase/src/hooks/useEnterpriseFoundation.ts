@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { BillingSessionError } from "@/lib/billingErrors";
 
 export type EnterpriseJson =
   | null
@@ -199,7 +201,23 @@ export function useCreateBillingSession() {
         "create-billing-session",
         { body: request },
       );
-      if (error) throw error;
+      if (error) {
+        // The edge function answers structured { error: { code } } bodies
+        // (aal2_required, existing_subscription_requires_portal, ...) that the
+        // generic FunctionsHttpError message discards. Same parse pattern as
+        // Employees.tsx bulk import.
+        if (error instanceof FunctionsHttpError) {
+          let code: string | null = null;
+          try {
+            const body = (await error.context.json()) as { error?: { code?: unknown } } | null;
+            if (typeof body?.error?.code === "string") code = body.error.code;
+          } catch {
+            // Response body wasn't JSON -- keep the generic message below.
+          }
+          throw new BillingSessionError(code, error.message);
+        }
+        throw error;
+      }
       return data as BillingSessionResponse;
     },
   });

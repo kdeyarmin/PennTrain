@@ -283,3 +283,17 @@ verify_jwt = false
 # check applies; the function re-checks role + facility scope under RLS.
 [functions.voice-tools]
 verify_jwt = true
+
+# Public one-click newsletter unsubscribe (GET link click + RFC 8058 POST). Recipients have no
+# session; the per-subscriber unsubscribe_token uuid IS the credential -- the same pattern as
+# evidence-guest-download. The handler is idempotent, can only narrow access (status ->
+# 'unsubscribed'), and returns the same page whether or not the token matched, so it is not a
+# list-membership oracle.
+[functions.unsubscribe-updates]
+verify_jwt = false
+
+# Internal cron-only weekly newsletter digest worker. pg_net sends no user JWT, so verify_jwt
+# stays false; the function rejects requests without X-CareMetric-Cron-Secret matching the
+# CRON_SHARED_SECRET Edge Function secret -- the same boundary as dispatch-notifications.
+[functions.send-regulatory-digest]
+verify_jwt = false

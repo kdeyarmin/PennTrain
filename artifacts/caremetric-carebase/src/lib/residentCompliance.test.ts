@@ -46,7 +46,7 @@ describe("getRequiredStateFormInfo", () => {
     for (const itemType of ["annual_reassessment", "medical_evaluation", "preadmission_screening"]) {
       const info = getRequiredStateFormInfo(itemType, "NH");
       expect(info.label).toBe("PA DHS state-approved resident compliance form");
-      expect(info.sourceLabel).toBe("PA DHS PCH/ALR Compliance Forms index");
+      expect(info.sourceLabel).toBe("PA DHS personal care home / assisted living compliance forms index");
       expect(info.url).toBe("https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-compliance-forms");
     }
   });

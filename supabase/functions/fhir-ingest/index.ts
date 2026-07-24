@@ -1,11 +1,15 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
   parsePhase2ApiCredential,
-  PHASE2_INTEGRATION_SCHEMA_VERSION,
+  phase2CommandContract,
   phase2IntegrationHeaders,
   phase2IntegrationSha256,
 } from "../_shared/phase2Integration.ts";
 import { mapFhirBundle } from "../_shared/fhirMapping.ts";
+
+// fhir.bundle.import is a registered per-command contract: the versioned command inbox requires
+// its submissions to carry the command's registered schema version, not the global baseline.
+const FHIR_BUNDLE_CONTRACT = phase2CommandContract("fhir.bundle.import");
 
 // FHIR R4 ingestion endpoint. Accepts a FHIR Bundle (or single resource), maps the supported
 // medication resources into normalized records, and submits them through the existing versioned
@@ -131,7 +135,7 @@ Deno.serve(async (req: Request) => {
     // collide with the first source's command (sourceId comes from the header, not rawBody).
     p_request_sha256: await phase2IntegrationSha256(`${sourceId}\n${rawBody}`),
     p_command_type: "fhir.bundle.import",
-    p_schema_version: PHASE2_INTEGRATION_SCHEMA_VERSION,
+    p_schema_version: FHIR_BUNDLE_CONTRACT.schemaVersion,
     p_payload: payload,
     p_correlation_id: correlationId,
   });
@@ -139,7 +143,7 @@ Deno.serve(async (req: Request) => {
     const conflict = commandError.code === "23505";
     return response({
       error: { code: conflict ? "idempotency_conflict" : "command_rejected" },
-      meta: { schemaVersion: PHASE2_INTEGRATION_SCHEMA_VERSION, correlationId },
+      meta: { schemaVersion: FHIR_BUNDLE_CONTRACT.schemaVersion, correlationId },
     }, conflict ? 409 : 422, correlationId, rate);
   }
   const command = Array.isArray(commandRows) ? commandRows[0] : commandRows;
@@ -158,6 +162,6 @@ Deno.serve(async (req: Request) => {
         unsupported: mapped.unsupported.length,
       },
     },
-    meta: { schemaVersion: PHASE2_INTEGRATION_SCHEMA_VERSION, correlationId: command.correlation_id },
+    meta: { schemaVersion: FHIR_BUNDLE_CONTRACT.schemaVersion, correlationId: command.correlation_id },
   }, command.was_duplicate ? 200 : 202, correlationId, rate);
 });

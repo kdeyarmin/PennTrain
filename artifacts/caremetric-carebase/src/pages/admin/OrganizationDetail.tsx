@@ -8,8 +8,12 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building, Building2, ShieldCheck, ShieldOff, FileArchive, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Building, Building2, ShieldCheck, ShieldOff, FileArchive, Download, Loader2, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetPackage, useListPackages } from "@/hooks/usePackages";
@@ -31,6 +35,34 @@ export default function OrganizationDetail() {
   const { data: packages } = useListPackages();
   const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
   const [confirmSuspend, setConfirmSuspend] = useState(false);
+  const queryClient = useQueryClient();
+  const [baaVersionInput, setBaaVersionInput] = useState("");
+  const [baaSaving, setBaaSaving] = useState(false);
+
+  // Records (or, with p_baa_version omitted, clears) the organization's BAA acceptance.
+  // The RPC is platform_admin + fresh-AAL2 only; an AAL1 session surfaces the server's
+  // step-up error in the toast, same as the billing override surface.
+  const setBaaAcceptance = async (version: string | null) => {
+    if (!id) return;
+    setBaaSaving(true);
+    try {
+      const { error } = version === null
+        ? await supabase.rpc("set_organization_baa_acceptance", { p_org: id })
+        : await supabase.rpc("set_organization_baa_acceptance", { p_org: id, p_baa_version: version });
+      if (error) throw new Error(error.message);
+      setBaaVersionInput("");
+      toast({ title: version === null ? "BAA record cleared" : "BAA acceptance recorded" });
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    } catch (e) {
+      toast({
+        title: version === null ? "Failed to clear BAA record" : "Failed to record BAA acceptance",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setBaaSaving(false);
+    }
+  };
 
   const isLoading = orgLoading || statsLoading;
 
@@ -288,6 +320,83 @@ export default function OrganizationDetail() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" /> AI Features &amp; BAA
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border p-3.5">
+            <div>
+              <p className="text-sm font-medium">AI features enabled</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Org-admin controlled opt-out. Even when on, AI requests are blocked unless a signed Business
+                Associate Agreement is on file (demo organizations are exempt — synthetic data only).
+              </p>
+            </div>
+            <Switch
+              checked={org.ai_features_enabled}
+              onCheckedChange={(v) =>
+                updateOrganization(
+                  { id, ai_features_enabled: v },
+                  {
+                    onSuccess: () => toast({ title: v ? "AI features enabled" : "AI features disabled" }),
+                    onError: (e: Error) => toast({ title: "Failed to update AI features", description: e.message, variant: "destructive" }),
+                  },
+                )
+              }
+              disabled={updatingPackage}
+            />
+          </div>
+          <div className="rounded-lg border p-3.5 space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Business Associate Agreement</p>
+                {org.baa_version ? (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    On file: {org.baa_version}
+                    {org.baa_accepted_at ? ` — accepted ${new Date(org.baa_accepted_at).toLocaleString()}` : ""}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Not on file{org.is_demo ? " (not required for a demo organization)" : " — AI features are blocked for this organization"}.
+                  </p>
+                )}
+              </div>
+              <Badge variant={org.baa_version ? "default" : org.is_demo ? "secondary" : "destructive"}>
+                {org.baa_version ? "BAA recorded" : org.is_demo ? "Demo — exempt" : "No BAA"}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                className="h-9 max-w-sm"
+                placeholder="BAA version, e.g. CareMetric-HIPAA-BAA-v2026-07-14"
+                value={baaVersionInput}
+                onChange={(e) => setBaaVersionInput(e.target.value)}
+                disabled={baaSaving}
+              />
+              <Button
+                size="sm"
+                disabled={baaSaving || !baaVersionInput.trim()}
+                onClick={() => setBaaAcceptance(baaVersionInput.trim())}
+              >
+                {baaSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Record acceptance
+              </Button>
+              {org.baa_version && (
+                <Button size="sm" variant="outline" disabled={baaSaving} onClick={() => setBaaAcceptance(null)}>
+                  Clear record
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Recording requires a fresh AAL2 (step-up) platform admin session and is written to the audit log.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -125,6 +125,7 @@ const WorkOrderDetail = lazy(() => import("@/pages/app/WorkOrderDetail"));
 const MaintenanceScan = lazy(() => import("@/pages/app/MaintenanceScan"));
 const Alerts = lazy(() => import("@/pages/app/Alerts"));
 const Reports = lazy(() => import("@/pages/app/Reports"));
+const ComprehensiveReport = lazy(() => import("@/pages/app/ComprehensiveReport"));
 const AuditLog = lazy(() => import("@/pages/app/AuditLog"));
 const Users = lazy(() => import("@/pages/app/Users"));
 const Documents = lazy(() => import("@/pages/app/Documents"));
@@ -791,6 +792,11 @@ function Router() {
       </Route>
       <Route path="/app/alerts">
         {() => <ProtectedRoute component={Alerts} allowedRoles={ORG_ROLES} />}
+      </Route>
+      {/* Must be registered before "/app/reports" is fine either way -- both are exact paths and
+          neither swallows the other -- but keep them adjacent so the reports surface stays together. */}
+      <Route path="/app/reports/comprehensive">
+        {() => <ProtectedRoute component={ComprehensiveReport} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/reports">
         {() => <ProtectedRoute component={Reports} allowedRoles={REPORTS_VIEW_ROLES} />}

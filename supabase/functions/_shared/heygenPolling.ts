@@ -136,14 +136,20 @@ export async function pollAndResolveHeygenVideo(
       error: "failed to download completed video from HeyGen",
     };
   }
-  const videoBytes = new Uint8Array(await videoRes.arrayBuffer());
 
   const storagePath = `${block.organization_id ?? "system"}/${block.id}.mp4`;
+  // Stream the provider download straight into Storage instead of buffering the
+  // whole video in memory first (a long avatar video easily exceeds an edge
+  // function's memory budget). storage-js 2.7.1 (via the pinned
+  // supabase-js@2.48.1) accepts a ReadableStream<Uint8Array> body and forwards
+  // the `duplex` option to fetch, which streaming request bodies require. The
+  // 60s AbortSignal above still bounds the total transfer, same as before.
   const { error: uploadError } = await storageClient.storage.from(
     "course-videos",
-  ).upload(storagePath, videoBytes, {
+  ).upload(storagePath, videoRes.body, {
     contentType: "video/mp4",
     upsert: true,
+    duplex: "half",
   });
   if (uploadError) return { status: "error", error: uploadError.message };
 

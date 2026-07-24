@@ -232,12 +232,32 @@ export interface ResidentItemRow {
   due_date: unknown;
 }
 
+/**
+ * Row page size for the deadline queries. Exact totals come from separate
+ * `count: "exact"` head queries; the row pages only feed `topItems`.
+ */
+export const DEADLINE_ROW_LIMIT = 100;
+
+/** A count the agent may speak: an exact number, or — when only a capped
+ *  row page is available — the honest "100 or more" instead of stating the
+ *  page size as a total. */
+export type SpokenCount = number | string;
+
+function spokenCount(exact: number | null | undefined, rows: unknown[]): SpokenCount {
+  if (typeof exact === "number" && Number.isFinite(exact) && exact >= 0) {
+    return exact;
+  }
+  return rows.length >= DEADLINE_ROW_LIMIT
+    ? `${DEADLINE_ROW_LIMIT} or more`
+    : rows.length;
+}
+
 export interface VoiceDeadlinesResult {
   days: number;
   counts: {
-    trainingDue: number;
-    credentialsExpiring: number;
-    residentItemsDue: number;
+    trainingDue: SpokenCount;
+    credentialsExpiring: SpokenCount;
+    residentItemsDue: SpokenCount;
   };
   /** Up to five nearest deadlines, name-free labels only. */
   topItems: Array<{ kind: string; label: string; dueOn: string }>;
@@ -252,12 +272,22 @@ function humanizeToken(value: unknown, fallback: string): string {
  * Compact counts + the five nearest items. Labels are type labels, never
  * person names or ids — the spoken summary points staff at the dashboard
  * rather than reading records aloud.
+ *
+ * `exactCounts` carries the `count: "exact"` totals so the agent speaks
+ * TRUE numbers; when a total is missing the count degrades to the row page
+ * (and to "100 or more" if that page is full) rather than presenting a
+ * truncated page as the total.
  */
 export function summarizeDeadlines(
   days: number,
   training: TrainingDueRow[],
   credentials: CredentialRow[],
   residentItems: ResidentItemRow[],
+  exactCounts?: {
+    trainingDue?: number | null;
+    credentialsExpiring?: number | null;
+    residentItemsDue?: number | null;
+  },
 ): VoiceDeadlinesResult {
   const items: Array<{ kind: string; label: string; dueOn: string }> = [];
   for (const row of training) {
@@ -288,9 +318,9 @@ export function summarizeDeadlines(
   return {
     days,
     counts: {
-      trainingDue: training.length,
-      credentialsExpiring: credentials.length,
-      residentItemsDue: residentItems.length,
+      trainingDue: spokenCount(exactCounts?.trainingDue, training),
+      credentialsExpiring: spokenCount(exactCounts?.credentialsExpiring, credentials),
+      residentItemsDue: spokenCount(exactCounts?.residentItemsDue, residentItems),
     },
     topItems: items.slice(0, 5),
   };

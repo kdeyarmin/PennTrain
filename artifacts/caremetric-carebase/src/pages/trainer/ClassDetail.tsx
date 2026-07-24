@@ -134,7 +134,12 @@ function QrCheckinCard({ classId }: { classId: string }) {
       try {
         const token = await generateToken.mutateAsync(classId);
         if (cancelled) return;
-        const checkinUrl = `${window.location.origin}/checkin/${token}`;
+        // Belt-and-braces: tokens have generated from a URL-safe alphabet
+        // ([A-Za-z0-9_-]) since 20260705163816, so this is a no-op today -- but
+        // if the server alphabet ever regressed to plain base64, an unencoded
+        // '/' or '+' here would split the /checkin/:token path or decode as a
+        // space. wouter decodes route params, so encoding round-trips cleanly.
+        const checkinUrl = `${window.location.origin}/checkin/${encodeURIComponent(token)}`;
         const dataUrl = await QRCode.toDataURL(checkinUrl, { width: 240, margin: 1 });
         if (!cancelled) { setQrDataUrl(dataUrl); setError(null); }
       } catch (e) {

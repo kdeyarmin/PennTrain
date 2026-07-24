@@ -355,7 +355,7 @@ const PLANS: Plan[] = [
       "Priority support",
     ],
     cta: "Talk to us",
-    href: "/signup",
+    href: "mailto:hello@caremetric.ai?subject=CareMetric%20Portfolio%20inquiry",
   },
 ];
 
@@ -916,7 +916,7 @@ export default function Landing() {
           <Reveal className="mx-auto max-w-[560px] text-center">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Pricing</p>
             <h2 className="mt-2.5 text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Simple, usage-based pricing.</h2>
-            <p className="mt-2 text-[15px] text-[#44566b]">Every plan includes 25 active learners or residents, then $4/month for each additional person. No facility-count math, no per-module upsells.</p>
+            <p className="mt-2 text-[15px] text-[#44566b]">Every plan includes 25 active learners or residents, then $4/month for each additional person. No facility-count math.</p>
           </Reveal>
           <div className="mt-9 grid gap-4 lg:grid-cols-3">
             {PLANS.map((plan, i) => (
@@ -928,7 +928,7 @@ export default function Landing() {
                   {plan.features.map((feature) => <CheckLine key={feature}>{feature}</CheckLine>)}
                 </div>
                 <Button asChild className={plan.featured ? "mt-auto bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]" : "mt-auto border border-[#c8d4e0] bg-transparent font-bold text-[#0d2742] hover:bg-[#f0f5fa]"}>
-                  <Link href={plan.href}>{plan.cta}</Link>
+                  {plan.href.startsWith("mailto:") ? <a href={plan.href}>{plan.cta}</a> : <Link href={plan.href}>{plan.cta}</Link>}
                 </Button>
               </Reveal>
             ))}
