@@ -9692,6 +9692,7 @@ export type Database = {
           administrator_email: string | null
           administrator_name: string | null
           city: string | null
+          clinical_enabled: boolean
           created_at: string
           default_care_frequency: string | null
           default_care_responsible_party: string | null
@@ -9714,6 +9715,7 @@ export type Database = {
           administrator_email?: string | null
           administrator_name?: string | null
           city?: string | null
+          clinical_enabled?: boolean
           created_at?: string
           default_care_frequency?: string | null
           default_care_responsible_party?: string | null
@@ -9736,6 +9738,7 @@ export type Database = {
           administrator_email?: string | null
           administrator_name?: string | null
           city?: string | null
+          clinical_enabled?: boolean
           created_at?: string
           default_care_frequency?: string | null
           default_care_responsible_party?: string | null
@@ -11070,6 +11073,7 @@ export type Database = {
           supported_resources: string[]
           updated_at: string
           vendor_name: string
+          writeback_enabled: boolean
         }
         Insert: {
           created_at?: string
@@ -11091,6 +11095,7 @@ export type Database = {
           supported_resources?: string[]
           updated_at?: string
           vendor_name: string
+          writeback_enabled?: boolean
         }
         Update: {
           created_at?: string
@@ -11112,6 +11117,7 @@ export type Database = {
           supported_resources?: string[]
           updated_at?: string
           vendor_name?: string
+          writeback_enabled?: boolean
         }
         Relationships: [
           {
@@ -11501,6 +11507,115 @@ export type Database = {
           },
           {
             foreignKeyName: "fhir_service_requests_source_id_organization_id_facility_i_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_writeback_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          external_resource_id: string | null
+          facility_id: string
+          fhir_patient_id: string
+          fhir_payload: Json
+          id: string
+          last_error: string | null
+          organization_id: string
+          origin_id: string
+          origin_kind: string
+          resident_id: string
+          resource_type: string
+          sent_at: string | null
+          source_id: string
+          status: string
+          target_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          external_resource_id?: string | null
+          facility_id: string
+          fhir_patient_id: string
+          fhir_payload: Json
+          id?: string
+          last_error?: string | null
+          organization_id: string
+          origin_id: string
+          origin_kind: string
+          resident_id: string
+          resource_type: string
+          sent_at?: string | null
+          source_id: string
+          status?: string
+          target_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          external_resource_id?: string | null
+          facility_id?: string
+          fhir_patient_id?: string
+          fhir_payload?: Json
+          id?: string
+          last_error?: string | null
+          organization_id?: string
+          origin_id?: string
+          origin_kind?: string
+          resident_id?: string
+          resource_type?: string
+          sent_at?: string | null
+          source_id?: string
+          status?: string
+          target_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_writeback_queue_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_source_id_organization_id_facility_id_fkey"
             columns: ["source_id", "organization_id", "facility_id"]
             isOneToOne: false
             referencedRelation: "fhir_integration_sources"
@@ -33218,6 +33333,36 @@ export type Database = {
           source_path: string
         }[]
       }
+      claim_fhir_writeback_batch: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          external_resource_id: string | null
+          facility_id: string
+          fhir_patient_id: string
+          fhir_payload: Json
+          id: string
+          last_error: string | null
+          organization_id: string
+          origin_id: string
+          origin_kind: string
+          resident_id: string
+          resource_type: string
+          sent_at: string | null
+          source_id: string
+          status: string
+          target_url: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "fhir_writeback_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_integration_webhook_deliveries: {
         Args: {
           p_batch_size?: number
@@ -33375,6 +33520,15 @@ export type Database = {
       complete_exclusion_source_refresh: {
         Args: { p_expected_record_count: number; p_run_id: string }
         Returns: Json
+      }
+      complete_fhir_writeback: {
+        Args: {
+          p_error?: string
+          p_external_resource_id?: string
+          p_id: string
+          p_success: boolean
+        }
+        Returns: undefined
       }
       complete_hospital_return: {
         Args: {
@@ -35658,6 +35812,10 @@ export type Database = {
         Returns: Json
       }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
+      queue_clinical_observation_writeback: {
+        Args: { p_observation_id: string }
+        Returns: string
+      }
       queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
       queue_designated_person_notifications: {
@@ -37121,6 +37279,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_facility_clinical_enabled: {
+        Args: { p_enabled: boolean; p_facility_id: string }
+        Returns: boolean
       }
       set_feature_kill_switch: {
         Args: {

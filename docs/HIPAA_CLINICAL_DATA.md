@@ -30,6 +30,7 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
 | M3 | FHIR allergies, diagnoses/problem list, orders, documents | **Delivered** |
 | M4 | Native care plans, assessments, progress notes (sign-and-lock) | **Delivered** |
 | M5 | Chart consolidation, unified timeline, hardening; write-back reserved (disabled) | **Delivered** |
+| M6 | Per-facility clinical enablement; opt-in FHIR write-back (Observation); consolidated chart summary wired read-side; demo clinical seed | **Delivered** |
 
 ## Data model (delivered in M0–M1)
 
@@ -85,9 +86,22 @@ Data model (delivered in M2 — FHIR medication lane):
 - **BAA & infrastructure.** Production PHI requires a signed Supabase Business Associate Agreement,
   confirmation that Railway is either in PHI scope or that PHI never transits it, and a documented
   data-retention/lifecycle policy for clinical tables.
-- **Per-facility enablement.** M0 gates clinical capability at the organization level
-  (`clinical.ehr`). Per-facility granularity can be layered later if some facilities in an org
-  should not store PHI.
+- **Per-facility enablement (delivered, M6).** M0 gates clinical capability at the organization
+  level (`clinical.ehr`); `facilities.clinical_enabled` (default `true`) now adds a per-facility
+  switch, toggled by an org admin via `public.set_facility_clinical_enabled(facility, enabled)`.
+  When a facility is disabled, `app_private.assert_clinical_contributor` and
+  `app_private.assert_clinical_integration_scope` block new native charting and clinical-integration
+  configuration there, while previously captured records stay readable (`clinical_record_visible`
+  is unaffected).
+- **FHIR write-back (delivered, M6, opt-in).** The `clinical.writeback` scope is now active but
+  write-back stays **off by default**: a source must set `fhir_integration_sources.writeback_enabled`
+  and the caller must hold `clinical.integration.writeback`. Native `clinical_observations` are
+  serialized to FHIR `Observation` and appended to `public.fhir_writeback_queue`
+  (`queue_clinical_observation_writeback`), then drained by the cron-only `fhir-writeback` edge
+  function over the same SSRF-guarded, TLS-pinned transport as signed webhooks
+  (`claim_fhir_writeback_batch` / `complete_fhir_writeback`). Delivery must be scheduled to run;
+  with no write-back-enabled sources the drain is a no-op. CareBase still never becomes the clinical
+  source of truth for ingested (Lane A) data.
 - **Customer-facing "not an EHR" copy — UPDATED 2026-07 (per product-owner approval).** The
   positioning/Terms language that described CareBase as "not an EHR/eMAR" has been revised to
   reflect the new resident clinical record (native charting + read-only FHIR integration), while

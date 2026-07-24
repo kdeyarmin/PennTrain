@@ -215,6 +215,11 @@ verify_jwt = false
 [functions.fhir-ingest]
 verify_jwt = false
 
+# Outbound FHIR write-back drain. Cron-only (shared-secret boundary, no user JWT); posts
+# queued clinical resources to write-back-enabled sources over the SSRF-guarded pinned transport.
+[functions.fhir-writeback]
+verify_jwt = false
+
 # Public confidential intake. Turnstile, hashed IP rate limits, and server-generated
 # resume/confirmation secrets are enforced in the handler before service-role RPC use.
 [functions.submit-confidential-intake]

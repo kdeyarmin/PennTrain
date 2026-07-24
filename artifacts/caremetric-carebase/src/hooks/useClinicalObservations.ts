@@ -21,6 +21,38 @@ export type ObservationType =
 export type ObservationAmendmentType = "correction" | "entered_in_error" | "note";
 
 const CLINICAL_OBSERVATIONS_KEY = "clinical-observations";
+const CLINICAL_CHART_SUMMARY_KEY = "clinical-chart-summary";
+
+/** Consolidated face-sheet returned by the get_resident_clinical_chart RPC. */
+export interface ClinicalChartSummary {
+  resident: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    room: string | null;
+    clinicalDataConsent: string;
+  };
+  allergies: { substance: string; criticality: string | null; clinicalStatus: string | null }[];
+  problems: { display: string; code: string | null; clinicalStatus: string | null }[];
+  medications: { display: string; status: string; rxnorm: string | null }[];
+  latestVitals: {
+    observation_type: string;
+    value_numeric: number | null;
+    value_secondary: number | null;
+    value_text: string | null;
+    unit: string | null;
+    abnormal_flag: string;
+    observed_at: string;
+  }[];
+  recentNotes: { noteType: string; status: string; authoredAt: string }[];
+  recentAssessments: {
+    assessmentType: string;
+    score: number | null;
+    riskBand: string | null;
+    status: string;
+    assessedAt: string;
+  }[];
+}
 
 /**
  * Reads a resident's clinical observations through the SECURITY DEFINER RPC (not a direct
@@ -110,12 +142,24 @@ export function useAmendClinicalObservation() {
   });
 }
 
-/** Best-effort HIPAA access-log write when a resident clinical chart is opened. */
-export async function logClinicalChartView(residentId: string) {
-  const { error } = await supabase.rpc("log_clinical_access", {
-    p_resident_id: residentId,
-    p_access_kind: "view_chart",
-    p_clinical_domain: "summary",
+/**
+ * Consolidated clinical chart face-sheet through the SECURITY DEFINER RPC. The RPC composes
+ * both lanes (native vitals/notes/assessments + read-only FHIR meds/allergies/problems) and
+ * writes the HIPAA chart-view access-log entry itself, so opening the chart is logged once here
+ * rather than through a separate access-log call.
+ */
+export function useResidentClinicalChartSummary(residentId: string | undefined, reason?: string) {
+  return useQuery({
+    queryKey: [CLINICAL_CHART_SUMMARY_KEY, residentId],
+    enabled: Boolean(residentId),
+    queryFn: async (): Promise<ClinicalChartSummary> => {
+      const { data, error } = await supabase.rpc("get_resident_clinical_chart", {
+        p_resident_id: residentId!,
+        ...(reason ? { p_minimum_necessary_reason: reason } : {}),
+      });
+      if (error) throw error;
+      return data as unknown as ClinicalChartSummary;
+    },
+    staleTime: 60_000,
   });
-  if (error) throw error;
 }

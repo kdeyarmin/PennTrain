@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "wouter";
 import { Activity, AlertTriangle, ArrowLeft, DatabaseZap, HeartPulse, Pill, Plus, ShieldCheck, Stethoscope } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,11 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useGetResident } from "@/hooks/useResidents";
 import {
+  type ClinicalChartSummary,
   type ClinicalObservation,
   type ObservationType,
-  logClinicalChartView,
   useAmendClinicalObservation,
   useRecordClinicalObservation,
+  useResidentClinicalChartSummary,
   useResidentClinicalObservations,
 } from "@/hooks/useClinicalObservations";
 import { useResidentFhirClinical } from "@/hooks/useFhirIntegration";
@@ -88,6 +89,28 @@ function observationTitle(observation: ClinicalObservation): string {
   return OBSERVATION_CONFIG[observation.observation_type as ObservationType]?.label ?? observation.observation_type;
 }
 
+type SummaryVital = ClinicalChartSummary["latestVitals"][number];
+
+function summaryVitalTitle(type: string): string {
+  return OBSERVATION_CONFIG[type as ObservationType]?.label ?? type.replace(/_/gu, " ");
+}
+
+function summaryVitalValue(vital: SummaryVital): string {
+  const unit = vital.unit ?? OBSERVATION_CONFIG[vital.observation_type as ObservationType]?.unit ?? "";
+  const unitSuffix = unit && unit !== "{score}" ? ` ${unit}` : "";
+  if (vital.observation_type === "blood_pressure" && vital.value_numeric != null) {
+    const diastolic = vital.value_secondary != null ? `/${vital.value_secondary}` : "";
+    return `${vital.value_numeric}${diastolic}${unitSuffix}`;
+  }
+  if (vital.value_numeric != null) return `${vital.value_numeric}${unitSuffix}`;
+  return vital.value_text ?? "—";
+}
+
+function titleCase(value: string): string {
+  const spaced = value.replace(/_/gu, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 export default function ResidentClinicalChart() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -95,12 +118,10 @@ export default function ResidentClinicalChart() {
   const resident = useGetResident(id);
   const observations = useResidentClinicalObservations(id);
   const fhir = useResidentFhirClinical(id);
+  const summary = useResidentClinicalChartSummary(id, "Resident clinical chart view");
 
   const activeAllergies = (fhir.data?.allergies ?? []).filter(
     (allergy) => !["inactive", "resolved"].includes(allergy.clinical_status ?? ""),
-  );
-  const activeConditions = (fhir.data?.conditions ?? []).filter(
-    (condition) => !["inactive", "resolved"].includes(condition.clinical_status ?? ""),
   );
   const activeMedications = (fhir.data?.medications ?? []).filter((medication) => medication.request_status === "active");
 
@@ -108,13 +129,6 @@ export default function ResidentClinicalChart() {
   usePageTitle(`${residentName} · Clinical chart`);
 
   const canChart = ["platform_admin", "org_admin", "facility_manager", "employee"].includes(user?.role ?? "");
-
-  useEffect(() => {
-    if (!id) return;
-    void logClinicalChartView(id).catch(() => {
-      /* access logging is best-effort and must not block chart rendering */
-    });
-  }, [id]);
 
   const [recordOpen, setRecordOpen] = useState(false);
   const [observationType, setObservationType] = useState<ObservationType>("blood_pressure");
@@ -133,17 +147,6 @@ export default function ResidentClinicalChart() {
 
   const config = OBSERVATION_CONFIG[observationType];
   const isCustom = observationType === "custom";
-
-  const latestByType = useMemo(() => {
-    const map = new Map<string, ClinicalObservation>();
-    for (const observation of observations.data ?? []) {
-      const existing = map.get(observation.observation_type);
-      if (!existing || new Date(observation.observed_at) > new Date(existing.observed_at)) {
-        map.set(observation.observation_type, observation);
-      }
-    }
-    return map;
-  }, [observations.data]);
 
   const chooseType = (next: ObservationType) => {
     setObservationType(next);
@@ -267,64 +270,141 @@ export default function ResidentClinicalChart() {
         </TabsList>
 
         <TabsContent value="summary" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base"><Activity className="h-4 w-4" />Latest observations</CardTitle>
-              <CardDescription>Most recent value recorded for each observation type.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {latestByType.size === 0 ? (
-                <p className="text-sm text-muted-foreground">No observations recorded yet.</p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {OBSERVATION_ORDER.filter((type) => latestByType.has(type)).map((type) => {
-                    const observation = latestByType.get(type)!;
-                    const badge = abnormalBadge(observation.abnormal_flag);
-                    return (
-                      <div key={type} className="rounded-lg border p-3">
-                        <p className="text-xs text-muted-foreground">{observationTitle(observation)}</p>
-                        <p className="text-xl font-semibold">{observationValue(observation)}</p>
-                        <div className="mt-1 flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">{new Date(observation.observed_at).toLocaleString()}</span>
-                          {badge && <Badge variant="outline" className={badge.className}>{badge.label}</Badge>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Active medications</p><p className="text-2xl font-semibold">{activeMedications.length}</p></div>
-            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Active problems</p><p className="text-2xl font-semibold">{activeConditions.length}</p></div>
-            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Allergies</p><p className="text-2xl font-semibold">{activeAllergies.length}</p></div>
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Active problem list</CardTitle>
-              <CardDescription>Conditions ingested read-only from the connected EHR (FHIR).</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {activeConditions.length === 0 ? <p className="text-sm text-muted-foreground">No active conditions on file.</p> : (
-                <ul className="space-y-1 text-sm">
-                  {activeConditions.slice(0, 8).map((condition) => (
-                    <li key={condition.id} className="flex items-center justify-between gap-2">
-                      <span>{condition.code_display}</span>
-                      {condition.code && <span className="text-xs text-muted-foreground">{condition.code}</span>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-          <Alert>
-            <AlertTitle>More clinical domains are on the way</AlertTitle>
-            <AlertDescription>
-              Care plans, clinical assessments, and progress-note charting join this chart in a later phase.
-              Medications, allergies, and diagnoses are ingested read-only via FHIR; vitals are captured natively.
-            </AlertDescription>
-          </Alert>
+          {summary.isError ? (
+            <QueryError what="clinical summary" error={summary.error} onRetry={() => summary.refetch()} />
+          ) : summary.isLoading ? (
+            <Card><CardContent className="space-y-3 p-4"><Skeleton className="h-6 w-full" /><Skeleton className="h-6 w-2/3" /></CardContent></Card>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Active medications</p><p className="text-2xl font-semibold">{(summary.data?.medications ?? []).length}</p></div>
+                <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Active problems</p><p className="text-2xl font-semibold">{(summary.data?.problems ?? []).length}</p></div>
+                <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Allergies</p><p className="text-2xl font-semibold">{(summary.data?.allergies ?? []).length}</p></div>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base"><Activity className="h-4 w-4" />Latest observations</CardTitle>
+                  <CardDescription>Most recent value recorded for each observation type.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(summary.data?.latestVitals ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No observations recorded yet.</p>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {[...(summary.data?.latestVitals ?? [])]
+                        .sort((a, b) =>
+                          OBSERVATION_ORDER.indexOf(a.observation_type as ObservationType) -
+                          OBSERVATION_ORDER.indexOf(b.observation_type as ObservationType))
+                        .map((vital) => {
+                          const badge = abnormalBadge(vital.abnormal_flag);
+                          return (
+                            <div key={vital.observation_type} className="rounded-lg border p-3">
+                              <p className="text-xs text-muted-foreground">{summaryVitalTitle(vital.observation_type)}</p>
+                              <p className="text-xl font-semibold">{summaryVitalValue(vital)}</p>
+                              <div className="mt-1 flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">{new Date(vital.observed_at).toLocaleString()}</span>
+                                {badge && <Badge variant="outline" className={badge.className}>{badge.label}</Badge>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Active problem list</CardTitle>
+                    <CardDescription>Conditions ingested read-only from the connected EHR (FHIR).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(summary.data?.problems ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No active conditions on file.</p> : (
+                      <ul className="space-y-1 text-sm">
+                        {(summary.data?.problems ?? []).slice(0, 8).map((problem, index) => (
+                          <li key={`${problem.code ?? problem.display}-${index}`} className="flex items-center justify-between gap-2">
+                            <span>{problem.display}</span>
+                            {problem.code && <span className="text-xs text-muted-foreground">{problem.code}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base"><Pill className="h-4 w-4" />Active medications</CardTitle>
+                    <CardDescription>Ingested read-only from the connected EHR/pharmacy (FHIR).</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(summary.data?.medications ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No active medications on file.</p> : (
+                      <ul className="space-y-1 text-sm">
+                        {(summary.data?.medications ?? []).slice(0, 8).map((medication, index) => (
+                          <li key={`${medication.rxnorm ?? medication.display}-${index}`} className="flex items-center justify-between gap-2">
+                            <span>{medication.display}</span>
+                            {medication.rxnorm && <span className="text-xs text-muted-foreground">RxNorm {medication.rxnorm}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Recent assessments</CardTitle>
+                    <CardDescription>Latest clinical assessments captured in-app.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(summary.data?.recentAssessments ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No assessments recorded yet.</p> : (
+                      <ul className="space-y-2 text-sm">
+                        {(summary.data?.recentAssessments ?? []).map((assessment, index) => (
+                          <li key={`${assessment.assessmentType}-${index}`} className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <span className="font-medium">{titleCase(assessment.assessmentType)}</span>
+                              {assessment.score != null && (
+                                <span className="ml-2 text-muted-foreground">
+                                  Score {assessment.score}{assessment.riskBand ? ` · ${assessment.riskBand}` : ""}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">{new Date(assessment.assessedAt).toLocaleDateString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base"><HeartPulse className="h-4 w-4" />Recent progress notes</CardTitle>
+                    <CardDescription>Latest notes charted in-app.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(summary.data?.recentNotes ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No progress notes recorded yet.</p> : (
+                      <ul className="space-y-2 text-sm">
+                        {(summary.data?.recentNotes ?? []).map((note, index) => (
+                          <li key={`${note.noteType}-${index}`} className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{titleCase(note.noteType)}</span>
+                              <Badge variant="outline">{note.status.replace(/_/gu, " ")}</Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{new Date(note.authoredAt).toLocaleDateString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="medications" className="space-y-3">

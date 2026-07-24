@@ -3,8 +3,8 @@ select plan(11);
 
 select has_function('public', 'get_resident_clinical_chart', array['uuid', 'text'], 'consolidated chart summary RPC exists');
 select ok(
-  exists(select 1 from public.integration_api_scope_definitions where scope_key = 'clinical.writeback' and is_active = false),
-  'FHIR write-back is reserved but disabled'
+  exists(select 1 from public.integration_api_scope_definitions where scope_key = 'clinical.writeback' and is_active = true),
+  'FHIR write-back scope is defined and enabled'
 );
 
 insert into public.organizations(id, name, slug, subscription_status) values
