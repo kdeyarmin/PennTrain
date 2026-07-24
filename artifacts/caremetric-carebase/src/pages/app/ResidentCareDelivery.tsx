@@ -77,7 +77,7 @@ export default function ResidentCareDelivery() {
             <h1 className="text-2xl font-semibold tracking-tight">Resident Care Delivery</h1>
           </div>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Staff-managed support-plan, service exception, DME, appointment, hospital-transfer, and return follow-up controls. This workspace routes care-operational issues into existing service delivery, change-of-condition, work queue, documents, and command-center workflows without creating a clinical EHR or eMAR.
+            Staff-managed support-plan, service exception, DME, appointment, hospital-transfer, and return follow-up controls. This workspace routes care-operational issues into existing service delivery, change-of-condition, work queue, documents, and command-center workflows. Clinical records — vitals, care plans, assessments, progress notes, and FHIR-integrated medications, allergies, and diagnoses — live in the resident clinical chart.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -167,7 +167,7 @@ export default function ResidentCareDelivery() {
             <CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-600" />CareBase boundary controls</CardTitle></CardHeader>
             <CardContent className="grid gap-3 text-sm md:grid-cols-2">
               <Badge variant="outline" className="justify-start p-3">No resident, family, prospect, or responsible-party portal is created.</Badge>
-              <Badge variant="outline" className="justify-start p-3">Hospital-return medication reconciliation is tracked as status only; no eMAR is implemented.</Badge>
+              <Badge variant="outline" className="justify-start p-3">Hospital-return medication reconciliation is tracked as status; medications are ingested read-only via FHIR rather than administered in CareBase.</Badge>
               <Badge variant="outline" className="justify-start p-3">Assessment rules may propose changes; human review is required for regulated support-plan decisions.</Badge>
               <Badge variant="outline" className="justify-start p-3">Effective support-plan versions are immutable; approved changes create future requirements only.</Badge>
             </CardContent>

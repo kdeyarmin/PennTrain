@@ -8,7 +8,7 @@ const TERMS_SECTIONS = [
   {
     title: "1. The service",
     body:
-      "CareBase is subscription software for facility operations, workforce compliance, and survey-readiness documentation. It is not an EHR, eMAR, payroll, or accounting system, and it does not provide legal, clinical, or regulatory advice.",
+      "CareBase is subscription software for facility operations, workforce compliance, survey-readiness documentation, and resident clinical records — including native charting and FHIR-based integration with external clinical systems. It is not a pharmacy eMAR (it does not administer medications), a payroll system, or an accounting system, and it does not provide legal, clinical, medical, or regulatory advice. Clinical features are a record-keeping and coordination tool and are not a substitute for professional clinical judgment.",
   },
   {
     title: "2. Accounts",

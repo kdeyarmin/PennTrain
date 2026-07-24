@@ -88,12 +88,15 @@ Data model (delivered in M2 — FHIR medication lane):
 - **Per-facility enablement.** M0 gates clinical capability at the organization level
   (`clinical.ehr`). Per-facility granularity can be layered later if some facilities in an org
   should not store PHI.
-- **Customer-facing "not an EHR" copy — review before publishing (NOT changed by the engineering
-  work).** Making CareBase an EHR contradicts positioning/Terms language in several places.
-  Changing these is a product/legal/sales decision (Terms especially should route through legal):
-  - `artifacts/caremetric-carebase/src/pages/marketing/Landing.tsx` (≈ lines 168, 376, 391)
-  - `artifacts/caremetric-carebase/src/pages/marketing/About.tsx` (≈ line 20)
-  - `artifacts/caremetric-carebase/src/pages/marketing/Terms.tsx` (≈ line 11)
-  - `artifacts/caremetric-carebase/src/pages/marketing/HowItWorks.tsx` (≈ line 82)
-  - `artifacts/caremetric-carebase/src/lib/faqContent.ts` (≈ lines 33, 45)
-  - `artifacts/caremetric-carebase/src/pages/marketing/ResidentCareDelivery.tsx` (≈ line 80)
+- **Customer-facing "not an EHR" copy — UPDATED 2026-07 (per product-owner approval).** The
+  positioning/Terms language that described CareBase as "not an EHR/eMAR" has been revised to
+  reflect the new resident clinical record (native charting + read-only FHIR integration), while
+  making clear CareBase does not administer medications and that clinical features are not a
+  substitute for professional clinical judgment. **Terms language should still be confirmed by
+  legal before release.** Files updated:
+  - `artifacts/caremetric-carebase/src/pages/Landing.tsx`
+  - `artifacts/caremetric-carebase/src/pages/marketing/About.tsx`
+  - `artifacts/caremetric-carebase/src/pages/marketing/Terms.tsx`
+  - `artifacts/caremetric-carebase/src/pages/marketing/HowItWorks.tsx`
+  - `artifacts/caremetric-carebase/src/components/marketing/faqContent.ts`
+  - `artifacts/caremetric-carebase/src/pages/app/ResidentCareDelivery.tsx`, `src/pages/app/ServiceDelivery.tsx`
