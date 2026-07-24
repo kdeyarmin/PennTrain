@@ -54,6 +54,8 @@ const MIME_TYPES = {
   ".gif": "image/gif",
   ".webp": "image/webp",
   ".ico": "image/x-icon",
+  ".mp4": "video/mp4",
+  ".vtt": "text/vtt; charset=utf-8",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".ttf": "font/ttf",
@@ -221,6 +223,32 @@ function pickEncoding(acceptEncoding) {
   return { encoding: "gzip", suffix: ".gz" };
 }
 
+// Parse a single RFC 7233 "bytes=start-end" range against a known size. Returns
+// {start,end} inclusive, null when there is no (or an unsupported multi-)range
+// header, or "unsatisfiable" for a range outside the resource.
+function parseRange(header, size) {
+  if (!header) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null; // multi-range or malformed -- serve the full body instead
+  const [, startStr, endStr] = match;
+  if (startStr === "" && endStr === "") return "unsatisfiable";
+  let start;
+  let end;
+  if (startStr === "") {
+    const suffix = Number(endStr);
+    if (!suffix) return "unsatisfiable";
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(startStr);
+    end = endStr === "" ? size - 1 : Math.min(Number(endStr), size - 1);
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= size) {
+    return "unsatisfiable";
+  }
+  return { start, end };
+}
+
 async function serveFile(filePath, req, res, { cacheable }) {
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
@@ -231,6 +259,7 @@ async function serveFile(filePath, req, res, { cacheable }) {
   };
 
   let data = null;
+  let encoded = false;
   if (COMPRESSIBLE_EXTENSIONS.has(ext)) {
     // Cache correctness even when we answer with the identity body: the response
     // still varies on Accept-Encoding.
@@ -240,6 +269,7 @@ async function serveFile(filePath, req, res, { cacheable }) {
       try {
         data = await readFile(filePath + picked.suffix);
         headers["Content-Encoding"] = picked.encoding;
+        encoded = true;
       } catch (error) {
         if (error?.code !== "ENOENT") throw error;
         // No precompressed sibling -- fall back to identity.
@@ -247,6 +277,30 @@ async function serveFile(filePath, req, res, { cacheable }) {
     }
   }
   if (data === null) data = await readFile(filePath);
+
+  // Byte-range support for identity bodies so browser media controls can fetch
+  // metadata and seek without pulling the whole file (mp4 posters/videos).
+  // Skipped for content-encoded bodies, where a client's range refers to the
+  // identity resource, not the compressed bytes we would send.
+  if (!encoded) {
+    headers["Accept-Ranges"] = "bytes";
+    const range = parseRange(req.headers["range"], data.byteLength);
+    if (range === "unsatisfiable") {
+      res.writeHead(416, { ...headers, "Content-Range": `bytes */${data.byteLength}` });
+      res.end();
+      return;
+    }
+    if (range) {
+      const chunk = data.subarray(range.start, range.end + 1);
+      res.writeHead(206, {
+        ...headers,
+        "Content-Range": `bytes ${range.start}-${range.end}/${data.byteLength}`,
+        "Content-Length": chunk.byteLength,
+      });
+      res.end(chunk);
+      return;
+    }
+  }
 
   headers["Content-Length"] = data.byteLength;
   res.writeHead(200, headers);

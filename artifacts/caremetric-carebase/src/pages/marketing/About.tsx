@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { VideoThumbnail } from "@/components/marketing/VideoModal";
+import { MARKETING_VIDEOS } from "@/components/marketing/marketingVideos";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 const STORY = [
@@ -27,15 +29,19 @@ const PRINCIPLES = [
   },
 ] as const;
 
-const TEAM = [
-  {
-    placeholder: "Founder photo",
-    copy: "[ founder name & title ]\n[ 2–3 lines: background, connection to PA senior care, and why you're building CareBase ]",
-  },
-  {
-    placeholder: "Advisor photo",
-    copy: "[ operator-advisor name & facility ]\n[ 2–3 lines: operational background and operational credibility ]",
-  },
+const FOUNDER_BIO = [
+  "I've spent more than twenty years in senior care — five years in nursing home management, and the last seventeen in hospice — with a master's degree in social work and a doctorate in naturopathic medicine.",
+  "Consulting across nursing homes and personal care homes, I built my reputation on two things: strict compliance and real patient care. And I kept seeing the same gap — personal care homes carry the same responsibilities as nursing homes, but never had the same tools.",
+  "CareBase is the software I designed to close that gap. It handles compliance paperwork, resident care, billing and financial management, staff education, and your state documentation — so when the state surveyor walks in, you're already ready. It's the software you always hoped for, and could never find.",
+] as const;
+
+const FOUNDER_CREDENTIALS = [
+  "MSW",
+  "Doctorate, Naturopathic Medicine",
+  "Certified Medication Administration Trainer (~10 yrs)",
+  "Certified Hospice & Palliative Care Administrator",
+  "Certified Diabetic Educator",
+  "Nationally Certified Guardian",
 ] as const;
 
 const PARTNER_NOTES = [
@@ -107,26 +113,43 @@ export default function About() {
       <section className="border-b border-[#e5eaf0] bg-white">
         <div className="mx-auto max-w-[860px] px-4 py-16 sm:px-6">
           <Reveal>
-            <h2 className="text-[28px] font-bold leading-tight text-[#0d2742]">The team</h2>
+            <h2 className="text-[28px] font-bold leading-tight text-[#0d2742]">Meet the founder</h2>
             <p className="mt-1.5 text-[14.5px] leading-6 text-[#44566b]">
               In senior care, people buy from people they can call. Here's who answers.
             </p>
           </Reveal>
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {TEAM.map((member, index) => (
-              <Reveal key={member.placeholder} delay={index * 0.06}>
-                <article className="flex h-full flex-col gap-4 rounded-[14px] border border-dashed border-[#b9c6d4] p-[22px] sm:flex-row sm:items-start">
-                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-dashed border-[#b9c6d4] bg-[#f6f8fa] text-center text-[11px] font-semibold leading-tight text-[#5d7084]">
-                    {member.placeholder}
-                  </div>
-                  <p className="whitespace-pre-line font-mono text-xs leading-relaxed text-[#5d7084]">{member.copy}</p>
-                </article>
-              </Reveal>
-            ))}
+          <div className="mt-7 grid gap-8 md:grid-cols-[minmax(0,300px)_1fr] md:items-start">
+            <Reveal>
+              <VideoThumbnail
+                video={MARKETING_VIDEOS.founder}
+                label="A message from Kevin"
+                sublabel="Founder · CareMetric CareBase"
+              />
+            </Reveal>
+            <Reveal delay={0.08} className="flex flex-col gap-4">
+              <div>
+                <div className="text-[20px] font-bold leading-tight text-[#0d2742]">Kevin Deyarmin</div>
+                <div className="mt-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-[#1b6fc2]">
+                  Founder — CareMetric CareBase
+                </div>
+              </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {FOUNDER_CREDENTIALS.map((credential) => (
+                  <li
+                    key={credential}
+                    className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-[11.5px] font-semibold text-[#1b4a78]"
+                  >
+                    {credential}
+                  </li>
+                ))}
+              </ul>
+              {FOUNDER_BIO.map((paragraph) => (
+                <p key={paragraph} className="text-pretty text-[15px] leading-7 text-[#33465c]">
+                  {paragraph}
+                </p>
+              ))}
+            </Reveal>
           </div>
-          <p className="mt-3.5 text-[12.5px] leading-5 text-[#5d7084]">
-            Placeholders on purpose — real names beat stock imagery. Drag your photos onto the circles; send the bios and we'll drop them in.
-          </p>
         </div>
       </section>
 
