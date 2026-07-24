@@ -26150,39 +26150,39 @@ export type Database = {
           created_at: string
           email: string
           expected_reduction_percent: number | null
-          facility_count: number | null
           gross_opportunity: number | null
           id: string
           ip_hash: string | null
           loaded_hourly_rate: number | null
           monthly_tool_spend: number | null
           net_after_carebase: number | null
+          resident_count: number | null
           weekly_admin_hours: number | null
         }
         Insert: {
           created_at?: string
           email: string
           expected_reduction_percent?: number | null
-          facility_count?: number | null
           gross_opportunity?: number | null
           id?: string
           ip_hash?: string | null
           loaded_hourly_rate?: number | null
           monthly_tool_spend?: number | null
           net_after_carebase?: number | null
+          resident_count?: number | null
           weekly_admin_hours?: number | null
         }
         Update: {
           created_at?: string
           email?: string
           expected_reduction_percent?: number | null
-          facility_count?: number | null
           gross_opportunity?: number | null
           id?: string
           ip_hash?: string | null
           loaded_hourly_rate?: number | null
           monthly_tool_spend?: number | null
           net_after_carebase?: number | null
+          resident_count?: number | null
           weekly_admin_hours?: number | null
         }
         Relationships: []

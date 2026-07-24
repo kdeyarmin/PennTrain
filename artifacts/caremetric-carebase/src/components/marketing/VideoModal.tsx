@@ -42,7 +42,7 @@ export function VideoModal({ video, children }: { video: MarketingVideo; childre
         </video>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-white/[0.04] px-5 py-3.5">
           <p className="text-[13px] text-white/70">
-            Priced per facility · every module included · 30-day free trial.
+            Plans from $239/month · 30-day free trial.
           </p>
           <DialogClose asChild>
             <Link

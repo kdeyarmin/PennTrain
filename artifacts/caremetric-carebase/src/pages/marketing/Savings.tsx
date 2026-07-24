@@ -9,8 +9,9 @@ import { useEmailSavingsModel } from "@/hooks/useEmailSavingsModel";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/lib/usePageMeta";
 
-const STARTER_PRICE = 349;
-const GROWTH_PRICE = 299;
+const CAREBASE_BASE_MONTHLY = 499;
+const CAREBASE_INCLUDED_RESIDENTS = 25;
+const CAREBASE_OVERAGE_MONTHLY = 4;
 
 const EDUCATION_COSTS = [
   {
@@ -35,7 +36,7 @@ const INCLUDED_FEATURES = [
   "AI course creation from your own policies — human-approved before publishing",
   "Live classes with QR sign-in — hours log themselves",
   "Up to 6 on-the-job hours captured, the way §2600.65 allows",
-  "Unlimited staff — no per-person math, ever",
+  "Unlimited staff — priced by active residents, not headcount",
 ] as const;
 
 const COMPARISON_ROWS = [
@@ -127,13 +128,13 @@ const SLIDERS = [
     help: "Keep it conservative — validate it during your trial month.",
   },
   {
-    key: "fac",
-    label: "Facilities",
-    min: 1,
-    max: 20,
-    step: 1,
+    key: "residents",
+    label: "Active residents",
+    min: 5,
+    max: 200,
+    step: 5,
     valueLabel: (value: number) => String(value),
-    help: "Sets which per-facility rate applies from the pricing above.",
+    help: "The first 25 are included in the base price; each one after that is $4/month.",
   },
 ] as const;
 
@@ -146,7 +147,7 @@ const INITIAL_CALCULATOR: CalculatorState = {
   rate: 35,
   tools: 400,
   cut: 25,
-  fac: 2,
+  residents: 40,
 };
 
 const money = (value: number) =>
@@ -172,8 +173,10 @@ export default function Savings() {
   const labor = calculator.hours * 52 * calculator.rate;
   const toolSpend = calculator.tools * 12;
   const gross = (labor * calculator.cut) / 100 + toolSpend;
-  const unitPrice = calculator.fac >= 3 ? GROWTH_PRICE : STARTER_PRICE;
-  const annualPrice = unitPrice * 12 * calculator.fac;
+  const monthlyPrice =
+    CAREBASE_BASE_MONTHLY +
+    Math.max(0, calculator.residents - CAREBASE_INCLUDED_RESIDENTS) * CAREBASE_OVERAGE_MONTHLY;
+  const annualPrice = monthlyPrice * 12;
   const net = gross - annualPrice;
   const payback = gross > 0 ? annualPrice / (gross / 12) : null;
 
@@ -275,7 +278,7 @@ export default function Savings() {
         rate: calculator.rate,
         tools: calculator.tools,
         cut: calculator.cut,
-        fac: calculator.fac,
+        residents: calculator.residents,
         turnstileToken,
       },
       {
@@ -351,7 +354,7 @@ export default function Savings() {
               className="flex flex-col gap-3 rounded-[14px] border-2 border-[#1b6fc2] bg-[#f4f9fe] p-[26px] shadow-[0_16px_40px_rgba(27,111,194,0.10)]"
             >
               <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#1b6fc2]">
-                Included in your per-facility price
+                Included in your CareBase price
               </span>
               <div className="flex flex-col gap-2.5 text-sm text-[#33465c]">
                 {INCLUDED_FEATURES.map((feature) => (
@@ -515,13 +518,7 @@ export default function Savings() {
               [
                 <>
                   CareBase at your size{" "}
-                  <span className="text-white/60">
-                    (
-                    {calculator.fac >= 3
-                      ? "organization rate"
-                      : "single-facility rate"}
-                    )
-                  </span>
+                  <span className="text-white/60">({money(monthlyPrice)}/mo)</span>
                 </>,
                 `${money(annualPrice)} /yr`,
               ],

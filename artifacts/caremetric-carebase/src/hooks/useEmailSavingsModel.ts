@@ -11,8 +11,8 @@ export interface EmailSavingsModelPayload {
   tools: number;
   /** Expected reduction in coordination time, as a percentage. */
   cut: number;
-  /** Facility count. */
-  fac: number;
+  /** Active resident count. */
+  residents: number;
   turnstileToken: string;
 }
 
@@ -39,7 +39,7 @@ export function useEmailSavingsModel() {
             rate: payload.rate,
             tools: payload.tools,
             cut: payload.cut,
-            fac: payload.fac,
+            residents: payload.residents,
             turnstile_token: payload.turnstileToken,
           },
         },

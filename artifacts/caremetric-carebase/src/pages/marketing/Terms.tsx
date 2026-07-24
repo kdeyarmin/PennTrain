@@ -18,7 +18,7 @@ const TERMS_SECTIONS = [
   {
     title: "3. Subscriptions and billing",
     body:
-      "Plans are priced per facility per month and include a free trial period. Subscriptions renew until canceled; cancellation takes effect at the end of the current billing term. Pilot-program terms, when offered, are set in the pilot agreement.",
+      "Plans are priced monthly or annually based on active learners or residents, with a set number included and a per-person rate beyond that, and include a free trial period. Subscriptions renew until canceled; cancellation takes effect at the end of the current billing term. Pilot-program terms, when offered, are set in the pilot agreement.",
   },
   {
     title: "4. Your data",

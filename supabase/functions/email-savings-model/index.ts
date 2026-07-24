@@ -21,12 +21,13 @@ const CORS_HEADERS = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Per-facility list price and the multi-site threshold shown on /savings (Savings.tsx
-// STARTER_PRICE / GROWTH_PRICE). Kept in sync with the marketing page so the emailed numbers match
+// Base CareBase list price, included active-resident allotment, and per-resident overage rate
+// shown on /savings (Savings.tsx CAREBASE_BASE_MONTHLY / CAREBASE_INCLUDED_RESIDENTS /
+// CAREBASE_OVERAGE_MONTHLY). Kept in sync with the marketing page so the emailed numbers match
 // exactly what the visitor saw. These are compile-time marketing constants, not DB-driven.
-const STARTER_PRICE = 349;
-const GROWTH_PRICE = 299;
-const MULTI_SITE_THRESHOLD = 3;
+const CAREBASE_BASE_MONTHLY = 499;
+const CAREBASE_INCLUDED_RESIDENTS = 25;
+const CAREBASE_OVERAGE_MONTHLY = 4;
 
 const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://cmcarebase.com";
 
@@ -38,7 +39,7 @@ const RANGES = {
   rate: { min: 18, max: 80 },
   tools: { min: 0, max: 2000 },
   cut: { min: 5, max: 60 },
-  fac: { min: 1, max: 1000 },
+  residents: { min: 5, max: 200 },
 } as const;
 
 class HttpError extends Error {
@@ -111,31 +112,32 @@ interface SavingsModel {
   rate: number;
   tools: number;
   cut: number;
-  fac: number;
+  residents: number;
   laborPerYear: number;
   toolSpendPerYear: number;
   grossPerYear: number;
   carebasePerYear: number;
   netPerYear: number;
   paybackMonths: number | null;
-  rateLabel: string;
+  monthlyPrice: number;
 }
 
 // Single source of truth for the math the /savings results card renders (Savings.tsx). Recomputed
 // server-side from the clamped inputs so the emailed worksheet is authoritative, never trusting
 // client-sent totals.
-function computeModel(raw: { hours?: unknown; rate?: unknown; tools?: unknown; cut?: unknown; fac?: unknown }): SavingsModel {
+function computeModel(raw: { hours?: unknown; rate?: unknown; tools?: unknown; cut?: unknown; residents?: unknown }): SavingsModel {
   const hours = clampInt(raw.hours, RANGES.hours.min, RANGES.hours.max, 10);
   const rate = clampInt(raw.rate, RANGES.rate.min, RANGES.rate.max, 35);
   const tools = clampInt(raw.tools, RANGES.tools.min, RANGES.tools.max, 400);
   const cut = clampInt(raw.cut, RANGES.cut.min, RANGES.cut.max, 25);
-  const fac = clampInt(raw.fac, RANGES.fac.min, RANGES.fac.max, 2);
+  const residents = clampInt(raw.residents, RANGES.residents.min, RANGES.residents.max, 40);
 
   const laborPerYear = hours * 52 * rate;
   const toolSpendPerYear = tools * 12;
   const grossPerYear = (laborPerYear * cut) / 100 + toolSpendPerYear;
-  const unitPrice = fac >= MULTI_SITE_THRESHOLD ? GROWTH_PRICE : STARTER_PRICE;
-  const carebasePerYear = unitPrice * 12 * fac;
+  const monthlyPrice =
+    CAREBASE_BASE_MONTHLY + Math.max(0, residents - CAREBASE_INCLUDED_RESIDENTS) * CAREBASE_OVERAGE_MONTHLY;
+  const carebasePerYear = monthlyPrice * 12;
   const netPerYear = grossPerYear - carebasePerYear;
   const paybackMonths = grossPerYear > 0 ? Math.round((carebasePerYear / (grossPerYear / 12)) * 10) / 10 : null;
 
@@ -144,14 +146,14 @@ function computeModel(raw: { hours?: unknown; rate?: unknown; tools?: unknown; c
     rate,
     tools,
     cut,
-    fac,
+    residents,
     laborPerYear,
     toolSpendPerYear,
     grossPerYear,
     carebasePerYear,
     netPerYear,
     paybackMonths,
-    rateLabel: fac >= MULTI_SITE_THRESHOLD ? "organization rate" : "single-facility rate",
+    monthlyPrice,
   };
 }
 
@@ -165,13 +167,13 @@ function buildEmail(model: SavingsModel): { subject: string; text: string; html:
     ["Loaded hourly labor cost", `$${model.rate}/hr`],
     ["Monthly spend on tools you could retire", `$${model.tools}/mo`],
     ["Expected reduction in coordination time", `${model.cut}%`],
-    ["Facilities", String(model.fac)],
+    ["Active residents", String(model.residents)],
   ] as const;
 
   const results = [
     ["Current coordination labor", `${money(model.laborPerYear)} / yr`],
     ["Replaceable tool spend", `${money(model.toolSpendPerYear)} / yr`],
-    [`CareBase at your size (${model.rateLabel})`, `${money(model.carebasePerYear)} / yr`],
+    [`CareBase at your size (${money(model.monthlyPrice)}/mo)`, `${money(model.carebasePerYear)} / yr`],
     ["Gross opportunity before CareBase", `${money(model.grossPerYear)} / yr`],
     ["Net after CareBase", netLine],
     ["Modeled payback", payback],
@@ -214,7 +216,7 @@ function buildEmail(model: SavingsModel): { subject: string; text: string; html:
       <table style="width:100%;border-collapse:collapse;">
         ${row("Current coordination labor", `${money(model.laborPerYear)} / yr`)}
         ${row("Replaceable tool spend", `${money(model.toolSpendPerYear)} / yr`)}
-        ${row(`CareBase at your size (${model.rateLabel})`, `${money(model.carebasePerYear)} / yr`)}
+        ${row(`CareBase at your size (${money(model.monthlyPrice)}/mo)`, `${money(model.carebasePerYear)} / yr`)}
         <tr><td colspan="2" style="border-top:1px solid #eef2f6;padding-top:8px;"></td></tr>
         ${row("Gross opportunity before CareBase", `${money(model.grossPerYear)} / yr`, true)}
         ${row("Net after CareBase", netLine, true)}
@@ -278,7 +280,7 @@ Deno.serve(async (req: Request) => {
     rate?: number | string;
     tools?: number | string;
     cut?: number | string;
-    fac?: number | string;
+    residents?: number | string;
     turnstile_token?: string;
   };
   try {
@@ -290,6 +292,13 @@ Deno.serve(async (req: Request) => {
   const email = body.email?.trim().toLowerCase();
   if (!email || email.length < 3 || email.length > 320 || !EMAIL_RE.test(email)) {
     return json({ ok: false, error: "Enter a valid email address" }, 400);
+  }
+  if (body.residents === undefined || body.residents === null) {
+    // A payload with every other field but no `residents` is a stale cached client still sending
+    // the pre-rename `fac` field (the PWA can cache the /savings route script for up to 7 days).
+    // Reject rather than silently defaulting, so the emailed worksheet can never diverge from what
+    // the visitor's on-screen calculator actually showed them.
+    return json({ ok: false, error: "Your page is out of date. Refresh and try again." }, 400);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -331,7 +340,7 @@ Deno.serve(async (req: Request) => {
       loaded_hourly_rate: model.rate,
       monthly_tool_spend: model.tools,
       expected_reduction_percent: model.cut,
-      facility_count: model.fac,
+      resident_count: model.residents,
       gross_opportunity: Math.round(model.grossPerYear),
       net_after_carebase: Math.round(model.netPerYear),
       ip_hash: ipHash,

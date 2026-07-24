@@ -227,9 +227,9 @@ export default function Features() {
             Everything CareBase does, in one place
           </h1>
           <p className="m-0 max-w-[56ch] text-pretty text-base text-white/85">
-            The complete capability index and the six roles that use it. Every
-            plan includes all of it — no modules, no upsells, unlimited staff
-            and residents.
+            The complete capability index and the six roles that use it.
+            CareBase includes every module — training, residents, workforce,
+            and facility ops — priced by active residents, not add-ons.
           </p>
         </Reveal>
       </section>
