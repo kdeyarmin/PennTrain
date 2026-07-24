@@ -1,5 +1,5 @@
 begin;
-select plan(51);
+select plan(52);
 
 select results_eq(
   $$ select feature_key from public.feature_definitions where feature_key like 'modules.%' order by feature_key $$,
@@ -235,9 +235,14 @@ select is(
   'Train data composes module access with existing course RLS'
 );
 select is(
-  (select permissive from pg_policies where schemaname = 'public' and tablename = 'residents' and policyname = 'product_module_entitlement'),
+  (select count(*)::integer from pg_policies where schemaname = 'public' and tablename = 'residents' and policyname = 'product_module_entitlement'),
+  0,
+  'the shared-core resident directory carries no module entitlement policy'
+);
+select is(
+  (select permissive from pg_policies where schemaname = 'public' and tablename = 'incidents' and policyname = 'product_module_entitlement'),
   'RESTRICTIVE',
-  'CareBase data composes module access with existing resident RLS'
+  'Care operations data composes module access with existing incident RLS'
 );
 select is(
   (select permissive from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'product_module_entitlement'),

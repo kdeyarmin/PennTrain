@@ -20,7 +20,7 @@ import {
   measuredBillingQuantity,
   resolvedBillingQuantity,
 } from "@/lib/billingCatalog";
-import { PRODUCT_MODULES } from "@/lib/productModules";
+import { PRODUCT_MODULES, withModuleDependencies } from "@/lib/productModules";
 import {
   useListPackageBillingPrices,
   useListPackages,
@@ -47,9 +47,12 @@ function enabledModuleNames(features: Json | null): string[] {
     PRODUCT_MODULES.filter((module) => record[module.entitlementKey] === true).map((module) => module.id),
   );
   // CareBase is the all-inclusive bundle. Enumerate the included operational pillars for the plan
-  // card's value list instead of showing the redundant bundle entry alongside its own contents.
+  // card's value list instead of the redundant bundle entry. The pillar set is derived from the
+  // productModules dependency graph (the source of truth) so it cannot drift as modules are added.
   if (enabledIds.has("carebase")) {
-    for (const pillar of ["train", "workforce", "compliance", "billing"] as const) enabledIds.add(pillar);
+    for (const moduleId of withModuleDependencies(["carebase"])) {
+      if (moduleId !== "core" && moduleId !== "carebase") enabledIds.add(moduleId);
+    }
     enabledIds.delete("carebase");
   }
   return PRODUCT_MODULES.filter((module) => enabledIds.has(module.id)).map((module) => module.name);

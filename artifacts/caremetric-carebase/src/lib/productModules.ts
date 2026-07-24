@@ -72,9 +72,12 @@ const INTERNAL_APP_PREFIXES = ["/account", "/admin", "/app", "/trainer", "/me"] 
 
 // Directory, tenant administration, account security, and support are the shared shell. They are
 // deliberately available in a Train-only facility because an administrator still needs to manage
-// facilities, learners, users, branding, and support without purchasing CareBase. The resident
-// directory is part of that shell too, so a Compliance- or Billing-only facility can identify the
-// residents its module operates on without also purchasing full Care Operations.
+// facilities, learners, users, branding, and support without purchasing CareBase.
+//
+// Note: the resident-management routes (/app/residents*) intentionally stay CareBase below. Only the
+// resident *directory table* is shared core at the database layer (see the migration) so Compliance-
+// and Billing-tier pages can join resident context; that data-layer decision does not make the
+// resident routes core.
 const CORE_PATHS = [
   "/account",
   "/admin",
