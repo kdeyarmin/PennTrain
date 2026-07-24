@@ -1,7 +1,7 @@
 -- All comprehensive-standard and generic publish-readiness checks return zero
--- issues (verified immediately before this migration): the block-8 Kevin HeyGen
--- video re-hosted successfully, block 5 now ships as text, and designed minutes
--- (180) exactly match the catalog duration. Publish the course the same way
+-- issues (verified immediately before this migration): blocks 2, 5, and 8 all
+-- carry resolved Kevin HeyGen video_urls, and designed minutes (180) exactly
+-- match the catalog duration. Publish the course the same way
 -- publish_course_version() would, using the privileged-write escape hatch
 -- because this migration runs with no authenticated platform_admin JWT --
 -- the enforce_course_version_publish_ready trigger still runs unconditionally
