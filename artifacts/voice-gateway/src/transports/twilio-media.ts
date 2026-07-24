@@ -39,6 +39,8 @@ export interface PhoneRuntime {
   targets: readonly PhoneTarget[];
   pendingStore: PhonePendingStore;
   transferStore: TransferActionStore;
+  /** Closes the durable-store pool, when one backs the stores. */
+  closeStores?: () => Promise<void>;
   /** Live count of unclaimed /phone/stream sockets (see the cap above). */
   unclaimedSockets: { count: number };
 }
@@ -70,15 +72,33 @@ export function handlePhoneUpgrade(
   const urlSid = url.searchParams.get("sid");
   if (urlSid) {
     // Fast path: the ticket survived on the URL. Claim BEFORE accepting
-    // so a replayed ticket never gets a socket at all.
-    const pending = deps.phone.pendingStore.claim(urlSid);
-    if (!pending) {
-      rejectUpgrade(socket, 401, "Invalid call session");
-      return;
-    }
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      attachPhoneCall(deps, pending, ws);
-    });
+    // so a replayed ticket never gets a socket at all. The claim is async
+    // (the store may be Postgres); the raw socket just waits, and a hangup
+    // while we wait must not crash the process.
+    socket.on("error", () => undefined);
+    void deps.phone.pendingStore
+      .claim(urlSid)
+      .then((pending) => {
+        if (socket.destroyed) return;
+        if (!pending) {
+          rejectUpgrade(socket, 401, "Invalid call session");
+          return;
+        }
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          attachPhoneCall(deps, pending, ws);
+        });
+      })
+      .catch((err: unknown) => {
+        console.error(
+          JSON.stringify({
+            evt: "phone.transport.claim_error",
+            message: err instanceof Error ? err.message : String(err),
+          }),
+        );
+        if (!socket.destroyed) {
+          rejectUpgrade(socket, 503, "State store unavailable");
+        }
+      });
     return;
   }
   // Documented Twilio behavior: <Stream> urls don't carry query strings,
@@ -112,6 +132,7 @@ function attachPhoneCall(
   let trackerKey: string | null = null;
   let trackerFinished = false;
   let streamSid = "";
+  let claimInFlight = false;
   let markCounter = 0;
   let lastBackpressureWarnAt = 0;
   const markWaiters = new Map<string, () => void>();
@@ -231,24 +252,45 @@ function attachPhoneCall(
         streamSid =
           start?.streamSid ??
           (typeof envelope.streamSid === "string" ? envelope.streamSid : "");
-        if (!session) {
-          // Ticket wasn't on the URL — claim it from the <Parameter>
-          // values Twilio delivers here. Claim-once still holds: this is
-          // the single claim for the call. Either way the socket is no
-          // longer "unclaimed" — its slot frees here.
-          releaseUnclaimedSlot();
-          const sid = start?.customParameters?.sid;
-          const pending =
-            typeof sid === "string" && sid
-              ? deps.phone.pendingStore.claim(sid)
-              : null;
-          if (!pending) {
-            ws.close(1008, "invalid_session");
-            return;
-          }
-          startSession(pending);
+        if (session) {
+          clearTimeout(startDeadline);
+          return;
         }
-        clearTimeout(startDeadline);
+        // Ticket wasn't on the URL — claim it from the <Parameter> values
+        // Twilio delivers here. Claim-once still holds: this is the single
+        // claim for the call (a duplicate "start" while the async claim is
+        // in flight is ignored). Either way the socket is no longer
+        // "unclaimed" — its slot frees here. The start deadline stays
+        // armed until the claim lands, so a wedged store can't strand the
+        // socket.
+        releaseUnclaimedSlot();
+        if (claimInFlight) return;
+        claimInFlight = true;
+        const sid = start?.customParameters?.sid;
+        if (typeof sid !== "string" || !sid) {
+          ws.close(1008, "invalid_session");
+          return;
+        }
+        void deps.phone.pendingStore
+          .claim(sid)
+          .then((pending) => {
+            if (!pending) {
+              ws.close(1008, "invalid_session");
+              return;
+            }
+            if (ws.readyState !== ws.OPEN) return;
+            startSession(pending);
+            clearTimeout(startDeadline);
+          })
+          .catch((err: unknown) => {
+            console.error(
+              JSON.stringify({
+                evt: "phone.transport.claim_error",
+                message: err instanceof Error ? err.message : String(err),
+              }),
+            );
+            ws.close(1011, "state_store_unavailable");
+          });
         return;
       }
       case "media": {

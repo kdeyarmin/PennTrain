@@ -190,8 +190,26 @@ export class PhoneVoiceSession implements ToolDispatcher {
 
     // Transfer target: park the number for the <Connect action> webhook,
     // let the model speak its one handoff line, then close the stream.
+    // The park must SUCCEED before the transfer is announced — otherwise
+    // /phone/after would find nothing and hang up on the caller.
+    try {
+      await this.deps.transferStore.set(
+        this.deps.pending.callSid,
+        target.number,
+      );
+    } catch (err) {
+      this.log("phone.transfer.store_error", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return {
+        ok: false,
+        error: "transfer_unavailable",
+        message:
+          `Transferring isn't working right now. Apologize briefly and ` +
+          `suggest the caller reach ${target.spokenName} directly.`,
+      };
+    }
     this.routedTo = target.id;
-    this.deps.transferStore.set(this.deps.pending.callSid, target.number);
     this.log("phone.routed", { target: target.id, mode: "transfer" });
     this.transferArmed = true;
     this.timers.push(

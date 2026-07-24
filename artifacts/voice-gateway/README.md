@@ -72,6 +72,7 @@ Security posture (inherited from PennFit's ADR):
 | `VOICE_PLAYBACK_GRACE_MS` | no | How long the browser sink waits for delivered audio to finish playing before a graceful close (default 1500). The browser transport has no playback acknowledgement channel, so this fixed grace keeps a goodbye from being clipped. |
 | `TWILIO_AUTH_TOKEN` | phone | Validates `X-Twilio-Signature` on phone webhooks. Absent → phone channel dark (503), browser voice unaffected. |
 | `VOICE_PUBLIC_BASE_URL` | phone | Public https origin of this gateway (e.g. `https://voice-gateway.up.railway.app`) — used for signature validation and the TwiML stream/action URLs. |
+| `VOICE_STATE_DATABASE_URL` | phone go-live | Postgres URL (any Postgres — the Railway Postgres plugin in practice) for the DURABLE phone handoff stores: pending-call tickets and parked transfer numbers survive deploys, and claim-once holds across instances. Schema (`voice_gateway.*`) is auto-created on boot; a boot log line names the mode (`memory` vs `postgres`). Unset → in-memory fallback (fine for local dev and the single-instance pilot) plus a boot warning when the Twilio vars are set. This is a plain state database, NOT Supabase — the gateway still holds no service keys. |
 | `PENNFIT_TRANSFER_NUMBER` | no | PennFit's existing Twilio number (E.164). Present → the triage agent offers PennFit and warm-transfers callers to it. |
 
 ## Deploying on Railway (one-time UI steps)
@@ -96,15 +97,17 @@ CDN/WAF in front of a custom domain can silently break WS upgrades.
 
 ## Shared phone number (one number for everything)
 
-> **NOT READY FOR A PUBLICLY PUBLISHED NUMBER.** The claim/transfer stores
-> (`PhonePendingStore`, `TransferActionStore`, `PendingSessionStore`) are
-> in-memory: any deploy drops live calls mid-handoff (pennfit's error-31920
-> lesson). Publishing the number publicly requires (1) the DB-backed store
-> swap behind these same interfaces and (2) the abuse caps below. The caps
-> now exist — per-caller rolling-hour call/minute limits, a separate
-> phone-channel concurrency budget, a daily minutes kill-switch, CallSid
-> idempotency, and an unclaimed-socket cap — the durable store does not.
-> Until it lands, share the number with pilot users only.
+> **Go-live checklist for a publicly published number: set
+> `VOICE_STATE_DATABASE_URL`.** With it set, the phone claim/transfer
+> stores (`PhonePendingStore`, `TransferActionStore`) are Postgres-backed:
+> tickets survive deploys mid-handoff (pennfit's error-31920 lesson) and
+> claim-once holds across instances. The abuse caps already exist —
+> per-caller rolling-hour call/minute limits, a separate phone-channel
+> concurrency budget, a daily minutes kill-switch, CallSid idempotency
+> (unique-indexed in the durable store), and an unclaimed-socket cap.
+> Without the env var the stores fall back to in-memory (boot warns): fine
+> for local dev and a pilot number shared privately, not for a published
+> one.
 
 One Twilio number fronts every product. A triage agent answers, asks which
 software the call is about, and routes:
@@ -152,7 +155,11 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 
 - `pnpm --filter @workspace/voice-gateway test` — no network, no key, no
   mic: bridge/tool-loop/transcript units, GA session-shape assertions, and
-  a full HTTP+WS session-flow suite against a fake Realtime socket.
+  a full HTTP+WS session-flow suite against a fake Realtime socket. The
+  durable-store tests (`test/phone-stores.test.ts`) initdb a throwaway
+  local Postgres cluster when `initdb`/`pg_ctl` are installed (or use
+  `VOICE_PG_TEST_URL` if set) and run the claim-once/idempotency/TTL suite
+  against the real database; without Postgres those tests skip and say so.
 - `deno test supabase/functions/_shared/voiceTools.test.ts` — tool logic.
 - `OPENAI_API_KEY=sk-... pnpm --filter @workspace/voice-gateway exec tsx test/e2e-live.ts`
   — OPT-IN, costs money: proves the GA schema + PCM16 formats against the
@@ -178,11 +185,16 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 
 ## Known limits / follow-ups
 
-- **In-memory stores**: a deploy drops in-flight browser handoffs (one-click
-  retry) and — more importantly — LIVE phone calls mid-handshake (pennfit's
-  error-31920 lesson). Accepted for the pilot; DB-backed
-  `PendingSessionStore`/`PhonePendingStore`/`TransferActionStore` swaps
-  behind the same interfaces are the prerequisite for scaling out.
+- **Store durability**: the PHONE handoff stores
+  (`PhonePendingStore`/`TransferActionStore`) are Postgres-backed when
+  `VOICE_STATE_DATABASE_URL` is set — the go-live prerequisite is done; set
+  the env var. The BROWSER `PendingSessionStore` stays in-memory on
+  purpose: a deploy in its 60s window costs one click to retry, not a live
+  call. The usage-limit stores (per-caller rolling-hour meters, daily
+  minutes budget, concurrency trackers) are also in-memory on purpose —
+  they are per-instance counters and the deployment is single-instance;
+  scaling the gateway OUT (multiple instances) would need those budgets
+  rethought (shared or divided), not just persisted.
 - **Phone brains are knowledge-only**: anonymous callers get no app tools.
   Caller-ID account lookup (like PennFit's patient flow) is a separate
   schema + threat-model project.

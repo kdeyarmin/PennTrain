@@ -55,6 +55,13 @@ export interface GatewayConfig {
    */
   publicBaseUrl?: string;
   /**
+   * Postgres URL for the DURABLE phone handoff stores (pending-call
+   * tickets + parked transfer numbers). Set → those stores survive deploys
+   * and hold claim-once across instances; unset → in-memory fallback,
+   * acceptable only while the number is shared with pilot users.
+   */
+  voiceStateDatabaseUrl?: string;
+  /**
    * How long the browser sink waits for delivered audio to finish playing
    * before a graceful close (a fixed grace — the browser transport has no
    * playback acknowledgement channel yet). Tests shrink this.
@@ -111,6 +118,22 @@ function validateConfig(config: GatewayConfig): GatewayConfig {
     });
     config.maxSessionSeconds = MAX_SESSION_SECONDS_CEILING;
   }
+  // Warn (don't fail): the phone front door works without the durable
+  // store, but a deploy then drops live calls mid-handoff — fine for a
+  // pilot, not for a published number.
+  if (
+    config.twilioAuthToken &&
+    config.publicBaseUrl &&
+    !config.voiceStateDatabaseUrl
+  ) {
+    warn("voice.gateway.config.phone_store_volatile", {
+      field: "VOICE_STATE_DATABASE_URL",
+      reason:
+        "phone channel is configured but the handoff stores are in-memory — " +
+        "a deploy drops live calls between Twilio's webhook and the media " +
+        "stream. Set VOICE_STATE_DATABASE_URL before publishing the number.",
+    });
+  }
   return config;
 }
 
@@ -145,6 +168,7 @@ export function readGatewayConfig(
     toolTimeoutMs: intFromEnv(env, "VOICE_TOOL_TIMEOUT_MS", 75_000),
     twilioAuthToken: env.TWILIO_AUTH_TOKEN || undefined,
     publicBaseUrl: env.VOICE_PUBLIC_BASE_URL?.replace(/\/+$/, "") || undefined,
+    voiceStateDatabaseUrl: env.VOICE_STATE_DATABASE_URL || undefined,
     playbackGraceMs: intFromEnv(env, "VOICE_PLAYBACK_GRACE_MS", 1_500),
   });
 }
