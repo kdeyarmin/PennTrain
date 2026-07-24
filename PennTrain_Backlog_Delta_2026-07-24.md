@@ -30,7 +30,23 @@ A fix round on this branch (same day) addressed the tickets below. Statuses:
 | PT-068 | **Fixed** (functions deploy automated post-CI in the deploy workflow) | Content-level functions drift check |
 | PT-069 | **Mostly fixed** (missing cron secret now raises visibly) | Per-environment vault-seeded functions base URL across all cron jobs |
 
-Appendix nits N-1 through N-15: all addressed except N-2 (deliberate, documented grandfathering kept), the N-5 Realtime-channel env-only shutdown (documented), and N-12's script-coverage ratchets (unchanged). Carried-over pre-2026-07-24 blockers (PT-003, PT-006B, PT-007, PT-008, PT-015/016 residuals, PT-019, PT-026, PT-042) were out of this fix round's scope and remain open.
+Appendix nits N-1 through N-15: all addressed except N-2 (deliberate, documented grandfathering kept) and the N-5 Realtime-channel env-only shutdown (documented).
+
+## Later same-branch tranches — carried-over blockers
+
+| ID | Status | Notes |
+|---|---|---|
+| PT-003 | **Fixed** | Per-command version/scope contracts derived from the DB registry; medication import accepted with `medications:write` at its registered version; 13-assert pgTAP. |
+| PT-006B | **Fixed** | Binaries embedded with per-file sha256 (caps + honest skip reasons), streaming zip bounds memory, expiry enforced in the download policy with lifecycle purge + audit, exclusions.json declares scope. Resume-across-runs deliberately not built (job framework has no progress column; partial runs marked honestly). |
+| PT-007 | **Open — user action** | Requires a real controlled-pilot run's observed evidence and sign-offs; the validator is ready. Not fabricatable. |
+| PT-008 | **Fixed** | Links resolve profiles (with backfill); deprovision deactivates the profile and deletes sessions with evidence; 22-assert pgTAP. Known limit: suspend of a never-linked subject still hits the pre-existing linked_profile_required lifecycle rule. |
+| PT-015 | **Fixed** | Drift check now compares per-version content md5 against production with a written-reason allowlist covering exactly the nine PT-051 reconciliation files. |
+| PT-016 | **Mostly fixed** | Railway build runs the bundle gate; source-rebuild residual documented plainly (registry-image deploys named as closure). |
+| PT-019 | **Fixed** | BAA-gated per-org AI: durable `organizations.baa_version` stamped at signup, AAL2 audited admin RPC, org-admin toggle, all five AI functions fail closed; 39-assert pgTAP. |
+| PT-026 | **Fixed** | Unconditional pseudonymization before provider calls with output re-substitution and audit-reconstructable receipts; honest boundary documented in-module. |
+| PT-042 | **Mostly fixed** | Entry chunk 89.0% and shell 83.9% (was 94.2%) without cap raises; all-JS 97.8→94.5% with zero cross-chunk duplication measured — remaining distance is feature code, top contributors documented in vite.config.ts. CSS unchanged (no dead weight found). |
+| PT-052/057/064 | **Fixed** | Trial surfacing + T-7/T-1 notices; failed-webhook dead-letter list with real replay; weekly digest sender with one-click unsubscribe. |
+| PT-054 | **Fixed** | Durable Postgres-backed phone handoff stores behind VOICE_STATE_DATABASE_URL close the go-live prerequisite; cross-instance claim-once verified against real Postgres. |
 
 ## PT-051 — Reconcile the migration chain with production before re-arming deploys (duplicate version + wholesale bookkeeping divergence)
 
