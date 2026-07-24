@@ -53,7 +53,16 @@ export default function MoveInGuestPortal() {
     });
   };
 
-  const needsTerms = !acceptedLocally && workspace.isError;
+  // The workspace RPC distinguishes "grant is fine but terms not yet accepted" (a
+  // dedicated error message) from invalid/revoked/expired links (generic denial).
+  // Only the former may show the terms card -- otherwise an expired or revoked link
+  // would invite the guest to "accept terms" and then fail confusingly.
+  // NOTE: supabase-js resolves failed RPCs with a PLAIN error object (not an Error
+  // instance) and the hook throws it as-is, so an instanceof Error check would
+  // never match -- read .message off whatever was thrown.
+  const rawWorkspaceError = workspace.error as { message?: unknown } | null;
+  const workspaceErrorMessage = typeof rawWorkspaceError?.message === "string" ? rawWorkspaceError.message : "";
+  const needsTerms = !acceptedLocally && workspace.isError && /terms acceptance required/i.test(workspaceErrorMessage);
   return (
     <div className="min-h-screen bg-muted/30 px-4 py-10">
       <div className="mx-auto max-w-2xl space-y-6">
@@ -73,7 +82,10 @@ export default function MoveInGuestPortal() {
               {accept.isError && <p className="text-sm text-destructive">{accept.error.message}</p>}
             </CardContent>
           </Card>
-        ) : workspace.isLoading ? (
+        ) : workspace.isLoading || (workspace.isError && workspace.isFetching) ? (
+          // The second arm covers the moment right after accepting terms: the query is
+          // refetching but still holds the pre-accept error -- show a spinner rather
+          // than flashing "Guest link unavailable" at a guest who just accepted.
           <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" /></div>
         ) : workspace.isError || !workspace.data ? (
           <Alert variant="destructive"><AlertTitle>Guest link unavailable</AlertTitle><AlertDescription>This link is invalid, expired, revoked, or has not accepted the current terms.</AlertDescription></Alert>
