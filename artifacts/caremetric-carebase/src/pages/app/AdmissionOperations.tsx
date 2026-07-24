@@ -221,7 +221,7 @@ function ProspectReviewDialog({
           <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
             <Select value={activityType} onValueChange={setActivityType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["contact_attempt", "tour_scheduled", "tour_completed", "tour_canceled", "note"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
             <Input value={activityNotes} onChange={event => setActivityNotes(event.target.value)} placeholder="Outcome or notes" />
-            <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate || undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); } })}>Add activity</Button>
+            <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate ? new Date(activityDate).toISOString() : undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); } })}>Add activity</Button>
           </div>
           {activityType.startsWith("tour") && <div className="space-y-1"><Label className="text-xs text-muted-foreground">Tour date &amp; time</Label><Input type="datetime-local" value={activityDate} onChange={event => setActivityDate(event.target.value)} className="w-full sm:w-72" /></div>}
         </div>

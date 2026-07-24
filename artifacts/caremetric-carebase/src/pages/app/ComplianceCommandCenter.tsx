@@ -17,7 +17,7 @@ import {
   computeComplianceScore, effectiveStatus, isDueSoon, isMissingEvidence, recurrenceLabel,
   statusBadgeClassName, statusLabel, summarizeInstances, type InstanceLike,
 } from "@/lib/complianceCommandCenter";
-import { formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
+import { formatDateForDisplay, formatDueDistance, toLocalIsoDate } from "@/lib/dateUtils";
 import { downloadCsv } from "@/lib/csv";
 import { StatCard } from "@/components/StatCard";
 import { QueryError } from "@/components/QueryState";
@@ -161,7 +161,7 @@ export default function ComplianceCommandCenter() {
 
   function exportCsv() {
     downloadCsv(
-      `compliance-requirements-${new Date().toISOString().slice(0, 10)}.csv`,
+      `compliance-requirements-${toLocalIsoDate()}.csv`,
       tableRows.map((r) => ({
         Requirement: r.requirement?.title ?? "",
         Category: categoryLabel(r.requirement?.category),
@@ -333,7 +333,20 @@ export default function ComplianceCommandCenter() {
                         const es = effectiveStatus(asLike(r));
                         const missing = isMissingEvidence(asLike(r));
                         return (
-                          <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetail({ requirementId: r.requirement_id, instanceId: r.id })}>
+                          <TableRow
+                            key={r.id}
+                            className="cursor-pointer"
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Open ${r.requirement?.title ?? "requirement"} details`}
+                            onClick={() => setDetail({ requirementId: r.requirement_id, instanceId: r.id })}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setDetail({ requirementId: r.requirement_id, instanceId: r.id });
+                              }
+                            }}
+                          >
                             <TableCell>
                               <div className="font-medium">{r.requirement?.title ?? "—"}</div>
                               <div className="text-xs text-muted-foreground">{categoryLabel(r.requirement?.category)}{buildingName(r.building_id) ? ` · ${buildingName(r.building_id)}` : ""}</div>
