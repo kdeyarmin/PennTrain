@@ -101,14 +101,13 @@ export function MarketingAIBot() {
 
   if (!open) {
     return (
-      <aside className="fixed bottom-5 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase customer service assistant">
+      <aside className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-3 sm:right-6" aria-label="CareBase customer service assistant">
         <Button
-          size="lg"
-          className="h-14 rounded-full px-5 shadow-2xl"
+          className="h-11 rounded-full px-4 text-sm shadow-lg"
           onClick={() => setOpen(true)}
           data-testid="button-open-marketing-ai-bot"
         >
-          <MessageCircle className="mr-2 h-5 w-5" /> Ask Customer Service
+          <MessageCircle className="mr-2 h-4 w-4" /> Ask Customer Service
         </Button>
       </aside>
     );
