@@ -1,0 +1,4 @@
+# Fake unsubscribe-token test fixture (synthetic UUID, no secret material); the literal
+# was replaced with a zero-entropy value in a follow-up commit, this entry clears the
+# already-immutable historical commit for history-wide scans.
+d3f81bd91acb577a13d9d5f74c65ea091e20077c:supabase/functions/_shared/marketingEmails.test.ts:generic-api-key:11

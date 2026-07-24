@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useVoiceSession } from "@/hooks/useVoiceSession";
+import { useListPlatformSettings } from "@/hooks/usePlatformSettings";
 
 const TOOL_BUSY_TEXT: Record<string, string> = {
   ask_compliance_question: "Checking the grounded compliance copilot…",
@@ -32,11 +33,38 @@ export function VoiceAssistantPanel({
 }) {
   const session = useVoiceSession(facilityId);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  // Platform kill-switch (voice_assistant_enabled). platform_settings is
+  // platform_admin-only under RLS, so non-admin roles simply don't see the
+  // row (empty list, no error) and the panel stays visible for them — the
+  // real fail-closed enforcement is server-side: voice-tools re-checks the
+  // setting on every call. This read hides the UI wherever the row IS
+  // readable and explicitly false.
+  const { data: platformSettings } = useListPlatformSettings();
+  const disabledByPlatform = (platformSettings ?? []).some(
+    (setting) => setting.key === "voice_assistant_enabled" && setting.value === false,
+  );
 
   useEffect(() => {
     const el = transcriptRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [session.turns, session.livePartial]);
+
+  if (disabledByPlatform) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Volume2 className="h-5 w-5" />
+            Voice assistant
+          </CardTitle>
+          <CardDescription>
+            The voice assistant is currently disabled by the platform
+            administrator. It can be re-enabled from Platform Settings.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   const live = session.status === "active";
   const starting =

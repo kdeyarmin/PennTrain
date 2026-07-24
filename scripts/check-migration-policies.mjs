@@ -148,6 +148,30 @@ function versionOf(filename) {
   return match ? Number(match[1]) : null;
 }
 
+/**
+ * Find version prefixes claimed by more than one migration file. Two files sharing a
+ * version pass `git merge` (no textual conflict) but break `supabase db reset` and
+ * `db push` with a schema_migrations duplicate-key error -- this has now happened
+ * three times from parallel PRs (most recently 20260724140000, PRs #263/#264), so
+ * catch it in PR CI instead of at deploy time. Checks EVERY migration, not just
+ * post-baseline ones: a collision anywhere breaks the whole chain.
+ * Returns [{ version, files: [a, b, ...] }].
+ */
+export function findDuplicateVersions(filenames) {
+  const byVersion = new Map();
+  for (const name of filenames) {
+    if (!name.endsWith(".sql")) continue;
+    const match = name.match(/^(\d{14})_/);
+    if (!match) continue;
+    const version = match[1];
+    if (!byVersion.has(version)) byVersion.set(version, []);
+    byVersion.get(version).push(name);
+  }
+  return [...byVersion.entries()]
+    .filter(([, files]) => files.length > 1)
+    .map(([version, files]) => ({ version, files: files.sort() }));
+}
+
 async function loadAllowlist() {
   try {
     const raw = await readFile(join(SCRIPT_DIR, "migration-policy-allowlist.json"), "utf8");
@@ -231,8 +255,30 @@ const SELF_TEST_FIXTURES = [
   },
 ];
 
+const DUPLICATE_VERSION_FIXTURES = [
+  {
+    name: "unique versions are clean",
+    files: ["20260101000000_a.sql", "20260101000001_b.sql", "README.md"],
+    expect: [],
+  },
+  {
+    name: "two files sharing a version are flagged",
+    files: ["20260101000000_a.sql", "20260101000000_b.sql", "20260101000001_c.sql"],
+    expect: ["20260101000000"],
+  },
+];
+
 function runSelfTest() {
   let failures = 0;
+  for (const fixture of DUPLICATE_VERSION_FIXTURES) {
+    const got = findDuplicateVersions(fixture.files).map((d) => d.version);
+    const want = fixture.expect;
+    const ok = got.length === want.length && got.every((v, i) => v === want[i]);
+    if (!ok) {
+      failures += 1;
+      console.error(`✗ ${fixture.name}\n    expected: [${want.join(", ")}]\n    actual:   [${got.join(", ")}]`);
+    }
+  }
   for (const fixture of SELF_TEST_FIXTURES) {
     const got = analyzeMigrationSql(fixture.sql).map((f) => f.rule).sort();
     const want = [...fixture.expect].sort();
@@ -267,6 +313,16 @@ async function run() {
       return;
     }
     throw error;
+  }
+
+  const duplicates = findDuplicateVersions(entries);
+  if (duplicates.length > 0) {
+    console.error(`\nDuplicate migration version(s) found -- these break db reset and db push:\n`);
+    for (const dup of duplicates) {
+      console.error(`  ${dup.version}:\n    ${dup.files.join("\n    ")}`);
+    }
+    console.error("\nRename one of each pair to an unclaimed version (keep chronological intent).");
+    process.exit(1);
   }
 
   const allowlist = await loadAllowlist();

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { clientIp } from "../_shared/clientIp.ts";
 
 // Public, unauthenticated demo-request intake by design (requires verify_jwt:false for
 // [functions.request-demo] in supabase/config.toml, the same registration as
@@ -33,15 +34,6 @@ function json(body: unknown, status = 200) {
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function clientIp(req: Request): string {
-  return (
-    req.headers.get("cf-connecting-ip") ??
-    req.headers.get("x-real-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
 }
 
 async function sha256Hex(value: string): Promise<string> {

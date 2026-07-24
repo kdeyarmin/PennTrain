@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
+import { clientIp } from "../_shared/clientIp.ts";
 
 // Public, unauthenticated "email me my savings model" intake for the /savings marketing
 // calculator (requires verify_jwt:false for [functions.email-savings-model] in
@@ -53,15 +54,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
-}
-
-function clientIp(req: Request): string {
-  return (
-    req.headers.get("cf-connecting-ip") ??
-    req.headers.get("x-real-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -327,6 +319,24 @@ Deno.serve(async (req: Request) => {
       throw new HttpError(500, "rate_limit_unavailable", "Email delivery is temporarily unavailable. Please try again later.", countError.message);
     }
     if ((count ?? 0) >= maxPerHour) {
+      throw new HttpError(429, "rate_limited", "Too many requests. Please try again later.");
+    }
+
+    // Global hourly send ceiling (all callers combined, same rows/window as the per-IP cap but
+    // with no IP filter). Per-IP caps alone are a weak backstop for an endpoint that emails
+    // arbitrary addresses -- forged forwarding headers or a botnet turn "5/hour/IP" into
+    // unbounded sends. This is the non-IP circuit breaker: past the ceiling, no more mail
+    // leaves this function until the window rolls over.
+    const globalMaxPerHour = parsePositiveInteger(Deno.env.get("SAVINGS_GLOBAL_MAX_SENDS_PER_HOUR"), 50);
+    const { count: globalCount, error: globalCountError } = await adminClient
+      .from("savings_model_requests")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", windowStart);
+    if (globalCountError) {
+      throw new HttpError(500, "rate_limit_unavailable", "Email delivery is temporarily unavailable. Please try again later.", globalCountError.message);
+    }
+    if ((globalCount ?? 0) >= globalMaxPerHour) {
+      console.warn(`email-savings-model global hourly send ceiling reached (${globalMaxPerHour}/hour)`);
       throw new HttpError(429, "rate_limited", "Too many requests. Please try again later.");
     }
 

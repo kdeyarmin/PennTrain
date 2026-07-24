@@ -2,6 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1.0.14";
 import {
   compressCopilotForVoice,
   copilotIntentForTopic,
+  DEADLINE_ROW_LIMIT,
   parseVoiceToolRequest,
   summarizeDeadlines,
   summarizeReadiness,
@@ -165,4 +166,38 @@ Deno.test("summarizeDeadlines counts, sorts, caps, and stays name-free", () => {
   for (const item of result.topItems) {
     assertEquals(/^[A-Za-z ]/.test(item.label), true);
   }
+});
+
+Deno.test("summarizeDeadlines speaks the exact totals, not the row-page sizes", () => {
+  // A facility with 250 training records due only pages DEADLINE_ROW_LIMIT
+  // rows; the exact head-count totals must win over the page lengths.
+  const trainingPage = Array.from({ length: DEADLINE_ROW_LIMIT }, () => ({
+    status: "due",
+    due_date: "2026-08-01",
+  }));
+  const result = summarizeDeadlines(30, trainingPage, [], [], {
+    trainingDue: 250,
+    credentialsExpiring: 0,
+    residentItemsDue: 3,
+  });
+  assertEquals(result.counts, {
+    trainingDue: 250,
+    credentialsExpiring: 0,
+    residentItemsDue: 3,
+  });
+  assertEquals(result.topItems.length, 5);
+});
+
+Deno.test("summarizeDeadlines speaks '100 or more' when only a full capped page is known", () => {
+  const fullPage = Array.from({ length: DEADLINE_ROW_LIMIT }, () => ({
+    status: "due",
+    due_date: "2026-08-01",
+  }));
+  const result = summarizeDeadlines(30, fullPage, [], [], {
+    trainingDue: null,
+  });
+  assertEquals(result.counts.trainingDue, `${DEADLINE_ROW_LIMIT} or more`);
+  // Buckets with no exact count and a partial page keep the page length.
+  assertEquals(result.counts.credentialsExpiring, 0);
+  assertEquals(result.counts.residentItemsDue, 0);
 });

@@ -22,7 +22,7 @@
     "check:migration-policies": "node scripts/check-migration-policies.mjs",
     "check:migration-drift": "node scripts/check-migration-drift.mjs",
     "check:dhs-sources": "node scripts/check-dhs-sources.mjs",
-    "check:all": "pnpm run check:source-integrity && pnpm run check:migration-policies && pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
+    "check:all": "pnpm run check:source-integrity && pnpm run check:migration-policies && node scripts/check-migration-drift.mjs --self-test && pnpm run typecheck && pnpm run test && pnpm run check:edge-functions && pnpm --filter @workspace/caremetric-carebase run build && pnpm run check:bundle"
   },
   "private": true,
   "devDependencies": {

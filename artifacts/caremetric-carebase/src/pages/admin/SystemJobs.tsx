@@ -1,10 +1,13 @@
 import { Link } from "wouter";
 import {
   useCancelSystemJob,
+  useFailedBillingEvents,
+  useRetryFailedBillingEvent,
   useRunSystemJob,
   useSetSystemJobKillSwitch,
   useSystemJobRecoveryState,
   useSystemJobs,
+  type FailedBillingEvent,
   type SystemJobStatus,
 } from "@/hooks/useSystemJobs";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +48,124 @@ function formatDuration(milliseconds: number | null): string {
   const seconds = Math.round(milliseconds / 1000);
   if (seconds < 60) return String(seconds) + " s";
   return String(Math.floor(seconds / 60)) + "m " + String(seconds % 60) + "s";
+}
+
+function providerObjectIds(event: FailedBillingEvent): string {
+  const ids = [
+    event.stripe_customer_id,
+    event.stripe_subscription_id,
+    event.stripe_invoice_id,
+  ].filter(Boolean);
+  return ids.length > 0 ? ids.join(" · ") : "—";
+}
+
+function FailedBillingEventsCard() {
+  const { data: events = [], isLoading, error } = useFailedBillingEvents();
+  const retryEvent = useRetryFailedBillingEvent();
+  const { toast } = useToast();
+
+  const handleRetry = async (event: FailedBillingEvent) => {
+    try {
+      const result = await retryEvent.mutateAsync(event.event_id);
+      if (result?.processing_status === "failed") {
+        toast({
+          title: "Event failed again",
+          description: result.processing_error ?? "The stored payload is still rejected.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Billing event reprocessed",
+          description: `${event.event_id} finished as ${result?.processing_status ?? "processed"}.`,
+        });
+      }
+    } catch (retryError) {
+      toast({
+        title: "Retry failed",
+        description: retryError instanceof Error ? retryError.message : String(retryError),
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Failed billing events</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Stripe webhook events that were rejected as non-retryable and kept as durable dead
+          letters. Retry replays the stored signed payload after the underlying cause is fixed.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Dead letters could not be loaded</AlertTitle>
+            <AlertDescription>{error instanceof Error ? error.message : String(error)}</AlertDescription>
+          </Alert>
+        ) : isLoading ? (
+          <div className="space-y-3">
+            {[...Array(2)].map((_, index) => (
+              <div key={index} className="h-12 animate-pulse rounded-md bg-muted" />
+            ))}
+          </div>
+        ) : events.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No failed billing events. Poison webhook payloads will appear here with their error text.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Event</TableHead>
+                <TableHead>Organization</TableHead>
+                <TableHead>Provider IDs</TableHead>
+                <TableHead>Error</TableHead>
+                <TableHead>Failed</TableHead>
+                <TableHead className="text-right">Recovery</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {events.map((event) => (
+                <TableRow key={event.event_id}>
+                  <TableCell className="max-w-xs">
+                    <p className="font-medium">{event.event_type}</p>
+                    <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{event.event_id}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Received {formatTimestamp(event.received_at)}
+                    </p>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {event.organization_name ?? (event.organization_id ?? "Unresolved tenant")}
+                  </TableCell>
+                  <TableCell className="max-w-xs break-all font-mono text-xs text-muted-foreground">
+                    {providerObjectIds(event)}
+                  </TableCell>
+                  <TableCell className="max-w-sm text-xs text-destructive">
+                    {event.processing_error ?? "No error text recorded"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {formatTimestamp(event.failed_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={retryEvent.isPending}
+                      onClick={() => void handleRetry(event)}
+                    >
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Retry
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function SystemJobs() {
@@ -166,6 +287,8 @@ export default function SystemJobs() {
         <StatCard label="Failed or partial" value={failed} icon={AlertTriangle} tone="warning" />
         <StatCard label="Running" value={active} icon={Activity} tone="info" />
       </div>
+
+      <FailedBillingEventsCard />
 
       <Card>
         <CardHeader>

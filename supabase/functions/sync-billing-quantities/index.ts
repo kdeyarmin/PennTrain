@@ -2,9 +2,16 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import {
   phase2MeasuredBillingQuantity,
+  phase2StripeGet,
   phase2StripePost,
   resolvePhase2BillingQuantity,
 } from "../_shared/phase2Billing.ts";
+import {
+  billingQuantitySyncIdempotencyKey,
+  billingQuantitySyncOperationKey,
+  billingQuantitySyncPeriodBucket,
+  resolveBillingOperationConflict,
+} from "../_shared/billingQuantitySync.ts";
 
 const CORS_HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +21,7 @@ const CORS_HEADERS = withCronCorsHeader({
 type SubscriptionRow = {
   id: string;
   organization_id: string;
+  current_period_start: string | null;
   current_period_end: string | null;
   quantity_sync_checked_at: string | null;
 };
@@ -45,6 +53,8 @@ type ProviderOperationRow = {
   id: string;
   status: "pending" | "provider_succeeded" | "local_succeeded" | "failed";
   provider_response_id: string | null;
+  attempts: number;
+  updated_at: string | null;
 };
 
 function json(body: unknown, status = 200): Response {
@@ -101,7 +111,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: subscriptionData, error: subscriptionError } = await admin
     .from("billing_subscriptions")
-    .select("id, organization_id, current_period_end, quantity_sync_checked_at")
+    .select("id, organization_id, current_period_start, current_period_end, quantity_sync_checked_at")
     .in("billing_state", ["trial", "active", "grace", "past_due"])
     .order("quantity_sync_checked_at", { ascending: true, nullsFirst: true })
     .order("current_period_end", { ascending: true, nullsFirst: true })
@@ -259,35 +269,42 @@ Deno.serve(async (req: Request) => {
         return;
       }
 
-      const idempotencyKey = [
-        "billing-quantity-sync",
-        item.id,
+      // Period-scoped ledger key (PT-053): a recurring target quantity gets a
+      // fresh operation each billing period instead of adopting a stale
+      // terminal status forever; the Stripe item id (not the local row id)
+      // keeps the key stable across webhook delete+reinsert of local rows.
+      const periodBucket = billingQuantitySyncPeriodBucket(subscription.current_period_start);
+      const operationKey = billingQuantitySyncOperationKey(
+        item.stripe_subscription_item_id,
         quantity,
-      ].join(":");
-      const operationKey = idempotencyKey;
-      const operationPayload = {
-        operation_key: operationKey,
-        operation_type: "subscription_item_quantity_sync",
-        organization_id: item.organization_id,
-        subscription_id: item.subscription_id,
-        subscription_item_id: item.id,
-        stripe_subscription_item_id: item.stripe_subscription_item_id,
-        target_quantity: quantity,
-        idempotency_key: idempotencyKey,
-        status: "pending",
-        error_code: null,
-        attempted_at: new Date().toISOString(),
-      };
+        periodBucket,
+      );
+      const nowIso = () => new Date().toISOString();
       let operationData: ProviderOperationRow | null = null;
+      // A prior success may only be trusted after a live provider read.
+      let requiresProviderVerification = false;
       const insertOperation = await admin
         .from("billing_provider_operations")
-        .insert(operationPayload)
-        .select("id, status, provider_response_id")
+        .insert({
+          operation_key: operationKey,
+          operation_type: "subscription_item_quantity_sync",
+          organization_id: item.organization_id,
+          subscription_id: item.subscription_id,
+          subscription_item_id: item.id,
+          stripe_subscription_item_id: item.stripe_subscription_item_id,
+          target_quantity: quantity,
+          idempotency_key: billingQuantitySyncIdempotencyKey(operationKey, 1),
+          status: "pending",
+          error_code: null,
+          attempts: 1,
+          attempted_at: nowIso(),
+        })
+        .select("id, status, provider_response_id, attempts, updated_at")
         .single<ProviderOperationRow>();
       if (insertOperation.error) {
         const existingOperation = await admin
           .from("billing_provider_operations")
-          .select("id, status, provider_response_id")
+          .select("id, status, provider_response_id, attempts, updated_at")
           .eq("operation_key", operationKey)
           .maybeSingle<ProviderOperationRow>();
         if (existingOperation.error || !existingOperation.data) {
@@ -295,7 +312,48 @@ Deno.serve(async (req: Request) => {
           setOutcome(item.subscription_id, "failed", "provider_operation_claim_failed");
           return;
         }
-        operationData = existingOperation.data;
+        const existing = existingOperation.data;
+        const resolution = resolveBillingOperationConflict(existing);
+        if (resolution.action === "wait") {
+          // Not converged yet, but not wedged: the backoff window (or another
+          // worker's live claim) defers this target to a later run.
+          failed++;
+          setOutcome(
+            item.subscription_id,
+            "failed",
+            resolution.reason === "backoff"
+              ? "provider_operation_retry_backoff"
+              : "provider_operation_in_flight",
+          );
+          return;
+        }
+        if (resolution.action === "verify_provider") {
+          requiresProviderVerification = true;
+          operationData = existing;
+        } else {
+          // Optimistic claim: the updated_at equality check loses cleanly if
+          // a concurrent worker claimed the row first.
+          const claim = await admin
+            .from("billing_provider_operations")
+            .update({
+              status: "pending",
+              error_code: null,
+              attempts: existing.attempts + 1,
+              idempotency_key: billingQuantitySyncIdempotencyKey(operationKey, existing.attempts + 1),
+              attempted_at: nowIso(),
+              updated_at: nowIso(),
+            })
+            .eq("id", existing.id)
+            .eq("updated_at", existing.updated_at)
+            .select("id, status, provider_response_id, attempts, updated_at")
+            .maybeSingle<ProviderOperationRow>();
+          if (claim.error || !claim.data) {
+            failed++;
+            setOutcome(item.subscription_id, "failed", "provider_operation_claim_failed");
+            return;
+          }
+          operationData = claim.data;
+        }
       } else {
         operationData = insertOperation.data;
       }
@@ -305,19 +363,58 @@ Deno.serve(async (req: Request) => {
         return;
       }
 
-      if (operationData.status === "failed") {
-        failed++;
-        setOutcome(item.subscription_id, "failed", "provider_operation_failed");
-        return;
+      let providerSucceeded = false;
+      if (requiresProviderVerification) {
+        // A recorded success is not proof the provider still agrees (finding:
+        // local rows were overwritten from stale success rows while Stripe
+        // invoiced a different quantity). Read the live item before skipping
+        // the mutation.
+        const verification = await phase2StripeGet(
+          `/v1/subscription_items/${encodeURIComponent(item.stripe_subscription_item_id)}`,
+          stripeSecretKey,
+        );
+        if (!verification.ok) {
+          failed++;
+          setOutcome(item.subscription_id, "failed", `stripe_verify_http_${verification.status}`);
+          return;
+        }
+        if (Number(verification.data.quantity) === quantity) {
+          // Provider agrees; fall through to reconcile local rows to the
+          // verified provider state.
+          providerSucceeded = true;
+        } else {
+          // Provider drifted from the recorded success: reclaim the row and
+          // mutate with a fresh idempotency key (the original key would replay
+          // Stripe's cached response instead of applying the change).
+          const reclaim = await admin
+            .from("billing_provider_operations")
+            .update({
+              status: "pending",
+              error_code: null,
+              attempts: operationData.attempts + 1,
+              idempotency_key: billingQuantitySyncIdempotencyKey(operationKey, operationData.attempts + 1),
+              attempted_at: nowIso(),
+              updated_at: nowIso(),
+            })
+            .eq("id", operationData.id)
+            .eq("updated_at", operationData.updated_at)
+            .select("id, status, provider_response_id, attempts, updated_at")
+            .maybeSingle<ProviderOperationRow>();
+          if (reclaim.error || !reclaim.data) {
+            failed++;
+            setOutcome(item.subscription_id, "failed", "provider_operation_claim_failed");
+            return;
+          }
+          operationData = reclaim.data;
+        }
       }
 
-      let providerSucceeded = operationData.status === "provider_succeeded" || operationData.status === "local_succeeded";
       if (!providerSucceeded) {
         const stripeResult = await phase2StripePost(
           `/v1/subscription_items/${encodeURIComponent(item.stripe_subscription_item_id)}`,
           stripeSecretKey,
           { quantity, proration_behavior: "none" },
-          idempotencyKey,
+          billingQuantitySyncIdempotencyKey(operationKey, operationData.attempts),
         );
         if (!stripeResult.ok || stripeResult.data.id !== item.stripe_subscription_item_id
           || Number(stripeResult.data.quantity) !== quantity) {
@@ -325,7 +422,7 @@ Deno.serve(async (req: Request) => {
           await admin.from("billing_provider_operations").update({
             status: "failed",
             error_code: stripeResult.ok ? "stripe_response_invalid" : `stripe_http_${stripeResult.status}`,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso(),
           }).eq("id", operationData.id);
           setOutcome(
             item.subscription_id,
@@ -339,43 +436,49 @@ Deno.serve(async (req: Request) => {
           status: "provider_succeeded",
           error_code: null,
           provider_response_id: String(stripeResult.data.id),
-          provider_succeeded_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          provider_succeeded_at: nowIso(),
+          updated_at: nowIso(),
         }).eq("id", operationData.id);
       }
 
-      const { error: persistenceError } = await admin.from("billing_subscription_items")
+      // Local rows are addressed by the Stripe item id: the webhook replaces
+      // local rows (delete + reinsert), so the local id captured at read time
+      // can be stale. Zero updated rows means the item no longer exists
+      // locally and must be a failure, never a silent success (finding 9).
+      const itemPersistence = await admin.from("billing_subscription_items")
         .update({ quantity })
-        .eq("id", item.id);
-      if (persistenceError) {
+        .eq("stripe_subscription_item_id", item.stripe_subscription_item_id)
+        .select("id");
+      if (itemPersistence.error || (itemPersistence.data ?? []).length === 0) {
         failed++;
         await admin.from("billing_provider_operations").update({
           status: providerSucceeded ? "provider_succeeded" : "failed",
           error_code: "local_quantity_persistence_failed",
-          updated_at: new Date().toISOString(),
-        }).eq("operation_key", operationKey);
+          updated_at: nowIso(),
+        }).eq("id", operationData.id);
         setOutcome(item.subscription_id, "failed", "local_quantity_persistence_failed");
         return;
       }
-      const { error: subscriptionPersistenceError } = await admin.from("billing_subscriptions")
+      const subscriptionPersistence = await admin.from("billing_subscriptions")
         .update({ seat_quantity: quantity })
-        .eq("id", item.subscription_id);
-      if (subscriptionPersistenceError) {
+        .eq("id", item.subscription_id)
+        .select("id");
+      if (subscriptionPersistence.error || (subscriptionPersistence.data ?? []).length === 0) {
         failed++;
         await admin.from("billing_provider_operations").update({
           status: providerSucceeded ? "provider_succeeded" : "failed",
           error_code: "subscription_quantity_persistence_failed",
-          updated_at: new Date().toISOString(),
-        }).eq("operation_key", operationKey);
+          updated_at: nowIso(),
+        }).eq("id", operationData.id);
         setOutcome(item.subscription_id, "failed", "subscription_quantity_persistence_failed");
         return;
       }
       await admin.from("billing_provider_operations").update({
         status: "local_succeeded",
         error_code: null,
-        local_succeeded_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq("operation_key", operationKey);
+        local_succeeded_at: nowIso(),
+        updated_at: nowIso(),
+      }).eq("id", operationData.id);
       updated++;
       setOutcome(item.subscription_id, "synced", null);
     }));

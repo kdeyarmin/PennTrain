@@ -19,6 +19,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
   compressCopilotForVoice,
   copilotIntentForTopic,
+  DEADLINE_ROW_LIMIT,
   parseVoiceToolRequest,
   summarizeDeadlines,
   summarizeReadiness,
@@ -78,6 +79,28 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Not authorized to use the voice assistant" }, 403);
   }
 
+  // Platform kill-switch, checked PER CALL (same pattern as the copilot's
+  // ai_compliance_copilot_enabled): platform_settings is platform_admin-only
+  // under RLS, so the read needs the service role. Fail CLOSED — a missing
+  // key, read error, or absent/false row all disable the assistant — and
+  // return a voiceable domain error so the agent can say it aloud. Note the
+  // gateway's Realtime channel itself is not reached by this switch; see
+  // the voice-gateway README for env-level shutdown.
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  let assistantEnabled = false;
+  if (serviceRoleKey) {
+    const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+    const { data: setting, error: settingError } = await adminClient
+      .from("platform_settings").select("value").eq("key", "voice_assistant_enabled").maybeSingle();
+    assistantEnabled = !settingError && setting?.value === true;
+  }
+  if (!assistantEnabled) {
+    return toolError(
+      "assistant_disabled",
+      "The voice assistant is currently disabled by the platform administrator. Apologize and suggest using the app directly.",
+    );
+  }
+
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -103,6 +126,22 @@ Deno.serve(async (req: Request) => {
       "facility_type_unsupported",
       "Voice compliance tools cover Personal Care Homes and Assisted Living Facilities (ALFs) only.",
     );
+  }
+  // facilities_select RLS is org-wide, but the data tables below are
+  // ASSIGNMENT-scoped for facility_manager — without this check an
+  // unassigned manager gets zero rows without error and the agent speaks a
+  // confident (false) "all clear". Same caller-scoped helper the RLS
+  // policies use; org_admin / auditor / platform_admin pass through it by
+  // definition, so only facility_manager needs the extra round trip.
+  if (profile.role === "facility_manager") {
+    const { data: assigned, error: assignedError } = await callerClient
+      .rpc("is_assigned_to_facility", { target_facility_id: facilityId });
+    if (assignedError || assigned !== true) {
+      return toolError(
+        "facility_not_accessible",
+        "That facility isn't in this account's assigned scope, so its compliance data can't be read aloud. Suggest picking one of the caller's assigned facilities in the app.",
+      );
+    }
   }
 
   try {
@@ -162,23 +201,35 @@ Deno.serve(async (req: Request) => {
         const asOf = new Date().toISOString().slice(0, 10);
         const through = addDays(asOf, days);
         // Same caller-scoped selects as the copilot's due-date grounding,
-        // ordered by due date BEFORE the limit so a facility with >100
-        // matches keeps its nearest deadlines rather than an arbitrary page.
-        const [training, credentials, residentItems] = await Promise.all([
+        // ordered by due date BEFORE the limit so a facility with more
+        // matches than the page keeps its nearest deadlines rather than an
+        // arbitrary page. The limited pages only feed topItems — the SPOKEN
+        // counts come from the exact head counts alongside, so the agent
+        // never states a truncated page size as a total.
+        const [training, credentials, residentItems, trainingCount, credentialsCount, residentItemsCount] = await Promise.all([
           callerClient.from("employee_training_records")
             .select("status,due_date")
             .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through)
-            .order("due_date", { ascending: true }).limit(100),
+            .order("due_date", { ascending: true }).limit(DEADLINE_ROW_LIMIT),
           callerClient.from("employee_credentials")
             .select("credential_type,credential_label,status,expiration_date")
             .eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through)
-            .order("expiration_date", { ascending: true }).limit(100),
+            .order("expiration_date", { ascending: true }).limit(DEADLINE_ROW_LIMIT),
           callerClient.from("resident_compliance_items")
             .select("item_type,status,due_date")
             .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through)
-            .order("due_date", { ascending: true }).limit(100),
+            .order("due_date", { ascending: true }).limit(DEADLINE_ROW_LIMIT),
+          callerClient.from("employee_training_records")
+            .select("*", { count: "exact", head: true })
+            .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through),
+          callerClient.from("employee_credentials")
+            .select("*", { count: "exact", head: true })
+            .eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through),
+          callerClient.from("resident_compliance_items")
+            .select("*", { count: "exact", head: true })
+            .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through),
         ]);
-        for (const result of [training, credentials, residentItems]) {
+        for (const result of [training, credentials, residentItems, trainingCount, credentialsCount, residentItemsCount]) {
           if (result.error) throw new Error(`deadline query: ${result.error.message}`);
         }
         return json({
@@ -188,6 +239,11 @@ Deno.serve(async (req: Request) => {
             (training.data ?? []) as TrainingDueRow[],
             (credentials.data ?? []) as CredentialRow[],
             (residentItems.data ?? []) as ResidentItemRow[],
+            {
+              trainingDue: trainingCount.count,
+              credentialsExpiring: credentialsCount.count,
+              residentItemsDue: residentItemsCount.count,
+            },
           ),
         });
       }

@@ -6,9 +6,9 @@
 // deployment. Known limit (accepted for the browser channel, documented in
 // the README): a deploy in the seconds between session creation and the WS
 // open loses the handoff and the browser retries with one click. The phone
-// channel MUST swap in a DB-backed store before go-live — Twilio's
-// webhook→WS handoff spans two connections and a deploy in between kills
-// live calls (pennfit's error-31920 lesson).
+// channel — where a deploy mid-handoff kills a LIVE call (pennfit's
+// error-31920 lesson) — has its Postgres-backed swap-in already:
+// phone/postgres-stores.ts, enabled by VOICE_STATE_DATABASE_URL.
 
 export interface PendingSession {
   sessionId: string;
