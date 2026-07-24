@@ -4,6 +4,9 @@ import {
   encodePhase2Cursor,
   parsePhase2ApiCredential,
   PHASE2_INTEGRATION_SCHEMA_VERSION,
+  phase2CommandContract,
+  phase2CommandSchemaVersionError,
+  phase2CommandScopeCandidates,
   phase2IntegrationHeaders,
   phase2IntegrationSha256,
 } from "../_shared/phase2Integration.ts";
@@ -38,7 +41,6 @@ Deno.serve(async (req: Request) => {
   if (!isCommands && !isEvents && !isEntitlements) {
     return response({ error: { code: "route_not_found" }, meta: { correlationId } }, 404, correlationId);
   }
-  const requiredScope = isCommands ? "commands:write" : isEvents ? "events:read" : "entitlements:read";
   const plaintextKey = parsePhase2ApiCredential(req.headers.get("authorization"));
   if (!plaintextKey) {
     return response({ error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
@@ -49,16 +51,57 @@ Deno.serve(async (req: Request) => {
     return response({ error: { code: "service_not_configured" }, meta: { correlationId } }, 503, correlationId);
   }
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const { data: authRows, error: authError } = await admin.rpc(
-    "authenticate_integration_api_credential",
-    {
-      p_secret_sha256: await phase2IntegrationSha256(plaintextKey),
-      p_required_scope: requiredScope,
-      p_correlation_id: correlationId,
-    },
-  );
-  const credential = Array.isArray(authRows) ? authRows[0] : authRows;
-  if (authError || !credential) {
+
+  // The required scope on the commands route depends on the named command
+  // (PT-003: e.g. medication.snapshot.import accepts the least-privilege
+  // medications:write scope), so the bounded envelope is read before
+  // authenticating. Read routes keep their fixed scope.
+  let commandBody: Record<string, unknown> | null = null;
+  let commandType = "";
+  let rawBody = "";
+  if (isCommands) {
+    const declaredLength = Number(req.headers.get("content-length") ?? "0");
+    if (declaredLength > MAX_BODY_BYTES) {
+      return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
+    }
+    rawBody = await req.text();
+    if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
+      return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      return response({ error: { code: "invalid_json" }, meta: { correlationId } }, 400, correlationId);
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return response({ error: { code: "invalid_command_envelope" }, meta: { correlationId } }, 400, correlationId);
+    }
+    commandBody = parsed as Record<string, unknown>;
+    commandType = typeof commandBody.commandType === "string" ? commandBody.commandType : "";
+  }
+  const scopeCandidates = isCommands
+    ? phase2CommandScopeCandidates(commandType)
+    : [isEvents ? "events:read" : "entitlements:read"];
+  const secretSha256 = await phase2IntegrationSha256(plaintextKey);
+  let credential: Record<string, unknown> | null = null;
+  for (const requiredScope of scopeCandidates) {
+    const { data: authRows, error: authError } = await admin.rpc(
+      "authenticate_integration_api_credential",
+      {
+        p_secret_sha256: secretSha256,
+        p_required_scope: requiredScope,
+        p_correlation_id: correlationId,
+      },
+    );
+    if (authError) break;
+    const row = Array.isArray(authRows) ? authRows[0] : authRows;
+    if (row) {
+      credential = row as Record<string, unknown>;
+      break;
+    }
+  }
+  if (!credential) {
     return response({ error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
   }
   const { data: rateRows, error: rateError } = await admin.rpc("consume_integration_rate_limit", {
@@ -79,36 +122,34 @@ Deno.serve(async (req: Request) => {
   }
 
   if (isCommands) {
-    const declaredLength = Number(req.headers.get("content-length") ?? "0");
-    if (declaredLength > MAX_BODY_BYTES) {
-      return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
-    }
-    const rawBody = await req.text();
-    if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-      return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
-    }
-    let body: Record<string, unknown>;
-    try {
-      body = JSON.parse(rawBody) as Record<string, unknown>;
-    } catch {
-      return response({ error: { code: "invalid_json" }, meta: { correlationId } }, 400, correlationId, rate);
-    }
+    const body = commandBody as Record<string, unknown>;
     const idempotencyKey = req.headers.get("idempotency-key") ?? "";
-    const schemaVersion = body.schemaVersion;
-    const commandType = body.commandType;
     if (idempotencyKey.length < 8 || idempotencyKey.length > 200 ||
-      schemaVersion !== PHASE2_INTEGRATION_SCHEMA_VERSION ||
-      typeof commandType !== "string" || !/^[a-z][a-z0-9_.:-]{1,149}$/.test(commandType) ||
+      !/^[a-z][a-z0-9_.:-]{1,149}$/.test(commandType) ||
       typeof body.payload !== "object" || body.payload === null || Array.isArray(body.payload) ||
       (body.organizationId !== undefined && body.organizationId !== credential.organization_id)) {
       return response({ error: { code: "invalid_command_envelope" }, meta: { correlationId } }, 400, correlationId, rate);
+    }
+    // Per-command contract: registered commands must be submitted at their
+    // registered version; everything else keeps the global baseline.
+    const contract = phase2CommandContract(commandType);
+    const versionError = phase2CommandSchemaVersionError(commandType, body.schemaVersion);
+    if (versionError) {
+      return response({
+        error: {
+          code: "schema_version_mismatch",
+          message: versionError,
+          expectedSchemaVersion: contract.schemaVersion,
+        },
+        meta: { correlationId },
+      }, 400, correlationId, rate);
     }
     const { data: commandRows, error: commandError } = await admin.rpc("accept_integration_command", {
       p_credential_id: credential.credential_id,
       p_idempotency_key: idempotencyKey,
       p_request_sha256: await phase2IntegrationSha256(rawBody),
       p_command_type: commandType,
-      p_schema_version: schemaVersion,
+      p_schema_version: contract.schemaVersion,
       p_payload: body.payload,
       p_correlation_id: correlationId,
     });
@@ -116,7 +157,7 @@ Deno.serve(async (req: Request) => {
       const conflict = commandError.code === "23505";
       return response({
         error: { code: conflict ? "idempotency_conflict" : "command_rejected" },
-        meta: { schemaVersion: PHASE2_INTEGRATION_SCHEMA_VERSION, correlationId },
+        meta: { schemaVersion: contract.schemaVersion, correlationId },
       }, conflict ? 409 : 422, correlationId, rate);
     }
     const command = Array.isArray(commandRows) ? commandRows[0] : commandRows;
@@ -126,7 +167,7 @@ Deno.serve(async (req: Request) => {
         status: command.command_status,
         duplicate: command.was_duplicate,
       },
-      meta: { schemaVersion: PHASE2_INTEGRATION_SCHEMA_VERSION, correlationId: command.correlation_id },
+      meta: { schemaVersion: contract.schemaVersion, correlationId: command.correlation_id },
     }, command.was_duplicate ? 200 : 202, correlationId, rate);
   }
 

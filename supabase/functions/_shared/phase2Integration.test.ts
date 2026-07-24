@@ -2,6 +2,10 @@ import {
   decodePhase2Cursor,
   encodePhase2Cursor,
   parsePhase2ApiCredential,
+  PHASE2_INTEGRATION_SCHEMA_VERSION,
+  phase2CommandContract,
+  phase2CommandSchemaVersionError,
+  phase2CommandScopeCandidates,
   phase2CredentialIsUsable,
   phase2PinnedWebhookRequest,
   phase2RetryableWebhookStatus,
@@ -46,6 +50,43 @@ Deno.test("credentials are strict, expiring, scoped, and rotation/revocation awa
   assertEquals(phase2CredentialIsUsable({
     status: "active", expiresAt: "2028-01-01T00:00:00Z", scopes: ["events:read"], requiredScope: "events:read",
   }, Date.parse("2029-01-01T00:00:00Z")), false);
+});
+
+Deno.test("command contracts are per-command with a generic baseline fallback", () => {
+  assertEquals(phase2CommandContract("medication.snapshot.import"), {
+    schemaVersion: "2026-07-14",
+    requiredScope: "medications:write",
+  });
+  assertEquals(phase2CommandContract("workforce.lifecycle.sync"), {
+    schemaVersion: PHASE2_INTEGRATION_SCHEMA_VERSION,
+    requiredScope: "commands:write",
+  });
+});
+
+Deno.test("each command accepts exactly its registered schema version", () => {
+  assertEquals(phase2CommandSchemaVersionError("medication.snapshot.import", "2026-07-14"), null);
+  assertEquals(phase2CommandSchemaVersionError("workforce.lifecycle.sync", "2026-07-11"), null);
+  assertEquals(
+    phase2CommandSchemaVersionError("medication.snapshot.import", "2026-07-11"),
+    "Command 'medication.snapshot.import' requires schemaVersion '2026-07-14'",
+  );
+  assertEquals(
+    phase2CommandSchemaVersionError("workforce.lifecycle.sync", "2026-07-14"),
+    "Command 'workforce.lifecycle.sync' requires schemaVersion '2026-07-11'",
+  );
+  assertEquals(
+    phase2CommandSchemaVersionError("medication.snapshot.import", undefined),
+    "Command 'medication.snapshot.import' requires schemaVersion '2026-07-14'",
+  );
+});
+
+Deno.test("command scope candidates put least privilege first with commands:write as superset", () => {
+  assertEquals(phase2CommandScopeCandidates("medication.snapshot.import"), [
+    "medications:write",
+    "commands:write",
+  ]);
+  assertEquals(phase2CommandScopeCandidates("workforce.lifecycle.sync"), ["commands:write"]);
+  assertEquals(phase2CommandScopeCandidates(""), ["commands:write"]);
 });
 
 Deno.test("cursor pagination is versioned and rejects malformed cursors", () => {
