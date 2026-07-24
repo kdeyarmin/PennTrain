@@ -20,7 +20,7 @@ import {
   measuredBillingQuantity,
   resolvedBillingQuantity,
 } from "@/lib/billingCatalog";
-import { PRODUCT_MODULES } from "@/lib/productModules";
+import { PRODUCT_MODULES, withModuleDependencies } from "@/lib/productModules";
 import {
   useListPackageBillingPrices,
   useListPackages,
@@ -43,9 +43,19 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 function enabledModuleNames(features: Json | null): string[] {
   if (!features || typeof features !== "object" || Array.isArray(features)) return [];
   const record = features as Record<string, Json | undefined>;
-  return PRODUCT_MODULES
-    .filter((module) => record[module.entitlementKey] === true)
-    .map((module) => module.name);
+  const enabledIds = new Set(
+    PRODUCT_MODULES.filter((module) => record[module.entitlementKey] === true).map((module) => module.id),
+  );
+  // CareBase is the all-inclusive bundle. Enumerate the included operational pillars for the plan
+  // card's value list instead of the redundant bundle entry. The pillar set is derived from the
+  // productModules dependency graph (the source of truth) so it cannot drift as modules are added.
+  if (enabledIds.has("carebase")) {
+    for (const moduleId of withModuleDependencies(["carebase"])) {
+      if (moduleId !== "core" && moduleId !== "carebase") enabledIds.add(moduleId);
+    }
+    enabledIds.delete("carebase");
+  }
+  return PRODUCT_MODULES.filter((module) => enabledIds.has(module.id)).map((module) => module.name);
 }
 
 function effectivePrice(

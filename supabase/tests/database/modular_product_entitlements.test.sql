@@ -1,10 +1,10 @@
 begin;
-select plan(40);
+select plan(53);
 
 select results_eq(
   $$ select feature_key from public.feature_definitions where feature_key like 'modules.%' order by feature_key $$,
-  $$ values ('modules.carebase'::text), ('modules.train'::text) $$,
-  'both commercial modules have typed entitlement definitions'
+  $$ values ('modules.billing'::text), ('modules.carebase'::text), ('modules.compliance'::text), ('modules.train'::text), ('modules.workforce'::text) $$,
+  'every commercial pillar module has a typed entitlement definition'
 );
 select results_eq(
   $$ select name from public.packages where name in ('CareMetric Train', 'CareMetric CareBase') order by name $$,
@@ -23,8 +23,8 @@ select is(
 );
 select results_eq(
   $$ select name from public.packages where name like 'CareMetric %' order by sort_order $$,
-  $$ values ('CareMetric Train'::text), ('CareMetric CareBase'::text), ('CareMetric Portfolio'::text) $$,
-  'the launch catalog has training, complete operations, and portfolio packages'
+  $$ values ('CareMetric Train'::text), ('CareMetric Essentials'::text), ('CareMetric Professional'::text), ('CareMetric CareBase'::text), ('CareMetric Portfolio'::text) $$,
+  'the tier ladder runs training, essentials, professional, complete operations, and portfolio'
 );
 select is(
   (select pricing_strategy from public.packages where name = 'CareMetric Train'),
@@ -149,14 +149,75 @@ select is(
   'course data belongs to CareMetric Train'
 );
 select is(
-  (select module_key from app_private.product_module_resources where resource_name = 'residents'),
-  'modules.carebase',
-  'resident data belongs to CareMetric CareBase'
+  (select count(*)::integer from app_private.product_module_resources where resource_name = 'residents'),
+  0,
+  'the resident directory is shared core so compliance and billing tiers can identify residents'
 );
 select is(
   (select count(*)::integer from app_private.product_module_resources where resource_name = 'employees'),
   0,
   'the employee directory remains shared core'
+);
+select is(
+  (select module_key from app_private.product_module_resources where resource_name = 'resident_financial_accounts'),
+  'modules.billing',
+  'resident financial data belongs to CareMetric Billing'
+);
+select is(
+  (select module_key from app_private.product_module_resources where resource_name = 'competency_records'),
+  'modules.workforce',
+  'competency data belongs to CareMetric Workforce'
+);
+select is(
+  (select count(*)::integer from app_private.product_module_resources where resource_name = 'employee_credentials'),
+  0,
+  'the credential record backbone is shared core so compliance and workforce pages both render it'
+);
+select is(
+  (select module_key from app_private.product_module_resources where resource_name = 'inspection_items'),
+  'modules.compliance',
+  'inspection data belongs to CareMetric Compliance'
+);
+select is(
+  (select module_key from app_private.product_module_resources where resource_name = 'incidents'),
+  'modules.compliance',
+  'incident reporting data belongs to CareMetric Compliance'
+);
+select is(
+  (select module_key from app_private.product_module_resources where resource_name = 'work_orders'),
+  'modules.carebase',
+  'maintenance work orders remain CareMetric Care Operations'
+);
+select is(
+  (select features -> 'modules.compliance' from public.packages where name = 'CareMetric Essentials'),
+  'true'::jsonb,
+  'the Essentials tier bundles Compliance'
+);
+select is(
+  (select features -> 'modules.carebase' from public.packages where name = 'CareMetric Essentials'),
+  'false'::jsonb,
+  'the Essentials tier excludes full Care Operations'
+);
+select is(
+  (select features -> 'modules.billing' from public.packages where name = 'CareMetric Professional'),
+  'true'::jsonb,
+  'the Professional tier bundles Billing'
+);
+select is(
+  (select features -> 'modules.workforce' from public.packages where name = 'CareMetric Professional'),
+  'true'::jsonb,
+  'the Professional tier bundles Workforce'
+);
+select is(
+  (select features -> 'modules.workforce' from public.packages where name = 'CareMetric CareBase'),
+  'true'::jsonb,
+  'CareBase remains the all-inclusive bundle across every pillar'
+);
+select is(
+  (select billing_metric from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
+   where p.name = 'CareMetric Professional' and bp.recurring_interval = 'month'),
+  'active_resident',
+  'Professional prices scale by active resident'
 );
 select is(
   (select module_key from app_private.product_module_storage_buckets where bucket_id = 'course-documents'),
@@ -179,9 +240,14 @@ select is(
   'Train data composes module access with existing course RLS'
 );
 select is(
-  (select permissive from pg_policies where schemaname = 'public' and tablename = 'residents' and policyname = 'product_module_entitlement'),
+  (select count(*)::integer from pg_policies where schemaname = 'public' and tablename = 'residents' and policyname = 'product_module_entitlement'),
+  0,
+  'the shared-core resident directory carries no module entitlement policy'
+);
+select is(
+  (select permissive from pg_policies where schemaname = 'public' and tablename = 'work_orders' and policyname = 'product_module_entitlement'),
   'RESTRICTIVE',
-  'CareBase data composes module access with existing resident RLS'
+  'Care operations data composes module access with existing work-order RLS'
 );
 select is(
   (select permissive from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'product_module_entitlement'),
