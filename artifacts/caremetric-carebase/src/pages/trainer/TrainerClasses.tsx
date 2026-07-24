@@ -13,6 +13,7 @@ import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,7 +63,13 @@ export default function TrainerClasses() {
 
   // Facility filtering happens server-side (useListTrainingClasses already supports facilityId) --
   // search/status stay client-side filters over that already-narrowed result set below.
-  const { data: classes, isLoading } = useListTrainingClasses({
+  const {
+    data: classes,
+    isLoading,
+    isError: classesError,
+    error: classesErrorDetail,
+    refetch: refetchClasses,
+  } = useListTrainingClasses({
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
   });
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
@@ -426,18 +433,34 @@ export default function TrainerClasses() {
             <div key={i} className="h-48 bg-muted animate-pulse rounded-xl" />
           ))}
         </div>
+      ) : classesError ? (
+        <QueryError what="training classes" error={classesErrorDetail} onRetry={() => void refetchClasses()} />
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <GraduationCap className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-semibold mb-1">No classes yet</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Create your first training class to get started.
-            </p>
-            <Button onClick={() => { resetForm(); setShowCreate(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Class
-            </Button>
+            {allClasses.length > 0 ? (
+              <>
+                <h3 className="text-lg font-semibold mb-1">No classes match these filters</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Adjust the search or filters to see your other {allClasses.length} class{allClasses.length === 1 ? "" : "es"}.
+                </p>
+                <Button variant="outline" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
+                  Clear filters
+                </Button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold mb-1">No classes yet</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Create your first training class to get started.
+                </p>
+                <Button onClick={() => { resetForm(); setShowCreate(true); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Class
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (

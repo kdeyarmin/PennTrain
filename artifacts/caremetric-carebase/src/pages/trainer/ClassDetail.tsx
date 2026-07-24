@@ -218,7 +218,12 @@ export default function ClassDetail() {
   const classId = params?.id;
 
   const { data: cls, isLoading, isError, error, refetch } = useGetTrainingClass(classId);
-  const { data: attendees } = useListClassAttendees(classId);
+  const {
+    data: attendees,
+    isError: attendeesError,
+    error: attendeesErrorDetail,
+    refetch: refetchAttendees,
+  } = useListClassAttendees(classId);
   const { data: allEmployees } = useListEmployees();
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
@@ -709,7 +714,11 @@ export default function ClassDetail() {
           </div>
         </CardHeader>
         <CardContent>
-          {allAttendees.length === 0 ? (
+          {/* A failed roster fetch must not read as an empty roster -- a trainer
+              could otherwise complete the class thinking nobody attended. */}
+          {attendeesError ? (
+            <QueryError what="the class roster" error={attendeesErrorDetail} onRetry={() => void refetchAttendees()} />
+          ) : allAttendees.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-muted-foreground text-sm mb-3">

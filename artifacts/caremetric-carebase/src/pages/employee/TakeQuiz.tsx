@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QueryError } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -34,12 +35,24 @@ export default function TakeQuiz() {
   const backHref = `/me/courses/${assignmentId}`;
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
-  const { data: assignment, isLoading: assignmentLoading } = useGetCourseAssignment(assignmentId);
+  const {
+    data: assignment,
+    isLoading: assignmentLoading,
+    isError: assignmentError,
+    error: assignmentErrorDetail,
+    refetch: refetchAssignment,
+  } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
   const { data: quiz, isLoading: quizLoading, isError: quizError } = useGetQuiz(quizId);
   const { data: questions, isLoading: questionsLoading, isError: questionsError } = useListQuizQuestions(quizId);
   const { data: choices, isLoading: choicesLoading, isError: choicesError } = useQuizAnswerChoices(quizId);
-  const { data: attempts, isLoading: attemptsLoading } = useListQuizAttempts({
+  const {
+    data: attempts,
+    isLoading: attemptsLoading,
+    isError: attemptsError,
+    error: attemptsErrorDetail,
+    refetch: refetchAttempts,
+  } = useListQuizAttempts({
     assignmentId,
     employeeId: employee?.id,
   });
@@ -164,6 +177,24 @@ export default function TakeQuiz() {
           </p>
         </CardContent>
       </Card>
+    );
+  }
+
+  // A failed fetch is not a missing assignment, and a failed attempts fetch
+  // must not present a quiz as never-started (the history drives the
+  // start/resume/exhausted states below).
+  if (assignmentError || attemptsError) {
+    return (
+      <div className="space-y-4">
+        <QueryError
+          what={assignmentError ? "this training assignment" : "your quiz attempts"}
+          error={assignmentError ? assignmentErrorDetail : attemptsErrorDetail}
+          onRetry={() => void (assignmentError ? refetchAssignment() : refetchAttempts())}
+        />
+        <Button asChild variant="outline" size="sm">
+          <Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" /> Back to My Training</Link>
+        </Button>
+      </div>
     );
   }
 
