@@ -69,11 +69,14 @@ select results_eq(
       ('PA-DHS-ANNUAL-OAPSA-REPORTING'::text),
       ('PA-DHS-ANNUAL-RESIDENT-RIGHTS'::text),
       ('PA-DHS-ANNUAL-SAFE-MANAGEMENT'::text),
+      ('PA-DHS-STANDALONE-ABUSE-REPORTING'::text),
+      ('PA-DHS-STANDALONE-FIRE-SAFETY'::text),
+      ('PA-DHS-STANDALONE-RESIDENT-RIGHTS'::text),
       ('PA-PCH-2600-236-DEMENTIA-FOUNDATIONS'::text),
       ('PA-PCH-ANNUAL-ASSESSED-NEEDS'::text),
       ('PA-PCH-ANNUAL-PERSONAL-CARE-SERVICES'::text)
   $$,
-  'the stable individual PA DHS catalog contains all 20 seeded courses'
+  'the stable individual PA DHS catalog contains all 23 seeded courses'
 );
 
 select results_eq(
