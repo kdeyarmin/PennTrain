@@ -49,8 +49,9 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```bash
    npx supabase functions deploy
    ```
-   Or connect the Supabase GitHub integration (Project Settings -> Integrations) so pushes to `main`
-   auto-deploy both migrations and functions declared in `supabase/config.toml`.
+   Note: merges to `main` deploy functions automatically — the `Deploy migrations` workflow
+   (`.github/workflows/deploy-migrations.yml`) runs `supabase functions deploy` after `db push`
+   once CI passes, so the manual command is only needed for first-time setup or hotfixes.
 4. Set Edge Function secrets (these run on Supabase's infrastructure, never on Railway):
    ```bash
    npx supabase secrets set HEYGEN_API_KEY=... \
