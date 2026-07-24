@@ -70,7 +70,11 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   });
 
   const server = http.createServer(app);
-  const wss = new WebSocketServer({ noServer: true });
+  // Voice frames are small (browser mic chunks are tens of KB; Twilio media
+  // frames are <1 KB JSON). ws's default maxPayload is 100 MB, which would let
+  // any socket -- including pre-claim /phone/stream connections -- force the
+  // gateway to buffer and parse huge frames. 1 MiB is far above any real frame.
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
 
   server.on("upgrade", (req, socket, head) => {
     const pathname = new URL(req.url ?? "/", "http://gateway.internal")

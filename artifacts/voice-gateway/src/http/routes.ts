@@ -40,15 +40,20 @@ const SESSION_BODY = z
   })
   .strict();
 
-/** Public wss:// origin for the WS URL — configured, or derived from the
- *  proxy's forwarded headers (Railway sets x-forwarded-proto/host). */
+/** Public wss:// origin for the WS URL — configured (VOICE_PUBLIC_WS_ORIGIN,
+ *  else derived from VOICE_PUBLIC_BASE_URL), falling back to the request's
+ *  forwarded headers only when neither is set. X-Forwarded-* values are
+ *  client-influencable, so a configured public origin must always win --
+ *  otherwise a crafted request could receive a wsUrl pointing at a foreign
+ *  host and leak its claim-once session sid there. */
 function wsOriginFor(config: GatewayConfig, req: Request): string {
   if (config.publicWsOrigin) return config.publicWsOrigin.replace(/\/+$/, "");
+  if (config.publicBaseUrl) return config.publicBaseUrl.replace(/^http/, "ws");
   const proto =
     (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0] ??
     req.protocol;
   const host =
-    (req.headers["x-forwarded-host"] as string | undefined) ??
+    (req.headers["x-forwarded-host"] as string | undefined)?.split(",")[0]?.trim() ??
     req.headers.host ??
     "localhost";
   return `${proto === "https" ? "wss" : "ws"}://${host}`;
@@ -222,7 +227,19 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
         wsUrl: `${wsOriginFor(deps.config, req)}/apps/${appDef.id}/realtime?sid=${sessionId}`,
         expiresIn: Math.floor(PENDING_SESSION_TTL_MS / 1_000),
       });
-    })();
+    })().catch((error: unknown) => {
+      // A rejection here would otherwise surface as an unhandled promise
+      // rejection and can take down the whole gateway process.
+      console.error(
+        JSON.stringify({
+          evt: "voice.session.route_error",
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      if (!res.headersSent) {
+        res.status(500).json({ error: "internal_error" });
+      }
+    });
   });
 
   return app;
