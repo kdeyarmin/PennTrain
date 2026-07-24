@@ -1,6 +1,14 @@
--- Recovered verbatim from production supabase_migrations.schema_migrations.statements
+-- Recovered from production supabase_migrations.schema_migrations.statements
 -- (applied 2026-07-24 as version 20260724044044 but never committed to git).
 -- See PennTrain_Comprehensive_Review_2026-07-24.md addendum / PT-051.
+--
+-- Replay adaptation: this step re-converts block 5 from the interim text form
+-- (20260724042226) back to video with the trimmed re-renders. The committed
+-- orientation seed already ships that end state (block 5 is a video with the
+-- final resolved render), so this applies only when block 5 is still in the
+-- interim text form -- production's actual history -- and no-ops on fresh
+-- replays; running it against the seed would regress resolved videos to
+-- "processing" with a null video_url on an already-published course.
 --
 -- HeyGen credits were topped up. Re-render both blocks that couldn't complete
 -- earlier (block 2 for an account credit ceiling, block 5 for a likely storage
@@ -10,6 +18,15 @@
 -- jobs in-progress; poll-heygen-video-statuses will re-host them shortly.
 do $rewire$
 begin
+  if (
+    select block_type
+    from public.course_blocks
+    where id = 'd8424426-4992-4d3a-aa53-b8017480a30f'::uuid
+  ) <> 'text' then
+    -- Block 5 is not in the interim text form: the end-state seed is in place.
+    return;
+  end if;
+
   perform set_config('app.privileged_write', 'on', true);
 
   update public.course_blocks
