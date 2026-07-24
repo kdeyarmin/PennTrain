@@ -31,7 +31,20 @@ import {
   Package as PackageIcon, Pencil, Plus, Settings2, Trash2, Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { PRODUCT_MODULES, type PurchasableProductModuleId } from "@/lib/productModules";
+import {
+  ALL_PURCHASABLE_PRODUCT_MODULE_IDS,
+  PRODUCT_MODULES,
+  withModuleDependencies,
+  type ProductModuleId,
+  type PurchasableProductModuleId,
+} from "@/lib/productModules";
+
+// Expand a package's explicitly enabled modules so the all-inclusive CareBase bundle implies its
+// bundled operational pillars, mirroring withModuleDependencies used by the runtime access layer.
+function expandPurchasableModules(modules: Iterable<PurchasableProductModuleId>): PurchasableProductModuleId[] {
+  const resolved = withModuleDependencies(modules as Iterable<ProductModuleId>);
+  return ALL_PURCHASABLE_PRODUCT_MODULE_IDS.filter((moduleId) => resolved.has(moduleId));
+}
 
 type PricingStrategy = "flat_rate" | "per_unit" | "hybrid" | "custom";
 type BillingMetric = "flat" | "active_learner" | "active_user" | "active_resident" | "facility";
@@ -86,7 +99,7 @@ const EMPTY_PACKAGE_FORM: PackageFormData = {
   learnerLimit: "",
   priceMonthly: "",
   featuresJson: "{}",
-  enabledModules: ["train", "carebase"],
+  enabledModules: [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS],
 };
 
 const EMPTY_PRICE_FORM: PriceFormData = {
@@ -124,16 +137,26 @@ const PRICING_MODELS: Array<{ value: PricingModel; label: string }> = [
   { value: "custom", label: "Custom contract" },
 ];
 
+// Effective purchasable modules for a package, expanded so CareBase implies its bundled pillars.
+// Legacy packages predate the module contract and retain full access through the true defaults.
 function enabledModulesFromFeatures(features: Json | null): PurchasableProductModuleId[] {
-  if (!features || typeof features !== "object" || Array.isArray(features)) return ["train", "carebase"];
+  if (!features || typeof features !== "object" || Array.isArray(features)) {
+    return [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS];
+  }
   const record = features as Record<string, Json | undefined>;
   const hasModuleContract = PRODUCT_MODULES.some((module) => typeof record[module.entitlementKey] === "boolean");
-  if (!hasModuleContract) return ["train", "carebase"];
+  if (!hasModuleContract) return [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS];
   const enabled = PRODUCT_MODULES
     .filter((module) => record[module.entitlementKey] === true)
     .map((module) => module.id);
-  if (enabled.includes("carebase") && !enabled.includes("train")) enabled.unshift("train");
-  return enabled;
+  return expandPurchasableModules(enabled);
+}
+
+// Compact badge list: the all-inclusive CareBase bundle collapses to a single badge, otherwise the
+// individually enabled pillars are shown.
+function displayModulesFromFeatures(features: Json | null): PurchasableProductModuleId[] {
+  const enabled = enabledModulesFromFeatures(features);
+  return enabled.includes("carebase") ? ["carebase"] : enabled;
 }
 
 function money(cents: number | null, currency = "usd"): string {
@@ -459,7 +482,7 @@ export default function Packages() {
                         </div>
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{pkg.description || "No package description"}</p>
                       </TableCell>
-                      <TableCell><div className="flex flex-wrap gap-1">{enabledModulesFromFeatures(pkg.features).map((moduleId) => {
+                      <TableCell><div className="flex flex-wrap gap-1">{displayModulesFromFeatures(pkg.features).map((moduleId) => {
                         const module = PRODUCT_MODULES.find((candidate) => candidate.id === moduleId)!;
                         return <Badge key={moduleId} variant="outline">{module.shortName}</Badge>;
                       })}</div></TableCell>
@@ -562,10 +585,10 @@ export default function Packages() {
               <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Contact sales</p><p className="text-xs text-muted-foreground">Disables self-serve price</p></div><Switch checked={packageForm.contactSales} onCheckedChange={(value) => packageField("contactSales", value)} /></div>
             </div>
             <div className="col-span-full space-y-1.5"><Label>CareMetric products</Label><div className="space-y-2 rounded-lg border p-3">{PRODUCT_MODULES.map((module) => {
-              const enabled = packageForm.enabledModules.includes(module.id);
-              const requiredByCareBase = module.id === "train" && packageForm.enabledModules.includes("carebase");
-              return <div key={module.id} className="flex items-center justify-between gap-4"><div><p className="text-sm font-medium">{module.name}</p><p className="text-xs text-muted-foreground">{module.description}</p></div><Switch checked={enabled} disabled={requiredByCareBase} onCheckedChange={(checked) => packageField("enabledModules", checked ? Array.from(new Set([...packageForm.enabledModules, module.id, ...(module.id === "carebase" ? (["train"] as const) : [])])) : packageForm.enabledModules.filter((moduleId) => moduleId !== module.id))} aria-label={`${enabled ? "Disable" : "Enable"} ${module.name}`} /></div>;
-            })}</div><p className="text-xs text-muted-foreground">CareMetric CareBase always includes CareMetric Train.</p></div>
+              const forcedByCareBase = module.id !== "carebase" && packageForm.enabledModules.includes("carebase");
+              const enabled = packageForm.enabledModules.includes(module.id) || forcedByCareBase;
+              return <div key={module.id} className="flex items-center justify-between gap-4"><div><p className="text-sm font-medium">{module.name}</p><p className="text-xs text-muted-foreground">{module.description}</p></div><Switch checked={enabled} disabled={forcedByCareBase} onCheckedChange={(checked) => packageField("enabledModules", checked ? (module.id === "carebase" ? [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS] : Array.from(new Set([...packageForm.enabledModules, module.id]))) : packageForm.enabledModules.filter((moduleId) => moduleId !== module.id))} aria-label={`${enabled ? "Disable" : "Enable"} ${module.name}`} /></div>;
+            })}</div><p className="text-xs text-muted-foreground">CareMetric CareBase is the all-inclusive bundle: it always includes Train, Workforce, Compliance, and Billing.</p></div>
             <div className="col-span-full space-y-1.5"><Label>Advanced feature flags (JSON)</Label><Textarea value={packageForm.featuresJson} onChange={(event) => packageField("featuresJson", event.target.value)} className="min-h-24 font-mono text-xs" /><p className="text-xs text-muted-foreground">Product module keys above are synchronized when you save.</p></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowPackageForm(false)}>Cancel</Button><Button onClick={handlePackageSubmit} disabled={creating || updating}>{creating || updating ? "Saving..." : editId ? "Save changes" : "Create package"}</Button></DialogFooter>

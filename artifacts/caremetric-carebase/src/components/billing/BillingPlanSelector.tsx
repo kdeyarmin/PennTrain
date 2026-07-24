@@ -43,9 +43,16 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 function enabledModuleNames(features: Json | null): string[] {
   if (!features || typeof features !== "object" || Array.isArray(features)) return [];
   const record = features as Record<string, Json | undefined>;
-  return PRODUCT_MODULES
-    .filter((module) => record[module.entitlementKey] === true)
-    .map((module) => module.name);
+  const enabledIds = new Set(
+    PRODUCT_MODULES.filter((module) => record[module.entitlementKey] === true).map((module) => module.id),
+  );
+  // CareBase is the all-inclusive bundle. Enumerate the included operational pillars for the plan
+  // card's value list instead of showing the redundant bundle entry alongside its own contents.
+  if (enabledIds.has("carebase")) {
+    for (const pillar of ["train", "workforce", "compliance", "billing"] as const) enabledIds.add(pillar);
+    enabledIds.delete("carebase");
+  }
+  return PRODUCT_MODULES.filter((module) => enabledIds.has(module.id)).map((module) => module.name);
 }
 
 function effectivePrice(
