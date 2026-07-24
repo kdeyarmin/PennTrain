@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 const MAX_REQUEST_BYTES = 16_384;
@@ -24,13 +25,12 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "Service is not configured" }, 500);
   let body: { token?: string; sharedDocumentId?: string } = {};
-  const declaredLength = Number(req.headers.get("content-length") ?? 0);
-  if (declaredLength > MAX_REQUEST_BYTES) return json({ error: "Request body is too large" }, 413);
   try {
-    const rawBody = await req.text();
-    if (new TextEncoder().encode(rawBody).byteLength > MAX_REQUEST_BYTES) return json({ error: "Request body is too large" }, 413);
-    body = JSON.parse(rawBody);
-  } catch { return json({ error: "Invalid JSON body" }, 400); }
+    body = await readJsonBody(req, MAX_REQUEST_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
+    return json({ error: "Invalid JSON body" }, 400);
+  }
   if (typeof body.token !== "string" || body.token.length < 32 || body.token.length > 4096
       || typeof body.sharedDocumentId !== "string" || !UUID_PATTERN.test(body.sharedDocumentId)) {
     return json({ error: "token and sharedDocumentId are required" }, 400);

@@ -6,6 +6,7 @@ import {
   requireCronRequest,
   withCronCorsHeader,
 } from "../_shared/cronAuth.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const CORS_HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
@@ -358,21 +359,29 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Service is not configured" }, 500);
   }
 
-  let body: { certificateId?: string; batchSize?: number };
-  try {
-    body = await req.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, 400);
-  }
-
+  let body: { certificateId?: string; batchSize?: number } = {};
   const isCronRequest = req.headers.has(CRON_SECRET_HEADER);
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
-  let requestedCertificate: CertificateRecord | null = null;
 
+  // Authenticate before buffering the body so unauthenticated callers cannot
+  // force unbounded JSON parsing on this public (verify_jwt=false) endpoint.
   if (isCronRequest) {
     const cronError = requireCronRequest(req, CORS_HEADERS);
     if (cronError) return cronError;
-  } else {
+  } else if (!req.headers.get("Authorization")) {
+    return json({ error: "Missing Authorization header" }, 401);
+  }
+
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  let requestedCertificate: CertificateRecord | null = null;
+
+  if (!isCronRequest) {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return json({ error: "Missing Authorization header" }, 401);

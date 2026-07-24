@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { surveyEvidencePacketManifest } from "@/lib/surveyEvidencePacket";
+import { facilityTypeLabel } from "@/lib/facilityTypes";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -168,7 +169,7 @@ export default function SurveyDay() {
       <Card>
         <CardHeader>
           <CardTitle>Start Survey Day for {facilityName}</CardTitle>
-          <CardDescription>{facilityType === "ALR" ? "Assisted Living Facility" : facilityType || "Facility"}</CardDescription>
+          <CardDescription>{facilityTypeLabel(facilityType)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">

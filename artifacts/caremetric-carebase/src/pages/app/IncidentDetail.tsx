@@ -20,6 +20,7 @@ import { useListResidents } from "@/hooks/useResidents";
 import { useListCourses } from "@/hooks/useCourses";
 import { useCreateCourseAssignment } from "@/hooks/useCourseAssignments";
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
+import { QueryError } from "@/components/QueryState";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,14 +67,17 @@ export default function IncidentDetail() {
   // a delete/remove action that will always fail after confirmation.
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
-  const { data: incident, isLoading } = useGetIncident(id);
+  const { data: incident, isLoading, isError, error, refetch } = useGetIncident(id);
   usePageTitle(incident ? humanize(incident.incident_type) : undefined);
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: profiles } = useListProfiles();
   // Scoped to this incident's facility -- used only to resolve resident_identifier into a display
   // name when it holds a resident id (see residentDisplay below), not to power a picker here.
-  const { data: facilityResidents } = useListResidents({ facilityId: incident?.facility_id });
+  const { data: facilityResidents } = useListResidents(
+    { facilityId: incident?.facility_id },
+    { enabled: !!incident?.facility_id },
+  );
   const { data: staffInvolved, isLoading: staffLoading } = useListIncidentStaffInvolved(id);
   const { data: notifications, isLoading: notificationsLoading } = useListIncidentNotifications(id);
   const { data: correctiveActions, isLoading: correctiveLoading } = useListCorrectiveActions({ incidentId: id });
@@ -177,6 +181,10 @@ export default function IncidentDetail() {
         <Skeleton className="h-40" />
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="this incident" error={error} onRetry={() => void refetch()} />;
   }
 
   if (!incident) {

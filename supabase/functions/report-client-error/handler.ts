@@ -1,3 +1,5 @@
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -34,15 +36,13 @@ export async function handleReportClientErrorRequest(req: Request): Promise<Resp
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  const contentLength = Number(req.headers.get("content-length") ?? "0");
-  if (contentLength > 8_192) return json({ error: "Payload too large" }, 413);
-
   let payload: Record<string, unknown>;
   try {
-    const raw = await req.text();
-    if (raw.length > 8_192) return json({ error: "Payload too large" }, 413);
-    payload = JSON.parse(raw);
-  } catch {
+    payload = await readJsonBody(req, 8_192);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return json({ error: error.status === 413 ? "Payload too large" : "Invalid JSON" }, error.status);
+    }
     return json({ error: "Invalid JSON" }, 400);
   }
 

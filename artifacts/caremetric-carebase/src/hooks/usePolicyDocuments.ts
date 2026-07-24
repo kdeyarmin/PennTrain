@@ -138,7 +138,10 @@ export function useUploadPolicyDocumentVersion() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        await supabase.storage.from("policy-documents").remove([path]);
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {

@@ -112,7 +112,12 @@ export function useCreateSupportTicket() {
       const { error: messageError } = await supabase
         .from("support_ticket_messages")
         .insert({ ticket_id: ticket.id, organization_id: ticket.organization_id, sender_id: createdBy, body: message, ...attachment });
-      if (messageError) throw messageError;
+      if (messageError) {
+        if ("attachment_path" in attachment && typeof attachment.attachment_path === "string") {
+          await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+        }
+        throw messageError;
+      }
 
       return ticket;
     },
@@ -159,7 +164,12 @@ export function useSendSupportTicketMessage() {
         .insert({ ticket_id: ticketId, organization_id: organizationId, sender_id: senderId, body, ...attachment })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        if ("attachment_path" in attachment && typeof attachment.attachment_path === "string") {
+          await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: (_data, variables) => {

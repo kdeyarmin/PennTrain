@@ -14,6 +14,7 @@ import {
   Download, ShieldCheck, Plus, KeyRound, ClipboardList, Check, MessageCircle, Mail,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { useGetEmployee, useUpdateEmployee, useDeleteEmployee, useListEmployees } from "@/hooks/useEmployees";
 import { usePageTitle } from "@/lib/pageTitle";
 import { useGetFacility, useListFacilities } from "@/hooks/useFacilities";
@@ -107,7 +108,7 @@ export default function EmployeeDetail() {
 
   const [empForm, setEmpForm] = useState<EmpFormData>(EMPTY_EMPLOYEE_FORM);
 
-  const { data: employee, isLoading: empLoading } = useGetEmployee(id);
+  const { data: employee, isLoading: empLoading, isError: empError, error: empErr, refetch: refetchEmployee } = useGetEmployee(id);
   usePageTitle(employee ? `${employee.first_name} ${employee.last_name}` : undefined);
   const { data: facility } = useGetFacility(employee?.facility_id);
   const { data: facilities } = useListFacilities();
@@ -308,6 +309,10 @@ export default function EmployeeDetail() {
         <Skeleton className="h-64" />
       </div>
     );
+  }
+
+  if (empError) {
+    return <QueryError what="this employee" error={empErr} onRetry={() => void refetchEmployee()} />;
   }
 
   if (!employee) {

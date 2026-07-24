@@ -16,6 +16,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import {
   ArrowLeft, ArrowUp, ArrowDown, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
   ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2, Upload,
@@ -198,7 +199,7 @@ export default function CourseDetail() {
 
   const canManage = user?.role === "platform_admin";
 
-  const { data: course, isLoading: courseLoading } = useGetCourse(id);
+  const { data: course, isLoading: courseLoading, isError: courseError, error: courseErr, refetch: refetchCourse } = useGetCourse(id);
   const [showUnpublishCourse, setShowUnpublishCourse] = useState(false);
   const [unpublishReason, setUnpublishReason] = useState("");
   const unpublishCourse = useUnpublishCourse();
@@ -904,6 +905,10 @@ export default function CourseDetail() {
         <Skeleton className="h-64" />
       </div>
     );
+  }
+
+  if (courseError) {
+    return <QueryError what="this training content" error={courseErr} onRetry={() => void refetchCourse()} />;
   }
 
   if (!course) {

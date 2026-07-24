@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListResidents } from "@/hooks/useResidents";
@@ -91,7 +92,7 @@ export default function FacilityDetail() {
   // platform_admin viewing this page via /admin/facilities/:id has nowhere for a "View all" link to go.
   const canLinkToOrgLists = user?.role !== "platform_admin";
 
-  const { data: facility, isLoading: facLoading } = useGetFacility(id);
+  const { data: facility, isLoading: facLoading, isError: facError, error: facErr, refetch: refetchFacility } = useGetFacility(id);
   const { data: employees, isLoading: empLoading } = useListEmployees({ facilityId: id });
   const { data: residents, isLoading: residentsLoading } = useListResidents({ facilityId: id });
   const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ facilityId: id });
@@ -204,6 +205,10 @@ export default function FacilityDetail() {
         <Skeleton className="h-64" />
       </div>
     );
+  }
+
+  if (facError) {
+    return <QueryError what="this facility" error={facErr} onRetry={() => void refetchFacility()} />;
   }
 
   if (!facility) {
