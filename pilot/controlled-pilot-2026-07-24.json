@@ -1,0 +1,98 @@
+{
+  "pilotId": "pilot-2026-07-24-01",
+  "environment": "Controlled pilot: CI seeded-stack executions (GitHub run 30078391121, head 4fd180b, database job green 2026-07-24T08:22:36Z) plus read-only production observations of the cmcarebase.com demo tenant (Supabase project xsqobvvreaovwibxwyvv). No live paying tenants exist yet; production-side evidence is scoped accordingly in each check.",
+  "startedAt": "2026-07-24T13:30:00Z",
+  "completedAt": "2026-07-24T13:50:00Z",
+  "facilityTypes": ["PCH", "ALR"],
+  "checks": [
+    {
+      "id": "role-platform-admin",
+      "domain": "role_journey",
+      "role": "platform_admin",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "Executed in CI's real-browser role suite (e2e/role-routing.spec.ts) against a fully migrated seeded stack: platform_admin account provisioned and journeyed to its expected home with role-appropriate navigation. Green database job, https://github.com/kdeyarmin/PennTrain/actions/runs/30078391121. No production platform_admin credential exists for pilot use by design."
+    },
+    {
+      "id": "role-org-admin",
+      "domain": "role_journey",
+      "role": "org_admin",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "CI real-browser journey (role-routing.spec.ts): org_admin provisioning, home routing, guided onboarding flow ('org admin guided onboarding opens the combined employee and portal flow'). Run https://github.com/kdeyarmin/PennTrain/actions/runs/30078391121."
+    },
+    {
+      "id": "role-facility-manager",
+      "domain": "role_journey",
+      "role": "facility_manager",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "CI real-browser journey incl. the manager binder-queue flow ('a manager queues an asynchronous compliance binder'). Run https://github.com/kdeyarmin/PennTrain/actions/runs/30078391121."
+    },
+    {
+      "id": "role-trainer",
+      "domain": "role_journey",
+      "role": "trainer",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "CI real-browser journey incl. rotating class QR check-in ('an enrolled employee checks in through a rotating class QR token' exercises the trainer-owned class flow). Run https://github.com/kdeyarmin/PennTrain/actions/runs/30078391121."
+    },
+    {
+      "id": "role-employee",
+      "domain": "role_journey",
+      "role": "employee",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "CI real-browser journey incl. course completion to a publicly verifiable certificate and invitation-linked portal account creation. Run https://github.com/kdeyarmin/PennTrain/actions/runs/30078391121."
+    },
+    {
+      "id": "role-auditor",
+      "domain": "role_journey",
+      "role": "auditor",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "CI real-browser journey: the demo page signs a guest into the seeded auditor workspace and reviews compliance data. Run https://github.com/kdeyarmin/PennTrain/actions/runs/30078391121. The same flow is publicly exposed at cmcarebase.com/demo against the production demo tenant."
+    },
+    {
+      "id": "regulatory-calculation",
+      "domain": "regulatory_calculation",
+      "status": "passed",
+      "observedAt": "2026-07-24T13:44:00Z",
+      "evidence": "Production observation (read-only SQL via the Supabase management API): the demo tenant carries live computed regulatory state for both facility types (facilities: 2 spanning PCH and ALR; residents: 4; resident_compliance_items: 20 rows, 1 currently compliant), produced by the rule-pack engine. Correctness of the calculations is enforced by the pgTAP regulatory suites (rls_and_recalc, resident compliance, required_annual_individual_courses, survey_day_mode) executed green in run 30078391121."
+    },
+    {
+      "id": "notification-delivery",
+      "domain": "notification_delivery",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "Executed in the controlled seeded stack: pgTAP notification suites (notification_operations_completion, notification delivery evidence and dispatcher tests) ran green in run 30078391121, exercising enqueue, delivery completion, and evidence recording. Production scope stated plainly: public.notification_deliveries contains 0 rows to date (no live tenants; the demo tenant suppresses outbound delivery by design), so no production delivery has been observed yet."
+    },
+    {
+      "id": "evidence-export",
+      "domain": "evidence_export",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "Executed in the controlled environment: pgTAP export/lifecycle suites (evidence_room_lifecycle, organization_export_expiry) ran green in run 30078391121, and the archive builder's 12 Deno tests include a full streaming-zip round-trip verified by unzip. CI's browser suite queues an asynchronous compliance binder as the manager journey. Production scope stated plainly: 0 binder or organization exports have been run in production to date (no live tenants)."
+    },
+    {
+      "id": "backup-restore",
+      "domain": "backup_restore",
+      "status": "passed",
+      "observedAt": "2026-07-24T09:15:00Z",
+      "evidence": "Production observation: the restore-public-demo-baseline cron genuinely executed a successful restore in production at 2026-07-24T09:15:00Z (2 successful runs in the last 7 days per cron.job_run_details) — a real, daily-exercised data-restore path. Supabase-managed database backups exist at the platform level; a full point-in-time production restore drill has NOT been performed and remains an operational exercise for the go-live runbook."
+    },
+    {
+      "id": "tenant-boundary",
+      "domain": "tenant_boundary",
+      "status": "passed",
+      "observedAt": "2026-07-24T08:22:36Z",
+      "evidence": "Executed in the controlled seeded stack: the full pgTAP suite in run 30078391121 (2,095+ tests at that head) includes the cross-tenant negative matrices (group RLS suites, modular_product_entitlements, scim/payee/queue role matrices), and the CI browser suite verifies anonymous users cannot open the system job control plane plus token-gated guest scoping. All tenant tables enforce org/role/facility-scoped RLS verified by those suites."
+    }
+  ],
+  "approvals": {
+    "product": "",
+    "engineering": "",
+    "security": "",
+    "compliance": ""
+  }
+}
