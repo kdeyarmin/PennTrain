@@ -51,6 +51,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const STAGES = ["prospect", "applicant", "approved", "waitlisted", "reserved", "admitted", "declined", "lost"];
 const REVIEW_STATUSES = ["not_started", "in_review", "needs_information", "approved", "declined"];
+const LOST_REASONS = ["chose_other_community", "cost", "level_of_care_mismatch", "location", "no_longer_needed", "unresponsive", "deceased", "other"];
 const CENSUS_STATUSES = ["active", "temporarily_out", "hospital_leave", "discharged", "deceased"];
 
 const STAGE_CLASS: Record<string, string> = {
@@ -178,7 +179,10 @@ function ProspectReviewDialog({
   const [notes, setNotes] = useState(prospect?.notes ?? "");
   const [activityType, setActivityType] = useState("contact_attempt");
   const [activityNotes, setActivityNotes] = useState("");
+  const [activityDate, setActivityDate] = useState("");
+  const [lostReason, setLostReason] = useState(prospect?.lost_lead_reason ?? "");
   const [bedId, setBedId] = useState("");
+  const isLostStage = stage === "declined" || stage === "lost";
 
   const saveReview = () => {
     if (!prospect) return;
@@ -189,6 +193,7 @@ function ProspectReviewDialog({
       financialReviewStatus: financial,
       expectedMoveInDate: expectedDate || null,
       decisionReason: reason,
+      lostLeadReason: isLostStage ? (lostReason || undefined) : undefined,
       notes,
     }, {
       onSuccess: () => toast({ title: "Admission review updated" }),
@@ -206,6 +211,7 @@ function ProspectReviewDialog({
           <div className="space-y-1"><Label>Clinical review</Label><Select value={clinical} onValueChange={setClinical}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1"><Label>Financial review</Label><Select value={financial} onValueChange={setFinancial}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1 sm:col-span-2"><Label>Decision reason</Label><Input value={reason} onChange={event => setReason(event.target.value)} /></div>
+          {isLostStage && <div className="space-y-1 sm:col-span-2"><Label>Lost / declined reason</Label><Select value={lostReason} onValueChange={setLostReason}><SelectTrigger><SelectValue placeholder="Select a standard reason" /></SelectTrigger><SelectContent>{LOST_REASONS.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>}
           <div className="space-y-1 sm:col-span-2"><Label>Notes</Label><Textarea value={notes} onChange={event => setNotes(event.target.value)} /></div>
         </div>
         <Button onClick={saveReview} disabled={update.isPending}>{update.isPending ? "Saving..." : "Save review"}</Button>
@@ -215,8 +221,9 @@ function ProspectReviewDialog({
           <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
             <Select value={activityType} onValueChange={setActivityType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["contact_attempt", "tour_scheduled", "tour_completed", "tour_canceled", "note"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
             <Input value={activityNotes} onChange={event => setActivityNotes(event.target.value)} placeholder="Outcome or notes" />
-            <Button variant="outline" disabled={!activityNotes.trim() || activity.isPending} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); } })}>Add activity</Button>
+            <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate || undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); } })}>Add activity</Button>
           </div>
+          {activityType.startsWith("tour") && <div className="space-y-1"><Label className="text-xs text-muted-foreground">Tour date &amp; time</Label><Input type="datetime-local" value={activityDate} onChange={event => setActivityDate(event.target.value)} className="w-full sm:w-72" /></div>}
         </div>
 
         {["approved", "waitlisted", "reserved"].includes(prospect?.stage ?? "") && (
