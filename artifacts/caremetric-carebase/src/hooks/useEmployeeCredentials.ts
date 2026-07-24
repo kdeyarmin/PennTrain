@@ -38,6 +38,26 @@ export function useListEmployeeCredentials(filters: ListEmployeeCredentialsFilte
   });
 }
 
+/**
+ * The employee's MANDATORY requirement labels, resolved from their assigned compliance profile(s) via
+ * explain_employee_compliance_profile. Feeds the readiness verdict so a required credential/training
+ * the employee has no record for counts as missing (rather than a silent pass). Degrades to [] when
+ * the caller lacks workforce.compliance.read for the facility.
+ */
+export function useEmployeeRequiredItems(employeeId: string | undefined) {
+  return useQuery({
+    queryKey: ["employee_required_items", employeeId],
+    enabled: !!employeeId,
+    retry: false,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase.rpc("explain_employee_compliance_profile" as never, { p_employee_id: employeeId! } as never);
+      if (error) throw error;
+      const requirements = (data as { requirements?: Array<{ label: string | null; mandatory: boolean }> } | null)?.requirements ?? [];
+      return requirements.filter((r) => r.mandatory && r.label).map((r) => r.label as string);
+    },
+  });
+}
+
 export function useCreateEmployeeCredential() {
   const queryClient = useQueryClient();
   return useMutation({

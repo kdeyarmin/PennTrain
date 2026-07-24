@@ -29,7 +29,7 @@ import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingType
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
-import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
+import { useListEmployeeCredentials, useEmployeeRequiredItems } from "@/hooks/useEmployeeCredentials";
 import {
   useListEmployeeFacilityAssignments, useAddEmployeeFacilityAssignment, useRemoveEmployeeFacilityAssignment,
 } from "@/hooks/useEmployeeFacilityAssignments";
@@ -139,6 +139,7 @@ export default function EmployeeDetail() {
   // Per-employee readiness verdict (Area 3): aggregates clearance, employment status, credential and
   // training status into one of Ready / Conditionally Ready / Expiring Soon / Incomplete / Restricted
   // / Not Eligible, with a plain-language "why" shown on the badge tooltip.
+  const { data: requiredItems } = useEmployeeRequiredItems(id);
   const readiness = useMemo(() => {
     if (!employee) return null;
     const typeName = new Map((trainingTypes ?? []).map((t) => [t.id, t.name] as const));
@@ -147,8 +148,9 @@ export default function EmployeeDetail() {
       employmentStatus: employee.status,
       credentials: (credentials ?? []).map((c) => ({ label: c.credential_label ?? c.credential_type, status: c.status, expiration_date: c.expiration_date })),
       training: (trainingRecords ?? []).map((r) => ({ label: typeName.get(r.training_type_id), status: r.status })),
+      requiredItems: requiredItems ?? [],
     });
-  }, [employee, credentials, trainingRecords, trainingTypes]);
+  }, [employee, credentials, trainingRecords, trainingTypes, requiredItems]);
   const { data: onboardingItems, isLoading: onboardingLoading } = useListEmployeeOnboardingItems(id);
   const { data: checkinLogs } = useListEmployeeCheckinLogs(id);
   const { mutate: updateOnboardingItem } = useUpdateEmployeeOnboardingItem();

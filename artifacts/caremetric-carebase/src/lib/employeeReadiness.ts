@@ -34,6 +34,17 @@ export interface ReadinessInput {
   training?: ReadinessTrainingLike[];
   /** Explicit restrictions / corrective actions limiting what the employee may do. */
   restrictions?: string[];
+  /**
+   * Labels of the MANDATORY credentials/training the employee's compliance profile requires (the
+   * applicable requirement matrix). Any required item with no matching record on file is treated as
+   * missing — an absent required item is a gap, not a silent pass.
+   */
+  requiredItems?: string[];
+}
+
+/** Normalize a label for matching a requirement against an on-file record (case/punctuation-insensitive). */
+function normalizeLabel(value: string | null | undefined): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 export interface ReadinessVerdict {
@@ -101,6 +112,11 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
   const missingTraining = training.filter((t) => t.status === "missing");
   const dueTraining = training.filter((t) => t.status === "due_soon");
 
+  // Applicable requirement matrix: a mandatory requirement with no matching record on file is a gap.
+  const requiredItems = (input.requiredItems ?? []).map((r) => r?.trim()).filter((r): r is string => Boolean(r));
+  const coveredLabels = new Set([...credentials, ...training].map((r) => normalizeLabel(r.label)).filter(Boolean));
+  const missingRequired = requiredItems.filter((req) => !coveredLabels.has(normalizeLabel(req)));
+
   const inactive = input.employmentStatus != null && BLOCKING_EMPLOYMENT.has(input.employmentStatus.toLowerCase());
 
   // 1. Not eligible — inactive employment, or a required credential/training has lapsed.
@@ -117,11 +133,17 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
     return verdict("restricted", restrictions.map((r) => r.trim()));
   }
 
-  // 3. Incomplete — a required credential/training record is missing.
-  if (missingCreds.length > 0 || missingTraining.length > 0) {
+  // 3. Incomplete — nothing on file to establish readiness, a required record is marked missing, or a
+  //    mandatory requirement from the compliance profile has no matching record at all. An employee
+  //    with no records (and no known requirements) must not read as "Ready" on an empty slate.
+  if (credentials.length === 0 && training.length === 0 && requiredItems.length === 0) {
+    return verdict("incomplete", ["No credential or training records are on file to establish readiness."]);
+  }
+  if (missingCreds.length > 0 || missingTraining.length > 0 || missingRequired.length > 0) {
     const reasons: string[] = [];
     for (const c of missingCreds) reasons.push(`${credLabel(c)} is missing.`);
     for (const t of missingTraining) reasons.push(`${trainLabel(t)} is missing.`);
+    for (const req of missingRequired) reasons.push(`Required "${req}" has no record on file.`);
     return verdict("incomplete", reasons);
   }
 

@@ -96,6 +96,35 @@ describe("computeEmployeeReadiness", () => {
     }, TODAY);
     expect(v.status).toBe("incomplete");
   });
+
+  it("is incomplete, not ready, when nothing is on file to establish readiness", () => {
+    const v = computeEmployeeReadiness({ clearedForUnsupervisedDuty: true, employmentStatus: "active" }, TODAY);
+    expect(v.status).toBe("incomplete");
+    expect(v.canWork).toBe(false);
+    expect(v.reasons.join(" ").toLowerCase()).toContain("no credential or training records");
+  });
+
+  it("flags a mandatory requirement with no matching record as missing", () => {
+    const v = computeEmployeeReadiness({
+      clearedForUnsupervisedDuty: true,
+      employmentStatus: "active",
+      credentials: [{ label: "CPR", status: "compliant" }],
+      requiredItems: ["CPR", "TB Screening"],
+    }, TODAY);
+    expect(v.status).toBe("incomplete");
+    expect(v.reasons.join(" ")).toContain("TB Screening");
+  });
+
+  it("is ready when every mandatory requirement is covered (label match is punctuation-insensitive)", () => {
+    const v = computeEmployeeReadiness({
+      clearedForUnsupervisedDuty: true,
+      employmentStatus: "active",
+      credentials: [{ label: "TB screening", status: "compliant" }],
+      training: [{ label: "Annual in-service", status: "compliant" }],
+      requiredItems: ["TB-Screening", "annual in service"],
+    }, TODAY);
+    expect(v.status).toBe("ready");
+  });
 });
 
 describe("helpers", () => {
