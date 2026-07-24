@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { CheckCircle2, FileSignature, Fingerprint, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
 
 const SESSION_TOKEN_KEY = "carebase-resident-agreement-token";
 
@@ -60,6 +60,18 @@ export default function ResidentAgreementGuestPortal() {
   const needsTerms =
     !acceptedLocally &&
     workspace.isError && /terms acceptance required/i.test(workspaceErrorMessage);
+
+  // A coded server error other than the 42501 terms gate (or a 42501 that
+  // persists after terms were accepted) means the token itself was rejected --
+  // expired, revoked, or invalid. Drop the stored copy so it is not replayed.
+  // Uncoded (network) failures never clear.
+  const workspaceErrorCode = (workspace.error as { code?: unknown } | null)?.code;
+  const serverRejected =
+    workspace.isError && typeof workspaceErrorCode === "string" &&
+    (workspaceErrorCode !== "42501" || acceptedLocally);
+  useEffect(() => {
+    if (serverRejected) clearStoredPublicAccessToken(SESSION_TOKEN_KEY);
+  }, [serverRejected]);
 
   return <div className="min-h-screen bg-muted/30 px-4 py-10"><div className="mx-auto max-w-3xl space-y-6">
     <div className="text-center"><LockKeyhole className="mx-auto mb-3 h-10 w-10 text-primary" /><h1 className="text-2xl font-bold">Secure resident agreement review</h1><p className="text-muted-foreground">This expiring link exposes only the exact agreement versions selected for you.</p></div>

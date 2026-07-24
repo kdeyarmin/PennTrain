@@ -2,8 +2,34 @@ import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert@1.0.
 import {
   buildRegulatoryDigestEmail,
   buildSubscribeWelcomeEmail,
+  buildUnsubscribeUrl,
   categoryLabel,
+  listUnsubscribeHeaders,
 } from "./marketingEmails.ts";
+
+Deno.test("unsubscribe URL targets the public function and survives trailing slashes", () => {
+  // Deliberately zero-entropy fixture so secret scanners never flag it.
+  const token = "00000000-0000-4000-8000-000000000000";
+  const expected = `https://proj.supabase.co/functions/v1/unsubscribe-updates?token=${token}`;
+  assertEquals(buildUnsubscribeUrl("https://proj.supabase.co", token), expected);
+  assertEquals(buildUnsubscribeUrl("https://proj.supabase.co/", token), expected);
+});
+
+Deno.test("RFC 8058 one-click headers carry the unsubscribe URL", () => {
+  const headers = listUnsubscribeHeaders("https://proj.supabase.co/functions/v1/unsubscribe-updates?token=t");
+  assertEquals(headers["List-Unsubscribe"], "<https://proj.supabase.co/functions/v1/unsubscribe-updates?token=t>");
+  assertEquals(headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+});
+
+Deno.test("welcome email promises periodic digests, not instant per-change emails", () => {
+  const message = buildSubscribeWelcomeEmail({
+    email: "operator@example.com",
+    siteUrl: "https://cmcarebase.com",
+  });
+  assertStringIncludes(message.text, "periodic plain-language digests");
+  assert(!message.text.includes("whenever there's a change"));
+  assert(!message.html.includes("whenever there&#39;s a change"));
+});
 
 Deno.test("category labels map codes to human copy with a safe fallback", () => {
   assertEquals(categoryLabel("new_regulation"), "New regulation");

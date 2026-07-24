@@ -858,6 +858,7 @@ export type Database = {
       billing_provider_operations: {
         Row: {
           attempted_at: string | null
+          attempts: number
           created_at: string
           error_code: string | null
           id: string
@@ -877,6 +878,7 @@ export type Database = {
         }
         Insert: {
           attempted_at?: string | null
+          attempts?: number
           created_at?: string
           error_code?: string | null
           id?: string
@@ -896,6 +898,7 @@ export type Database = {
         }
         Update: {
           attempted_at?: string | null
+          attempts?: number
           created_at?: string
           error_code?: string | null
           id?: string
@@ -2448,6 +2451,7 @@ export type Database = {
           model: string | null
           organization_id: string
           question: string
+          redaction: Json | null
           request_checksum_sha256: string
           requested_by: string
           response: Json
@@ -2474,6 +2478,7 @@ export type Database = {
           model?: string | null
           organization_id: string
           question: string
+          redaction?: Json | null
           request_checksum_sha256: string
           requested_by: string
           response?: Json
@@ -2500,6 +2505,7 @@ export type Database = {
           model?: string | null
           organization_id?: string
           question?: string
+          redaction?: Json | null
           request_checksum_sha256?: string
           requested_by?: string
           response?: Json
@@ -16744,6 +16750,9 @@ export type Database = {
       organizations: {
         Row: {
           address: string | null
+          ai_features_enabled: boolean
+          baa_accepted_at: string | null
+          baa_version: string | null
           city: string | null
           contact_email: string | null
           contact_name: string | null
@@ -16767,6 +16776,9 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_features_enabled?: boolean
+          baa_accepted_at?: string | null
+          baa_version?: string | null
           city?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -16790,6 +16802,9 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_features_enabled?: boolean
+          baa_accepted_at?: string | null
+          baa_version?: string | null
           city?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -33168,6 +33183,12 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_organization_export_exclusions: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       get_paid_training_payroll_export: {
         Args: {
           p_facility_id: string
@@ -33215,6 +33236,7 @@ export type Database = {
           question_id: string
         }[]
       }
+      get_regulatory_digest_state: { Args: never; Returns: Json }
       get_regulatory_rule_control_plane: {
         Args: never
         Returns: {
@@ -33659,6 +33681,31 @@ export type Database = {
         }
         Returns: string
       }
+      list_expired_organization_exports: {
+        Args: { p_limit?: number }
+        Returns: {
+          job_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
+      list_failed_stripe_billing_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          correlation_id: string
+          event_created_at: string
+          event_id: string
+          event_type: string
+          failed_at: string
+          organization_id: string
+          organization_name: string
+          processing_error: string
+          received_at: string
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          stripe_subscription_id: string
+        }[]
+      }
       list_integration_events: {
         Args: {
           p_after_sequence?: number
@@ -33879,6 +33926,7 @@ export type Database = {
         }
         Returns: string
       }
+      org_ai_allowed: { Args: { p_org: string }; Returns: boolean }
       org_feature_enabled: { Args: { p_feature_key: string }; Returns: boolean }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       pin_survey_day_binder: {
@@ -34100,6 +34148,10 @@ export type Database = {
         Returns: Json
       }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
+      purge_expired_organization_exports: {
+        Args: { p_job_ids: string[] }
+        Returns: number
+      }
       queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
       queue_designated_person_notifications: {
@@ -34307,6 +34359,15 @@ export type Database = {
           p_resident_id: string
           p_reviewed_at: string
           p_risk_level: string
+        }
+        Returns: string
+      }
+      record_organization_signup: {
+        Args: {
+          p_baa_version: string
+          p_name: string
+          p_slug: string
+          p_trial_ends_at: string
         }
         Returns: string
       }
@@ -34840,6 +34901,18 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      retry_failed_stripe_billing_event: {
+        Args: { p_event_id: string }
+        Returns: {
+          canonical_state: string
+          processing_error: string
+          processing_status: string
+          resolved_organization_id: string
+          was_applied: boolean
+          was_duplicate: boolean
+          was_stale: boolean
+        }[]
       }
       retry_notification_delivery: {
         Args: { p_delivery_id: string }
@@ -35509,6 +35582,10 @@ export type Database = {
           p_sms_estimate_usd: number
           p_warning_percent?: number
         }
+        Returns: undefined
+      }
+      set_organization_baa_acceptance: {
+        Args: { p_baa_version?: string; p_org: string }
         Returns: undefined
       }
       set_organization_entitlement_grant: {

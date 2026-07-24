@@ -293,16 +293,19 @@ export default function HowItWorks() {
                   Founding-partner pricing for early operators
                 </h3>
                 <p className="text-[13px] text-white/80">
-                  Early PCH and ALF operators get locked-in pricing and a direct
-                  line to the builders — the product shapes itself around your
-                  real workflows.
+                  Early PCH and ALF operators get a direct line to the builders
+                  — the product shapes itself around your real workflows. Email
+                  hello@caremetric.ai to be enrolled; we honor founding-partner
+                  pricing for the life of your subscription.
                 </p>
                 <Button
                   asChild
                   variant="secondary"
                   className="self-start rounded-lg bg-white px-4 py-2 text-[13.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]"
                 >
-                  <Link href="/signup">Become a founding partner</Link>
+                  <a href="mailto:hello@caremetric.ai?subject=Founding%20partner%20enrollment">
+                    Email us to become a founding partner
+                  </a>
                 </Button>
               </Reveal>
             </div>
@@ -316,8 +319,8 @@ export default function HowItWorks() {
             See it run your own workflows
           </h2>
           <p className="m-0 max-w-[52ch] text-[15px] text-white/82">
-            Self-serve trial with every module included — signup to first binder
-            without a single phone call.
+            Self-serve CareBase trial with every module included — signup to
+            first binder without a single phone call.
           </p>
           <div className="mt-1.5 flex flex-wrap justify-center gap-3">
             <Button

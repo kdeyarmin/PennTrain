@@ -148,6 +148,21 @@ export async function phase2StripePost(
   return { ok: response.ok, status: response.status, data };
 }
 
+export async function phase2StripeGet(
+  path: string,
+  secretKey: string,
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  const response = await fetch(`https://api.stripe.com${path}`, {
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Stripe-Version": STRIPE_API_VERSION,
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+  return { ok: response.ok, status: response.status, data };
+}
+
 export function phase2BillingStateForStripeStatus(
   status: string,
   eventCreatedAtSeconds: number,
@@ -173,9 +188,12 @@ export function phase2ProviderEventIsNewer(
   return incoming > stored || (incoming === stored && incomingId > (storedId ?? ""));
 }
 
+// The request Origin header is caller-controlled and must never extend the
+// return-URL allowlist: only operator-configured origins (BILLING_RETURN_URL_ORIGINS)
+// may receive Stripe redirects. localhost is honored only when explicitly
+// configured for local development.
 export function validatePhase2BillingReturnUrl(
   candidate: string,
-  requestOrigin: string | null,
   configuredOrigins: string[],
 ): boolean {
   try {
@@ -183,17 +201,33 @@ export function validatePhase2BillingReturnUrl(
     if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) {
       return false;
     }
-    // When BILLING_RETURN_URL_ORIGINS is configured it is authoritative: the
-    // request Origin header is attacker-controlled (curl, or a page on any
-    // origin holding a stolen JWT), so folding it into the allowlist would let
-    // Stripe redirect the session id to an arbitrary site. The Origin-match
-    // fallback only applies when no allowlist is configured (dev/preview).
-    if (configuredOrigins.length > 0) {
-      const allowed = new Set(configuredOrigins.map((origin) => new URL(origin).origin));
-      return allowed.has(url.origin);
+    const allowed = new Set<string>();
+    for (const origin of configuredOrigins) {
+      try {
+        allowed.add(new URL(origin).origin);
+      } catch {
+        // A malformed configured entry must not disable the valid ones.
+      }
     }
-    return requestOrigin !== null && new URL(requestOrigin).origin === url.origin;
+    return allowed.has(url.origin);
   } catch {
     return false;
   }
+}
+
+// One trial budget across the product: Stripe's trial_period_days may cover
+// only the days still remaining on the in-app trial stamped at signup
+// (organizations.trial_ends_at). A lapsed or never-stamped in-app trial yields
+// 0 so checkout starts billing immediately instead of granting a second free
+// month on top of the consumed window.
+export function phase2CheckoutTrialDays(
+  trialEndsAt: string | null,
+  configuredTrialDays: number,
+  nowMs = Date.now(),
+): number {
+  if (!Number.isSafeInteger(configuredTrialDays) || configuredTrialDays <= 0) return 0;
+  const endsMs = trialEndsAt ? Date.parse(trialEndsAt) : NaN;
+  if (!Number.isFinite(endsMs) || endsMs <= nowMs) return 0;
+  // Ceil keeps a partially elapsed final day worth at least one Stripe trial day.
+  return Math.min(configuredTrialDays, Math.ceil((endsMs - nowMs) / 86_400_000));
 }

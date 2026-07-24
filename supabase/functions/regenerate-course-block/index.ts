@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
+import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -134,7 +135,12 @@ interface CourseBlockRow {
   title: string | null;
   body: Record<string, unknown> | null;
   course_version_id: string;
-  course_versions: { status: string; ai_generated: boolean; course_id: string } | null;
+  course_versions: {
+    status: string;
+    ai_generated: boolean;
+    course_id: string;
+    courses: { organization_id: string | null } | null;
+  } | null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -194,7 +200,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: blockRaw, error: blockError } = await callerClient
     .from("course_blocks")
-    .select("id, block_type, title, body, course_version_id, course_versions(status, ai_generated, course_id)")
+    .select("id, block_type, title, body, course_version_id, course_versions(status, ai_generated, course_id, courses(organization_id))")
     .eq("id", course_block_id)
     .single();
   if (blockError || !blockRaw) return json({ error: "course block not found" }, 404);
@@ -205,6 +211,13 @@ Deno.serve(async (req: Request) => {
   }
   if (!["text", "video", "quiz"].includes(block.block_type)) {
     return json({ error: `block_type '${block.block_type}' is not supported for AI regeneration` }, 400);
+  }
+
+  // PT-019: per-organization BAA gate, on top of the platform switch above. The course's
+  // organization_id (NULL = platform system catalog, which has no tenant in scope and is
+  // gated only by the platform switch) is the org context for this block.
+  if (!(await orgAiAllowed(callerClient, block.course_versions?.courses?.organization_id ?? null))) {
+    return json(orgAiDisabledBody(), 403);
   }
 
   // Fetch existing quiz + questions/answers/explanations up front (before logging the audit

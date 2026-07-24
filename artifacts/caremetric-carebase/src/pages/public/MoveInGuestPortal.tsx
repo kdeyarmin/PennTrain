@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { CheckCircle2, FileSignature, Loader2, LockKeyhole } from "lucide-react";
 import {
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
 
 const SESSION_TOKEN_KEY = "carebase-move-in-guest-token";
 
@@ -63,6 +63,18 @@ export default function MoveInGuestPortal() {
   const rawWorkspaceError = workspace.error as { message?: unknown } | null;
   const workspaceErrorMessage = typeof rawWorkspaceError?.message === "string" ? rawWorkspaceError.message : "";
   const needsTerms = !acceptedLocally && workspace.isError && /terms acceptance required/i.test(workspaceErrorMessage);
+
+  // Once terms were accepted in this tab, a persisting coded error is the server
+  // rejecting the token itself (revoked/expired) -- drop the stored copy so it is
+  // not replayed on the next visit. Uncoded (network) failures never clear.
+  const serverRejected =
+    acceptedLocally && workspace.isError &&
+    typeof (workspace.error as { code?: unknown } | null)?.code === "string";
+  useEffect(() => {
+    if (serverRejected) clearStoredPublicAccessToken(SESSION_TOKEN_KEY);
+  }, [serverRejected]);
+
+
   return (
     <div className="min-h-screen bg-muted/30 px-4 py-10">
       <div className="mx-auto max-w-2xl space-y-6">

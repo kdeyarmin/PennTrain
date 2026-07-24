@@ -4,6 +4,7 @@ import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSear
 import { useAuth } from "@/lib/auth";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListViolations } from "@/hooks/useViolations";
 import {
@@ -108,7 +109,20 @@ export default function RegulatoryCopilot() {
   const [asOfDate, setAsOfDate] = useState(toLocalIsoDate());
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
-  const activeFacilityId = facilityId || facilities?.[0]?.id || "";
+  // facilities_select RLS is org-wide, but the copilot's/voice assistant's
+  // underlying data tables are ASSIGNMENT-scoped for facility_manager: an
+  // unassigned facility would answer with confident zeros ("nothing due")
+  // instead of an error. Scope the picker (and the facilities?.[0] default)
+  // to assigned facilities for that role; org_admin / auditor /
+  // platform_admin read org-wide and keep the full list.
+  const isFacilityManager = user?.role === "facility_manager";
+  const { data: myAssignments } = useListMyFacilityAssignments(user?.id, isFacilityManager);
+  const selectableFacilities = useMemo(() => {
+    if (!isFacilityManager) return facilities ?? [];
+    const assignedIds = new Set((myAssignments ?? []).map((assignment) => assignment.facility_id));
+    return (facilities ?? []).filter((facility) => assignedIds.has(facility.id));
+  }, [facilities, isFacilityManager, myAssignments]);
+  const activeFacilityId = facilityId || selectableFacilities[0]?.id || "";
   const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined });
   const { data: violations } = useListViolations({ facilityId: activeFacilityId || undefined });
   const history = useComplianceCopilotHistory(activeFacilityId || undefined);
@@ -156,7 +170,7 @@ export default function RegulatoryCopilot() {
           <Card>
             <CardHeader><CardTitle>Grounded question</CardTitle><CardDescription>{selectedIntent.help}</CardDescription></CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2"><Label>Facility</Label><Select value={activeFacilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Facility</Label><Select value={activeFacilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{selectableFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label>As-of date</Label><Input type="date" value={asOfDate} max={toLocalIsoDate()} onChange={(event) => setAsOfDate(event.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label>Supported question</Label><Select value={intent} onValueChange={(value) => { setIntent(value as CopilotIntent); ask.reset(); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{INTENTS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
               {intent === "employee_blocked" && <div className="space-y-2 md:col-span-2"><Label>Employee</Label><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{(employees ?? []).map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} — {employee.job_title}</SelectItem>)}</SelectContent></Select></div>}
@@ -188,7 +202,7 @@ export default function RegulatoryCopilot() {
           <TabsContent value="voice">
             <VoiceAssistantPanel
               facilityId={activeFacilityId}
-              facilityName={(facilities ?? []).find((facility) => facility.id === activeFacilityId)?.name}
+              facilityName={selectableFacilities.find((facility) => facility.id === activeFacilityId)?.name}
             />
           </TabsContent>
         )}

@@ -14,6 +14,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
+import { ORG_AI_DISABLED_MESSAGE, orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
 import {
   CURRENT_STATE_FORM_TEMPLATES,
   decideExtractionStatus,
@@ -149,14 +150,48 @@ async function isAnalyzerEnabled(client: any): Promise<boolean | null> {
   return data?.value === true;
 }
 
+// PT-019: document_analyzer_jobs DOES carry organization_id, but it is normally null at
+// extraction time and only stamped once the analyzed form is bound to a facility. The
+// gate therefore checks the job's own organization first (a tenant-bound job is always
+// gated by that tenant's BAA state, regardless of who kicks the run), and falls back to
+// the requesting profile's organization for unbound jobs. A requester with no
+// organization (platform-internal staff) analyzing an unbound document is platform-scope
+// work gated only by the platform switch. Fails closed on any lookup error.
+async function analyzerJobOrgGate(
+  adminClient: any,
+  jobId: string | null | undefined,
+  requestedBy: string | null | undefined,
+): Promise<boolean> {
+  if (!jobId || !requestedBy) return false;
+  const { data: jobRow, error: jobRowError } = await adminClient
+    .from("document_analyzer_jobs")
+    .select("organization_id")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (jobRowError || !jobRow) return false;
+  if (jobRow.organization_id) return await orgAiAllowed(adminClient, jobRow.organization_id);
+  const { data: profile, error } = await adminClient
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", requestedBy)
+    .maybeSingle();
+  if (error || !profile) return false;
+  return await orgAiAllowed(adminClient, profile.organization_id);
+}
+
 // Processes one claimed job end to end. Throws to record a retryable failure through the
 // finish RPC in the caller; returns the routed status on success.
 async function processClaimedJob(
   adminClient: any,
-  claim: { job_id: string; run_id: string; source_bucket: string; source_path: string },
+  claim: { job_id: string; run_id: string; source_bucket: string; source_path: string; requested_by: string },
   apiKey: string,
   modelCandidates: string[],
 ): Promise<string> {
+  // Per-organization BAA gate before any provider work, enforced on both the cron and
+  // user paths since every extraction flows through this function.
+  if (!(await analyzerJobOrgGate(adminClient, claim.job_id, claim.requested_by))) {
+    throw new AnalyzerJobError("org_ai_disabled", ORG_AI_DISABLED_MESSAGE);
+  }
   const { data: blob, error: downloadError } = await adminClient.storage
     .from(claim.source_bucket)
     .download(claim.source_path);
@@ -313,11 +348,17 @@ Deno.serve(async (req: Request) => {
   // service-role work happens on the row.
   const { data: job, error: jobError } = await callerClient
     .from("document_analyzer_jobs")
-    .select("id, status")
+    .select("id, status, requested_by")
     .eq("id", body.job_id)
     .maybeSingle();
   if (jobError) return json({ error: jobError.message }, 500);
   if (!job) return json({ error: "document analyzer job not found" }, 404);
+
+  // PT-019: surface a coded 403 before claiming so a denied kick does not burn one of
+  // the job's limited extraction attempts. processClaimedJob re-checks the same gate.
+  if (!(await analyzerJobOrgGate(adminClient, job.id, job.requested_by))) {
+    return json(orgAiDisabledBody(), 403);
+  }
 
   const workerId = crypto.randomUUID();
   const { data: claims, error: claimError } = await adminClient.rpc("claim_document_analyzer_jobs", {

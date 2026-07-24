@@ -1,39 +1,27 @@
--- Add three standalone annual courses for previously-empty PCH/ALF training
--- types: Fire Safety and Emergency Preparedness (FIRE-SAFETY), Abuse/Neglect/
--- Exploitation Reporting (ABUSE-REPORT), and Resident Rights and Dignity
--- (RESIDENT-RIGHTS). Each training type required 1.00 hour annually but had
--- zero courses of any kind mapped to it -- the same gap New Employee
--- Orientation had before this PR, just for the recurring annual side of the
--- catalog rather than the one-time new-hire side. Existing courses already
--- touch these topics as partial contributions to the broad DIRECT-ANNUAL/
--- ALR-DIRECT-ANNUAL umbrella bucket (e.g. PA-DHS-ANNUAL-FIRE-SAFETY-PREP,
--- PA-DHS-ANNUAL-OAPSA-REPORTING, PA-DHS-ANNUAL-RESIDENT-RIGHTS), but none of
--- them satisfy these three standalone, dedicated training-type requirements,
--- which is a separate crosswalk entry with its own 1.00-hour annual renewal.
+-- Backfill for the three standalone annual courses (Fire Safety, Abuse/Neglect/Exploitation
+-- Reporting, Resident Rights) originally seeded by
+-- 20260724140000_add_standalone_annual_courses_fire_abuse_rights.sql.
 --
--- Each course: 60 designed minutes across 9 comprehensive-standard blocks,
--- an 8-question final assessment (80% passing, 3 attempts), and a
--- course_compliance_credits row granting the full 1.00 hour with
--- credit_mode 'verified_only', matching every other published system-catalog
--- course (organization_id null): comprehensive_annual_course_catalog.test.sql
--- asserts that all system-course credit awaits employer audience and evidence
--- verification, since 'automatic' is reserved for organization-authored
--- courses where the org itself is directly accountable. catalog_codes use
--- a PA-DHS-STANDALONE- prefix, distinct from the existing PA-DHS-ANNUAL-
--- bucket-topic courses, since these are a different kind of catalog entry
--- covering related but not identical ground. All three genuinely recur
--- annually (recurrence_interval_days = 365), unlike the one-time
--- New Employee Orientation course.
+-- Those courses shared migration version 20260724140000 with the savings-model column rename
+-- (see 20260724140001_rename_savings_model_facility_count_to_resident_count.sql). In any
+-- environment that recorded 20260724140000 for the rename first -- i.e. #263 deployed before
+-- #264 -- Supabase treats the course-seed file as already applied and silently skips it, so the
+-- three courses (and their versions/blocks/quizzes/credit rows) were never inserted, and the
+-- later publish migration passed without erroring because it only updates rows that exist.
 --
--- Updates the FIRE-SAFETY, ABUSE-REPORT, and RESIDENT-RIGHTS training
--- types' placeholder citation_note/required_roles_text ("Configurable
--- sample, not legal advice.") with real regulatory grounding, the same
--- treatment ORIENT received.
-
-
--- ============================================================
--- COURSE: Fire Safety and Emergency Preparedness: Annual Refresher for PCH and ALF Staff
--- ============================================================
+-- Renumbering the rename to ...140001 repairs from-scratch / fresh applies, but not those already-
+-- deployed environments. This migration re-runs the course seed, guarded on the first course's
+-- fixed UUID so it is a no-op wherever the courses already exist (fresh installs, CI, and any env
+-- where the course seed already ran). The seed body below is copied verbatim from the source
+-- migration; the only change is the surrounding existence guard.
+do $backfill$
+begin
+  if exists (
+    select 1 from public.courses
+    where id = '221245ad-fcb2-431f-b929-e745014a51c2'::uuid
+  ) then
+    return;
+  end if;
 
 insert into public.courses (
   id, organization_id, title, description, category, status,
@@ -1206,6 +1194,9 @@ insert into public.course_compliance_credits (
   'PCH-ALF-RESIDENT-RIGHTS-ANNUAL', 1.00, 'verified_only',
   $txt$55 Pa. Code Sections 2600.65(g)(3) and 2800.65(j)(3): annual resident rights and dignity training, covering person-centered care, financial and communication rights, the grievance process, and when a right may be narrowly limited for documented safety reasons.$txt$
 );
+
+end
+$backfill$;
 
 -- Update placeholder citation_note/required_roles_text for all three
 -- previously-empty training types now that real courses back them.

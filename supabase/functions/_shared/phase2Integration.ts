@@ -1,6 +1,52 @@
 export const PHASE2_INTEGRATION_SCHEMA_VERSION = "2026-07-11";
 export const PHASE2_INTEGRATION_REPLAY_WINDOW_SECONDS = 300;
 
+// Per-command envelope contracts for the integration gateway (PT-003).
+// The database is the source of truth:
+//   - registered command versions live in public.integration_schema_definitions
+//     (schema_kind = 'command'), seeded by
+//     supabase/migrations/20260711200651_phase2_signed_integration_hub.sql and
+//     supabase/migrations/20260714210309_medication_integration_boundary.sql;
+//   - scope enforcement lives in public.accept_integration_command
+//     (create-or-replaced in
+//     supabase/migrations/20260724230000_per_command_integration_contracts.sql).
+// Keep this map in sync with both. Commands absent from this map use the
+// generic baseline contract (PHASE2_INTEGRATION_SCHEMA_VERSION + commands:write).
+export const PHASE2_INTEGRATION_COMMAND_CONTRACTS: Readonly<
+  Record<string, { schemaVersion: string; requiredScope: string }>
+> = {
+  "medication.snapshot.import": { schemaVersion: "2026-07-14", requiredScope: "medications:write" },
+};
+
+export function phase2CommandContract(
+  commandType: string,
+): { schemaVersion: string; requiredScope: string } {
+  return PHASE2_INTEGRATION_COMMAND_CONTRACTS[commandType] ??
+    { schemaVersion: PHASE2_INTEGRATION_SCHEMA_VERSION, requiredScope: "commands:write" };
+}
+
+// Scopes that may submit the named command, most specific first. commands:write
+// stays the superset scope accepted for every command, matching
+// public.accept_integration_command.
+export function phase2CommandScopeCandidates(commandType: string): string[] {
+  const contract = phase2CommandContract(commandType);
+  return contract.requiredScope === "commands:write"
+    ? ["commands:write"]
+    : [contract.requiredScope, "commands:write"];
+}
+
+// Null when the envelope version matches the command's registered version;
+// otherwise a response-ready message naming the expected version.
+export function phase2CommandSchemaVersionError(
+  commandType: string,
+  schemaVersion: unknown,
+): string | null {
+  const expected = phase2CommandContract(commandType).schemaVersion;
+  return schemaVersion === expected
+    ? null
+    : `Command '${commandType}' requires schemaVersion '${expected}'`;
+}
+
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

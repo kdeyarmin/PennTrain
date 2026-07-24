@@ -20,12 +20,15 @@ import {
   VoiceSession,
   type ActiveSessionTracker,
 } from "../session/voice-session.js";
+import type { UsageLimits } from "../session/usage-limits.js";
 
 export interface BrowserTransportDeps {
   config: GatewayConfig;
   registry: AppRegistry;
   pendingStore: PendingSessionStore;
   tracker: ActiveSessionTracker;
+  /** Browser sessions bill the shared daily minutes budget. */
+  usage: UsageLimits;
   fetchImpl?: typeof fetch;
   webSocketFactory?: RealtimeClientOptions["webSocketFactory"];
 }
@@ -75,6 +78,12 @@ export function handleBrowserUpgrade(
   });
 }
 
+// Client-facing backpressure: drop agent-audio frames to a browser whose
+// send buffer is already deep (same rationale + threshold as the upstream
+// OpenAI socket in core/realtime-client.ts) — a stalled tab must not
+// balloon gateway RSS.
+const MAX_CLIENT_BUFFER_BYTES = 256 * 1024;
+
 function attachSession(
   deps: BrowserTransportDeps,
   app: AppDefinition,
@@ -82,7 +91,9 @@ function attachSession(
   ws: WebSocket,
 ): void {
   deps.tracker.start(pending.userId);
+  const budgetSpan = deps.usage.dailyBudget.sessionStarted();
   let finished = false;
+  let lastBackpressureWarnAt = 0;
 
   const sendJson = (payload: unknown): void => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload));
@@ -90,9 +101,22 @@ function attachSession(
 
   const sink: AudioSink = {
     writeAudioBase64(audioBase64) {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(Buffer.from(audioBase64, "base64"), { binary: true });
+      if (ws.readyState !== ws.OPEN) return;
+      if (ws.bufferedAmount > MAX_CLIENT_BUFFER_BYTES) {
+        const now = Date.now();
+        if (now - lastBackpressureWarnAt > 1_000) {
+          lastBackpressureWarnAt = now;
+          console.warn(
+            JSON.stringify({
+              evt: "voice.transport.backpressure",
+              sessionId: pending.sessionId,
+              bufferedAmount: ws.bufferedAmount,
+            }),
+          );
+        }
+        return; // Drop the frame — better a glitch than unbounded RSS.
       }
+      ws.send(Buffer.from(audioBase64, "base64"), { binary: true });
     },
     clearQueuedAudio() {
       // The browser owns the playback queue; tell it to flush (barge-in).
@@ -119,6 +143,7 @@ function attachSession(
       if (finished) return;
       finished = true;
       deps.tracker.finish(pending.userId);
+      deps.usage.dailyBudget.sessionEnded(budgetSpan);
       sendJson({ type: "closed", reason });
       ws.close(1000, reason);
     },

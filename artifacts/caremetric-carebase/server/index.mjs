@@ -263,15 +263,18 @@ async function streamFileBody(filePath, res, options) {
   }
 }
 
-async function serveFile(filePath, req, res, { cacheable }) {
+async function serveFile(filePath, req, res, { cacheControl }) {
   const ext = extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
   const headers = {
     ...SECURITY_HEADERS,
     "Content-Type": contentType,
-    "Cache-Control": cacheable ? "public, max-age=31536000, immutable" : "no-cache",
+    "Cache-Control": cacheControl,
   };
 
+  let servedPath = filePath;
+  let encoded = false;
+  let fileInfo = null;
   if (COMPRESSIBLE_EXTENSIONS.has(ext)) {
     // Cache correctness even when we answer with the identity body: the response
     // still varies on Accept-Encoding.
@@ -279,55 +282,87 @@ async function serveFile(filePath, req, res, { cacheable }) {
     const picked = pickEncoding(req.headers["accept-encoding"]);
     if (picked) {
       try {
-        // Precompressed siblings only exist for small text assets; buffering them
-        // whole is fine. Range requests don't apply to content-encoded bodies (a
-        // client's range refers to the identity resource, not compressed bytes).
-        const data = await readFile(filePath + picked.suffix);
+        fileInfo = await stat(filePath + picked.suffix);
+        servedPath = filePath + picked.suffix;
         headers["Content-Encoding"] = picked.encoding;
-        headers["Content-Length"] = data.byteLength;
-        res.writeHead(200, headers);
-        res.end(req.method === "HEAD" ? undefined : data);
-        return;
+        encoded = true;
       } catch (error) {
         if (error?.code !== "ENOENT") throw error;
         // No precompressed sibling -- fall back to identity.
       }
     }
   }
+  if (fileInfo === null) fileInfo = await stat(servedPath);
+
+  // Weak validator from size+mtime of the representation actually served (a precompressed
+  // sibling is a different representation than the identity file, so each gets its own tag).
+  // This is what lets non-hashed files -- marketing videos/posters, logos, the manual PDF,
+  // and the SPA shell itself -- answer conditional revalidations with a 304 instead of
+  // re-sending the full body on every visit.
+  const etag = `W/"${fileInfo.size.toString(16)}-${Math.trunc(fileInfo.mtimeMs).toString(16)}"`;
+  headers["ETag"] = etag;
+  headers["Last-Modified"] = new Date(fileInfo.mtimeMs).toUTCString();
+
+  const ifNoneMatch = req.headers["if-none-match"];
+  if (
+    ifNoneMatch &&
+    ifNoneMatch.split(",").some((candidate) => {
+      const tag = candidate.trim();
+      return tag === etag || tag === "*";
+    })
+  ) {
+    // 304 carries the same validator/caching headers but no body (RFC 9110). Evaluated
+    // before Range handling per conditional-request precedence.
+    res.writeHead(304, headers);
+    res.end();
+    return;
+  }
+
+  // HEAD gets the same headers the GET would produce (including Accept-Ranges for
+  // identity bodies) but no body -- and skips reading the file entirely.
+  if (req.method === "HEAD") {
+    if (!encoded) headers["Accept-Ranges"] = "bytes";
+    headers["Content-Length"] = fileInfo.size;
+    res.writeHead(200, headers);
+    res.end();
+    return;
+  }
 
   // Identity bodies stream straight from disk -- never buffered whole -- so large
   // media (multi-MB marketing mp4s) can't pile up in memory. That matters most for
   // byte ranges: a browser seeking a video issues many small ranges against the
   // same large file, and buffering the full file for each one is an OOM risk.
-  const info = await stat(filePath);
-  headers["Accept-Ranges"] = "bytes";
-  const range = parseRange(req.headers["range"], info.size);
-  if (range === "unsatisfiable") {
-    res.writeHead(416, { ...headers, "Content-Range": `bytes */${info.size}` });
-    res.end();
-    return;
-  }
-  if (range) {
-    res.writeHead(206, {
-      ...headers,
-      "Content-Range": `bytes ${range.start}-${range.end}/${info.size}`,
-      "Content-Length": range.end - range.start + 1,
-    });
-    if (req.method === "HEAD") {
+  // Ranges are skipped for content-encoded bodies, where a client's range refers
+  // to the identity resource, not the compressed bytes we would send.
+  if (!encoded) {
+    headers["Accept-Ranges"] = "bytes";
+    const range = parseRange(req.headers["range"], fileInfo.size);
+    if (range === "unsatisfiable") {
+      res.writeHead(416, { ...headers, "Content-Range": `bytes */${fileInfo.size}` });
       res.end();
       return;
     }
-    await streamFileBody(filePath, res, { start: range.start, end: range.end });
+    if (range) {
+      res.writeHead(206, {
+        ...headers,
+        "Content-Range": `bytes ${range.start}-${range.end}/${fileInfo.size}`,
+        "Content-Length": range.end - range.start + 1,
+      });
+      await streamFileBody(servedPath, res, { start: range.start, end: range.end });
+      return;
+    }
+    headers["Content-Length"] = fileInfo.size;
+    res.writeHead(200, headers);
+    await streamFileBody(servedPath, res);
     return;
   }
 
-  headers["Content-Length"] = info.size;
+  // Precompressed siblings only exist for small text assets; buffering them
+  // whole is fine.
+  const data = await readFile(servedPath);
+  headers["Content-Length"] = data.byteLength;
   res.writeHead(200, headers);
-  if (req.method === "HEAD") {
-    res.end();
-    return;
-  }
-  await streamFileBody(filePath, res);
+  res.end(data);
 }
 
 const server = createServer(async (req, res) => {
@@ -372,7 +407,16 @@ const server = createServer(async (req, res) => {
       await resolveStaticFile(requestedPath) ??
       await resolveArchivedAsset(requestedPath);
     if (staticFile) {
-      await serveFile(staticFile, req, res, { cacheable: appPath.startsWith("/assets/") });
+      // Content-hashed bundle output under /assets/ is immutable. Non-hashed marketing media
+      // (public/marketing/ videos, posters, captions) is large and changes rarely, so it gets a
+      // moderate day-long max-age -- the ETag emitted by serveFile revalidates it cheaply after
+      // that. Everything else stays no-cache (still revalidatable via the same ETag).
+      const cacheControl = appPath.startsWith("/assets/")
+        ? "public, max-age=31536000, immutable"
+        : appPath.startsWith("/marketing/")
+          ? "public, max-age=86400"
+          : "no-cache";
+      await serveFile(staticFile, req, res, { cacheControl });
       return;
     }
 
@@ -393,7 +437,7 @@ const server = createServer(async (req, res) => {
     // Accept-Encoding-negotiation behavior.
     const routePath = appPath.length > 1 ? appPath.replace(/\/+$/, "") || "/" : "/";
     const indexPath = PRERENDERED_ROUTES.get(routePath) ?? join(DIST_DIR, "index.html");
-    await serveFile(indexPath, req, res, { cacheable: false });
+    await serveFile(indexPath, req, res, { cacheControl: "no-cache" });
   } catch (error) {
     console.error("Request handling error:", error);
     if (!res.headersSent) {

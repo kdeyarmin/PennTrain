@@ -32,6 +32,10 @@ const EDGE_JOBS: Record<
     functionName: "sync-billing-quantities",
     body: { batchSize: 250 },
   },
+  "regulatory-digest-send": {
+    functionName: "send-regulatory-digest",
+    body: { recipientCap: 500 },
+  },
 };
 
 function json(body: unknown, status = 200) {

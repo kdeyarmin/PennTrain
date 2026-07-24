@@ -1,5 +1,12 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
+import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
+import {
+  AliasDirectory,
+  redactEvidenceForModel,
+  restoreCopilotResponseText,
+  type AliasMapEntry,
+} from "../_shared/aiRedaction.ts";
 import {
   COPILOT_SAFEGUARDS,
   COPILOT_SYSTEM_PROMPT,
@@ -477,6 +484,12 @@ Deno.serve(async (req: Request) => {
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
     return json({ error: "The compliance copilot is limited to PCH and ALF facilities." }, 400);
   }
+  // PT-019: per-organization BAA gate, on top of the platform switch above. The
+  // facility row (caller-scoped RLS read) is the org derivation this function
+  // already uses for its audit rows.
+  if (!(await orgAiAllowed(callerClient, facility.organization_id))) {
+    return json(orgAiDisabledBody(), 403);
+  }
   const authorizedUser = user;
   const scopedFacility = facility;
   const intent = body.intent;
@@ -490,6 +503,10 @@ Deno.serve(async (req: Request) => {
   let sources: CopilotRuleSource[] = [];
   let systemEvidence: CopilotEvidence[] = [];
   let missingInformation: string[] = [];
+  // PT-026: what actually crossed the provider boundary (the pseudonymized
+  // prompt) plus the alias map needed to reconstruct it; null until a prompt
+  // exists. Persisted on every receipt, including provider-failure receipts.
+  let redactionReceipt: { aliases: AliasMapEntry[]; prompt: string } | null = null;
   const requestPacket = { facilityId: facility.id, intent, question, employeeId: body.employeeId ?? null, violationId: body.violationId ?? null, citationQuery: body.citationQuery?.trim() ?? null, asOfDate: asOf, requestedBy: user.id };
   const requestChecksum = await sha256(requestPacket);
   const jurisdictionCode = String(facility.state || "PA").toUpperCase();
@@ -514,6 +531,7 @@ Deno.serve(async (req: Request) => {
       missing_information: missingInformation,
       safeguards: COPILOT_SAFEGUARDS,
       request_checksum_sha256: requestChecksum,
+      redaction: redactionReceipt,
       error_message: message.slice(0, 2000),
     });
   }
@@ -539,16 +557,56 @@ Deno.serve(async (req: Request) => {
     return json({ error: "The compliance copilot model provider is not configured." }, 503);
   }
   const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
+
+  // PT-026: unconditional pseudonymization -- there is deliberately no toggle.
+  // The alias directory covers every resident (with room) and employee the
+  // caller can see in this facility, fetched under the caller's own RLS: any
+  // name the grounding collectors could have put into evidence came from those
+  // same caller-visible rows, so directory coverage matches evidence coverage
+  // (a caller who cannot read residents also produced no resident names to
+  // redact). Names that exist only inside free text (e.g. a surveyor named in
+  // a violation description, or corrective-action owners who are not
+  // employees) are not recognized and pass through -- that is the honest
+  // boundary of this layer. Job titles, statuses, UUIDs, and operational dates
+  // are sent as-is; the model needs them and they identify no one by name.
+  const directory = new AliasDirectory();
+  try {
+    const [residentRows, employeeRows] = await Promise.all([
+      queryOrThrow(
+        callerClient.from("residents").select("id,first_name,last_name,room").eq("facility_id", facility.id).order("id").limit(2000),
+        "resident alias directory",
+      ),
+      queryOrThrow(
+        callerClient.from("employees").select("id,first_name,last_name").eq("facility_id", facility.id).order("id").limit(2000),
+        "employee alias directory",
+      ),
+    ]) as [any[], any[]];
+    for (const row of residentRows) {
+      directory.registerPerson("resident", { firstName: row.first_name, lastName: row.last_name });
+      directory.registerRoom(row.room);
+    }
+    for (const row of employeeRows) {
+      directory.registerPerson("staff", { firstName: row.first_name, lastName: row.last_name });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFailure(`Data minimization failed: ${message}`);
+    return json({ error: "Failed to prepare the privacy pseudonymization layer" }, 500);
+  }
+
   const prompt = [
-    `USER_QUESTION: ${question}`,
+    `USER_QUESTION: ${directory.redactText(question)}`,
     `INTENT: ${intent}`,
     `RESPONSE_LABEL: ${determinationKind}`,
     `AS_OF_DATE: ${asOf}`,
     `FACILITY: ${JSON.stringify({ id: facility.id, name: facility.name, facilityType: facility.facility_type, jurisdictionCode })}`,
-    `SERVER_MISSING_INFORMATION: ${JSON.stringify(missingInformation)}`,
+    `SERVER_MISSING_INFORMATION: ${JSON.stringify(missingInformation.map((item) => directory.redactText(item)))}`,
     `RULE_SOURCES: ${JSON.stringify(sources)}`,
-    `SYSTEM_EVIDENCE: ${JSON.stringify(systemEvidence)}`,
+    `SYSTEM_EVIDENCE: ${JSON.stringify(redactEvidenceForModel(systemEvidence, directory))}`,
   ].join("\n\n").slice(0, 90_000);
+  // Only aliases the prompt actually used are persisted -- storing the whole
+  // facility roster in every receipt would broaden data, not minimize it.
+  redactionReceipt = { aliases: directory.usedEntries([prompt]), prompt };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
   let providerResult: any;
@@ -567,11 +625,16 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Compliance copilot generation failed" }, 502);
   }
 
-  const response = extractCopilotToolInput(providerResult.body);
-  if (!response) {
+  const aliasedResponse = extractCopilotToolInput(providerResult.body);
+  if (!aliasedResponse) {
     await recordFailure("AI response did not include the required structured tool output", providerResult.model);
     return json({ error: "Compliance copilot returned an invalid structured response" }, 502);
   }
+  // PT-026: re-substitute real names into the model's prose before validation,
+  // storage, and display, so users and the receipt read real names while the
+  // provider only ever saw aliases. Grounded citation validation is keyed on
+  // source/evidence IDs, which restoration never touches.
+  const response = restoreCopilotResponseText(aliasedResponse, directory);
   response.missing_information = uniqueStrings([...missingInformation, ...response.missing_information]);
   const groundingError = validateGroundedResponse(response, sources, systemEvidence);
   if (groundingError) {
@@ -604,6 +667,11 @@ Deno.serve(async (req: Request) => {
     safeguards: COPILOT_SAFEGUARDS,
     request_checksum_sha256: requestChecksum,
     response_checksum_sha256: responseChecksum,
+    // PT-026: the exact pseudonymized prompt sent to the provider plus the
+    // alias map it used. The other receipt columns keep the real-name
+    // representation authorized users see; this column records what actually
+    // left the tenant boundary and lets an audit reconstruct both readings.
+    redaction: redactionReceipt,
   }).select("id,created_at").single();
   if (insertError || !run) return json({ error: "Failed to record the immutable compliance copilot receipt" }, 500);
 

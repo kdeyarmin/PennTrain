@@ -17,7 +17,7 @@ export const PUBLIC_ACCESS_FLOWS: readonly PublicAccessFlow[] = [
 
 export interface PublicAccessFlowGovernanceIssue {
   flow: string;
-  issue: "missing_storage_key" | "missing_clean_path" | "token_not_scrubbed" | "server_audit_required";
+  issue: "missing_storage_key" | "missing_clean_path" | "token_not_scrubbed";
   message: string;
 }
 
@@ -32,11 +32,10 @@ export function publicAccessFlowGovernanceIssues(
     if (flow.storageKey && !flow.tokenPath.includes(":token")) {
       issues.push({ flow: flow.name, issue: "token_not_scrubbed", message: "Tab-scoped token flow must declare a tokenized route." });
     }
-    if (flow.tokenPath.includes(":token") && !flow.storageKey && flow.requiresServerAudit) {
-      issues.push({ flow: flow.name, issue: "missing_storage_key", message: "Sensitive token flow must use a tab-scoped storage key before history is scrubbed." });
-    }
+    // A server-audited flow without a storage key is a single condition and is
+    // reported once (previously two overlapping rules double-reported it).
     if (flow.requiresServerAudit && !flow.storageKey) {
-      issues.push({ flow: flow.name, issue: "server_audit_required", message: "Sensitive guest flow must be auditable on the server boundary." });
+      issues.push({ flow: flow.name, issue: "missing_storage_key", message: "Sensitive server-audited flow must use a tab-scoped storage key so the credential can be scrubbed from the URL and history." });
     }
   }
   return issues;
@@ -55,4 +54,22 @@ export function consumePublicAccessToken(
     return supplied;
   }
   return sessionStorage.getItem(storageKey)?.trim() ?? "";
+}
+
+/**
+ * Drop a stored public-access credential once the server has definitively
+ * rejected it (expired, revoked, or invalid). Without this, the dead token
+ * lingered in sessionStorage for the tab's lifetime and was silently replayed
+ * on every later visit to the flow's clean path. Call it from a flow's
+ * server-rejection path -- not on transient/network failures, which say
+ * nothing about the token itself. Accepts null so slug-based flows (no
+ * storage key) can share call sites.
+ */
+export function clearStoredPublicAccessToken(storageKey: string | null): void {
+  if (!storageKey) return;
+  try {
+    sessionStorage.removeItem(storageKey);
+  } catch {
+    // sessionStorage unavailable (private browsing/quota) -- nothing was stored.
+  }
 }

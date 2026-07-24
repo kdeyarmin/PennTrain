@@ -1,5 +1,4 @@
-import type { ReactNode } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, CheckCircle2, LogIn, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,11 @@ import { Button } from "@/components/ui/button";
 /**
  * Reveals content on scroll — a single quiet fade/rise, not a barrage of
  * effects. Falls back to a static div for prefers-reduced-motion.
+ *
+ * Deliberately implemented with IntersectionObserver + a CSS transition instead
+ * of framer-motion: this one fade/rise was the app's only framer-motion usage,
+ * and the library cost ~120 KiB of eagerly-loaded JS (it is reachable from the
+ * eager Landing page, so every visitor paid for it up front).
  */
 export function Reveal({
   children,
@@ -19,20 +23,55 @@ export function Reveal({
   className?: string;
   delay?: number;
 }) {
-  const reduceMotion = useReducedMotion();
-  if (reduceMotion) {
-    return <div className={className}>{children}</div>;
-  }
+  const ref = useRef<HTMLDivElement>(null);
+  // Start hidden; flip to visible when the element scrolls into view (or
+  // immediately when the environment can't/shouldn't animate).
+  const [revealed, setRevealed] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (
+      !element ||
+      typeof IntersectionObserver === "undefined" ||
+      (typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    ) {
+      // No observer (old browser/jsdom) or reduced motion: render static content.
+      setReduceMotion(true);
+      setRevealed(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setRevealed(true);
+          observer.disconnect();
+        }
+      },
+      // Matches the previous framer-motion viewport margin of -60px.
+      { rootMargin: "-60px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <motion.div
+    <div
+      ref={ref}
       className={className}
-      initial={{ opacity: 0, y: 14 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, ease: "easeOut", delay }}
+      style={
+        reduceMotion
+          ? undefined
+          : {
+              opacity: revealed ? 1 : 0,
+              transform: revealed ? "none" : "translateY(14px)",
+              transition: `opacity 0.5s ease-out ${delay}s, transform 0.5s ease-out ${delay}s`,
+            }
+      }
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 

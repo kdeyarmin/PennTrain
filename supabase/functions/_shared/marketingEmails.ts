@@ -44,6 +44,28 @@ export function categoryLabel(category: string | null | undefined): string {
   return CATEGORY_LABELS[category] ?? "Update";
 }
 
+/**
+ * Canonical one-click unsubscribe URL for a subscriber. Points at the public
+ * unsubscribe-updates Edge Function; the per-subscriber token is the credential.
+ * `functionsBaseUrl` is the Supabase project URL (SUPABASE_URL), with or without a
+ * trailing slash.
+ */
+export function buildUnsubscribeUrl(functionsBaseUrl: string, unsubscribeToken: string): string {
+  return `${functionsBaseUrl.replace(/\/+$/, "")}/functions/v1/unsubscribe-updates?token=${encodeURIComponent(unsubscribeToken)}`;
+}
+
+/**
+ * RFC 8058 one-click unsubscribe headers for outbound marketing sends. Gmail/Yahoo
+ * bulk-sender rules require both headers; the POST target must unsubscribe without any
+ * further interaction (the unsubscribe-updates function accepts GET and POST).
+ */
+export function listUnsubscribeHeaders(unsubscribeUrl: string): Record<string, string> {
+  return {
+    "List-Unsubscribe": `<${unsubscribeUrl}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
 /** Wraps content in the shared branded shell: navy header, white card, footer with unsubscribe. */
 function renderLayout(options: {
   preheader: string;
@@ -124,7 +146,7 @@ export function buildSubscribeWelcomeEmail(options: {
 
   const bodyHtml =
     `<p style="margin:0 0 14px;">Hi ${escapeHtml(firstName)}, thanks for subscribing.</p>` +
-    `<p style="margin:0 0 14px;">You'll get a plain-language note whenever there's a change, clarification, or new guidance affecting Pennsylvania personal care homes and assisted living facilities &mdash; Chapter 2600 and Chapter 2800, training hours, resident assessments, medication administration, fire safety, and more. No spam, and you can leave any time.</p>` +
+    `<p style="margin:0 0 14px;">We post changes to the live feed and email subscribers periodic plain-language digests of what's new for Pennsylvania personal care homes and assisted living facilities &mdash; Chapter 2600 and Chapter 2800, training hours, resident assessments, medication administration, fire safety, and more. No spam, and you can leave any time.</p>` +
     `<p style="margin:0 0 18px;">Want the current feed now? It's always live on the site.</p>`;
 
   const html = renderLayout({
@@ -139,7 +161,7 @@ export function buildSubscribeWelcomeEmail(options: {
   const text = [
     `Hi ${firstName}, thanks for subscribing.`,
     "",
-    "You'll get a plain-language note whenever there's a change, clarification, or new guidance affecting Pennsylvania personal care homes and assisted living facilities -- Chapter 2600 and Chapter 2800, training hours, resident assessments, medication administration, fire safety, and more. No spam, and you can leave any time.",
+    "We post changes to the live feed and email subscribers periodic plain-language digests of what's new for Pennsylvania personal care homes and assisted living facilities -- Chapter 2600 and Chapter 2800, training hours, resident assessments, medication administration, fire safety, and more. No spam, and you can leave any time.",
     "",
     `Read the latest updates: ${feedUrl}`,
     unsubscribeUrl ? `\nUnsubscribe: ${unsubscribeUrl}` : "",
