@@ -1,3 +1,4 @@
+import { csvEscape } from "./csv";
 import type { PchAlrOperationsQueueItem } from "./pchAlrOperationalSnapshot";
 
 export type FacilityProgram = "PCH" | "ALR";
@@ -266,5 +267,5 @@ export function evidencePackageToCsv(sections: PchAlrEvidencePackageSection[]): 
       section.surveyPrompt,
     ]);
   }
-  return rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
 }

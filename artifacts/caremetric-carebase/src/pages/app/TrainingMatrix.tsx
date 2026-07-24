@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { csvEscape } from "@/lib/csv";
 import { daysUntil, formatDateForDisplay } from "@/lib/dateUtils";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -864,8 +865,9 @@ export default function TrainingMatrix() {
       return [name, jobTitle, ...statuses];
     });
 
+    // csvEscape also neutralizes formula injection (leading = + - @) in names/titles.
     const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .map(row => row.map(csvEscape).join(","))
       .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });

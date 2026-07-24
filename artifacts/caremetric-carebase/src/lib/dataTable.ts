@@ -82,23 +82,6 @@ export function useServerListState<TDefaults extends Record<string, string>>(
   };
 }
 
-export function csvEscape(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-export function downloadCsv(filename: string, rows: Record<string, unknown>[]): void {
-  const headers = Array.from(rows.reduce((keys, row) => {
-    Object.keys(row).forEach((key) => keys.add(key));
-    return keys;
-  }, new Set<string>()));
-  const csv = [headers.join(","), ...rows.map((row) => headers.map((key) => csvEscape(row[key])).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
+// csvEscape/downloadCsv live in @/lib/csv (a pure module without React imports) so
+// non-UI libs and tests can use them without pulling in hook dependencies.
+export { csvEscape, downloadCsv } from "./csv";
