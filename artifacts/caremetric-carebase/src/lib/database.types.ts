@@ -33183,6 +33183,12 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_organization_export_exclusions: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       get_paid_training_payroll_export: {
         Args: {
           p_facility_id: string
@@ -33675,6 +33681,14 @@ export type Database = {
         }
         Returns: string
       }
+      list_expired_organization_exports: {
+        Args: { p_limit?: number }
+        Returns: {
+          job_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
       list_failed_stripe_billing_events: {
         Args: { p_limit?: number }
         Returns: {
@@ -34134,6 +34148,10 @@ export type Database = {
         Returns: Json
       }
       publish_schedule: { Args: { p_schedule_id: string }; Returns: undefined }
+      purge_expired_organization_exports: {
+        Args: { p_job_ids: string[] }
+        Returns: number
+      }
       queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
       queue_designated_person_notifications: {
