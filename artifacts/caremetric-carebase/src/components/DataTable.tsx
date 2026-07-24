@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export interface DataTableColumn<T> {
@@ -68,7 +69,7 @@ export function DataTable<T>({ rows, totalCount, getRowId, columns, page, pageSi
       <div>{isRefreshing ? <span className="inline-flex items-center gap-1"><RefreshCw className="h-3 w-3 animate-spin" />Refreshing</span> : `${totalCount.toLocaleString()} record${totalCount === 1 ? "" : "s"}`}{activeFilterSummary ? <span className="ml-2">{activeFilterSummary}</span> : null}</div>
       <div className="flex items-center gap-2">{bulkActions}{onResetFilters && <Button variant="ghost" size="sm" onClick={onResetFilters}><RotateCcw className="mr-1 h-3 w-3" />Reset</Button>}</div>
     </div>
-    {isLoading ? <div className="rounded-lg border p-8 text-center text-muted-foreground">Loading records…</div> : rows.length === 0 ? <div className="rounded-lg border p-8 text-center"><p className="font-medium">{emptyTitle}</p><p className="mt-1 text-sm text-muted-foreground">{emptyDescription}</p></div> : <>
+    {isLoading ? <div className="overflow-hidden rounded-lg border" role="status" aria-busy="true"><div className="border-b bg-muted/60 px-4 py-3"><Skeleton className="h-3.5 w-40" /></div>{Array.from({ length: 6 }).map((_, i) => <div key={i} className="flex items-center gap-4 border-b border-border/60 px-4 py-3.5 last:border-b-0"><Skeleton className="h-4 flex-1" /><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-16" /></div>)}<span className="sr-only">Loading records…</span></div> : rows.length === 0 ? <div className="rounded-lg border p-8 text-center"><p className="font-medium">{emptyTitle}</p><p className="mt-1 text-sm text-muted-foreground">{emptyDescription}</p></div> : <>
       <div className="hidden overflow-hidden rounded-lg border md:block">
         <Table>
           <TableHeader><TableRow>{selectedIds && onSelectedIdsChange ? <TableHead className="w-10"><Checkbox aria-label="Select current page" checked={allPageSelected} onCheckedChange={togglePage} /></TableHead> : null}{columns.map((column) => <TableHead key={column.id} className={column.className}>{column.sortField && onSort ? <button type="button" className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSort(column.sortField!)}>{column.header}{sortField === column.sortField ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</button> : column.header}</TableHead>)}</TableRow></TableHeader>

@@ -13,6 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { deploymentReadinessChecks } from "@/lib/deploymentReadiness";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/StatCard";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Table,
   TableBody,
@@ -32,22 +34,6 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
-
-function statusClass(job: SystemJobStatus): string {
-  if (job.is_stale || job.last_status === "failed") {
-    return "bg-red-100 text-red-800";
-  }
-  if (job.last_status === "partial") {
-    return "bg-amber-100 text-amber-800";
-  }
-  if (job.last_status === "running" || job.last_status === "queued") {
-    return "bg-blue-100 text-blue-800";
-  }
-  if (job.last_status === "succeeded") {
-    return "bg-green-100 text-green-800";
-  }
-  return "bg-gray-100 text-gray-700";
-}
 
 function formatTimestamp(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "Never";
@@ -175,42 +161,10 @@ export default function SystemJobs() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-5">
-            <CheckCircle2 className="h-8 w-8 text-green-600" />
-            <div>
-              <p className="text-2xl font-bold">{healthy}</p>
-              <p className="text-sm text-muted-foreground">Healthy</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-5">
-            <Clock3 className="h-8 w-8 text-red-600" />
-            <div>
-              <p className="text-2xl font-bold">{stale}</p>
-              <p className="text-sm text-muted-foreground">Stale</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-5">
-            <AlertTriangle className="h-8 w-8 text-amber-600" />
-            <div>
-              <p className="text-2xl font-bold">{failed}</p>
-              <p className="text-sm text-muted-foreground">Failed or partial</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-5">
-            <Activity className="h-8 w-8 text-blue-600" />
-            <div>
-              <p className="text-2xl font-bold">{active}</p>
-              <p className="text-sm text-muted-foreground">Running</p>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Healthy" value={healthy} icon={CheckCircle2} tone="success" />
+        <StatCard label="Stale" value={stale} icon={Clock3} tone="danger" />
+        <StatCard label="Failed or partial" value={failed} icon={AlertTriangle} tone="warning" />
+        <StatCard label="Running" value={active} icon={Activity} tone="info" />
       </div>
 
       <Card>
@@ -263,11 +217,7 @@ export default function SystemJobs() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <span
-                        className={"inline-flex rounded px-2 py-0.5 text-xs font-medium " + statusClass(job)}
-                      >
-                        {job.is_stale ? "stale" : job.last_status}
-                      </span>
+                      <StatusBadge status={job.is_stale ? "stale" : job.last_status} />
                       {job.error_message && (
                         <p className="mt-1 max-w-xs text-xs text-destructive">{job.error_message}</p>
                       )}

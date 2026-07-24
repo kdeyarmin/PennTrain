@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { StatCard } from "@/components/StatCard";
 import {
   Building2,
   Users,
@@ -395,9 +396,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Platform Dashboard</h1>
-        <p className="text-muted-foreground">Overview of all organizations, system health, and launch controls.</p>
+      <div className="page-header !mb-0">
+        <h1>Platform Dashboard</h1>
+        <p>Overview of all organizations, system health, and launch controls.</p>
       </div>
 
       <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-background to-background">
@@ -445,58 +446,10 @@ export default function AdminDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalOrgs}</p>
-                <p className="text-sm text-muted-foreground">Total Organizations</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-green-100 flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{activeOrgs}</p>
-                <p className="text-sm text-muted-foreground">Active Subscriptions</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{trialOrgs}</p>
-                <p className="text-sm text-muted-foreground">Trial Accounts</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{pastDueOrgs}</p>
-                <p className="text-sm text-muted-foreground">Past Due</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Total Organizations" value={totalOrgs} icon={Building2} tone="primary" />
+        <StatCard label="Active Subscriptions" value={activeOrgs} icon={CheckCircle} tone="success" />
+        <StatCard label="Trial Accounts" value={trialOrgs} icon={TrendingUp} tone="info" />
+        <StatCard label="Past Due" value={pastDueOrgs} icon={AlertCircle} tone="warning" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

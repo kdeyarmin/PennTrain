@@ -12,13 +12,17 @@ interface StatusBadgeProps {
 
 type Bucket = 'success' | 'info' | 'warning' | 'danger' | 'missing' | 'neutral';
 
+// Soft tinted pills: a light color wash, darker semantic text, and a hairline inset ring.
+// Reads more premium than solid fills and keeps small-text contrast at AA via the `-strong`
+// text tokens. Coloring is still derived entirely from `status` (see buckets below), so every
+// existing call site upgrades automatically.
 const BUCKET_CLASSES: Record<Bucket, string> = {
-  success: "bg-success text-success-foreground hover:bg-success/80",
-  info: "bg-info text-info-foreground hover:bg-info/80",
-  warning: "bg-warning text-warning-foreground hover:bg-warning/80",
-  danger: "bg-destructive text-destructive-foreground hover:bg-destructive/80",
-  missing: "bg-muted text-muted-foreground border border-destructive hover:bg-muted/80",
-  neutral: "bg-muted text-muted-foreground hover:bg-muted/80",
+  success: "bg-success/10 text-success-strong ring-1 ring-inset ring-success/20",
+  info: "bg-info/10 text-info-strong ring-1 ring-inset ring-info/20",
+  warning: "bg-warning/10 text-warning-strong ring-1 ring-inset ring-warning/25",
+  danger: "bg-destructive/10 text-destructive-strong ring-1 ring-inset ring-destructive/20",
+  missing: "bg-muted text-muted-foreground ring-1 ring-inset ring-destructive/40",
+  neutral: "bg-muted text-muted-foreground ring-1 ring-inset ring-border",
 };
 
 // Exact statuses seen across the app's status-bearing columns (training/employee/alert/ticket/
@@ -30,11 +34,11 @@ const EXACT_STATUS_BUCKET: Record<string, Bucket> = {
   complete: 'success', passed: 'success', current: 'success', published: 'success',
   confirmed: 'success', delivered: 'success', sent: 'success', approved: 'success',
   cleared: 'success', verified: 'success', met: 'success', paid: 'success', good: 'success',
-  attended: 'success', present: 'success',
+  attended: 'success', present: 'success', succeeded: 'success', healthy: 'success',
 
   trial: 'info', pending_review: 'info', scheduled: 'info', upcoming: 'info',
   assigned: 'info', draft: 'info', in_progress: 'info', review: 'info', invited: 'info',
-  new: 'info', queued: 'info', processing: 'info',
+  new: 'info', queued: 'info', processing: 'info', running: 'info',
 
   due_soon: 'warning', on_leave: 'warning', expiring: 'warning', past_due: 'warning',
   pending: 'warning', waiting: 'warning', partial: 'warning', not_started: 'warning',
@@ -43,6 +47,7 @@ const EXACT_STATUS_BUCKET: Record<string, Bucket> = {
   open: 'danger', failed: 'danger', rejected: 'danger', denied: 'danger',
   canceled: 'danger', cancelled: 'danger', suspended: 'danger', no_show: 'danger',
   called_off: 'danger', escalated: 'danger', unmet: 'danger', excused: 'danger', declined: 'danger',
+  stale: 'danger',
 
   missing: 'missing',
 
@@ -73,7 +78,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   const badgeClasses = status ? BUCKET_CLASSES[bucketFor(status)] : BUCKET_CLASSES.neutral;
 
   return (
-    <Badge className={cn("whitespace-nowrap font-medium px-2.5 py-0.5", badgeClasses, className)} variant="outline">
+    <Badge className={cn("whitespace-nowrap font-medium px-2.5 py-0.5 border-transparent", badgeClasses, className)} variant="outline">
       {label}
     </Badge>
   );
