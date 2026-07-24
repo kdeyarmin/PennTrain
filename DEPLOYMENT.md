@@ -166,10 +166,27 @@ can see the whole workspace and lockfile.
    - Builder: **Railpack** (Railway's current default builder; Nixpacks is deprecated on Railway
      and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
-   - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build`
+   - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build && node scripts/check-bundle-budget.mjs`
     (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
-    step, and the typecheck is the deploy's static gate; GitHub Actions runs the broader
+    step; the typecheck and the bundle-budget check are the deploy's static gates -- the budget
+    check reads the `dist/public/assets` the build just produced, so it costs nothing extra and
+    catches a size regression before the deploy goes live; GitHub Actions runs the broader
     `check:all`-style workflow on pushes/PRs)
+
+   **Railway rebuilds from source -- deployed bundle ≠ CI artifact (documented residual,
+   PT-016).** The bundle Railway serves is compiled *on Railway's builders* by the
+   buildCommand above; it is not the immutable `caremetric-carebase-<sha>` artifact that CI
+   builds and publishes on the same commit. The two builds run from the same source and
+   lockfile, but they are separate executions on separate machines with separate environment
+   variables, so nothing structurally guarantees the deployed bytes match what CI validated
+   (for example, `VITE_*` values differ by design, and a Railway-side variable change alone
+   produces a bundle CI never saw). Running the same bundle-budget gate inside the Railway
+   build narrows the gap -- a deploy build that regresses past budget now fails instead of
+   shipping -- but does not close it. Closing it would mean deploying the CI-built artifact
+   itself: build a container/registry image (or reuse the uploaded artifact) in CI and point
+   Railway at that image, so the deploy promotes the exact validated bytes instead of
+   rebuilding them. That is a deliberate future change, not something this configuration
+   silently accepts as equivalent.
    - Start: `pnpm --filter @workspace/caremetric-carebase run start`
    - Healthcheck: `GET /health`
    - Watch paths: only changes under `artifacts/caremetric-carebase/` and the root toolchain/config files
