@@ -408,7 +408,7 @@ function MarketingHeader() {
 function MarketingFooter() {
   const footerLink = "text-white/70 hover:text-white hover:underline";
   return (
-    <footer className="bg-[#071626] text-white/75">
+    <footer className="bg-[var(--mkt-navy-950)] text-white/75">
       <div className="mx-auto flex max-w-[1160px] flex-col gap-6 px-4 py-8 sm:px-6">
         <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-col gap-2">

@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LifeBuoy, Search } from "lucide-react";
+import { StatCard } from "@/components/StatCard";
+import { AlertTriangle, Clock, History, Inbox, LifeBuoy, Search } from "lucide-react";
 import { useListSupportTickets, SUPPORT_TICKET_CATEGORIES } from "@/hooks/useSupportTickets";
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
 import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
@@ -15,18 +16,21 @@ import { summarizeSupportTicketAnalytics } from "@/lib/supportTicketAnalytics";
 
 type StatusFilter = "all" | "open" | "in_progress" | "resolved" | "closed";
 
+// Tinted token classes matching the app's StatusBadge look. Kept local (rather than routed
+// through StatusBadge) because for support tickets "open" is an info state, not the danger
+// bucket StatusBadge assigns "open" for incidents/violations.
 const STATUS_DISPLAY: Record<string, { color: string; label: string }> = {
-  open: { color: "bg-blue-100 text-blue-800", label: "Open" },
-  in_progress: { color: "bg-amber-100 text-amber-800", label: "In Progress" },
-  resolved: { color: "bg-green-100 text-green-800", label: "Resolved" },
-  closed: { color: "bg-gray-100 text-gray-600", label: "Closed" },
+  open: { color: "bg-info/10 text-info-strong ring-1 ring-inset ring-info/20", label: "Open" },
+  in_progress: { color: "bg-warning/10 text-warning-strong ring-1 ring-inset ring-warning/25", label: "In Progress" },
+  resolved: { color: "bg-success/10 text-success-strong ring-1 ring-inset ring-success/20", label: "Resolved" },
+  closed: { color: "bg-muted text-muted-foreground ring-1 ring-inset ring-border", label: "Closed" },
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
-  low: "bg-gray-100 text-gray-700",
-  normal: "bg-blue-50 text-blue-700",
-  high: "bg-orange-100 text-orange-800",
-  urgent: "bg-red-100 text-red-800",
+  low: "bg-muted text-muted-foreground",
+  normal: "bg-info/10 text-info-strong",
+  high: "bg-warning/10 text-warning-strong",
+  urgent: "bg-destructive/10 text-destructive-strong",
 };
 
 // Synced into the URL via useUrlState so a deep link like AdminDashboard's "Open Support Tickets"
@@ -76,38 +80,45 @@ export default function SupportTickets() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Support Tickets</h1>
-        <p className="text-muted-foreground">
+      <div className="page-header !mb-0">
+        <h1>Support Tickets</h1>
+        <p>
           Requests submitted from every organization's Help Center -- {openCount} awaiting first response.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <button type="button" className="rounded-lg border bg-card p-4 text-left hover:border-primary/40" onClick={() => setUrlState({ status: "open" })}>
-          <p className="text-xs font-medium text-muted-foreground">Open tickets</p>
-          <p className="mt-1 text-2xl font-semibold">{supportSummary.open}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{supportSummary.total} total support requests.</p>
-        </button>
-        <button type="button" className="rounded-lg border bg-card p-4 text-left hover:border-amber-300" onClick={() => setUrlState({ status: "in_progress" })}>
-          <p className="text-xs font-medium text-muted-foreground">In progress</p>
-          <p className="mt-1 text-2xl font-semibold">{supportSummary.inProgress}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Average active age: {supportSummary.averageAgeDays} days.</p>
-        </button>
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Urgent active</p>
-          <p className="mt-1 text-2xl font-semibold text-destructive">{supportSummary.urgentOpen}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{supportSummary.staleOpen} active tickets have been quiet 3+ days.</p>
-        </div>
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Oldest active</p>
-          <p className="mt-1 text-lg font-semibold">{supportSummary.oldestOpenTicketId ? "Needs review" : "—"}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {supportSummary.oldestOpenTicketId ? (
-              <Link href={`/admin/support-tickets/${supportSummary.oldestOpenTicketId}`} className="text-primary hover:underline">Open oldest active ticket</Link>
-            ) : "No active tickets."}
-          </p>
-        </div>
+        <StatCard
+          label="Open tickets"
+          value={supportSummary.open}
+          hint={`${supportSummary.total} total support requests.`}
+          icon={Inbox}
+          tone="info"
+          onClick={() => setUrlState({ status: "open" })}
+        />
+        <StatCard
+          label="In progress"
+          value={supportSummary.inProgress}
+          hint={`Average active age: ${supportSummary.averageAgeDays} days.`}
+          icon={Clock}
+          tone="warning"
+          onClick={() => setUrlState({ status: "in_progress" })}
+        />
+        <StatCard
+          label="Urgent active"
+          value={<span className="text-destructive">{supportSummary.urgentOpen}</span>}
+          hint={`${supportSummary.staleOpen} active tickets have been quiet 3+ days.`}
+          icon={AlertTriangle}
+          tone="danger"
+        />
+        <StatCard
+          label="Oldest active"
+          value={supportSummary.oldestOpenTicketId ? "Needs review" : "—"}
+          icon={History}
+          hint={supportSummary.oldestOpenTicketId ? (
+            <Link href={`/admin/support-tickets/${supportSummary.oldestOpenTicketId}`} className="text-primary hover:underline">Open oldest active ticket</Link>
+          ) : "No active tickets."}
+        />
       </div>
 
       <Card>
@@ -163,7 +174,7 @@ export default function SupportTickets() {
               </TableHeader>
               <TableBody>
                 {tickets.map((t) => {
-                  const status = STATUS_DISPLAY[t.status] ?? { color: "bg-gray-100 text-gray-800", label: t.status };
+                  const status = STATUS_DISPLAY[t.status] ?? { color: "bg-muted text-muted-foreground ring-1 ring-inset ring-border", label: t.status };
                   return (
                     <TableRow key={t.id}>
                       <TableCell className="font-medium">
@@ -175,7 +186,7 @@ export default function SupportTickets() {
                         {SUPPORT_TICKET_CATEGORIES.find((c) => c.value === t.category)?.label ?? t.category}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={`text-xs capitalize ${PRIORITY_BADGE[t.priority] ?? ""}`}>
+                        <Badge variant="outline" className={`border-transparent text-xs capitalize ${PRIORITY_BADGE[t.priority] ?? ""}`}>
                           {t.priority}
                         </Badge>
                       </TableCell>
