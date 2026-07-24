@@ -97,7 +97,9 @@
   --primary-foreground: 210 40% 98%;
 
   --secondary: 220 14% 96%;
-  --secondary-foreground: 220 9% 46%;
+  /* Darkened from 46% so secondary text/buttons clear WCAG AA (4.5:1) on the
+     --secondary (#f3f4f6) fill; at 46% the pairing was 4.39:1 (axe failure). */
+  --secondary-foreground: 220 9% 43%;
 
   --muted: 220 14% 96%;
   --muted-foreground: 220 9% 46%;
