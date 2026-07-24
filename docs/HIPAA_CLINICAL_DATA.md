@@ -27,7 +27,7 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
 | M0 | Clinical foundation: permissions, capability flag, access log, consent, visibility helpers, guardrail supersession | **Delivered** |
 | M1 | Native vitals & clinical observations (chart + entry + retraction) | **Delivered** |
 | M2 | FHIR pipe via medications (`MedicationRequest`/`MedicationAdministration`) | **Delivered** |
-| M3 | FHIR allergies, diagnoses/problem list, orders, documents | Planned |
+| M3 | FHIR allergies, diagnoses/problem list, orders, documents | **Delivered** |
 | M4 | Native care plans, assessments, progress notes (sign-and-lock) | Planned |
 | M5 | Chart consolidation, timeline, hardening, optional write-back | Planned |
 

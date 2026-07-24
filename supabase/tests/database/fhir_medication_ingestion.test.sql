@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(24);
 
 -- Structure + hardened access -----------------------------------------------------------
 select has_table('public', 'fhir_integration_sources', 'FHIR source config table exists');
@@ -89,7 +89,23 @@ select lives_ok($$
       'medicationAdministrations', jsonb_build_array(jsonb_build_object(
         'fhirPatientId', 'fhir-patient-1', 'fhirResourceId', 'medadmin-1', 'fhirRequestId', 'medreq-1',
         'status', 'completed', 'effectiveAt', now(), 'performerDisplay', 'External nurse',
-        'raw', jsonb_build_object('resourceType', 'MedicationAdministration')))),
+        'raw', jsonb_build_object('resourceType', 'MedicationAdministration'))),
+      'allergies', jsonb_build_array(jsonb_build_object(
+        'fhirPatientId', 'fhir-patient-1', 'fhirResourceId', 'allergy-1',
+        'substanceDisplay', 'Penicillin', 'substanceCode', '7980', 'substanceSystem', 'rxnorm',
+        'clinicalStatus', 'active', 'criticality', 'high', 'sourceUpdatedAt', now(),
+        'raw', jsonb_build_object('resourceType', 'AllergyIntolerance'))),
+      'conditions', jsonb_build_array(jsonb_build_object(
+        'fhirPatientId', 'fhir-patient-1', 'fhirResourceId', 'cond-1',
+        'codeDisplay', 'Type 2 diabetes mellitus', 'code', 'E11.9', 'codeSystem', 'icd10cm',
+        'clinicalStatus', 'active', 'category', 'problem-list-item', 'sourceUpdatedAt', now(),
+        'raw', jsonb_build_object('resourceType', 'Condition'))),
+      'serviceRequests', jsonb_build_array(jsonb_build_object(
+        'fhirPatientId', 'fhir-patient-1', 'fhirResourceId', 'svc-1',
+        'codeDisplay', 'Physical therapy evaluation', 'status', 'active', 'intent', 'order', 'sourceUpdatedAt', now())),
+      'documentReferences', jsonb_build_array(jsonb_build_object(
+        'fhirPatientId', 'fhir-patient-1', 'fhirResourceId', 'doc-1',
+        'typeDisplay', 'History and physical', 'status', 'current', 'sourceUpdatedAt', now()))),
     'fhir-ingest-test')
 $$, 'FHIR bundle enters the existing idempotent command inbox');
 select is(
@@ -101,6 +117,16 @@ select is((select count(*)::integer from public.fhir_medication_administrations 
   1, 'the FHIR MedicationAdministration is imported once');
 select is((select rxnorm_code from public.fhir_medication_requests where fhir_resource_id = 'medreq-1'),
   '617311', 'the RxNorm code is extracted for query');
+select is((select count(*)::integer from public.fhir_allergy_intolerances where fhir_resource_id = 'allergy-1'),
+  1, 'the FHIR AllergyIntolerance is imported');
+select is((select clinical_status from public.fhir_allergy_intolerances where fhir_resource_id = 'allergy-1'),
+  'active', 'allergy clinical status is extracted');
+select is((select count(*)::integer from public.fhir_conditions where fhir_resource_id = 'cond-1'),
+  1, 'the FHIR Condition (problem list) is imported');
+select is((select count(*)::integer from public.fhir_service_requests where fhir_resource_id = 'svc-1'),
+  1, 'the FHIR ServiceRequest is imported');
+select is((select count(*)::integer from public.fhir_document_references where fhir_resource_id = 'doc-1'),
+  1, 'the FHIR DocumentReference is imported');
 
 -- An unmapped patient produces a triage exception, not a guess -------------------------
 select lives_ok($$

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
-import { Activity, AlertTriangle, ArrowLeft, HeartPulse, Plus, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, DatabaseZap, HeartPulse, Pill, Plus, ShieldCheck, Stethoscope } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   useRecordClinicalObservation,
   useResidentClinicalObservations,
 } from "@/hooks/useClinicalObservations";
+import { useResidentFhirClinical } from "@/hooks/useFhirIntegration";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/lib/pageTitle";
@@ -92,6 +93,15 @@ export default function ResidentClinicalChart() {
   const { toast } = useToast();
   const resident = useGetResident(id);
   const observations = useResidentClinicalObservations(id);
+  const fhir = useResidentFhirClinical(id);
+
+  const activeAllergies = (fhir.data?.allergies ?? []).filter(
+    (allergy) => !["inactive", "resolved"].includes(allergy.clinical_status ?? ""),
+  );
+  const activeConditions = (fhir.data?.conditions ?? []).filter(
+    (condition) => !["inactive", "resolved"].includes(condition.clinical_status ?? ""),
+  );
+  const activeMedications = (fhir.data?.medications ?? []).filter((medication) => medication.request_status === "active");
 
   const residentName = resident.data ? `${resident.data.first_name} ${resident.data.last_name}` : "Resident";
   usePageTitle(`${residentName} · Clinical chart`);
@@ -236,9 +246,21 @@ export default function ResidentClinicalChart() {
         </Alert>
       )}
 
+      {activeAllergies.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Allergies</AlertTitle>
+          <AlertDescription>
+            {activeAllergies.map((allergy) => `${allergy.substance_display}${allergy.criticality ? ` (${allergy.criticality})` : ""}`).join(" · ")}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs defaultValue="vitals">
         <TabsList>
           <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="medications">Medications</TabsTrigger>
+          <TabsTrigger value="allergies">Allergies &amp; diagnoses</TabsTrigger>
           <TabsTrigger value="vitals">Vitals &amp; observations</TabsTrigger>
         </TabsList>
 
@@ -271,13 +293,95 @@ export default function ResidentClinicalChart() {
               )}
             </CardContent>
           </Card>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Active medications</p><p className="text-2xl font-semibold">{activeMedications.length}</p></div>
+            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Active problems</p><p className="text-2xl font-semibold">{activeConditions.length}</p></div>
+            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Allergies</p><p className="text-2xl font-semibold">{activeAllergies.length}</p></div>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Active problem list</CardTitle>
+              <CardDescription>Conditions ingested read-only from the connected EHR (FHIR).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {activeConditions.length === 0 ? <p className="text-sm text-muted-foreground">No active conditions on file.</p> : (
+                <ul className="space-y-1 text-sm">
+                  {activeConditions.slice(0, 8).map((condition) => (
+                    <li key={condition.id} className="flex items-center justify-between gap-2">
+                      <span>{condition.code_display}</span>
+                      {condition.code && <span className="text-xs text-muted-foreground">{condition.code}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
           <Alert>
             <AlertTitle>More clinical domains are on the way</AlertTitle>
             <AlertDescription>
-              Medications, allergies, diagnoses and orders (via FHIR), plus care plans, assessments and
-              progress notes join this chart in later phases. Vitals &amp; observations are captured natively today.
+              Care plans, clinical assessments, and progress-note charting join this chart in a later phase.
+              Medications, allergies, and diagnoses are ingested read-only via FHIR; vitals are captured natively.
             </AlertDescription>
           </Alert>
+        </TabsContent>
+
+        <TabsContent value="medications" className="space-y-3">
+          <Alert>
+            <DatabaseZap className="h-4 w-4" />
+            <AlertTitle>External source of truth</AlertTitle>
+            <AlertDescription>
+              Medications are ingested read-only via FHIR from the connected EHR/pharmacy ({activeMedications.length} active). Prescribe or change orders in the source system.
+            </AlertDescription>
+          </Alert>
+          {fhir.isLoading ? (
+            <Card><CardContent className="p-4"><Skeleton className="h-6 w-full" /></CardContent></Card>
+          ) : (fhir.data?.medications ?? []).length === 0 ? (
+            <Card><CardContent className="py-10 text-center"><Pill className="mx-auto mb-2 h-7 w-7 text-muted-foreground" /><p className="font-medium">No medications ingested</p><p className="text-sm text-muted-foreground">Connect a FHIR source and map this resident to see medications here.</p></CardContent></Card>
+          ) : (fhir.data?.medications ?? []).map((medication) => (
+            <Card key={medication.id}><CardContent className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{medication.medication_display}</p>
+                  {medication.dosage_text && <p className="mt-1 text-sm">{medication.dosage_text}</p>}
+                  {medication.rxnorm_code && <p className="text-xs text-muted-foreground">RxNorm {medication.rxnorm_code}</p>}
+                </div>
+                <Badge variant="outline">{medication.request_status.replace(/_/gu, " ")}</Badge>
+              </div>
+            </CardContent></Card>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="allergies" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" />Allergies</CardTitle><CardDescription>Ingested read-only via FHIR.</CardDescription></CardHeader>
+            <CardContent>
+              {(fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
+                <div className="space-y-2">
+                  {(fhir.data?.allergies ?? []).map((allergy) => (
+                    <div key={allergy.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
+                      <div><p className="text-sm font-medium">{allergy.substance_display}</p>{allergy.clinical_status && <p className="text-xs text-muted-foreground">{allergy.clinical_status}</p>}</div>
+                      {allergy.criticality && <Badge variant={allergy.criticality === "high" ? "destructive" : "outline"}>{allergy.criticality}</Badge>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Diagnoses / problem list</CardTitle><CardDescription>Conditions ingested read-only via FHIR.</CardDescription></CardHeader>
+            <CardContent>
+              {(fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
+                <div className="space-y-2">
+                  {(fhir.data?.conditions ?? []).map((condition) => (
+                    <div key={condition.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
+                      <div><p className="text-sm font-medium">{condition.code_display}</p>{condition.category && <p className="text-xs text-muted-foreground">{condition.category.replace(/-/gu, " ")}</p>}</div>
+                      <div className="flex items-center gap-2">{condition.code && <span className="text-xs text-muted-foreground">{condition.code}</span>}{condition.clinical_status && <Badge variant="outline">{condition.clinical_status}</Badge>}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="vitals" className="space-y-3">

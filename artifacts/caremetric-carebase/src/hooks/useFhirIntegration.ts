@@ -7,6 +7,41 @@ export type FhirPatientMapping = Tables<"fhir_patient_mappings">;
 export type FhirMedicationRequest = Tables<"fhir_medication_requests">;
 export type FhirMedicationAdministration = Tables<"fhir_medication_administrations">;
 export type FhirException = Tables<"fhir_integration_exceptions">;
+export type FhirAllergy = Tables<"fhir_allergy_intolerances">;
+export type FhirCondition = Tables<"fhir_conditions">;
+export type FhirServiceRequest = Tables<"fhir_service_requests">;
+
+export interface ResidentFhirClinical {
+  medications: FhirMedicationRequest[];
+  allergies: FhirAllergy[];
+  conditions: FhirCondition[];
+  orders: FhirServiceRequest[];
+}
+
+/** Read a single resident's FHIR-ingested clinical data (RLS-scoped via clinical_record_visible). */
+export function useResidentFhirClinical(residentId?: string) {
+  return useQuery({
+    queryKey: ["resident-fhir-clinical", residentId],
+    enabled: Boolean(residentId),
+    queryFn: async (): Promise<ResidentFhirClinical> => {
+      const [medications, allergies, conditions, orders] = await Promise.all([
+        supabase.from("fhir_medication_requests").select("*").eq("resident_id", residentId!).order("source_updated_at", { ascending: false }).limit(100),
+        supabase.from("fhir_allergy_intolerances").select("*").eq("resident_id", residentId!).limit(100),
+        supabase.from("fhir_conditions").select("*").eq("resident_id", residentId!).order("source_updated_at", { ascending: false }).limit(100),
+        supabase.from("fhir_service_requests").select("*").eq("resident_id", residentId!).order("source_updated_at", { ascending: false }).limit(100),
+      ]);
+      const failed = [medications, allergies, conditions, orders].find((result) => result.error);
+      if (failed?.error) throw failed.error;
+      return {
+        medications: medications.data ?? [],
+        allergies: allergies.data ?? [],
+        conditions: conditions.data ?? [],
+        orders: orders.data ?? [],
+      };
+    },
+    staleTime: 30_000,
+  });
+}
 
 export interface FhirIntegrationWorkspace {
   sources: FhirSource[];

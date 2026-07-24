@@ -104,7 +104,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const mapped = mapFhirBundle(bundle, new Date().toISOString());
-  if (mapped.medicationRequests.length === 0 && mapped.medicationAdministrations.length === 0) {
+  const supportedCount = mapped.medicationRequests.length + mapped.medicationAdministrations.length +
+    mapped.allergies.length + mapped.conditions.length + mapped.serviceRequests.length +
+    mapped.documentReferences.length;
+  if (supportedCount === 0) {
     return response({
       error: { code: "no_supported_resources" },
       meta: { correlationId, unsupported: mapped.unsupported },
@@ -115,6 +118,10 @@ Deno.serve(async (req: Request) => {
     sourceId,
     medicationRequests: mapped.medicationRequests,
     medicationAdministrations: mapped.medicationAdministrations,
+    allergies: mapped.allergies,
+    conditions: mapped.conditions,
+    serviceRequests: mapped.serviceRequests,
+    documentReferences: mapped.documentReferences,
   };
   const { data: commandRows, error: commandError } = await admin.rpc("accept_integration_command", {
     p_credential_id: credential.credential_id,
@@ -141,6 +148,10 @@ Deno.serve(async (req: Request) => {
       mapped: {
         medicationRequests: mapped.medicationRequests.length,
         medicationAdministrations: mapped.medicationAdministrations.length,
+        allergies: mapped.allergies.length,
+        conditions: mapped.conditions.length,
+        serviceRequests: mapped.serviceRequests.length,
+        documentReferences: mapped.documentReferences.length,
         unsupported: mapped.unsupported.length,
       },
     },

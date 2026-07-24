@@ -1,4 +1,10 @@
-import { mapFhirBundle, mapMedicationRequest, referenceId } from "./fhirMapping.ts";
+import {
+  mapAllergyIntolerance,
+  mapCondition,
+  mapFhirBundle,
+  mapMedicationRequest,
+  referenceId,
+} from "./fhirMapping.ts";
 
 function assertEquals(actual: unknown, expected: unknown, message?: string): void {
   const actualJson = JSON.stringify(actual);
@@ -77,4 +83,59 @@ Deno.test("mapFhirBundle accepts a single resource outside a Bundle", () => {
   );
   assertEquals(bundle.medicationRequests.length, 1);
   assertEquals(bundle.medicationRequests[0].medicationDisplay, "Unspecified medication");
+});
+
+Deno.test("mapAllergyIntolerance uses patient reference and extracts status/criticality", () => {
+  const allergy = mapAllergyIntolerance({
+    resourceType: "AllergyIntolerance",
+    id: "al1",
+    patient: { reference: "Patient/p1" },
+    code: { coding: [{ system: "http://snomed.info/sct", code: "373270004", display: "Penicillin" }] },
+    clinicalStatus: { coding: [{ code: "active" }] },
+    verificationStatus: { coding: [{ code: "confirmed" }] },
+    criticality: "high",
+    category: ["medication"],
+    reaction: [{ manifestation: [{ text: "Hives" }] }],
+  }, "2026-07-25T00:00:00Z");
+  assertEquals(allergy.fhirPatientId, "p1");
+  assertEquals(allergy.substanceDisplay, "Penicillin");
+  assertEquals(allergy.substanceSystem, "snomed");
+  assertEquals(allergy.clinicalStatus, "active");
+  assertEquals(allergy.criticality, "high");
+  assertEquals(allergy.category, ["medication"]);
+  assertEquals(allergy.reactionManifestations, ["Hives"]);
+});
+
+Deno.test("mapCondition extracts coded diagnosis and clinical status", () => {
+  const condition = mapCondition({
+    resourceType: "Condition",
+    id: "c1",
+    subject: { reference: "Patient/p1" },
+    code: { coding: [{ system: "http://hl7.org/fhir/sid/icd-10-cm", code: "E11.9", display: "Type 2 diabetes mellitus" }] },
+    clinicalStatus: { coding: [{ code: "active" }] },
+    category: [{ coding: [{ code: "problem-list-item" }] }],
+    onsetDateTime: "2025-01-01T00:00:00Z",
+  }, "2026-07-25T00:00:00Z");
+  assertEquals(condition.codeDisplay, "Type 2 diabetes mellitus");
+  assertEquals(condition.code, "E11.9");
+  assertEquals(condition.codeSystem, "icd10cm");
+  assertEquals(condition.clinicalStatus, "active");
+  assertEquals(condition.category, "problem-list-item");
+});
+
+Deno.test("mapFhirBundle routes allergies, conditions, orders, and documents", () => {
+  const bundle = mapFhirBundle({
+    resourceType: "Bundle",
+    entry: [
+      { resource: { resourceType: "AllergyIntolerance", id: "al1", patient: { reference: "Patient/p1" }, code: { text: "Peanut" } } },
+      { resource: { resourceType: "Condition", id: "c1", subject: { reference: "Patient/p1" }, code: { text: "Hypertension" } } },
+      { resource: { resourceType: "ServiceRequest", id: "s1", subject: { reference: "Patient/p1" }, code: { text: "PT eval" }, status: "active" } },
+      { resource: { resourceType: "DocumentReference", id: "d1", subject: { reference: "Patient/p1" }, type: { text: "H&P" }, status: "current" } },
+    ],
+  }, "2026-07-25T00:00:00Z");
+  assertEquals(bundle.allergies.length, 1);
+  assertEquals(bundle.conditions.length, 1);
+  assertEquals(bundle.serviceRequests.length, 1);
+  assertEquals(bundle.documentReferences.length, 1);
+  assertEquals(bundle.unsupported.length, 0);
 });
