@@ -8,8 +8,9 @@
 // without a Supabase client or React tree -- see comprehensiveReport.test.ts.
 //
 // Terminology note (see repo CLAUDE.md): user-facing labels never say "ALR"/"Assisted Living
-// Residence" -- facility-type labels are always rendered through `facilityTypeLabel`, which returns
-// "Assisted Living Facility (ALF)". No literal "ALR" strings are produced here.
+// Residence" -- facility-type labels are rendered through `facilityTypeDisplay` below, which mirrors
+// the canonical labels in facilityTypes.ts (notably "ALR" -> "Assisted Living Facility (ALF)"). No
+// literal "ALR" strings are produced here.
 
 import type { OrgDashboardSummary } from "@/hooks/useDashboardSummary";
 import type { IncidentAnalyticsSummary } from "@/lib/incidentAnalytics";

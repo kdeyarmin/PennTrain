@@ -75,13 +75,26 @@ export default function ComprehensiveReport() {
   );
 
   const { facilityTypes } = useVisibleFacilityTypes();
-  const includeResidents = hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
 
   const organizationQuery = useGetOrganization(organizationId);
   const facilitiesQuery = useListFacilities({});
   const facilities = (facilitiesQuery.data ?? []).filter((f) => !f.is_sandbox);
   const facilityName = facilityId !== "all" ? facilities.find((f) => f.id === facilityId)?.name : undefined;
   const scopeFacilityId = facilityId === "all" ? undefined : facilityId;
+
+  // Residents/census modules are PCH/ALF-only (see facilityTypes.ts). For a single-facility scope,
+  // gate on that facility's own type; for "All facilities", fall back to the org-level union of
+  // visible facility types. While a selected facility's row is still loading, fail closed (hide the
+  // section) rather than show a resident section for a facility that may not be PCH/ALF.
+  const selectedFacilityType = scopeFacilityId
+    ? facilities.find((f) => f.id === scopeFacilityId)?.facility_type
+    : undefined;
+  const includeResidents = scopeFacilityId
+    ? hasAnyFacilityType(
+        selectedFacilityType ? new Set([selectedFacilityType]) : undefined,
+        PCH_ALR_ONLY_FACILITY_TYPES,
+      )
+    : hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
 
   const dashboardQuery = useOrgDashboardSummary();
   const portfolioOpsQuery = usePortfolioOperationsCommandCenter();
@@ -205,7 +218,7 @@ export default function ComprehensiveReport() {
           operations: scopeFacilityId ? facilityOpsQuery.isError : portfolioOpsQuery.isError,
           incidents: incidentsQuery.isError && complaintsQuery.isError && confidentialQuery.isError,
           residents: residentsQuery.isError,
-          documentation: evidenceQuery.isError && dashboardQuery.isError,
+          documentation: evidenceQuery.isError && dashboardQuery.isError && workItemsQuery.isError,
           alerts: dashboardQuery.isError,
         },
       }),
@@ -226,6 +239,7 @@ export default function ComprehensiveReport() {
       evidenceQuery.data,
       evidenceQuery.isError,
       workItemsQuery.data,
+      workItemsQuery.isError,
       includeResidents,
       scopeFacilityId,
       facilityOpsQuery.isError,
