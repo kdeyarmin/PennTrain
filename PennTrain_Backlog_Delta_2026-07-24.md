@@ -4,6 +4,34 @@
 **Scope:** new work only. PT-001..PT-050 remain in the prior backlogs; statuses for previously-open items are in the companion report. Numbering continues from PT-050.
 **Overlap notice:** open draft PR #265 independently fixes parts of PT-051 (migration rename) and several appendix nits; reconcile before starting work.
 
+## Same-day fix round — status ledger
+
+A fix round on this branch (same day) addressed the tickets below. Statuses:
+
+| ID | Status after fix round | Remaining |
+|---|---|---|
+| PT-051 | **Fixed** (chain reconciled to production's ledger; duplicate-version gate in PR CI) | — |
+| PT-052 | **Fixed** (entitlement cutoff + single trial budget, pgTAP) | Trial-expiry UI surfacing + T-7/T-1 notices |
+| PT-053 | **Fixed** (period-scoped keys, backoff retries, live-Stripe verify, 0-row detection) | — |
+| PT-054 | **Mostly fixed** (per-From caps, phone budget, daily kill-switch, CallSid idempotency, socket cap, TwiML 200) | DB-backed pending/transfer stores before publishing the number |
+| PT-055 | **Fixed** (claims corrected; unlaunched tiers deactivated in-catalog; partner terms are explicit enrollment) | Marketing-copy-vs-catalog pinning test |
+| PT-056 | **Fixed** (rebuilt as "CareBase Guide", customer voice, a11y complete) | — |
+| PT-057 | **Fixed** (dead-letter receipts, 200 on poison, pgTAP) | Operator list/retry UI |
+| PT-058 | **Fixed** (coded errors with actionable copy + MFA link) | — |
+| PT-059 | **Fixed** (ledger-derived aging, FIFO credits, tests rewritten) | — |
+| PT-060 | **Fixed** (assignment re-check, exact counts, scoped picker) | — |
+| PT-061 | **Fixed** (comment claims UI gating only) | Server-side quiesce only if ever needed |
+| PT-062 | **Fixed** (trusted IP derivation, global send ceilings, oracle removed) | Double-opt-in decision |
+| PT-063 | **Fixed** (weak ETag/Last-Modified + 304s, marketing max-age; verified live) | — |
+| PT-064 | **Mostly fixed** (one-click unsubscribe + RFC 8058 headers; digest-honest copy) | Digest cron sender |
+| PT-065 | **Fixed** (citation qualifiers + matrix documents the new courses) | — |
+| PT-066 | **Fixed** (charge idempotency, payee audit diffs, six pgTAP suites) | — |
+| PT-067 | **Withdrawn — finding invalid.** `20260705163816_fix_checkin_token_url_safety.sql` already set a URL-safe token default and regenerated unsafe rows; every later generator uses that default. The review cited the superseded original default. `encodeURIComponent` added at the link builder as belt-and-braces only. | — |
+| PT-068 | **Fixed** (functions deploy automated post-CI in the deploy workflow) | Content-level functions drift check |
+| PT-069 | **Mostly fixed** (missing cron secret now raises visibly) | Per-environment vault-seeded functions base URL across all cron jobs |
+
+Appendix nits N-1 through N-15: all addressed except N-2 (deliberate, documented grandfathering kept), the N-5 Realtime-channel env-only shutdown (documented), and N-12's script-coverage ratchets (unchanged). Carried-over pre-2026-07-24 blockers (PT-003, PT-006B, PT-007, PT-008, PT-015/016 residuals, PT-019, PT-026, PT-042) were out of this fix round's scope and remain open.
+
 ## PT-051 — Reconcile the migration chain with production before re-arming deploys (duplicate version + wholesale bookkeeping divergence)
 
 **Labels:** `priority:P0`, `area:deploy`, `area:database`

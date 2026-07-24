@@ -101,6 +101,10 @@ After publication, the PR's own CI failure prompted a check of production's `sup
 
 This episode is PT-015's content-provenance gap made concrete: version-presence checking cannot see any of divergence classes 1–3 above.
 
+## Post-review addendum 2: same-day fix round
+
+A fix round on this branch addressed the new backlog: PT-051 (migration chain reconciled to production's recorded history, with the duplicate-version gate now in PR CI), PT-052/053/057/058/059 (billing), PT-054/060 (voice), PT-055/056/061/062/063/064 (marketing/funnel), PT-065/066 (content/coverage), PT-068/069 (deploy/cron), and appendix nits N-1, N-3 through N-11, and N-13/N-14. **PT-067 is withdrawn as invalid**: `20260705163816_fix_checkin_token_url_safety.sql` had already switched check-in tokens to a URL-safe alphabet and regenerated unsafe rows; the finding cited the superseded original default. The per-ticket ledger, including the slices that remain open (trial-expiry UI, DB-backed phone handoff stores, digest sender, failed-webhook operator UI, per-environment cron URLs), is in `PennTrain_Backlog_Delta_2026-07-24.md`. Carried-over pre-07-24 blockers (PT-003, PT-006B, PT-007, PT-008, PT-019, PT-026, PT-042 and the PT-015/016 residuals) were outside this fix round and remain open.
+
 ## Strengths worth preserving
 
 - **Migration discipline**: 100% of new SECURITY DEFINER functions pin `search_path`; SECURITY INVOKER for read paths so RLS composes; restrictive module policies down to storage buckets; append-only/immutability triggers; root-cause narratives inside migration files (`survey_day_mode.sql` is a model migration). The drift gate catching PT-051 is the control working.
