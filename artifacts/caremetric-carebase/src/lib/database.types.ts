@@ -1781,6 +1781,267 @@ export type Database = {
           },
         ]
       }
+      clinical_assessments: {
+        Row: {
+          assessed_at: string
+          assessed_by_name: string | null
+          assessed_by_profile_id: string | null
+          assessment_type: string
+          created_at: string
+          custom_label: string | null
+          facility_id: string
+          finalized_at: string | null
+          id: string
+          instrument_loinc: string | null
+          organization_id: string
+          resident_assessment_form_id: string | null
+          resident_id: string
+          responses: Json
+          risk_band: string | null
+          score: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessed_at: string
+          assessed_by_name?: string | null
+          assessed_by_profile_id?: string | null
+          assessment_type: string
+          created_at?: string
+          custom_label?: string | null
+          facility_id: string
+          finalized_at?: string | null
+          id?: string
+          instrument_loinc?: string | null
+          organization_id: string
+          resident_assessment_form_id?: string | null
+          resident_id: string
+          responses?: Json
+          risk_band?: string | null
+          score?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assessed_at?: string
+          assessed_by_name?: string | null
+          assessed_by_profile_id?: string | null
+          assessment_type?: string
+          created_at?: string
+          custom_label?: string | null
+          facility_id?: string
+          finalized_at?: string | null
+          id?: string
+          instrument_loinc?: string | null
+          organization_id?: string
+          resident_assessment_form_id?: string | null
+          resident_id?: string
+          responses?: Json
+          risk_band?: string | null
+          score?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_assessments_assessed_by_profile_id_fkey"
+            columns: ["assessed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_resident_assessment_form_id_fkey"
+            columns: ["resident_assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_care_plan_goals: {
+        Row: {
+          addresses_condition_ref: string | null
+          care_plan_id: string
+          created_at: string
+          description: string
+          facility_id: string
+          id: string
+          organization_id: string
+          status: string
+          target_measure: string | null
+          updated_at: string
+        }
+        Insert: {
+          addresses_condition_ref?: string | null
+          care_plan_id: string
+          created_at?: string
+          description: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          status?: string
+          target_measure?: string | null
+          updated_at?: string
+        }
+        Update: {
+          addresses_condition_ref?: string | null
+          care_plan_id?: string
+          created_at?: string
+          description?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          status?: string
+          target_measure?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_care_plan_goals_care_plan_id_organization_id_faci_fkey"
+            columns: ["care_plan_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_care_plans"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plan_goals_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plan_goals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_care_plans: {
+        Row: {
+          authored_by_profile_id: string | null
+          category: string
+          created_at: string
+          facility_id: string
+          fhir_care_plan_id: string | null
+          id: string
+          organization_id: string
+          period_end: string | null
+          period_start: string | null
+          resident_id: string
+          status: string
+          support_plan_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          authored_by_profile_id?: string | null
+          category?: string
+          created_at?: string
+          facility_id: string
+          fhir_care_plan_id?: string | null
+          id?: string
+          organization_id: string
+          period_end?: string | null
+          period_start?: string | null
+          resident_id: string
+          status?: string
+          support_plan_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          authored_by_profile_id?: string | null
+          category?: string
+          created_at?: string
+          facility_id?: string
+          fhir_care_plan_id?: string | null
+          id?: string
+          organization_id?: string
+          period_end?: string | null
+          period_start?: string | null
+          resident_id?: string
+          status?: string
+          support_plan_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_care_plans_authored_by_profile_id_fkey"
+            columns: ["authored_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_support_plan_id_fkey"
+            columns: ["support_plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinical_observation_amendments: {
         Row: {
           amended_by_profile_id: string | null
@@ -1953,6 +2214,191 @@ export type Database = {
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_progress_note_versions: {
+        Row: {
+          amended_by_profile_id: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          note_id: string
+          organization_id: string
+          prior_body: string | null
+          prior_status: string | null
+          reason: string | null
+          version_type: string
+        }
+        Insert: {
+          amended_by_profile_id?: string | null
+          created_at?: string
+          facility_id: string
+          id?: string
+          note_id: string
+          organization_id: string
+          prior_body?: string | null
+          prior_status?: string | null
+          reason?: string | null
+          version_type: string
+        }
+        Update: {
+          amended_by_profile_id?: string | null
+          created_at?: string
+          facility_id?: string
+          id?: string
+          note_id?: string
+          organization_id?: string
+          prior_body?: string | null
+          prior_status?: string | null
+          reason?: string | null
+          version_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_progress_note_versio_note_id_organization_id_faci_fkey"
+            columns: ["note_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_progress_notes"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_note_versions_amended_by_profile_id_fkey"
+            columns: ["amended_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_note_versions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_note_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_progress_notes: {
+        Row: {
+          author_name: string | null
+          author_profile_id: string | null
+          authored_at: string
+          body: string
+          care_plan_id: string | null
+          change_event_id: string | null
+          created_at: string
+          error_reason: string | null
+          facility_id: string
+          id: string
+          note_type: string
+          organization_id: string
+          resident_id: string
+          signed_at: string | null
+          signed_by_profile_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          author_name?: string | null
+          author_profile_id?: string | null
+          authored_at: string
+          body: string
+          care_plan_id?: string | null
+          change_event_id?: string | null
+          created_at?: string
+          error_reason?: string | null
+          facility_id: string
+          id?: string
+          note_type?: string
+          organization_id: string
+          resident_id: string
+          signed_at?: string | null
+          signed_by_profile_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string | null
+          author_profile_id?: string | null
+          authored_at?: string
+          body?: string
+          care_plan_id?: string | null
+          change_event_id?: string | null
+          created_at?: string
+          error_reason?: string | null
+          facility_id?: string
+          id?: string
+          note_type?: string
+          organization_id?: string
+          resident_id?: string
+          signed_at?: string | null
+          signed_by_profile_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_progress_notes_author_profile_id_fkey"
+            columns: ["author_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_care_plan_id_fkey"
+            columns: ["care_plan_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_care_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_change_event_id_fkey"
+            columns: ["change_event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_change_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_signed_by_profile_id_fkey"
+            columns: ["signed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -32345,6 +32791,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      amend_clinical_progress_note: {
+        Args: { p_new_body: string; p_note_id: string; p_reason: string }
+        Returns: boolean
+      }
       apply_employee_lifecycle_transition: {
         Args: {
           p_effective_on?: string
@@ -33842,6 +34292,10 @@ export type Database = {
         Args: { p_feature_key: string }
         Returns: boolean
       }
+      finalize_clinical_assessment: {
+        Args: { p_assessment_id: string }
+        Returns: boolean
+      }
       finalize_confidential_intake_attempt: {
         Args: {
           p_attempt_id: number
@@ -35286,6 +35740,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_clinical_assessment: {
+        Args: {
+          p_assessed_at: string
+          p_assessment_type: string
+          p_custom_label?: string
+          p_instrument_loinc?: string
+          p_resident_assessment_form_id?: string
+          p_resident_id: string
+          p_responses?: Json
+          p_risk_band?: string
+          p_score?: number
+        }
+        Returns: string
+      }
       record_clinical_observation: {
         Args: {
           p_custom_label?: string
@@ -35913,6 +36381,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      retract_clinical_progress_note: {
+        Args: { p_note_id: string; p_reason: string }
+        Returns: boolean
+      }
       retry_document_analyzer_job: {
         Args: { p_job_id: string }
         Returns: {
@@ -36119,6 +36591,42 @@ export type Database = {
           p_subject_type: string
         }
         Returns: Json
+      }
+      save_care_plan_goal: {
+        Args: {
+          p_addresses_condition_ref?: string
+          p_care_plan_id: string
+          p_description: string
+          p_goal_id?: string
+          p_status?: string
+          p_target_measure?: string
+        }
+        Returns: string
+      }
+      save_clinical_care_plan: {
+        Args: {
+          p_care_plan_id?: string
+          p_category: string
+          p_period_end?: string
+          p_period_start?: string
+          p_resident_id: string
+          p_status: string
+          p_support_plan_id?: string
+          p_title: string
+        }
+        Returns: string
+      }
+      save_clinical_progress_note: {
+        Args: {
+          p_authored_at: string
+          p_body: string
+          p_care_plan_id?: string
+          p_change_event_id?: string
+          p_note_id?: string
+          p_note_type: string
+          p_resident_id: string
+        }
+        Returns: string
       }
       save_customer_value_baseline: {
         Args: {
@@ -36738,6 +37246,10 @@ export type Database = {
           p_share?: boolean
         }
         Returns: undefined
+      }
+      sign_clinical_progress_note: {
+        Args: { p_note_id: string }
+        Returns: boolean
       }
       sign_move_in_guest_task: {
         Args: {

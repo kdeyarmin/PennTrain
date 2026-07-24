@@ -28,7 +28,7 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
 | M1 | Native vitals & clinical observations (chart + entry + retraction) | **Delivered** |
 | M2 | FHIR pipe via medications (`MedicationRequest`/`MedicationAdministration`) | **Delivered** |
 | M3 | FHIR allergies, diagnoses/problem list, orders, documents | **Delivered** |
-| M4 | Native care plans, assessments, progress notes (sign-and-lock) | Planned |
+| M4 | Native care plans, assessments, progress notes (sign-and-lock) | **Delivered** |
 | M5 | Chart consolidation, timeline, hardening, optional write-back | Planned |
 
 ## Data model (delivered in M0–M1)

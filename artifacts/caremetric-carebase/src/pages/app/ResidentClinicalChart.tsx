@@ -23,6 +23,7 @@ import {
   useResidentClinicalObservations,
 } from "@/hooks/useClinicalObservations";
 import { useResidentFhirClinical } from "@/hooks/useFhirIntegration";
+import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDocumentation";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/lib/pageTitle";
@@ -262,6 +263,7 @@ export default function ResidentClinicalChart() {
           <TabsTrigger value="medications">Medications</TabsTrigger>
           <TabsTrigger value="allergies">Allergies &amp; diagnoses</TabsTrigger>
           <TabsTrigger value="vitals">Vitals &amp; observations</TabsTrigger>
+          <TabsTrigger value="care">Care &amp; notes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary" className="space-y-4">
@@ -428,6 +430,12 @@ export default function ResidentClinicalChart() {
             })
           )}
         </TabsContent>
+
+        {id && (
+          <TabsContent value="care">
+            <ResidentCareDocumentation residentId={id} canChart={canChart} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <Dialog open={recordOpen} onOpenChange={(open) => { setRecordOpen(open); if (!open) resetRecordForm(); }}>
