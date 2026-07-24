@@ -79,8 +79,8 @@ const WEEK_EVENTS = [
 
 const SPECIFIC_PROMISES = [
   {
-    title: "We don't replace your eMAR, EHR, or payroll.",
-    text: "CareBase runs the coordination layer around them — and routes medication events from your external source instead of pretending to administer them.",
+    title: "We integrate with your EHR and eMAR — we don't administer medications.",
+    text: "CareBase now keeps a resident clinical record — native charting plus FHIR-integrated medications, allergies, and diagnoses — and runs the coordination layer around your systems. Medication events are ingested read-only from your pharmacy source instead of administered here.",
   },
   {
     title: "We don't guarantee a deficiency-free survey.",

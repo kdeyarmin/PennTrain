@@ -165,7 +165,7 @@ const DOMAINS: Domain[] = [
       "Appointments & transport",
       "Resident finance subledger",
     ],
-    note: "Not an EHR or eMAR — CareBase handles the non-clinical work around the chart and pulls medication events in from your existing system.",
+    note: "Now includes a resident clinical record — native charting (vitals, care plans, assessments, progress notes) plus FHIR integration for medications, allergies, and diagnoses. Medication administration stays in your pharmacy eMAR; CareBase ingests those events read-only.",
     mockup: <ResidentMockup />,
   },
   {
@@ -373,7 +373,7 @@ const FAQS: Faq[] = [
   {
     question: "What is CareBase?",
     answer:
-      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and assisted living facilities. It's not an EHR or eMAR.",
+      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and assisted living facilities — now with a built-in resident clinical record: native charting plus FHIR integration for externally-sourced medications, allergies, and diagnoses.",
   },
   {
     question: "How much does it cost?",
@@ -388,7 +388,7 @@ const FAQS: Faq[] = [
   {
     question: "What does it replace — and not replace?",
     answer:
-      "It replaces training spreadsheets, paper binders, attendance-point trackers, and basic scheduling. It works alongside — and never replaces — your eMAR, EHR, payroll, HR system, and accounting.",
+      "It replaces training spreadsheets, paper binders, attendance-point trackers, and basic scheduling, and now keeps a resident clinical record of its own. It works alongside your pharmacy eMAR, payroll, HR system, and accounting, and integrates with your EHR via FHIR.",
   },
   {
     question: "Can a surveyor or auditor get access?",

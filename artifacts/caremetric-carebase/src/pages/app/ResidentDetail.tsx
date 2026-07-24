@@ -28,7 +28,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil, Printer } from "lucide-react";
+import { ArrowLeft, BedDouble, ClipboardList, FileText, Upload, Download, Trash2, Check, TriangleAlert, FilePenLine, Lock, Users, Plus, Pencil, Printer, HeartPulse } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
@@ -309,6 +309,11 @@ export default function ResidentDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {!isPlatformRoute && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/app/residents/${id}/chart`}><HeartPulse className="mr-2 h-3.5 w-3.5" /> Clinical chart</Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => window.print()} disabled={informalSupportsLoading || itemsLoading || documentsLoading}>
             <Printer className="mr-2 h-3.5 w-3.5" /> Print Face Sheet
           </Button>

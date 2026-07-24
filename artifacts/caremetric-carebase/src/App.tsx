@@ -95,6 +95,7 @@ const Violations = lazy(() => import("@/pages/app/Violations"));
 const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
 const Residents = lazy(() => import("@/pages/app/Residents"));
 const ResidentDetail = lazy(() => import("@/pages/app/ResidentDetail"));
+const ResidentClinicalChart = lazy(() => import("@/pages/app/ResidentClinicalChart"));
 const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
 const StateFormsCenter = lazy(() => import("@/pages/app/StateFormsCenter"));
 const ServiceDelivery = lazy(() => import("@/pages/app/ServiceDelivery"));
@@ -110,6 +111,7 @@ const DietaryOperations = lazy(() => import("@/pages/app/DietaryOperations"));
 const ResidentServicesCalendar = lazy(() => import("@/pages/app/ResidentServicesCalendar"));
 const ResidentFinancialOperations = lazy(() => import("@/pages/app/ResidentFinancialOperations"));
 const MedicationIntegration = lazy(() => import("@/pages/app/MedicationIntegration"));
+const FhirIntegration = lazy(() => import("@/pages/app/FhirIntegration"));
 const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
 const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
 const EmergencyOperations = lazy(() => import("@/pages/app/EmergencyOperations"));
@@ -321,6 +323,10 @@ const VIOLATION_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"]
 // Matches residents_select RLS -- residents have no accounts of their own, so this is the same
 // no-trainer, no-self-service sensitivity model as violations/incidents.
 const RESIDENT_ROLES: UserRole[] = ["org_admin", "facility_manager", "auditor"];
+// Clinical charting applies to every facility type (not PCH/ALR-only). Auditors read the
+// chart; employees author via SECURITY DEFINER RPCs but reach it through a future,
+// dedicated caregiver surface, so they are not on this org-side route yet.
+const CLINICAL_CHART_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 // Matches inspection_items_select RLS -- trainer is included, unlike credentials/incidents,
 // since physical-plant compliance is the least sensitive of the three new modules.
 const INSPECTION_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
@@ -648,6 +654,9 @@ function Router() {
       <Route path="/app/medication-integration">
         {() => <ProtectedRoute component={MedicationIntegration} allowedRoles={RESIDENT_FINANCE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
+      <Route path="/app/fhir-integration">
+        {() => <ProtectedRoute component={FhirIntegration} allowedRoles={CLINICAL_CHART_ROLES} />}
+      </Route>
       <Route path="/app/credentials">
         {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}
       </Route>
@@ -716,6 +725,9 @@ function Router() {
       </Route>
       <Route path="/app/residents/:id">
         {() => <ProtectedRoute component={ResidentDetail} allowedRoles={RESIDENT_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/residents/:id/chart">
+        {() => <ProtectedRoute component={ResidentClinicalChart} allowedRoles={CLINICAL_CHART_ROLES} />}
       </Route>
       {/* Kept alongside /app/state-forms: older notification rows and bookmarks link here. */}
       <Route path="/app/resident-compliance">

@@ -84,7 +84,9 @@ Included backlog items: P3-01, P3-02, P3-03, P3-05.
 
 Dependencies: high data quality, normalized event timeline, AI governance controls, route/role model extensions.
 
-Risks: scope creep into EHR/payroll/vendor-management systems; AI output governance.
+Risks: scope creep into payroll/vendor-management systems; AI output governance. (EHR is no
+longer treated as out-of-scope scope-creep: clinical/EHR capability is now a deliberately-built
+part of the product as of 2026-07 -- see docs/HIPAA_CLINICAL_DATA.md.)
 
 Validation requirements:
 

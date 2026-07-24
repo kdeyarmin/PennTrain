@@ -402,7 +402,7 @@ export default function ServiceDelivery() {
         <p className="text-muted-foreground">
           {isEmployee
             ? "Record required residential services and exceptions for your facility."
-            : "Support-plan requirements, scheduled service tasks, and exception follow-up. This is not an eMAR or clinical-order system."}
+            : "Support-plan requirements, scheduled service tasks, and exception follow-up. This is the operational service layer; clinical orders and medications live in the resident clinical chart (FHIR-integrated)."}
         </p>
       </div>
 

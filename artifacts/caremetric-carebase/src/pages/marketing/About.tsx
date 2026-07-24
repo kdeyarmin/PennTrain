@@ -17,7 +17,7 @@ const STORY = [
 const PRINCIPLES = [
   {
     label: "01 — HONEST BOUNDARIES",
-    text: "We name what CareBase doesn't replace — your eMAR, EHR, payroll, and accounting stay authoritative. No compliance guarantee, no universal ROI number.",
+    text: "We name what CareBase doesn't replace — your pharmacy eMAR, payroll, and accounting stay authoritative — while CareBase now maintains the resident clinical record. No compliance guarantee, no universal ROI number.",
   },
   {
     label: "02 — A HUMAN CHECKS THE AI",

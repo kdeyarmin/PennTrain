@@ -30,7 +30,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Product & replacement",
     question: "What is CareMetric CareBase?",
     answer:
-      "An operations, staff-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects training, credentials, resident operations, incidents, inspections, scheduling, documents, and documentation in one system, with each role seeing only what it should. It is not an EHR or eMAR.",
+      "An operations, staff-compliance, and survey-readiness platform built first for Pennsylvania personal care homes and assisted living facilities. It connects training, credentials, resident operations, incidents, inspections, scheduling, documents, and documentation in one system, with each role seeing only what it should. It now also keeps a resident clinical record — native charting plus FHIR integration for externally-sourced medications, allergies, and diagnoses.",
   },
   {
     category: "Product & replacement",
@@ -42,7 +42,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Product & replacement",
     question: "What does it not replace?",
     answer:
-      "Your eMAR or pharmacy platform, EHR or clinical chart, payroll and timeclock, HRIS, accounting general ledger, claims or billing system, emergency-call system, and any accredited external training provider your rules still require. CareBase works alongside them.",
+      "Your pharmacy platform or eMAR and your EHR — CareBase now integrates with these via FHIR to pull in medications, allergies, and diagnoses read-only — plus payroll and timeclock, HRIS, accounting general ledger, claims or billing system, emergency-call system, and any accredited external training provider your rules still require. CareBase connects to or works alongside them.",
   },
   {
     category: "Product & replacement",

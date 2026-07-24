@@ -16,6 +16,7 @@ export const PHASE2_INTEGRATION_COMMAND_CONTRACTS: Readonly<
   Record<string, { schemaVersion: string; requiredScope: string }>
 > = {
   "medication.snapshot.import": { schemaVersion: "2026-07-14", requiredScope: "medications:write" },
+  "fhir.bundle.import": { schemaVersion: "2026-07-25", requiredScope: "commands:write" },
 };
 
 export function phase2CommandContract(

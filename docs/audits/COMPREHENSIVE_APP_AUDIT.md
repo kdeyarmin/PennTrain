@@ -380,7 +380,11 @@ Recommended testing strategy:
 ## Features that should not be added now
 
 - Full payroll processing: high compliance burden; integrate/export instead.
-- Full EHR/clinical charting: outside assisted living operations scope and would increase clinical risk.
+- ~~Full EHR/clinical charting: outside assisted living operations scope and would increase clinical risk.~~
+  **Superseded (2026-07):** EHR capability is now in scope and being built as a hybrid model
+  (native clinical capture + FHIR R4 ingestion). See docs/HIPAA_CLINICAL_DATA.md. The clinical-risk
+  considerations are addressed through RLS, HIPAA access auditing, consent tracking, and append-only
+  clinical evidence rather than by excluding the capability.
 - In-app payment card handling: current link-out approach avoids PCI scope.
 - Social/community feed: low value relative to compliance workflows.
 - Custom form builder before stabilizing existing DHS/state forms: likely duplicates existing structured form work.

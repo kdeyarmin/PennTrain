@@ -1784,6 +1784,628 @@ export type Database = {
           },
         ]
       }
+      clinical_assessments: {
+        Row: {
+          assessed_at: string
+          assessed_by_name: string | null
+          assessed_by_profile_id: string | null
+          assessment_type: string
+          created_at: string
+          custom_label: string | null
+          facility_id: string
+          finalized_at: string | null
+          id: string
+          instrument_loinc: string | null
+          organization_id: string
+          resident_assessment_form_id: string | null
+          resident_id: string
+          responses: Json
+          risk_band: string | null
+          score: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessed_at: string
+          assessed_by_name?: string | null
+          assessed_by_profile_id?: string | null
+          assessment_type: string
+          created_at?: string
+          custom_label?: string | null
+          facility_id: string
+          finalized_at?: string | null
+          id?: string
+          instrument_loinc?: string | null
+          organization_id: string
+          resident_assessment_form_id?: string | null
+          resident_id: string
+          responses?: Json
+          risk_band?: string | null
+          score?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assessed_at?: string
+          assessed_by_name?: string | null
+          assessed_by_profile_id?: string | null
+          assessment_type?: string
+          created_at?: string
+          custom_label?: string | null
+          facility_id?: string
+          finalized_at?: string | null
+          id?: string
+          instrument_loinc?: string | null
+          organization_id?: string
+          resident_assessment_form_id?: string | null
+          resident_id?: string
+          responses?: Json
+          risk_band?: string | null
+          score?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_assessments_assessed_by_profile_id_fkey"
+            columns: ["assessed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_resident_assessment_form_id_fkey"
+            columns: ["resident_assessment_form_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_assessments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_care_plan_goals: {
+        Row: {
+          addresses_condition_ref: string | null
+          care_plan_id: string
+          created_at: string
+          description: string
+          facility_id: string
+          id: string
+          organization_id: string
+          status: string
+          target_measure: string | null
+          updated_at: string
+        }
+        Insert: {
+          addresses_condition_ref?: string | null
+          care_plan_id: string
+          created_at?: string
+          description: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          status?: string
+          target_measure?: string | null
+          updated_at?: string
+        }
+        Update: {
+          addresses_condition_ref?: string | null
+          care_plan_id?: string
+          created_at?: string
+          description?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          status?: string
+          target_measure?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_care_plan_goals_care_plan_id_organization_id_faci_fkey"
+            columns: ["care_plan_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_care_plans"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plan_goals_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plan_goals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_care_plans: {
+        Row: {
+          authored_by_profile_id: string | null
+          category: string
+          created_at: string
+          facility_id: string
+          fhir_care_plan_id: string | null
+          id: string
+          organization_id: string
+          period_end: string | null
+          period_start: string | null
+          resident_id: string
+          status: string
+          support_plan_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          authored_by_profile_id?: string | null
+          category?: string
+          created_at?: string
+          facility_id: string
+          fhir_care_plan_id?: string | null
+          id?: string
+          organization_id: string
+          period_end?: string | null
+          period_start?: string | null
+          resident_id: string
+          status?: string
+          support_plan_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          authored_by_profile_id?: string | null
+          category?: string
+          created_at?: string
+          facility_id?: string
+          fhir_care_plan_id?: string | null
+          id?: string
+          organization_id?: string
+          period_end?: string | null
+          period_start?: string | null
+          resident_id?: string
+          status?: string
+          support_plan_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_care_plans_authored_by_profile_id_fkey"
+            columns: ["authored_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_care_plans_support_plan_id_fkey"
+            columns: ["support_plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_observation_amendments: {
+        Row: {
+          amended_by_profile_id: string | null
+          amendment_type: string
+          created_at: string
+          facility_id: string
+          id: string
+          observation_id: string
+          organization_id: string
+          prior_value: Json
+          reason: string
+        }
+        Insert: {
+          amended_by_profile_id?: string | null
+          amendment_type: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          observation_id: string
+          organization_id: string
+          prior_value?: Json
+          reason: string
+        }
+        Update: {
+          amended_by_profile_id?: string | null
+          amendment_type?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          observation_id?: string
+          organization_id?: string
+          prior_value?: Json
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_observation_amendmen_observation_id_organization__fkey"
+            columns: ["observation_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_observations"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+          {
+            foreignKeyName: "clinical_observation_amendments_amended_by_profile_id_fkey"
+            columns: ["amended_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observation_amendments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observation_amendments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_observations: {
+        Row: {
+          abnormal_flag: string
+          created_at: string
+          custom_label: string | null
+          entered_in_error: boolean
+          error_reason: string | null
+          facility_id: string
+          fhir_observation_id: string | null
+          id: string
+          loinc_code: string | null
+          note: string | null
+          observation_type: string
+          observed_at: string
+          organization_id: string
+          recorded_by_name: string | null
+          recorded_by_profile_id: string | null
+          resident_id: string
+          source: string
+          unit: string | null
+          updated_at: string
+          value_numeric: number | null
+          value_secondary: number | null
+          value_text: string | null
+        }
+        Insert: {
+          abnormal_flag?: string
+          created_at?: string
+          custom_label?: string | null
+          entered_in_error?: boolean
+          error_reason?: string | null
+          facility_id: string
+          fhir_observation_id?: string | null
+          id?: string
+          loinc_code?: string | null
+          note?: string | null
+          observation_type: string
+          observed_at: string
+          organization_id: string
+          recorded_by_name?: string | null
+          recorded_by_profile_id?: string | null
+          resident_id: string
+          source?: string
+          unit?: string | null
+          updated_at?: string
+          value_numeric?: number | null
+          value_secondary?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          abnormal_flag?: string
+          created_at?: string
+          custom_label?: string | null
+          entered_in_error?: boolean
+          error_reason?: string | null
+          facility_id?: string
+          fhir_observation_id?: string | null
+          id?: string
+          loinc_code?: string | null
+          note?: string | null
+          observation_type?: string
+          observed_at?: string
+          organization_id?: string
+          recorded_by_name?: string | null
+          recorded_by_profile_id?: string | null
+          resident_id?: string
+          source?: string
+          unit?: string | null
+          updated_at?: string
+          value_numeric?: number | null
+          value_secondary?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_observations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_recorded_by_profile_id_fkey"
+            columns: ["recorded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_observations_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_progress_note_versions: {
+        Row: {
+          amended_by_profile_id: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          note_id: string
+          organization_id: string
+          prior_body: string | null
+          prior_status: string | null
+          reason: string | null
+          version_type: string
+        }
+        Insert: {
+          amended_by_profile_id?: string | null
+          created_at?: string
+          facility_id: string
+          id?: string
+          note_id: string
+          organization_id: string
+          prior_body?: string | null
+          prior_status?: string | null
+          reason?: string | null
+          version_type: string
+        }
+        Update: {
+          amended_by_profile_id?: string | null
+          created_at?: string
+          facility_id?: string
+          id?: string
+          note_id?: string
+          organization_id?: string
+          prior_body?: string | null
+          prior_status?: string | null
+          reason?: string | null
+          version_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_progress_note_versio_note_id_organization_id_faci_fkey"
+            columns: ["note_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_progress_notes"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_note_versions_amended_by_profile_id_fkey"
+            columns: ["amended_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_note_versions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_note_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clinical_progress_notes: {
+        Row: {
+          author_name: string | null
+          author_profile_id: string | null
+          authored_at: string
+          body: string
+          care_plan_id: string | null
+          change_event_id: string | null
+          created_at: string
+          error_reason: string | null
+          facility_id: string
+          id: string
+          note_type: string
+          organization_id: string
+          resident_id: string
+          signed_at: string | null
+          signed_by_profile_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          author_name?: string | null
+          author_profile_id?: string | null
+          authored_at: string
+          body: string
+          care_plan_id?: string | null
+          change_event_id?: string | null
+          created_at?: string
+          error_reason?: string | null
+          facility_id: string
+          id?: string
+          note_type?: string
+          organization_id: string
+          resident_id: string
+          signed_at?: string | null
+          signed_by_profile_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          author_name?: string | null
+          author_profile_id?: string | null
+          authored_at?: string
+          body?: string
+          care_plan_id?: string | null
+          change_event_id?: string | null
+          created_at?: string
+          error_reason?: string | null
+          facility_id?: string
+          id?: string
+          note_type?: string
+          organization_id?: string
+          resident_id?: string
+          signed_at?: string | null
+          signed_by_profile_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinical_progress_notes_author_profile_id_fkey"
+            columns: ["author_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_care_plan_id_fkey"
+            columns: ["care_plan_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_care_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_change_event_id_fkey"
+            columns: ["change_event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_change_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinical_progress_notes_signed_by_profile_id_fkey"
+            columns: ["signed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competency_record_items: {
         Row: {
           competency_record_id: string
@@ -9076,6 +9698,7 @@ export type Database = {
           administrator_email: string | null
           administrator_name: string | null
           city: string | null
+          clinical_enabled: boolean
           created_at: string
           default_care_frequency: string | null
           default_care_responsible_party: string | null
@@ -9098,6 +9721,7 @@ export type Database = {
           administrator_email?: string | null
           administrator_name?: string | null
           city?: string | null
+          clinical_enabled?: boolean
           created_at?: string
           default_care_frequency?: string | null
           default_care_responsible_party?: string | null
@@ -9120,6 +9744,7 @@ export type Database = {
           administrator_email?: string | null
           administrator_name?: string | null
           city?: string | null
+          clinical_enabled?: boolean
           created_at?: string
           default_care_frequency?: string | null
           default_care_responsible_party?: string | null
@@ -10041,6 +10666,966 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      fhir_allergy_intolerances: {
+        Row: {
+          category: string[] | null
+          clinical_status: string | null
+          criticality: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id: string
+          imported_at: string
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          reaction_manifestations: Json | null
+          recorded_date: string | null
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+          substance_code: string | null
+          substance_display: string
+          substance_system: string | null
+          verification_status: string | null
+        }
+        Insert: {
+          category?: string[] | null
+          clinical_status?: string | null
+          criticality?: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id?: string
+          imported_at?: string
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          reaction_manifestations?: Json | null
+          recorded_date?: string | null
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+          substance_code?: string | null
+          substance_display: string
+          substance_system?: string | null
+          verification_status?: string | null
+        }
+        Update: {
+          category?: string[] | null
+          clinical_status?: string | null
+          criticality?: string | null
+          facility_id?: string
+          fhir_resource_id?: string
+          id?: string
+          imported_at?: string
+          organization_id?: string
+          raw_record_sha256?: string
+          raw_resource?: Json
+          reaction_manifestations?: Json | null
+          recorded_date?: string | null
+          resident_id?: string
+          source_id?: string
+          source_updated_at?: string
+          substance_code?: string | null
+          substance_display?: string
+          substance_system?: string | null
+          verification_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_allergy_intolerances_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_allergy_intolerances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_allergy_intolerances_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_allergy_intolerances_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_allergy_intolerances_source_id_organization_id_facili_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_conditions: {
+        Row: {
+          abatement_date: string | null
+          category: string | null
+          clinical_status: string | null
+          code: string | null
+          code_display: string
+          code_system: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id: string
+          imported_at: string
+          onset_date: string | null
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          recorded_date: string | null
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+          verification_status: string | null
+        }
+        Insert: {
+          abatement_date?: string | null
+          category?: string | null
+          clinical_status?: string | null
+          code?: string | null
+          code_display: string
+          code_system?: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id?: string
+          imported_at?: string
+          onset_date?: string | null
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          recorded_date?: string | null
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+          verification_status?: string | null
+        }
+        Update: {
+          abatement_date?: string | null
+          category?: string | null
+          clinical_status?: string | null
+          code?: string | null
+          code_display?: string
+          code_system?: string | null
+          facility_id?: string
+          fhir_resource_id?: string
+          id?: string
+          imported_at?: string
+          onset_date?: string | null
+          organization_id?: string
+          raw_record_sha256?: string
+          raw_resource?: Json
+          recorded_date?: string | null
+          resident_id?: string
+          source_id?: string
+          source_updated_at?: string
+          verification_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_conditions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_conditions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_conditions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_conditions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_conditions_source_id_organization_id_facility_id_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_document_references: {
+        Row: {
+          content_content_type: string | null
+          content_url: string | null
+          context_start: string | null
+          doc_status: string | null
+          doc_type_code: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id: string
+          imported_at: string
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+          type_display: string | null
+        }
+        Insert: {
+          content_content_type?: string | null
+          content_url?: string | null
+          context_start?: string | null
+          doc_status?: string | null
+          doc_type_code?: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id?: string
+          imported_at?: string
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+          type_display?: string | null
+        }
+        Update: {
+          content_content_type?: string | null
+          content_url?: string | null
+          context_start?: string | null
+          doc_status?: string | null
+          doc_type_code?: string | null
+          facility_id?: string
+          fhir_resource_id?: string
+          id?: string
+          imported_at?: string
+          organization_id?: string
+          raw_record_sha256?: string
+          raw_resource?: Json
+          resident_id?: string
+          source_id?: string
+          source_updated_at?: string
+          type_display?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_document_references_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_document_references_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_document_references_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_document_references_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_document_references_source_id_organization_id_facilit_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_integration_exceptions: {
+        Row: {
+          command_receipt_id: string | null
+          created_at: string
+          exception_key: string
+          exception_type: string
+          facility_id: string
+          fhir_patient_id: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          organization_id: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          source_id: string
+          status: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          command_receipt_id?: string | null
+          created_at?: string
+          exception_key: string
+          exception_type: string
+          facility_id: string
+          fhir_patient_id?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          organization_id: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_id: string
+          status?: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          command_receipt_id?: string | null
+          created_at?: string
+          exception_key?: string
+          exception_type?: string
+          facility_id?: string
+          fhir_patient_id?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          organization_id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_id?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_integration_exceptions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_integration_exceptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_integration_exceptions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_integration_exceptions_source_id_organization_id_faci_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_integration_sources: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credential_id: string | null
+          external_facility_id: string
+          facility_id: string
+          fhir_base_url: string | null
+          freshness_threshold_minutes: number
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_sync_completed_at: string | null
+          last_sync_receipt_id: string | null
+          last_sync_started_at: string | null
+          name: string
+          organization_id: string
+          status: string
+          supported_resources: string[]
+          updated_at: string
+          vendor_name: string
+          writeback_enabled: boolean
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credential_id?: string | null
+          external_facility_id: string
+          facility_id: string
+          fhir_base_url?: string | null
+          freshness_threshold_minutes?: number
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_sync_completed_at?: string | null
+          last_sync_receipt_id?: string | null
+          last_sync_started_at?: string | null
+          name: string
+          organization_id: string
+          status?: string
+          supported_resources?: string[]
+          updated_at?: string
+          vendor_name: string
+          writeback_enabled?: boolean
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credential_id?: string | null
+          external_facility_id?: string
+          facility_id?: string
+          fhir_base_url?: string | null
+          freshness_threshold_minutes?: number
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_sync_completed_at?: string | null
+          last_sync_receipt_id?: string | null
+          last_sync_started_at?: string | null
+          name?: string
+          organization_id?: string
+          status?: string
+          supported_resources?: string[]
+          updated_at?: string
+          vendor_name?: string
+          writeback_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_integration_sources_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_integration_sources_credential_id_fkey"
+            columns: ["credential_id"]
+            isOneToOne: false
+            referencedRelation: "integration_api_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_integration_sources_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_integration_sources_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fhir_medication_administrations: {
+        Row: {
+          administration_status: string
+          effective_at: string
+          facility_id: string
+          fhir_request_id: string | null
+          fhir_resource_id: string
+          id: string
+          imported_at: string
+          medication_display: string | null
+          organization_id: string
+          performer_display: string | null
+          raw_record_sha256: string
+          raw_resource: Json
+          resident_id: string
+          source_id: string
+        }
+        Insert: {
+          administration_status: string
+          effective_at: string
+          facility_id: string
+          fhir_request_id?: string | null
+          fhir_resource_id: string
+          id?: string
+          imported_at?: string
+          medication_display?: string | null
+          organization_id: string
+          performer_display?: string | null
+          raw_record_sha256: string
+          raw_resource: Json
+          resident_id: string
+          source_id: string
+        }
+        Update: {
+          administration_status?: string
+          effective_at?: string
+          facility_id?: string
+          fhir_request_id?: string | null
+          fhir_resource_id?: string
+          id?: string
+          imported_at?: string
+          medication_display?: string | null
+          organization_id?: string
+          performer_display?: string | null
+          raw_record_sha256?: string
+          raw_resource?: Json
+          resident_id?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_medication_administratio_source_id_organization_id_fa_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_administrations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_administrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_administrations_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_administrations_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fhir_medication_requests: {
+        Row: {
+          authored_on: string | null
+          dosage_text: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id: string
+          imported_at: string
+          intent: string | null
+          medication_display: string
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          request_status: string
+          requester_display: string | null
+          resident_id: string
+          rxnorm_code: string | null
+          source_id: string
+          source_updated_at: string
+        }
+        Insert: {
+          authored_on?: string | null
+          dosage_text?: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id?: string
+          imported_at?: string
+          intent?: string | null
+          medication_display: string
+          organization_id: string
+          raw_record_sha256: string
+          raw_resource: Json
+          request_status: string
+          requester_display?: string | null
+          resident_id: string
+          rxnorm_code?: string | null
+          source_id: string
+          source_updated_at: string
+        }
+        Update: {
+          authored_on?: string | null
+          dosage_text?: string | null
+          facility_id?: string
+          fhir_resource_id?: string
+          id?: string
+          imported_at?: string
+          intent?: string | null
+          medication_display?: string
+          organization_id?: string
+          raw_record_sha256?: string
+          raw_resource?: Json
+          request_status?: string
+          requester_display?: string | null
+          resident_id?: string
+          rxnorm_code?: string | null
+          source_id?: string
+          source_updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_medication_requests_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_requests_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_requests_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_medication_requests_source_id_organization_id_facilit_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_patient_mappings: {
+        Row: {
+          facility_id: string
+          fhir_patient_id: string
+          fhir_patient_identifier: Json | null
+          id: string
+          mapped_at: string
+          mapped_by: string | null
+          organization_id: string
+          resident_id: string
+          source_id: string
+          status: string
+        }
+        Insert: {
+          facility_id: string
+          fhir_patient_id: string
+          fhir_patient_identifier?: Json | null
+          id?: string
+          mapped_at?: string
+          mapped_by?: string | null
+          organization_id: string
+          resident_id: string
+          source_id: string
+          status?: string
+        }
+        Update: {
+          facility_id?: string
+          fhir_patient_id?: string
+          fhir_patient_identifier?: Json | null
+          id?: string
+          mapped_at?: string
+          mapped_by?: string | null
+          organization_id?: string
+          resident_id?: string
+          source_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_patient_mappings_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_patient_mappings_mapped_by_fkey"
+            columns: ["mapped_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_patient_mappings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_patient_mappings_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_patient_mappings_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_patient_mappings_source_id_organization_id_facility_i_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_service_requests: {
+        Row: {
+          authored_on: string | null
+          code: string | null
+          code_display: string
+          code_system: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id: string
+          imported_at: string
+          intent: string | null
+          organization_id: string
+          priority: string | null
+          raw_record_sha256: string
+          raw_resource: Json
+          request_status: string | null
+          requester_display: string | null
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+        }
+        Insert: {
+          authored_on?: string | null
+          code?: string | null
+          code_display: string
+          code_system?: string | null
+          facility_id: string
+          fhir_resource_id: string
+          id?: string
+          imported_at?: string
+          intent?: string | null
+          organization_id: string
+          priority?: string | null
+          raw_record_sha256: string
+          raw_resource: Json
+          request_status?: string | null
+          requester_display?: string | null
+          resident_id: string
+          source_id: string
+          source_updated_at: string
+        }
+        Update: {
+          authored_on?: string | null
+          code?: string | null
+          code_display?: string
+          code_system?: string | null
+          facility_id?: string
+          fhir_resource_id?: string
+          id?: string
+          imported_at?: string
+          intent?: string | null
+          organization_id?: string
+          priority?: string | null
+          raw_record_sha256?: string
+          raw_resource?: Json
+          request_status?: string | null
+          requester_display?: string | null
+          resident_id?: string
+          source_id?: string
+          source_updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_service_requests_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_service_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_service_requests_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_service_requests_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_service_requests_source_id_organization_id_facility_i_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
+          },
+        ]
+      }
+      fhir_writeback_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          external_resource_id: string | null
+          facility_id: string
+          fhir_patient_id: string
+          fhir_payload: Json
+          id: string
+          last_error: string | null
+          organization_id: string
+          origin_id: string
+          origin_kind: string
+          resident_id: string
+          resource_type: string
+          sent_at: string | null
+          source_id: string
+          status: string
+          target_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          external_resource_id?: string | null
+          facility_id: string
+          fhir_patient_id: string
+          fhir_payload: Json
+          id?: string
+          last_error?: string | null
+          organization_id: string
+          origin_id: string
+          origin_kind: string
+          resident_id: string
+          resource_type: string
+          sent_at?: string | null
+          source_id: string
+          status?: string
+          target_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          created_by?: string | null
+          external_resource_id?: string | null
+          facility_id?: string
+          fhir_patient_id?: string
+          fhir_payload?: Json
+          id?: string
+          last_error?: string | null
+          organization_id?: string
+          origin_id?: string
+          origin_kind?: string
+          resident_id?: string
+          resource_type?: string
+          sent_at?: string | null
+          source_id?: string
+          status?: string
+          target_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fhir_writeback_queue_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fhir_writeback_queue_source_id_organization_id_facility_id_fkey"
+            columns: ["source_id", "organization_id", "facility_id"]
+            isOneToOne: false
+            referencedRelation: "fhir_integration_sources"
+            referencedColumns: ["id", "organization_id", "facility_id"]
           },
         ]
       }
@@ -25740,6 +27325,7 @@ export type Database = {
           bed_id: string | null
           case_manager_name: string | null
           case_manager_phone: string | null
+          clinical_data_consent: string
           communication_preferences: string | null
           contract_document_id: string | null
           contract_effective_date: string | null
@@ -25795,6 +27381,7 @@ export type Database = {
           bed_id?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
+          clinical_data_consent?: string
           communication_preferences?: string | null
           contract_document_id?: string | null
           contract_effective_date?: string | null
@@ -25850,6 +27437,7 @@ export type Database = {
           bed_id?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
+          clinical_data_consent?: string
           communication_preferences?: string | null
           contract_document_id?: string | null
           contract_effective_date?: string | null
@@ -31321,6 +32909,22 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      amend_clinical_observation: {
+        Args: {
+          p_amendment_type: string
+          p_note?: string
+          p_observation_id: string
+          p_reason: string
+          p_value_numeric?: number
+          p_value_secondary?: number
+          p_value_text?: string
+        }
+        Returns: boolean
+      }
+      amend_clinical_progress_note: {
+        Args: { p_new_body: string; p_note_id: string; p_reason: string }
+        Returns: boolean
+      }
       apply_employee_lifecycle_transition: {
         Args: {
           p_effective_on?: string
@@ -31330,6 +32934,10 @@ export type Database = {
           p_transition: string
         }
         Returns: string
+      }
+      apply_fhir_integration_command: {
+        Args: { p_command_id: string }
+        Returns: Json
       }
       apply_hris_import_batch: {
         Args: { p_batch_size?: number; p_import_run_id: string }
@@ -31740,6 +33348,36 @@ export type Database = {
           source_path: string
         }[]
       }
+      claim_fhir_writeback_batch: {
+        Args: { p_limit?: number; p_stale_after_seconds?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          created_by: string | null
+          external_resource_id: string | null
+          facility_id: string
+          fhir_patient_id: string
+          fhir_payload: Json
+          id: string
+          last_error: string | null
+          organization_id: string
+          origin_id: string
+          origin_kind: string
+          resident_id: string
+          resource_type: string
+          sent_at: string | null
+          source_id: string
+          status: string
+          target_url: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "fhir_writeback_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_integration_webhook_deliveries: {
         Args: {
           p_batch_size?: number
@@ -31897,6 +33535,15 @@ export type Database = {
       complete_exclusion_source_refresh: {
         Args: { p_expected_record_count: number; p_run_id: string }
         Returns: Json
+      }
+      complete_fhir_writeback: {
+        Args: {
+          p_error?: string
+          p_external_resource_id?: string
+          p_id: string
+          p_success: boolean
+        }
+        Returns: undefined
       }
       complete_hospital_return: {
         Args: {
@@ -32814,6 +34461,10 @@ export type Database = {
         Args: { p_feature_key: string }
         Returns: boolean
       }
+      finalize_clinical_assessment: {
+        Args: { p_assessment_id: string }
+        Returns: boolean
+      }
       finalize_confidential_intake_attempt: {
         Args: {
           p_attempt_id: number
@@ -33303,6 +34954,48 @@ export type Database = {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
       }
+      get_resident_clinical_chart: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
+      }
+      get_resident_clinical_observations: {
+        Args: {
+          p_include_retracted?: boolean
+          p_limit?: number
+          p_observation_type?: string
+          p_resident_id: string
+        }
+        Returns: {
+          abnormal_flag: string
+          created_at: string
+          custom_label: string | null
+          entered_in_error: boolean
+          error_reason: string | null
+          facility_id: string
+          fhir_observation_id: string | null
+          id: string
+          loinc_code: string | null
+          note: string | null
+          observation_type: string
+          observed_at: string
+          organization_id: string
+          recorded_by_name: string | null
+          recorded_by_profile_id: string | null
+          resident_id: string
+          source: string
+          unit: string | null
+          updated_at: string
+          value_numeric: number | null
+          value_secondary: number | null
+          value_text: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "clinical_observations"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_resident_list_summary: {
         Args: {
           p_facility_id?: string
@@ -33758,6 +35451,16 @@ export type Database = {
           unit_name: string
         }[]
       }
+      log_clinical_access: {
+        Args: {
+          p_access_kind: string
+          p_clinical_domain?: string
+          p_correlation_id?: string
+          p_minimum_necessary_reason?: string
+          p_resident_id: string
+        }
+        Returns: undefined
+      }
       log_document_access: {
         Args: { p_document_id: string; p_document_table: string }
         Returns: undefined
@@ -33809,6 +35512,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      map_fhir_patient: {
+        Args: {
+          p_fhir_patient_id: string
+          p_identifier?: Json
+          p_resident_id: string
+          p_source_id: string
+        }
+        Returns: string
       }
       map_medication_resident: {
         Args: {
@@ -34152,6 +35864,10 @@ export type Database = {
         Args: { p_job_ids: string[] }
         Returns: number
       }
+      queue_clinical_observation_writeback: {
+        Args: { p_observation_id: string }
+        Returns: string
+      }
       queue_course_assignment_due_reminders: { Args: never; Returns: undefined }
       queue_course_continuation_reminders: { Args: never; Returns: undefined }
       queue_designated_person_notifications: {
@@ -34237,6 +35953,35 @@ export type Database = {
           p_status: string
         }
         Returns: boolean
+      }
+      record_clinical_assessment: {
+        Args: {
+          p_assessed_at: string
+          p_assessment_type: string
+          p_custom_label?: string
+          p_instrument_loinc?: string
+          p_resident_assessment_form_id?: string
+          p_resident_id: string
+          p_responses?: Json
+          p_risk_band?: string
+          p_score?: number
+        }
+        Returns: string
+      }
+      record_clinical_observation: {
+        Args: {
+          p_custom_label?: string
+          p_loinc_code?: string
+          p_note?: string
+          p_observation_type: string
+          p_observed_at: string
+          p_resident_id: string
+          p_unit?: string
+          p_value_numeric?: number
+          p_value_secondary?: number
+          p_value_text?: string
+        }
+        Returns: string
       }
       record_credential_renewal_extraction: {
         Args: {
@@ -34798,6 +36543,14 @@ export type Database = {
         Returns: string
       }
       reset_organization_sandbox: { Args: never; Returns: Json }
+      resolve_fhir_integration_exception: {
+        Args: {
+          p_exception_id: string
+          p_resolution_note: string
+          p_resolution_status: string
+        }
+        Returns: undefined
+      }
       resolve_medication_integration_exception: {
         Args: {
           p_exception_id: string
@@ -34853,6 +36606,10 @@ export type Database = {
           p_public_summary: string
           p_resume_secret: string
         }
+        Returns: boolean
+      }
+      retract_clinical_progress_note: {
+        Args: { p_note_id: string; p_reason: string }
         Returns: boolean
       }
       retry_document_analyzer_job: {
@@ -35050,6 +36807,10 @@ export type Database = {
         Returns: Json
       }
       run_facility_license_due_evaluator: { Args: never; Returns: number }
+      run_fhir_integration_freshness_evaluator: {
+        Args: { p_now?: string }
+        Returns: number
+      }
       run_medication_integration_freshness_evaluator: {
         Args: { p_now?: string }
         Returns: number
@@ -35069,6 +36830,42 @@ export type Database = {
           p_subject_type: string
         }
         Returns: Json
+      }
+      save_care_plan_goal: {
+        Args: {
+          p_addresses_condition_ref?: string
+          p_care_plan_id: string
+          p_description: string
+          p_goal_id?: string
+          p_status?: string
+          p_target_measure?: string
+        }
+        Returns: string
+      }
+      save_clinical_care_plan: {
+        Args: {
+          p_care_plan_id?: string
+          p_category: string
+          p_period_end?: string
+          p_period_start?: string
+          p_resident_id: string
+          p_status: string
+          p_support_plan_id?: string
+          p_title: string
+        }
+        Returns: string
+      }
+      save_clinical_progress_note: {
+        Args: {
+          p_authored_at: string
+          p_body: string
+          p_care_plan_id?: string
+          p_change_event_id?: string
+          p_note_id?: string
+          p_note_type: string
+          p_resident_id: string
+        }
+        Returns: string
       }
       save_customer_value_baseline: {
         Args: {
@@ -35243,6 +37040,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      save_fhir_integration_source: {
+        Args: {
+          p_credential_id?: string
+          p_external_facility_id: string
+          p_facility_id: string
+          p_fhir_base_url?: string
+          p_freshness_threshold_minutes?: number
+          p_name: string
+          p_source_id?: string
+          p_status?: string
+          p_vendor_name: string
+        }
+        Returns: string
       }
       save_medication_integration_source: {
         Args: {
@@ -35546,6 +37357,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_facility_clinical_enabled: {
+        Args: { p_enabled: boolean; p_facility_id: string }
+        Returns: boolean
+      }
       set_feature_kill_switch: {
         Args: {
           p_expires_at?: string
@@ -35678,6 +37493,10 @@ export type Database = {
           p_share?: boolean
         }
         Returns: undefined
+      }
+      sign_clinical_progress_note: {
+        Args: { p_note_id: string }
+        Returns: boolean
       }
       sign_move_in_guest_task: {
         Args: {
@@ -36625,4 +38444,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
