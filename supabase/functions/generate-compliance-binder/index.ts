@@ -368,16 +368,25 @@ function selectCurrentTrainingRecords(records: any[]): any[] {
 
 // Practicums are one row per (employee, year); prior years stay 'expired' forever,
 // so only each employee's latest-year practicum reflects the live obligation.
+// Within a year, a row with completion evidence supersedes the rulepack engine's
+// auto-instantiated 'missing' placeholder (save_practicum can insert a completed
+// row alongside it) -- matching get_org_dashboard_summary's current_practicums.
 function selectCurrentPracticums(practicums: any[]): any[] {
+  const currency = (p: any) => [p.completion_date ?? "", p.due_date ?? "", p.status === "missing" ? 0 : 1];
   const byEmployee = new Map<string, any>();
   for (const practicum of practicums) {
     const current = byEmployee.get(practicum.employee_id);
-    if (
-      !current
-      || practicum.practicum_year > current.practicum_year
-      || (practicum.practicum_year === current.practicum_year && (practicum.due_date ?? "") > (current.due_date ?? ""))
-    ) {
+    if (!current || practicum.practicum_year > current.practicum_year) {
       byEmployee.set(practicum.employee_id, practicum);
+      continue;
+    }
+    if (practicum.practicum_year < current.practicum_year) continue;
+    const a = currency(practicum);
+    const b = currency(current);
+    for (let i = 0; i < 3; i++) {
+      if (a[i] === b[i]) continue;
+      if (a[i] > b[i]) byEmployee.set(practicum.employee_id, practicum);
+      break;
     }
   }
   return [...byEmployee.values()];
@@ -419,7 +428,7 @@ async function buildBinderPdf(
       .from("employee_training_records")
       .select("id, status, due_date, completion_date, created_at, employee_id, training_type_id, facility_id, training_types(name, citation_topic_id)")
       .eq("organization_id", orgId).order("id"))),
-    fetchAllRows(() => scoped(adminClient.from("practicums").select("id, status, due_date, practicum_year, employee_id, facility_id").eq("organization_id", orgId).order("id"))),
+    fetchAllRows(() => scoped(adminClient.from("practicums").select("id, status, due_date, completion_date, practicum_year, employee_id, facility_id").eq("organization_id", orgId).order("id"))),
     certCountQuery,
     fetchAllRows(() => scoped(adminClient.from("alerts").select("id, severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity").order("id"))),
     fetchAllRows(() => scoped(adminClient

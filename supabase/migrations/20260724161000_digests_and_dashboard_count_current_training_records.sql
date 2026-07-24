@@ -10,7 +10,10 @@
 -- same ordering as the app's selectCurrentTrainingRecords (due_date, then
 -- completion_date, then created_at -- later wins; nulls lose). The dashboard summary
 -- gets the same treatment for practicums (one row per employee per year; prior years
--- stay 'expired' forever, only the latest year is the live obligation).
+-- stay 'expired' forever, only the latest year is the live obligation; within a year,
+-- completion evidence supersedes the engine's auto-instantiated 'missing' placeholder).
+-- All dedups end with a "(status = 'missing'), id" tie-break so full-date ties (rows
+-- created in the same transaction) resolve to the real record, deterministically.
 
 -- 1 ---------------------------------------------------------------------------
 -- Full-body copy of 20260712160000's send_monday_digest(); only the training-record
@@ -43,7 +46,8 @@ begin
       from public.employee_training_records r
       where r.organization_id = v_admin.organization_id
       order by r.employee_id, r.training_type_id,
-        r.due_date desc nulls last, r.completion_date desc nulls last, r.created_at desc
+        r.due_date desc nulls last, r.completion_date desc nulls last, r.created_at desc,
+        (r.status = 'missing'), r.id
     ) cur
     where (
       v_admin.role = 'org_admin'
@@ -167,7 +171,8 @@ begin
       from public.employee_training_records r
       where r.facility_id = any(v_facility_ids)
       order by r.employee_id, r.training_type_id,
-        r.due_date desc nulls last, r.completion_date desc nulls last, r.created_at desc
+        r.due_date desc nulls last, r.completion_date desc nulls last, r.created_at desc,
+        (r.status = 'missing'), r.id
     ) cur
     where cur.status in ('expired','missing');
     select count(*) into v_incidents from public.incidents i
@@ -228,13 +233,26 @@ with current_training as (
   select distinct on (employee_id, training_type_id)
     id, facility_id, employee_id, training_type_id, status, due_date, document_required
   from public.employee_training_records
+  -- Date ordering mirrors the app's selectCurrentTrainingRecords. The trailing
+  -- (status = 'missing'), id tie-break matters when the rulepack engine's
+  -- auto-instantiated 'missing' placeholder ties a real record on every date
+  -- (e.g. rows created in the same transaction): the real record must win, and
+  -- the pick must be deterministic.
   order by employee_id, training_type_id,
-    due_date desc nulls last, completion_date desc nulls last, created_at desc
+    due_date desc nulls last, completion_date desc nulls last, created_at desc,
+    (status = 'missing'), id
 ),
 current_practicums as (
   select distinct on (employee_id) facility_id, status, due_date
   from public.practicums
-  order by employee_id, practicum_year desc, due_date desc nulls last
+  -- The latest year is the live obligation. Within that year a row with actual
+  -- completion evidence supersedes the engine's auto-instantiated 'missing'
+  -- placeholder (save_practicum can insert a completed row alongside it), so
+  -- completion_date outranks due_date here; the same missing-last + id
+  -- tie-break keeps full-tie picks correct and deterministic.
+  order by employee_id, practicum_year desc,
+    completion_date desc nulls last, due_date desc nulls last, created_at desc,
+    (status = 'missing'), id
 ),
 tracked as (
   select facility_id, status, due_date
