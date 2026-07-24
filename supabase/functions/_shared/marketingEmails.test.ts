@@ -8,7 +8,8 @@ import {
 } from "./marketingEmails.ts";
 
 Deno.test("unsubscribe URL targets the public function and survives trailing slashes", () => {
-  const token = "3f9d3f2e-9a53-4c8e-8e10-1234567890ab";
+  // Deliberately zero-entropy fixture so secret scanners never flag it.
+  const token = "00000000-0000-4000-8000-000000000000";
   const expected = `https://proj.supabase.co/functions/v1/unsubscribe-updates?token=${token}`;
   assertEquals(buildUnsubscribeUrl("https://proj.supabase.co", token), expected);
   assertEquals(buildUnsubscribeUrl("https://proj.supabase.co/", token), expected);
