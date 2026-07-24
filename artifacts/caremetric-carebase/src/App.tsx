@@ -111,6 +111,7 @@ const DietaryOperations = lazy(() => import("@/pages/app/DietaryOperations"));
 const ResidentServicesCalendar = lazy(() => import("@/pages/app/ResidentServicesCalendar"));
 const ResidentFinancialOperations = lazy(() => import("@/pages/app/ResidentFinancialOperations"));
 const MedicationIntegration = lazy(() => import("@/pages/app/MedicationIntegration"));
+const FhirIntegration = lazy(() => import("@/pages/app/FhirIntegration"));
 const QapiDashboard = lazy(() => import("@/pages/app/QapiDashboard"));
 const QapiProjectDetail = lazy(() => import("@/pages/app/QapiProjectDetail"));
 const EmergencyOperations = lazy(() => import("@/pages/app/EmergencyOperations"));
@@ -648,6 +649,9 @@ function Router() {
       </Route>
       <Route path="/app/medication-integration">
         {() => <ProtectedRoute component={MedicationIntegration} allowedRoles={RESIDENT_FINANCE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/fhir-integration">
+        {() => <ProtectedRoute component={FhirIntegration} allowedRoles={CLINICAL_CHART_ROLES} />}
       </Route>
       <Route path="/app/credentials">
         {() => <ProtectedRoute component={EmployeeCredentials} allowedRoles={CREDENTIAL_ROLES} />}

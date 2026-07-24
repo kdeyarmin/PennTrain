@@ -26,7 +26,7 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
 |-----------|-------|--------|
 | M0 | Clinical foundation: permissions, capability flag, access log, consent, visibility helpers, guardrail supersession | **Delivered** |
 | M1 | Native vitals & clinical observations (chart + entry + retraction) | **Delivered** |
-| M2 | FHIR pipe via medications (`MedicationRequest`/`MedicationAdministration`) | Planned |
+| M2 | FHIR pipe via medications (`MedicationRequest`/`MedicationAdministration`) | **Delivered** |
 | M3 | FHIR allergies, diagnoses/problem list, orders, documents | Planned |
 | M4 | Native care plans, assessments, progress notes (sign-and-lock) | Planned |
 | M5 | Chart consolidation, timeline, hardening, optional write-back | Planned |
@@ -42,6 +42,21 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
   switchable off per organization via the entitlement/grant machinery).
 - Permissions `clinical.read` / `clinical.chart` / `clinical.manage` granted to
   platform_admin / org_admin / facility_manager / auditor role templates (auditor read-only).
+
+Data model (delivered in M2 — FHIR medication lane):
+
+- `public.fhir_integration_sources` — connection config (⇄ medication boundary sources).
+- `public.fhir_patient_mappings` — FHIR `Patient.id` ↔ resident crosswalk (matching stays a
+  deliberate human step; unmatched → an exception, never a guess).
+- `public.fhir_medication_requests` / `public.fhir_medication_administrations` — read-only
+  boundary tables (RxNorm code extracted, full `raw_resource` preserved; administrations are
+  append-only). `apply_fhir_integration_command` drains accepted `fhir.bundle.import` receipts
+  idempotently through the existing signed command inbox.
+- `public.fhir_integration_exceptions` — triage queue (unmatched_patient, invalid_resource,
+  unsupported_code_system, stale_source, sync_failure) + a 15-minute freshness watchdog.
+- Edge function `fhir-ingest` maps an inbound FHIR R4 Bundle → normalized records (pure mappers
+  in `_shared/fhirMapping.ts` + `_shared/fhirTerminology.ts`) and submits them via the command
+  inbox. Permissions `clinical.integration.read` / `clinical.integration.manage`.
 
 ## HIPAA / access posture
 
