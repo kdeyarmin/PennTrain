@@ -49,13 +49,25 @@ export function useComplianceInstances() {
   return useQuery({
     queryKey: ["compliance-instances"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("compliance_requirement_instances")
-        .select("*")
-        .order("due_date", { ascending: true })
-        .limit(5000);
-      if (error) throw error;
-      return data as ComplianceInstance[];
+      // Fetch every visible occurrence in pages so the dashboard score, metric cards, per-facility
+      // summaries, table, and CSV reflect the complete set (RLS already scopes this to the caller's
+      // org/facilities). A single capped query silently truncated large organizations, and because
+      // rows are ordered oldest-first it dropped the newest/upcoming obligations, skewing the score.
+      const pageSize = 1000;
+      const all: ComplianceInstance[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("compliance_requirement_instances")
+          .select("*")
+          .order("due_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as ComplianceInstance[];
+        all.push(...batch);
+        if (batch.length < pageSize || all.length >= 50000) break;
+      }
+      return all;
     },
   });
 }

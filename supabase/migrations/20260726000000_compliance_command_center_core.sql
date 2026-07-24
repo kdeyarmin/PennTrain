@@ -63,6 +63,10 @@ create index compliance_requirements_building_idx on public.compliance_requireme
 create index compliance_requirements_responsible_idx on public.compliance_requirements(responsible_profile_id) where responsible_profile_id is not null;
 create index compliance_requirements_active_idx on public.compliance_requirements(organization_id, is_active) where not is_template;
 create index compliance_requirements_template_idx on public.compliance_requirements(organization_id) where is_template;
+-- One live copy of a given template per facility: makes copy_compliance_requirement's anti-duplicate
+-- deploy atomic (ON CONFLICT) instead of a race-prone read-then-insert.
+create unique index compliance_requirements_template_facility_uniq
+  on public.compliance_requirements(source_template_id, facility_id) where source_template_id is not null;
 
 alter table public.compliance_requirements enable row level security;
 grant select on public.compliance_requirements to authenticated;

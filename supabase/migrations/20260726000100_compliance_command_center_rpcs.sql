@@ -103,29 +103,38 @@ begin
     v_last_due := v_next;
   end if;
 
-  -- Roll forward recurring occurrences within the horizon.
+  -- Roll forward recurring occurrences within the horizon. Derive each due date from the original
+  -- anchor (anchor + n*interval) rather than chaining interval additions, so month-end and leap-day
+  -- schedules do not drift (Jan 31 -> Feb 28 -> Mar 31, not -> Mar 28).
   if v_interval is not null then
-    v_next := v_last_due;
-    loop
-      v_guard := v_guard + 1;
-      exit when v_guard > 240;
-      v_prev := v_next;
-      v_next := (v_prev + v_interval)::date;
-      exit when v_next > p_through;
-      insert into public.compliance_requirement_instances
-        (organization_id, facility_id, building_id, requirement_id, period_start, due_date, responsible_profile_id)
-      values (r.organization_id, r.facility_id, r.building_id, r.id, v_prev, v_next, r.responsible_profile_id)
-      on conflict (requirement_id, due_date) do nothing;
-      if found then
-        insert into public.compliance_requirement_events
-          (organization_id, facility_id, requirement_id, instance_id, event_type, new_status, metadata)
-        select r.organization_id, r.facility_id, r.id, i.id, 'instance_generated', i.status,
-               jsonb_build_object('due_date', v_next)
-        from public.compliance_requirement_instances i
-        where i.requirement_id = r.id and i.due_date = v_next;
-        v_count := v_count + 1;
-      end if;
-    end loop;
+    declare
+      v_base date := coalesce(r.anchor_date,
+        (select min(due_date) from public.compliance_requirement_instances where requirement_id = r.id));
+      v_n integer := 0;
+    begin
+      loop
+        v_guard := v_guard + 1;
+        exit when v_guard > 1200;
+        v_n := v_n + 1;
+        v_prev := (v_base + (v_interval * (v_n - 1)))::date;
+        v_next := (v_base + (v_interval * v_n))::date;
+        continue when v_next <= v_last_due;  -- already generated; skip
+        exit when v_next > p_through;
+        insert into public.compliance_requirement_instances
+          (organization_id, facility_id, building_id, requirement_id, period_start, due_date, responsible_profile_id)
+        values (r.organization_id, r.facility_id, r.building_id, r.id, v_prev, v_next, r.responsible_profile_id)
+        on conflict (requirement_id, due_date) do nothing;
+        if found then
+          insert into public.compliance_requirement_events
+            (organization_id, facility_id, requirement_id, instance_id, event_type, new_status, metadata)
+          select r.organization_id, r.facility_id, r.id, i.id, 'instance_generated', i.status,
+                 jsonb_build_object('due_date', v_next)
+          from public.compliance_requirement_instances i
+          where i.requirement_id = r.id and i.due_date = v_next;
+          v_count := v_count + 1;
+        end if;
+      end loop;
+    end;
   end if;
 
   return v_count;
@@ -245,6 +254,15 @@ begin
     insert into public.compliance_requirement_events
       (organization_id, facility_id, requirement_id, event_type, actor_profile_id, note)
     values (r.organization_id, r.facility_id, r.id, 'requirement_updated', (select auth.uid()), r.title);
+
+    -- Reconcile future occurrences to the (possibly changed) cadence/anchor: drop unstarted,
+    -- evidence-free future occurrences so the generator below re-materializes them on the current
+    -- schedule. Started, past, and terminal occurrences are preserved. (Changing a monthly requirement
+    -- to one_time or moving its anchor otherwise leaves stale future occurrences on the old schedule.)
+    if not r.is_template then
+      delete from public.compliance_requirement_instances
+      where requirement_id = r.id and status = 'not_started' and evidence_count = 0 and due_date > current_date;
+    end if;
   end if;
 
   -- Materialize the current/next occurrence(s) for a live active requirement.
@@ -278,6 +296,17 @@ begin
   values (r.organization_id, r.facility_id, r.id,
     case when p_active then 'requirement_reactivated' else 'requirement_archived' end,
     (select auth.uid()), nullif(btrim(coalesce(p_note, '')), ''));
+
+  -- Archiving retires its still-open occurrences (the dashboard loads archived requirements and all
+  -- their instances), so an obsolete requirement stops appearing as overdue and dragging the score
+  -- down. They are marked not_applicable rather than deleted, preserving the record.
+  if not p_active then
+    update public.compliance_requirement_instances
+    set status = 'not_applicable',
+        na_reason = coalesce(na_reason, 'Requirement archived')
+    where requirement_id = r.id
+      and status in ('not_started', 'in_progress', 'overdue', 'awaiting_review');
+  end if;
 
   if not r.is_template and r.is_active then
     perform app_private.ensure_compliance_instances(r.id, current_date + greatest(r.warning_days, 30));
@@ -325,14 +354,9 @@ begin
       raise exception 'Facility is not in this organization' using errcode = '23514';
     end if;
     perform app_private.assert_compliance_manager(t.organization_id, v_fac);
-    -- Skip if this template was already copied to this facility (anti-duplicate).
-    if exists (
-      select 1 from public.compliance_requirements c
-      where c.source_template_id = t.id and c.facility_id = v_fac
-    ) then
-      continue;
-    end if;
-
+    -- Idempotent anti-duplicate deploy: the partial unique index on (source_template_id, facility_id)
+    -- makes concurrent double-deploys safe -- ON CONFLICT skips the duplicate insert atomically rather
+    -- than relying on a read-then-insert that two managers could both pass at once.
     insert into public.compliance_requirements (
       organization_id, facility_id, category, title, description, regulation_citation,
       regulation_chapter, responsible_profile_id, recurrence, custom_interval_days, anchor_date,
@@ -342,7 +366,12 @@ begin
       t.regulation_chapter, t.responsible_profile_id, t.recurrence, t.custom_interval_days,
       coalesce(t.anchor_date, current_date), t.warning_days, t.requires_evidence, t.requires_review,
       false, t.id, (select auth.uid())
-    ) returning * into v_new;
+    )
+    on conflict (source_template_id, facility_id) where source_template_id is not null do nothing
+    returning * into v_new;
+    if not found then
+      continue;  -- already deployed to this facility
+    end if;
 
     insert into public.compliance_requirement_events
       (organization_id, facility_id, requirement_id, event_type, actor_profile_id, note, metadata)
@@ -667,7 +696,10 @@ begin
       and ci.reminder_sent_on is null
       and cr.is_active
   loop
-    if i.responsible_profile_id is not null then
+    if i.responsible_profile_id is not null and exists (
+      select 1 from public.profiles p
+      where p.id = i.responsible_profile_id and p.is_active and p.organization_id = i.organization_id
+    ) then
       insert into public.notifications (organization_id, profile_id, notification_type, title, body, link)
       values (i.organization_id, i.responsible_profile_id, 'compliance_requirement_due_soon',
         'Compliance item due soon', left(i.title, 400), '/app/compliance-command-center');
