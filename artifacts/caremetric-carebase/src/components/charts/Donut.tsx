@@ -62,7 +62,7 @@ export function Donut({
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
+          className="ease-out motion-safe:transition-all motion-safe:duration-1000"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">

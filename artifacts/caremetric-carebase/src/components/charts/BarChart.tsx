@@ -50,7 +50,7 @@ export function BarChart({
                 <span className="truncate text-muted-foreground" title={d.label}>{d.label}</span>
                 <div className="h-2.5 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full rounded-full transition-[width] duration-500 ease-out"
+                    className="h-full rounded-full ease-out motion-safe:transition-[width] motion-safe:duration-500"
                     style={{ width: `${pct}%`, backgroundColor: d.color ?? color }}
                   />
                 </div>
@@ -72,7 +72,7 @@ export function BarChart({
             <div key={d.label} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
               {showValues ? <span className="tabular-nums text-xs font-medium">{valueFormat(d.value)}</span> : null}
               <div
-                className="w-full rounded-t-md transition-[height] duration-500 ease-out"
+                className="w-full rounded-t-md ease-out motion-safe:transition-[height] motion-safe:duration-500"
                 style={{ height: `${pct}%`, minHeight: d.value > 0 ? 4 : 0, backgroundColor: d.color ?? color }}
               />
               <span className="max-w-full truncate text-[11px] text-muted-foreground" title={d.label}>{d.label}</span>
