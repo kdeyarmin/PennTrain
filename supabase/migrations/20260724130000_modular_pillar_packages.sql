@@ -365,14 +365,14 @@ values
     'Training plus survey-ready compliance: inspection readiness, survey day, violations, complaints, state forms, evidence, QAPI, and policy attestation. Priced by active resident.',
     'hybrid', 29900,
     '{"modules.train":true,"modules.compliance":true,"modules.workforce":false,"modules.billing":false,"modules.carebase":false}'::jsonb,
-    false, false, 14, 16.67, null, null, 12, true
+    false, false, 30, 16.67, null, null, 12, true
   ),
   (
     'CareMetric Professional',
     'Everything in Essentials plus workforce credentialing and scheduling and resident billing operations. The complete compliance, workforce, and financial toolkit, priced by active resident.',
     'hybrid', 39900,
     '{"modules.train":true,"modules.compliance":true,"modules.workforce":true,"modules.billing":true,"modules.carebase":false}'::jsonb,
-    false, false, 14, 16.67, null, null, 14, true
+    false, false, 30, 16.67, null, null, 14, true
   )
 on conflict (name) do update set
   description = excluded.description,
