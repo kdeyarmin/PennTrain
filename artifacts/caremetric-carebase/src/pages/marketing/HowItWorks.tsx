@@ -268,14 +268,6 @@ export default function HowItWorks() {
 
             <div className="mt-5 grid items-stretch gap-3.5 lg:grid-cols-2">
               <Reveal className="flex flex-col gap-2.5">
-                <div className="flex flex-col justify-center gap-1.5 rounded-xl border border-dashed border-white/30 px-[18px] py-4">
-                  <p className="font-mono text-[11px] text-white/60">
-                    [ operator quote — real testimonial, name, title, facility ]
-                  </p>
-                  <p className="text-[12.5px] text-white/75">
-                    This space stays empty until it's real. No invented customers.
-                  </p>
-                </div>
                 <div className="grid gap-2 text-[12.5px] sm:grid-cols-3">
                   {TRUST_NOTES.map((note) => (
                     <div

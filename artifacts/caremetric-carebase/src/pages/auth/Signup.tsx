@@ -299,7 +299,7 @@ export default function Signup() {
             {!submittedEmail && (
               <div>
                 <p className="mt-4 text-center text-[13px] text-muted-foreground">
-                  Creating your organization starts a 14-day free trial.
+                  Creating your organization starts a 30-day free trial.
                 </p>
                 <p className="mt-2 text-center text-[13px] text-muted-foreground">
                   Already have an account?{" "}

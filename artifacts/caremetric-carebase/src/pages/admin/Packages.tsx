@@ -79,7 +79,7 @@ const EMPTY_PACKAGE_FORM: PackageFormData = {
   isRecommended: false,
   contactSales: false,
   pricingStrategy: "hybrid",
-  trialDays: "14",
+  trialDays: "30",
   annualDiscountPercent: "16.67",
   sortOrder: "0",
   facilityLimit: "",

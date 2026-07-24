@@ -406,27 +406,27 @@ function MarketingHeader() {
 }
 
 function MarketingFooter() {
-  const footerLink = "text-white/75 hover:text-white hover:underline";
+  const footerLink = "text-white/70 hover:text-white hover:underline";
   return (
     <footer className="bg-[var(--mkt-navy-950)] text-white/75">
-      <div className="mx-auto max-w-[1160px] px-4 pb-8 pt-12 sm:px-6">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-          <div className="flex flex-col gap-2.5">
+      <div className="mx-auto flex max-w-[1160px] flex-col gap-6 px-4 py-8 sm:px-6">
+        <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-2">
             <Link href="/" className="flex items-center gap-2.5">
-              <LogoMark className="h-8 w-8" />
+              <LogoMark className="h-7 w-7" />
               {/* Not BrandName: its fixed two-tone gray fails contrast on the dark footer. */}
               <span className="text-sm font-extrabold text-white">CareMetric CareBase</span>
             </Link>
-            <p className="max-w-[34ch] text-[13px] text-white/70">
+            <p className="max-w-[42ch] text-[13px] text-white/65">
               Operations, compliance, and survey readiness for personal care
-              homes and assisted living facilities.
+              homes and Assisted Living Facilities (ALF).
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 text-[13.5px]">
-            <h2 className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-white/60">
-              PRODUCT
-            </h2>
+          <nav
+            aria-label="Footer"
+            className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] md:max-w-[620px] md:justify-end"
+          >
             <NavAnchorLink href="/#platform" className={footerLink}>Platform</NavAnchorLink>
             <Link href="/how-it-works" className={footerLink}>How it works</Link>
             <Link href="/savings" className={footerLink}>Savings</Link>
@@ -436,33 +436,17 @@ function MarketingFooter() {
             <NavAnchorLink href="/#pricing" className={footerLink}>Pricing</NavAnchorLink>
             <Link href="/faq" className={footerLink}>FAQ</Link>
             <Link href="/security" className={footerLink}>Security</Link>
-          </div>
-
-          <div className="flex flex-col gap-2 text-[13.5px]">
-            <h2 className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-white/60">
-              ACCOUNT
-            </h2>
+            <Link href="/demo" className={footerLink}>Live demo</Link>
+            <Link href="/about" className={footerLink}>About CareBase</Link>
+            <a href="https://caremetric.ai" target="_blank" rel="noreferrer" className={footerLink}>CareMetric AI</a>
+            <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" className={footerLink}>CareMetric Breathe</a>
             <Link href="/login" className={footerLink}>Log in</Link>
             <Link href="/signup" className={footerLink}>Start free trial</Link>
-            <Link href="/demo" className={footerLink}>Live demo</Link>
             <Link href="/#start" className={footerLink}>Get started</Link>
-          </div>
-
-          <div className="flex flex-col gap-2 text-[13.5px]">
-            <h2 className="font-mono text-[10.5px] font-semibold tracking-[0.1em] text-white/60">
-              COMPANY
-            </h2>
-            <Link href="/about" className={footerLink}>About CareBase</Link>
-            <a href="https://caremetric.ai" target="_blank" rel="noreferrer" className={footerLink}>
-              CareMetric AI
-            </a>
-            <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" className={footerLink}>
-              CareMetric Breathe
-            </a>
-          </div>
+          </nav>
         </div>
 
-        <div className="mt-9 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5 text-[12.5px] text-white/65">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 pt-5 text-[12.5px] text-white/65">
           <span>&copy; {new Date().getFullYear()} CareMetric CareBase. All rights reserved.</span>
           <span className="flex gap-4">
             <Link href="/privacy" className={footerLink}>Privacy Policy</Link>

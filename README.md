@@ -57,7 +57,6 @@ This package reflects the latest revision. Key changes since the first handoff:
 ## Content Notes
 - All regulatory citations (§2600.65, §2800.65/.69, §6400.52, 42 CFR 483.95/484.80/418.76) came from the repo's `PA_DHS_ANNUAL_TRAINING_MATRIX.md` — keep them in sync with it.
 - Pricing ($349 single / $299 multi-site, 30-day trial) is illustrative — confirm before launch. The savings calculator and FAQ answer must read from the same pricing constants.
-- The testimonial slot is intentionally empty ("no invented customers") — fill only with a real pilot quote.
 - Privacy/Terms are drafts flagged for counsel review; set real effective dates.
 - Every page needs its `<title>` + `meta description` (already written in each file's `<helmet>`), and FAQ page keeps its JSON-LD.
 

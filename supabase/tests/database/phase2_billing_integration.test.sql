@@ -1,5 +1,5 @@
 begin;
-select plan(56);
+select plan(58);
 
 select has_table('public', 'feature_definitions', 'typed feature definitions exist');
 select has_table('public', 'organization_entitlement_grants', 'effective contractual grants exist');
@@ -162,6 +162,8 @@ create temporary table phase2_stripe_first on commit drop as
 select * from public.process_stripe_billing_event(
   'evt_phase2_active', 'customer.subscription.updated',
   '2026-07-11T12:00:00Z'::timestamptz,
+  -- Post-Basil (2026-02-25.clover) subscription shape: the billing period lives on
+  -- the subscription item, not the top-level subscription object.
   jsonb_build_object('data', jsonb_build_object('object', jsonb_build_object(
     'id', 'sub_phase2A', 'customer', 'cus_phase2A', 'status', 'active',
     'metadata', jsonb_build_object(
@@ -169,8 +171,8 @@ select * from public.process_stripe_billing_event(
       'package_id', '30000000-0000-4000-8000-000000000001'),
     'items', jsonb_build_object('data', jsonb_build_array(jsonb_build_object(
       'id', 'si_phase2A', 'quantity', 10,
-      'price', jsonb_build_object('id', 'price_phase2A')))),
-    'current_period_start', 1783771200, 'current_period_end', 1786449600
+      'current_period_start', 1783771200, 'current_period_end', 1786449600,
+      'price', jsonb_build_object('id', 'price_phase2A'))))
   ))), repeat('a', 64), 'stripe-phase2-active'
 );
 select results_eq(
@@ -183,6 +185,12 @@ select results_eq(
      from public.billing_subscriptions where stripe_subscription_id = 'sub_phase2A' $$,
   $$ values ('active'::text, 'active'::text, 10) $$,
   'subscription and seat reconciliation preserve signed Price quantities'
+);
+select results_eq(
+  $$ select current_period_start, current_period_end
+     from public.billing_subscriptions where stripe_subscription_id = 'sub_phase2A' $$,
+  $$ values (to_timestamp(1783771200), to_timestamp(1786449600)) $$,
+  'item-level billing periods (Basil/clover shape) persist onto the subscription'
 );
 select results_eq(
   $$ select was_duplicate, was_applied
@@ -226,12 +234,22 @@ select results_eq(
        'evt_phase2_invoice_failed', 'invoice.payment_failed',
        '2026-07-11T13:00:00Z'::timestamptz,
        jsonb_build_object('data', jsonb_build_object('object', jsonb_build_object(
-         'id', 'in_phase2A', 'customer', 'cus_phase2A', 'subscription', 'sub_phase2A',
+         'id', 'in_phase2A', 'customer', 'cus_phase2A',
+         'parent', jsonb_build_object('subscription_details',
+           jsonb_build_object('subscription', 'sub_phase2A')),
          'status', 'open', 'currency', 'usd', 'amount_due', 1000,
          'amount_paid', 0, 'amount_remaining', 1000, 'created', 1783774800))),
        repeat('c', 64), 'stripe-phase2-invoice') $$,
   $$ values (true, 'grace'::text) $$,
   'a signed failed invoice starts a separately modeled grace period'
+);
+select results_eq(
+  $$ select stripe_subscription_id,
+       subscription_id = (select id from public.billing_subscriptions
+                          where stripe_subscription_id = 'sub_phase2A')
+     from public.billing_invoices where stripe_invoice_id = 'in_phase2A' $$,
+  $$ values ('sub_phase2A'::text, true) $$,
+  'a Basil/clover invoice links to its subscription via parent.subscription_details'
 );
 update public.billing_accounts set grace_ends_at = now() - interval '1 second'
 where organization_id = '30000000-0000-4000-8000-000000000011';
