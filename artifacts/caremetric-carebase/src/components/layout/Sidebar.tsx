@@ -77,6 +77,7 @@ import {
   History,
   Gauge,
   ScrollText,
+  Printer,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -252,6 +253,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Reporting & Documents",
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/reports/comprehensive", label: "Comprehensive Report", icon: Printer },
           { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
@@ -358,6 +360,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Reporting & Documents",
         items: [
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/reports/comprehensive", label: "Comprehensive Report", icon: Printer },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),

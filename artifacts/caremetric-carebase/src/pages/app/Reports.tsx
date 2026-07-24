@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ import {
   Eye,
   Loader2,
   Bell,
+  Printer,
 } from "lucide-react";
 
 interface ReportDef {
@@ -834,19 +836,27 @@ export default function Reports() {
             organization.
           </p>
         </div>
-        <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-full sm:w-52">
-            <SelectValue placeholder="All Facilities" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Facilities</SelectItem>
-            {facilities.map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/app/reports/comprehensive">
+              <Printer className="mr-2 h-4 w-4" />
+              Comprehensive report
+            </Link>
+          </Button>
+          <Select value={facilityId} onValueChange={setFacilityId}>
+            <SelectTrigger className="w-full sm:w-52">
+              <SelectValue placeholder="All Facilities" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Facilities</SelectItem>
+              {facilities.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <Card>

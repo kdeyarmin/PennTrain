@@ -414,4 +414,35 @@
     text-decoration: none !important;
     color: inherit !important;
   }
+
+  /* Comprehensive Report (pages/app/ComprehensiveReport.tsx): keep each facet section together
+     on a page where it fits, force the metric tiles and table borders to print, and let the
+     multi-section document flow across pages cleanly. */
+  .creport-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 14px !important;
+  }
+
+  .creport-metrics {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .creport-metric {
+    border: 1px solid #e5e7eb !important;
+    border-radius: 4px !important;
+    padding: 8px !important;
+  }
+
+  .creport-cover {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .creport-footer {
+    margin-top: 12px !important;
+    color: #6b7280 !important;
+  }
 }
