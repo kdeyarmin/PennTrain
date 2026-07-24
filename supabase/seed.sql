@@ -3,19 +3,23 @@
 -- subquery keyed on a unique natural key (slug, name, email).
 
 -- Packages catalog
-insert into public.packages (name, learner_limit, facility_limit, price_monthly_cents, features, sort_order) values
-  ('Starter', 25, 1, 9900, '{"modules.train": true, "modules.carebase": true, "compliance_binder": false, "medication_tracking": false, "competency_checklists": false}'::jsonb, 1),
-  ('Compliance Plus', 100, 5, 29900, '{"modules.train": true, "modules.carebase": true, "compliance_binder": true, "medication_tracking": true, "competency_checklists": true}'::jsonb, 2),
-  ('Enterprise', null, null, null, '{"modules.train": true, "modules.carebase": true, "compliance_binder": true, "medication_tracking": true, "competency_checklists": true, "custom_compliance_templates": true, "api_access": true}'::jsonb, 3),
-  ('CareMetric Train', null, null, null, '{"modules.train": true, "modules.carebase": false}'::jsonb, 10),
-  ('CareMetric CareBase', null, null, null, '{"modules.train": true, "modules.carebase": true}'::jsonb, 20)
+-- Starter/Compliance Plus/Enterprise predate the modular Train/CareBase catalog and have no
+-- self-serve Stripe price -- seeded inactive (history only) so a fresh reset matches the
+-- deactivation in 20260724150000_deactivate_legacy_packages_and_align_demo_orgs.sql instead of
+-- silently reintroducing them via this insert's on-conflict-do-nothing/column-default path.
+insert into public.packages (name, learner_limit, facility_limit, price_monthly_cents, features, sort_order, is_active) values
+  ('Starter', 25, 1, 9900, '{"modules.train": true, "modules.carebase": true, "compliance_binder": false, "medication_tracking": false, "competency_checklists": false}'::jsonb, 1, false),
+  ('Compliance Plus', 100, 5, 29900, '{"modules.train": true, "modules.carebase": true, "compliance_binder": true, "medication_tracking": true, "competency_checklists": true}'::jsonb, 2, false),
+  ('Enterprise', null, null, null, '{"modules.train": true, "modules.carebase": true, "compliance_binder": true, "medication_tracking": true, "competency_checklists": true, "custom_compliance_templates": true, "api_access": true}'::jsonb, 3, false),
+  ('CareMetric Train', null, null, null, '{"modules.train": true, "modules.carebase": false}'::jsonb, 10, true),
+  ('CareMetric CareBase', null, null, null, '{"modules.train": true, "modules.carebase": true}'::jsonb, 20, true)
 on conflict (name) do nothing;
 
--- Demo organizations
+-- Demo organizations, on the current recommended self-serve package (see the migration above).
 insert into public.organizations (name, slug, contact_name, contact_email, contact_phone, address, city, state, zip, subscription_status, plan_name, package_id)
 select 'Sunrise Healthcare Group', 'sunrise-healthcare', 'Dr. Robert Chen', 'robert.chen@sunrisehealthcare.com', '215-555-0100',
-  '100 Corporate Blvd', 'Philadelphia', 'PA', '19103', 'active', 'Compliance Plus', p.id
-from public.packages p where p.name = 'Compliance Plus'
+  '100 Corporate Blvd', 'Philadelphia', 'PA', '19103', 'active', 'CareMetric CareBase', p.id
+from public.packages p where p.name = 'CareMetric CareBase'
 on conflict (slug) do nothing;
 
 update public.organizations
@@ -24,8 +28,8 @@ where slug = 'sunrise-healthcare';
 
 insert into public.organizations (name, slug, contact_name, contact_email, contact_phone, address, city, state, zip, subscription_status, plan_name, package_id)
 select 'Maple Grove Senior Living', 'maple-grove', 'Patricia Nguyen', 'patricia.nguyen@maplegrove.com', '412-555-0200',
-  '50 Maple Grove Way', 'Pittsburgh', 'PA', '15222', 'trial', 'Starter', p.id
-from public.packages p where p.name = 'Starter'
+  '50 Maple Grove Way', 'Pittsburgh', 'PA', '15222', 'trial', 'CareMetric CareBase', p.id
+from public.packages p where p.name = 'CareMetric CareBase'
 on conflict (slug) do nothing;
 
 -- Facilities

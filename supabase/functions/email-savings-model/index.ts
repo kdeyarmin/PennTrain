@@ -293,6 +293,13 @@ Deno.serve(async (req: Request) => {
   if (!email || email.length < 3 || email.length > 320 || !EMAIL_RE.test(email)) {
     return json({ ok: false, error: "Enter a valid email address" }, 400);
   }
+  if (body.residents === undefined || body.residents === null) {
+    // A payload with every other field but no `residents` is a stale cached client still sending
+    // the pre-rename `fac` field (the PWA can cache the /savings route script for up to 7 days).
+    // Reject rather than silently defaulting, so the emailed worksheet can never diverge from what
+    // the visitor's on-screen calculator actually showed them.
+    return json({ ok: false, error: "Your page is out of date. Refresh and try again." }, 400);
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
