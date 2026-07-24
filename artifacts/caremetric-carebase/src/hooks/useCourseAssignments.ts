@@ -171,6 +171,13 @@ export function useCompleteCourseAssignment() {
       queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["course_progress"] });
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
+      // complete_course_assignment() bridges into employee_training_records and
+      // runs recalculate_compliance_core (statuses, hour buckets, alerts) --
+      // refresh those caches too so the training matrix and annual-hours
+      // widgets don't stay stale for a full staleTime window.
+      queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
 }
@@ -179,11 +186,14 @@ export function useGetCourseProgress(assignmentId: string | undefined) {
   return useQuery({
     queryKey: ["course_progress", assignmentId],
     queryFn: async () => {
+      // course_progress rows are created lazily on first upsert, so a brand-new
+      // assignment legitimately has none -- maybeSingle() returns null instead
+      // of erroring (and retrying) on zero rows.
       const { data, error } = await supabase
         .from("course_progress")
         .select("*")
         .eq("assignment_id", assignmentId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },

@@ -134,6 +134,10 @@ export function useCompleteTrainingClass() {
       queryClient.invalidateQueries({ queryKey: ["training_classes"] });
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", classId] });
       queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      // complete_training_class() inserts compliant training records and runs
+      // recalculate_compliance_core, so hour buckets and alerts change too.
+      queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
 }
