@@ -130,17 +130,17 @@ function buildActionPlan({
   return actions.slice(0, 4);
 }
 
+// The trigger is a plain span (not a button) so the whole stat card can be a drill-down Link
+// without nesting an interactive element inside an anchor. The tooltip still opens on hover; the
+// metric itself is reachable/announced via the surrounding Link.
 function StatLabel({ label, tooltip }: { label: string; tooltip: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="stat-label inline-flex w-fit cursor-help items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
+        <span className="stat-label inline-flex w-fit cursor-help items-center gap-1">
           {label}
           <Info className="h-3 w-3 text-muted-foreground/50" aria-hidden="true" />
-        </button>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-64 text-left">
         {tooltip}
@@ -148,6 +148,10 @@ function StatLabel({ label, tooltip }: { label: string; tooltip: string }) {
     </Tooltip>
   );
 }
+
+// Shared styling for the clickable KPI stat cards (drill-down links).
+const STAT_CARD_LINK =
+  "stat-card block transition-all hover:border-primary/20 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 function StatCardSkeleton() {
   return (
@@ -230,9 +234,10 @@ export default function OrgDashboard() {
   );
   const openResidentFormsCount =
     residentFormsSummary.expiredItems + residentFormsSummary.missingItems + residentFormsSummary.dueSoonItems;
+  const hasPchAlr = hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
   const showResidentFormsBanner =
     ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "")
-    && hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES)
+    && hasPchAlr
     && openResidentFormsCount > 0;
 
   const recentUploads = summary.recentUploads;
@@ -448,7 +453,7 @@ export default function OrgDashboard() {
         </QueryLoading>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-500">
-          <div className="stat-card">
+          <Link href="/app/training-matrix?statusFilter=compliant" className={STAT_CARD_LINK}>
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
@@ -465,9 +470,9 @@ export default function OrgDashboard() {
               <TrendingUp className="h-3.5 w-3.5" />
               <span>of {totalTracked} tracked requirements</span>
             </div>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link href="/app/training-matrix?dueWindow=30" className={STAT_CARD_LINK}>
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
@@ -484,9 +489,9 @@ export default function OrgDashboard() {
               <Activity className="h-3.5 w-3.5" />
               <span>{dueSoonPct}% of tracked requirements</span>
             </div>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link href="/app/training-matrix?dueWindow=90" className={STAT_CARD_LINK}>
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
@@ -503,9 +508,9 @@ export default function OrgDashboard() {
               <AlertTriangle className="h-3.5 w-3.5" />
               <span>Includes items due within 30 days</span>
             </div>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link href="/app/training-matrix?statusFilter=expired" className={STAT_CARD_LINK}>
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
@@ -522,9 +527,9 @@ export default function OrgDashboard() {
               <AlertTriangle className="h-3.5 w-3.5" />
               <span>{expiredPct}% of tracked requirements</span>
             </div>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link href="/app/training-matrix?trainerOnly=true" className={STAT_CARD_LINK}>
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
@@ -541,9 +546,9 @@ export default function OrgDashboard() {
               <Shield className="h-3.5 w-3.5" />
               <span>Active trainers due for recertification</span>
             </div>
-          </div>
+          </Link>
 
-          <div className="stat-card">
+          <Link href="/app/documents" className={STAT_CARD_LINK}>
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
@@ -560,7 +565,7 @@ export default function OrgDashboard() {
               <FileText className="h-3.5 w-3.5" />
               <span>Last 14 days</span>
             </div>
-          </div>
+          </Link>
         </div>
       )}
 
@@ -683,27 +688,27 @@ export default function OrgDashboard() {
               </div>
             </div>
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-              <div className="rounded-lg bg-muted/50 p-3.5">
+              <Link href="/app/employees?status=active" className="rounded-lg bg-muted/50 p-3.5 block transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Users className="h-4 w-4" />
                   <span className="text-xs font-medium">Active Staff</span>
                 </div>
                 <p className="text-xl font-bold">{summary.totalEmployees}</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3.5">
+              </Link>
+              <Link href="/app/alerts?status=open" className="rounded-lg bg-muted/50 p-3.5 block transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <AlertTriangle className="h-4 w-4" />
                   <span className="text-xs font-medium">Open Alerts</span>
                 </div>
                 <p className="text-xl font-bold">{summary.openAlertsCount}</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3.5">
+              </Link>
+              <Link href={hasPchAlr ? "/app/med-admin-roster" : "/app/credentials"} className="rounded-lg bg-muted/50 p-3.5 block transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Shield className="h-4 w-4" />
                   <span className="text-xs font-medium">Med Admin</span>
                 </div>
                 <p className="text-xl font-bold">{summary.totalMedAdminStaff}</p>
-              </div>
+              </Link>
             </div>
           </div>
         </div>
