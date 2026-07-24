@@ -8,7 +8,7 @@ never touches the `course_blocks` pipeline.
 - **Presenter:** the founder's own HeyGen photo-avatar "looks" (professional
   business attire, office/studio scenes baked in) + the founder's cloned voice.
 - **Voice settings:** pitch `-7` semitones (deeper), speed `1.0` (natural pace).
-- **Committed assets:** `public/marketing/<name>.mp4` + `<name>-poster.jpg`.
+- **Committed assets:** `public/marketing/<name>.mp4` + `<name>-poster.jpg` + `<name>.vtt` (captions, required for every video).
 - **Catalog / embed config:** `src/components/marketing/marketingVideos.ts`.
 - **Player:** `src/components/marketing/VideoModal.tsx` (`VideoModal` + `VideoThumbnail`).
 

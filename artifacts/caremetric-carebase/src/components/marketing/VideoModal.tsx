@@ -27,7 +27,6 @@ export function VideoModal({ video, children }: { video: MarketingVideo; childre
           <DialogTitle className="text-sm font-bold text-white">{video.title}</DialogTitle>
         </div>
         <DialogDescription className="sr-only">{video.title}</DialogDescription>
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- optional caption track added below when present */}
         <video
           className="aspect-video w-full bg-black"
           src={video.src}
@@ -38,9 +37,7 @@ export function VideoModal({ video, children }: { video: MarketingVideo; childre
           preload="metadata"
           data-testid={`video-${video.key}`}
         >
-          {video.captions && (
-            <track kind="captions" src={video.captions} srcLang="en" label="English" default />
-          )}
+          <track kind="captions" src={video.captions} srcLang="en" label="English" default />
           Your browser does not support embedded video.
         </video>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-white/[0.04] px-5 py-3.5">
@@ -83,6 +80,7 @@ export function VideoThumbnail({
       <button
         type="button"
         data-testid={`thumb-${video.key}`}
+        aria-label={`Play video: ${video.title}`}
         className={cn(
           "group relative block w-full overflow-hidden rounded-xl border border-black/5 bg-[#0d2742] shadow-lg",
           className,

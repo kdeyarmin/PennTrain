@@ -38,6 +38,9 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 const HEYGEN_BASE = "https://api.heygen.com";
 const POLL_INTERVAL_MS = 10_000;
@@ -155,9 +158,10 @@ async function pollUntilDone(apiKey, videoId) {
 async function download(url, destPath) {
   const res = await fetch(url);
   if (!res.ok || !res.body) fail(`Failed to download ${url} (status ${res.status}).`);
-  const bytes = Buffer.from(await res.arrayBuffer());
-  await fs.writeFile(destPath, bytes);
-  return bytes.length;
+  // Stream the body straight to disk so a large MP4 never sits fully in memory.
+  await pipeline(Readable.fromWeb(res.body), createWriteStream(destPath));
+  const { size } = await fs.stat(destPath);
+  return size;
 }
 
 async function main() {
@@ -197,9 +201,11 @@ async function main() {
   const bytes = await download(data.video_url, mp4Path);
   console.log(`✔ Saved ${(bytes / 1_048_576).toFixed(1)} MB → ${mp4Path}`);
 
+  // HeyGen thumbnails are WEBP; save with the matching extension (the catalog +
+  // static server key MIME type off the extension, so a .jpg name would mis-serve).
   const thumbUrl = data.thumbnail_url ?? data.cover_image_url;
   if (thumbUrl) {
-    const posterPath = path.join(outDir, `${basename}-poster.jpg`);
+    const posterPath = path.join(outDir, `${basename}-poster.webp`);
     await download(thumbUrl, posterPath);
     console.log(`✔ Saved poster → ${posterPath}`);
   }

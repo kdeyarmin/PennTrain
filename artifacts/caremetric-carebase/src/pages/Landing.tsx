@@ -767,7 +767,9 @@ export default function Landing() {
           </Reveal>
           <div className="grid gap-4 md:grid-cols-2">
             {PERSONAS.map((persona, i) => {
-              const personaVideo = i === 0 ? MARKETING_VIDEOS.personaPch : MARKETING_VIDEOS.personaAlf;
+              const personaVideo = persona.chapter.includes("2800")
+                ? MARKETING_VIDEOS.personaAlf
+                : MARKETING_VIDEOS.personaPch;
               return (
               <Reveal key={persona.title} delay={i * 0.06} className={`${cardClass} flex flex-col gap-3`}>
                 <Suspense fallback={<img src={personaVideo.poster} alt="" className="aspect-video w-full rounded-xl object-cover" />}>
