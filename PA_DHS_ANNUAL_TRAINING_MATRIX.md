@@ -103,33 +103,44 @@ crosswalk.
 | Abuse, Neglect, and Exploitation Reporting: Annual Mandatory Reporter Training | `PA-DHS-STANDALONE-ABUSE-REPORTING` | 1.00 | Annual | `ABUSE-REPORT` |
 | Resident Rights and Dignity: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-RESIDENT-RIGHTS` | 1.00 | Annual | `RESIDENT-RIGHTS` |
 | Infection Prevention and Control: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-INFECTION-CONTROL` | 1.00 | Annual | `INFECTION` |
-| Emergency Preparedness Beyond Fire: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-EMERGENCY-PREP` | 1.00 | Annual | `FIRE-SAFETY` (the type covers fire safety **and** emergency preparedness) |
+| Emergency Preparedness Beyond Fire: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-EMERGENCY-PREP` | 1.00 | Annual | None yet — see below |
 | Falls and Accident Prevention: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-FALLS-PREVENTION` | 1.00 | Annual | None yet — see below |
 | Safe Management and De-escalation: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-SAFE-MANAGEMENT` | 1.00 | Annual | None yet — see below |
 | Medication Self-Administration Support: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-MED-SELF-ADMIN` | 1.00 | Annual | None yet — see below |
 
 Each of the five in-services added on July 25, 2026 is built around three
 presenter segments interleaved with its written steps, roughly seven minutes of
-narration per course. Eight of those fifteen segments are seeded as `video`
-blocks carrying a HeyGen job and the deterministic re-host URL: all three for
-`PA-DHS-STANDALONE-EMERGENCY-PREP` and `PA-DHS-STANDALONE-FALLS-PREVENTION`, and
-two of three for `PA-DHS-STANDALONE-INFECTION-CONTROL`. The remaining seven --
-the third infection-control segment plus every segment of
-`PA-DHS-STANDALONE-SAFE-MANAGEMENT` and `PA-DHS-STANDALONE-MED-SELF-ADMIN` --
-are seeded as `text` blocks carrying the identical narration, and become video
-blocks once their renders exist. Scripts and the render procedure live in
+narration per course. All fifteen segments are seeded as `text` blocks carrying
+that narration. They are rewired to `video` blocks in a follow-up migration once
+their HeyGen renders have actually been re-hosted into the `course-videos`
+bucket: a video block carries the storage URL the polling cron will write to, so
+seeding one before that object exists publishes a player that is broken for
+whoever reaches it first and never resolves at all in an environment without the
+HeyGen key or the cron. `20260724044044` is the seed-then-rewire pattern.
+Scripts and the render procedure live in
 `artifacts/caremetric-carebase/scripts/heygen/scripts/`.
 
-**Three of the July 2026 in-services ship without a regulatory crosswalk, on
-purpose.** Falls prevention, safe management, and medication self-administration
-support have no standalone system training type of their own, and the
-no-double-counting rule below forbids a `PA-DHS-STANDALONE-` course from
-crediting `DIRECT-ANNUAL` / `ALR-DIRECT-ANNUAL`. Rather than invent that credit,
-those three courses ship as assignable, self-enrollable evidence with no
-`course_compliance_credits` row. An employer can still record the delivered
-training under any applicable type through the existing verified-evidence flow.
-Giving them their own standalone types (as `FIRE-SAFETY`, `ABUSE-REPORT`,
-`RESIDENT-RIGHTS`, and `INFECTION` have) would add three new annually recurring
+**Four of the July 2026 in-services ship without a regulatory crosswalk, on
+purpose.** Falls prevention, safe management, medication self-administration
+support, and emergency preparedness have no standalone system training type of
+their own, and the no-double-counting rule below forbids a
+`PA-DHS-STANDALONE-` course from crediting `DIRECT-ANNUAL` /
+`ALR-DIRECT-ANNUAL`. Rather than invent that credit, those four courses ship as
+assignable, self-enrollable evidence with no `course_compliance_credits` row. An
+employer can still record the delivered training under any applicable type
+through the existing verified-evidence flow.
+
+Emergency preparedness is the case worth spelling out, because the near miss is
+tempting. `FIRE-SAFETY` is named "Fire Safety and Emergency Preparedness" and
+looks like a home for it, but it is a single recurring requirement and the
+compliance model has no conjunctive topic gate beneath a training type. Crediting
+an emergency-only course against it would let an employer close out the whole
+fire-safety requirement for an employee who never took any fire-safety training.
+The subject belongs to `PA-DHS-STANDALONE-FIRE-SAFETY` until a distinct
+emergency-preparedness type exists.
+
+Giving these four their own standalone types (as `FIRE-SAFETY`, `ABUSE-REPORT`,
+`RESIDENT-RIGHTS`, and `INFECTION` have) would add four new annually recurring
 required types to every PCH and ALF employee's requirement list, which is a
 compliance-model decision rather than a content one, and is deliberately left
 out of scope here.

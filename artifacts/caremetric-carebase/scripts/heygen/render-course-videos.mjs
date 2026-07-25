@@ -153,37 +153,66 @@ async function main() {
   const rendered = {};
   const failures = [];
   const inFlight = new Map();
+  const out = path.resolve("rendered-segments.json");
+  // Persist ids as they are submitted, before any polling. A job is charged the
+  // moment it is accepted, so losing the id to a crash mid-poll means paying to
+  // render the same segment twice. The file is rewritten as results land.
+  // `submitted` keeps every id for the life of the run -- inFlight loses entries
+  // as they resolve, and a recovery file that forgets what was already paid for
+  // is exactly the file you need after a crash.
+  const submitted = {};
+  const persist = () => fs.writeFile(out, JSON.stringify({ submitted, rendered }, null, 2));
+
   for (const job of jobs) {
     const { videoId, error } = await start(job);
     if (error) { console.log(`  ✖ ${job.name}: submit failed: ${error}`); failures.push(job.name); continue; }
     inFlight.set(job.name, videoId);
+    submitted[job.name] = videoId;
+    await persist();
     console.log(`  ▸ ${job.name} queued as ${videoId}`);
   }
-  console.log(`\nWaiting on ${inFlight.size} render(s)...\n`);
+  console.log(`\nWaiting on ${inFlight.size} render(s)... ids saved to ${out}\n`);
 
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (inFlight.size && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
     for (const [name, videoId] of [...inFlight]) {
-      const result = await check(videoId);
+      // A transient DNS or provider blip must not take down the whole batch and
+      // strand every id that is still in flight. Skip this tick and retry.
+      let result;
+      try {
+        result = await check(videoId);
+      } catch (err) {
+        console.log(`  … ${name}: status check failed (${err?.message ?? err}), retrying`);
+        continue;
+      }
       if (result.status === "completed") {
         inFlight.delete(name);
-        rendered[name] = videoId;
-        const size = result.mb === null
-          ? "size unknown  ⚠ check it before relying on the re-host"
-          : `${result.mb}MB${result.mb > REHOST_CEILING_MB - 5 ? "  ⚠ close to the re-host ceiling" : ""}`;
-        console.log(`  ✔ ${name.padEnd(34)} ${videoId}  ${result.seconds}s  ${size}`);
+        // A file over the ceiling cannot be re-hosted, so it is not a usable
+        // render. Reporting it as success invites an operator to paste a known
+        // dead id into a migration and leave the block permanently broken.
+        if (result.mb !== null && result.mb > REHOST_CEILING_MB) {
+          failures.push(name);
+          console.log(`  ✖ ${name.padEnd(34)} ${result.mb}MB exceeds the ${REHOST_CEILING_MB}MB re-host ceiling — shorten the script`);
+        } else {
+          rendered[name] = videoId;
+          const size = result.mb === null
+            ? "size unknown  ⚠ check it before relying on the re-host"
+            : `${result.mb}MB${result.mb > REHOST_CEILING_MB - 5 ? "  ⚠ close to the re-host ceiling" : ""}`;
+          console.log(`  ✔ ${name.padEnd(34)} ${videoId}  ${result.seconds}s  ${size}`);
+        }
+        await persist();
       } else if (result.status === "failed") {
         inFlight.delete(name);
         failures.push(name);
+        await persist();
         console.log(`  ✖ ${name.padEnd(34)} ${result.reason}`);
       }
     }
   }
   for (const name of inFlight.keys()) { failures.push(name); console.log(`  ✖ ${name}: timed out`); }
 
-  const out = path.resolve("rendered-segments.json");
-  await fs.writeFile(out, JSON.stringify(rendered, null, 2));
+  await persist();
   console.log(`\n${Object.keys(rendered).length} rendered, ${failures.length} failed. Ids written to ${out}`);
   if (failures.length) {
     console.log(`Failed: ${failures.join(", ")}`);

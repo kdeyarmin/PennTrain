@@ -85,10 +85,17 @@ HEYGEN_API_KEY=... node scripts/heygen/render-course-videos.mjs \
   scripts/heygen/scripts/inservice-safe-management-1.txt
 ```
 
-Then point each block's `body.heygen` at its new `video_id` with status
-`processing`, leaving `video_url` on the deterministic re-host path.
-`20260724044044_rewire_orientation_videos_after_credit_topup.sql` is the
-pattern for an already-published course.
+Then rewire the blocks in a follow-up migration: set `body.heygen` to the new
+`video_id` with status `processing` and `video_url` to the deterministic re-host
+path. `20260724044044_rewire_orientation_videos_after_credit_topup.sql` is the
+pattern.
+
+Do that as a **separate migration from the one that seeds the course**, after
+the cron has actually re-hosted the file. A video block carries the storage URL
+before the object exists, so seeding one alongside an unfinished render
+publishes a player that is broken for whoever opens it first — and never
+resolves at all in an environment without the HeyGen key or the polling cron.
+Seed the narration as text, confirm the object, then rewire.
 
 `generate-landing-video.mjs` is the sibling script for marketing videos; it
 downloads an MP4 into `public/marketing/`, which is not what a course block
