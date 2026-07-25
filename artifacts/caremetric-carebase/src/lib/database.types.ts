@@ -23489,6 +23489,84 @@ export type Database = {
           },
         ]
       }
+      resident_care_conflict_dispositions: {
+        Row: {
+          conflict_key: string
+          conflict_kind: string
+          created_at: string
+          disposition: string
+          facility_id: string
+          id: string
+          note: string
+          organization_id: string
+          resident_id: string
+          resolved_at: string
+          resolved_by: string | null
+        }
+        Insert: {
+          conflict_key: string
+          conflict_kind: string
+          created_at?: string
+          disposition: string
+          facility_id: string
+          id?: string
+          note: string
+          organization_id: string
+          resident_id: string
+          resolved_at?: string
+          resolved_by?: string | null
+        }
+        Update: {
+          conflict_key?: string
+          conflict_kind?: string
+          created_at?: string
+          disposition?: string
+          facility_id?: string
+          id?: string
+          note?: string
+          organization_id?: string
+          resident_id?: string
+          resolved_at?: string
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_care_conflict_dispositions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_care_conflict_dispositions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_care_conflict_dispositions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_care_conflict_dispositions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_care_conflict_dispositions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_census_events: {
         Row: {
           actor_profile_id: string | null
@@ -35494,6 +35572,10 @@ export type Database = {
         Args: { p_assessment_form_id: string; p_reason?: string }
         Returns: string
       }
+      generate_support_plan_proposal_from_review: {
+        Args: { p_reason?: string; p_review_id: string }
+        Returns: string
+      }
       get_active_survey_day_session: {
         Args: { p_facility_id: string }
         Returns: Json
@@ -36817,6 +36899,16 @@ export type Database = {
       record_assessment_review_clinical_review: {
         Args: { p_review_id: string }
         Returns: boolean
+      }
+      record_care_conflict_disposition: {
+        Args: {
+          p_conflict_key: string
+          p_conflict_kind: string
+          p_disposition: string
+          p_note: string
+          p_resident_id: string
+        }
+        Returns: string
       }
       record_change_event_notification: {
         Args: {

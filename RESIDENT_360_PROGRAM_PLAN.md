@@ -892,8 +892,42 @@ drift there would break every conflict rule silently.
 **Verified:** typecheck clean; 92 test files / 604 tests pass (37 new); build succeeds; bundle
 budget passes with the resident route at 50.4 KiB.
 
-**Phase 2 is now complete.** Phase 3 (assessment→plan→service engine, field-level conflicts,
-intervention-to-service coverage) is next and is unblocked.
+**Phase 2 is now complete.**
+
+### Phase 3a/3b — conflict detection and a proposal engine that evaluates its rules
+
+**The engine had no evaluation step.** `generate_support_plan_proposal` selected *every* active
+mapping rule and aggregated their proposed needs, services, and interventions without ever comparing
+a rule's `condition` against the assessment. With zero rules seeded this was invisible; the moment
+content existed it would have proposed every intervention in the pack to every resident — worse than
+no engine, because it would look like it was working. The plan scoped 3a as "seed PA rule packs";
+the actual first job was to make the engine capable of using them.
+
+| Delivered | Notes |
+| --- | --- |
+| `app_private.mapping_rule_condition_matches` | A deliberately small predicate language (`equals`, `notEquals`, `gte`/`lte`, `isTrue`, empty). A rule language nobody can read is a rule language nobody can review |
+| Unanswered never matches | A rule fires on evidence, never on absence. Four pgTAP assertions pin this specifically |
+| `generate_support_plan_proposal_from_review` | Evaluates rules against a finalized review's typed answers, and carries `ruleKey` / `ruleVersion` / `rationale` / the matching answer into the proposal so "why was this suggested" is answerable in the UI |
+| Seeded PA rule pack | Ten platform-scoped rules, each with a rationale. **The request's worked example is a committed pgTAP fixture**: extensive toileting assistance + two recent falls + a walker + unreliable requests for help matches exactly the six interventions the request names — and an independent resident with no findings matches zero |
+| `residentCareConflicts.ts` | All five conflict types from the request, each naming source record, conflicting record, date, responsible role, and recommended resolution |
+| `resident_care_conflict_dispositions` | Accept / correct / document-exception, each requiring a note. Conflicts stay **derived**; only the disposition is stored |
+
+**Why conflicts are derived rather than stored.** A stored conflict goes stale the moment either side
+changes. Detection re-runs from current records every time, and a disposition is keyed to the exact
+disagreement — so resolving "two-person vs supervision" does not silently absolve "mechanical lift vs
+supervision" later. A test asserts that resurfacing behaviour.
+
+**The bundle tripwire fired, as designed.** Putting the conflicts panel in the shell pulled the whole
+template catalog into the eager chunk: 50.3 → 83.1 KiB against the 70 KiB budget tightened in Phase 1.
+The fix was to make the conflicts section self-contained and lazy, not to raise the budget: back to
+50.8 KiB, and the shell stays what its budget says it is.
+
+**Verified:** typecheck clean; 633 tests pass (29 new, plus 22 pgTAP assertions CI runs); build
+succeeds; bundle budget passes.
+
+**Still outstanding in Phase 3:** 3c — extending `resident_service_requirements` with task kind,
+required qualification, acceptable completion responses, refusal handling, and escalation
+conditions. Phase 4's floor mode depends on it, so it is the next slice.
 
 ## 6. What to do first
 

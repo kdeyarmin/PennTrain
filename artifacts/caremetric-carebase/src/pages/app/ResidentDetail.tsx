@@ -35,6 +35,8 @@ import type { ResidentTabProps } from "./resident-tabs/types";
 // Every tab is its own chunk. The resident route shipped the administrative master, the agreement
 // workspace, the portal workspace, and the support-plan section in one eager chunk that already sat
 // at ~90% of its bundle budget; splitting is what keeps the header and attention panel affordable.
+const ResidentCareConflictsSection = lazy(() => import("@/components/residents/ResidentCareConflictsSection"));
+
 const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentType<ResidentTabProps>>> = {
   overview: lazy(() => import("./resident-tabs/OverviewTab")),
   care: lazy(() => import("./resident-tabs/CareServicesTab")),
@@ -224,6 +226,13 @@ export default function ResidentDetail() {
         )}
 
         <ResidentNeedsAttentionPanel cards={needsAttentionCards} isLoading={needsAttentionLoading} />
+
+        <Suspense fallback={null}>
+          <ResidentCareConflictsSection
+            residentId={resident.id}
+            residentHref={`${residentPathPrefix}/${resident.id}`}
+          />
+        </Suspense>
 
         <div role="tablist" aria-label="Resident record sections" className="flex flex-wrap gap-1 border-b">
           {tabs.map((tab) => (
