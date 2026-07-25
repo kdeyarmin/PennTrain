@@ -27808,10 +27808,16 @@ export type Database = {
           admission_date: string
           admission_track: string
           advance_directive_status: string
+          allergies: string[]
+          ambulation_status: string
           bed_id: string | null
+          care_profile_reviewed_at: string | null
+          care_profile_reviewed_by: string | null
           case_manager_name: string | null
           case_manager_phone: string | null
           clinical_data_consent: string
+          code_status: string
+          cognitive_status: string
           communication_preferences: string | null
           contract_document_id: string | null
           contract_effective_date: string | null
@@ -27823,7 +27829,9 @@ export type Database = {
           designated_person_name: string | null
           dietary_requirements: string | null
           discharge_date: string | null
+          elopement_risk: string
           facility_id: string
+          fall_risk: string
           first_name: string
           food_allergies: string[]
           hospice: boolean
@@ -27835,6 +27843,7 @@ export type Database = {
           insurance_payer_name: string | null
           is_synthetic: boolean
           last_name: string
+          level_of_care: string
           mobility_summary: string | null
           organization_id: string
           pharmacy_email: string | null
@@ -27858,16 +27867,23 @@ export type Database = {
           secondary_payer_name: string | null
           status: string
           supervision_requirements: string | null
+          transfer_assistance: string
           updated_at: string
         }
         Insert: {
           admission_date: string
           admission_track?: string
           advance_directive_status?: string
+          allergies?: string[]
+          ambulation_status?: string
           bed_id?: string | null
+          care_profile_reviewed_at?: string | null
+          care_profile_reviewed_by?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
           clinical_data_consent?: string
+          code_status?: string
+          cognitive_status?: string
           communication_preferences?: string | null
           contract_document_id?: string | null
           contract_effective_date?: string | null
@@ -27879,7 +27895,9 @@ export type Database = {
           designated_person_name?: string | null
           dietary_requirements?: string | null
           discharge_date?: string | null
+          elopement_risk?: string
           facility_id: string
+          fall_risk?: string
           first_name: string
           food_allergies?: string[]
           hospice?: boolean
@@ -27891,6 +27909,7 @@ export type Database = {
           insurance_payer_name?: string | null
           is_synthetic?: boolean
           last_name: string
+          level_of_care?: string
           mobility_summary?: string | null
           organization_id: string
           pharmacy_email?: string | null
@@ -27914,16 +27933,23 @@ export type Database = {
           secondary_payer_name?: string | null
           status?: string
           supervision_requirements?: string | null
+          transfer_assistance?: string
           updated_at?: string
         }
         Update: {
           admission_date?: string
           admission_track?: string
           advance_directive_status?: string
+          allergies?: string[]
+          ambulation_status?: string
           bed_id?: string | null
+          care_profile_reviewed_at?: string | null
+          care_profile_reviewed_by?: string | null
           case_manager_name?: string | null
           case_manager_phone?: string | null
           clinical_data_consent?: string
+          code_status?: string
+          cognitive_status?: string
           communication_preferences?: string | null
           contract_document_id?: string | null
           contract_effective_date?: string | null
@@ -27935,7 +27961,9 @@ export type Database = {
           designated_person_name?: string | null
           dietary_requirements?: string | null
           discharge_date?: string | null
+          elopement_risk?: string
           facility_id?: string
+          fall_risk?: string
           first_name?: string
           food_allergies?: string[]
           hospice?: boolean
@@ -27947,6 +27975,7 @@ export type Database = {
           insurance_payer_name?: string | null
           is_synthetic?: boolean
           last_name?: string
+          level_of_care?: string
           mobility_summary?: string | null
           organization_id?: string
           pharmacy_email?: string | null
@@ -27970,6 +27999,7 @@ export type Database = {
           secondary_payer_name?: string | null
           status?: string
           supervision_requirements?: string | null
+          transfer_assistance?: string
           updated_at?: string
         }
         Relationships: [
@@ -27978,6 +28008,13 @@ export type Database = {
             columns: ["bed_id"]
             isOneToOne: false
             referencedRelation: "facility_beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_care_profile_reviewed_by_fkey"
+            columns: ["care_profile_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -35542,6 +35579,10 @@ export type Database = {
         Args: { p_facility_id: string; p_from: string; p_through: string }
         Returns: Json
       }
+      get_resident_care_header: {
+        Args: { p_resident_id: string }
+        Returns: Json
+      }
       get_resident_clinical_chart: {
         Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
         Returns: Json
@@ -37766,6 +37807,10 @@ export type Database = {
       }
       save_resident_administrative_master: {
         Args: { p_contacts?: Json; p_profile: Json; p_resident_id: string }
+        Returns: boolean
+      }
+      save_resident_care_profile: {
+        Args: { p_profile: Json; p_resident_id: string }
         Returns: boolean
       }
       save_resident_payment_link: {

@@ -49,8 +49,13 @@ const budgets = {
   // together. Raised 3300 -> 3650 with the lucide-react tree-shaking change (icons
   // now tree-shake into each lazy chunk; measured 3262.5 KiB total). Raised to
   // 3700 after the independently split product-value, portal, and offline-learning
-  // routes reached 3317.2 KiB.
-  totalJavaScript: 3700 * 1024,
+  // routes reached 3317.2 KiB. Raised 3700 -> 4200 with the Resident 360 care header,
+  // needs-attention panel, and per-tab route splitting: measured 3702.0 KiB, which was
+  // already 98.9% (3661.1 KiB) before that work and had been emitting the sub-10%-headroom
+  // warning for several branches. The same change cut the Resident Detail route chunk from
+  // 89.8 KiB to 50.3 KiB, so the aggregate growth is new feature code plus per-chunk
+  // overhead from the split, not a route regression.
+  totalJavaScript: 4200 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted.
   totalCss: 160 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.
@@ -65,7 +70,11 @@ const warningRatio = 0.9;
 // are easiest to miss during feature work. Budgets are intentionally above current
 // measurements so they catch step changes rather than normal one-line edits.
 const routeBudgets = [
-  { label: "Resident Detail route", pattern: /^ResidentDetail-.+\.js$/, budget: 100 * 1024 },
+  // Tightened 100 -> 70 KiB once the record split into per-tab lazy chunks (measured 50.3 KiB,
+  // down from 89.8 KiB when every section shipped in this one chunk). The shell now holds only
+  // the header, the needs-attention panel, and the tab bar, so a step change here means a tab
+  // module leaked back into the shell -- which is exactly what this budget should catch.
+  { label: "Resident Detail route", pattern: /^ResidentDetail-.+\.js$/, budget: 70 * 1024 },
   { label: "Help Center route", pattern: /^HelpCenter-.+\.js$/, budget: 50 * 1024 },
   { label: "Survey Day route", pattern: /^SurveyDay-.+\.js$/, budget: 30 * 1024 },
   { label: "System Jobs route", pattern: /^SystemJobs-.+\.js$/, budget: 20 * 1024 },

@@ -122,7 +122,7 @@ Verified against the working tree at `cb56f75`. This table is the scoping input 
 
 | # | Request | What exists today | Delta |
 | --- | --- | --- | --- |
-| 1 | Resident 360 header + tabs | `ResidentDetail.tsx` (706 lines) stacks eight sections vertically; `Resident360Summary.tsx` gives four metrics + a filterable timeline; `residents` table has only name/room/admission/status/sdcu/hospice plus contact columns | No clinical header data model at all (level of care, mobility/transfer, diet+texture, allergies, fall/elopement risk, cognitive status, code status, hospital status, photo); no tabs; no code splitting |
+| 1 | Resident 360 header + tabs | `ResidentDetail.tsx` (706 lines) stacks eight sections vertically; `Resident360Summary.tsx` gives four metrics + a filterable timeline; `residents` already carries `photo_document_id`, `advance_directive_status`, `mobility_summary`, `supervision_requirements`, `food_allergies`; diet/texture in `resident_dietary_profiles` | Coded care attributes missing (clinical level of care, transfer assistance, ambulation, fall/elopement risk, cognitive status, code status, non-food allergies); no composed read model; no tabs; no code splitting |
 | 2 | Needs Attention panel | `moveInReadiness.ts` computes packet gaps/blockers; `residentCompliance.ts` computes item status; `careLevelReview.ts` flags billing/assessment mismatch; all rendered separately | No unified, prioritized, resident-scoped risk evaluator; no single panel |
 | 3 | Assessment→plan engine | `support_plan_assessment_mapping_rules` (condition → proposed need/service/intervention/DME + `rationale`), `support_plan_proposals` (proposed/accepted/modified/rejected), `ResidentSupportPlanSection.tsx` | Rule content is not seeded for PA scenarios; no per-intervention "why" surface; approve/modify/reject is coarse, not per-item |
 | 4 | Field-level conflict detection | `support_plan_proposals.conflict_warnings text[]` | Untyped strings — no source record, conflicting record, date, reviewer, recommended resolution, or accept/correct/document-exception action |
@@ -199,13 +199,13 @@ Fifteen of the seventeen requested header fields have no home. Sourcing them:
 
 | Header field | Source |
 | --- | --- |
-| Room, facility, admission date, status, hospice | `residents` (exists) |
+| Room, facility, admission date, status, hospice, **photo** | `residents` (exists — `photo_document_id` already points at `resident_documents`, so no new PHI storage class is needed; reads go through the existing logged signed-URL path) |
 | Diet, texture, food allergies | `resident_dietary_profiles` (exists — project, don't duplicate) |
 | Mobility / transfer assistance | `resident_evacuation_profiles.assistance_level` exists but is *evacuation* scope; needs a care-scope field |
 | Current hospital status | derived from open `hospital_transfer_episodes` |
 | Last assessment date | derived from `resident_assessment_forms` / `clinical_assessments` |
 | Current support-plan version | derived from `resident_support_plans` |
-| **New:** level of care, transfer assistance, non-food allergies, fall risk, elopement risk, cognitive status, code status, photo | new governed fields |
+| **New:** clinical level of care, transfer assistance, ambulation status, non-food allergies, fall risk, elopement risk, cognitive status, code status | new coded fields |
 
 Decisions this phase must make explicitly, because they are not reversible cheaply:
 
@@ -215,9 +215,10 @@ Decisions this phase must make explicitly, because they are not reversible cheap
 - **Code status and allergies are clinical data.** They belong on the clinical side of the boundary
   documented in `docs/HIPAA_CLINICAL_DATA.md`, behind per-facility clinical enablement, not on
   `residents`.
-- **Resident photo** introduces a new class of PHI to Storage: bucket, RLS, signed-URL TTL,
-  retention, and export/erasure handling must be specified before the field ships, and the photo
-  must degrade to initials everywhere it is optional.
+- **Resident photo** turned out to need no new storage decision: `residents.photo_document_id`
+  already references `resident_documents`, so the photo inherits that table's bucket, RLS,
+  retention, and logged signed-URL path. Reading it is a logged PHI access like any other resident
+  document, and it degrades to initials wherever it is absent or fails to load.
 
 Deliver as a single tenant-scoped read model (`get_resident_header` RPC or security-invoker view) so
 the header, Floor task cards (Phase 4), and printable output all read one source. Every field carries
@@ -770,7 +771,47 @@ rather than a scramble.
 
 ---
 
-## 5. What to do first
+## 5. Delivery log
+
+Kept current as phases land, so the plan does not drift from the code.
+
+### Phase 1 — first slice delivered
+
+**Sequencing deviation, stated deliberately.** Phase 0 is documented above as preceding everything,
+and it still should for the journey gates. This slice went to Phase 1 first for one reason: the
+Playwright journey harness needs a running Supabase stack to be meaningful, and building a harness
+that cannot be executed in the environment where the work happens produces unverifiable
+infrastructure. The Phase 0 discipline that *is* executable here — pure-logic unit tests, a stable
+tab contract under test, typecheck, and the bundle gate — was applied to everything below. Phase 0's
+seeded tenant and browser journeys remain outstanding and still gate Phase 2.
+
+| Item | Delivered | Notes |
+| --- | --- | --- |
+| 1a — care header data model | `20260726010000_resident_care_header_profile.sql` | Eight coded columns on `residents` + `save_resident_care_profile` (SECURITY DEFINER, manager-gated, writes an administrative-history row) + `get_resident_care_header` (security invoker, composes stored and derived facts, each block carrying its own `asOf`) |
+| 1a — placement decisions | Recorded in the migration header | Clinical level of care kept distinct from the billed `level_of_care_charge`; `code_status` distinct from `advance_directive_status` (document-on-file, not preference); non-food `allergies` distinct from `food_allergies`; every column defaults to an explicit "not assessed" rather than NULL, and nothing is inferred from existing free text |
+| 1b — tabs | `resident-tabs/` + shell rewrite of `ResidentDetail.tsx` | Eight tabs, each a lazy chunk; tab state in the URL; unknown or no-longer-permitted tabs fall back to Overview; registry is data-driven so later phases add a tab by adding a row |
+| 1c — Needs Attention | `residentNeedsAttention.ts` + panel | Twelve card kinds, ranked, each carrying evidence / owner / due / action. Pure and injectable-clock |
+| Bundle gate | `check-bundle-budget.mjs` | Resident Detail route chunk 89.8 → 50.3 KiB; route budget **tightened** 100 → 70 KiB. Aggregate JS budget raised 3700 → 4200 KiB (measured 3702.0; it was already at 98.9% and warning before this work) |
+
+**Verified:** typecheck clean; 89 test files / 528 tests pass, including 46 new ones; production
+build succeeds; bundle budget passes; migration policy lint and source integrity pass.
+
+**Not verified here:** `check:database` needs a local Supabase stack (no Docker daemon in this
+environment), so the migration has not been replayed and `database.types.ts` was extended by hand to
+match the generator's output. CI's database job is the check on both.
+
+**Deliberately not built in this slice, and why:**
+
+- **Appointments tab** — `resident_appointments` exists but has no read surface on the record. An
+  empty tab reads as "no appointments" rather than "not built". Tracked in `PLANNED_TABS`.
+- **"Increased assistance" and refusal-specific cards** — need the structured service exceptions
+  from Phase 4. Approximating them from free text would manufacture false signals.
+- **Care-level review card** — the evaluator supports it, but feeding it means loading the 11-query
+  financial workspace on every resident view. It waits for the Financial tab to own that query.
+
+All three are surfaced in the panel's "checks not yet covered" section rather than silently omitted.
+
+## 6. What to do first
 
 If only one phase is funded now, fund **Phase 0 plus Phase 1a** (the resident clinical profile data
 model). Everything else in this request — the header, Floor task cards, conflict detection,

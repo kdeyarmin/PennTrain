@@ -13,21 +13,16 @@ function Metric({ label, value, detail }: { label: string; value: number | strin
   return <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></div>;
 }
 
-export function Resident360Summary({ residentId }: { residentId: string }) {
+/**
+ * Split from the combined summary so the Resident 360 tab shell can put the metric card on
+ * Care & services and the timeline on its own tab without shipping both in one chunk.
+ * `Resident360Summary` below still composes the two for any caller that wants both.
+ */
+export function Resident360MetricCard({ residentId }: { residentId: string }) {
   const snapshot = useResident360Snapshot(residentId);
-  const timeline = useResidentTimeline(residentId, 40);
   const data = snapshot.data;
-  const [timelineQuery, setTimelineQuery] = useState("");
-  const [timelineType, setTimelineType] = useState("all");
-  const timelineEvents = timeline.data ?? [];
-  const sourceSummary = useMemo(() => residentTimelineSourceSummary(timelineEvents), [timelineEvents]);
-  const filteredTimeline = useMemo(
-    () => filterResidentTimeline(timelineEvents, { eventType: timelineType, query: timelineQuery }),
-    [timelineEvents, timelineType, timelineQuery],
-  );
   const risks = data ? data.openRisks.incidents + data.openRisks.conditionChanges + data.openRisks.complaints + data.openRisks.complianceGaps : 0;
   return (
-    <div className="space-y-4">
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><HeartPulse className="h-5 w-5" />Resident 360</CardTitle><CardDescription>A resident-centered view across compliance, operations, service delivery, dietary, finance, and safety records.</CardDescription></CardHeader>
         <CardContent className="space-y-4">
@@ -41,6 +36,20 @@ export function Resident360Summary({ residentId }: { residentId: string }) {
           </div>
         </CardContent>
       </Card>
+  );
+}
+
+export function ResidentTimelineCard({ residentId }: { residentId: string }) {
+  const timeline = useResidentTimeline(residentId, 40);
+  const [timelineQuery, setTimelineQuery] = useState("");
+  const [timelineType, setTimelineType] = useState("all");
+  const timelineEvents = timeline.data ?? [];
+  const sourceSummary = useMemo(() => residentTimelineSourceSummary(timelineEvents), [timelineEvents]);
+  const filteredTimeline = useMemo(
+    () => filterResidentTimeline(timelineEvents, { eventType: timelineType, query: timelineQuery }),
+    [timelineEvents, timelineType, timelineQuery],
+  );
+  return (
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Activity className="h-4 w-4" />Resident timeline</CardTitle><CardDescription>Newest resident-linked events from the system of record.</CardDescription></CardHeader>
         <CardContent className="space-y-4">
@@ -90,6 +99,14 @@ export function Resident360Summary({ residentId }: { residentId: string }) {
           )}
         </CardContent>
       </Card>
+  );
+}
+
+export function Resident360Summary({ residentId }: { residentId: string }) {
+  return (
+    <div className="space-y-4">
+      <Resident360MetricCard residentId={residentId} />
+      <ResidentTimelineCard residentId={residentId} />
     </div>
   );
 }
