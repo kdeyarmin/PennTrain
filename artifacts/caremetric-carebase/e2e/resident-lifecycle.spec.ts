@@ -417,8 +417,11 @@ test.describe("resident lifecycle journey", () => {
 
     await signIn(page);
     await page.goto(`/app/residents/${residentId}`);
-    // residentDisplayName renders "Last, First", not "First Last".
-    await expect(page.getByRole("heading", { name: /Resident, Journey/ })).toBeVisible({ timeout: 20000 });
+    // residentDisplayName renders "Last, First", not "First Last". Level 1 because the name also
+    // appears as an h2 in the banner breadcrumb, and an unscoped match is a strict-mode violation.
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Resident, Journey" }),
+    ).toBeVisible({ timeout: 20000 });
 
     await page.getByRole("combobox", { name: "Resident status" }).click();
     await page.getByRole("option", { name: "Discharged" }).click();
