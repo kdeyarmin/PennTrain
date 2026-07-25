@@ -334,6 +334,26 @@ reset when a dynamic import still fails. These are complementary safeguards: the
 long-lived tabs working without interruption; automatic recovery handles clients outside the
 archive window. Do not configure Cloudflare or Railway to cache `404` responses.
 
+**Attaching the volume is a trade, not a free upgrade -- decide it deliberately.** Railway's
+volumes carry two platform constraints that apply to the whole service, not just to the archive
+([Railway: volumes](https://docs.railway.com/reference/volumes)):
+
+- **Replicas cannot be used with volumes.** Attaching one caps this service at a single instance,
+  so it can no longer be scaled horizontally. (One Node process serves this bundle at roughly
+  4.3k req/s for the entry chunk and ~30k req/s for `/health` on a 4-core box, so the ceiling is
+  high -- but it becomes a hard one.)
+- **Redeploys stop being zero-downtime.** Railway refuses to run two deployments against the same
+  volume, so the new deployment cannot come up and pass its healthcheck while the old one is still
+  serving. Every release then takes a small amount of downtime *even with a healthcheck
+  configured*, and the "failed healthcheck keeps the previous deploy live" protection above is
+  weakened: there is a window with nothing serving.
+
+Without the volume, a tab left open across a deploy that requests a since-removed chunk gets a
+404 and the client-side recovery above (service-worker unregister + cache clear + one reload)
+takes over -- an interruption for those users only, while deploys stay zero-downtime and the
+service stays scalable. Choose the volume when long-lived open tabs matter more than
+release-time availability; skip it when they don't.
+
 Never set `NPM_CONFIG_PRODUCTION=true` on this service: every dependency of the app (including
 `vite` itself) lives in `devDependencies`, and that variable makes pnpm skip them at install,
 emptying the build. (The buildCommand passes `--prod=false` explicitly to defend against it, and
