@@ -147,11 +147,15 @@ select is(
 update public.survey_day_sessions set status = 'closed', closed_at = now()
 where id = 'f9000000-0000-4000-8000-000000000601';
 
+-- aal2 with a current `iat`: assert_survey_day_manager requires a fresh step-up, and it runs BEFORE
+-- the closed-session check -- correctly, since a caller who is not allowed to write should not learn
+-- the session's state from the error. An aal1 claim here would fail on 42501 and never reach the
+-- behaviour this assertion is about.
 create or replace function pg_temp.act_as(p_id uuid)
 returns void language plpgsql as $$
 begin
   reset role;
-  perform set_config('request.jwt.claims', jsonb_build_object('sub', p_id, 'role', 'authenticated', 'aal', 'aal1',
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', p_id, 'role', 'authenticated', 'aal', 'aal2',
     'iat', extract(epoch from now())::bigint)::text, true);
   set local role authenticated;
 end $$;
