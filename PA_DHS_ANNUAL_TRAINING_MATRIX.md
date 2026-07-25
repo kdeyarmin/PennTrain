@@ -91,9 +91,10 @@ time is never shorter than either facility type's claimed credit.
 
 ## One-time orientation and standalone annual deep-dive courses
 
-Four system courses added in July 2026 sit outside the eleven-module annual
-matrix above. All four use the `comprehensive` content standard and
-`verified_only` credit, like every other seeded crosswalk.
+Nine system courses added in July 2026 sit outside the eleven-module annual
+matrix above. All nine use the `comprehensive` content standard and, where they
+carry a crosswalk at all, `verified_only` credit like every other seeded
+crosswalk.
 
 | Course | Catalog code | Designed hours | Cadence | Training type credited |
 | --- | --- | ---: | --- | --- |
@@ -101,10 +102,36 @@ matrix above. All four use the `comprehensive` content standard and
 | Fire Safety and Emergency Preparedness: Annual Refresher for PCH and ALF Staff | `PA-DHS-STANDALONE-FIRE-SAFETY` | 1.00 | Annual | `FIRE-SAFETY` |
 | Abuse, Neglect, and Exploitation Reporting: Annual Mandatory Reporter Training | `PA-DHS-STANDALONE-ABUSE-REPORTING` | 1.00 | Annual | `ABUSE-REPORT` |
 | Resident Rights and Dignity: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-RESIDENT-RIGHTS` | 1.00 | Annual | `RESIDENT-RIGHTS` |
+| Infection Prevention and Control: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-INFECTION-CONTROL` | 1.00 | Annual | `INFECTION` |
+| Emergency Preparedness Beyond Fire: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-EMERGENCY-PREP` | 1.00 | Annual | `FIRE-SAFETY` (the type covers fire safety **and** emergency preparedness) |
+| Falls and Accident Prevention: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-FALLS-PREVENTION` | 1.00 | Annual | None yet — see below |
+| Safe Management and De-escalation: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-SAFE-MANAGEMENT` | 1.00 | Annual | None yet — see below |
+| Medication Self-Administration Support: Annual Training for PCH and ALF Staff | `PA-DHS-STANDALONE-MED-SELF-ADMIN` | 1.00 | Annual | None yet — see below |
+
+Each of the five in-services added on July 25, 2026 is built around three
+presenter segments interleaved with its written steps, roughly seven minutes of
+video per course. Eight of those fifteen segments ship as video; the remaining
+seven carry the identical narration as a written step until the HeyGen API
+credit pool is topped up and they are swapped to video blocks. See
+`artifacts/caremetric-carebase/scripts/heygen/scripts/README.md`.
+
+**Three of the July 2026 in-services ship without a regulatory crosswalk, on
+purpose.** Falls prevention, safe management, and medication self-administration
+support have no standalone system training type of their own, and the
+no-double-counting rule below forbids a `PA-DHS-STANDALONE-` course from
+crediting `DIRECT-ANNUAL` / `ALR-DIRECT-ANNUAL`. Rather than invent that credit,
+those three courses ship as assignable, self-enrollable evidence with no
+`course_compliance_credits` row. An employer can still record the delivered
+training under any applicable type through the existing verified-evidence flow.
+Giving them their own standalone types (as `FIRE-SAFETY`, `ABUSE-REPORT`,
+`RESIDENT-RIGHTS`, and `INFECTION` have) would add three new annually recurring
+required types to every PCH and ALF employee's requirement list, which is a
+compliance-model decision rather than a content one, and is deliberately left
+out of scope here.
 
 The `PA-DHS-STANDALONE-` catalog prefix marks single-topic annual deep-dive
 courses that credit their own standalone training type (`FIRE-SAFETY`,
-`ABUSE-REPORT`, `RESIDENT-RIGHTS`) rather than the `DIRECT-ANNUAL` (PCH
+`ABUSE-REPORT`, `RESIDENT-RIGHTS`, `INFECTION`) rather than the `DIRECT-ANNUAL` (PCH
 12-hour) or `ALR-DIRECT-ANNUAL` (ALF 16-hour) buckets. The orientation course
 covers the §2600.65 / §2800.65 first-work-day and first-40-hours orientation
 floor, has no recurrence interval, and credits the separate one-time `ORIENT`
@@ -113,7 +140,8 @@ annual-catalog invariants (annual recurrence, the fixed 20-course list) do not
 apply to it.
 
 **Standalone types and the annual-hour buckets — no double counting.** 55 Pa.
-Code requires the fire-safety, abuse-reporting, and resident-rights *subjects*
+Code requires the fire-safety, abuse-reporting, resident-rights, infection
+control, and emergency preparedness *subjects*
 every year within the overall annual training hours (12 hours PCH under
 §2600.65(f)-(g); 16 hours ALF under §2800.65(i)-(j)). The regulation does not
 issue a per-topic hour split, so the 1.00-hour figure on each standalone type
@@ -121,7 +149,8 @@ is — like every module allocation in this matrix — PennTrain curriculum desi
 not a regulator-issued hour allocation. The eleven unconditional annual modules
 above already cover these subjects inside the 12/16-hour buckets
 (`PA-DHS-ANNUAL-FIRE-SAFETY-PREP`, `PA-DHS-ANNUAL-OAPSA-REPORTING`,
-`PA-DHS-ANNUAL-RESIDENT-RIGHTS`). The standalone courses therefore credit only
+`PA-DHS-ANNUAL-RESIDENT-RIGHTS`, `PA-DHS-ANNUAL-INFECTION-IMMOBILITY`,
+`PA-DHS-ANNUAL-EMERGENCY-PREP`). The standalone courses therefore credit only
 their own standalone types and contribute **no** hours to `DIRECT-ANNUAL` /
 `ALR-DIRECT-ANNUAL`: completing a standalone course neither reduces the
 12/16-hour denominator nor adds earned hours to it, and the standalone types'
