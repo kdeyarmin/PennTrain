@@ -36478,6 +36478,10 @@ export type Database = {
           title: string
         }[]
       }
+      get_schedule_acuity_roster: {
+        Args: { p_schedule_id: string }
+        Returns: Json
+      }
       get_schedule_service_workload: {
         Args: { p_schedule_id: string }
         Returns: Json

@@ -1264,11 +1264,44 @@ negative test per block: nothing else would have caught it.
 
 **Verified:** typecheck clean; 901 tests pass (14 new); build succeeds; all bundle budgets pass.
 
-**Remaining in Phase 8:** 8b — acuity-aware advisory workload (item 19). `get_schedule_service_workload`
-already computes census, two-person transfers, escorts, safety checks and appointment demand against
-`service_workload_profiles` minimums; the gap is the acuity dimensions (assistance levels, behavioral
-supervision, high-risk residents, admissions and returns) and presenting the result as advisory
-rather than as a staffing mandate.
+### Phase 8b — Acuity-aware advisory workload
+
+`get_schedule_service_workload` already reported census, two-person transfers, escorts, safety checks
+and appointment demand against configured `service_workload_profiles` minimums, and is untouched.
+What was missing was the acuity dimensions that only arrived with the Phase 1 care header.
+
+| Delivered | Detail |
+| --- | --- |
+| Itemized care minutes | `acuityWorkload.ts` — level of care, transfers, mobility, fall risk, elopement risk, cognition, scheduled services, appointment escorts, recent admissions and hospital returns |
+| Observations | Two-person transfers without two staff, qualification gaps, uncovered critical services, recent admissions and returns, unrecorded acuity, and an unstaffed shift |
+| A roster read path | `get_schedule_acuity_roster` hands over the roster and computes **no workload figure at all** |
+| Surfaced | A lazy section on the schedule page, with the disclaimer at the top rather than in a footnote |
+
+**Advisory, and provably so.** The module emits care minutes, never a staff count. A test asserts the
+output has no `requiredStaff`, `recommendedStaff`, `staffingLevel` or `score` key, and pgTAP asserts
+the same of the RPC payload. A product that prints "you need 4.2 staff" gets that number quoted back
+to a facility in a survey, and it will be wrong.
+
+**Not a black box either**, which is the program-wide constraint applied here: every minute is
+traceable to a named exported constant, each contribution is returned with its own label, count and
+subtotal, and a test asserts the total equals the sum of its parts. The figures are a starting point
+a facility can argue with, and no PA regulation prescribes them — the disclaimer says so, and travels
+in the RPC payload so an export cannot present the numbers without it.
+
+**Why the arithmetic is in TypeScript.** The exit gate requires the output be reproducible from a
+fixture roster. A pure function over a plain object is reproducible by construction and testable
+without a database; weights buried in SQL would be unverifiable except by running one, and they are
+exactly the numbers a facility should inspect.
+
+**Two judgment calls.** An unrecognized attribute value falls back to the *not-assessed* figure
+rather than zero — a typo or a new enum value must not silently make a resident free to care for.
+And an appointment escort counts only when a staff member is actually assigned to accompany or
+drive: a family-driven appointment costs the facility no escort time, and a facility-vehicle
+appointment with nobody assigned is a scheduling gap rather than workload that exists.
+
+**Verified:** typecheck clean; 927 tests pass (26 new); build succeeds; all bundle budgets pass.
+
+**Phase 8 is now complete.** Phase 9 (admissions CRM and occupancy board) is next.
 
 ## 6. What to do first
 
