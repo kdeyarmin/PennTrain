@@ -40,7 +40,10 @@ async function signIn(page: import("@playwright/test").Page) {
 }
 
 test.describe("resident lifecycle journey", () => {
-  test.describe.configure({ mode: "serial" });
+  // Playwright's 30s default is a whole-test budget, and sign-in alone can spend 20s of it before
+  // the journey starts. The first run of this step reported "Test timeout of 30000ms exceeded" at
+  // the button, which reads as a missing control but was the test simply running out of time.
+  test.describe.configure({ mode: "serial", timeout: 120_000 });
 
   test.beforeAll(async () => {
     if (!supabaseUrl || !serviceRoleKey || !password) {
@@ -143,8 +146,13 @@ test.describe("resident lifecycle journey", () => {
       .poll(() => new URL(page.url()).pathname, { timeout: 20000 })
       .toBe("/app/residents");
 
-    const headings = await page.getByRole("heading").allTextContents();
-    expect(headings, `headings rendered were ${JSON.stringify(headings)}`).toContain("Residents");
+    // Polled, not read once. ProtectedRoute returns <FullPageLoading> *before* MainLayout while the
+    // facility-type query resolves, so the page legitimately renders zero headings for a while --
+    // and a one-shot read of that moment reports an empty page that is merely still loading.
+    // expect.poll keeps Playwright's auto-retry while still printing what actually rendered.
+    await expect
+      .poll(async () => page.getByRole("heading").allTextContents(), { timeout: 30000 })
+      .toContain("Residents");
 
     await page.getByRole("button", { name: "Add Resident" }).click();
 
