@@ -102,6 +102,29 @@ test.describe("resident lifecycle journey", () => {
         .insert({ profile_id: user.user.id, facility_id: facility.id });
       if (error) throw error;
     }
+
+    // Module entitlements. /app/residents belongs to the CareBase pillar, and with no entitlement
+    // rows at all the client resolves to core-only and redirects the route away -- which is what a
+    // real unentitled tenant should experience, and is why the first run of this step timed out
+    // waiting for a button on a page it had already been bounced off.
+    const { error: entitlementError } = await admin
+      .from("organization_entitlement_grants")
+      .insert(
+        [
+          "modules.carebase",
+          "modules.train",
+          "modules.workforce",
+          "modules.compliance",
+          "modules.billing",
+        ].map((feature_key) => ({
+          organization_id: organizationId,
+          feature_key,
+          decision: "grant",
+          entitlement_value: true,
+          reason: "Resident lifecycle journey fixture",
+        })),
+      );
+    if (entitlementError) throw entitlementError;
   });
 
   // -------------------------------------------------------------------------------------------
@@ -110,6 +133,13 @@ test.describe("resident lifecycle journey", () => {
   test(`1. ${step("admit").title} ["admit"]`, async ({ page }) => {
     await signIn(page);
     await page.goto("/app/residents");
+
+    // Assert the page before the control on it. Without this, an entitlement or role redirect and a
+    // renamed button produce the identical failure -- "waiting for getByRole('button')" -- and cost
+    // a CI round each to tell apart.
+    await expect(page.getByRole("heading", { name: "Residents" })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/app/residents");
+
     await page.getByRole("button", { name: "Add Resident" }).click();
 
     const dialog = page.getByRole("dialog");
