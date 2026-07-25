@@ -36901,10 +36901,7 @@ export type Database = {
         Args: { p_facility_id: string; p_from?: string; p_through?: string }
         Returns: Json
       }
-      get_survey_day_packet: {
-        Args: { p_session_id: string }
-        Returns: Json
-      }
+      get_survey_day_packet: { Args: { p_session_id: string }; Returns: Json }
       get_survey_day_staff_roster: {
         Args: {
           p_page?: number
