@@ -6,7 +6,7 @@
 -- interleaved with the written steps -- roughly seven minutes of narration
 -- per course. The HeyGen identity matches the New Employee Orientation course:
 -- photo-avatar look 3fd2086f9f31438cb28ae57134b6affa (business dress, office
--- setting) and cloned voice 2ba78236f7a64ca8b182d14c23399c88.
+-- setting) and voice e27fe997edb94c61b755e8f4c563fe5b ("Kevin - Voice").
 --
 -- The presenter segments ship as written steps until their HeyGen renders
 -- exist; the narration is identical either way, and the same step becomes a

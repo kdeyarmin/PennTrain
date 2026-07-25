@@ -18,7 +18,9 @@ is recognizably one person across the catalog:
 
 - avatar (photo-avatar look) `3fd2086f9f31438cb28ae57134b6affa` — business dress
   in an office setting, from the `Kevin Deyarmin` HeyGen avatar group
-- voice `2ba78236f7a64ca8b182d14c23399c88` — Kevin's cloned voice
+- voice `e27fe997edb94c61b755e8f4c563fe5b` — "Kevin - Voice", the voice cloned
+  from his avatar. This is the voice to use for every CareBase presenter video;
+  several other Kevin-named voices exist in the account and are not it.
 
 Write the narration as **"I'm Kevin"** with no surname: the voice model does not
 pronounce the surname correctly.
@@ -70,7 +72,7 @@ is the pattern.
 ```
 HEYGEN_API_KEY=... \
 HEYGEN_AVATAR_ID=3fd2086f9f31438cb28ae57134b6affa \
-HEYGEN_VOICE_ID=2ba78236f7a64ca8b182d14c23399c88 \
+HEYGEN_VOICE_ID=e27fe997edb94c61b755e8f4c563fe5b \
 HEYGEN_NO_BACKGROUND=1 \
 SCRIPT_FILE=scripts/heygen/scripts/inservice-infection-control-1.txt \
 OUTPUT_BASENAME=inservice-infection-control-1 \
