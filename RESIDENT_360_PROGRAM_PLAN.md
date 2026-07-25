@@ -925,9 +925,32 @@ The fix was to make the conflicts section self-contained and lazy, not to raise 
 **Verified:** typecheck clean; 633 tests pass (29 new, plus 22 pgTAP assertions CI runs); build
 succeeds; bundle budget passes.
 
-**Still outstanding in Phase 3:** 3c — extending `resident_service_requirements` with task kind,
-required qualification, acceptable completion responses, refusal handling, and escalation
-conditions. Phase 4's floor mode depends on it, so it is the next slice.
+### Phase 3c — service delivery contract; Phase 3 complete
+
+`resident_service_requirements` already said *when* a service happens and *who* broadly. It never
+said what kind of task it is, what qualification it demands, what counts as completing it, what to do
+when the resident refuses, or when to escalate. Without those, a generated task is an instruction to
+"do the thing" and the aide invents the rest at the bedside.
+
+| Delivered | Notes |
+| --- | --- |
+| Seven task kinds | Only `scheduled_care` / `shift_task` / `weekly_task` have a due window, so the rest must never raise missed-window alerts — `taskKindHasDueWindow()` is what scheduling and the floor queue read |
+| `required_qualification_key` | Shaped like `certification_definitions.qualification_key`, deliberately **not** a foreign key: definitions are org-scoped or platform-wide, and a requirement must not break because an org has not defined its own row yet |
+| Seven completion responses | The same seven the request names for exception-based documentation, defined now on the requirement that owns them so the floor phase wires an existing vocabulary rather than inventing a second one |
+| Per-kind response defaults | A manager review cannot be refused by a resident; offering that response invites recording something that did not happen. Enforced in SQL and mirrored in TS, with pgTAP on both |
+| Refusal handling and escalation | The UI flags a service that allows a refusal but does not say what staff should do next |
+| Opt-out, not opt-in | A service entry suppresses generation with `"generate_service": false`. The author opted *in* by putting it in `services`; flipping to opt-out-by-default would have silently stopped generating tasks for every existing plan |
+
+**Two constraints worth noting.** A service with an empty response set is rejected — it could never
+be closed and would sit red forever. And an entry listing only unrecognized responses falls back to
+the kind's defaults rather than producing that unclosable service.
+
+**Verified:** typecheck clean; 658 tests pass (25 new, plus 12 new pgTAP assertions); build succeeds;
+bundle budget passes with the resident route at 50.8 KiB.
+
+**Phase 3 is now complete.** Phase 4 (floor execution mode, exception-based documentation,
+unscheduled services) is next and is unblocked — the response vocabulary and task kinds it needs are
+already in place.
 
 ## 6. What to do first
 

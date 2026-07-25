@@ -27433,9 +27433,12 @@ export type Database = {
       }
       resident_service_requirements: {
         Row: {
+          acceptable_completion_responses: string[]
           created_at: string
           documentation_mode: string
           effective_from: string
+          escalate_after_exceptions: number | null
+          escalation_conditions: string | null
           expires_on: string | null
           facility_id: string
           frequency: string
@@ -27443,6 +27446,8 @@ export type Database = {
           id: string
           need_description: string | null
           organization_id: string
+          refusal_handling: string | null
+          required_qualification_key: string | null
           requires_two_staff: boolean
           resident_id: string
           responsible_role: string
@@ -27455,15 +27460,19 @@ export type Database = {
           special_instructions: string
           status: string
           superseded_at: string | null
+          task_kind: string
           time_window_end: string
           time_window_start: string
           unit_id: string | null
           updated_at: string
         }
         Insert: {
+          acceptable_completion_responses?: string[]
           created_at?: string
           documentation_mode?: string
           effective_from: string
+          escalate_after_exceptions?: number | null
+          escalation_conditions?: string | null
           expires_on?: string | null
           facility_id: string
           frequency: string
@@ -27471,6 +27480,8 @@ export type Database = {
           id?: string
           need_description?: string | null
           organization_id: string
+          refusal_handling?: string | null
+          required_qualification_key?: string | null
           requires_two_staff?: boolean
           resident_id: string
           responsible_role: string
@@ -27483,15 +27494,19 @@ export type Database = {
           special_instructions: string
           status?: string
           superseded_at?: string | null
+          task_kind?: string
           time_window_end?: string
           time_window_start?: string
           unit_id?: string | null
           updated_at?: string
         }
         Update: {
+          acceptable_completion_responses?: string[]
           created_at?: string
           documentation_mode?: string
           effective_from?: string
+          escalate_after_exceptions?: number | null
+          escalation_conditions?: string | null
           expires_on?: string | null
           facility_id?: string
           frequency?: string
@@ -27499,6 +27514,8 @@ export type Database = {
           id?: string
           need_description?: string | null
           organization_id?: string
+          refusal_handling?: string | null
+          required_qualification_key?: string | null
           requires_two_staff?: boolean
           resident_id?: string
           responsible_role?: string
@@ -27511,6 +27528,7 @@ export type Database = {
           special_instructions?: string
           status?: string
           superseded_at?: string | null
+          task_kind?: string
           time_window_end?: string
           time_window_start?: string
           unit_id?: string | null

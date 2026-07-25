@@ -33,6 +33,10 @@ import {
   type SupportPlanState,
 } from "@/lib/supportPlanLifecycle";
 import { SupportPlanVersionComparison } from "@/components/residents/SupportPlanVersionComparison";
+import {
+  COMPLETION_RESPONSE_LABELS, defaultResponsesForKind, SERVICE_TASK_KIND_LABELS,
+  type CompletionResponse, type ServiceTaskKind,
+} from "@/lib/serviceDeliveryContract";
 
 // Colour only; the label and description come from supportPlanLifecycle.ts so the UI cannot drift
 // from the server's state set.
@@ -69,6 +73,58 @@ function itemLabel(item: Record<string, unknown>): string {
     if (typeof v === "string" && v.trim()) return v;
   }
   return "Item";
+}
+
+/**
+ * Services carry a delivery contract -- what kind of task it is, who is qualified, what closes it,
+ * and what happens on a refusal. Showing it here is the difference between a plan that reads like an
+ * intention and one an aide can actually act on.
+ */
+function ServiceList({ value }: { value: unknown }) {
+  const items = asArray(value);
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground">Services ({items.length})</p>
+      <div className="mt-1 space-y-1.5">
+        {items.map((item, index) => {
+          const kind = typeof item.task_kind === "string" ? item.task_kind : "scheduled_care";
+          const responses = Array.isArray(item.acceptable_completion_responses)
+            ? (item.acceptable_completion_responses as string[])
+            : defaultResponsesForKind(kind);
+          const qualification = typeof item.required_qualification_key === "string" ? item.required_qualification_key : null;
+          const refusal = typeof item.refusal_handling === "string" ? item.refusal_handling : null;
+          const escalation = typeof item.escalation_conditions === "string" ? item.escalation_conditions : null;
+          const suppressed = item.generate_service === false;
+          return (
+            <div key={index} className="rounded-md border p-2 text-sm">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-medium">{itemLabel(item)}</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {SERVICE_TASK_KIND_LABELS[kind as ServiceTaskKind] ?? kind}
+                </Badge>
+                {qualification && <Badge variant="outline" className="text-[10px]">requires {qualification}</Badge>}
+                {suppressed && (
+                  <Badge variant="outline" className="text-[10px]">No staff task generated</Badge>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Closes with: {responses.map((response) =>
+                  COMPLETION_RESPONSE_LABELS[response as CompletionResponse] ?? response).join(", ")}
+              </p>
+              {refusal && <p className="text-[11px] text-muted-foreground">On refusal: {refusal}</p>}
+              {escalation && <p className="text-[11px] text-muted-foreground">Escalate when: {escalation}</p>}
+              {!refusal && responses.includes("resident_refused") && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-500">
+                  Refusal is an allowed outcome but the plan does not say what staff should do next.
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function JsonbList({ label, value }: { label: string; value: unknown }) {
@@ -371,7 +427,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                     <div className="mt-3 space-y-2 border-t pt-3">
                       <JsonbList label="Needs" value={plan.needs} />
                       <JsonbList label="Goals" value={plan.goals} />
-                      <JsonbList label="Services" value={plan.services} />
+                      <ServiceList value={plan.services} />
                       <JsonbList label="Interventions" value={plan.interventions} />
                       {plan.staff_instructions && <div><p className="text-xs font-medium text-muted-foreground">Staff instructions</p><p className="text-sm whitespace-pre-wrap">{plan.staff_instructions}</p></div>}
                       {asArray(plan.needs).length === 0 && asArray(plan.services).length === 0 && !plan.staff_instructions && (
