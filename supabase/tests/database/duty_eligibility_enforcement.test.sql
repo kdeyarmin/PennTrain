@@ -1,5 +1,5 @@
 begin;
-select plan(21);
+select plan(22);
 
 select has_table('public', 'duty_eligibility_rules', 'the duty rule table exists');
 select has_table('public', 'duty_eligibility_overrides', 'the duty override table exists');
@@ -184,6 +184,17 @@ select throws_ok($$select public.grant_duty_eligibility_override(
   '42501',
   null,
   'a non org-admin cannot grant an override');
+
+-- The deactivated manager above is the case that actually failed: current_role() returns NULL for a
+-- deactivated profile, `not NULL` is NULL, and `if NULL then raise` never fires -- so the guard let
+-- a suspended account through. Asserting the override table is still empty of their grant proves the
+-- guard stopped the write, not merely that an error was raised somewhere.
+select is(
+  (select count(*)::int from public.duty_eligibility_overrides
+   where granted_by = 'b5000000-0000-4000-8000-000000000103'),
+  0,
+  'and the deactivated caller wrote no override row'
+);
 
 -- Negative authorization: the exit gate requires proof the DIRECT call is refused, not that a
 -- button is hidden.

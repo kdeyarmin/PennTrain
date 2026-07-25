@@ -1248,6 +1248,20 @@ organization turns it on by inserting its own rule row. A pgTAP assertion holds 
 insert and quietly changed `assessor_profile_id = auth.uid()` to a coalesce. Caught by diffing
 against the newest definition before committing — which is exactly the check that phase established.
 
+**An authorization hole the exit gate's negative test found — in my own guard.** The override RPC
+was written as `if not (is_platform_admin() or (org matches and role = 'org_admin')) then raise`.
+`current_role()` and `current_org_id()` both filter on `is_active`, so for a **deactivated** profile
+they return NULL; the disjunction evaluates to NULL, `not NULL` is NULL, and `if NULL then` does not
+run its branch. The guard failed open for precisely the caller it most needed to stop, and the audit
+trail would have read as an authorized action. The same pattern was in the Phase 2 care-delivery
+analytics guard; both now `coalesce(..., false)`.
+
+**The rule this establishes:** never write `if not (<permission expression>) then raise`. Three-valued
+logic turns the negation of an unknown into "no error". Use `coalesce(..., false)`, or the
+positive-failure form the `app_private.assert_*` helpers already use, where `is distinct from` is
+NULL-safe by construction. This is also the concrete argument for the exit gate's requirement of a
+negative test per block: nothing else would have caught it.
+
 **Verified:** typecheck clean; 901 tests pass (14 new); build succeeds; all bundle budgets pass.
 
 **Remaining in Phase 8:** 8b — acuity-aware advisory workload (item 19). `get_schedule_service_workload`
