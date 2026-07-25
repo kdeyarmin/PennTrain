@@ -1,15 +1,29 @@
-Let's talk about the two things that decide whether an infection stays with one resident or moves down a hallway: standard precautions, and what you do with the surfaces everybody touches.
+I want to talk about the wipe.
 
-Standard precautions means treating everyone's blood and body fluids as potentially infectious. Not because you suspect any particular resident of anything, but because you cannot know, and because the alternative is deciding for yourself who looks risky. I've watched that go wrong in real buildings. It's how residents get judged for a diagnosis that's none of anyone's business, and it's how the resident nobody suspected becomes the one who spreads something. Treating everyone the same way is both the safer practice and the more respectful one, and those two things line up more often in this work than people expect.
+You know the one. Somebody grabs a disinfectant wipe, runs it across the bed rail, and moves on. Two seconds, maybe three. It looks like the job got done. It feels like the job got done.
 
-Now, cleaning. This is where I see the most well-intentioned failure, and it comes down to one word: contact time.
+It didn't.
 
-Every disinfectant has a contact time printed on the label, and it's usually longer than the time it takes to wipe a surface and walk away. The surface has to stay visibly wet with that product for the full time on the label. If it dries in twenty seconds and the label says two minutes, you cleaned the surface and you did not disinfect it. That contact time is the entire product. Wiping fast is theater, and it's theater that feels productive, which is what makes it dangerous.
+Every disinfectant has a contact time printed on the label, and it's usually a couple of minutes. The surface has to stay wet with that product for the whole time. If it dries in twenty seconds and the label says two minutes, then congratulations, you cleaned it. You did not disinfect it. And those are two different words that do two different jobs.
 
-Clean first, then disinfect. Disinfectant applied over visible soil does almost nothing, because it has to reach the surface to work.
+That contact time isn't a suggestion on the bottle. It is the entire product. Everything else is packaging.
 
-And pay attention to what actually gets touched by everyone: bed rails, call bells, doorknobs, handrails, light switches, over-bed tables, wheelchairs, walkers, mechanical lifts and slings, blood pressure cuffs, thermometers, glucose meters. Shared clinical equipment gets cleaned and disinfected between every single resident. Not at the end of the shift, not when it looks dirty. Between residents. If the practice on your hall is an end-of-shift wipe, that's a habit somebody started once when they were behind, and it has been quietly moving organisms between residents ever since.
+I bring this one up first because it's the failure I see most, and because it's the one that feels productive while you're doing it. Which makes it worse, not better. Nobody stands there thinking they're cutting a corner.
 
-Same discipline with linen and waste. Handle soiled linen away from your body, never shake it out, and put it straight into the container your facility designates. Sharps go into a sharps container at the moment you're done with them, never in a trash bag where the next person's hand is going.
+Same thing with order of operations. Clean first, then disinfect. Disinfectant poured over visible gunk doesn't do much of anything, because it can't reach the surface it's supposed to be killing things on.
 
-None of this requires you to be a nurse. It requires you to give a product the time it needs and to treat shared equipment like it's shared. That's it.
+Then there's the shared stuff, and this is where I'd ask you to be a little bit stubborn.
+
+Bed rails. Call bells. Doorknobs. Handrails. Wheelchairs and walkers. The lift and the sling. Blood pressure cuff, thermometer, glucose meter.
+
+That equipment gets cleaned between residents. Not at the end of the shift. Not when it starts to look dirty. Between residents, every time.
+
+If the habit on your hall is a wipe-down at the end of the day, I promise you that started with one person, one time, who was drowning and did the best they could. And then it just became how it's done. Nobody decided it. It's been quietly walking things from room to room ever since.
+
+Two more, quick.
+
+Soiled linen, hold it away from your body, don't shake it out, and put it straight where it goes. The shaking is how it gets airborne, and people do it without thinking.
+
+Sharps go in the sharps container right then. Not on a counter for a second. Not in a trash bag, where the next set of hands is going.
+
+And then the one that runs underneath all of it. You treat everybody the same way, because you cannot look at a person and know. The second you start deciding who seems risky, you've got residents getting judged for a diagnosis that's nobody's business, and the one nobody suspected is the one who spreads it.

@@ -110,10 +110,10 @@ crosswalk.
 
 Each of the five in-services added on July 25, 2026 is built around three
 presenter segments interleaved with its written steps, roughly seven minutes of
-video per course. Eight of those fifteen segments ship as video; the remaining
-seven carry the identical narration as a written step until the HeyGen API
-credit pool is topped up and they are swapped to video blocks. See
-`artifacts/caremetric-carebase/scripts/heygen/scripts/README.md`.
+narration per course. The segments currently ship as written steps and become
+video blocks once their HeyGen renders exist; the narration itself is identical
+either way. Scripts and the render procedure live in
+`artifacts/caremetric-carebase/scripts/heygen/scripts/`.
 
 **Three of the July 2026 in-services ship without a regulatory crosswalk, on
 purpose.** Falls prevention, safe management, and medication self-administration

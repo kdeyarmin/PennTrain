@@ -1,13 +1,25 @@
-Let's walk through the ones that actually happen, because most emergencies in a residential building aren't dramatic. They're utility failures that become dangerous because of who lives there.
+Let's walk through the ones that actually happen, because most of them aren't dramatic at all. They're a utility going out, and then getting dangerous because of who lives there.
 
-Power loss is the most common. Your building probably has a generator, and you need to know what it carries and what it doesn't. Which outlets are on emergency power and which are not, because that decides whether an oxygen concentrator or a CPAP or a feeding pump keeps running. Know which residents depend on those devices, what the backup is for each one, and how long that backup lasts. Check on those residents first. And remember a power failure can take the heat, the cooling, the elevators, the electronic locks, the call bell system, and the medication refrigerator with it, so it's never just about the lights. And never, ever use candles or an open flame as emergency lighting.
+Power is the common one.
 
-Heat and cold are genuinely dangerous for older adults, who regulate temperature poorly and often won't tell you they're uncomfortable. In heat, watch for confusion, weakness, dizziness, and hot dry skin, get people out of the sun and the warmest rooms, and push fluids the way each care plan allows. In cold, watch for shivering that stops, sleepiness, and confusion, and add layers. In both cases report the change rather than deciding what it is, because those presentations overlap with infection and medication effects.
+Your building probably has a generator. Here's the question almost nobody can answer until the night it matters: what does it actually cover? Which outlets come back on, and which ones don't? Because that's the difference between an oxygen concentrator that keeps running and one that doesn't.
 
-Water loss means no handwashing, no flushing, no cooking, no bathing. Know where your bottled water, sanitizer, and hygiene supplies are kept. That's the whole preparation.
+So know which of your residents need electricity to stay well. Know what the backup is for each of them and roughly how long it buys you. Go see those people first.
 
-Severe weather. Know your shelter areas, usually interior rooms away from windows on the lowest safe floor. And be realistic: moving a building full of people who use walkers and wheelchairs takes far longer than any warning gives you. Start early. If you ever evacuate to another site, the three things that matter most are an accurate resident count, medications, and records leaving with the residents.
+And remember the power takes other things with it. The heat. The air conditioning. The elevators. The electronic locks. Sometimes the call bells. The medication fridge. It's never just the lights.
 
-And then a missing resident, which the field calls elopement, and which is one of the most dangerous events in a building like yours. Prevention is part of every shift: know who's at risk of leaving, know your alarmed doors and secured exits, and never prop a door or disable an alarm because your hands are full. If you can't locate somebody, notify immediately. Do not spend twenty minutes quietly looking and hoping it resolves before anyone finds out. Minutes matter, because a confused resident outside in traffic, in heat, or in cold is in real danger right now.
+Flashlights, know where they are, and check them now rather than in the dark. And never a candle. Not once, not for a minute, not in a building full of oxygen.
 
-Across every one of these, the rule is the same: notify, don't investigate. Getting the right people involved fast is your job. Figuring out what happened is theirs.
+Heat and cold are genuinely dangerous here, and older adults are terrible at telling you they're in trouble. In heat, watch for somebody getting confused, weak, dizzy, skin hot and dry. Get them out of the sun and the warm rooms, push fluids the way the plan allows. In cold, the one that scares me is shivering that stops. That plus sleepiness and confusion. Layers, blankets, and report it, because those two picture look exactly like an infection and exactly like a medication problem, and it's not your job to sort out which.
+
+Water going out means no handwashing, no flushing, no cooking, no showers. Know where the bottled water and the sanitizer live. That's the whole preparation, honestly.
+
+Weather. Know your shelter spots. And be realistic with yourself about how long it takes to move a building full of people with walkers, because it is always longer than the warning gives you. Start early. You can always stand down.
+
+Then the missing resident. Elopement. This is the one that scares me most in a building like yours.
+
+Prevention's part of every shift. Know who's at risk. Know your alarmed doors. And never prop one open or kill an alarm because your hands are full and you're making one trip.
+
+If you can't find somebody, say so immediately. Do not spend twenty minutes quietly looking, hoping it sorts itself out before anybody finds out you lost track of her. I understand the urge completely. Minutes matter, because a confused person outside in traffic or in the cold is in danger right now, not later.
+
+Every one of these, same rule. Notify, don't investigate. Getting the right people moving is your job. Figuring out what happened is theirs.

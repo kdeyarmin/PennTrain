@@ -23,6 +23,27 @@ is recognizably one person across the catalog:
 Write the narration as **"I'm Kevin"** with no surname: the voice model does not
 pronounce the surname correctly.
 
+## Write it to be spoken, not read
+
+These are the difference between a course somebody watches and one they click
+past, so the copy is held to a spoken standard:
+
+- open on something concrete — a moment, a mistake, a thing that actually
+  happens on a shift — never on a thesis sentence or a list of objectives;
+- vary sentence length hard, and let fragments stand;
+- no stacked parallel clauses. Three declaratives in a row reads as a checklist
+  being recited, which is the fastest way to lose a viewer;
+- keep contractions, asides, and the occasional admission that something is
+  difficult or was learned the hard way;
+- earn the boundaries. "You never restrain anybody" lands when it follows the
+  reason, not when it leads a bulleted rule;
+- close on a line that lands, not a summary of what was just said.
+
+The anecdotes are written as composites ("I've watched this happen more than
+once") rather than as specific claims about named residents, so nothing puts an
+invented event in a real person's mouth. Swapping in a real story is an
+improvement whenever there is one to tell.
+
 ## Three constraints worth knowing before you render
 
 1. **HeyGen rejects a script over 5,000 characters** (`input_text`).
