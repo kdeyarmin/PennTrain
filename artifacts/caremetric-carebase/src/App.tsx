@@ -99,6 +99,7 @@ const ResidentClinicalChart = lazy(() => import("@/pages/app/ResidentClinicalCha
 const ResidentComplianceReport = lazy(() => import("@/pages/app/ResidentComplianceReport"));
 const StateFormsCenter = lazy(() => import("@/pages/app/StateFormsCenter"));
 const ServiceDelivery = lazy(() => import("@/pages/app/ServiceDelivery"));
+const Floor = lazy(() => import("@/pages/employee/Floor"));
 const ResidentCareDelivery = lazy(() => import("@/pages/app/ResidentCareDelivery"));
 const AdmissionOperations = lazy(() => import("@/pages/app/AdmissionOperations"));
 const MoveInWorkspaceDetail = lazy(() => import("@/pages/app/MoveInWorkspaceDetail"));
@@ -897,6 +898,9 @@ function Router() {
       </Route>
       <Route path="/me/work/:id">
         {() => <ProtectedRoute component={WorkItemDetail} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/floor">
+        {() => <ProtectedRoute component={Floor} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/services">
         {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={["employee"]} />}

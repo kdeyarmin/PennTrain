@@ -27582,8 +27582,12 @@ export type Database = {
       resident_service_task_instances: {
         Row: {
           assigned_employee_id: string | null
+          change_of_condition_id: string | null
           completed_by_employee_id: string | null
+          completion_response: string | null
           created_at: string
+          documented_assistance_level: string | null
+          exception_details: Json
           facility_id: string
           id: string
           note: string | null
@@ -27607,8 +27611,12 @@ export type Database = {
         }
         Insert: {
           assigned_employee_id?: string | null
+          change_of_condition_id?: string | null
           completed_by_employee_id?: string | null
+          completion_response?: string | null
           created_at?: string
+          documented_assistance_level?: string | null
+          exception_details?: Json
           facility_id: string
           id?: string
           note?: string | null
@@ -27632,8 +27640,12 @@ export type Database = {
         }
         Update: {
           assigned_employee_id?: string | null
+          change_of_condition_id?: string | null
           completed_by_employee_id?: string | null
+          completion_response?: string | null
           created_at?: string
+          documented_assistance_level?: string | null
+          exception_details?: Json
           facility_id?: string
           id?: string
           note?: string | null
@@ -27661,6 +27673,13 @@ export type Database = {
             columns: ["assigned_employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_service_task_instances_change_of_condition_id_fkey"
+            columns: ["change_of_condition_id"]
+            isOneToOne: false
+            referencedRelation: "resident_change_events"
             referencedColumns: ["id"]
           },
           {
@@ -27881,6 +27900,94 @@ export type Database = {
           },
           {
             foreignKeyName: "resident_support_plans_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_unscheduled_services: {
+        Row: {
+          created_at: string
+          duration_minutes: number | null
+          facility_id: string
+          id: string
+          note: string | null
+          occurred_at: string
+          organization_id: string
+          recorded_by_employee_id: string | null
+          recorded_by_profile_id: string | null
+          requires_two_staff: boolean
+          resident_id: string
+          service_kind: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number | null
+          facility_id: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          organization_id: string
+          recorded_by_employee_id?: string | null
+          recorded_by_profile_id?: string | null
+          requires_two_staff?: boolean
+          resident_id: string
+          service_kind: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number | null
+          facility_id?: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          organization_id?: string
+          recorded_by_employee_id?: string | null
+          recorded_by_profile_id?: string | null
+          requires_two_staff?: boolean
+          resident_id?: string
+          service_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_unscheduled_services_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_unscheduled_services_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_unscheduled_services_recorded_by_employee_id_fkey"
+            columns: ["recorded_by_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_unscheduled_services_recorded_by_profile_id_fkey"
+            columns: ["recorded_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_unscheduled_services_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_unscheduled_services_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
@@ -35993,14 +36100,18 @@ export type Database = {
           p_through?: string
         }
         Returns: {
+          acceptable_completion_responses: string[]
           assigned_employee_id: string
           assigned_employee_name: string
+          completion_response: string
           documentation_mode: string
           facility_id: string
           facility_name: string
           id: string
           note: string
           organization_id: string
+          refusal_handling: string
+          required_qualification_key: string
           requirement_id: string
           requires_two_staff: boolean
           resident_id: string
@@ -36015,8 +36126,13 @@ export type Database = {
           special_instructions: string
           status: string
           supervisor_notified: boolean
+          task_kind: string
           unit_name: string
         }[]
+      }
+      get_resident_service_utilization: {
+        Args: { p_days?: number; p_resident_id: string }
+        Returns: Json
       }
       get_resident_timeline: {
         Args: { p_limit?: number; p_resident_id: string }
@@ -37247,8 +37363,12 @@ export type Database = {
         }
         Returns: {
           assigned_employee_id: string | null
+          change_of_condition_id: string | null
           completed_by_employee_id: string | null
+          completion_response: string | null
           created_at: string
+          documented_assistance_level: string | null
+          exception_details: Json
           facility_id: string
           id: string
           note: string | null
@@ -37290,6 +37410,49 @@ export type Database = {
         Args: { p_reason: string; p_task_instance_id: string }
         Returns: string
       }
+      record_service_task_response: {
+        Args: {
+          p_exception_details?: Json
+          p_response: string
+          p_second_employee_id?: string
+          p_task_id: string
+        }
+        Returns: {
+          assigned_employee_id: string | null
+          change_of_condition_id: string | null
+          completed_by_employee_id: string | null
+          completion_response: string | null
+          created_at: string
+          documented_assistance_level: string | null
+          exception_details: Json
+          facility_id: string
+          id: string
+          note: string | null
+          organization_id: string
+          performed_at: string | null
+          recorded_by_profile_id: string | null
+          requirement_id: string
+          resident_id: string
+          responsible_role: string
+          scheduled_end: string
+          scheduled_start: string
+          second_employee_id: string | null
+          service_name: string
+          source_assessment_form_id: string
+          source_plan_version: number
+          status: string
+          supervisor_notified: boolean
+          supervisor_notified_at: string | null
+          unit_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_service_task_instances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       record_shift_call_off: {
         Args: {
           p_category: string
@@ -37321,6 +37484,17 @@ export type Database = {
           p_evidence: Json
           p_recorder_signature_sha256: string
           p_registration_id: string
+        }
+        Returns: string
+      }
+      record_unscheduled_service: {
+        Args: {
+          p_duration_minutes?: number
+          p_note?: string
+          p_occurred_at?: string
+          p_requires_two_staff?: boolean
+          p_resident_id: string
+          p_service_kind: string
         }
         Returns: string
       }

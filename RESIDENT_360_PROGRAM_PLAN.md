@@ -948,9 +948,47 @@ the kind's defaults rather than producing that unclosable service.
 **Verified:** typecheck clean; 658 tests pass (25 new, plus 12 new pgTAP assertions); build succeeds;
 bundle budget passes with the resident route at 50.8 KiB.
 
-**Phase 3 is now complete.** Phase 4 (floor execution mode, exception-based documentation,
-unscheduled services) is next and is unblocked — the response vocabulary and task kinds it needs are
-already in place.
+**Phase 3 is now complete.**
+
+### Phase 4 — floor execution, exception documentation, unscheduled services
+
+| Delivered | Notes |
+| --- | --- |
+| `/me/floor` | Five large actions and a resident task card carrying photo initials, room, task, due window, instructions, and the two-staff safety alert — and deliberately **nothing else**. No compliance status, work-item metadata, citation, or plan version |
+| Exception documentation | One tap for the routine path; only exceptions open follow-ups. `record_service_task_response` stores the response, a structured payload, and a denormalized assistance level |
+| Unscheduled services | `resident_unscheduled_services` plus `record_unscheduled_service` — the eight kinds the request names, two taps to record |
+| Utilization read model | `get_resident_service_utilization` returns unscheduled counts, exception counts, and documented assistance levels, so the care-level review can finally rest on what staff did rather than what somebody planned |
+
+**Why the task status enum was left alone.** `resident_service_task_instances.status` drives
+scheduling, alerting, and every completion metric in the product. The seven documentation responses
+are a different axis: "completed with more assistance" is still a completed task. Folding it into
+status would understate delivery and overstate missed care everywhere at once. The response is stored
+alongside the status, and exception analysis reads the response.
+
+**Why unscheduled services got their own table.** They have no requirement, no schedule, and no due
+window — the three things `resident_service_task_instances` is built around. Recording them as
+instances would mean inventing a fake requirement per event and permanently distorting the completion
+denominator.
+
+**Two live bugs found while wiring the floor surface**, both of which would have shipped silently:
+
+- `get_resident_service_task_queue` rejects a zero-width window (`p_through <= p_from`). A floor
+  query passing today for both bounds would have failed on every load.
+- The queue returns a flat row, not a nested requirement. The card's two-staff safety alert and care
+  instructions read a nested object and would have rendered as *nothing* — the failure mode being an
+  aide not told a transfer needs two people.
+
+The queue now also returns `task_kind`, `acceptable_completion_responses`, `refusal_handling`, and
+`required_qualification_key`, so the floor offers the responses the plan allows and shows the plan's
+refusal instruction at the moment a refusal is recorded — the one moment that instruction exists for.
+
+**Verified:** typecheck clean; 681 tests pass (23 new, plus 10 new pgTAP assertions); build succeeds;
+bundle budget passes.
+
+**Still outstanding in Phase 4:** wiring the documented assistance level into the conflict detector's
+`serviceExceptions` input (the detector and its tests are complete; the resident page still passes an
+empty array), and the change-of-condition hand-off from a documented exception. Both are small and
+belong with Phase 5's change intelligence.
 
 ## 6. What to do first
 
