@@ -32,11 +32,18 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const HEYGEN_BASE = "https://api.heygen.com";
+const HEYGEN_UPLOAD = "https://upload.heygen.com/v1/asset";
 const AVATAR_ID = process.env.HEYGEN_AVATAR_ID || "3fd2086f9f31438cb28ae57134b6affa";
 const VOICE_ID = process.env.HEYGEN_VOICE_ID || "e27fe997edb94c61b755e8f4c563fe5b";
 
 const REHOST_CEILING_MB = 50;
-const MB_PER_SECOND = 0.27;
+// Avatar footage and slide footage compress nothing alike. Measured: an avatar
+// segment runs ~0.27MB/s, while a block of narrated stills came back at
+// 4.3MB for 126 seconds -- roughly 0.035MB/s, because the frame barely moves.
+// Projecting slides at the avatar rate over-estimated one block by 8x and
+// forced a split that was not needed.
+const MB_PER_SECOND_AVATAR = 0.27;
+const MB_PER_SECOND_SLIDE = 0.04;
 const CHARS_PER_SECOND = 17.5;
 const POLL_INTERVAL_MS = 20_000;
 const POLL_TIMEOUT_MS = 45 * 60_000;
@@ -79,15 +86,24 @@ async function sceneToHeygen(scene, slideDir, cache) {
     };
   }
   if (scene.type === "slide") {
-    // Inline the PNG. These are flat-colour frames a few hundred KB each, and
-    // base64 keeps the run self-contained -- no asset upload to reconcile, and
-    // no public URL to host for a file that only HeyGen ever reads.
+    // Studio scenes reject inline base64 -- the image has to be an uploaded
+    // asset. Uploads are cached per slide id, so a frame reused across blocks
+    // is sent once.
     if (!cache.has(scene.slide)) {
       const file = path.join(slideDir, `${scene.slide}.png`);
       const data = await fs.readFile(file).catch(() => fail(`Missing slide PNG: ${file}`));
-      cache.set(scene.slide, data.toString("base64"));
+      const res = await fetch(HEYGEN_UPLOAD, {
+        method: "POST",
+        headers: { "x-api-key": process.env.HEYGEN_API_KEY, "Content-Type": "image/png" },
+        body: data,
+      });
+      const body = await res.json().catch(() => null);
+      const assetId = body?.data?.id;
+      if (!res.ok || !assetId) fail(`Upload failed for ${scene.slide}: ${body?.message ?? res.status}`);
+      cache.set(scene.slide, assetId);
+      console.log(`    uploaded ${scene.slide} -> ${assetId}`);
     }
-    const source = { type: "base64", media_type: "image/png", data: cache.get(scene.slide) };
+    const source = { type: "asset_id", asset_id: cache.get(scene.slide) };
     return script
       ? { type: "image", source, script, voice_id: VOICE_ID }
       : { type: "image", source, duration: scene.duration ?? 4 };
@@ -104,8 +120,12 @@ async function main() {
   if (!process.env.HEYGEN_API_KEY && !dryRun) fail("HEYGEN_API_KEY is not set.");
 
   const deck = JSON.parse(await fs.readFile(path.resolve(deckPath), "utf8"));
-  const blocks = deck.blocks ?? [];
-  if (!blocks.length) fail("Deck has no blocks.");
+  // --only renders a subset. Proving one block before committing the batch is
+  // the cheap way to find out a payload shape is wrong.
+  const onlyIndex = rest.indexOf("--only");
+  const only = onlyIndex === -1 ? null : new Set(rest[onlyIndex + 1].split(","));
+  const blocks = (deck.blocks ?? []).filter((b) => !only || only.has(b.id));
+  if (!blocks.length) fail(only ? `No block matched --only ${[...only].join(",")}` : "Deck has no blocks.");
 
   console.log(`\n${deck.course}\nAvatar ${AVATAR_ID}\nVoice  ${VOICE_ID}\n`);
 
@@ -113,8 +133,12 @@ async function main() {
   let blocked = false;
   for (const block of blocks) {
     let seconds = 0;
-    for (const scene of block.scenes) seconds += sceneSeconds(scene, await sceneScript(scene));
-    const mb = seconds * MB_PER_SECOND;
+    let mb = 0;
+    for (const scene of block.scenes) {
+      const secs = sceneSeconds(scene, await sceneScript(scene));
+      seconds += secs;
+      mb += secs * (scene.type === "avatar" ? MB_PER_SECOND_AVATAR : MB_PER_SECOND_SLIDE);
+    }
     totalSeconds += seconds;
     // HeyGen caps a studio video at 50 scenes; the storage re-host caps the file.
     const overCeiling = mb > REHOST_CEILING_MB - 5;
@@ -136,7 +160,7 @@ async function main() {
   if (dryRun) return;
 
   const cache = new Map();
-  const out = path.resolve(`${deck.course}-blocks.json`);
+  const out = path.resolve(`${deck.course}${only ? "-partial" : ""}-blocks.json`);
   const submitted = {};
   for (const block of blocks) {
     const scenes = [];

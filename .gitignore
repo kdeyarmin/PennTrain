@@ -58,3 +58,4 @@ Thumbs.db
 
 # HeyGen render output (video ids get written into a migration, not committed)
 rendered-segments.json
+*-blocks.json
