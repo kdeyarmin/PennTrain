@@ -108,8 +108,7 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     ordinal: 9,
     title: "Investigate the incident",
     proves: "The eleven follow-through stages derive from evidence and closure is refused until met.",
-    status: "pending",
-    blockedBy: "Depends on step 8: the stages derive from an incident that does not exist yet.",
+    status: "implemented",
   },
   {
     id: "qapi",

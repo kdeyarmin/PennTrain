@@ -1566,6 +1566,31 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0d — Step 9, the investigation
+
+**Coverage 5/12 (41%).** Step 9 passed on its first local run — the first step in this program to do
+so, which is what the static-audit-then-run-locally discipline is for.
+
+**It asserts the claim that actually matters.** The stages are *derived*, not ticked off: the step
+records an investigation through the dialog, then recomputes the eleven stages from the stored row
+using `buildIncidentStages` — the same pure function the UI renders from — and asserts
+`immediate_response` and `root_cause` became complete because evidence exists, not because anything
+marked them so.
+
+**Closure is refused against the real guard, twice.** Before any evidence, and again after the
+investigation is recorded but before a final report and administrator approval. Both attempts go
+through the user's client against the `incidents` table, so what is proven is that the *record* is
+protected by `enforce_incident_final_report_before_close` — not that a button was disabled. A
+disabled button proves the button is disabled.
+
+That second assertion is the substantive one: recording an investigation is not the same as
+finishing one, and a system that let closure through at that point would be letting facilities close
+incidents that a surveyor would reopen.
+
+**Stack robustness:** the first `supabase start` of this phase failed with an unhealthy analytics
+container and rolled the whole stack back; a retry with images already pulled succeeded. The script
+now retries once after clearing, since that flake costs a full cold start otherwise.
+
 ### Phase 0c — Step 8, and the production bug it found
 
 **Coverage 4/12 (33%).** Step 8 (report a fall) is proven: intake through the dialog, then the Fall

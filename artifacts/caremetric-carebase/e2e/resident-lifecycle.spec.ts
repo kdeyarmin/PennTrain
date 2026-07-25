@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { RESIDENT_JOURNEY_STEPS } from "../src/lib/residentJourney";
+import { buildIncidentStages } from "../src/lib/incidentStages";
 
 /**
  * The twelve-step resident lifecycle journey (program plan Phase 0, item 3).
@@ -433,6 +434,87 @@ test.describe("resident lifecycle journey", () => {
   });
 
   // -------------------------------------------------------------------------------------------
+  // 9. Investigate the incident
+  //
+  // Two claims, and the second is the one that matters: the stages are DERIVED from recorded
+  // evidence rather than ticked off by hand, and the database refuses to close an incident whose
+  // evidence is incomplete. The refusal is asserted against the real guard, not a UI affordance --
+  // a disabled button proves the button is disabled, not that the record is protected.
+  // -------------------------------------------------------------------------------------------
+  test(`9. ${step("investigation").title} ["investigation"]`, async ({ page }) => {
+    test.fixme(step("investigation").status === "pending", step("investigation").blockedBy ?? "");
+    test.skip(incidentId === null, "step 8 did not complete, so there is no incident to investigate");
+
+    await signIn(page);
+    await page.goto(`/app/incidents/${incidentId}`);
+    await expect(page.getByText("Follow-through")).toBeVisible({ timeout: 20000 });
+
+    // Closure is refused BEFORE the evidence exists. Attempted as the user, against the table the
+    // trigger guards, so this proves the record is protected rather than the screen.
+    const prematureClose = await userClient
+      .from("incidents")
+      .update({ status: "closed" })
+      .eq("id", incidentId!);
+    expect(prematureClose.error?.message ?? "").toMatch(/final report|approve/i);
+
+    await page.getByRole("button", { name: "Record" }).first().click();
+    const record = page.getByRole("dialog");
+    await expect(record).toBeVisible();
+    await record.getByLabel("Immediate response").fill(
+      "Resident assisted up, vitals taken, physician notified within the hour.",
+    );
+    await record.getByLabel("Findings").fill(
+      "No witness. Floor was dry. Resident reported reaching for the call bell.",
+    );
+    await record.getByLabel("Root cause").fill(
+      "Call bell was out of reach from the bed, so the resident self-transferred.",
+    );
+    await record.getByLabel("Method used").click();
+    await page.getByRole("option").first().click();
+    await record.getByRole("button", { name: "Save" }).click();
+
+    // The stages are recomputed from the stored row by the same pure function the UI renders from,
+    // so this asserts derivation rather than re-asserting whatever the screen happened to show.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("incidents")
+        .select("*")
+        .eq("id", incidentId!)
+        .single();
+      if (error) throw error;
+      const notifications = await userClient
+        .from("incident_notifications")
+        .select("*")
+        .eq("incident_id", incidentId!);
+      if (notifications.error) throw new Error(notifications.error.message);
+      const stages = buildIncidentStages({
+        incident: data as never,
+        notifications: (notifications.data ?? []) as never,
+        correctiveActions: [],
+        assessmentReviewFinalized: false,
+        supportPlanRevisedAfterIncident: false,
+      });
+      const byKey = new Map(stages.map((stage) => [stage.key, stage.status]));
+      return {
+        stageCount: stages.length,
+        immediate: byKey.get("immediate_response") ?? "missing",
+        rootCause: byKey.get("root_cause") ?? "missing",
+      };
+    }, { timeout: 20000 }).toEqual({
+      stageCount: 11,
+      immediate: "complete",
+      rootCause: "complete",
+    });
+
+    // And closure is still refused: recording an investigation is not the same as finishing one.
+    const stillRefused = await userClient
+      .from("incidents")
+      .update({ status: "closed" })
+      .eq("id", incidentId!);
+    expect(stillRefused.error?.message ?? "").toMatch(/final report|approve/i);
+  });
+
+  // -------------------------------------------------------------------------------------------
   // 11. Produce a survey packet
   //
   // Reachable now for two reasons that were previously blockers: the fixture holds the
@@ -561,7 +643,7 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit", "fall", "survey-packet", "discharge"]);
+  const WITH_WRITTEN_BODIES = new Set(["admit", "fall", "investigation", "survey-packet", "discharge"]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {

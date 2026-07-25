@@ -86,7 +86,15 @@ restore_config() {
 trap restore_config EXIT
 
 log "Starting Supabase (edge-runtime excluded)"
-supabase start -x edge-runtime
+# Retried once: on a cold or loaded sandbox a container can miss its health check on first start
+# (analytics is the usual one), and the CLI rolls the whole stack back rather than waiting longer.
+# A second attempt with the images already pulled almost always succeeds.
+if ! supabase start -x edge-runtime; then
+  echo "first attempt failed -- clearing and retrying once"
+  supabase stop --no-backup >/dev/null 2>&1 || true
+  docker container prune -f >/dev/null 2>&1 || true
+  supabase start -x edge-runtime
+fi
 
 restore_config
 trap - EXIT
