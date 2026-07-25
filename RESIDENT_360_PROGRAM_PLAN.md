@@ -1213,6 +1213,49 @@ surfaces. Home is now the entry point and both are reachable from it, but reduci
 Home and folding its compliance analytics into Analytics is not done — that is a further
 information-architecture change, and it is called out here rather than quietly counted as delivered.
 
+### Phase 8a — Duty eligibility enforcement
+
+**Most of item 18 was already built, and reading it first is what made this phase small.** Shift
+assignment is thoroughly governed: `evaluate_shift_assignment_eligibility` computes hard blocks and
+warnings from qualifications, credentials, training, availability and rest;
+`enforce_shift_assignment_eligibility` is a *trigger*, so a direct insert is refused rather than a
+button hidden; and `schedule_eligibility_overrides` already provides scoped, expiring, reasoned
+overrides. Item 18's medication-duty, unassigned-facility, missing-qualification and
+credential-expiry clauses are covered there.
+
+Two of item 18's clauses are about duties that are **not shifts**, and neither was enforced anywhere:
+
+| Clause | What was actually there |
+| --- | --- |
+| "prevent an unqualified assessor from serving as assessor" | `finalize_resident_assessment_review` took a free-text assessor name and checked only that it was non-empty |
+| "prevent competency verification by an unqualified evaluator" | `competency_records.evaluator_profile_id` is nullable, and RLS checked role and facility — never whether the evaluator held the qualification they were signing off |
+
+| Delivered | Detail |
+| --- | --- |
+| A duty engine | `duty_eligibility_rules` (per-org, overriding a platform default) and `evaluate_duty_eligibility`, returning outcome, blocks, warnings, and the override applied |
+| Server-side enforcement, both paths | The assessor path calls the guard inside the RPC; the competency path is a **trigger**, because `competency_records` is written directly under RLS and a check living only in a new RPC would be bypassed by the write path that already exists |
+| Overrides with a name, a reason and an expiry | Only an org admin may grant one, never to themselves, reason ≥ 10 characters, maximum 365 days. The block becomes a *warning* that still says an override was applied |
+| Negative authorization tests | The exit gate demands proof the direct RPC call is refused. The test calls it as an **org admin** deliberately — an employee would be turned away by the pre-existing care-manager gate, which would pass the test without exercising the new check at all |
+
+**The shipped defaults check role only, on purpose.** Seeding a qualification requirement would block
+every finalize and every competency evaluation in any organization that has not yet populated
+`employee_qualifications` — most of them on day one — and a rule that fires on everybody is a rule
+that gets switched off. The engine implements qualification checking in full and it is tested; an
+organization turns it on by inserting its own rule row. A pgTAP assertion holds the defaults to that.
+
+**Another re-declaration regression, caught by the rule from Phase 7a.** Re-declaring
+`finalize_resident_assessment_review` to add the duty check, my first draft dropped its audit-log
+insert and quietly changed `assessor_profile_id = auth.uid()` to a coalesce. Caught by diffing
+against the newest definition before committing — which is exactly the check that phase established.
+
+**Verified:** typecheck clean; 901 tests pass (14 new); build succeeds; all bundle budgets pass.
+
+**Remaining in Phase 8:** 8b — acuity-aware advisory workload (item 19). `get_schedule_service_workload`
+already computes census, two-person transfers, escorts, safety checks and appointment demand against
+`service_workload_profiles` minimums; the gap is the acuity dimensions (assistance levels, behavioral
+supervision, high-risk residents, admissions and returns) and presenting the result as advisory
+rather than as a staffing mandate.
+
 ## 6. What to do first
 
 If only one phase is funded now, fund **Phase 0 plus Phase 1a** (the resident clinical profile data

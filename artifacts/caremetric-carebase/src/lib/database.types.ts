@@ -6098,6 +6098,137 @@ export type Database = {
           },
         ]
       }
+      duty_eligibility_overrides: {
+        Row: {
+          created_at: string
+          duty_key: string
+          expires_at: string
+          facility_id: string
+          granted_at: string
+          granted_by: string
+          id: string
+          organization_id: string
+          profile_id: string
+          reason: string
+          revoked_at: string | null
+          revoked_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          duty_key: string
+          expires_at: string
+          facility_id: string
+          granted_at?: string
+          granted_by: string
+          id?: string
+          organization_id: string
+          profile_id: string
+          reason: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          duty_key?: string
+          expires_at?: string
+          facility_id?: string
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          reason?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duty_eligibility_overrides_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duty_eligibility_overrides_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duty_eligibility_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duty_eligibility_overrides_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duty_eligibility_overrides_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      duty_eligibility_rules: {
+        Row: {
+          accepted_qualification_keys: string[]
+          accepted_roles: string[]
+          created_at: string
+          description: string
+          duty_key: string
+          enforcement: string
+          id: string
+          is_active: boolean
+          label: string
+          organization_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_qualification_keys?: string[]
+          accepted_roles?: string[]
+          created_at?: string
+          description: string
+          duty_key: string
+          enforcement?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_qualification_keys?: string[]
+          accepted_roles?: string[]
+          created_at?: string
+          description?: string
+          duty_key?: string
+          enforcement?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duty_eligibility_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emergency_after_action_reviews: {
         Row: {
           approved_at: string | null
@@ -35615,6 +35746,15 @@ export type Database = {
       escalate_overdue_change_follow_ups: { Args: never; Returns: number }
       escalate_overdue_work_items: { Args: never; Returns: number }
       escalate_unactioned_alerts: { Args: never; Returns: undefined }
+      evaluate_duty_eligibility: {
+        Args: {
+          p_at?: string
+          p_duty_key: string
+          p_facility_id: string
+          p_profile_id: string
+        }
+        Returns: Json
+      }
       evaluate_feature_access: {
         Args: {
           p_as_of?: string
@@ -36472,6 +36612,16 @@ export type Database = {
         Returns: Json
       }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
+      grant_duty_eligibility_override: {
+        Args: {
+          p_duty_key: string
+          p_expires_at: string
+          p_facility_id: string
+          p_profile_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
       grant_enterprise_role: {
         Args: {
           p_effective_from?: string
