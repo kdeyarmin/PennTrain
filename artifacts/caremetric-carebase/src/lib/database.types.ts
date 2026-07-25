@@ -31128,6 +31128,250 @@ export type Database = {
           },
         ]
       }
+      survey_day_observations: {
+        Row: {
+          citation: string | null
+          created_at: string
+          entry_type: string
+          facility_id: string
+          finding_basis: string | null
+          finding_disposition: string | null
+          follow_up_work_item_id: string | null
+          id: string
+          occurred_at: string
+          organization_id: string
+          recorded_by: string | null
+          session_id: string
+          subject_employee_id: string | null
+          subject_resident_id: string | null
+          subject_role: string | null
+          summary: string
+          surveyor_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          citation?: string | null
+          created_at?: string
+          entry_type: string
+          facility_id: string
+          finding_basis?: string | null
+          finding_disposition?: string | null
+          follow_up_work_item_id?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          recorded_by?: string | null
+          session_id: string
+          subject_employee_id?: string | null
+          subject_resident_id?: string | null
+          subject_role?: string | null
+          summary: string
+          surveyor_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          citation?: string | null
+          created_at?: string
+          entry_type?: string
+          facility_id?: string
+          finding_basis?: string | null
+          finding_disposition?: string | null
+          follow_up_work_item_id?: string | null
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          recorded_by?: string | null
+          session_id?: string
+          subject_employee_id?: string | null
+          subject_resident_id?: string | null
+          subject_role?: string | null
+          summary?: string
+          surveyor_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_day_observations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_follow_up_work_item_id_fkey"
+            columns: ["follow_up_work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "survey_day_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_subject_employee_id_fkey"
+            columns: ["subject_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_subject_resident_id_fkey"
+            columns: ["subject_resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_subject_resident_id_fkey"
+            columns: ["subject_resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_observations_surveyor_id_fkey"
+            columns: ["surveyor_id"]
+            isOneToOne: false
+            referencedRelation: "survey_day_surveyors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_day_requests: {
+        Row: {
+          assigned_to: string | null
+          binder_job_id: string | null
+          created_at: string
+          due_at: string | null
+          evidence_collection_id: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          provided_at: string | null
+          provided_by: string | null
+          provided_note: string | null
+          request_text: string
+          requested_at: string
+          session_id: string
+          status: string
+          surveyor_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          binder_job_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          evidence_collection_id?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          provided_at?: string | null
+          provided_by?: string | null
+          provided_note?: string | null
+          request_text: string
+          requested_at?: string
+          session_id: string
+          status?: string
+          surveyor_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          binder_job_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          evidence_collection_id?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          provided_at?: string | null
+          provided_by?: string | null
+          provided_note?: string | null
+          request_text?: string
+          requested_at?: string
+          session_id?: string
+          status?: string
+          surveyor_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_day_requests_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_requests_binder_job_id_fkey"
+            columns: ["binder_job_id"]
+            isOneToOne: false
+            referencedRelation: "binder_export_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_requests_evidence_collection_id_fkey"
+            columns: ["evidence_collection_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_requests_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_requests_provided_by_fkey"
+            columns: ["provided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_requests_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "survey_day_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_requests_surveyor_id_fkey"
+            columns: ["surveyor_id"]
+            isOneToOne: false
+            referencedRelation: "survey_day_surveyors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       survey_day_sessions: {
         Row: {
           activated_at: string
@@ -31221,6 +31465,83 @@ export type Database = {
             columns: ["pinned_evidence_collection_id"]
             isOneToOne: false
             referencedRelation: "evidence_collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_day_surveyors: {
+        Row: {
+          agency: string | null
+          arrived_at: string
+          created_at: string
+          departed_at: string | null
+          facility_id: string
+          id: string
+          is_lead: boolean
+          organization_id: string
+          recorded_by: string | null
+          session_id: string
+          surveyor_name: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          agency?: string | null
+          arrived_at?: string
+          created_at?: string
+          departed_at?: string | null
+          facility_id: string
+          id?: string
+          is_lead?: boolean
+          organization_id: string
+          recorded_by?: string | null
+          session_id: string
+          surveyor_name: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agency?: string | null
+          arrived_at?: string
+          created_at?: string
+          departed_at?: string | null
+          facility_id?: string
+          id?: string
+          is_lead?: boolean
+          organization_id?: string
+          recorded_by?: string | null
+          session_id?: string
+          surveyor_name?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_day_surveyors_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_surveyors_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_surveyors_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_day_surveyors_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "survey_day_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -36580,6 +36901,10 @@ export type Database = {
         Args: { p_facility_id: string; p_from?: string; p_through?: string }
         Returns: Json
       }
+      get_survey_day_packet: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
       get_survey_day_staff_roster: {
         Args: {
           p_page?: number
@@ -37879,6 +38204,44 @@ export type Database = {
         Args: { p_plan_id: string; p_signature: Json }
         Returns: boolean
       }
+      record_survey_day_observation: {
+        Args: {
+          p_citation?: string
+          p_entry_type: string
+          p_finding_basis?: string
+          p_finding_disposition?: string
+          p_session_id: string
+          p_subject_role?: string
+          p_summary: string
+          p_surveyor_id?: string
+        }
+        Returns: string
+      }
+      record_survey_day_packet_assembled: {
+        Args: { p_session_id: string }
+        Returns: boolean
+      }
+      record_survey_day_request: {
+        Args: {
+          p_assigned_to?: string
+          p_due_at?: string
+          p_request_text: string
+          p_session_id: string
+          p_surveyor_id?: string
+        }
+        Returns: string
+      }
+      record_survey_day_surveyor: {
+        Args: {
+          p_agency?: string
+          p_arrived_at?: string
+          p_is_lead?: boolean
+          p_session_id: string
+          p_surveyor_name: string
+          p_title?: string
+        }
+        Returns: string
+      }
       record_training_attendance: {
         Args: {
           p_attendance_status: string
@@ -38155,6 +38518,16 @@ export type Database = {
       resolve_stale_compliance_alerts: {
         Args: { p_organization_id?: string }
         Returns: undefined
+      }
+      resolve_survey_day_request: {
+        Args: {
+          p_binder_job_id?: string
+          p_evidence_collection_id?: string
+          p_provided_note?: string
+          p_request_id: string
+          p_status: string
+        }
+        Returns: boolean
       }
       respond_resident_portal_schedule_event: {
         Args: {

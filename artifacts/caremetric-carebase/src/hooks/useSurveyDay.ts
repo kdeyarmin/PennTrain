@@ -171,6 +171,165 @@ export function usePinSurveyDayBinder() {
   });
 }
 
+// ---------------------------------------------------------------------------------------------
+// The live log: who is here, what they asked for, what was seen and said (Phase 10a, item 23).
+//
+// The packet is a read, not a stored artefact, so every write below invalidates the same key and
+// the packet re-reads. There is deliberately no client-side cache of an "assembled" packet: a
+// frozen copy would be a second version of the truth that drifts from the record it summarises.
+// ---------------------------------------------------------------------------------------------
+
+export type SurveyDayEntryType = "interview" | "observation" | "potential_finding";
+export type SurveyDayRequestStatus = "open" | "provided" | "unavailable" | "withdrawn";
+export type SurveyDayFindingDisposition = "potential" | "accepted" | "disputed" | "resolved_on_site";
+
+export interface SurveyDayPacket {
+  sessionId: string;
+  facilityId: string;
+  status: string;
+  activatedAt: string;
+  closedAt: string | null;
+  surveyors: {
+    id: string;
+    name: string;
+    title: string | null;
+    agency: string | null;
+    isLead: boolean;
+    arrivedAt: string;
+    departedAt: string | null;
+  }[];
+  requests: {
+    id: string;
+    requestedAt: string;
+    request: string;
+    dueAt: string | null;
+    status: SurveyDayRequestStatus;
+    providedAt: string | null;
+    providedNote: string | null;
+    assignedTo: string | null;
+  }[];
+  openRequests: number;
+  overdueRequests: number;
+  interviews: { id: string; occurredAt: string; summary: string; subjectRole: string | null }[];
+  observations: { id: string; occurredAt: string; summary: string; subjectRole: string | null }[];
+  potentialFindings: {
+    id: string;
+    occurredAt: string;
+    summary: string;
+    citation: string | null;
+    disposition: SurveyDayFindingDisposition | null;
+    basis: string | null;
+    followUpWorkItemId: string | null;
+  }[];
+  pinnedBinderJobId: string | null;
+  pinnedEvidenceCollectionId: string | null;
+  assembledAt: string;
+}
+
+export function useSurveyDayPacket(sessionId: string | undefined) {
+  return useQuery({
+    queryKey: ["survey-day-packet", sessionId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_survey_day_packet", { p_session_id: sessionId! });
+      if (error) throw error;
+      return data as unknown as SurveyDayPacket;
+    },
+    enabled: Boolean(sessionId),
+  });
+}
+
+function useSurveyDayLogMutation<TInput extends { sessionId: string }, TResult>(
+  run: (input: TInput) => Promise<TResult>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: ["survey-day-packet", input.sessionId] });
+    },
+  });
+}
+
+export function useRecordSurveyDaySurveyor() {
+  return useSurveyDayLogMutation(async (input: {
+    sessionId: string; name: string; title?: string; agency?: string; isLead?: boolean;
+  }) => {
+    const { data, error } = await supabase.rpc("record_survey_day_surveyor", {
+      p_session_id: input.sessionId,
+      p_surveyor_name: input.name,
+      p_title: input.title || undefined,
+      p_agency: input.agency || undefined,
+      p_is_lead: input.isLead ?? false,
+    });
+    if (error) throw error;
+    return data as string;
+  });
+}
+
+export function useRecordSurveyDayRequest() {
+  return useSurveyDayLogMutation(async (input: {
+    sessionId: string; requestText: string; surveyorId?: string; assignedTo?: string; dueAt?: string;
+  }) => {
+    const { data, error } = await supabase.rpc("record_survey_day_request", {
+      p_session_id: input.sessionId,
+      p_request_text: input.requestText,
+      p_surveyor_id: input.surveyorId || undefined,
+      p_assigned_to: input.assignedTo || undefined,
+      p_due_at: input.dueAt || undefined,
+    });
+    if (error) throw error;
+    return data as string;
+  });
+}
+
+export function useResolveSurveyDayRequest() {
+  return useSurveyDayLogMutation(async (input: {
+    sessionId: string; requestId: string; status: Exclude<SurveyDayRequestStatus, "open">; note: string;
+  }) => {
+    const { data, error } = await supabase.rpc("resolve_survey_day_request", {
+      p_request_id: input.requestId,
+      p_status: input.status,
+      p_provided_note: input.note,
+    });
+    if (error) throw error;
+    return data as boolean;
+  });
+}
+
+export function useRecordSurveyDayObservation() {
+  return useSurveyDayLogMutation(async (input: {
+    sessionId: string;
+    entryType: SurveyDayEntryType;
+    summary: string;
+    subjectRole?: string;
+    citation?: string;
+    findingDisposition?: SurveyDayFindingDisposition;
+    findingBasis?: string;
+  }) => {
+    const { data, error } = await supabase.rpc("record_survey_day_observation", {
+      p_session_id: input.sessionId,
+      p_entry_type: input.entryType,
+      p_summary: input.summary,
+      p_subject_role: input.subjectRole || undefined,
+      p_citation: input.citation || undefined,
+      p_finding_disposition: input.findingDisposition || undefined,
+      p_finding_basis: input.findingBasis || undefined,
+    });
+    if (error) throw error;
+    return data as string;
+  });
+}
+
+export function useRecordSurveyDayPacketAssembled() {
+  return useSurveyDayLogMutation(async (input: { sessionId: string }) => {
+    const { data, error } = await supabase.rpc("record_survey_day_packet_assembled", {
+      p_session_id: input.sessionId,
+    });
+    if (error) throw error;
+    return data as boolean;
+  });
+}
+
 export function useCloseSurveyDay(facilityId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({

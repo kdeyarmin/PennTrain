@@ -1378,6 +1378,65 @@ format check passes over 417 table and view entries.
 
 **Phase 9 is now complete.** Phase 10 (governed PA regulatory library and Survey Day) is next.
 
+### Phase 10a — The Survey Day workspace
+
+| Delivered | Detail |
+| --- | --- |
+| Who is here | `survey_day_surveyors` — name, title, agency, lead flag, arrival and departure. Requests and observations attribute to the person who made them |
+| What was asked for | `survey_day_requests` — the request in the surveyor's words, an owner, a deadline, and a resolution that must say what was handed over or why it could not be |
+| What was seen and said | `survey_day_observations` — interviews, observations, and potential findings in one table, because they share a shape and a lifecycle |
+| The packet | `get_survey_day_packet` — a **read**, assembled fresh. `record_survey_day_packet_assembled` records that somebody took a position and when |
+| Surface | `SurveyDayLogSection`, lazy-loaded and separately budgeted, on the existing Survey Day page |
+| Tests | `supabase/tests/database/survey_day_workspace.test.sql`, 15 assertions |
+
+**Why requests are a separate table from the entrance-conference checklist.** A checklist item is
+something the facility predicted and prepared in advance; it has a disposition. A request is
+something a surveyor asked for at 10:40 with a deadline of 11:15, and it has an owner. Recording the
+second as a disposition on the first would lose the clock — which is the part that matters while
+surveyors are still in the building. The packet reports `openRequests` and `overdueRequests` as
+first-class counts for that reason.
+
+**"Unavailable" is a legitimate answer, and it still needs a reason.** `resolve_survey_day_request`
+requires a note in every direction, not only for "provided". A check constraint independently refuses
+`status = 'provided'` without one, so the requirement survives a write that bypasses the RPC. "We
+gave them something" is not an answer three months later, and "we could not produce it" is exactly
+what a finding gets written from.
+
+**Nothing here produces a determination.** A potential finding carries the citation the surveyor
+raised and the *facility's* disposition — potential, accepted, disputed, or resolved on site. A
+disposition on an entry that is not a finding is refused as a category error, and a disputed finding
+requires the basis for disputing it: a denial with nothing behind it is worse than a finding recorded
+plainly. The product never decides whether a finding is valid.
+
+**The packet is a read, not a stored artefact.** Freezing a copy would create a second version of the
+truth that drifts from the record it summarises. What is stored is the *event* that somebody
+assembled one. A closed session refuses new writes (errcode 55000) but still reads — appending after
+the fact would change what the facility says happened on the day.
+
+**PHI stays out of the event log.** Every event written passes only ids and enum values, so
+`survey_day_metadata_is_safe` — which rejects metadata keys matching contact, narrative, or document
+patterns — has nothing to reject. The substance lives in the tables, under the session's own RLS.
+
+**Splitting a section out is not a way past the bundle tripwire.** The log pushed the Survey Day
+route from 26 KiB to 40.2 KiB against a 30 KiB budget. Lazy-loading it fixes the number, so the log
+got its own 25 KiB budget entry in the same change; otherwise 14.5 KiB of new code would sit in a
+chunk no budget covers. The route shell is now 27.7 KiB and warns at 92% of its budget — real thin
+headroom, left visible rather than raised away.
+
+**Verified:** typecheck clean; 952 tests pass; build succeeds; all bundle budgets pass (two standing
+warnings: CSS at 97.4%, pre-existing; Survey Day route at 92.3%, noted above); the types format check
+passes over 420 table and view entries; RAISE-arity and migration-policy lints pass over 89
+migrations. `check:database` still cannot run locally (no Docker), so the hand-written
+`database.types.ts` entries for three tables and six functions are verified only by the format
+checker until CI runs.
+
+**Still outstanding in Phase 10:** 10b, the governed PA regulatory library (item 24b). The engineering
+there is citation *metadata* — verifier, verification date, superseded version, staleness surfacing,
+and the connections to compliance requirements and training. The content itself cannot be seeded from
+this seat: the plan names a confidently-wrong citation in a survey packet as this product's worst
+failure mode, and citations written from memory rather than from the regulation are exactly that.
+Seeding needs a compliance SME with the source text in front of them.
+
 ## 6. What to do first
 
 If only one phase is funded now, fund **Phase 0 plus Phase 1a** (the resident clinical profile data

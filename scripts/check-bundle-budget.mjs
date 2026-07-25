@@ -81,6 +81,10 @@ const routeBudgets = [
   { label: "Resident Detail route", pattern: /^ResidentDetail-.+\.js$/, budget: 70 * 1024 },
   { label: "Help Center route", pattern: /^HelpCenter-.+\.js$/, budget: 50 * 1024 },
   { label: "Survey Day route", pattern: /^SurveyDay-.+\.js$/, budget: 30 * 1024 },
+  // The live log (surveyors, requests, observations, packet) is lazy so the page shell paints while
+  // a survey is starting. Budgeted separately rather than left uncovered: splitting a section out
+  // must not be a way to move code past the tripwire.
+  { label: "Survey Day log section", pattern: /^SurveyDayLogSection-.+\.js$/, budget: 25 * 1024 },
   { label: "System Jobs route", pattern: /^SystemJobs-.+\.js$/, budget: 20 * 1024 },
   { label: "Work Queue route", pattern: /^WorkQueue-.+\.js$/, budget: 20 * 1024 },
 ];
