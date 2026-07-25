@@ -811,6 +811,57 @@ match the generator's output. CI's database job is the check on both.
 
 All three are surfaced in the panel's "checks not yet covered" section rather than silently omitted.
 
+### Phase 2 — 2a and 2c delivered; 2b outstanding
+
+Phase 2 has three parts. Two landed complete; the template engine (2b) is the largest single piece
+in the program and is deliberately left for its own slice rather than rushed alongside two
+migrations.
+
+**Baseline correction (2a).** The plan proposed a new `regulatory_citations` registry carrying its
+own governance fields. Building that would have been a fourth overlapping concept: the repo already
+has `regulatory_rule_versions` (governed, versioned, approval-gated — but for *calculable* rules),
+`dhs_citation_topics` (chapter/citation taxonomy), `compliance_requirements.regulation_citation`,
+and `dhsFormsLibrary.ts` (a governed static catalog with a verification date and a live-link CI
+check). More importantly, **`resident_compliance_rule_packs` already carries verified citations**
+per facility type, item type, and admission track, with `notes` that mark each point "confirmed" or
+"pending confirmation".
+
+So 2a shipped as a reference catalog *derived from that verified data*, not authored fresh:
+
+| Delivered | Notes |
+| --- | --- |
+| `paRegulatoryCitations.ts` | Seven sections covering the assessment / support-plan / medical-evaluation scope. Every entry records the shipped migration its statement was carried forward from |
+| Verification posture | `2600.141` and `2800.225` carry `pending_confirmation` because the source rule packs say their grace periods are unconfirmed. Upgrading them would launder an open question into a settled one; a test asserts they stay unconfirmed and the display label says so |
+| Item-type mapping | Mirrors the rule pack — for the ALF, the support plan is governed by `2800.224` alongside the initial assessment. There is no `2800.227`, and inventing one to mirror PCH numbering would be exactly the wrong guess |
+| Staleness | `isCitationLibraryStale()` at the point of use, on the same 45-day cadence `check-dhs-sources.mjs` enforces for forms. Extending that script to also ping the pacodeandbulletin.gov links is a recorded follow-up |
+
+**2c — support-plan lifecycle.** Six states to nine, with the transition table expressed once in
+`app_private.support_plan_transition_allowed` and mirrored (not re-decided) in the client.
+
+The substantive design correction found while building: the nine-state model only means something
+if `approved` and `active` genuinely differ — a plan can be signed off today with an effective date
+next Monday. The previous `approve_support_plan` superseded the prior plan and regenerated service
+requirements *at approval time*. Future-dating a plan under that code would have left the resident
+with no plan in force and no active service requirements for the days in between. Activation is now
+separated: `app_private.activate_support_plan` does the supersession and service generation, called
+immediately for a same-day effective date and otherwise by a nightly `activate_due_support_plans()`
+job.
+
+Also delivered: participation and signature capture (with declined / unable-to-sign as recorded
+outcomes), a `support_plan_acknowledgments` table so "which aides have read the revised plan" is
+answerable by name, revision reasons required on rework, and a side-by-side version comparison
+computed from stored content rather than a stored diff.
+
+**Verified:** typecheck clean; 91 test files / 567 tests pass (39 new); build succeeds; bundle
+budget passes with the resident route unchanged at 50.3 KiB. Phase 1's CI ran green end to end,
+including the `database` job that replays migrations and regenerates types — confirming the
+hand-written `database.types.ts` entries matched the generator.
+
+**Still outstanding in Phase 2:** the template engine (2b) — generalizing
+`residentAssessmentFormSchema.ts` from two hard-coded form types into ten governed templates with
+conditional questions, inline guidance, and per-template signature rules. Phase 3's field-level
+conflict detection depends on it, so it is the next slice.
+
 ## 6. What to do first
 
 If only one phase is funded now, fund **Phase 0 plus Phase 1a** (the resident clinical profile data

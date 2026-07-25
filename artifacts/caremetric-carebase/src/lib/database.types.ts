@@ -27514,6 +27514,8 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           assessment_form_id: string | null
+          closed_at: string | null
+          closure_reason: string | null
           created_at: string
           created_by: string | null
           effective_date: string | null
@@ -27523,13 +27525,18 @@ export type Database = {
           interventions: Json
           needs: Json
           organization_id: string
+          participation_date: string | null
+          participation_record: Json
           printable_snapshot: Json
           prior_plan_id: string | null
           resident_id: string
+          resident_signature: Json
           review_due_date: string | null
+          revision_reason: string | null
           services: Json
           staff_controlled_signature: Json
           staff_instructions: string | null
+          staff_notified_at: string | null
           state: string
           updated_at: string
           version_number: number
@@ -27538,6 +27545,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           assessment_form_id?: string | null
+          closed_at?: string | null
+          closure_reason?: string | null
           created_at?: string
           created_by?: string | null
           effective_date?: string | null
@@ -27547,13 +27556,18 @@ export type Database = {
           interventions?: Json
           needs?: Json
           organization_id: string
+          participation_date?: string | null
+          participation_record?: Json
           printable_snapshot?: Json
           prior_plan_id?: string | null
           resident_id: string
+          resident_signature?: Json
           review_due_date?: string | null
+          revision_reason?: string | null
           services?: Json
           staff_controlled_signature?: Json
           staff_instructions?: string | null
+          staff_notified_at?: string | null
           state?: string
           updated_at?: string
           version_number: number
@@ -27562,6 +27576,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           assessment_form_id?: string | null
+          closed_at?: string | null
+          closure_reason?: string | null
           created_at?: string
           created_by?: string | null
           effective_date?: string | null
@@ -27571,13 +27587,18 @@ export type Database = {
           interventions?: Json
           needs?: Json
           organization_id?: string
+          participation_date?: string | null
+          participation_record?: Json
           printable_snapshot?: Json
           prior_plan_id?: string | null
           resident_id?: string
+          resident_signature?: Json
           review_due_date?: string | null
+          revision_reason?: string | null
           services?: Json
           staff_controlled_signature?: Json
           staff_instructions?: string | null
+          staff_notified_at?: string | null
           state?: string
           updated_at?: string
           version_number?: number
@@ -29890,6 +29911,85 @@ export type Database = {
           success?: boolean
         }
         Relationships: []
+      }
+      support_plan_acknowledgments: {
+        Row: {
+          acknowledged_at: string
+          facility_id: string
+          id: string
+          note: string | null
+          organization_id: string
+          plan_id: string
+          plan_version: number
+          profile_id: string
+          resident_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          facility_id: string
+          id?: string
+          note?: string | null
+          organization_id: string
+          plan_id: string
+          plan_version: number
+          profile_id: string
+          resident_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          facility_id?: string
+          id?: string
+          note?: string | null
+          organization_id?: string
+          plan_id?: string
+          plan_version?: number
+          profile_id?: string
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_plan_acknowledgments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_acknowledgments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_acknowledgments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_acknowledgments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_acknowledgments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_plan_acknowledgments_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       support_plan_assessment_mapping_rules: {
         Row: {
@@ -33178,6 +33278,14 @@ export type Database = {
       acknowledge_shift_report_entry: {
         Args: { p_entry_id: string }
         Returns: boolean
+      }
+      acknowledge_support_plan: {
+        Args: { p_note?: string; p_plan_id: string }
+        Returns: boolean
+      }
+      activate_due_support_plans: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       activate_notification_template: {
         Args: { p_template_id: string }
@@ -36943,6 +37051,18 @@ export type Database = {
         }
         Returns: string
       }
+      record_support_plan_participation: {
+        Args: {
+          p_participation_date: string
+          p_participation_record: Json
+          p_plan_id: string
+        }
+        Returns: boolean
+      }
+      record_support_plan_signature: {
+        Args: { p_plan_id: string; p_signature: Json }
+        Returns: boolean
+      }
       record_training_attendance: {
         Args: {
           p_attendance_status: string
@@ -38468,6 +38588,10 @@ export type Database = {
           p_resident_id: string
           p_target_status: string
         }
+        Returns: boolean
+      }
+      transition_support_plan_state: {
+        Args: { p_next_state: string; p_plan_id: string; p_reason?: string }
         Returns: boolean
       }
       transition_work_item: {
