@@ -1,5 +1,5 @@
 begin;
-select plan(17);
+select plan(19);
 
 select has_table('public', 'work_item_source_types', 'the source taxonomy exists');
 select has_function('public', 'register_outstanding_work_items', 'the coverage sweep exists');
@@ -84,6 +84,30 @@ select throws_ok($$insert into public.work_items(
   '23514',
   null,
   'a source type outside the taxonomy is refused');
+
+-- A reclassified row must still be counted by the readers that used to match it on the catch-all.
+-- The unfilled-shift count returning zero because the backfill moved the rows is the exact failure
+-- this asserts against: zero is the one wrong answer that looks like good news.
+insert into public.work_items(
+  organization_id, facility_id, source_type, source_id, deduplication_key, title, priority, due_at
+) values (
+  'a4000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000011',
+  'rule_exception', 'a4000000-0000-4000-8000-000000000301',
+  'call-off:a4000000-0000-4000-8000-000000000301',
+  'Unfilled shift after call-off', 'high', now() + interval '30 minutes'
+);
+select is(
+  (select source_type from public.work_items
+   where deduplication_key = 'call-off:a4000000-0000-4000-8000-000000000301'),
+  'staffing',
+  'a call-off work item is reclassified as staffing work'
+);
+select is(
+  (public.get_daily_operations_command_center('a4000000-0000-4000-8000-000000000011')
+    -> 'dailyExecution' ->> 'unfilledShifts')::int,
+  1,
+  'and the unfilled-shift count still finds it after the reclassification'
+);
 
 -- The coverage sweep ------------------------------------------------------------------
 insert into public.resident_compliance_items(
