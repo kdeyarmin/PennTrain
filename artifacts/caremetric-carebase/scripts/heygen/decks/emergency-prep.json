@@ -7,15 +7,26 @@
       "id": "ep-b1-plan",
       "title": "The emergencies that do not sound an alarm",
       "scenes": [
-        { "type": "slide", "slide": "ep-title", "duration": 5 },
-        { "type": "avatar", "scriptFile": "inservice-emergency-prep-1.txt" }
+        {
+          "type": "slide",
+          "slide": "ep-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-emergency-prep-1.txt"
+        }
       ]
     },
     {
       "id": "ep-b2-first",
       "title": "The first sixty seconds",
       "scenes": [
-        { "type": "slide", "slide": "ep-sec-first", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-sec-first",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ep-first",
@@ -43,7 +54,11 @@
       "id": "ep-b4-move",
       "title": "Shelter or evacuate, and what moving costs",
       "scenes": [
-        { "type": "slide", "slide": "ep-sec-move", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-sec-move",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ep-shelter-evac",
@@ -60,8 +75,15 @@
       "id": "ep-b5-utilities",
       "title": "Power, heat, cold, water, weather, and a missing resident",
       "scenes": [
-        { "type": "slide", "slide": "ep-sec-power", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-emergency-prep-2.txt" }
+        {
+          "type": "slide",
+          "slide": "ep-sec-power",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-emergency-prep-2.txt"
+        }
       ]
     },
     {
@@ -84,7 +106,11 @@
       "id": "ep-b7-people",
       "title": "The residents this is hardest on",
       "scenes": [
-        { "type": "slide", "slide": "ep-sec-people", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-sec-people",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ep-dementia",
@@ -101,15 +127,26 @@
       "id": "ep-b8-count",
       "title": "The count, the chain, the record, and the drill",
       "scenes": [
-        { "type": "slide", "slide": "ep-sec-count", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-emergency-prep-3.txt" }
+        {
+          "type": "slide",
+          "slide": "ep-sec-count",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-emergency-prep-3.txt"
+        }
       ]
     },
     {
       "id": "ep-b9-long",
       "title": "When it does not end in an hour",
       "scenes": [
-        { "type": "slide", "slide": "ep-sec-long", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-sec-long",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ep-long",
@@ -133,5 +170,60 @@
         }
       ]
     }
-  ]
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "ep-b1-plan": {
+        "video_id": "8b1a3cffcc324947a7aa0f2cf43adbd8",
+        "seconds": 141,
+        "mb": 26.3
+      },
+      "ep-b2-first": {
+        "video_id": "d492d05fe6f646b297c885d1e509d509",
+        "seconds": 86,
+        "mb": 3
+      },
+      "ep-b3-assignment": {
+        "video_id": "2eea8794004740758f9a85cc455bc931",
+        "seconds": 161,
+        "mb": 5.6
+      },
+      "ep-b4-move": {
+        "video_id": "c83a4adaf9b64b228e2faa79efd21859",
+        "seconds": 131,
+        "mb": 4.6
+      },
+      "ep-b5-utilities": {
+        "video_id": "acda75c3008c4870988002caffc33841",
+        "seconds": 159,
+        "mb": 29.9
+      },
+      "ep-b6-power": {
+        "video_id": "74b4f123d1364e97b7ecdbf140b12520",
+        "seconds": 131,
+        "mb": 4.5
+      },
+      "ep-b7-people": {
+        "video_id": "cdef7443bae1495facbb508c548c4506",
+        "seconds": 133,
+        "mb": 4.6
+      },
+      "ep-b8-count": {
+        "video_id": "faa5414a81d54fa6bccc6f49da93649e",
+        "seconds": 156,
+        "mb": 30.1
+      },
+      "ep-b9-long": {
+        "video_id": "15e820692e40459c8370295ba1d57ffb",
+        "seconds": 136,
+        "mb": 4.7
+      },
+      "ep-b10-close": {
+        "video_id": "95ef9d5208ca43e591ebda92b748dd55",
+        "seconds": 45,
+        "mb": 1.5
+      }
+    }
+  }
 }
