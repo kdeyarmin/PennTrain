@@ -1,0 +1,204 @@
+[
+  {
+    "id": "falls-title",
+    "kind": "title",
+    "eyebrow": "Annual in-service",
+    "title": "Falls and Accident Prevention",
+    "subtitle": "For staff at Pennsylvania personal care homes and assisted living facilities. 55 Pa. Code 2600.65(g)(5) and 2800.65(j)(5).",
+    "footerRight": "One hour · Annual"
+  },
+  {
+    "id": "falls-sec-risk",
+    "kind": "section",
+    "eyebrow": "Part one",
+    "title": "Who is at risk, and why it changes week to week",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-meds",
+    "kind": "points",
+    "eyebrow": "Highest risk right after a change",
+    "title": "Medications that put residents on the floor",
+    "points": [
+      "Sleep aids and sedatives",
+      "Blood pressure medications",
+      "Diuretics — dizziness plus urgency",
+      "Opioids and muscle relaxants",
+      "Anything newly started, stopped, or adjusted"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-acute",
+    "kind": "points",
+    "eyebrow": "Reversible if somebody catches it",
+    "title": "The change that arrives before the fall",
+    "points": [
+      "Urinary tract infection",
+      "Dehydration or low blood sugar",
+      "Constipation",
+      "Pain nobody is treating",
+      "New confusion, new unsteadiness, new sleepiness"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-baseline",
+    "kind": "points",
+    "eyebrow": "The standing picture",
+    "title": "What sets a resident's baseline risk",
+    "points": [
+      "A previous fall — the strongest single predictor",
+      "Muscle weakness and arthritis",
+      "Vision and hearing loss",
+      "Blood pressure that drops on standing",
+      "Dementia, and the depth perception it takes"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-sec-room",
+    "kind": "section",
+    "eyebrow": "Part two",
+    "title": "The fifteen seconds before you leave the room",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-checks",
+    "kind": "points",
+    "eyebrow": "Every resident, every time",
+    "title": "Check these before you walk out",
+    "points": [
+      "Call bell within reach",
+      "Walker or cane where they can get it",
+      "Water, glasses, remote in reach",
+      "Bed low, brakes locked",
+      "Path clear enough to walk in the dark"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-hazards",
+    "kind": "points",
+    "eyebrow": "Look at the room like you have never seen it",
+    "title": "What you are looking for",
+    "points": [
+      "Wet floor with no sign",
+      "Clutter or a cord across the path",
+      "The bathroom light that has been out a week",
+      "Bed too high for their feet to reach",
+      "Socks on a hard floor"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-bell",
+    "kind": "rule",
+    "eyebrow": "What a slow call bell teaches",
+    "quote": "A bell answered quickly teaches a resident that waiting is safe.",
+    "attribution": "A bell nobody answers teaches them to handle it themselves. That lesson gets taught on day shift and cashed in at three in the morning.",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-sec-transfer",
+    "kind": "section",
+    "eyebrow": "Part three",
+    "title": "Transfers, and where good people get hurt",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-transfer-steps",
+    "kind": "points",
+    "eyebrow": "Before you move anybody",
+    "title": "Slow it down and set it up",
+    "points": [
+      "Tell them what is about to happen",
+      "Shoes on, glasses on",
+      "Brakes locked, path clear",
+      "Sit on the edge of the bed before standing",
+      "Keep them close, use your legs, never lift under the arms"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-transfer-rule",
+    "kind": "rule",
+    "eyebrow": "The boundary",
+    "quote": "Never attempt a technique or a piece of equipment you have not been checked off on for that resident.",
+    "attribution": "Nobody has ever been written up for asking for a second set of hands. Plenty of people have been hurt doing it alone.",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-sec-after",
+    "kind": "section",
+    "eyebrow": "Part four",
+    "title": "The minutes after you find somebody on the floor",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-stay-down",
+    "kind": "points",
+    "eyebrow": "They stay where they are",
+    "title": "Do not move a resident who has",
+    "points": [
+      "Any sign of injury",
+      "Hit their head, or might have",
+      "Pain in the neck, back, or hip",
+      "Lost consciousness",
+      "No idea what happened"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-unwitnessed",
+    "kind": "rule",
+    "eyebrow": "Unwitnessed falls",
+    "quote": "A resident telling you they did not hit their head is not the same as knowing they did not.",
+    "attribution": "They were confused enough to end up on the floor. Treat it as a head injury until somebody qualified says otherwise.",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-document",
+    "kind": "points",
+    "eyebrow": "What you saw, not your theory about it",
+    "title": "Write down",
+    "points": [
+      "Where they were and in what position",
+      "What they said, in their words",
+      "What you found when you looked",
+      "Whether anybody witnessed it",
+      "The wet floor, the broken brake, the light that was out"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-close",
+    "kind": "rule",
+    "eyebrow": "What to carry out of this course",
+    "quote": "The goal was never no movement. It is safe movement.",
+    "attribution": "A resident who never moves gets weaker, and weaker is what causes the next fall.",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-fear",
+    "kind": "rule",
+    "eyebrow": "The quiet one",
+    "quote": "Fear of falling is its own injury.",
+    "attribution": "Nothing broke. Nothing showed up on an x-ray. And a resident who walked to activities every afternoon now asks for a wheelchair to cross a hallway.",
+    "footerRight": "Falls and Accident Prevention"
+  },
+  {
+    "id": "falls-help",
+    "kind": "points",
+    "eyebrow": "Asking is the trained response",
+    "title": "Get a second set of hands when",
+    "points": [
+      "The plan says two-person assist",
+      "You have not been checked off on that equipment",
+      "The resident is heavier or weaker than you expected",
+      "Anything about the setup has changed",
+      "Your gut says wait"
+    ],
+    "footerRight": "Falls and Accident Prevention"
+  }
+]

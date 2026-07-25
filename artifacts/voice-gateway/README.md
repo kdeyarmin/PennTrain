@@ -95,6 +95,15 @@ Railway supports WebSockets through its edge proxy (PennFit runs Twilio
 Media Streams on it). Keep the WS origin on the `*.railway.app` host — a
 CDN/WAF in front of a custom domain can silently break WS upgrades.
 
+The `startCommand` is `exec node artifacts/voice-gateway/dist/index.js`, not
+`pnpm --filter ... run start`, and the `exec` matters. Railway signals the
+process it launched (`/bin/sh -c "<startCommand>"`) on every redeploy; a
+`pnpm` wrapper exits on SIGTERM without forwarding it, and a non-exec
+`sh -c` keeps the signal for itself. Either way this process never runs its
+shutdown handler — live calls are cut at SIGKILL instead of drained, and the
+Postgres pool behind the phone handoff stores is never closed. See the same
+note in `DEPLOYMENT.md` for the carebase service.
+
 ## Shared phone number (one number for everything)
 
 > **Go-live checklist for a publicly published number: set

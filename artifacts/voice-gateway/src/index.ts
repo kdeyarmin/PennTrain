@@ -151,12 +151,72 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
 
-  // Release the durable-store pool (and its sweep timer) with the server.
+  // Release the durable-store pool (and its sweep timer) with the server. The
+  // promise is recorded so a shutdown can await it -- PostgresState.close() is
+  // idempotent by early-return, so calling it a second time resolves at once
+  // instead of handing back the in-flight pool.end(); the only way to wait for
+  // that drain is to hold on to this exact promise.
   server.on("close", () => {
-    void phone?.closeStores?.().catch(() => undefined);
+    storeCleanup.set(
+      server,
+      phone?.closeStores?.().catch(() => undefined) ?? Promise.resolve(),
+    );
   });
 
   return server;
+}
+
+/**
+ * Per-server durable-store cleanup, resolving once the pool has finished
+ * draining. Populated by the "close" listener above; read by the shutdown path.
+ */
+const storeCleanup = new WeakMap<http.Server, Promise<void>>();
+
+/**
+ * Stops accepting connections and resolves only once the durable-store cleanup
+ * has finished draining — not merely once it has been started.
+ *
+ * That distinction is the whole correctness of the shutdown path. `server.close()`
+ * emits "close" to the cleanup listener and to this one-shot callback in the same
+ * event turn, so exiting from the callback directly would terminate the in-flight
+ * `pool.end()` (and any store query still running) and release the pool in name
+ * only. Callers keep their own forced-exit timer: this promise is deliberately
+ * unbounded, because the bound belongs to the platform's grace period, not here.
+ */
+export function closeServerAndDrainStores(server: http.Server): Promise<void> {
+  return new Promise((resolve) => {
+    server.close(() => {
+      void (storeCleanup.get(server) ?? Promise.resolve()).then(() => resolve());
+    });
+  });
+}
+
+/**
+ * Railway sends SIGTERM on every redeploy/scale-down and SIGKILLs what is left
+ * after its grace period. Stop accepting new connections and let the http
+ * server's "close" hook release the Postgres pool, with a forced exit so a
+ * long-lived voice WebSocket (which keeps the server from closing on its own)
+ * can never hold shutdown past that grace period.
+ *
+ * Reaching this handler depends on the startCommand in
+ * artifacts/voice-gateway/railway.json:
+ * `exec node artifacts/voice-gateway/dist/index.js` (the path is relative to
+ * the repo root, which is Railway's Root Directory for this service). Railway
+ * signals the process it started, and both a `pnpm run` wrapper and a non-exec
+ * `sh -c` keep the signal to themselves, leaving this process orphaned (and its
+ * Postgres pool open) until SIGKILL.
+ */
+function installShutdownHandlers(server: http.Server): void {
+  let shuttingDown = false;
+  const shutdown = (signal: string): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(JSON.stringify({ evt: "voice.gateway.shutdown", signal }));
+    void closeServerAndDrainStores(server).then(() => process.exit(0));
+    setTimeout(() => process.exit(0), 10_000).unref();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 function main(): void {
@@ -164,6 +224,24 @@ function main(): void {
   const registry = buildRegistry();
   const server = createGatewayServer({ config, registry });
   const port = Number.parseInt(process.env.PORT ?? "8787", 10);
+  // Without a listener an "error" event is rethrown as an uncaught exception with no
+  // indication of which port failed. Name the failure, and only give up when the bind
+  // itself failed -- a post-listen error (an accept hitting EMFILE, say) is transient
+  // and must not turn into a self-inflicted restart.
+  server.on("error", (error) => {
+    const code = (error as NodeJS.ErrnoException).code;
+    console.error(
+      JSON.stringify({
+        evt: "voice.gateway.server_error",
+        port,
+        code,
+        message: error.message,
+        listening: server.listening,
+      }),
+    );
+    if (!server.listening) process.exit(1);
+  });
+  installShutdownHandlers(server);
   server.listen(port, () => {
     console.log(
       JSON.stringify({

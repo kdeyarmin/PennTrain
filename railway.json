@@ -14,11 +14,13 @@
       ".node-version",
       ".nvmrc",
       ".npmrc",
-      "scripts/check-bundle-budget.mjs"
+      "scripts/check-bundle-budget.mjs",
+      "scripts/package.json",
+      "scripts/src/generate-help-center-manual.ts"
     ]
   },
   "deploy": {
-    "startCommand": "pnpm --filter @workspace/caremetric-carebase run start",
+    "startCommand": "exec node artifacts/caremetric-carebase/server/index.mjs",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",

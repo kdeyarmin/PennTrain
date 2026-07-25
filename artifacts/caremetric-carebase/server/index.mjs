@@ -83,6 +83,23 @@ const COMPRESSIBLE_EXTENSIONS = new Set([
   ".xml",
 ]);
 
+// Refuse to start without the build output. Railway's healthcheck only proves this process is
+// listening, so a deploy whose build output is missing or partial (interrupted build, wrong Root
+// Directory, a start that never ran a build) would answer /health with 200 while every real
+// request 500s -- and Railway would mark that deploy healthy and cut production traffic over to
+// it. Exiting non-zero instead fails the healthcheck, which keeps the previous working deploy
+// live: the failure mode has to be "the new release never goes live", never "the live release
+// serves nothing".
+try {
+  await stat(join(DIST_DIR, "index.html"));
+} catch (error) {
+  console.error(
+    `Refusing to start: ${join(DIST_DIR, "index.html")} is missing or unreadable (${error?.code ?? error}). ` +
+      "Build before starting: `pnpm --filter @workspace/caremetric-carebase run build`.",
+  );
+  process.exit(1);
+}
+
 // Head-prerendered copies of index.html for statically-known public routes, written by
 // server/prerender-heads.mjs at build time (route-specific title/meta/canonical/JSON-LD in
 // the raw HTML, for crawlers and scrapers that don't run JS). The map is built ONCE at
@@ -476,12 +493,30 @@ function startListening(host, allowFallback) {
   server.once("listening", onListening);
   server.listen(PORT, host);
 }
-await prepareAssetArchive();
 startListening(HOST, !process.env.HOST);
+// Deliberately not awaited: the archive only affects requests for assets from PREVIOUS releases,
+// and copying it can be slow when ASSET_ARCHIVE_DIR is a mounted Railway volume. Blocking the
+// listen behind that copy delays every request -- including Railway's healthcheck -- for no gain,
+// since a request arriving before the copy finishes would have been refused outright anyway.
+// prepareAssetArchive handles its own failures, so this can never reject.
+void prepareAssetArchive();
 
 // Railway sends SIGTERM on redeploy/scale-down: stop accepting connections, let in-flight
 // requests finish, then exit -- with a forced-exit fallback so shutdown can never hang past
 // the platform's grace period.
+//
+// This only runs if the signal actually reaches THIS process, which is why railway.json's
+// startCommand is `exec node artifacts/caremetric-carebase/server/index.mjs` (paths are relative
+// to the repo root, which is Railway's Root Directory for this service) and not
+// `pnpm ... run start`. Railway signals the process it started
+// (`/bin/sh -c "<startCommand>"`); measured behaviour:
+//   pnpm ... run start   -> pnpm -> sh -> node. pnpm exits on SIGTERM without forwarding it,
+//                           leaving node orphaned and still serving until SIGKILL -- in-flight
+//                           requests severed, and pnpm's non-zero ELIFECYCLE exit reads as a
+//                           crash to restartPolicyType ON_FAILURE.
+//   sh -c "node ..."     -> dash does NOT exec-optimize here either; sh keeps the signal.
+//   sh -c "exec node ..." -> the shell is REPLACED by node, so node is signalled directly.
+// Keep the `exec` prefix in railway.json.
 function shutdown(signal) {
   console.log(`${signal} received, shutting down`);
   server.close(() => process.exit(0));
