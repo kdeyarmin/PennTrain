@@ -151,12 +151,44 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
 
-  // Release the durable-store pool (and its sweep timer) with the server.
+  // Release the durable-store pool (and its sweep timer) with the server. The
+  // promise is recorded so a shutdown can await it -- PostgresState.close() is
+  // idempotent by early-return, so calling it a second time resolves at once
+  // instead of handing back the in-flight pool.end(); the only way to wait for
+  // that drain is to hold on to this exact promise.
   server.on("close", () => {
-    void phone?.closeStores?.().catch(() => undefined);
+    storeCleanup.set(
+      server,
+      phone?.closeStores?.().catch(() => undefined) ?? Promise.resolve(),
+    );
   });
 
   return server;
+}
+
+/**
+ * Per-server durable-store cleanup, resolving once the pool has finished
+ * draining. Populated by the "close" listener above; read by the shutdown path.
+ */
+const storeCleanup = new WeakMap<http.Server, Promise<void>>();
+
+/**
+ * Stops accepting connections and resolves only once the durable-store cleanup
+ * has finished draining — not merely once it has been started.
+ *
+ * That distinction is the whole correctness of the shutdown path. `server.close()`
+ * emits "close" to the cleanup listener and to this one-shot callback in the same
+ * event turn, so exiting from the callback directly would terminate the in-flight
+ * `pool.end()` (and any store query still running) and release the pool in name
+ * only. Callers keep their own forced-exit timer: this promise is deliberately
+ * unbounded, because the bound belongs to the platform's grace period, not here.
+ */
+export function closeServerAndDrainStores(server: http.Server): Promise<void> {
+  return new Promise((resolve) => {
+    server.close(() => {
+      void (storeCleanup.get(server) ?? Promise.resolve()).then(() => resolve());
+    });
+  });
 }
 
 /**
@@ -180,7 +212,7 @@ function installShutdownHandlers(server: http.Server): void {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(JSON.stringify({ evt: "voice.gateway.shutdown", signal }));
-    server.close(() => process.exit(0));
+    void closeServerAndDrainStores(server).then(() => process.exit(0));
     setTimeout(() => process.exit(0), 10_000).unref();
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
