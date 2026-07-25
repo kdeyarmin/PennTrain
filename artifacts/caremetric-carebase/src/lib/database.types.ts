@@ -34617,6 +34617,10 @@ export type Database = {
         }
         Returns: string
       }
+      complete_hospital_return_reconciliation: {
+        Args: { p_episode_id: string; p_note?: string }
+        Returns: boolean
+      }
       complete_integration_webhook_delivery: {
         Args: {
           p_attempt_number: number

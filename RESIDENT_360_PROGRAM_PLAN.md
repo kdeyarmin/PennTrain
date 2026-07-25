@@ -1018,10 +1018,37 @@ chunk has held at ~51 KiB across the entire program, because every new surface �
 signals, each tab — is its own lazy chunk. The aggregate grows with feature count by design; the
 per-page weight is the number that matters and it stayed flat.
 
-**Still outstanding in Phase 5:** 5b — the hospital departure/return workflow UI and its follow-up
-work items. The schema already models nearly all of it (`hospital_transfer_episodes`), and the change
-detector already surfaces the visit; what is missing is the workflow surface and the deadlined
-follow-up that the `assessment_review_required` / `support_plan_review_required` flags should drive.
+### Phase 5b — hospital return reconciliation; Phase 5 complete
+
+**The flags drove nothing.** `assessment_review_required` and `support_plan_review_required` were
+set on every return and read by no code. A return could record "yes, this needs a reassessment" and
+produce no assessment, no owned task, and no trace anywhere a person would look.
+
+| Delivered | Notes |
+| --- | --- |
+| Seeded return review | A flagged return now creates the draft hospital-return review (Phase 2b template) linked to the episode, pre-filled from what the return already recorded — asking someone to retype it is how it gets skipped |
+| Gated closure | `complete_hospital_return_reconciliation` refuses while required steps are outstanding and names them in the error, then closes the follow-up work item |
+| Reconciliation checklist | `hospitalReconciliation.ts` — five steps, each with the reason it exists, a 24-hour deadline matching the work item, and not-applicable handled as distinct from complete |
+| Timeline | Hospital episodes, governed assessment reviews, and unscheduled services now appear on the resident timeline |
+
+**A regression I nearly shipped.** Extending `get_resident_timeline` meant re-declaring it, and my
+first version kept only the sources I was thinking about — silently dropping vitals, progress notes,
+clinical assessments, diagnoses, medications, dietary, and external eMAR. That would have emptied
+the clinical chart's timeline while every test still passed. Caught by diffing the union sources
+against the prior definition before committing; the check is now part of how these re-declarations
+get reviewed.
+
+**Two smaller judgment calls.** The plan-revision step accepts a plan in *any* in-flight state, not
+just active — requiring an active plan would block closure while the revision sits legitimately in
+clinical review. And the closure button is disabled rather than hidden while steps remain, so a
+person sees what is blocking them instead of wondering where the button went; the server enforces
+the same rule regardless.
+
+**Verified:** typecheck clean; 727 tests pass (18 new); build succeeds; bundle budget passes with the
+resident route at 51.5 KiB.
+
+**Phase 5 is now complete.** Phase 6 (guided incident investigation, follow-through stages, trends,
+QAPI) is next.
 
 ## 6. What to do first
 
