@@ -7,15 +7,26 @@
       "id": "ic-b1-stakes",
       "title": "Why a little bit sick is a different thing in your building",
       "scenes": [
-        { "type": "slide", "slide": "ic-title", "duration": 5 },
-        { "type": "avatar", "scriptFile": "inservice-infection-control-1.txt" }
+        {
+          "type": "slide",
+          "slide": "ic-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-infection-control-1.txt"
+        }
       ]
     },
     {
       "id": "ic-b2-chain",
       "title": "The five rides an infection can take",
       "scenes": [
-        { "type": "slide", "slide": "ic-sec-chain", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ic-sec-chain",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ic-chain",
@@ -27,7 +38,11 @@
       "id": "ic-b3-hands",
       "title": "When hands get cleaned, and the spots they miss",
       "scenes": [
-        { "type": "slide", "slide": "ic-sec-hands", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ic-sec-hands",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ic-moments",
@@ -49,7 +64,11 @@
           "slide": "ic-cdiff",
           "script": "Before we move on, one exception that people carry down the hall without ever knowing they did it.\n\nAlcohol rub does not kill C. diff spores. It does not weaken them. It does not slow them down. It moves them.\n\nSo if a resident has diarrhea — and I mean any diarrhea, not only a resident with a confirmed diagnosis, because most of the time you do not have the diagnosis yet — you use soap and water. Friction and a rinse. Every time.\n\nI want to be clear about why this one gets missed so reliably. It is not ignorance. It is that the pump on the wall is right there, and it is fast, and using it feels responsible. You are doing the conscientious thing. And you are walking spores to the next room while you do it.\n\nThat is the worst kind of failure to catch, because there is nothing about it that feels like cutting a corner."
         },
-        { "type": "slide", "slide": "ic-sec-ppe", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ic-sec-ppe",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ic-ppe-order",
@@ -76,9 +95,20 @@
       "id": "ic-b6-wipe",
       "title": "The two-second wipe, and what contact time actually means",
       "scenes": [
-        { "type": "slide", "slide": "ic-sec-surfaces", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-infection-control-2.txt" },
-        { "type": "slide", "slide": "ic-contact-time", "duration": 6 }
+        {
+          "type": "slide",
+          "slide": "ic-sec-surfaces",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-infection-control-2.txt"
+        },
+        {
+          "type": "slide",
+          "slide": "ic-contact-time",
+          "duration": 6
+        }
       ]
     },
     {
@@ -101,7 +131,11 @@
       "id": "ic-b8-precautions",
       "title": "What the sign on the door is asking for",
       "scenes": [
-        { "type": "slide", "slide": "ic-sec-precautions", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ic-sec-precautions",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ic-precaution-types",
@@ -118,8 +152,15 @@
       "id": "ic-b9-notice",
       "title": "Immobility, atypical presentation, and coming to work sick",
       "scenes": [
-        { "type": "slide", "slide": "ic-sec-notice", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-infection-control-3.txt" },
+        {
+          "type": "slide",
+          "slide": "ic-sec-notice",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-infection-control-3.txt"
+        },
         {
           "type": "slide",
           "slide": "ic-immobility",
@@ -147,5 +188,60 @@
         }
       ]
     }
-  ]
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "ic-b1-stakes": {
+        "video_id": "71a0a995c71149e6ac5145e5cac68b7a",
+        "seconds": 135,
+        "mb": 24.6
+      },
+      "ic-b2-chain": {
+        "video_id": "a22e702f703941f2941ad355979403f3",
+        "seconds": 98,
+        "mb": 3.4
+      },
+      "ic-b3-hands": {
+        "video_id": "4a4ff79bbb58475db22f01d6ed5a850e",
+        "seconds": 148,
+        "mb": 5.1
+      },
+      "ic-b4-ppe": {
+        "video_id": "a5ee1b7e363b424f90b640eb5ebd4114",
+        "seconds": 118,
+        "mb": 4
+      },
+      "ic-b5-ppefail": {
+        "video_id": "8382aabe3b60483a946f55f506ed9776",
+        "seconds": 112,
+        "mb": 10.1
+      },
+      "ic-b6-wipe": {
+        "video_id": "34223ce4359941d18e35917af855df6e",
+        "seconds": 149,
+        "mb": 28.1
+      },
+      "ic-b7-shared": {
+        "video_id": "a114bd8f91e540478be1648dbe9d96b7",
+        "seconds": 146,
+        "mb": 4.9
+      },
+      "ic-b8-precautions": {
+        "video_id": "d311b331b4d44a91bed9ed787f8e8c19",
+        "seconds": 136,
+        "mb": 4.7
+      },
+      "ic-b9-notice": {
+        "video_id": "14ff0bef4dbf4b4cbf855bdcdd0d1c08",
+        "seconds": 193,
+        "mb": 29.5
+      },
+      "ic-b10-close": {
+        "video_id": "02618e7011f74ca0b3a7ffef47fcd297",
+        "seconds": 136,
+        "mb": 10.6
+      }
+    }
+  }
 }
