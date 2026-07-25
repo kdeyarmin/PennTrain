@@ -83,24 +83,20 @@ async function start(job) {
   return { videoId: body.data.video_id };
 }
 
-async function poll(videoId) {
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const res = await fetch(`${HEYGEN_BASE}/v3/videos/${videoId}`, {
-      headers: { "x-api-key": process.env.HEYGEN_API_KEY },
-    });
-    const data = (await res.json().catch(() => null))?.data;
-    if (data?.status === "completed") {
-      const head = await fetch(data.video_url, { method: "HEAD" });
-      const bytes = Number(head.headers.get("content-length") || 0);
-      return { status: "completed", seconds: Math.round(data.duration || 0), mb: +(bytes / 1048576).toFixed(1) };
-    }
-    if (data?.status === "failed") {
-      return { status: "failed", reason: data.failure_code || data.failure_message || "unknown" };
-    }
+async function check(videoId) {
+  const res = await fetch(`${HEYGEN_BASE}/v3/videos/${videoId}`, {
+    headers: { "x-api-key": process.env.HEYGEN_API_KEY },
+  });
+  const data = (await res.json().catch(() => null))?.data;
+  if (data?.status === "completed") {
+    const head = await fetch(data.video_url, { method: "HEAD" });
+    const bytes = Number(head.headers.get("content-length") || 0);
+    return { status: "completed", seconds: Math.round(data.duration || 0), mb: +(bytes / 1048576).toFixed(1) };
   }
-  return { status: "timeout" };
+  if (data?.status === "failed") {
+    return { status: "failed", reason: data.failure_code || data.failure_message || "unknown" };
+  }
+  return { status: data?.status ?? "unknown" };
 }
 
 async function main() {
@@ -122,25 +118,53 @@ async function main() {
     console.log(`  ${job.name.padEnd(34)} ${String(job.script.length).padStart(4)} chars  ~${job.seconds}s  ~${job.mb}MB${flag}`);
   }
   if (blocked) fail("Fix the flagged scripts before spending credits.");
-  console.log(`\n${jobs.length} segment(s). Each render costs roughly 150 HeyGen credits.\n`);
+  // Observed cost is roughly 400 credits per two-and-a-half-minute segment.
+  // Checking up front matters: a batch that runs dry mid-flight leaves the
+  // remaining segments failed with MOVIO_PAYMENT_INSUFFICIENT_CREDIT, and the
+  // credits already spent on the ones that got through are not recoverable.
+  const CREDITS_PER_SEGMENT = 400;
+  const needed = jobs.length * CREDITS_PER_SEGMENT;
+  const quotaRes = await fetch(`${HEYGEN_BASE}/v2/user/remaining_quota`, {
+    headers: { "x-api-key": process.env.HEYGEN_API_KEY },
+  });
+  const quota = (await quotaRes.json().catch(() => null))?.data?.remaining_quota;
+  console.log(`\n${jobs.length} segment(s), roughly ${needed} credits. Balance: ${quota ?? "unknown"}.\n`);
+  if (typeof quota === "number" && quota < needed) {
+    fail(`Not enough credits for the whole batch. Top up, or pass just the files you want rendered now.`);
+  }
   if (dryRun) return;
 
+  // Submit the whole batch first, then poll. HeyGen renders these in parallel,
+  // so submit-then-wait per segment would turn a ten-minute batch into hours.
   const rendered = {};
   const failures = [];
+  const inFlight = new Map();
   for (const job of jobs) {
-    process.stdout.write(`▸ ${job.name} ... `);
     const { videoId, error } = await start(job);
-    if (error) { console.log(`submit failed: ${error}`); failures.push(job.name); continue; }
-    const result = await poll(videoId);
-    if (result.status !== "completed") {
-      console.log(`${result.status}${result.reason ? ` (${result.reason})` : ""}`);
-      failures.push(job.name);
-      continue;
-    }
-    rendered[job.name] = videoId;
-    const warn = result.mb > REHOST_CEILING_MB - 5 ? "  ⚠ close to the re-host ceiling" : "";
-    console.log(`${videoId}  ${result.seconds}s  ${result.mb}MB${warn}`);
+    if (error) { console.log(`  ✖ ${job.name}: submit failed: ${error}`); failures.push(job.name); continue; }
+    inFlight.set(job.name, videoId);
+    console.log(`  ▸ ${job.name} queued as ${videoId}`);
   }
+  console.log(`\nWaiting on ${inFlight.size} render(s)...\n`);
+
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  while (inFlight.size && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    for (const [name, videoId] of [...inFlight]) {
+      const result = await check(videoId);
+      if (result.status === "completed") {
+        inFlight.delete(name);
+        rendered[name] = videoId;
+        const warn = result.mb > REHOST_CEILING_MB - 5 ? "  ⚠ close to the re-host ceiling" : "";
+        console.log(`  ✔ ${name.padEnd(34)} ${videoId}  ${result.seconds}s  ${result.mb}MB${warn}`);
+      } else if (result.status === "failed") {
+        inFlight.delete(name);
+        failures.push(name);
+        console.log(`  ✖ ${name.padEnd(34)} ${result.reason}`);
+      }
+    }
+  }
+  for (const name of inFlight.keys()) { failures.push(name); console.log(`  ✖ ${name}: timed out`); }
 
   const out = path.resolve("rendered-segments.json");
   await fs.writeFile(out, JSON.stringify(rendered, null, 2));
