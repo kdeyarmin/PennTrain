@@ -187,11 +187,27 @@ can see the whole workspace and lockfile.
    Railway at that image, so the deploy promotes the exact validated bytes instead of
    rebuilding them. That is a deliberate future change, not something this configuration
    silently accepts as equivalent.
-   - Start: `pnpm --filter @workspace/caremetric-carebase run start`
+   - Start: `exec node artifacts/caremetric-carebase/server/index.mjs`
+
+     **The `exec`, and the absence of a `pnpm` wrapper, are both load-bearing -- do not
+     "simplify" this back to `pnpm --filter ... run start`.** Railway signals the process it
+     started (`/bin/sh -c "<startCommand>"`) when it drains a deploy, and only a process that
+     receives SIGTERM itself can run the graceful shutdown in `server/index.mjs`. Measured
+     locally against this exact server:
+
+     | startCommand | process tree | on SIGTERM |
+     |---|---|---|
+     | `pnpm --filter ... run start` | `pnpm` -> `sh` -> `node` | pnpm exits **without forwarding**; node is orphaned and keeps serving until SIGKILL. In-flight requests are severed, and pnpm's non-zero `ELIFECYCLE` exit looks like a crash to `restartPolicyType: ON_FAILURE` |
+     | `node ...` (no `exec`) | `sh` -> `node` | dash does not exec-optimize here; `sh` absorbs the signal, node again never drains |
+     | `exec node ...` | `node` (the shell is replaced) | node receives SIGTERM, closes the listener, drains, exits 0 |
+
+     Starting the server directly also drops two processes from the runtime image and does not
+     depend on pnpm being resolvable at run time -- only at build time.
    - Healthcheck: `GET /health`
-   - Watch paths: only changes under `artifacts/caremetric-carebase/` and the root toolchain/config files
-     trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
-     redeploy production.
+   - Watch paths: only changes under `artifacts/caremetric-carebase/`, the root toolchain/config
+     files, and the two `scripts/` files the build itself runs (`check-bundle-budget.mjs` and the
+     `generate:manual` generator) trigger a deploy, so pushes touching e.g.
+     `artifacts/mockup-sandbox` or unrelated `scripts/` files don't redeploy production.
    Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
    pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 11.13.0 via
    the package manager declared by the `packageManager` field.
@@ -229,6 +245,15 @@ can see the whole workspace and lockfile.
    actually contains (no rebuild on a runtime variable change, dummy build-time values, etc.) --
    exactly the false assurance a healthcheck must not give. A green `/health` only means the Node
    process is up; confirm Supabase connectivity by loading the app in a browser (step 8).
+
+   The one deploy-shaped failure `/health` *does* catch is a missing bundle. Because the endpoint
+   is answered by the server rather than by the build output, a deploy whose `dist/public` is
+   missing or partial (interrupted build, wrong Root Directory, a start that never ran a build)
+   would otherwise return a green `/health` while every real request 500s -- and Railway would
+   promote it. The server therefore checks `dist/public/index.html` before it binds the port and
+   exits non-zero if it is absent, so the healthcheck fails and Railway keeps the previous,
+   working deploy live. The startup log line is `Refusing to start: ... index.html is missing`;
+   if a deploy fails its healthcheck, check the deploy logs for it before anything else.
 
 ### Environment variables to set on the Railway service
 

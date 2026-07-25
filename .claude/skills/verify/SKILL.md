@@ -22,8 +22,12 @@ pnpm install --frozen-lockfile --prod=false \
 
 ## Run + probe
 
+Run it the way Railway does — through a shell, with the `exec` prefix from
+`railway.json`'s `startCommand` — so the process under test is the one that
+receives the signal:
+
 ```bash
-cd artifacts/caremetric-carebase && PORT=8090 node server/index.mjs &   # capture $! for later kill
+PORT=8090 sh -c "exec node artifacts/caremetric-carebase/server/index.mjs" &   # capture $! for later kill
 ```
 
 Worth probing (all against `http://127.0.0.1:8090`):
@@ -38,7 +42,12 @@ Worth probing (all against `http://127.0.0.1:8090`):
 - Traversal (plant a secret in `dist/`, one level above `dist/public`):
   `--path-as-is /../secret.txt`, `/%2e%2e/secret.txt`, `/..%2fsecret.txt` → all 404.
   `%00` or malformed `%zz` → 400.
-- `kill -TERM <pid>` → logs "SIGTERM received", exits, port closes.
+- `kill -TERM <pid>` → logs "SIGTERM received", exits, port closes. If the log
+  line is missing or the port keeps answering, the signal is being absorbed by a
+  wrapper process — check the start command still starts with `exec` (see below).
+- Missing build output: `mv dist/public/index.html` aside, start → exit code 1 and
+  "Refusing to start: ... index.html is missing". A 200 from `/health` here would
+  mean Railway promotes a deploy that 500s on every real request.
 - `BASE_PATH=/train/` variant: rebuild with it, then `/train/` 200, `/` 404,
   `/trainer` 404, `/health` still 200. **Rebuild without BASE_PATH afterwards.**
 
@@ -52,3 +61,12 @@ Worth probing (all against `http://127.0.0.1:8090`):
   fails; don't chase it.
 - Kill the server before relaunching: graceful drain holds the port briefly
   (EADDRINUSE on fast restarts is the restart-policy path, not a bug).
+- Signals only reach node when nothing sits between it and the shell. Measured
+  here: `pnpm --filter ... run start` (pnpm → sh → node) and a bare
+  `sh -c "node ..."` both swallow SIGTERM, leaving node orphaned and still
+  serving; only `sh -c "exec node ..."` replaces the shell with node. If you
+  change `startCommand`, re-run the SIGTERM probe above — a wrapper turns the
+  whole graceful-shutdown path into dead code without any other symptom.
+- Asset archiving (`ASSET_ARCHIVE_DIR`) runs after the listen, not before it, so
+  "listening on ..." precedes "Preserving release assets" in the log. Requests
+  for previous-release hashes may 404 for the first moment after boot.
