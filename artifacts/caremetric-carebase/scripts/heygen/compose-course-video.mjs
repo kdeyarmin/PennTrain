@@ -47,7 +47,15 @@ const MB_PER_SECOND_SLIDE = 0.04;
 const CHARS_PER_SECOND = 17.5;
 const POLL_INTERVAL_MS = 20_000;
 const POLL_TIMEOUT_MS = 45 * 60_000;
-const CREDITS_PER_MINUTE = 178; // measured: ~427 credits per 2.4-minute render
+// Credits do not price a slide minute like an avatar minute either. 178/min came
+// off an avatar-only render (~427 credits for 2.4 minutes) and, applied to a
+// whole deck, over-estimated infection control by 72% -- 4,041 projected against
+// 2,353 actually spent on 8.4 avatar minutes and 14.5 slide minutes. Holding the
+// avatar rate fixed puts slides near 59/min, which is one measurement solving for
+// one unknown, so treat the slide figure as approximate and re-derive it from the
+// balance before and after the next deck.
+const CREDITS_PER_MINUTE_AVATAR = 178;
+const CREDITS_PER_MINUTE_SLIDE = 59;
 
 function fail(message) {
   console.error(`\n✖ ${message}\n`);
@@ -130,6 +138,7 @@ async function main() {
   console.log(`\n${deck.course}\nAvatar ${AVATAR_ID}\nVoice  ${VOICE_ID}\n`);
 
   let totalSeconds = 0;
+  let avatarSeconds = 0;
   let blocked = false;
   for (const block of blocks) {
     let seconds = 0;
@@ -137,6 +146,7 @@ async function main() {
     for (const scene of block.scenes) {
       const secs = sceneSeconds(scene, await sceneScript(scene));
       seconds += secs;
+      if (scene.type === "avatar") avatarSeconds += secs;
       mb += secs * (scene.type === "avatar" ? MB_PER_SECOND_AVATAR : MB_PER_SECOND_SLIDE);
     }
     totalSeconds += seconds;
@@ -152,9 +162,14 @@ async function main() {
   }
 
   const minutes = totalSeconds / 60;
+  const avatarMinutes = avatarSeconds / 60;
+  const slideMinutes = minutes - avatarMinutes;
+  const credits = Math.round(
+    avatarMinutes * CREDITS_PER_MINUTE_AVATAR + slideMinutes * CREDITS_PER_MINUTE_SLIDE,
+  );
   console.log(
-    `\n${blocks.length} block(s), ${Math.floor(minutes)}m${String(Math.round(totalSeconds % 60)).padStart(2, "0")}s of video, ` +
-      `roughly ${Math.round(minutes * CREDITS_PER_MINUTE)} credits.\n`,
+    `\n${blocks.length} block(s), ${Math.floor(minutes)}m${String(Math.round(totalSeconds % 60)).padStart(2, "0")}s of video ` +
+      `(${avatarMinutes.toFixed(1)}m avatar, ${slideMinutes.toFixed(1)}m slides), roughly ${credits} credits.\n`,
   );
   if (blocked) fail("Split the flagged blocks before spending credits.");
   if (dryRun) return;
