@@ -330,30 +330,33 @@ export default function Residents() {
           <DialogHeader><DialogTitle>Add Resident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Labels are associated with their controls: without htmlFor/id these read as
+                  free-floating text to a screen reader, and the admit journey cannot address the
+                  fields by name either. */}
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Facility *</Label>
+                <Label htmlFor="resident-facility" className="text-[13px]">Facility *</Label>
                 <Select value={form.facilityId} onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v }))}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                  <SelectTrigger id="resident-facility" className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Room</Label>
-                <Input value={form.room} onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))} className="h-9" />
+                <Label htmlFor="resident-room" className="text-[13px]">Room</Label>
+                <Input id="resident-room" value={form.room} onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">First Name *</Label>
-                <Input value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} className="h-9" />
+                <Label htmlFor="resident-first-name" className="text-[13px]">First Name *</Label>
+                <Input id="resident-first-name" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Last Name *</Label>
-                <Input value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} className="h-9" />
+                <Label htmlFor="resident-last-name" className="text-[13px]">Last Name *</Label>
+                <Input id="resident-last-name" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Admission Date *</Label>
-                <Input type="date" value={form.admissionDate} onChange={(e) => setForm((f) => ({ ...f, admissionDate: e.target.value }))} className="h-9" />
+                <Label htmlFor="resident-admission-date" className="text-[13px]">Admission Date *</Label>
+                <Input id="resident-admission-date" type="date" value={form.admissionDate} onChange={(e) => setForm((f) => ({ ...f, admissionDate: e.target.value }))} className="h-9" />
               </div>
               <div className="flex items-end gap-4 pb-1">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">

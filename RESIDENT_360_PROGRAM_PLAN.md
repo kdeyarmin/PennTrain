@@ -1437,6 +1437,55 @@ this seat: the plan names a confidently-wrong citation in a survey packet as thi
 failure mode, and citations written from memory rather than from the regulation are exactly that.
 Seeding needs a compliance SME with the source text in front of them.
 
+### Phase 0a — The journey coverage ratchet
+
+**Most of Phase 0 already existed.** Before building anything I checked, and found: a Playwright
+harness with role-authenticated sessions for six roles, running in CI against a real local Supabase
+stack with axe accessibility checks (item 2); `app_private.seed_demo_organization`, which seeds a
+tenant across ~30 tables with both PCH and `"ALR"`-coded ALF facilities (item 1); a component
+render-test baseline (item 4); and a bundle budget that already fails PRs (item 6). The plan was
+written as though none of this existed.
+
+**What was actually missing is item 3** — the twelve-step lifecycle skeleton with a *counted*
+coverage number. That is the piece every exit gate in this document has been citing, and without it
+those gates were assertions.
+
+| Delivered | Detail |
+| --- | --- |
+| Step registry | `src/lib/residentJourney.ts` — the twelve steps, each with what it **proves**, a status, and for pending steps a concrete blocker |
+| Journey spec | `e2e/resident-lifecycle.spec.ts` — one seeded tenant with both facility types, shared serially. Pending steps register as `test.fixme` from the registry, so the Playwright report and the coverage count cannot disagree |
+| The ratchet | `scripts/check-journey-coverage.mjs`, wired into `check:all` (so CI runs it): the pending count may fall, never rise |
+| Step 1 implemented | Admit, driven through the UI and asserted against the database |
+| Enabler | The Add Resident dialog's labels now carry `htmlFor`/`id`. They were free-floating text — an a11y defect in a repo that runs axe, and the reason the step could not address its fields by name |
+
+**Coverage today: 1/12 (8%), 11 pending.** That number is deliberately unflattering. Eleven blockers
+are recorded in the registry, each naming what specifically stands in the way — a signed-form fixture,
+a seeded shift assignment, an entitlement — rather than "not built yet".
+
+**Why a step is not implemented because a page loads.** Each step states what it must *prove*. Step 1
+passes only when a resident row exists with the right admission date and facility; a row appearing in
+a table would only prove the table rendered. Marking navigation-only steps implemented would make the
+coverage number worse than useless — it would make an unproven program look proven.
+
+**Two self-tests on the ratchet itself,** because a coverage checker that silently reports zero is
+the worst possible version of this tool. Verified by flipping the implemented step back to pending
+(fails: 12 above the ceiling of 11) and by renaming the `status` key so the parser matches nothing
+(fails: "could not read any steps — do not let it report zero"). It also fails if a step is marked
+implemented but its id never appears in the spec, which would be a number counting work that runs
+nowhere.
+
+**The unit test corrected the data, not the threshold.** Two blockers read "Depends on step 3." and
+"Depends on step 8." — technically concrete, but they make the reader go look up what those steps
+were. The assertion that a blocker carry real substance caught both; they now say what is missing.
+
+**Verified:** typecheck clean; 959 tests pass (7 new); build succeeds; all bundle budgets pass; the
+coverage check reports 1/12 and both its failure modes were exercised. The journey spec itself
+**cannot be run locally** — it needs the Supabase stack and Docker is unavailable here — so step 1's
+browser body is verified only by CI.
+
+**What this does not do.** It does not implement steps 2–12. That is per-phase work, and the honest
+reason each is still pending is now recorded in the registry rather than in my head.
+
 ## 6. What to do first
 
 If only one phase is funded now, fund **Phase 0 plus Phase 1a** (the resident clinical profile data
