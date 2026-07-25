@@ -17,10 +17,12 @@ insert into auth.users(
   confirmation_token, recovery_token, email_change_token_new, email_change,
   email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
 ) values
-  ('00000000-0000-0000-0000-000000000000', 'f9000000-0000-4000-8000-000000000101', 'authenticated', 'authenticated', 'f9-admin@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false);
+  ('00000000-0000-0000-0000-000000000000', 'f9000000-0000-4000-8000-000000000101', 'authenticated', 'authenticated', 'f9-admin@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false),
+  ('00000000-0000-0000-0000-000000000000', 'f9000000-0000-4000-8000-000000000102', 'authenticated', 'authenticated', 'f9-platform@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false);
 select set_config('app.privileged_write', 'on', true);
 insert into public.profiles(id, organization_id, email, first_name, last_name, role, is_active) values
-  ('f9000000-0000-4000-8000-000000000101', 'f9000000-0000-4000-8000-000000000001', 'f9-admin@test.local', 'Frankie', 'Admin', 'org_admin', true)
+  ('f9000000-0000-4000-8000-000000000101', 'f9000000-0000-4000-8000-000000000001', 'f9-admin@test.local', 'Frankie', 'Admin', 'org_admin', true),
+  ('f9000000-0000-4000-8000-000000000102', null, 'f9-platform@test.local', 'Pat', 'Platform', 'platform_admin', true)
 on conflict(id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 select set_config('app.privileged_write', 'off', true);
 
@@ -147,10 +149,11 @@ select is(
 update public.survey_day_sessions set status = 'closed', closed_at = now()
 where id = 'f9000000-0000-4000-8000-000000000601';
 
--- aal2 with a current `iat`: assert_survey_day_manager requires a fresh step-up, and it runs BEFORE
--- the closed-session check -- correctly, since a caller who is not allowed to write should not learn
--- the session's state from the error. An aal1 claim here would fail on 42501 and never reach the
--- behaviour this assertion is about.
+-- assert_survey_day_manager runs BEFORE the closed-session check -- correctly, since a caller who is
+-- not allowed to write should not learn the session's state from the error. It requires a fresh aal2
+-- step-up AND the survey_day_mode entitlement, so this assertion acts as a platform admin, who
+-- returns early from both. That is also the stronger claim: not even a platform admin can append to a
+-- closed session, because the refusal is a property of the record rather than of authorization.
 create or replace function pg_temp.act_as(p_id uuid)
 returns void language plpgsql as $$
 begin
@@ -160,7 +163,7 @@ begin
   set local role authenticated;
 end $$;
 
-select pg_temp.act_as('f9000000-0000-4000-8000-000000000101');
+select pg_temp.act_as('f9000000-0000-4000-8000-000000000102');
 select throws_ok($$select public.record_survey_day_observation(
   'f9000000-0000-4000-8000-000000000601', 'observation', 'Recorded after the survey closed.')$$,
   '55000',
