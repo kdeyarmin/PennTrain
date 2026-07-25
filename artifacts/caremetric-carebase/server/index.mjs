@@ -506,8 +506,10 @@ void prepareAssetArchive();
 // the platform's grace period.
 //
 // This only runs if the signal actually reaches THIS process, which is why railway.json's
-// startCommand is `exec node server/index.mjs` and not `pnpm ... run start`. Railway signals
-// the process it started (`/bin/sh -c "<startCommand>"`); measured behaviour:
+// startCommand is `exec node artifacts/caremetric-carebase/server/index.mjs` (paths are relative
+// to the repo root, which is Railway's Root Directory for this service) and not
+// `pnpm ... run start`. Railway signals the process it started
+// (`/bin/sh -c "<startCommand>"`); measured behaviour:
 //   pnpm ... run start   -> pnpm -> sh -> node. pnpm exits on SIGTERM without forwarding it,
 //                           leaving node orphaned and still serving until SIGKILL -- in-flight
 //                           requests severed, and pnpm's non-zero ELIFECYCLE exit reads as a

@@ -166,10 +166,13 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
  * long-lived voice WebSocket (which keeps the server from closing on its own)
  * can never hold shutdown past that grace period.
  *
- * Reaching this handler depends on railway.json's `exec node dist/index.js`
- * startCommand: Railway signals the process it started, and both a `pnpm run`
- * wrapper and a non-exec `sh -c` keep the signal to themselves, leaving this
- * process orphaned (and its Postgres pool open) until SIGKILL.
+ * Reaching this handler depends on the startCommand in
+ * artifacts/voice-gateway/railway.json:
+ * `exec node artifacts/voice-gateway/dist/index.js` (the path is relative to
+ * the repo root, which is Railway's Root Directory for this service). Railway
+ * signals the process it started, and both a `pnpm run` wrapper and a non-exec
+ * `sh -c` keep the signal to themselves, leaving this process orphaned (and its
+ * Postgres pool open) until SIGKILL.
  */
 function installShutdownHandlers(server: http.Server): void {
   let shuttingDown = false;
