@@ -187,11 +187,27 @@ can see the whole workspace and lockfile.
    Railway at that image, so the deploy promotes the exact validated bytes instead of
    rebuilding them. That is a deliberate future change, not something this configuration
    silently accepts as equivalent.
-   - Start: `pnpm --filter @workspace/caremetric-carebase run start`
+   - Start: `exec node artifacts/caremetric-carebase/server/index.mjs`
+
+     **The `exec`, and the absence of a `pnpm` wrapper, are both load-bearing -- do not
+     "simplify" this back to `pnpm --filter ... run start`.** Railway signals the process it
+     started (`/bin/sh -c "<startCommand>"`) when it drains a deploy, and only a process that
+     receives SIGTERM itself can run the graceful shutdown in `server/index.mjs`. Measured
+     locally against this exact server:
+
+     | startCommand | process tree | on SIGTERM |
+     |---|---|---|
+     | `pnpm --filter ... run start` | `pnpm` -> `sh` -> `node` | pnpm exits **without forwarding**; node is orphaned and keeps serving until SIGKILL. In-flight requests are severed, and pnpm's non-zero `ELIFECYCLE` exit looks like a crash to `restartPolicyType: ON_FAILURE` |
+     | `node ...` (no `exec`) | `sh` -> `node` | dash does not exec-optimize here; `sh` absorbs the signal, node again never drains |
+     | `exec node ...` | `node` (the shell is replaced) | node receives SIGTERM, closes the listener, drains, exits 0 |
+
+     Starting the server directly also drops two processes from the runtime image and does not
+     depend on pnpm being resolvable at run time -- only at build time.
    - Healthcheck: `GET /health`
-   - Watch paths: only changes under `artifacts/caremetric-carebase/` and the root toolchain/config files
-     trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox` or `scripts/` don't
-     redeploy production.
+   - Watch paths: only changes under `artifacts/caremetric-carebase/`, the root toolchain/config
+     files, and the two `scripts/` files the build itself runs (`check-bundle-budget.mjs` and the
+     `generate:manual` generator) trigger a deploy, so pushes touching e.g.
+     `artifacts/mockup-sandbox` or unrelated `scripts/` files don't redeploy production.
    Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
    pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 11.13.0 via
    the package manager declared by the `packageManager` field.
@@ -229,6 +245,15 @@ can see the whole workspace and lockfile.
    actually contains (no rebuild on a runtime variable change, dummy build-time values, etc.) --
    exactly the false assurance a healthcheck must not give. A green `/health` only means the Node
    process is up; confirm Supabase connectivity by loading the app in a browser (step 8).
+
+   The one deploy-shaped failure `/health` *does* catch is a missing bundle. Because the endpoint
+   is answered by the server rather than by the build output, a deploy whose `dist/public` is
+   missing or partial (interrupted build, wrong Root Directory, a start that never ran a build)
+   would otherwise return a green `/health` while every real request 500s -- and Railway would
+   promote it. The server therefore checks `dist/public/index.html` before it binds the port and
+   exits non-zero if it is absent, so the healthcheck fails and Railway keeps the previous,
+   working deploy live. The startup log line is `Refusing to start: ... index.html is missing`;
+   if a deploy fails its healthcheck, check the deploy logs for it before anything else.
 
 ### Environment variables to set on the Railway service
 
@@ -308,6 +333,26 @@ The PWA uses network-first navigation and the browser performs a one-time cache/
 reset when a dynamic import still fails. These are complementary safeguards: the archive keeps
 long-lived tabs working without interruption; automatic recovery handles clients outside the
 archive window. Do not configure Cloudflare or Railway to cache `404` responses.
+
+**Attaching the volume is a trade, not a free upgrade -- decide it deliberately.** Railway's
+volumes carry two platform constraints that apply to the whole service, not just to the archive
+([Railway: volumes](https://docs.railway.com/reference/volumes)):
+
+- **Replicas cannot be used with volumes.** Attaching one caps this service at a single instance,
+  so it can no longer be scaled horizontally. (One Node process serves this bundle at roughly
+  4.3k req/s for the entry chunk and ~30k req/s for `/health` on a 4-core box, so the ceiling is
+  high -- but it becomes a hard one.)
+- **Redeploys stop being zero-downtime.** Railway refuses to run two deployments against the same
+  volume, so the new deployment cannot come up and pass its healthcheck while the old one is still
+  serving. Every release then takes a small amount of downtime *even with a healthcheck
+  configured*, and the "failed healthcheck keeps the previous deploy live" protection above is
+  weakened: there is a window with nothing serving.
+
+Without the volume, a tab left open across a deploy that requests a since-removed chunk gets a
+404 and the client-side recovery above (service-worker unregister + cache clear + one reload)
+takes over -- an interruption for those users only, while deploys stay zero-downtime and the
+service stays scalable. Choose the volume when long-lived open tabs matter more than
+release-time availability; skip it when they don't.
 
 Never set `NPM_CONFIG_PRODUCTION=true` on this service: every dependency of the app (including
 `vite` itself) lives in `devDependencies`, and that variable makes pnpm skip them at install,

@@ -15,7 +15,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "pnpm --filter @workspace/voice-gateway run start",
+    "startCommand": "exec node artifacts/voice-gateway/dist/index.js",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",
