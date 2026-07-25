@@ -32,23 +32,43 @@ const step = (id: string) => {
 
 /** Signs in and lands on the authenticated home. */
 async function signIn(page: import("@playwright/test").Page) {
+  // Every observation channel, because each CI round costs a full run and the last one reported
+  // only "no headings" -- which eliminated four mechanisms but named none. The poll logs a timeline
+  // line whenever the observed state CHANGES (path flap = redirect loop; body text = what a user
+  // would see; console/page errors and failed requests = what broke underneath).
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(`pageerror:${String(error).slice(0, 200)}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console:${message.text().slice(0, 200)}`);
+  });
+  page.on("requestfailed", (request) => {
+    errors.push(`requestfailed:${request.method()} ${request.url().slice(0, 160)} ${request.failure()?.errorText ?? ""}`);
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) errors.push(`http${response.status()}:${response.url().slice(0, 160)}`);
+  });
+
   await page.goto("/login");
   await page.getByLabel("Email").fill(adminEmail);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
-  // The URL changing is router state, not proof the authenticated shell rendered. Asserting the
-  // shell here means a broken shell is reported once, at sign-in, instead of surfacing as a missing
-  // control on whichever page the step happened to visit. The poll returns headings AND the
-  // full-page gate labels ([role=status] spinners), so a failure names the gate that held the
-  // shell -- "Loading facility access" and "Loading CareBase" are different bugs.
+
+  let lastState = "";
+  const startedAt = Date.now();
   await expect
     .poll(async () => {
-      const headings = await page.getByRole("heading").allTextContents();
-      const gates = await page.locator("[role=status]").allTextContents();
-      return headings.length > 0
-        ? "shell-rendered"
-        : `no headings; gates=${JSON.stringify(gates)}`;
+      const path = await page.evaluate(() => window.location.pathname).catch(() => "?");
+      const headings = await page.getByRole("heading").allTextContents().catch(() => []);
+      const gates = await page.locator("[role=status]").allTextContents().catch(() => []);
+      const body = await page.evaluate(() => document.body?.innerText.slice(0, 200) ?? "").catch(() => "?");
+      const state = `path=${path} headings=${JSON.stringify(headings.slice(0, 4))} gates=${JSON.stringify(gates)} body=${JSON.stringify(body)}`;
+      if (state !== lastState) {
+        lastState = state;
+        console.log(`[signin-shell t=${Math.round((Date.now() - startedAt) / 1000)}s] ${state}`
+          + (errors.length ? ` errors=${JSON.stringify(errors.slice(-5))}` : ""));
+      }
+      return headings.length > 0 ? "shell-rendered" : state + ` errors=${JSON.stringify(errors.slice(-8))}`;
     }, { timeout: 30000 })
     .toBe("shell-rendered");
 }
