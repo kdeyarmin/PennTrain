@@ -130,3 +130,24 @@
 <body class="__KIND__">
   __SLOTS__
 </body>
+<!--
+  The frame is a fixed 1280x720 with overflow hidden, so a slide with one line
+  of copy too many does not error -- it silently slides under the footer and
+  gets clipped, and the PNG still looks plausible at a glance. This measures
+  where the content actually ends and parks the numbers in the title, which
+  render-slides.mjs reads back with --dump-dom. Nothing here is visible in the
+  screenshot; the title is not painted.
+-->
+<script>
+  addEventListener('load', () => {
+    const footer = document.querySelector('footer');
+    const bottom = Math.max(
+      0,
+      ...[...document.body.children]
+        .filter((el) => el !== footer)
+        .map((el) => el.getBoundingClientRect().bottom),
+    );
+    const footerTop = footer ? footer.getBoundingClientRect().top : 720;
+    document.title = `fit:${Math.round(bottom)}:${Math.round(footerTop)}`;
+  });
+</script>

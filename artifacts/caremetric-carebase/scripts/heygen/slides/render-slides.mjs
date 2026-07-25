@@ -90,6 +90,34 @@ function body(slide) {
   }
 }
 
+// Smallest gap we will accept between the last line of content and the footer.
+// Below this the frame reads as crowded even before anything actually collides.
+const FOOTER_CLEARANCE = 16;
+
+/**
+ * Re-load the page with --dump-dom and read back the measurement the template
+ * parked in <title>. Returns null when the slide fits, or the overshoot in px.
+ */
+async function measure(chromium, htmlPath) {
+  const { stdout } = await run(chromium, [
+    "--headless",
+    "--disable-gpu",
+    "--no-sandbox",
+    "--force-device-scale-factor=1",
+    `--window-size=${WIDTH},${HEIGHT}`,
+    "--virtual-time-budget=2000",
+    "--dump-dom",
+    `file://${htmlPath}`,
+  ]);
+  const match = stdout.match(/<title>fit:(\d+):(\d+)<\/title>/);
+  // No match means the measuring script did not run. Say so rather than
+  // reporting a clean fit we never actually checked.
+  if (!match) throw new Error(`Could not measure ${htmlPath}: no fit marker in the DOM`);
+  const [, contentBottom, footerTop] = match.map(Number);
+  const over = Math.round(contentBottom - (footerTop - FOOTER_CLEARANCE));
+  return over > 0 ? { over, contentBottom, footerTop } : null;
+}
+
 async function main() {
   const [deckPath, ...rest] = process.argv.slice(2);
   if (!deckPath) {
@@ -104,6 +132,7 @@ async function main() {
   const template = await fs.readFile(path.join(HERE, "slide-template.html"), "utf8");
   const deck = JSON.parse(await fs.readFile(path.resolve(deckPath), "utf8"));
   const seen = new Set();
+  const overflowing = [];
 
   for (const slide of deck) {
     if (seen.has(slide.id)) throw new Error(`Duplicate slide id "${slide.id}"`);
@@ -128,12 +157,29 @@ async function main() {
       `--screenshot=${pngPath}`,
       `file://${htmlPath}`,
     ]);
+    const fit = await measure(chromium, htmlPath);
     await fs.unlink(htmlPath);
+    if (fit) overflowing.push({ id: slide.id, ...fit });
 
     const { size } = await fs.stat(pngPath);
-    console.log(`  ${slide.id.padEnd(30)} ${slide.kind.padEnd(8)} ${(size / 1024).toFixed(0)}KB`);
+    console.log(
+      `  ${slide.id.padEnd(30)} ${slide.kind.padEnd(8)} ${(size / 1024).toFixed(0).padStart(4)}KB` +
+        (fit ? `   overflows by ${fit.over}px` : ""),
+    );
   }
   console.log(`\n${deck.length} slide(s) written to ${outDir}`);
+
+  // A clipped slide is a defect that ships silently: the PNG renders, HeyGen
+  // accepts it, and the missing line is only found by watching the video. Fail
+  // the render instead, so it gets fixed in the copy before anything is paid for.
+  if (overflowing.length > 0) {
+    console.error(
+      `\n${overflowing.length} slide(s) do not fit the 1280x720 frame and would be clipped:\n` +
+        overflowing.map((s) => `  ${s.id} — content runs ${s.over}px into the footer`).join("\n") +
+        "\n\nShorten the copy, or drop a point, and render again.",
+    );
+    process.exit(1);
+  }
 }
 
 main();
