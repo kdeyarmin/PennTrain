@@ -209,7 +209,11 @@ language sql stable security invoker set search_path = '' as $function$
     -- NEW in this migration: the hospital stay, the governed assessment reviews, and unscheduled
     -- care. Every other union below is carried forward verbatim from 20260725150000 -- dropping any
     -- of them would silently empty the clinical chart's timeline.
-    select h.transfer_time, 'hospital_transfer'::text event_type,
+    -- TRAP: a UNION takes its column names from the FIRST branch, and the outer select references
+    -- them by name (event.occurred_at). This branch must alias occurred_at explicitly -- the
+    -- previous definition happened to lead with i.occurred_at, so the alias was implicit. Leading
+    -- with an unaliased h.transfer_time makes the outer select fail to compile.
+    select h.transfer_time as occurred_at, 'hospital_transfer'::text event_type,
       'Hospital transfer: ' || coalesce(h.destination, 'hospital') title,
       h.status,
       left(concat_ws(' · ',
