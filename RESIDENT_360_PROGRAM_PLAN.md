@@ -1566,6 +1566,45 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0e — Step 2, and a correction I nearly got backwards
+
+**Coverage 6/12 (50%).** The initial-assessment compliance item is now proven compliant *only* with
+a signed DHS form attached, uploaded through the same dialog a facility uses.
+
+**I twice had the blocker wrong, in opposite directions, and the second was the dangerous one.**
+The registry said step 2 was blocked on a signed DHS form required by
+`finalize_resident_assessment_review`. Reading that function showed it requires no such thing — only
+duty eligibility as a `resident_assessor`, which the shipped rule grants to `org_admin`. So I
+"corrected" the entry to say there had never been a blocker, and wrote a step that finalized an
+assessment *review*.
+
+Running it showed the Assessments tab does not offer "Initial assessment" as a review at all. The
+tab lists only `internal_review` templates, under a paragraph that says plainly: *"No DHS form
+prescribes these — they do not replace the RASP, and finalizing one never completes a compliance
+item on its own."* The initial assessment appears instead on the compliance checklist, where
+`complete_resident_compliance_item(item, document)` refuses completion without an attached form —
+"no exception", in the migration's own words.
+
+So the original blocker named a real requirement via the wrong function, and my correction threw out
+the requirement along with the error. **The version that would have shipped green was the wrong
+one**: driving an internal review instead was easier, would have passed, and would have proven
+something the product explicitly says is not the same thing.
+
+What caught it was running the step rather than reasoning about it — the same discipline that has
+now caught a spinner/remount loop, a detached `supabase.rpc`, and this.
+
+**The step does the real thing:** uploads a minimal but genuine PDF through the file input, and
+asserts *both* halves of the guard — the item is compliant with a completion date **and** a
+`resident_documents` row exists. Completion without an attached form is precisely what must never
+be possible, so asserting only the status would miss the point.
+
+**Two smaller findings:** the column is `completed_date`, not `completed_at`; and PCH stamps the
+item as `initial_assessment_15day` (the 15-day rule), so the assertion matches the family rather
+than pinning one facility type's spelling.
+
+**Stack:** `dockerd` now starts under `setsid`. Plain `nohup` left it in the script's process group,
+so the sandbox reaped the daemon between commands and the stack "vanished" mid-phase twice.
+
 ### Phase 0d — Step 9, the investigation
 
 **Coverage 5/12 (41%).** Step 9 passed on its first local run — the first step in this program to do

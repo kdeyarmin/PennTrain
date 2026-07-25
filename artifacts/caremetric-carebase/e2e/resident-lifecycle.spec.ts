@@ -340,6 +340,73 @@ test.describe("resident lifecycle journey", () => {
   });
 
   // -------------------------------------------------------------------------------------------
+  // 2. Complete the initial assessment
+  //
+  // The real path, and the guard is the point. complete_resident_compliance_item(item, document)
+  // refuses to mark the item complete without an attached DHS form -- "no exception", in the
+  // migration's own words. So the step uploads a signed form the way a facility does and lets the
+  // guard be satisfied, rather than reaching for the RPC or relaxing anything.
+  //
+  // Note what this step is NOT: the "Start review" instruments further down that tab are governed
+  // INTERNAL reviews. The page says so itself -- they do not replace the RASP and finalizing one
+  // never completes a compliance item. Driving one of those would have been easier and would have
+  // proven the wrong thing.
+  // -------------------------------------------------------------------------------------------
+  test(`2. ${step("initial-assessment").title} ["initial-assessment"]`, async ({ page }) => {
+    test.fixme(step("initial-assessment").status === "pending", step("initial-assessment").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to assess");
+
+    await signIn(page);
+    await page.goto(`/app/residents/${residentId}?tab=assessments`);
+
+    // Scope to the Initial Assessment row: four checklist items each offer "Upload signed form",
+    // and picking by index would silently drift the day an item is added.
+    const initialAssessment = page
+      .locator("div.rounded-lg.border")
+      .filter({ hasText: "Initial Assessment" })
+      .first();
+    await expect(initialAssessment).toBeVisible({ timeout: 20000 });
+    await initialAssessment.getByRole("button", { name: "Upload signed form" }).click();
+
+    const upload = page.getByRole("dialog");
+    await expect(upload).toBeVisible();
+    // A real (if minimal) PDF: the input accepts .pdf/.jpg/.png, and handing it something that is
+    // not a PDF would be testing the fixture rather than the workflow.
+    await upload.locator('input[type="file"]').setInputFiles({
+      name: "signed-rasp.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from(
+        "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+        + "2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n",
+      ),
+    });
+    await upload.getByRole("button", { name: "Upload & Mark Complete" }).click();
+
+    // Asserted against both halves of the guard: the item is complete AND it points at a stored
+    // document. Completion without an attached form is exactly what must never be possible.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_compliance_items")
+        .select("item_type, status, completed_date")
+        .eq("resident_id", residentId!)
+        // PCH stamps this as initial_assessment_15day (the 15-day rule) while ALF uses its own
+        // variant, so match the family rather than pinning one facility type's spelling.
+        .ilike("item_type", "initial_assessment%");
+      if (error) throw error;
+      const documents = await admin
+        .from("resident_documents")
+        .select("id")
+        .eq("resident_id", residentId!);
+      if (documents.error) throw new Error(documents.error.message);
+      return {
+        status: data[0]?.status ?? "missing",
+        completed: (data[0]?.completed_date ?? null) !== null,
+        documents: documents.data?.length ?? 0,
+      };
+    }, { timeout: 30000 }).toEqual({ status: "compliant", completed: true, documents: 1 });
+  });
+
+  // -------------------------------------------------------------------------------------------
   // 8. Report a fall
   //
   // Two stages, because that is how the product works: intake records what happened, and the
@@ -643,7 +710,7 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit", "fall", "investigation", "survey-packet", "discharge"]);
+  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "fall", "investigation", "survey-packet", "discharge"]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {

@@ -44,13 +44,16 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     id: "initial-assessment",
     ordinal: 2,
     title: "Complete the initial assessment",
+    // The blocker named the right requirement via the wrong function: it is
+    // complete_resident_compliance_item(), not finalize_resident_assessment_review(), that demands
+    // the signed DHS form. The requirement itself was real, and the step satisfies it by uploading
+    // a form rather than routing around it. The internal review instruments on the same tab were
+    // the tempting shortcut and would have proven the wrong thing -- the UI says outright that
+    // finalizing one never completes a compliance item.
     proves:
-      "An assessment review is saved against the resident and reaches a finalized state with the "
-      + "signed-form requirement satisfied.",
-    status: "pending",
-    blockedBy:
-      "finalize_resident_assessment_review requires a signed DHS form; the spec needs a fixture that "
-      + "uploads one rather than weakening the guard.",
+      "The initial-assessment compliance item is marked compliant only with a signed DHS form "
+      + "attached, uploaded through the same flow a facility uses.",
+    status: "implemented",
   },
   {
     id: "support-plan",

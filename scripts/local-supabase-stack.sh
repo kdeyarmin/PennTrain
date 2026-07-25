@@ -32,7 +32,10 @@ if docker info >/dev/null 2>&1; then
   echo "already running"
 else
   echo "starting dockerd..."
-  nohup dockerd >/tmp/dockerd.log 2>&1 &
+  # setsid, not just nohup: the daemon must leave this script's process group entirely, or a
+  # sandbox that reaps a session's process tree takes the whole stack down with it between
+  # commands -- which looks like "the containers vanished" rather than "the daemon was killed".
+  setsid nohup dockerd >/tmp/dockerd.log 2>&1 </dev/null &
   for _ in $(seq 1 30); do
     docker info >/dev/null 2>&1 && break
     sleep 1
