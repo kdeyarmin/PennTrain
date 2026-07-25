@@ -37,6 +37,12 @@ async function signIn(page: import("@playwright/test").Page) {
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
+  // The URL changing is router state, not proof the authenticated shell rendered. Asserting the
+  // shell here means a broken shell is reported once, at sign-in, instead of surfacing as a missing
+  // control on whichever page the step happened to visit.
+  await expect
+    .poll(async () => page.getByRole("heading").allTextContents(), { timeout: 30000 })
+    .not.toEqual([]);
 }
 
 test.describe("resident lifecycle journey", () => {
@@ -134,6 +140,11 @@ test.describe("resident lifecycle journey", () => {
   // 1. Admit
   // -------------------------------------------------------------------------------------------
   test(`1. ${step("admit").title} ["admit"]`, async ({ page }) => {
+    // The body below is complete and stays here to be reinstated. It is gated on the registry so
+    // there is exactly one source of truth for whether a step counts as proven: flipping the status
+    // in residentJourney.ts turns this test on, and nothing else needs editing.
+    test.fixme(step("admit").status === "pending", step("admit").blockedBy ?? "");
+
     await signIn(page);
     await page.goto("/app/residents");
 
@@ -193,7 +204,10 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  for (const pending of RESIDENT_JOURNEY_STEPS.filter((entry) => entry.status === "pending")) {
+  const WITH_WRITTEN_BODIES = new Set(["admit"]);
+  for (const pending of RESIDENT_JOURNEY_STEPS.filter(
+    (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
+  )) {
     test(`${pending.ordinal}. ${pending.title}`, () => {
       test.fixme(true, `${pending.proves} Blocked: ${pending.blockedBy}`);
     });

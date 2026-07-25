@@ -1528,6 +1528,44 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0a correction — coverage is 0/12, not 1/12
+
+**Step 1 was marked implemented on a browser body that had never been run.** There is no Supabase
+stack in the authoring environment, so CI was its first execution — and it failed five rounds
+running. The step is now `pending`, coverage reads **0/12**, and the ceiling was deliberately raised
+11 → 12 with the reason recorded in `scripts/check-journey-coverage.mjs`.
+
+That is the ratchet working, not failing. A registry reading 1/12 over a red test is worse than one
+reading 0/12: the entire point of the number is that the exit gates stop being assertions, and an
+implemented-but-red step reintroduces exactly the thing it was built to remove.
+
+**What the five rounds established,** all of it recorded as the step's blocker so the next attempt
+does not repeat it:
+
+1. `/app/residents` belongs to the CareBase module; a tenant with no entitlement rows resolves to
+   core-only and is redirected. **Correct product behaviour** — the fixture now grants the five
+   module keys rather than the application loosening anything.
+2. Playwright's 30s default is a *whole-test* budget, and sign-in alone spends most of it. The very
+   first failure — "Test timeout of 30000ms exceeded" waiting for a button — was the test running
+   out of time, not a missing control, and that misreading is what sent me looking at entitlements.
+3. A state dump that reads the page once throws away the auto-retry every other Playwright assertion
+   has, so it judges a still-loading page as a broken one.
+4. **The remaining, unresolved fault:** on `/app/residents`, with the URL correct and no redirect,
+   the authenticated shell reports **zero headings for 30 seconds**. That is `ProtectedRoute`
+   returning `<FullPageLoading>` ahead of `MainLayout` because the facility-type query never settles.
+   It will block every later step too, since they all sign in the same way — so it is worth
+   diagnosing properly before any more journey bodies are written.
+
+The step's body is kept and gated on its registry status: flipping `status` in `residentJourney.ts`
+turns the test back on and nothing else needs editing. `signIn` now also asserts the shell rendered,
+so a broken shell is reported once at sign-in rather than as a missing control on whichever page a
+step happened to visit.
+
+**The honest cost.** Writing browser journeys in an environment that cannot run a browser or a
+database means CI is the first execution, and each hypothesis costs a full round. Five rounds bought
+three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
+remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
+
 ### Phase 0a follow-up — what the first journey run found
 
 Step 1 timed out waiting for the Add Resident button, and the button was never going to appear:

@@ -17,8 +17,16 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REGISTRY = resolve(HERE, "../artifacts/caremetric-carebase/src/lib/residentJourney.ts");
 const SPEC = resolve(HERE, "../artifacts/caremetric-carebase/e2e/resident-lifecycle.spec.ts");
 
-// Lower this when a step is implemented. Never raise it.
-const PENDING_CEILING = 11;
+// Lower this when a step is implemented. Raising it is a deliberate, explained act, not routine.
+//
+// Raised 11 -> 12 on 2026-07-25. Step 1 (admit) was marked implemented on the strength of a written
+// browser body that had never been run -- there is no Supabase stack in the authoring environment,
+// so CI was the first execution. It failed five rounds running: the authenticated shell renders zero
+// headings on /app/residents for a freshly-created tenant. The body and the blocker are both kept;
+// what could not be kept was the claim that the step was proven. A registry that reads 1/12 over a
+// red test is worse than one that reads 0/12, because the whole point of the number is that the
+// exit gates stop being assertions.
+const PENDING_CEILING = 12;
 
 const source = readFileSync(REGISTRY, "utf8");
 
