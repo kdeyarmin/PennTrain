@@ -1566,6 +1566,53 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0a resolution — the shell hang reproduced, diagnosed, and fixed
+
+**The blocker fell once it was observed instead of reasoned about.** This environment has no Docker,
+so the journey suite could never run here — but it does have Chromium, and the Supabase URL is just a
+network origin. Serving the real production build and stubbing that origin at the network layer with
+Playwright route interception gave a full local reproduction: sign in as a synthetic org_admin,
+answer every backend request with canned rows, then inject one failure at a time.
+
+**The failure matrix pinned it in one pass.**
+
+| Injected fault on `facilities?select=*` | `/app/residents` |
+| --- | --- |
+| healthy | renders |
+| empty | redirects (correct: no PCH/ALF facility to see) |
+| **error** | **"Loading facility access…" forever — the exact CI signature** |
+| **hang** | same spinner (legitimately: the question was never answered) |
+
+**The bug: a transient becomes permanent.** `ProtectedRoute`'s gate showed the spinner whenever the
+facility-types query read as loading. When that query *errors*, the gate unmounts the page; the page
+remounting mounts a second observer on the same query key; `retryOnMount` refetches; the status
+flips back toward loading; the gate unmounts the page again. The instrumented probe showed a request
+burst every few seconds, indefinitely — the page mounted for milliseconds per cycle, never long
+enough to paint a heading. The gate's own comment promised errors "fail open"; the code ran the
+loading check first, so they never did. On a cold 2-core CI runner where first login fires ~10
+concurrent queries, one failed or slow facilities response wedged the route forever.
+
+**The fix derives the gate's inputs from what cannot oscillate.** `useVisibleFacilityTypes` now
+computes `isLoading` as "this query has never settled" and `isError` as "its latest settle was a
+failure", both from react-query's cache timestamps (`dataUpdatedAt`/`errorUpdatedAt`), which move
+only when a fetch actually completes. The live status flags cycle during refetch-after-error; the
+timestamps hold still, so the gate decides once. Verified against the whole matrix again: persistent
+500 → page renders (fail-open, now true), transient 500s → recovers, hang → spinner (correct), and
+the sidebar's fail-open consumer keeps its semantics.
+
+**Step 1 is reinstated and coverage returns to 1/12, ceiling back to 11** — this time with the
+browser body *executed*, eleven times across the failure matrix, before the claim. The journey
+step's failure output now returns the gate label (`[role=status]` text) instead of `[]`, so if a
+gate ever wedges again the failure names it. The probe also flushed out two fixture findings for
+later steps: the shell checks `organizations?select=id` as a suspension gate (an empty answer reads
+as suspended), and an unstubbed dashboard read crashes Home's error boundary — both recorded here so
+step authors seed those paths deliberately.
+
+**The method is the deliverable as much as the fix.** Five CI rounds of hypothesis-testing produced
+three fixture corrections and no diagnosis; one afternoon of local observation produced the
+mechanism, the fix, and the verification. The probe pattern — real build, stubbed origin, injected
+faults — is reusable for every remaining journey step without a database.
+
 ### Phase 0a follow-up — what the first journey run found
 
 Step 1 timed out waiting for the Add Resident button, and the button was never going to appear:

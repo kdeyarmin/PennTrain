@@ -19,14 +19,14 @@ const SPEC = resolve(HERE, "../artifacts/caremetric-carebase/e2e/resident-lifecy
 
 // Lower this when a step is implemented. Raising it is a deliberate, explained act, not routine.
 //
-// Raised 11 -> 12 on 2026-07-25. Step 1 (admit) was marked implemented on the strength of a written
-// browser body that had never been run -- there is no Supabase stack in the authoring environment,
-// so CI was the first execution. It failed five rounds running: the authenticated shell renders zero
-// headings on /app/residents for a freshly-created tenant. The body and the blocker are both kept;
-// what could not be kept was the claim that the step was proven. A registry that reads 1/12 over a
-// red test is worse than one that reads 0/12, because the whole point of the number is that the
-// exit gates stop being assertions.
-const PENDING_CEILING = 12;
+// History: raised 11 -> 12 on 2026-07-25 when step 1 (admit) was un-marked -- it had been declared
+// implemented on a browser body that had never been executed, and CI failed it five rounds running.
+// Lowered back to 11 the same day after the actual fault was reproduced OUTSIDE CI (the app served
+// locally with the Supabase origin stubbed at the network layer): a transiently failing facilities
+// query wedged every requireFacilityTypes route in a spinner/remount loop. Fixed in
+// useVisibleFacilityTypes by deriving settled-ness from cache timestamps. The lesson stands: a step
+// is "implemented" when its test has been RUN, not when its body has been written.
+const PENDING_CEILING = 11;
 
 const source = readFileSync(REGISTRY, "utf8");
 

@@ -39,10 +39,18 @@ async function signIn(page: import("@playwright/test").Page) {
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
   // The URL changing is router state, not proof the authenticated shell rendered. Asserting the
   // shell here means a broken shell is reported once, at sign-in, instead of surfacing as a missing
-  // control on whichever page the step happened to visit.
+  // control on whichever page the step happened to visit. The poll returns headings AND the
+  // full-page gate labels ([role=status] spinners), so a failure names the gate that held the
+  // shell -- "Loading facility access" and "Loading CareBase" are different bugs.
   await expect
-    .poll(async () => page.getByRole("heading").allTextContents(), { timeout: 30000 })
-    .not.toEqual([]);
+    .poll(async () => {
+      const headings = await page.getByRole("heading").allTextContents();
+      const gates = await page.locator("[role=status]").allTextContents();
+      return headings.length > 0
+        ? "shell-rendered"
+        : `no headings; gates=${JSON.stringify(gates)}`;
+    }, { timeout: 30000 })
+    .toBe("shell-rendered");
 }
 
 test.describe("resident lifecycle journey", () => {
@@ -157,13 +165,18 @@ test.describe("resident lifecycle journey", () => {
       .poll(() => new URL(page.url()).pathname, { timeout: 20000 })
       .toBe("/app/residents");
 
-    // Polled, not read once. ProtectedRoute returns <FullPageLoading> *before* MainLayout while the
-    // facility-type query resolves, so the page legitimately renders zero headings for a while --
-    // and a one-shot read of that moment reports an empty page that is merely still loading.
-    // expect.poll keeps Playwright's auto-retry while still printing what actually rendered.
+    // Polled, not read once -- ProtectedRoute renders a heading-less gate spinner while access
+    // queries resolve. The poll carries the gate labels too, so if the shell wedges again the
+    // failure says which gate ("Loading facility access" vs "Loading CareBase") instead of "[]".
     await expect
-      .poll(async () => page.getByRole("heading").allTextContents(), { timeout: 30000 })
-      .toContain("Residents");
+      .poll(async () => {
+        const headings = await page.getByRole("heading").allTextContents();
+        const gates = await page.locator("[role=status]").allTextContents();
+        return headings.includes("Residents")
+          ? "residents-rendered"
+          : `headings=${JSON.stringify(headings)}; gates=${JSON.stringify(gates)}`;
+      }, { timeout: 30000 })
+      .toBe("residents-rendered");
 
     await page.getByRole("button", { name: "Add Resident" }).click();
 

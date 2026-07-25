@@ -38,8 +38,24 @@ export function useVisibleFacilityTypes() {
   const facilitiesQuery = useListFacilities({}, enabled);
   const assignmentsQuery = useListMyFacilityAssignments(user?.id, enabled && isFacilityScoped);
 
-  const isLoading = enabled && (facilitiesQuery.isLoading || (isFacilityScoped && assignmentsQuery.isLoading));
-  const isError = enabled && (facilitiesQuery.isError || (isFacilityScoped && assignmentsQuery.isError));
+  // Settled-ness comes from the cache timestamps, not from isLoading/isError, and the difference is
+  // a permanent hang. The live flags cycle: when this query errors, ProtectedRoute's gate stops
+  // rendering the page; remounting the page mounts a second observer on the same key, retryOnMount
+  // refetches, the status flips back toward loading, the gate unmounts the page again, and the app
+  // is now a spinner <-> remount loop that survives indefinitely -- a transient facilities failure
+  // becomes a permanently blank route (observed live: a request burst every few seconds, forever,
+  // with the page never mounted long enough to paint a heading). The timestamps only move when a
+  // fetch actually settles, so "has ever settled" and "latest settle was an error" hold steady
+  // while a refetch is in flight, and the gate makes one decision instead of oscillating.
+  const settled = (query: { dataUpdatedAt: number; errorUpdatedAt: number }) =>
+    query.dataUpdatedAt > 0 || query.errorUpdatedAt > 0;
+  const failedLast = (query: { dataUpdatedAt: number; errorUpdatedAt: number }) =>
+    query.errorUpdatedAt > query.dataUpdatedAt;
+
+  const isLoading = enabled
+    && (!settled(facilitiesQuery) || (isFacilityScoped && !settled(assignmentsQuery)));
+  const isError = enabled
+    && (failedLast(facilitiesQuery) || (isFacilityScoped && failedLast(assignmentsQuery)));
 
   const facilityTypes = useMemo(() => {
     if (isPlatformAdmin) {

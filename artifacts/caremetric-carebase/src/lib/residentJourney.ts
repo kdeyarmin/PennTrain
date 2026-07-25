@@ -38,13 +38,7 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     ordinal: 1,
     title: "Admit a resident",
     proves: "A resident record exists with an admission date and a facility, created through the UI.",
-    status: "pending",
-    blockedBy:
-      "The browser body is written and the fixture is entitled, but the authenticated shell renders "
-      + "nothing on /app/residents for a freshly-created tenant: the URL is correct and no redirect "
-      + "happens, yet the page reports zero headings for 30s, which is ProtectedRoute returning "
-      + "<FullPageLoading> because the facility-type query never settles. Diagnose that before "
-      + "reinstating -- it will block every later step too, since they all sign in the same way.",
+    status: "implemented",
   },
   {
     id: "initial-assessment",
