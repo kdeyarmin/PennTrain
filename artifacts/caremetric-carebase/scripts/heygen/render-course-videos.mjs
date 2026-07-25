@@ -137,11 +137,16 @@ async function main() {
     headers: { "x-api-key": process.env.HEYGEN_API_KEY },
   });
   const quota = (await quotaRes.json().catch(() => null))?.data?.remaining_quota;
-  console.log(`\n${jobs.length} segment(s), roughly ${needed} credits. Balance: ${quota ?? "unknown"}.\n`);
-  if (typeof quota === "number" && quota < needed) {
-    fail(`Not enough credits for the whole batch. Top up, or pass just the files you want rendered now.`);
-  }
+  const short = typeof quota === "number" && quota < needed;
+  console.log(`\n${jobs.length} segment(s), roughly ${needed} credits. Balance: ${quota ?? "unknown"}.`);
+  if (short) console.log(`  ⚠ short by about ${needed - quota} credits for the whole batch.`);
+  console.log("");
+  // A dry run is for pricing a batch you cannot afford yet, so it reports the
+  // shortfall and exits clean. Only a real run refuses.
   if (dryRun) return;
+  if (short) {
+    fail("Not enough credits for the whole batch. Top up, or pass just the files you want rendered now.");
+  }
 
   // Submit the whole batch first, then poll. HeyGen renders these in parallel,
   // so submit-then-wait per segment would turn a ten-minute batch into hours.
