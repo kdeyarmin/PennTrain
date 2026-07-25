@@ -134,11 +134,17 @@ test.describe("resident lifecycle journey", () => {
     await signIn(page);
     await page.goto("/app/residents");
 
-    // Assert the page before the control on it. Without this, an entitlement or role redirect and a
-    // renamed button produce the identical failure -- "waiting for getByRole('button')" -- and cost
-    // a CI round each to tell apart.
-    await expect(page.getByRole("heading", { name: "Residents" })).toBeVisible();
-    expect(new URL(page.url()).pathname).toBe("/app/residents");
+    // Assert the page before the control on it, and make each failure say which layer failed.
+    // Two CI rounds went on "waiting for getByRole(...)" errors that could equally have meant a
+    // redirect, a slow shell, or a renamed control. These two assertions distinguish all three:
+    // the poll reports where the router actually landed, and the heading dump reports what the
+    // page rendered once it stayed put.
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 20000 })
+      .toBe("/app/residents");
+
+    const headings = await page.getByRole("heading").allTextContents();
+    expect(headings, `headings rendered were ${JSON.stringify(headings)}`).toContain("Residents");
 
     await page.getByRole("button", { name: "Add Resident" }).click();
 

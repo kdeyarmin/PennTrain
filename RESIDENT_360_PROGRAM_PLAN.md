@@ -787,7 +787,7 @@ seeded tenant and browser journeys remain outstanding and still gate Phase 2.
 
 | Item | Delivered | Notes |
 | --- | --- | --- |
-| 1a — care header data model | `20260726010000_resident_care_header_profile.sql` | Eight coded columns on `residents` + `save_resident_care_profile` (SECURITY DEFINER, manager-gated, writes an administrative-history row) + `get_resident_care_header` (security invoker, composes stored and derived facts, each block carrying its own `asOf`) |
+| 1a — care header data model | `20260726010600_resident_care_header_profile.sql` | Eight coded columns on `residents` + `save_resident_care_profile` (SECURITY DEFINER, manager-gated, writes an administrative-history row) + `get_resident_care_header` (security invoker, composes stored and derived facts, each block carrying its own `asOf`) |
 | 1a — placement decisions | Recorded in the migration header | Clinical level of care kept distinct from the billed `level_of_care_charge`; `code_status` distinct from `advance_directive_status` (document-on-file, not preference); non-food `allergies` distinct from `food_allergies`; every column defaults to an explicit "not assessed" rather than NULL, and nothing is inferred from existing free text |
 | 1b — tabs | `resident-tabs/` + shell rewrite of `ResidentDetail.tsx` | Eight tabs, each a lazy chunk; tab state in the URL; unknown or no-longer-permitted tabs fall back to Overview; registry is data-driven so later phases add a tab by adding a row |
 | 1c — Needs Attention | `residentNeedsAttention.ts` + panel | Twelve card kinds, ranked, each carrying evidence / owner / due / action. Pure and injectable-clock |
