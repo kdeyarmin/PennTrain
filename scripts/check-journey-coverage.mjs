@@ -26,7 +26,7 @@ const SPEC = resolve(HERE, "../artifacts/caremetric-carebase/e2e/resident-lifecy
 // query wedged every requireFacilityTypes route in a spinner/remount loop. Fixed in
 // useVisibleFacilityTypes by deriving settled-ness from cache timestamps. The lesson stands: a step
 // is "implemented" when its test has been RUN, not when its body has been written.
-const PENDING_CEILING = 11;
+const PENDING_CEILING = 9;
 
 const source = readFileSync(REGISTRY, "utf8");
 

@@ -128,18 +128,17 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     ordinal: 11,
     title: "Produce a survey packet",
     proves: "A Survey Day session records requests and observations and assembles them into a packet.",
-    status: "pending",
-    blockedBy:
-      "assert_survey_day_manager requires the survey_day_mode entitlement and a fresh AAL2 step-up; "
-      + "the fixture org has neither.",
+    status: "implemented",
   },
   {
     id: "discharge",
     ordinal: 12,
     title: "Discharge the resident",
-    proves: "The resident leaves active census and the bed they held is released.",
-    status: "pending",
-    blockedBy: "Depends on a resident that has moved through the plan and service steps.",
+    // Narrowed deliberately. The original wording also claimed the held bed is released, but this
+    // journey's resident is never assigned one -- bed assignment belongs to the occupancy flow, not
+    // to admission. Claiming it here would make the step read as proving something it does not.
+    proves: "The resident leaves active census, with a discharge date recorded alongside the status.",
+    status: "implemented",
   },
 ] as const;
 

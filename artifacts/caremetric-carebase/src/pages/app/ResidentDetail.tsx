@@ -213,7 +213,10 @@ export default function ResidentDetail() {
                     discharge_date: v === "discharged" ? toLocalIsoDate() : null,
                   })}
                 >
-                  <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
+                  {/* Named: an unlabelled combobox announces only its current value, so a screen
+                      reader hears "Active" with no indication it controls the resident's status --
+                      and discharging a resident is not a control to leave ambiguous. */}
+                  <SelectTrigger className="w-36 h-9" aria-label="Resident status"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["active", "discharged"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
                   </SelectContent>

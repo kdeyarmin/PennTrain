@@ -192,6 +192,9 @@ test.describe("resident lifecycle journey", () => {
           "modules.workforce",
           "modules.compliance",
           "modules.billing",
+          // Survey Day is entitlement-gated separately from the pillars, and its RPCs assert it
+          // server-side as well as the client gating the page.
+          "survey_day_mode",
         ].map((feature_key) => ({
           organization_id: organizationId,
           feature_key,
@@ -299,12 +302,121 @@ test.describe("resident lifecycle journey", () => {
   });
 
   // -------------------------------------------------------------------------------------------
-  // 2-12. Declared, not yet proven.
+  // 11. Produce a survey packet
+  //
+  // Reachable now for two reasons that were previously blockers: the fixture holds the
+  // survey_day_mode entitlement, and signIn() steps the session up to aal2, which
+  // assert_survey_day_manager requires before any write.
+  // -------------------------------------------------------------------------------------------
+  test(`11. ${step("survey-packet").title} ["survey-packet"]`, async ({ page }) => {
+    test.fixme(step("survey-packet").status === "pending", step("survey-packet").blockedBy ?? "");
+
+    await signIn(page);
+    await page.goto(`/app/survey-day?facility=${facilityId}`);
+    await expect(page.getByRole("heading", { name: "Survey Day Mode" })).toBeVisible();
+
+    // Activation is deliberately behind a confirmation: starting Survey Day writes an audit event.
+    await page.getByRole("button", { name: "Start Survey Day" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Start Survey Day" }).click();
+    await expect(page.getByText(/Survey Day active/)).toBeVisible({ timeout: 20000 });
+
+    // The log section is lazy-loaded, so its controls arrive after the shell. Matched by text, not
+    // by heading role: shadcn's CardTitle renders a div, so these section titles are not headings.
+    await expect(page.getByText("Who is here")).toBeVisible({ timeout: 20000 });
+
+    await page.getByLabel("Name", { exact: true }).fill("R. Surveyor");
+    await page.getByRole("button", { name: "Record surveyor" }).click();
+
+    await page.getByLabel("New request").fill("Staffing schedules for the last 30 days");
+    await page.getByRole("button", { name: "Record request" }).click();
+
+    await page.getByPlaceholder("What happened, in plain words").fill(
+      "Surveyor observed the lunch service in the main dining room.",
+    );
+    await page.getByRole("button", { name: "Record entry" }).click();
+
+    await page.getByRole("button", { name: "Record packet assembled" }).click();
+
+    // Asserted against the record, not the screen: the step proves the session captured who was
+    // here, what they asked for, and what was seen -- and that assembling a packet was itself
+    // recorded, which is the only durable trace of somebody taking a position on the survey.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("survey_day_sessions")
+        .select("id, status")
+        .eq("organization_id", organizationId)
+        .eq("status", "active");
+      if (error) throw error;
+      return data.length;
+    }, { timeout: 20000 }).toBe(1);
+
+    const { data: session, error: sessionError } = await admin
+      .from("survey_day_sessions")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .single();
+    if (sessionError) throw sessionError;
+
+    await expect.poll(async () => {
+      const [surveyors, requests, observations, assembled] = await Promise.all([
+        admin.from("survey_day_surveyors").select("id").eq("session_id", session.id),
+        admin.from("survey_day_requests").select("id, status").eq("session_id", session.id),
+        admin.from("survey_day_observations").select("id").eq("session_id", session.id),
+        admin.from("survey_day_events").select("id").eq("session_id", session.id)
+          .eq("event_type", "packet_assembled"),
+      ]);
+      return {
+        surveyors: surveyors.data?.length ?? 0,
+        requests: requests.data?.length ?? 0,
+        observations: observations.data?.length ?? 0,
+        assembled: assembled.data?.length ?? 0,
+      };
+    }, { timeout: 20000 }).toEqual({ surveyors: 1, requests: 1, observations: 1, assembled: 1 });
+
+    // The packet read composes all of it, and reports the outstanding request as open -- the number
+    // that matters while surveyors are still in the building.
+    const { data: packet, error: packetError } = await admin
+      .rpc("get_survey_day_packet", { p_session_id: session.id });
+    if (packetError) throw packetError;
+    expect((packet as { openRequests: number }).openRequests).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // 12. Discharge
+  // -------------------------------------------------------------------------------------------
+  test(`12. ${step("discharge").title} ["discharge"]`, async ({ page }) => {
+    test.fixme(step("discharge").status === "pending", step("discharge").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to discharge");
+
+    await signIn(page);
+    await page.goto(`/app/residents/${residentId}`);
+    // residentDisplayName renders "Last, First", not "First Last".
+    await expect(page.getByRole("heading", { name: /Resident, Journey/ })).toBeVisible({ timeout: 20000 });
+
+    await page.getByRole("combobox", { name: "Resident status" }).click();
+    await page.getByRole("option", { name: "Discharged" }).click();
+
+    // The status and the date move together: a discharged resident with no discharge date is a
+    // census record nobody can reconcile later.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("residents")
+        .select("status, discharge_date")
+        .eq("id", residentId!)
+        .single();
+      if (error) throw error;
+      return { status: data.status, hasDate: data.discharge_date !== null };
+    }, { timeout: 20000 }).toEqual({ status: "discharged", hasDate: true });
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // 2-10. Declared, not yet proven.
   //
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit"]);
+  const WITH_WRITTEN_BODIES = new Set(["admit", "survey-packet", "discharge"]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {
@@ -313,14 +425,16 @@ test.describe("resident lifecycle journey", () => {
     });
   }
 
-  test("the admitted resident is the one later steps will carry forward", async () => {
+  // The point of a serial journey is that one record travels through it. This asserts the tenant
+  // still holds exactly one resident -- a step that quietly created its own would pass its own
+  // assertions while proving nothing about the handover.
+  test("the journey's resident is a single record carried end to end", async () => {
     test.skip(residentId === null, "step 1 did not complete");
     const { data, error } = await admin
       .from("residents")
-      .select("status")
-      .eq("id", residentId!)
-      .single();
+      .select("id")
+      .eq("organization_id", organizationId);
     if (error) throw error;
-    expect(data.status).toBe("active");
+    expect(data.map((row) => row.id)).toEqual([residentId]);
   });
 });
