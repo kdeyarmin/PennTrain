@@ -7,15 +7,26 @@
       "id": "sm-b1-communication",
       "title": "Behavior is communication, and it is almost never about you",
       "scenes": [
-        { "type": "slide", "slide": "sm-title", "duration": 5 },
-        { "type": "avatar", "scriptFile": "inservice-safe-management-1.txt" }
+        {
+          "type": "slide",
+          "slide": "sm-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-safe-management-1.txt"
+        }
       ]
     },
     {
       "id": "sm-b2-early",
       "title": "What escalation looks like before anyone raises a voice",
       "scenes": [
-        { "type": "slide", "slide": "sm-sec-early", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "sm-sec-early",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "sm-early",
@@ -27,7 +38,11 @@
       "id": "sm-b3-dementia",
       "title": "Cannot, not will not",
       "scenes": [
-        { "type": "slide", "slide": "sm-sec-dementia", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "sm-sec-dementia",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "sm-cant-wont",
@@ -44,7 +59,11 @@
       "id": "sm-b4-approach",
       "title": "The thirty seconds before the task starts",
       "scenes": [
-        { "type": "slide", "slide": "sm-sec-approach", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "sm-sec-approach",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "sm-approach",
@@ -61,8 +80,15 @@
       "id": "sm-b5-technique",
       "title": "What actually works once it has started",
       "scenes": [
-        { "type": "slide", "slide": "sm-sec-words", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-safe-management-2.txt" }
+        {
+          "type": "slide",
+          "slide": "sm-sec-words",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-safe-management-2.txt"
+        }
       ]
     },
     {
@@ -85,7 +111,11 @@
       "id": "sm-b7-flashpoints",
       "title": "The tasks this goes wrong in, and how to restructure them",
       "scenes": [
-        { "type": "slide", "slide": "sm-sec-flashpoints", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "sm-sec-flashpoints",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "sm-flashpoints",
@@ -102,15 +132,26 @@
       "id": "sm-b8-limits",
       "title": "Restraint, coercion, and the line that does not move",
       "scenes": [
-        { "type": "slide", "slide": "sm-sec-limits", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-safe-management-3.txt" }
+        {
+          "type": "slide",
+          "slide": "sm-sec-limits",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-safe-management-3.txt"
+        }
       ]
     },
     {
       "id": "sm-b9-you",
       "title": "When you are the one escalating",
       "scenes": [
-        { "type": "slide", "slide": "sm-sec-you", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "sm-sec-you",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "sm-your-signs",
@@ -142,5 +183,60 @@
         }
       ]
     }
-  ]
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "sm-b1-communication": {
+        "video_id": "68662b14ef2648c6825caa2477a6ee40",
+        "seconds": 145,
+        "mb": 27.6
+      },
+      "sm-b2-early": {
+        "video_id": "4068c843f1174763ae3d9920be082edb",
+        "seconds": 106,
+        "mb": 3.7
+      },
+      "sm-b3-dementia": {
+        "video_id": "6e3320936d294508930efef422970252",
+        "seconds": 161,
+        "mb": 5.6
+      },
+      "sm-b4-approach": {
+        "video_id": "2f2fbc4ee9364c8393e9fdb0ab05fb86",
+        "seconds": 125,
+        "mb": 4.3
+      },
+      "sm-b5-technique": {
+        "video_id": "c28653494ac74a3fb0d74ad740736223",
+        "seconds": 140,
+        "mb": 26.1
+      },
+      "sm-b6-words": {
+        "video_id": "8ed68fa774ef497c87eb72eb9313776b",
+        "seconds": 139,
+        "mb": 4.6
+      },
+      "sm-b7-flashpoints": {
+        "video_id": "b2c506e6e39c41679722818ea0cd8e55",
+        "seconds": 138,
+        "mb": 4.8
+      },
+      "sm-b8-limits": {
+        "video_id": "bcd5539b516349238e825e743af555da",
+        "seconds": 162,
+        "mb": 30.2
+      },
+      "sm-b9-you": {
+        "video_id": "c140a83182184f8f883f03ab889ef8df",
+        "seconds": 119,
+        "mb": 11.6
+      },
+      "sm-b10-after": {
+        "video_id": "1eea27c178174d24ad4e6594e61f1e0b",
+        "seconds": 156,
+        "mb": 14.3
+      }
+    }
+  }
 }
