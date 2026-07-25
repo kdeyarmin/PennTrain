@@ -1,0 +1,132 @@
+<!doctype html>
+<!--
+  Frame for one CareBase course slide. Rendered to a 1280x720 PNG by
+  render-slides.mjs and handed to HeyGen as a full-frame `image` scene.
+
+  Palette and type are taken from src/index.css so a slide sitting between two
+  avatar clips reads as the same product, not as a generic deck:
+    --mkt-navy-950 #071626  ->  --mkt-navy-700 #16324f   (the marketing gradient)
+    --mkt-accent   #59b2ff      --mkt-accent-soft #b9e4ff
+    Source Serif 4 for headings, Inter for everything else.
+
+  __SLOTS__ is replaced with the slide body; __KIND__ sets the layout class.
+-->
+<meta charset="utf-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1280px;
+    height: 720px;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background: linear-gradient(135deg, #071626 0%, #0a1a2e 45%, #16324f 100%);
+    color: #f4f8fc;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 82px 96px;
+    position: relative;
+  }
+
+  /* A single hairline of brand accent along the top. Enough to tie the frames
+     together without competing with the avatar clip on either side. */
+  body::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #59b2ff 0%, #b9e4ff 55%, transparent 100%);
+  }
+
+  .eyebrow {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #59b2ff;
+    margin-bottom: 26px;
+  }
+
+  h1 {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+  }
+
+  .title h1 { font-size: 76px; max-width: 15ch; }
+  .section h1 { font-size: 64px; max-width: 18ch; }
+  .points h1 { font-size: 48px; margin-bottom: 44px; max-width: 24ch; }
+
+  .subtitle {
+    margin-top: 30px;
+    font-size: 26px;
+    line-height: 1.5;
+    color: #b9e4ff;
+    max-width: 46ch;
+  }
+
+  ul { list-style: none; display: flex; flex-direction: column; gap: 26px; }
+
+  li {
+    font-size: 31px;
+    line-height: 1.35;
+    display: flex;
+    align-items: baseline;
+    gap: 22px;
+    max-width: 40ch;
+  }
+
+  /* Square accent marker rather than a bullet glyph: holds its shape when the
+     frame is scaled down inside a course player. */
+  li::before {
+    content: '';
+    flex: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    background: #59b2ff;
+    transform: translateY(-4px);
+  }
+
+  /* One sentence that has to land -- a boundary, a rule, the thing you keep. */
+  .rule blockquote {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 56px;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    max-width: 22ch;
+    border-left: 8px solid #59b2ff;
+    padding-left: 42px;
+  }
+
+  .rule .attribution {
+    margin-top: 38px;
+    padding-left: 50px;
+    font-size: 23px;
+    color: #8fb4d4;
+  }
+
+  footer {
+    position: absolute;
+    left: 96px;
+    right: 96px;
+    bottom: 46px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    color: #7c9dbb;
+  }
+
+  .mark { font-weight: 600; color: #b9e4ff; letter-spacing: 0.02em; }
+</style>
+<body class="__KIND__">
+  __SLOTS__
+</body>
