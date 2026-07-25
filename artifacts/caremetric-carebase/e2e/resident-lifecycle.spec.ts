@@ -51,7 +51,12 @@ let organizationId: string;
 let facilityId: string;
 let adminEmail: string;
 let mfaSecret: string;
+// A signed-in, MFA-verified client for the journey admin. Some tables are readable by the user
+// but deliberately not by service_role, so asserting those through the user is both the only way
+// and the more faithful one -- it proves RLS lets the person who did the work see the result.
+let userClient: SupabaseClient;
 let residentId: string | null = null;
+let incidentId: string | null = null;
 
 const step = (id: string) => {
   const found = RESIDENT_JOURNEY_STEPS.find((entry) => entry.id === id);
@@ -59,23 +64,40 @@ const step = (id: string) => {
   return found;
 };
 
-/** Signs in and lands on the authenticated home. */
-async function signIn(page: import("@playwright/test").Page) {
-  // Every observation channel, because each CI round costs a full run and the last one reported
-  // only "no headings" -- which eliminated four mechanisms but named none. The poll logs a timeline
-  // line whenever the observed state CHANGES (path flap = redirect loop; body text = what a user
-  // would see; console/page errors and failed requests = what broke underneath).
+/**
+ * Collects everything that went wrong underneath the page: console and page errors, failed
+ * requests, and 4xx/5xx responses WITH their bodies. The response body is the part that matters --
+ * a failed write surfaces in the UI as a toast that has usually vanished by the time a snapshot is
+ * taken, while PostgREST puts the actual reason in the payload.
+ */
+function watchForFailures(page: import("@playwright/test").Page) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(`pageerror:${String(error).slice(0, 200)}`));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(`console:${message.text().slice(0, 200)}`);
+    if (message.type() !== "error") return;
+    // "Failed to load resource" duplicates what the response handler already records, with less
+    // detail (no URL, no body). Keeping both means the useful entry is the one that gets pushed out.
+    if (message.text().startsWith("Failed to load resource")) return;
+    errors.push(`console:${message.text().slice(0, 200)}`);
   });
   page.on("requestfailed", (request) => {
     errors.push(`requestfailed:${request.method()} ${request.url().slice(0, 160)} ${request.failure()?.errorText ?? ""}`);
   });
-  page.on("response", (response) => {
-    if (response.status() >= 400) errors.push(`http${response.status()}:${response.url().slice(0, 160)}`);
+  page.on("response", async (response) => {
+    if (response.status() < 400) return;
+    // Telemetry and platform-status live in Edge Functions, which a local stack often runs without
+    // (they need privileges a container may not have) and which the app fails open on by design.
+    // Left unfiltered they flood the tail of this list and crowd out the failure being diagnosed.
+    if (/\/functions\/v1\/(capture-product-event|get-platform-status)/.test(response.url())) return;
+    const body = await response.text().catch(() => "<unreadable>");
+    errors.push(`http${response.status()}:${response.url().slice(0, 120)} ${body.slice(0, 300)}`);
   });
+  return errors;
+}
+
+/** Signs in and lands on the authenticated home. */
+async function signIn(page: import("@playwright/test").Page) {
+  const errors = watchForFailures(page);
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(adminEmail);
@@ -246,7 +268,7 @@ test.describe("resident lifecycle journey", () => {
       code: totpCode(mfaSecret),
     });
     if (verifyError) throw verifyError;
-    await adminAuthClient.auth.signOut();
+    userClient = adminAuthClient;
   });
 
   // -------------------------------------------------------------------------------------------
@@ -314,6 +336,100 @@ test.describe("resident lifecycle journey", () => {
     expect(resident.admission_date).toBe("2026-07-01");
     expect(resident.facility_id).toBe(facilityId);
     residentId = resident.id;
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // 8. Report a fall
+  //
+  // Two stages, because that is how the product works: intake records what happened, and the
+  // pathway is chosen afterwards on the incident record. "Fall" is not an intake type -- the
+  // pathway maps to significant_injury -- so the step reports the injury and then assigns the Fall
+  // pathway, which is exactly the sequence a facility follows.
+  // -------------------------------------------------------------------------------------------
+  test(`8. ${step("fall").title} ["fall"]`, async ({ page }) => {
+    test.fixme(step("fall").status === "pending", step("fall").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to fall");
+
+    const errors = watchForFailures(page);
+    await signIn(page);
+    await page.goto("/app/incidents");
+    // Level 1: the nav also carries an "Incidents" heading, and an unscoped match is a strict-mode
+    // violation rather than a missing page.
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Incidents" }),
+    ).toBeVisible({ timeout: 20000 });
+
+    await page.getByRole("button", { name: "Report Incident" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Each selection is asserted to have taken. handleSubmit returns SILENTLY when the chosen
+    // facility is not in its lookup, so an unset combobox otherwise surfaces only as "no incident
+    // was created" with no failed request and no toast to point at.
+    const choose = async (label: string, option: string) => {
+      await dialog.getByLabel(label).click();
+      await page.getByRole("option", { name: option, exact: true }).click();
+      await expect(dialog.getByLabel(label)).toHaveText(new RegExp(option));
+    };
+    await choose("Facility *", "Journey PCH");
+    await choose("Incident Type *", "Significant Injury");
+    await dialog.getByLabel("Occurred At *").fill("2026-07-20T09:30");
+    await choose("Severity *", "Moderate");
+    await dialog.getByLabel("Narrative *").fill(
+      "Resident was found on the floor beside the bed and assisted up; no visible injury.",
+    );
+    await dialog.getByRole("button", { name: "Report Incident" }).click();
+
+
+    // On failure this reports what the backend actually said. A save that fails shows a toast that
+    // is gone by the time a snapshot is taken, so "count is still 0" on its own says nothing.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("incidents")
+        .select("id")
+        .eq("organization_id", organizationId);
+      if (error) throw error;
+      return data.length === 1
+        ? "incident-created"
+        : `incidents=${data.length}; errors=${JSON.stringify(errors.slice(-6))}`;
+    }, { timeout: 20000 }).toBe("incident-created");
+
+    const { data: incident, error: incidentError } = await admin
+      .from("incidents")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .single();
+    if (incidentError) throw incidentError;
+    incidentId = incident.id;
+
+    // Stage two: assign the pathway on the record itself.
+    await page.goto(`/app/incidents/${incidentId}`);
+    await page.getByRole("button", { name: "Choose pathway" }).click();
+    const pathwayDialog = page.getByRole("dialog");
+    await expect(pathwayDialog).toBeVisible();
+    await pathwayDialog.getByLabel("Pathway").click();
+    await page.getByRole("option", { name: "Fall" }).click();
+    // "Save progress" rather than "Mark complete": this step proves the pathway is assigned and the
+    // deadlines computed, not that every investigation question has been answered -- that is step 9.
+    await pathwayDialog.getByRole("button", { name: "Save progress" }).click();
+
+    // Notification deadlines are the half of this that matters most: a pathway with no clock is a
+    // questionnaire, and the 2-hour hotline deadline is the thing a facility actually misses.
+    await expect.poll(async () => {
+      const [incidentRow, notifications] = await Promise.all([
+        admin.from("incidents").select("pathway_key, pathway_version").eq("id", incidentId!).single(),
+        // Read as the user, not the service role: service_role holds SELECT on incidents but not on
+        // incident_notifications, so a service-role read here returns a permission error that this
+        // assertion would otherwise quietly report as "no deadlines".
+        userClient.from("incident_notifications").select("id, due_at").eq("incident_id", incidentId!),
+      ]);
+      if (notifications.error) throw new Error(`notifications read failed: ${notifications.error.message}`);
+      return {
+        pathway: incidentRow.data?.pathway_key ?? null,
+        versionPinned: (incidentRow.data?.pathway_version ?? null) !== null,
+        withDeadlines: (notifications.data ?? []).filter((row) => row.due_at !== null).length > 0,
+      };
+    }, { timeout: 20000 }).toEqual({ pathway: "fall", versionPinned: true, withDeadlines: true });
   });
 
   // -------------------------------------------------------------------------------------------
@@ -445,7 +561,7 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit", "survey-packet", "discharge"]);
+  const WITH_WRITTEN_BODIES = new Set(["admit", "fall", "survey-packet", "discharge"]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {

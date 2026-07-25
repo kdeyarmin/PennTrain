@@ -1566,6 +1566,52 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0c — Step 8, and the production bug it found
+
+**Coverage 4/12 (33%).** Step 8 (report a fall) is proven: intake through the dialog, then the Fall
+pathway assigned on the record, asserted against `pathway_key`, a pinned `pathway_version`, and a
+notification carrying a real deadline.
+
+**The harness paid for itself on its first real use.** Reporting an incident through the UI was
+**completely broken in production**, and had been. `useIncidents.ts` did:
+
+```ts
+const rpc = supabase.rpc as unknown as (...);   // detached from the client
+await rpc("create_incident_atomic", { ... });
+```
+
+`SupabaseClient.rpc` is a prototype method whose body is `return this.rest.rpc(...)`. Assigned to a
+variable it loses its receiver, so every call threw *"Cannot read properties of undefined (reading
+'rest')"*. `useComplianceRequirements.ts` had the identical pattern, taking every compliance
+requirement RPC with it.
+
+**Why nothing caught it.** Typecheck is satisfied — the cast sees to that. Unit tests mock the
+client, so the receiver never matters. pgTAP tests the database, which is innocent. It is only
+visible when a real browser calls a real backend, which is exactly what did not exist until this
+session. Both sites are fixed with `.bind(supabase)` (cast to the narrow signature *first* — binding
+the generic overload directly trips TS2589), and `scripts/check-source-integrity.mjs` now rejects
+`= supabase.rpc` without a bind, verified by reintroducing the bug.
+
+**Diagnosis took five local iterations at ~2 minutes each rather than five CI rounds at ~6.** The
+sequence is worth recording because most of it was my instrumentation lying to me:
+
+| Symptom | Actual cause |
+| --- | --- |
+| "Incidents" heading not found | Strict-mode violation — nav *and* `h1` |
+| No incident created, no failed request | The error list was truncated to its last few entries, which telemetry noise had flooded |
+| Still nothing after filtering responses | Console errors duplicated the same noise; filtered those too |
+| Still nothing | The failing branch was a **silent `return`** — so the toast text was the only witness |
+| Incident created, deadlines "missing" | `service_role` holds SELECT on `incidents` but **not** on `incident_notifications`, and the read error was being swallowed as "no deadlines" |
+
+**Two things left deliberately alone.** The grant asymmetry on `incident_notifications` is flagged,
+not "fixed" — loosening a production grant to make a test pass is the wrong direction, so the step
+reads that table as the *user*, which is both the only permitted path and the more faithful one. And
+the intake type list has no "Fall" (the pathway maps to `significant_injury`), which the step now
+documents rather than papering over.
+
+**Also fixed along the way:** the incident intake dialog's labels had no `htmlFor`, matching the
+Add Resident dialog fixed earlier — the same accessibility defect in a second place.
+
 ### Phase 0b — A real local Supabase stack
 
 **The constraint that shaped a dozen delivery notes above is gone.** Every prior entry says some

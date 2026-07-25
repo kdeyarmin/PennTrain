@@ -388,7 +388,7 @@ export default function Incidents() {
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Facility *</Label>
+                <Label htmlFor="incident-facility" className="text-[13px]">Facility *</Label>
                 <Select
                   value={form.facilityId}
                   // Resets the resident picker -- a resident id chosen under the old facility
@@ -396,29 +396,29 @@ export default function Incidents() {
                   // soon as facilityId changes.
                   onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v, residentId: "", residentIdentifierOther: "" }))}
                 >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                  <SelectTrigger id="incident-facility" className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Incident Type *</Label>
+                <Label htmlFor="incident-type" className="text-[13px]">Incident Type *</Label>
                 <Select value={form.incidentType} onValueChange={(v) => setForm((f) => ({ ...f, incidentType: v as IncidentFormData["incidentType"] }))}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="incident-type" className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {INCIDENT_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Occurred At *</Label>
-                <Input type="datetime-local" value={form.occurredAt} onChange={(e) => setForm((f) => ({ ...f, occurredAt: e.target.value }))} className="h-9" />
+                <Label htmlFor="incident-occurred-at" className="text-[13px]">Occurred At *</Label>
+                <Input id="incident-occurred-at" type="datetime-local" value={form.occurredAt} onChange={(e) => setForm((f) => ({ ...f, occurredAt: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Severity *</Label>
+                <Label htmlFor="incident-severity" className="text-[13px]">Severity *</Label>
                 <Select value={form.severity} onValueChange={(v) => setForm((f) => ({ ...f, severity: v as IncidentFormData["severity"] }))}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="incident-severity" className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["minor", "moderate", "major", "critical"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
                   </SelectContent>
@@ -468,8 +468,8 @@ export default function Incidents() {
                 <Input value={form.locationDetail} onChange={(e) => setForm((f) => ({ ...f, locationDetail: e.target.value }))} className="h-9" />
               </div>
               <div className="col-span-full space-y-1.5">
-                <Label className="text-[13px]">Narrative *</Label>
-                <Textarea value={form.narrative} onChange={(e) => setForm((f) => ({ ...f, narrative: e.target.value }))} placeholder="What happened, what was done immediately" rows={4} />
+                <Label htmlFor="incident-narrative" className="text-[13px]">Narrative *</Label>
+                <Textarea id="incident-narrative" value={form.narrative} onChange={(e) => setForm((f) => ({ ...f, narrative: e.target.value }))} placeholder="What happened, what was done immediately" rows={4} />
               </div>
             </div>
 

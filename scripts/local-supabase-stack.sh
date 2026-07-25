@@ -48,6 +48,22 @@ sysctl -w net.ipv4.ip_local_reserved_ports=54320-54340 >/dev/null 2>&1 \
   && echo "reserved 54320-54340" \
   || echo "could not set (not fatal)"
 
+log "Clearing stale containers"
+# A daemon restart leaves the previous run's containers behind, and the CLI then reports
+# "supabase start is already running" while the database sits unhealthy -- a state it will not
+# recover from on its own. Anything already healthy is left alone, so this stays idempotent.
+if docker ps -a --format '{{.Names}}' | grep -q '^supabase_'; then
+  if supabase status >/dev/null 2>&1; then
+    echo "existing stack is healthy -- leaving it alone"
+  else
+    echo "found unhealthy or stale containers -- clearing"
+    supabase stop --no-backup >/dev/null 2>&1 || true
+    docker container prune -f >/dev/null 2>&1 || true
+  fi
+else
+  echo "none"
+fi
+
 log "Checking inbucket's port"
 INBUCKET_DISABLED=0
 if command -v lsof >/dev/null 2>&1 && lsof -i :54324 >/dev/null 2>&1; then

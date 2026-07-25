@@ -101,10 +101,7 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     ordinal: 8,
     title: "Report a fall",
     proves: "An incident is created with its pathway assigned and its notification deadlines computed.",
-    status: "pending",
-    blockedBy:
-      "The existing role suite creates an incident via the service-role client; this step needs the "
-      + "guided intake driven through the UI to prove the pathway assignment.",
+    status: "implemented",
   },
   {
     id: "investigation",
