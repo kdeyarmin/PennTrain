@@ -59,3 +59,9 @@ Thumbs.db
 # HeyGen render output (video ids get written into a migration, not committed)
 rendered-segments.json
 *-blocks.json
+
+# Playwright output. Only produced when the browser suite runs locally, which needs a local
+# Supabase stack -- see scripts/local-supabase-stack.sh. Traces and videos are large, and CI
+# uploads them as artifacts on failure, so they never belong in the tree.
+artifacts/caremetric-carebase/test-results/
+artifacts/caremetric-carebase/playwright-report/

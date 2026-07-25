@@ -1566,6 +1566,46 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0b — A real local Supabase stack
+
+**The constraint that shaped a dozen delivery notes above is gone.** Every prior entry says some
+version of "verified only by CI, because there is no Docker here." There is now: the daemon starts
+fine, and `scripts/local-supabase-stack.sh` brings up Postgres, GoTrue, PostgREST, Kong, storage,
+realtime and Studio.
+
+| Was | Now |
+| --- | --- |
+| pgTAP: ~6 min per CI round, one hypothesis per round | **2537 tests in 38s locally**, matching CI exactly |
+| Browser journeys: CI-only, first execution in CI | **Full journey suite runs locally in 2.8 min** |
+| Hand-written `database.types.ts` verified only by a format linter | `supabase gen types` can now be diffed locally |
+
+**Three sandbox obstacles, each of which aborts `supabase start` with an error that does not say
+what to do about it.** They are handled in the script rather than in anyone's memory:
+
+1. **No Docker daemon** — the binary is present, nothing is listening. `dockerd` starts fine.
+2. **Port collisions.** Supabase's defaults (54321–54324) sit *inside* the Linux ephemeral range
+   (32768–60999), so an ordinary outbound connection can be squatting on one. Here a live
+   connection held 54324, killing inbucket and rolling back the whole start. The script reserves
+   the band so the kernel stops handing those ports out, and disables inbucket when the port is
+   already taken — restoring `config.toml` on exit, because a stray local override in a file shared
+   with CI is exactly the drift that makes the two disagree.
+3. **Edge runtime cannot set `RLIMIT_NOFILE`** without extra privileges, so it is excluded. The app
+   tolerates it: `get-platform-status` and `capture-product-event` fail open by design, which the
+   local run confirms rather than assumes.
+
+**A real behavioural difference found immediately.** The first local pgTAP run failed 4 tests in
+`course_assignment_due_reminders` and `phase1_access_matrix` — because `supabase start` applies
+`seed.sql` while CI runs `db reset --no-seed`. Reproducing CI exactly turns those green. This is
+recorded in the script's notes: a local run that does not match CI's seeding is not evidence.
+
+**`test-results/` and `playwright-report/` are now gitignored.** They only appear once the browser
+suite can run locally, which is new as of this change, and CI already uploads them as artifacts.
+
+**What this changes going forward.** The remaining nine journey steps no longer need a CI round per
+hypothesis. Their blockers — a signed-DHS-form fixture, a seeded shift assignment, observation
+history, incidents across a date range — are all fixture-depth problems that a local stack lets you
+iterate on in seconds.
+
 ### Phase 0a resolution, corrected — it was the MFA interstitial all along
 
 **The instrumented round named the real cause, and it was none of the prior theories.** The shell
