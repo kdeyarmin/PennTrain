@@ -28,9 +28,14 @@ create unique index if not exists qapi_projects_pattern_key_uk
   on public.qapi_projects(organization_id, facility_id, pattern_key)
   where pattern_key is not null;
 
--- Re-declared to accept the pattern key. Every prior parameter, guard, numbering rule, and history
--- insert from 20260713200000 is preserved verbatim; the additions are the pattern lookup (mirroring
--- the existing source_type/source_id lookup) and the new column on the insert.
+-- Re-declared to accept the pattern key.
+--
+-- THE BODY THIS BUILDS ON IS 20260726000400, NOT 20260713200000. That later migration added a
+-- project-lead access check -- the lead must be an active manager who can actually open the
+-- project's facility -- and copying from the original definition would have silently deleted it.
+-- Every parameter, guard, numbering rule, and history insert from that version is preserved; the
+-- additions are the pattern lookup (mirroring the existing source_type/source_id lookup) and the
+-- new column on the insert.
 --
 -- The old 12-argument signature is dropped FIRST, not after. Adding a 13th parameter with a default
 -- creates an overload rather than replacing anything, and while both exist every existing
@@ -54,6 +59,20 @@ begin
   select * into v_fac from public.facilities where id=p_facility_id;
   if not found then raise exception 'Facility not found' using errcode='P0002'; end if;
   perform app_private.assert_admission_manager(v_fac.organization_id, v_fac.id);
+
+  -- From 20260726000400. The lead runs the project at this facility, so it must be an active member
+  -- of the org who can access the facility: an org/platform admin (org-wide) or a facility manager
+  -- assigned here.
+  if p_project_lead is not null and not exists (
+    select 1 from public.profiles p
+    where p.id=p_project_lead and p.is_active and p.organization_id=v_fac.organization_id
+      and (p.role in ('org_admin','platform_admin')
+           or (p.role='facility_manager' and exists (
+             select 1 from public.facility_assignments fa where fa.profile_id=p.id and fa.facility_id=v_fac.id)))
+  ) then
+    raise exception 'The QAPI lead must be an active manager with access to this facility' using errcode='23514';
+  end if;
+
   perform pg_advisory_xact_lock(hashtext(v_fac.organization_id::text));
   if length(btrim(p_title))<3 or length(btrim(p_problem_statement))<10 or p_target_completion_date<current_date then
     raise exception 'Invalid QAPI project' using errcode='22023';

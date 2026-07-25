@@ -32282,6 +32282,36 @@ export type Database = {
           },
         ]
       }
+      work_item_source_types: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          description: string
+          key: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          created_at?: string
+          description: string
+          key: string
+          label: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          description?: string
+          key?: string
+          label?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       work_item_templates: {
         Row: {
           approval_required: boolean
@@ -37696,6 +37726,7 @@ export type Database = {
         }
         Returns: string
       }
+      register_outstanding_work_items: { Args: never; Returns: Json }
       register_resident_dme_item: {
         Args: {
           p_cleaning_required?: boolean

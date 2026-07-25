@@ -1124,7 +1124,48 @@ re-declared to accept the pattern key with its old 12-argument signature dropped
 added defaulted parameter creates an overload and would make every existing 12-argument call
 ambiguous while both existed.
 
-**Phase 6 is now complete.** Phase 7 (universal work queue and the merged home surface) is next.
+**Phase 6 is now complete.**
+
+### Phase 7a — Work item source taxonomy and coverage
+
+**What the queue actually needed.** `get_work_item_queue` has always accepted a `p_source_type`
+filter — it just had nothing meaningful to filter by. `work_items.source_type` is free text, and
+seven genuinely different kinds of work were all filed under the catch-all `rule_exception`:
+support-plan proposals, service exceptions, appointment follow-ups, hospital-return follow-ups,
+facility licences, unfilled shifts, and shift handoffs. A universal queue where most rows share one
+meaningless label is a list, not a queue.
+
+| Delivered | Detail |
+| --- | --- |
+| A real taxonomy | `work_item_source_types` — 32 types across five categories, covering all fifteen sources request item 17b names |
+| Existing creators fixed without touching them | The true type is derived from the deduplication key, which each creator already sets to a distinct stable prefix. One mapping function drives both the backfill and a `before insert` trigger |
+| Enforcement | A source type outside the taxonomy is refused, so a creator's typo surfaces at the insert rather than as a row invisible to every filter |
+| Coverage sweep | `register_outstanding_work_items()` registers the three due-dated record types that created no work item at all: resident compliance items (assessments and support plans), corrective actions, and recurring regulatory requirement instances. Hourly, idempotent through the deduplication key |
+| Queue UI | The page's stale local label map (which listed a `resident_calendar` type that does not exist) is replaced by the taxonomy, with the source filter grouped by category |
+| Drift guard | A vitest case parses the migration's seed block and asserts the TypeScript list matches it exactly |
+
+**Why a trigger rather than seven re-declarations.** Those seven creators live in six migrations, and
+re-declaring each would mean seven full-body copies. This program has already had one re-declaration
+silently drop a validation a later migration had added — see below. One derivation function, used by
+both the backfill and the trigger, is one thing to review instead of seven. The trigger only ever
+rewrites the catch-all value; a creator that names a real type is authoritative.
+
+**A regression from Phase 6d, found and fixed during this phase.** `create_qapi_project` had already
+been re-declared once in `20260726000400` to add a project-lead access check. My Phase 6d
+re-declaration copied the body from the *original* `20260713200000` definition and silently deleted
+that check. It is restored, and a pgTAP assertion now holds it, because a comment saying "preserved
+verbatim" is only as good as the version it was preserved from. **The rule this establishes: before
+re-declaring a function, grep for every migration that defines it and copy from the newest, not from
+the one you happen to be reading.**
+
+**Verified:** typecheck clean; 863 tests pass (19 new); build succeeds; all bundle budgets pass. Two
+further hand-written-type errors were caught locally rather than in CI — a zero-argument function
+must use the generator's one-line `{ Args: never; ... }` form, and my insertion script matched a
+*table* named `regulatory_change_proposals` and put a function into the `Tables` section. The
+ordering checker now scopes to the correct section.
+
+**Remaining in Phase 7:** 7b — the merged Home surface (request item 16), retiring `Today.tsx` and
+`Alerts.tsx` behind redirects and reducing `Dashboard.tsx` to it.
 
 ## 6. What to do first
 

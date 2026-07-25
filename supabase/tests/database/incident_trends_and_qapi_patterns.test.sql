@@ -1,5 +1,5 @@
 begin;
-select plan(15);
+select plan(16);
 
 select has_function('public', 'get_incident_trend_records', array['uuid', 'timestamptz', 'timestamptz'],
   'the trend read path exists');
@@ -123,6 +123,18 @@ select is(
   1,
   'and no duplicate project was created'
 );
+
+-- The project-lead access check from 20260726000400 must survive every later re-declaration of
+-- create_qapi_project. It was dropped once by a re-declaration that copied the original body, so it
+-- is asserted here rather than trusted.
+select throws_ok($$select public.create_qapi_project(
+  'f3000000-0000-4000-8000-000000000011', 'Lead from nowhere',
+  'A project naming a lead who cannot access this facility.',
+  'Manager judgement', null, null, null,
+  null, current_date + 90, 'f3000000-0000-4000-8000-000000000301')$$,
+  '23514',
+  null,
+  'a project lead who is not an active manager for this facility is refused');
 
 -- A project with no pattern key is unaffected by the partial unique index, so ordinary projects can
 -- still be created freely.
