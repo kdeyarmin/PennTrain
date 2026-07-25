@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { RESIDENT_JOURNEY_STEPS } from "../src/lib/residentJourney";
@@ -16,12 +17,40 @@ import { RESIDENT_JOURNEY_STEPS } from "../src/lib/residentJourney";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const password = process.env.E2E_ACCOUNT_PASSWORD ?? "";
+
+// Same TOTP derivation as e2e/role-routing.spec.ts. Kept in sync by hand for now -- extracting a
+// shared helper means touching the passing role suite, which is its own change.
+function totpCode(secret: string) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let buffer = 0;
+  let bits = 0;
+  const bytes: number[] = [];
+  for (const character of secret.toUpperCase().replace(/=+$/u, "")) {
+    const value = alphabet.indexOf(character);
+    if (value < 0) throw new Error("Authenticator secret is not valid base32");
+    buffer = (buffer << 5) | value;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((buffer >> bits) & 0xff);
+      buffer &= (1 << bits) - 1;
+    }
+  }
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const digest = createHmac("sha1", Buffer.from(bytes)).update(counter).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const code = ((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString();
+  return code.padStart(6, "0");
+}
 
 let admin: SupabaseClient;
 let organizationId: string;
 let facilityId: string;
 let adminEmail: string;
+let mfaSecret: string;
 let residentId: string | null = null;
 
 const step = (id: string) => {
@@ -54,6 +83,16 @@ async function signIn(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
 
+  // Step up to aal2: the session policy holds admins on the MFA interstitial until the enrolled
+  // factor is verified for THIS browser session. Mirrors verifyOrgAdminBrowserMfa in the role suite.
+  await page.goto("/account/security");
+  const code = page.getByLabel("Authenticator code");
+  await expect(code).toBeVisible();
+  await code.fill(totpCode(mfaSecret));
+  await page.getByRole("button", { name: "Verify authenticator" }).click();
+  await expect(page.getByText(/session is already verified/i)).toBeVisible();
+  await page.goto("/app/today");
+
   let lastState = "";
   const startedAt = Date.now();
   await expect
@@ -80,10 +119,10 @@ test.describe("resident lifecycle journey", () => {
   test.describe.configure({ mode: "serial", timeout: 120_000 });
 
   test.beforeAll(async () => {
-    if (!supabaseUrl || !serviceRoleKey || !password) {
+    if (!supabaseUrl || !serviceRoleKey || !anonKey || !password) {
       throw new Error(
-        "SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and E2E_ACCOUNT_PASSWORD are required for the "
-        + "resident lifecycle journey",
+        "SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_ANON_KEY, and E2E_ACCOUNT_PASSWORD "
+        + "are required for the resident lifecycle journey",
       );
     }
     admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -162,6 +201,26 @@ test.describe("resident lifecycle journey", () => {
         })),
       );
     if (entitlementError) throw entitlementError;
+
+    // The org-level session policy requires administrators to verify an authenticator before any
+    // protected workspace opens. Five CI rounds of "blank shell" were this interstitial: it had no
+    // heading, so heading-based instrumentation saw nothing at all. Enroll a factor the same way
+    // the role suite does; signIn() verifies it per browser session.
+    const adminAuthClient = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: signInError } = await adminAuthClient.auth.signInWithPassword({
+      email: adminEmail,
+      password,
+    });
+    if (signInError) throw signInError;
+    const { data: enrollment, error: enrollError } = await adminAuthClient.auth.mfa.enroll({
+      factorType: "totp",
+      friendlyName: "journey-authenticator",
+    });
+    if (enrollError || !enrollment) throw enrollError ?? new Error("MFA enrollment returned nothing");
+    mfaSecret = enrollment.totp.secret;
+    await adminAuthClient.auth.signOut();
   });
 
   // -------------------------------------------------------------------------------------------

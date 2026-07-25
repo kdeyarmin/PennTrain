@@ -1566,6 +1566,33 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0a resolution, corrected — it was the MFA interstitial all along
+
+**The instrumented round named the real cause, and it was none of the prior theories.** The shell
+probe's body-text dump read: *"Multi-factor verification required. Your organization requires
+administrators and managers to use an authenticator."* The org session policy holds admins on an MFA
+interstitial before any protected workspace — and the journey fixture's admin had no enrolled
+factor. All five earlier failing rounds were this one screen.
+
+**Why five rounds of instruments saw nothing:** the interstitial's title is a shadcn `CardTitle`,
+which renders a `<div>` — no heading role. A heading-based "did the shell render" check reports an
+empty page; so does a spinner check; so does an error check. The screen was invisible to assistive
+technology for the same reason it was invisible to the probe, which is why the fix is twofold: the
+interstitial now carries `role="heading" aria-level=1`, and the fixture enrolls a TOTP factor and
+`signIn()` verifies it per browser session, exactly as the passing role suite always did (machinery
+noted on day one and wrongly dismissed because the pathname poll "passed").
+
+**What stands from the earlier diagnosis, honestly attributed:** the facilities remount-loop fix is
+a real latent bug, probe-proven — one transient facilities failure wedged every
+`requireFacilityTypes` route forever — but it was *not* what CI was hitting. It stays because it is
+correct on its own evidence, not because it closed this incident.
+
+**The costed lesson, sharpened:** the role suite only ever asserted `pathname` on `/app/today` — no
+CI test had ever asserted that any authenticated page *renders*. A pathname is router state, not a
+shell. The journey's `signIn` now asserts a heading exists after step-up, so the entire class of
+"URL right, screen wrong" fails loudly at sign-in with a body-text dump naming what the user would
+actually see.
+
 ### Phase 0a resolution — the shell hang reproduced, diagnosed, and fixed
 
 **The blocker fell once it was observed instead of reasoned about.** This environment has no Docker,
