@@ -155,13 +155,19 @@ select is(
 -- assessment in their queue is worse than no entry at all.
 select lives_ok($$select public.register_outstanding_work_items()$$,
   'the sweep can run again');
+-- Asserted per compliance item rather than as a total: a resident carries several compliance items
+-- (some auto-created with the resident), so the total is not a fixed number. What must hold is that
+-- no single item ever accumulates a second work item.
 select is(
-  (select count(*)::int from public.work_items w
-   join public.resident_compliance_items i on i.id = w.source_id
-   where i.resident_id = 'a4000000-0000-4000-8000-000000000301'
-     and i.item_type = 'initial_assessment_15day'),
+  (select coalesce(max(per_item), 0)::int from (
+     select count(*) as per_item
+     from public.work_items w
+     join public.resident_compliance_items i on i.id = w.source_id
+     where i.resident_id = 'a4000000-0000-4000-8000-000000000301'
+     group by w.source_id
+   ) counts),
   1,
-  'and creates no duplicate on the second run'
+  'and no compliance item accumulated a second work item'
 );
 
 select * from finish();

@@ -1164,8 +1164,54 @@ must use the generator's one-line `{ Args: never; ... }` form, and my insertion 
 *table* named `regulatory_change_proposals` and put a function into the `Tables` section. The
 ordering checker now scopes to the correct section.
 
-**Remaining in Phase 7:** 7b — the merged Home surface (request item 16), retiring `Today.tsx` and
-`Alerts.tsx` behind redirects and reducing `Dashboard.tsx` to it.
+### Phase 7b — Home, and the metric reconciliation
+
+**The exit gate was the work.** "No metric appears on more than one surface with two different
+definitions." Two real divergences were found before a line of UI was written:
+
+| Metric | Dashboard | Today | Now |
+| --- | --- | --- | --- |
+| Critical alerts | `alerts.criticalCount` from the org summary — **org-wide**, open, critical | client-side count over the **selected facility's** alerts | one definition, and every card states its scope on its face |
+| Due work | not shown | active items due within **seven days** | three separate metrics — overdue, due today, due within seven days — each defined and labelled |
+
+A third was checked and found to already agree: `overdue` means `state not in (closed, canceled) and
+due_at < now` in both `get_work_item_queue` and `summarizeDueWork`. It was left alone.
+
+| Delivered | Detail |
+| --- | --- |
+| One definition per metric | `homeMetrics.ts` — a registry where each metric carries its rule as prose. That prose is *rendered on the card*, not just kept for developers: a number whose definition is invisible is a number two people will read differently |
+| Home | `Today.tsx` rewritten as the daily command centre: metric cards with scope and definition, the soonest-due work, and open work grouped by the Phase 7a taxonomy |
+| Link-through consistency | The queue defaults to "My work"; Home's figures are not owner-filtered, so every card links with an explicit scope. Otherwise a card reading 5 lands you on a list of 0 |
+| Exit gate as a test | A vitest case asserts no two metrics share a label — the gate stated as an assertion rather than as a review note |
+
+**Why Home is still `/app/today`.** The plan called for a new route with redirects. Reusing the
+existing route does the same job better: every link, sidebar entry, saved navigation favourite, and
+user bookmark keeps working, with no redirect hop and no chance of one being missed. The surface is
+renamed in the UI; the address is not.
+
+**Three bugs found by doing this phase, all mine, all fixed:**
+
+1. **The Phase 7a backfill broke two live queries.** `get_daily_operations_command_center` counted
+   unfilled shifts as `source_type='rule_exception'` — my reclassification made that count zero
+   forever, and zero is the one wrong answer that looks like good news. The "Coverage gaps" card
+   would have read 0 with shifts uncovered. *A backfill that changes a column's values is a change
+   to every query that reads that column.*
+2. **The taxonomy was not a superset of the types in use,** and its trigger refused anything outside
+   it, so three existing suites failed at once. The trigger now **adopts** an unknown type instead
+   of rejecting it: refusing the insert means a compliance task silently does not exist, which is far
+   worse than an unlabelled row in a reference table. Two safety nets adopt anything already in
+   `work_item_templates` or on an existing row.
+3. **`get_daily_operations_command_center` returned NULL for a facility with no operations data,**
+   because `NULL || jsonb_build_object(...)` is NULL in Postgres. Every figure on Home would have
+   read blank instead of zero — on a facility's first day, exactly when someone is checking. Found
+   by a pgTAP assertion that expected 1 and got NULL.
+
+**Verified:** typecheck clean; 887 tests pass (24 new); build succeeds; all bundle budgets pass.
+
+**Still open from Phase 7:** `Dashboard.tsx` (854 lines) and `Alerts.tsx` remain as their own
+surfaces. Home is now the entry point and both are reachable from it, but reducing Dashboard to
+Home and folding its compliance analytics into Analytics is not done — that is a further
+information-architecture change, and it is called out here rather than quietly counted as delivered.
 
 ## 6. What to do first
 

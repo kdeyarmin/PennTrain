@@ -163,7 +163,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     return [
       {
         items: [
-          { href: "/app/today", label: "Today", icon: Activity },
+          { href: "/app/today", label: "Home", icon: Activity },
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
         ]
       },
@@ -296,7 +296,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     return [
       {
         items: [
-          { href: "/app/today", label: "Today", icon: Activity },
+          { href: "/app/today", label: "Home", icon: Activity },
           { href: "/app", label: "Dashboard", icon: LayoutDashboard },
         ]
       },
