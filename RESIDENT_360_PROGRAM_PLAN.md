@@ -1047,8 +1047,52 @@ the same rule regardless.
 **Verified:** typecheck clean; 727 tests pass (18 new); build succeeds; bundle budget passes with the
 resident route at 51.5 KiB.
 
-**Phase 5 is now complete.** Phase 6 (guided incident investigation, follow-through stages, trends,
-QAPI) is next.
+**Phase 5 is now complete.**
+
+### Phase 6a/6b — Incident pathways and the eleven follow-through stages
+
+| Delivered | Detail |
+| --- | --- |
+| Twelve pathways | `incidentPathways.ts` — the fall pathway is the reference implementation, with every question the request names. Several operational pathways map onto one legacy reportable type (a skin tear and a fracture are both `significant_injury`), which is the whole reason the two concepts had to separate |
+| One question renderer | `TemplateFieldControl.tsx` extracted from `AssessmentReviewDialog`; pathways and assessment reviews now render through the same component, and `assessmentTemplates.ts` grew section-level primitives (`fieldsIn`, `visibleFieldsIn`, `validateSectionAnswers`) so the question model is shared rather than copied |
+| Reportability as a determination | `determine_incident_reportability` requires a written rationale in *both* directions; `reportabilityPrompts()` returns prompts only, never the determination |
+| Eleven stages | `incidentStages.ts` derives every stage from evidence — related rows and timestamps — rather than from a status field somebody remembered to advance |
+| Server-side gate | `approve_incident_investigation` re-checks every stage rule; closure now requires that approval *in addition to* the existing final-report rule, which is preserved verbatim |
+| Post-incident review link | `resident_assessment_reviews.incident_id`, so "was this resident reassessed after the event" stops being a date heuristic that two incidents in one week make wrong |
+
+**The change that could have done real damage.** `auto_create_incident_notifications` keys the
+required 2-hour and 24-hour state notifications off `incident_type`. Widening that list would have
+invented a state-hotline call for a bruise; not widening it would have kept every fall off the
+system. The migration instead defaults reportability so that *every* incident created the way the
+existing form creates one behaves exactly as before, backfills historical rows to match, and only
+diverges once a pathway is deliberately chosen. Four pgTAP assertions exist purely to hold that line.
+
+**A hole I opened and then closed.** Adding `reportability_status` meant a client inserting straight
+into `incidents` could mark its own death "not reportable" and get no notification at all — strictly
+worse than before the migration. `protect_incident_creation_state` was re-declared to blank the new
+columns, so the value can only come from the trigger or from the RPC that demands a rationale.
+
+**The falls problem, resolved without deleting evidence.** `significant_injury` has a preset, so a
+fall auto-creates a state notification today. Attaching the fall pathway returns reportability to a
+human; a "not reportable" determination marks those rows `not_required` with the reasoning written
+onto them rather than deleting them, and a reversal reinstates them. `recalculate_incident_
+notifications` was re-declared so the nightly sweep cannot resurrect a stood-down row — without that
+one `where` clause the whole mechanism would have silently undone itself every night.
+
+**Two design corrections found by the tests.** Notifications and the reportability determination
+were originally given `immediate_response` as a prerequisite; a two-hour hotline deadline rendering
+as "waiting on earlier work" because nobody had typed up the response yet is exactly wrong, so both
+now have no prerequisites. And a reversal to reportable initially left the stood-down row dormant
+forever, because the preset creator skips a type that already has a row.
+
+**Verified:** typecheck clean; 798 tests pass (69 new across `incidentPathways` and
+`incidentStages`); build succeeds; bundle budget passes. The CSS budget sits at 97.3% of its limit,
+but that is unchanged by this work — measured against a clean tree — and remains a standing item.
+`check:database` still cannot run locally (no Docker), so `database.types.ts` was extended by hand
+again: fifteen columns on `incidents`, the `incident_pathways` table, `resident_assessment_reviews.
+incident_id`, and six functions.
+
+**Remaining in Phase 6:** 6c (trends) and 6d (QAPI recommendations and the meeting packet).
 
 ## 6. What to do first
 

@@ -2,102 +2,23 @@ import { useEffect, useState } from "react";
 import { BookOpen, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   useFinalizeResidentAssessmentReview, useSaveResidentAssessmentReview,
   type ResidentAssessmentReview,
 } from "@/hooks/useResidentAssessmentReviews";
+import { TemplateSectionFields } from "@/components/forms/TemplateFieldControl";
 import {
-  isFieldVisible, templateCitation, templateProgress, validateTemplateAnswers,
-  type AssessmentTemplate, type TemplateAnswers, type TemplateField,
+  templateCitation, templateProgress, validateTemplateAnswers,
+  type AssessmentTemplate, type TemplateAnswers,
 } from "@/lib/assessmentTemplates";
 import { citationDisplayLabel } from "@/lib/paRegulatoryCitations";
 import type { Json } from "@/lib/database.types";
-
-function FieldControl({
-  field, value, onChange,
-}: {
-  field: TemplateField;
-  value: unknown;
-  onChange: (value: unknown) => void;
-}) {
-  const id = `review-field-${field.key}`;
-
-  if (field.type === "boolean") {
-    return (
-      <label className="flex items-center gap-2 text-sm" htmlFor={id}>
-        <Checkbox id={id} checked={value === true} onCheckedChange={(next) => onChange(next === true)} />
-        {field.label}
-      </label>
-    );
-  }
-
-  if (field.type === "single_select") {
-    return (
-      <Select value={typeof value === "string" ? value : ""} onValueChange={onChange}>
-        <SelectTrigger id={id}><SelectValue placeholder="Select..." /></SelectTrigger>
-        <SelectContent>
-          {field.options?.map((option) => (
-            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
-  }
-
-  if (field.type === "multi_select") {
-    const selected = Array.isArray(value) ? (value as string[]) : [];
-    return (
-      <div className="flex flex-wrap gap-3">
-        {field.options?.map((option) => (
-          <label key={option.value} className="flex items-center gap-1.5 text-sm">
-            <Checkbox
-              checked={selected.includes(option.value)}
-              onCheckedChange={(next) => onChange(next === true
-                ? [...selected, option.value]
-                : selected.filter((entry) => entry !== option.value))}
-            />
-            {option.label}
-          </label>
-        ))}
-      </div>
-    );
-  }
-
-  if (field.type === "long_text") {
-    return <Textarea id={id} rows={3} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} />;
-  }
-
-  if (field.type === "number") {
-    return (
-      <Input
-        id={id}
-        type="number"
-        min={field.min}
-        max={field.max}
-        value={typeof value === "number" ? String(value) : ""}
-        onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
-      />
-    );
-  }
-
-  return (
-    <Input
-      id={id}
-      type={field.type === "date" ? "date" : "text"}
-      value={typeof value === "string" ? value : ""}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
-}
 
 /**
  * Renders a governed template. Conditional fields appear as their controlling answers are given,
@@ -211,33 +132,12 @@ export function AssessmentReviewDialog({
           </div>
         )}
 
-        <div className="space-y-5">
-          {template.sections.map((section) => {
-            const fields = section.fields.filter((field) => isFieldVisible(field, answers));
-            if (!fields.length) return null;
-            return (
-              <div key={section.key} className="space-y-3">
-                <div>
-                  <h4 className="text-sm font-semibold">{section.title}</h4>
-                  {section.description && <p className="text-xs text-muted-foreground">{section.description}</p>}
-                </div>
-                {fields.map((field) => (
-                  <div key={field.key} className="space-y-1">
-                    {field.type !== "boolean" && (
-                      <Label className="text-xs" htmlFor={`review-field-${field.key}`}>
-                        {field.label}
-                        {field.required && <span className="ml-0.5 text-destructive">*</span>}
-                        {field.unit && <span className="ml-1 text-muted-foreground">({field.unit})</span>}
-                      </Label>
-                    )}
-                    <FieldControl field={field} value={answers[field.key]} onChange={(value) => setAnswer(field.key, value)} />
-                    {field.guidance && <p className="text-[11px] text-muted-foreground">{field.guidance}</p>}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+        <TemplateSectionFields
+          sections={template.sections}
+          answers={answers}
+          onChange={setAnswer}
+          idPrefix="review-field"
+        />
 
         <div className="space-y-1 border-t pt-3">
           <Label className="text-xs" htmlFor="review-assessor">Assessor name (required to finalize)</Label>

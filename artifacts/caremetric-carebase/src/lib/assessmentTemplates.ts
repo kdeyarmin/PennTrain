@@ -766,7 +766,20 @@ export function isFieldVisible(field: TemplateField, answers: TemplateAnswers): 
 }
 
 export function visibleFields(template: AssessmentTemplate, answers: TemplateAnswers): TemplateField[] {
-  return templateFields(template).filter((field) => isFieldVisible(field, answers));
+  return visibleFieldsIn(template.sections, answers);
+}
+
+/**
+ * Section-level variants. Incident pathways (Phase 6a) are the same question model applied to a
+ * different domain, so they reuse these rather than reimplementing conditional visibility and
+ * validation -- two copies of this logic would drift, and the drift would be invisible.
+ */
+export function fieldsIn(sections: TemplateSection[]): TemplateField[] {
+  return sections.flatMap((section) => section.fields);
+}
+
+export function visibleFieldsIn(sections: TemplateSection[], answers: TemplateAnswers): TemplateField[] {
+  return fieldsIn(sections).filter((field) => isFieldVisible(field, answers));
 }
 
 export type ValidationIssueKind = "missing_required" | "out_of_range" | "unknown_option";
@@ -793,8 +806,15 @@ export function validateTemplateAnswers(
   template: AssessmentTemplate,
   answers: TemplateAnswers,
 ): TemplateValidationIssue[] {
+  return validateSectionAnswers(template.sections, answers);
+}
+
+export function validateSectionAnswers(
+  sections: TemplateSection[],
+  answers: TemplateAnswers,
+): TemplateValidationIssue[] {
   const issues: TemplateValidationIssue[] = [];
-  for (const field of visibleFields(template, answers)) {
+  for (const field of visibleFieldsIn(sections, answers)) {
     const value = answers[field.key];
 
     if (field.required && isBlank(value)) {

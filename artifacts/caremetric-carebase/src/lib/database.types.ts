@@ -14110,6 +14110,39 @@ export type Database = {
           },
         ]
       }
+      incident_pathways: {
+        Row: {
+          active: boolean
+          created_at: string
+          incident_type: string
+          key: string
+          label: string
+          reportability: string
+          sort_order: number
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          incident_type: string
+          key: string
+          label: string
+          reportability: string
+          sort_order?: number
+          version?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          incident_type?: string
+          key?: string
+          label?: string
+          reportability?: string
+          sort_order?: number
+          version?: number
+        }
+        Relationships: []
+      }
       incident_staff_involved: {
         Row: {
           created_at: string
@@ -14181,6 +14214,9 @@ export type Database = {
       }
       incidents: {
         Row: {
+          administrator_approval_note: string | null
+          administrator_approved_at: string | null
+          administrator_approved_by: string | null
           closed_at: string | null
           closed_by_profile_id: string | null
           created_at: string
@@ -14189,6 +14225,7 @@ export type Database = {
           final_report_submitted_at: string | null
           id: string
           idempotency_key: string | null
+          immediate_response: string | null
           incident_type: string
           investigation_findings: string | null
           investigation_started_at: string | null
@@ -14198,14 +14235,25 @@ export type Database = {
           narrative: string
           occurred_at: string
           organization_id: string
+          pathway_answers: Json
+          pathway_completed_at: string | null
+          pathway_key: string | null
+          pathway_version: number | null
+          qapi_consideration: string
+          qapi_project_id: string | null
           report_pdf_storage_bucket: string | null
           report_pdf_storage_path: string | null
+          reportability_determined_at: string | null
+          reportability_determined_by: string | null
+          reportability_rationale: string | null
+          reportability_status: string
           reported_at: string
           reported_by_profile_id: string | null
           resident_id: string | null
           resident_identifier: string | null
           resident_identifier_snapshot: string | null
           root_cause: string | null
+          root_cause_method: string | null
           severity: string
           state_form_pdf_generated_at: string | null
           state_form_pdf_storage_bucket: string | null
@@ -14214,6 +14262,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          administrator_approval_note?: string | null
+          administrator_approved_at?: string | null
+          administrator_approved_by?: string | null
           closed_at?: string | null
           closed_by_profile_id?: string | null
           created_at?: string
@@ -14222,6 +14273,7 @@ export type Database = {
           final_report_submitted_at?: string | null
           id?: string
           idempotency_key?: string | null
+          immediate_response?: string | null
           incident_type: string
           investigation_findings?: string | null
           investigation_started_at?: string | null
@@ -14231,14 +14283,25 @@ export type Database = {
           narrative: string
           occurred_at: string
           organization_id: string
+          pathway_answers?: Json
+          pathway_completed_at?: string | null
+          pathway_key?: string | null
+          pathway_version?: number | null
+          qapi_consideration?: string
+          qapi_project_id?: string | null
           report_pdf_storage_bucket?: string | null
           report_pdf_storage_path?: string | null
+          reportability_determined_at?: string | null
+          reportability_determined_by?: string | null
+          reportability_rationale?: string | null
+          reportability_status?: string
           reported_at?: string
           reported_by_profile_id?: string | null
           resident_id?: string | null
           resident_identifier?: string | null
           resident_identifier_snapshot?: string | null
           root_cause?: string | null
+          root_cause_method?: string | null
           severity?: string
           state_form_pdf_generated_at?: string | null
           state_form_pdf_storage_bucket?: string | null
@@ -14247,6 +14310,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          administrator_approval_note?: string | null
+          administrator_approved_at?: string | null
+          administrator_approved_by?: string | null
           closed_at?: string | null
           closed_by_profile_id?: string | null
           created_at?: string
@@ -14255,6 +14321,7 @@ export type Database = {
           final_report_submitted_at?: string | null
           id?: string
           idempotency_key?: string | null
+          immediate_response?: string | null
           incident_type?: string
           investigation_findings?: string | null
           investigation_started_at?: string | null
@@ -14264,14 +14331,25 @@ export type Database = {
           narrative?: string
           occurred_at?: string
           organization_id?: string
+          pathway_answers?: Json
+          pathway_completed_at?: string | null
+          pathway_key?: string | null
+          pathway_version?: number | null
+          qapi_consideration?: string
+          qapi_project_id?: string | null
           report_pdf_storage_bucket?: string | null
           report_pdf_storage_path?: string | null
+          reportability_determined_at?: string | null
+          reportability_determined_by?: string | null
+          reportability_rationale?: string | null
+          reportability_status?: string
           reported_at?: string
           reported_by_profile_id?: string | null
           resident_id?: string | null
           resident_identifier?: string | null
           resident_identifier_snapshot?: string | null
           root_cause?: string | null
+          root_cause_method?: string | null
           severity?: string
           state_form_pdf_generated_at?: string | null
           state_form_pdf_storage_bucket?: string | null
@@ -14280,6 +14358,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "incidents_administrator_approved_by_fkey"
+            columns: ["administrator_approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "incidents_closed_by_profile_id_fkey"
             columns: ["closed_by_profile_id"]
@@ -14309,10 +14394,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "incidents_pathway_key_fkey"
+            columns: ["pathway_key"]
+            isOneToOne: false
+            referencedRelation: "incident_pathways"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "incidents_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_qapi_project_id_fkey"
+            columns: ["qapi_project_id"]
+            isOneToOne: false
+            referencedRelation: "qapi_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_reportability_determined_by_fkey"
+            columns: ["reportability_determined_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -23372,6 +23478,7 @@ export type Database = {
           facility_id: string
           hospital_episode_id: string | null
           id: string
+          incident_id: string | null
           organization_id: string
           resident_id: string
           review_date: string
@@ -23393,6 +23500,7 @@ export type Database = {
           facility_id: string
           hospital_episode_id?: string | null
           id?: string
+          incident_id?: string | null
           organization_id: string
           resident_id: string
           review_date?: string
@@ -23414,6 +23522,7 @@ export type Database = {
           facility_id?: string
           hospital_episode_id?: string | null
           id?: string
+          incident_id?: string | null
           organization_id?: string
           resident_id?: string
           review_date?: string
@@ -23457,6 +23566,13 @@ export type Database = {
             columns: ["hospital_episode_id"]
             isOneToOne: false
             referencedRelation: "hospital_transfer_episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
           {
@@ -34045,6 +34161,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_incident_investigation: {
+        Args: { p_incident_id: string; p_note?: string }
+        Returns: boolean
+      }
       approve_support_plan: {
         Args: {
           p_effective_date: string
@@ -35307,6 +35427,10 @@ export type Database = {
         Args: { p_definition_id: string }
         Returns: boolean
       }
+      determine_incident_reportability: {
+        Args: { p_incident_id: string; p_rationale: string; p_status: string }
+        Returns: number
+      }
       employee_has_active_qualification: {
         Args: {
           p_at?: string
@@ -35861,6 +35985,10 @@ export type Database = {
           revocations_last_30_days: number
           verified_domain_count: number
         }[]
+      }
+      get_incident_follow_through: {
+        Args: { p_incident_id: string }
+        Returns: Json
       }
       get_incident_list_summary: {
         Args: {
@@ -38352,6 +38480,25 @@ export type Database = {
         }
         Returns: string
       }
+      save_incident_investigation_step: {
+        Args: {
+          p_immediate_response?: string
+          p_incident_id: string
+          p_investigation_findings?: string
+          p_root_cause?: string
+          p_root_cause_method?: string
+        }
+        Returns: boolean
+      }
+      save_incident_pathway: {
+        Args: {
+          p_answers: Json
+          p_complete?: boolean
+          p_incident_id: string
+          p_pathway_key: string
+        }
+        Returns: boolean
+      }
       save_resident_administrative_master: {
         Args: { p_contacts?: Json; p_profile: Json; p_resident_id: string }
         Returns: boolean
@@ -38360,6 +38507,7 @@ export type Database = {
         Args: {
           p_answers: Json
           p_hospital_episode_id?: string
+          p_incident_id?: string
           p_resident_id: string
           p_review_date?: string
           p_review_id?: string
@@ -38614,6 +38762,15 @@ export type Database = {
           p_employee_id: string
           p_import_row_id: string
           p_reason: string
+        }
+        Returns: boolean
+      }
+      set_incident_qapi_consideration: {
+        Args: {
+          p_consideration: string
+          p_incident_id: string
+          p_note?: string
+          p_qapi_project_id?: string
         }
         Returns: boolean
       }
