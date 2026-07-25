@@ -205,6 +205,21 @@ test.describe("resident lifecycle journey", () => {
       );
     if (entitlementError) throw entitlementError;
 
+    // Entitlement is only half the gate. evaluate_feature_access computes
+    // `allowed = entitled AND released AND NOT killed`, and with no release_flags row the mode
+    // defaults to 'off' -- so a fully entitled org still sees "not enabled for your organization".
+    // release_flags is global (keyed by feature_key alone), so this is an upsert, not an insert.
+    const { error: releaseError } = await admin
+      .from("release_flags")
+      .upsert({
+        feature_key: "survey_day_mode",
+        rollout_mode: "global",
+        is_enabled: true,
+        owner: "resident-lifecycle-journey",
+        change_reason: "Journey fixture exercises the Survey Day workspace end to end",
+      }, { onConflict: "feature_key" });
+    if (releaseError) throw releaseError;
+
     // The org-level session policy requires administrators to verify an authenticator before any
     // protected workspace opens. Five CI rounds of "blank shell" were this interstitial: it had no
     // heading, so heading-based instrumentation saw nothing at all. Enroll a factor the same way
@@ -314,6 +329,17 @@ test.describe("resident lifecycle journey", () => {
     await signIn(page);
     await page.goto(`/app/survey-day?facility=${facilityId}`);
     await expect(page.getByRole("heading", { name: "Survey Day Mode" })).toBeVisible();
+
+    // Report the gate rather than time out on a missing control: when Survey Day is not enabled the
+    // page renders an explanatory card instead of the activation button, and "button never appeared"
+    // does not say which of entitlement or release flag was missing.
+    await expect
+      .poll(async () => (await page.getByRole("button", { name: "Start Survey Day" }).count()) > 0
+        ? "activation-available"
+        : `no activation control; page says ${JSON.stringify(
+            (await page.locator("main, body").first().innerText()).slice(0, 300))}`,
+        { timeout: 20000 })
+      .toBe("activation-available");
 
     // Activation is deliberately behind a confirmation: starting Survey Day writes an audit event.
     await page.getByRole("button", { name: "Start Survey Day" }).click();
