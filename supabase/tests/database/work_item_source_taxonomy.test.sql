@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(21);
 
 select has_table('public', 'work_item_source_types', 'the source taxonomy exists');
 select has_function('public', 'register_outstanding_work_items', 'the coverage sweep exists');
@@ -49,6 +49,15 @@ select is(
   'every work item carries a source type the taxonomy knows'
 );
 
+-- The taxonomy must be a superset of every type already in use, in BOTH registries. Seeding it from
+-- only the creators I happened to read is exactly how this shipped broken the first time.
+select is(
+  (select count(*)::int from public.work_item_templates t
+   where not exists (select 1 from public.work_item_source_types s where s.key = t.source_type)),
+  0,
+  'every work_item_templates source type exists in the taxonomy'
+);
+
 -- Fixtures --------------------------------------------------------------------------
 insert into public.organizations(id, name, slug, subscription_status) values
   ('a4000000-0000-4000-8000-000000000001', 'Work Org', 'work-org', 'active');
@@ -74,16 +83,21 @@ select is(
   'the trigger reclassifies a catch-all insert from its deduplication key'
 );
 
-select throws_ok($$insert into public.work_items(
+-- An unrecognized type is adopted rather than refused. Refusing would mean the work item is never
+-- created -- somebody's compliance task silently not existing -- which is a far worse outcome than
+-- an unlabelled row in a reference table. The adopted row says it needs review.
+select lives_ok($$insert into public.work_items(
   organization_id, facility_id, source_type, source_id, deduplication_key, title, priority, due_at
 ) values (
   'a4000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000011',
-  'not_a_real_source_type', 'a4000000-0000-4000-8000-000000000301', 'bogus:1',
-  'Work with a made-up source type', 'normal', now()
+  'a_source_type_nobody_registered', 'a4000000-0000-4000-8000-000000000301', 'bogus:1',
+  'Work with an unregistered source type', 'normal', now()
 )$$,
-  '23514',
-  null,
-  'a source type outside the taxonomy is refused');
+  'a work item with an unregistered source type is still created');
+select is(
+  (select sort_order from public.work_item_source_types where key = 'a_source_type_nobody_registered'),
+  899,
+  'and its source type is adopted into the taxonomy, flagged for review');
 
 -- A reclassified row must still be counted by the readers that used to match it on the catch-all.
 -- The unfilled-shift count returning zero because the backfill moved the rows is the exact failure
@@ -124,10 +138,15 @@ select is(
   'the sweep registers an outstanding resident compliance item'
 );
 
+-- Scoped to the one item this test inserted: a resident carries a whole set of compliance items,
+-- so an unfiltered subquery here returns several rows and aborts the script rather than failing a
+-- single assertion.
 select is(
-  (select source_type from public.work_items w
+  (select w.source_type from public.work_items w
    join public.resident_compliance_items i on i.id = w.source_id
-   where i.resident_id = 'a4000000-0000-4000-8000-000000000301'),
+   where i.resident_id = 'a4000000-0000-4000-8000-000000000301'
+     and i.item_type = 'initial_assessment_15day'
+   limit 1),
   'assessment',
   'and files it under the assessment source type'
 );
@@ -139,7 +158,8 @@ select lives_ok($$select public.register_outstanding_work_items()$$,
 select is(
   (select count(*)::int from public.work_items w
    join public.resident_compliance_items i on i.id = w.source_id
-   where i.resident_id = 'a4000000-0000-4000-8000-000000000301'),
+   where i.resident_id = 'a4000000-0000-4000-8000-000000000301'
+     and i.item_type = 'initial_assessment_15day'),
   1,
   'and creates no duplicate on the second run'
 );

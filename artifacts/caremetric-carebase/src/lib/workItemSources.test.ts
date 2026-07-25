@@ -12,19 +12,31 @@ import {
   workItemSourceType,
 } from "./workItemSources";
 
-const MIGRATION = join(
-  __dirname, "..", "..", "..", "..",
+const REPO_ROOT = join(__dirname, "..", "..", "..", "..");
+
+// The taxonomy is seeded across two migrations: the original, and the follow-up that completed it
+// after the first seed turned out not to be a superset of the types already in use.
+const SEED_MIGRATIONS = [
   "supabase/migrations/20260726100000_work_item_source_taxonomy_and_coverage.sql",
-);
+  "supabase/migrations/20260726120000_complete_the_work_item_source_taxonomy.sql",
+];
+
+function migrationSql(relativePath: string): string {
+  return readFileSync(join(REPO_ROOT, relativePath), "utf8");
+}
 
 function seededKeys(): string[] {
-  const sql = readFileSync(MIGRATION, "utf8");
-  const start = sql.indexOf("insert into public.work_item_source_types");
-  const end = sql.indexOf("on conflict (key)", start);
-  expect(start, "seed block not found in the migration").toBeGreaterThan(-1);
-  expect(end, "seed block end not found").toBeGreaterThan(start);
-  // Each seeded row starts with ('key', ...
-  return [...sql.slice(start, end).matchAll(/\('([a-z_]+)',/g)].map((match) => match[1]);
+  const keys: string[] = [];
+  for (const path of SEED_MIGRATIONS) {
+    const sql = migrationSql(path);
+    const start = sql.indexOf("insert into public.work_item_source_types (key, label, category, description, sort_order) values");
+    expect(start, `literal seed block not found in ${path}`).toBeGreaterThan(-1);
+    const end = sql.indexOf("on conflict (key)", start);
+    expect(end, `seed block end not found in ${path}`).toBeGreaterThan(start);
+    // Each seeded row starts with ('key', ...
+    keys.push(...[...sql.slice(start, end).matchAll(/\('([a-z_]+)',/g)].map((match) => match[1]));
+  }
+  return keys;
 }
 
 describe("the taxonomy matches the database seed", () => {
@@ -42,7 +54,7 @@ describe("the taxonomy matches the database seed", () => {
   });
 
   it("covers every source type the mapping function can produce", () => {
-    const sql = readFileSync(MIGRATION, "utf8");
+    const sql = migrationSql(SEED_MIGRATIONS[0]);
     const start = sql.indexOf("function app_private.work_item_source_type_for");
     const end = sql.indexOf("$$;", start);
     const mapped = [...sql.slice(start, end).matchAll(/then '([a-z_]+)'/g)].map((m) => m[1]);

@@ -35,7 +35,10 @@ export const WORK_ITEM_CATEGORY_LABELS: Record<WorkItemCategory, string> = {
   quality: "Quality and safety",
 };
 
-/** Mirrors the seed in 20260726100000_work_item_source_taxonomy_and_coverage.sql. */
+/**
+ * Mirrors the seed across 20260726100000 (the taxonomy) and 20260726120000 (the completion that
+ * made it a superset of the types already in use). A test parses both and asserts they match.
+ */
 export const WORK_ITEM_SOURCE_TYPES: WorkItemSourceType[] = [
   { key: "assessment", label: "Assessment due", category: "resident_care", sortOrder: 10, description: "A required resident assessment is due or overdue." },
   { key: "support_plan", label: "Support plan", category: "resident_care", sortOrder: 20, description: "A support plan needs writing, reviewing, or revising." },
@@ -47,6 +50,10 @@ export const WORK_ITEM_SOURCE_TYPES: WorkItemSourceType[] = [
   { key: "admission_document", label: "Admission document", category: "resident_care", sortOrder: 80, description: "An admission document is missing or unsigned." },
   { key: "move_in", label: "Move-in readiness", category: "resident_care", sortOrder: 90, description: "A move-in task is outstanding." },
   { key: "resident_finance", label: "Resident finance", category: "resident_care", sortOrder: 100, description: "A resident account needs attention." },
+  { key: "resident_calendar", label: "Resident calendar", category: "resident_care", sortOrder: 45, description: "A resident appointment or calendar follow-up is outstanding." },
+  { key: "resident_service_task_instance", label: "Scheduled service task", category: "resident_care", sortOrder: 35, description: "A scheduled resident service task needs attention." },
+  { key: "support_plan_proposal", label: "Support plan proposal", category: "resident_care", sortOrder: 25, description: "A generated support plan proposal is waiting for review." },
+  { key: "dietary_exception", label: "Dietary exception", category: "resident_care", sortOrder: 110, description: "A dietary order or meal service exception needs resolving." },
 
   { key: "regulatory_requirement", label: "Regulatory requirement", category: "compliance", sortOrder: 200, description: "A recurring regulatory obligation is due." },
   { key: "violation", label: "Violation remediation", category: "compliance", sortOrder: 210, description: "A cited violation needs remediation." },
@@ -54,6 +61,7 @@ export const WORK_ITEM_SOURCE_TYPES: WorkItemSourceType[] = [
   { key: "finding", label: "Audit finding", category: "compliance", sortOrder: 230, description: "An internal audit finding needs closing." },
   { key: "policy", label: "Policy review", category: "compliance", sortOrder: 240, description: "A policy is due for review or acknowledgement." },
   { key: "corrective_action", label: "Corrective action", category: "compliance", sortOrder: 250, description: "A corrective action is open or awaiting verification." },
+  { key: "inspection_war_room", label: "Inspection request", category: "compliance", sortOrder: 225, description: "A documentation request during an inspection is awaiting verification." },
 
   { key: "credential", label: "Credential", category: "workforce", sortOrder: 300, description: "A staff credential is expiring or expired." },
   { key: "training_gap", label: "Training gap", category: "workforce", sortOrder: 310, description: "Required training is overdue." },
@@ -64,6 +72,8 @@ export const WORK_ITEM_SOURCE_TYPES: WorkItemSourceType[] = [
   { key: "facility_license", label: "Facility licence", category: "facility", sortOrder: 400, description: "A facility licence or registration is expiring." },
   { key: "maintenance", label: "Maintenance", category: "facility", sortOrder: 410, description: "A maintenance inspection or hazard needs attention." },
   { key: "emergency_drill", label: "Emergency drill", category: "facility", sortOrder: 420, description: "A required drill is due or its after-action is outstanding." },
+  { key: "food_safety", label: "Food safety", category: "facility", sortOrder: 405, description: "A food safety check or temperature excursion needs action." },
+  { key: "emergency", label: "Emergency operations", category: "facility", sortOrder: 415, description: "An emergency event or drill needs follow-through." },
 
   { key: "incident", label: "Incident", category: "quality", sortOrder: 500, description: "An incident investigation or follow-up step is outstanding." },
   { key: "near_miss", label: "Near miss", category: "quality", sortOrder: 510, description: "A near miss needs reviewing." },
