@@ -69,6 +69,10 @@ and prints a video id per segment. It deliberately does not download the files â
 the `poll-heygen-video-statuses` cron re-hosts them into the `course-videos`
 bucket.
 
+Run it from the `artifacts/caremetric-carebase` package root, the same working
+directory the other scripts in `package.json` assume â€” every path below is
+relative to it:
+
 ```
 # price the run and validate the scripts, no credits spent
 node scripts/heygen/render-course-videos.mjs --dry-run

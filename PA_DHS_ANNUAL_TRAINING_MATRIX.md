@@ -110,9 +110,14 @@ crosswalk.
 
 Each of the five in-services added on July 25, 2026 is built around three
 presenter segments interleaved with its written steps, roughly seven minutes of
-narration per course. The segments currently ship as written steps and become
-video blocks once their HeyGen renders exist; the narration itself is identical
-either way. Scripts and the render procedure live in
+narration per course. Eight of those fifteen segments are seeded as `video`
+blocks carrying a HeyGen job and the deterministic re-host URL: all three for
+`PA-DHS-STANDALONE-EMERGENCY-PREP` and `PA-DHS-STANDALONE-FALLS-PREVENTION`, and
+two of three for `PA-DHS-STANDALONE-INFECTION-CONTROL`. The remaining seven --
+the third infection-control segment plus every segment of
+`PA-DHS-STANDALONE-SAFE-MANAGEMENT` and `PA-DHS-STANDALONE-MED-SELF-ADMIN` --
+are seeded as `text` blocks carrying the identical narration, and become video
+blocks once their renders exist. Scripts and the render procedure live in
 `artifacts/caremetric-carebase/scripts/heygen/scripts/`.
 
 **Three of the July 2026 in-services ship without a regulatory crosswalk, on

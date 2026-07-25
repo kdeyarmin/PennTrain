@@ -89,9 +89,18 @@ async function check(videoId) {
   });
   const data = (await res.json().catch(() => null))?.data;
   if (data?.status === "completed") {
-    const head = await fetch(data.video_url, { method: "HEAD" });
-    const bytes = Number(head.headers.get("content-length") || 0);
-    return { status: "completed", seconds: Math.round(data.duration || 0), mb: +(bytes / 1048576).toFixed(1) };
+    // A HEAD that is blocked, errors, or omits content-length must not read as
+    // "0MB", which would silently pass the re-host ceiling check on a file that
+    // cannot actually be re-hosted. Report the size as unknown instead.
+    let mb = null;
+    try {
+      const head = await fetch(data.video_url, { method: "HEAD" });
+      const length = head.ok ? Number(head.headers.get("content-length")) : NaN;
+      if (Number.isFinite(length) && length > 0) mb = +(length / 1048576).toFixed(1);
+    } catch {
+      mb = null;
+    }
+    return { status: "completed", seconds: Math.round(data.duration || 0), mb };
   }
   if (data?.status === "failed") {
     return { status: "failed", reason: data.failure_code || data.failure_message || "unknown" };
@@ -155,8 +164,10 @@ async function main() {
       if (result.status === "completed") {
         inFlight.delete(name);
         rendered[name] = videoId;
-        const warn = result.mb > REHOST_CEILING_MB - 5 ? "  ⚠ close to the re-host ceiling" : "";
-        console.log(`  ✔ ${name.padEnd(34)} ${videoId}  ${result.seconds}s  ${result.mb}MB${warn}`);
+        const size = result.mb === null
+          ? "size unknown  ⚠ check it before relying on the re-host"
+          : `${result.mb}MB${result.mb > REHOST_CEILING_MB - 5 ? "  ⚠ close to the re-host ceiling" : ""}`;
+        console.log(`  ✔ ${name.padEnd(34)} ${videoId}  ${result.seconds}s  ${size}`);
       } else if (result.status === "failed") {
         inFlight.delete(name);
         failures.push(name);
