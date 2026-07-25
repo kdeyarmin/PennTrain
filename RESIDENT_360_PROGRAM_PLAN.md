@@ -1486,6 +1486,61 @@ browser body is verified only by CI.
 **What this does not do.** It does not implement steps 2–12. That is per-phase work, and the honest
 reason each is still pending is now recorded in the registry rather than in my head.
 
+### Phase 10b — Citation verification governance
+
+**The failure mode this phase exists to prevent is already shipped.** `dhs_citation_topics` was
+seeded in `20260705171322` with references like `2600.65 / 2800.69`, and those same rows carry a
+notes column reading *"section numbers approximate -- verify against current regulations."*
+`InspectionReadiness.tsx` rendered them to operators as `Dementia-Specific Staff Training
+(2600.65 / 2800.69)` — no qualifier, no way to tell a checked citation from an approximate one. The
+plan calls a confidently-wrong citation in a survey packet this product's worst failure mode; it was
+not a hypothetical risk, it was the current state.
+
+| Delivered | Detail |
+| --- | --- |
+| Structural status | `verification_status`, `verified_by`, `verified_on`, `source_url`, `effective_date`, `superseded_by_ref`, `last_checked_at` on `dhs_citation_topics` |
+| Verification costs something | A check constraint refuses `'verified'` without a verifier, a date, **and** a source URL; `'superseded'` without a successor reference |
+| Honest backfill | Rows whose own notes admit "approximate" become `'approximate'`; everything else becomes `'unverified'`. **Nothing** becomes verified |
+| Write paths | `record_citation_verification` and `record_citation_superseded`, platform-admin only, source required |
+| The library shows its staleness | `get_citation_governance_status` — counts by status, `displayableUnverified`, and a re-verification interval of 365 days |
+| Display rule | `src/lib/citationGovernance.ts`, wired into the readiness table so the qualifier reaches the screen |
+| Tests | 13 pgTAP assertions, 10 unit tests |
+
+**No content was invented, and that was the constraint that shaped the phase.** I cannot verify PA
+citations from memory — writing plausible section numbers into a compliance product is the exact
+failure this is meant to prevent, and a migration that marked rows verified would be worse than the
+unverified state it replaced. So the deliverable is the *mechanism*: a status that cannot be claimed
+without a named person, a date, and a source URL. Seeding real verified content still needs a
+compliance SME with the regulation in front of them; the difference is that the product now says so
+on screen instead of implying otherwise.
+
+**An unverified citation is shown, not hidden.** Suppressing it would lose information the operator
+already has. The rule is that the qualifier travels *with* the number — `(2600.65 — approximate)` —
+so uncertainty cannot be stripped off at the UI boundary, which is precisely how it was being lost.
+
+**A once-verified citation stops being citable.** A verification older than 365 days reads as
+"verification overdue" and `citable` goes false. A citation checked once and never re-checked is how
+a superseded section number survives in a product for years. An unrecognised status is treated as
+unverified rather than trusted — a status this code has not heard of is not a reason to assume the
+best.
+
+**Verified:** typecheck clean; 969 tests pass (10 new); build succeeds; all bundle budgets pass;
+types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
+migrations. The pgTAP suite runs only in CI.
+
+### Phase 0a follow-up — what the first journey run found
+
+Step 1 timed out waiting for the Add Resident button, and the button was never going to appear:
+`/app/residents` belongs to the CareBase module, the fixture tenant had no entitlement rows, and with
+legacy fail-open off in CI that resolves to core-only and redirects the route away. **That is correct
+product behaviour** — an unentitled tenant should be bounced — so the fixture now grants the five
+module keys rather than the application loosening anything.
+
+The step also now asserts the heading and the pathname *before* reaching for the button. A redirect
+and a renamed control produced an identical `waiting for getByRole('button')` failure, which cost a
+CI round to tell apart. This is the same lesson as the Survey Day guard chain: **make the failure say
+which layer failed**, or every diagnosis costs a full round.
+
 ## 6. What to do first
 
 If only one phase is funded now, fund **Phase 0 plus Phase 1a** (the resident clinical profile data

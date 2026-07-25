@@ -13,7 +13,8 @@ import { useListAdministratorProfiles, useListAdministratorCeEntriesByOrganizati
 import { useListResidents } from "@/hooks/useResidents";
 import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListEmployeeSchedulePreferences } from "@/hooks/useEmployeeSchedulePreferences";
-import { useFacilityReadinessBreakdown } from "@/hooks/useCitationTopics";
+import { useFacilityReadinessBreakdown, useListCitationTopics } from "@/hooks/useCitationTopics";
+import { citationDisplay } from "@/lib/citationGovernance";
 import { useListEntranceConferenceItems, type EntranceConferenceItem } from "@/hooks/useEntranceConferenceItems";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { buildInspectionReadinessActions, type ReadinessActionChecklistItem } from "@/lib/inspectionReadiness";
@@ -65,6 +66,14 @@ export default function InspectionReadiness() {
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
 
   const { data: breakdown, isLoading: breakdownLoading } = useFacilityReadinessBreakdown(activeFacilityId || undefined);
+  // The readiness RPC returns the citation reference but not whether anyone ever verified it.
+  // Joined here rather than widening the RPC's return signature: the topics list is already a
+  // cached org-wide read, and the qualifier must never be dropped on the way to the screen.
+  const { data: citationTopics } = useListCitationTopics();
+  const citationById = useMemo(
+    () => new Map((citationTopics ?? []).map((topic) => [topic.id, topic])),
+    [citationTopics],
+  );
   const { data: checklistItems } = useListEntranceConferenceItems();
 
   const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined, status: "active" });
@@ -332,7 +341,28 @@ export default function InspectionReadiness() {
                       <td className="py-2 pr-4">{row.title}</td>
                       <td className="py-2 pr-4 text-muted-foreground">
                         {row.chapter === "both" ? "2600 / 2800" : row.chapter}
-                        {row.citation_ref ? ` (${row.citation_ref})` : ""}
+                        {(() => {
+                          const topic = citationById.get(row.citation_topic_id);
+                          const display = citationDisplay({
+                            citation_ref: row.citation_ref,
+                            verification_status: topic?.verification_status ?? "unverified",
+                            verified_on: topic?.verified_on,
+                            superseded_by_ref: topic?.superseded_by_ref,
+                          });
+                          if (!display.text) return "";
+                          return (
+                            <>
+                              {" ("}
+                              {display.text}
+                              {display.qualifier && (
+                                <span className="text-amber-700 dark:text-amber-500" title={display.detail ?? undefined}>
+                                  {" \u2014 "}{display.qualifier}
+                                </span>
+                              )}
+                              {")"}
+                            </>
+                          );
+                        })()}
                       </td>
                       <td className="py-2 pr-4">{row.frequency_weight}x</td>
                       <td className="py-2 pr-4">

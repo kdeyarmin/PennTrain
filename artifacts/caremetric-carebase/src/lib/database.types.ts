@@ -5577,35 +5577,64 @@ export type Database = {
           chapter: string
           citation_ref: string | null
           created_at: string
+          effective_date: string | null
           frequency_weight: number
           id: string
+          last_checked_at: string | null
           notes: string | null
           sort_order: number
+          source_url: string | null
+          superseded_by_ref: string | null
           title: string
+          verification_status: string
+          verified_by: string | null
+          verified_on: string | null
         }
         Insert: {
           category: string
           chapter: string
           citation_ref?: string | null
           created_at?: string
+          effective_date?: string | null
           frequency_weight?: number
           id?: string
+          last_checked_at?: string | null
           notes?: string | null
           sort_order?: number
+          source_url?: string | null
+          superseded_by_ref?: string | null
           title: string
+          verification_status?: string
+          verified_by?: string | null
+          verified_on?: string | null
         }
         Update: {
           category?: string
           chapter?: string
           citation_ref?: string | null
           created_at?: string
+          effective_date?: string | null
           frequency_weight?: number
           id?: string
+          last_checked_at?: string | null
           notes?: string | null
           sort_order?: number
+          source_url?: string | null
+          superseded_by_ref?: string | null
           title?: string
+          verification_status?: string
+          verified_by?: string | null
+          verified_on?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "dhs_citation_topics_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dhs_violations: {
         Row: {
@@ -36441,6 +36470,7 @@ export type Database = {
           room: string
         }[]
       }
+      get_citation_governance_status: { Args: never; Returns: Json }
       get_closed_loop_compliance_control_plane: { Args: never; Returns: Json }
       get_complaint_list_summary: {
         Args: {
@@ -37779,6 +37809,24 @@ export type Database = {
           p_notified_at: string
           p_party: string
           p_status: string
+        }
+        Returns: boolean
+      }
+      record_citation_superseded: {
+        Args: {
+          p_source_url?: string
+          p_superseded_by_ref: string
+          p_topic_id: string
+        }
+        Returns: boolean
+      }
+      record_citation_verification: {
+        Args: {
+          p_citation_ref: string
+          p_effective_date?: string
+          p_source_url: string
+          p_topic_id: string
+          p_verified_on?: string
         }
         Returns: boolean
       }
