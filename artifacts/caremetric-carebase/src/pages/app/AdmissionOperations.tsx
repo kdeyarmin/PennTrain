@@ -54,6 +54,9 @@ import type { ProspectLike } from "@/lib/admissionPipeline";
 const PipelineFunnelSection = lazy(
   () => import("@/components/admissions/PipelineFunnelSection"),
 );
+const OccupancyBoardSection = lazy(
+  () => import("@/components/admissions/OccupancyBoardSection"),
+);
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -340,6 +343,10 @@ export default function AdmissionOperations() {
         </div>
         {canManage && <div className="flex gap-2"><Button variant="outline" onClick={() => setShowRoom(true)} disabled={facilityId === "all"}><Building2 className="mr-2 h-4 w-4" />Add room</Button><Button onClick={() => setShowProspect(true)} disabled={facilityId === "all"}><UserRoundPlus className="mr-2 h-4 w-4" />New inquiry</Button></div>}
       </div>
+
+      <Suspense fallback={null}>
+        <OccupancyBoardSection facilityId={facilityId === "all" ? undefined : facilityId} />
+      </Suspense>
 
       <Suspense fallback={null}>
         <PipelineFunnelSection

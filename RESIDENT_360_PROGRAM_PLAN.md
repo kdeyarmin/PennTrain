@@ -1342,10 +1342,41 @@ that is what creates the resident record.
 
 **Verified:** typecheck clean; 952 tests pass (25 new); build succeeds; all bundle budgets pass.
 
-**Remaining in Phase 9:** 9b — the occupancy board (item 21) over `facility_buildings` /
-`residential_units` / `residents.bed_id`, including the plan's requirement that licensed capacity
-come from the facility licence record rather than a count of rows, and that the board show when
-census exceeds it.
+### Phase 9b — Occupancy board
+
+| Delivered | Detail |
+| --- | --- |
+| Licensed capacity from the licence | `facility_licenses.licensed_capacity` for the licence in force today. A facility with none reports **null** and says why, never a bed count |
+| The board | Per building: beds, occupied, occupied-but-away, reserved, available, maintenance hold, temporarily unavailable. Per room: bed detail with resident, status, hold reason, expected vacancy |
+| Over-capacity warning | Census against the licensed figure, flagged when it exceeds it |
+| Reconciliation | Residents holding no bed, and beds still held by discharged or deceased residents — reported in both directions, because they are different problems with different fixes |
+| Local format check | `scripts/check-database-types-format.mjs`, wired into `check:all` |
+
+**The distinction the whole phase turns on.** Counting beds tells you what a building can physically
+hold; a licence tells you what it may hold. This board never substitutes one for the other. The
+building's own `licensed_capacity` allocation is reported *alongside* the facility licence figure and
+never in place of it — in the test fixture the building says 20 while the licence permits 16, and
+conflating them would overstate capacity by four beds. An expired licence stops providing a figure
+at all.
+
+**Why reconciliation is output rather than a hidden correction.** Bed occupancy and resident census
+are maintained by different write paths — a bed is released by the move-out flow, a resident's status
+by the census flow — so they can disagree. Returning both counts and the specific mismatched records
+treats the discrepancy as the finding, which is what the exit gate's "reconcile against census
+events" asks for.
+
+**A tooling investment, made because the cost was measurable.** Hand-writing `database.types.ts` had
+by this point cost three CI rounds, each for a different mechanical reason: the zero-argument form,
+a function inserted into the `Tables` section, an `Args` block one line too long, and columns landing
+in `Insert` but not `Update`. `check:database` needs Docker and only runs in CI, so nothing local
+caught any of them. The new checker encodes exactly those four rules, and was verified by
+reintroducing all three of the most recent bugs and confirming it reports each with a line number. It
+does not replace `check:database`, which remains the authority on whether the *content* is right.
+
+**Verified:** typecheck clean; 952 tests pass; build succeeds; all bundle budgets pass; the new
+format check passes over 417 table and view entries.
+
+**Phase 9 is now complete.** Phase 10 (governed PA regulatory library and Survey Day) is next.
 
 ## 6. What to do first
 

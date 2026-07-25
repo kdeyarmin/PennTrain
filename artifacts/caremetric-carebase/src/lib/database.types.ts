@@ -36205,6 +36205,10 @@ export type Database = {
         Args: { p_facility_id: string }
         Returns: Json
       }
+      get_facility_occupancy_board: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_facility_readiness_breakdown: {
         Args: { p_facility_id: string }
         Returns: {
