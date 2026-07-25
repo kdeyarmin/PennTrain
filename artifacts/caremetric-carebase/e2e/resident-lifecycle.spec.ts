@@ -220,6 +220,14 @@ test.describe("resident lifecycle journey", () => {
     });
     if (enrollError || !enrollment) throw enrollError ?? new Error("MFA enrollment returned nothing");
     mfaSecret = enrollment.totp.secret;
+    // Verify the factor NOW, api-side, exactly as the role suite does. An enrolled-but-unverified
+    // factor is a different state: /account/security offers the enrollment flow for it, not the
+    // "Authenticator code" verify input the browser step drives -- which cost a round to learn.
+    const { error: verifyError } = await adminAuthClient.auth.mfa.challengeAndVerify({
+      factorId: enrollment.id,
+      code: totpCode(mfaSecret),
+    });
+    if (verifyError) throw verifyError;
     await adminAuthClient.auth.signOut();
   });
 
