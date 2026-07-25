@@ -97,7 +97,7 @@ begin
   -- happened.
   if v_requirement.id is not null
     and not (p_response = any(v_requirement.acceptable_completion_responses)) then
-    raise exception 'Response % is not accepted for this service' using errcode = '22023';
+    raise exception 'Response % is not accepted for this service', p_response using errcode = '22023';
   end if;
 
   v_status := case p_response
