@@ -47,15 +47,21 @@ const MB_PER_SECOND_SLIDE = 0.04;
 const CHARS_PER_SECOND = 17.5;
 const POLL_INTERVAL_MS = 20_000;
 const POLL_TIMEOUT_MS = 45 * 60_000;
-// Credits do not price a slide minute like an avatar minute either. 178/min came
-// off an avatar-only render (~427 credits for 2.4 minutes) and, applied to a
-// whole deck, over-estimated infection control by 72% -- 4,041 projected against
-// 2,353 actually spent on 8.4 avatar minutes and 14.5 slide minutes. Holding the
-// avatar rate fixed puts slides near 59/min, which is one measurement solving for
-// one unknown, so treat the slide figure as approximate and re-derive it from the
-// balance before and after the next deck.
-const CREDITS_PER_MINUTE_AVATAR = 178;
-const CREDITS_PER_MINUTE_SLIDE = 59;
+// Credits do not price a slide minute like an avatar minute. These are solved
+// from two complete decks rather than guessed -- two measurements for two
+// unknowns:
+//
+//   infection control   8.4 avatar + 14.5 slide  =  2,353 credits
+//   safe management     9.0 avatar + 14.2 slide  =  2,459 credits
+//
+// which gives 199.9 and 46.5, and reproduces both totals to the credit. The
+// earlier single blended rate of 178/min came off an avatar-only render and
+// over-projected infection control by 72%.
+//
+// Re-derive these if HeyGen changes pricing: the balance before and after any
+// deck plus its avatar/slide split is one equation, and two decks pin it down.
+const CREDITS_PER_MINUTE_AVATAR = 200;
+const CREDITS_PER_MINUTE_SLIDE = 47;
 
 function fail(message) {
   console.error(`\n✖ ${message}\n`);

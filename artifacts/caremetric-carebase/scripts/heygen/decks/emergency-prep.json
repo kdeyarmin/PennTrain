@@ -1,0 +1,137 @@
+{
+  "course": "PA-DHS-STANDALONE-EMERGENCY-PREP",
+  "slides": "emergency-prep-slides.json",
+  "note": "Ten studio blocks, same shape as the three decks before it. Each stays near three minutes so its file clears the ~50MB storage re-host. Kevin's three existing segments are reused by scriptFile rather than duplicated here; the narration written inline covers what those three do not — the first sixty seconds before anyone knows what the event is, shelter versus evacuate, what a long event turns into, and why an emergency is hardest on residents with dementia. Deliberately the shortest of the four decks: it was built against a 2,225-credit balance, so it targets the low end of the twenty-to-thirty-minute range rather than the middle.",
+  "blocks": [
+    {
+      "id": "ep-b1-plan",
+      "title": "The emergencies that do not sound an alarm",
+      "scenes": [
+        { "type": "slide", "slide": "ep-title", "duration": 5 },
+        { "type": "avatar", "scriptFile": "inservice-emergency-prep-1.txt" }
+      ]
+    },
+    {
+      "id": "ep-b2-first",
+      "title": "The first sixty seconds",
+      "scenes": [
+        { "type": "slide", "slide": "ep-sec-first", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-first",
+          "script": "Let me start somewhere the written plan does not, because the plan tends to begin at the point where somebody already knows what is happening.\n\nReal events do not start there. They start with a noise, or the lights going, or somebody half-shouting something down the hall that you did not catch. And for the first minute nobody knows what this is.\n\nSo here is what you do in that minute, in this order, and it is the same order regardless of what the thing turns out to be.\n\nLook. Is anybody in danger right now, in front of you. Not in general — right now. That answer changes everything and it takes two seconds to get.\n\nSay it out loud. Get one other human being moving. The single most common failure in the first minute is a person quietly working out what is going on while nobody else knows anything is happening at all.\n\nGo to your assignment. Not toward the noise. I am going to come back to this because it is the one people get wrong.\n\nAccount for the residents you are responsible for. Not the building. Yours.\n\nAnd report what you saw. Not what you think it means. There is water coming from under the door of two-fourteen is useful. I think a pipe burst is a guess, and if you are wrong you have sent people to the wrong problem.\n\nThat is the whole first minute. Notice there is no step in there that requires you to know what is happening, which is deliberate, because you will not."
+        }
+      ]
+    },
+    {
+      "id": "ep-b3-assignment",
+      "title": "Staying in your role, including when something else happens",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ep-toward-noise",
+          "script": "So, walking toward the noise.\n\nEvery instinct you have says go where the problem is. It is a decent instinct and in an emergency it is wrong, and it is wrong in a way that is genuinely hard to see from the inside.\n\nHere is what it looks like. Something happens at the east end. Four staff members converge on it, because all four of them are conscientious people who want to help. And now there are four people looking at one problem that needed maybe two, and the west hallway has nobody, and the rooms down there do not get opened.\n\nNobody did anything selfish. Everybody did the caring thing. And a resident who cannot get out of bed on her own spent the whole event with nobody checking on her.\n\nYour assignment is boring. It is a list of rooms, and on most nights it means nothing at all. It is also the entire system, because it is the only thing that guarantees every single room has somebody whose job it is to open that door.\n\nSo the discipline is: go to your rooms first. Clear them. Then make yourself available to whoever is running it, and go where they send you.\n\nIf you genuinely cannot remember what your assignment is for the shift you normally work — and plenty of people cannot, honestly — that is the single most useful thing you could go find out this week. Not during. This week."
+        },
+        {
+          "type": "slide",
+          "slide": "ep-role",
+          "script": "And the same discipline holds when a second thing lands inside the first, which happens more than you would like.\n\nThe power is out and a resident collapses. There is weather coming and somebody turns up at the front door who should not be there. Two problems at once, and the second one is louder and more frightening than the one you were already managing.\n\nYour role does not change because the night got worse.\n\nA medical emergency is still a medical emergency. It gets the nurse, it gets the call, it gets whatever your building's process is — and it gets those things immediately rather than after you have finished forming an opinion about what is wrong. Same rule as everything else in this course. Notify, do not investigate.\n\nA security event is the one where instinct is most likely to get somebody hurt. Distance, doors, and tell somebody. You are not there to confront anybody, you are not there to work out whether they are actually a threat, and you are certainly not there to go and look. Put something solid between the residents and the problem, and get the information to the people whose job that is.\n\nAnd underneath both: do not leave your assignment to go help somewhere else. I know how that sounds when you can hear something happening two halls over. But your rooms are still your rooms, and the fastest way for a bad night to turn into a genuinely terrible one is for the second emergency to pull every remaining person off the first."
+        }
+      ]
+    },
+    {
+      "id": "ep-b4-move",
+      "title": "Shelter or evacuate, and what moving costs",
+      "scenes": [
+        { "type": "slide", "slide": "ep-sec-move", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-shelter-evac",
+          "script": "There are broadly two things that can be asked of you. Stay put and make where you are safer, or move people somewhere else. Somebody above you makes that call. What you need is to know what each one actually involves, so you are not working it out cold.\n\nSheltering in place. Interior rooms, away from glass, which in most buildings means hallways and bathrooms rather than resident rooms with a big window. And bring things with you — water, whatever medications are due, and the resident list. People remember the residents and forget that the residents are going to need things in an hour.\n\nEvacuating. The word makes everybody picture the parking lot, and that is usually the last resort rather than the first. Horizontal first: move people past a set of fire doors into another part of the same floor. That is faster, it is safer, and it is very often enough.\n\nDown a floor only if you have to, because with no elevator that becomes slow and physical and genuinely dangerous for everybody involved, staff included.\n\nAnd either way, both ends of it: count before you move and count after. A move is precisely where somebody gets lost, because the reference point everybody was using — which room they are in — has just stopped existing."
+        },
+        {
+          "type": "slide",
+          "slide": "ep-move-cost",
+          "script": "One more thing about moving, and I want to be honest rather than encouraging.\n\nIt takes far longer than you think. Not a bit longer. Multiples.\n\nPicture your hallway. Count how many of those residents can stand up, walk at a normal pace, and follow an instruction the first time. In most buildings that is a minority. Everybody else needs a walker, or a wheelchair, or two people, or several minutes of persuading before they will go anywhere at all — and that is on an ordinary Tuesday, not with alarms going.\n\nSo if there is any warning at all — weather, mostly, which is the one emergency that phones ahead — start early. Start when it still feels premature.\n\nAnd if you started and it turns out you did not need to, that is fine. Standing down costs you an apology and some grumbling. Starting late costs something you cannot apologize for.\n\nI have never once heard anybody say we moved too soon. I have heard the other one."
+        }
+      ]
+    },
+    {
+      "id": "ep-b5-utilities",
+      "title": "Power, heat, cold, water, weather, and a missing resident",
+      "scenes": [
+        { "type": "slide", "slide": "ep-sec-power", "duration": 4 },
+        { "type": "avatar", "scriptFile": "inservice-emergency-prep-2.txt" }
+      ]
+    },
+    {
+      "id": "ep-b6-power",
+      "title": "What leaves when the power leaves",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ep-power-takes",
+          "script": "Let me make the power one concrete, because it is by a distance the most likely thing on this list to actually happen to you.\n\nWhen the power goes, here is what goes with it.\n\nOxygen concentrators. CPAPs. Feeding pumps. Those are the ones where minutes count, and they are why you go to those residents first.\n\nHeat and cooling, which in February or August becomes its own emergency inside a couple of hours, especially for people who cannot tell you they are cold.\n\nThe medication fridge. Insulin has a clock on it.\n\nElevators, which is what turns a two-floor building into two separate buildings.\n\nElectronic door locks, and you want to know now which way yours fail — some fail open, some fail locked, and both of those are a problem you would rather have thought about in advance.\n\nCall bells, in a lot of buildings. Which means the residents who most need to reach you have just quietly lost the ability to, and they will not know that. Somebody has to physically walk the hall.\n\nAnd the computer with the resident list on it. Which is why a printed list exists, and why it matters that it is current."
+        },
+        {
+          "type": "slide",
+          "slide": "ep-generator",
+          "script": "Which brings me to the question I would most like every person in this building to be able to answer, and that almost nobody can.\n\nWhat does your generator actually cover?\n\nNot whether you have one. Most buildings have one. Which outlets come back on.\n\nBecause a generator is not the building getting its power back. It is a specific list of circuits, decided by somebody years ago, and in most buildings the red outlets are on it and the ordinary ones are not. So a resident whose concentrator is plugged into a beige outlet three feet from a red one has an oxygen problem in about four minutes, and the staff member standing there will reasonably think the generator has failed.\n\nIt has not failed. It is doing exactly what it was built to do, and nobody told the person at the bedside where the line was drawn.\n\nSo go look. Walk your hall, find the outlets that are on the emergency circuit, and know which of your residents are plugged into them and which are not. It is a ten-minute job on a quiet shift, and it is genuinely one of the highest-value ten minutes you will ever spend in this work."
+        }
+      ]
+    },
+    {
+      "id": "ep-b7-people",
+      "title": "The residents this is hardest on",
+      "scenes": [
+        { "type": "slide", "slide": "ep-sec-people", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-dementia",
+          "script": "Now the part that tends to get left out entirely, which is what an emergency does to a resident with dementia.\n\nThink about what we introduce. Alarms. Radios. Raised voices. Flashlight beams swinging around a dark hallway. Strangers in helmets and heavy gear. And everybody moving fast, including the staff they know.\n\nFor somebody who is already working hard to make sense of an ordinary morning, that is not an emergency. It is a completely incomprehensible world that has replaced the one they were in a minute ago. And the response to that is not cooperation. It is bolting, or freezing, or fighting whoever puts a hand on them.\n\nSo a few things help, and they are cheap.\n\nOne familiar face beats four efficient ones. If a resident has somebody they respond to, send that person and keep the others out.\n\nGet down, get close, use their name, one instruction at a time. Everything from the de-escalation course applies here and applies harder.\n\nDo not rush them physically if there is any way around it. Rushing is what breaks it.\n\nAnd when the responders arrive, tell them. This gentleman has dementia, he will not follow you, he needs somebody with him. That is a thirty-second handover that changes how the next ten minutes go."
+        },
+        {
+          "type": "slide",
+          "slide": "ep-electricity",
+          "script": "And then the shortest, most important homework in this course.\n\nKnow, by name, which of your residents need electricity to stay well. Not roughly. By name.\n\nOxygen, and how many hours a full tank actually buys — which is a number you should know rather than guess. CPAP, a ventilator, suction. Feeding pumps and IV pumps. Refrigerated medication, insulin above all. And anybody whose lift is electric, because if that lift stops, getting them out of bed just became a two-person manual job that nobody has budgeted time for.\n\nThat list is short in most buildings. Four people. Six. It is completely learnable, and the whole point is that on the night it matters you do not look it up. You already know, and you are walking toward those rooms while everybody else is still working out what happened."
+        }
+      ]
+    },
+    {
+      "id": "ep-b8-count",
+      "title": "The count, the chain, the record, and the drill",
+      "scenes": [
+        { "type": "slide", "slide": "ep-sec-count", "duration": 4 },
+        { "type": "avatar", "scriptFile": "inservice-emergency-prep-3.txt" }
+      ]
+    },
+    {
+      "id": "ep-b9-long",
+      "title": "When it does not end in an hour",
+      "scenes": [
+        { "type": "slide", "slide": "ep-sec-long", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ep-long",
+          "script": "Almost all of this training, everywhere, is about the first hour. I want to spend a minute on hour three, because a long event is a completely different animal and nobody prepares for it.\n\nAt hour three, the emergency has stopped being the emergency. Ordinary life is the emergency. Because meals still come due. Medications still come due, on a schedule that does not care that the power is out. People still need the bathroom, and if the lifts are down that is now a two-person job every single time.\n\nBackup oxygen is running down on its own schedule and does not care how busy you are.\n\nThe relief shift may not be able to get in. That is the one that surprises people. If the roads are the reason you are in this situation, the roads are also why nobody is coming to take over, and you may be there considerably longer than you planned to be.\n\nAnd you will be tired. Tired people skip counts and stop writing things down. Both of those are exactly what you cannot afford in hour three.\n\nSo: say early when you are running low on something. Not when you run out — when you can see it coming. Water, batteries, oxygen, staff. Somebody upstream can often solve a problem two hours out that they cannot solve at all once it has arrived."
+        },
+        {
+          "type": "slide",
+          "slide": "ep-drill",
+          "script": "And the last thing, which is really about the ninety-nine percent of the time when nothing is happening at all.\n\nThe drill is the training. It is the only chance you get to find out what does not work while it is still safe to find out.\n\nWhich means the useful drill is the one where things go wrong. The stairwell door that sticks. The flashlight with dead batteries. The list that turned out to be three admissions out of date. Nobody knowing who was supposed to meet the ambulance at the door.\n\nSay all of it in the debrief. Out loud, specifically, including the part that makes your own shift look slow.\n\nThat is not complaining and it is not throwing a coworker under a bus. That is the entire product of the exercise. A drill that surfaces four broken things has done its job perfectly. A drill where everybody says it went fine has told you nothing, and it has told you nothing in a way that feels reassuring, which is the worst combination available."
+        }
+      ]
+    },
+    {
+      "id": "ep-b10-close",
+      "title": "What to carry out of this course",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ep-close",
+          "script": "So here is what I would have you take out of this hour.\n\nYour building's written plan beats anything I have said, and it should, because I do not know your building and it does. Go read it, and go find out what your job is in it for the shift you actually work.\n\nBut what I want you to carry is smaller than the plan, because at two in the morning nobody is reading a binder.\n\nKnow your building. The shutoffs, the flashlights, what the doors do when the power drops, which outlets the generator comes back on.\n\nKnow which of your residents need something to stay alive, by name.\n\nAnd know your assignment, so that when everybody else walks toward the noise, your rooms still get opened.\n\nBecause in every one of these, how it goes depends far less on the binder than on what the person standing in that hallway already knows. Tonight, that is you."
+        }
+      ]
+    }
+  ]
+}

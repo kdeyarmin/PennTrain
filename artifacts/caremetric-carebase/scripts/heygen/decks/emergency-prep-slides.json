@@ -1,0 +1,206 @@
+[
+  {
+    "id": "ep-title",
+    "kind": "title",
+    "eyebrow": "Annual in-service",
+    "title": "Emergency Preparedness Beyond Fire",
+    "subtitle": "For staff at Pennsylvania personal care homes and assisted living facilities. 55 Pa. Code 2600.65(g)(2) and 2800.65(j)(2).",
+    "footerRight": "One hour · Annual"
+  },
+  {
+    "id": "ep-sec-first",
+    "kind": "section",
+    "eyebrow": "Part one",
+    "title": "The first sixty seconds, before you know what this is",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-first",
+    "kind": "points",
+    "eyebrow": "In this order, every time",
+    "title": "What you do before you understand it",
+    "points": [
+      "Look. Is anyone in danger right now?",
+      "Say it out loud — get one other person moving",
+      "Go to your assignment, not toward the noise",
+      "Account for the residents you are responsible for",
+      "Report what you saw, not what you concluded"
+    ],
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-toward-noise",
+    "kind": "rule",
+    "eyebrow": "The most common mistake in a real event",
+    "quote": "Everybody walks toward the noise, and a hallway nobody was assigned to goes unchecked.",
+    "attribution": "Your assignment is boring and it is the whole system. Four people at the interesting end of the building is four rooms nobody opened.",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-role",
+    "kind": "points",
+    "eyebrow": "A resident collapses, or somebody is at the door",
+    "title": "When a second emergency lands inside the first",
+    "points": [
+      "Your role does not change because the night did",
+      "Notify — do not investigate, and do not go look",
+      "A medical event still gets the nurse, not you",
+      "Security: distance, doors, and tell somebody",
+      "Never leave your assignment to go help elsewhere"
+    ],
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-sec-move",
+    "kind": "section",
+    "eyebrow": "Part two",
+    "title": "Staying put, or moving — and what moving actually costs",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-shelter-evac",
+    "kind": "points",
+    "eyebrow": "Somebody above you makes this call",
+    "title": "The two options, and what each needs",
+    "points": [
+      "Shelter: interior rooms, away from glass",
+      "Shelter: bring water, meds, the resident list",
+      "Evacuate: horizontal first — past fire doors",
+      "Evacuate: down a floor only if you must",
+      "Either way: count before, and count after"
+    ],
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-move-cost",
+    "kind": "rule",
+    "eyebrow": "Be honest about the arithmetic",
+    "quote": "Moving a building full of people with walkers takes longer than the warning gives you.",
+    "attribution": "Start early and stand down if you were wrong. Standing down costs an apology. Starting late costs something else.",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-sec-power",
+    "kind": "section",
+    "eyebrow": "Part three",
+    "title": "The utilities, and who they take down with them",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-power-takes",
+    "kind": "points",
+    "eyebrow": "It is never just the lights",
+    "title": "What leaves when the power leaves",
+    "points": [
+      "Oxygen concentrators, CPAPs, feeding pumps",
+      "Heat, cooling, and the medication fridge",
+      "Elevators, and the electronic door locks",
+      "Call bells, in a lot of buildings",
+      "The computer holding your resident list"
+    ],
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-generator",
+    "kind": "rule",
+    "eyebrow": "Find this out tonight, not that night",
+    "quote": "Which outlets does your generator actually come back on?",
+    "attribution": "That single fact is the difference between an oxygen concentrator that keeps running and one that does not. Almost nobody can answer it until the night it matters.",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-sec-people",
+    "kind": "section",
+    "eyebrow": "Part four",
+    "title": "The residents this is hardest on",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-dementia",
+    "kind": "points",
+    "eyebrow": "Dark, loud, crowded, strangers",
+    "title": "Why an emergency hits dementia hardest",
+    "points": [
+      "Alarms and radios remove what little quiet helped",
+      "Flashlights in a dark hall read as threat",
+      "Strangers in gear are not recognizable as help",
+      "Being rushed is the fastest way to lose them",
+      "One familiar face beats four efficient ones"
+    ],
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-electricity",
+    "kind": "points",
+    "eyebrow": "Know these people by name, now",
+    "title": "Who needs power to stay well",
+    "points": [
+      "Oxygen — and how many hours the tank buys",
+      "CPAP, ventilator, suction",
+      "Feeding pumps and IV pumps",
+      "Refrigerated medication, insulin especially",
+      "Anyone whose lift is electric"
+    ],
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-sec-count",
+    "kind": "section",
+    "eyebrow": "Part five",
+    "title": "The count, and the things that go up the chain",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-count",
+    "kind": "rule",
+    "eyebrow": "The most valuable thing you can hand a responder",
+    "quote": "An unexplained empty bed gets treated as a person still inside.",
+    "attribution": "So report the resident at the podiatrist by name and where she is. Otherwise crews search a room for somebody who was never in the building.",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-families",
+    "kind": "rule",
+    "eyebrow": "The hardest instruction in this course",
+    "quote": "Do not call families, and do not post anything.",
+    "attribution": "Privacy does not take the night off. Notification comes from administration so every family gets the same true thing, instead of six half-versions from six people.",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-sec-long",
+    "kind": "section",
+    "eyebrow": "Part six",
+    "title": "When it does not end in an hour",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-long",
+    "kind": "points",
+    "eyebrow": "Hour three is a different problem",
+    "title": "What a long event turns into",
+    "points": [
+      "Meals, medications, and toileting still come due",
+      "Backup oxygen runs down on its own schedule",
+      "The relief shift may not be able to get in",
+      "You will be tired, and tired people skip counts",
+      "Say early that you are running out of something"
+    ],
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-drill",
+    "kind": "rule",
+    "eyebrow": "What a drill is actually for",
+    "quote": "The silent drill where everything went fine is the one that lied to you.",
+    "attribution": "The stuck door, the dead flashlight, the out-of-date list — say all of it in the debrief. That is the drill doing its job, not complaining.",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  },
+  {
+    "id": "ep-close",
+    "kind": "rule",
+    "eyebrow": "What to carry out of this course",
+    "quote": "How this goes depends far less on the binder than on what the person standing in that hallway already knows.",
+    "attribution": "Tonight that is you. Know your building, know who needs something to stay alive, and know your assignment.",
+    "footerRight": "Emergency Preparedness Beyond Fire"
+  }
+]
