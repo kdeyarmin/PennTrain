@@ -61,24 +61,31 @@ improvement whenever there is one to tell.
    render fails with `MOVIO_PAYMENT_INSUFFICIENT_CREDIT` when it is empty, and
    the failure arrives asynchronously on the job, not on the submit call.
 
-## Re-rendering a segment
+## Rendering
 
-Render from the same script, then point the block's `body.heygen` at the new
-`video_id` with status `processing` and leave `video_url` on the deterministic
-re-host path — the `poll-heygen-video-statuses` cron fills in the file within
-five minutes. `20260724044044_rewire_orientation_videos_after_credit_topup.sql`
-is the pattern.
+`scripts/heygen/render-course-videos.mjs` renders these with the right avatar
+and voice, checks every script against both limits before spending anything,
+and prints a video id per segment. It deliberately does not download the files —
+the `poll-heygen-video-statuses` cron re-hosts them into the `course-videos`
+bucket.
 
 ```
-HEYGEN_API_KEY=... \
-HEYGEN_AVATAR_ID=3fd2086f9f31438cb28ae57134b6affa \
-HEYGEN_VOICE_ID=e27fe997edb94c61b755e8f4c563fe5b \
-HEYGEN_NO_BACKGROUND=1 \
-SCRIPT_FILE=scripts/heygen/scripts/inservice-infection-control-1.txt \
-OUTPUT_BASENAME=inservice-infection-control-1 \
-  node scripts/heygen/generate-landing-video.mjs
+# price the run and validate the scripts, no credits spent
+node scripts/heygen/render-course-videos.mjs --dry-run
+
+# render every in-service segment
+HEYGEN_API_KEY=... node scripts/heygen/render-course-videos.mjs
+
+# or just the ones that failed last time
+HEYGEN_API_KEY=... node scripts/heygen/render-course-videos.mjs \
+  scripts/heygen/scripts/inservice-safe-management-1.txt
 ```
 
-That script also downloads the MP4 to `public/marketing/`; for a course block,
-take the `video_id` it prints and let the course pipeline do the re-hosting
-rather than committing the file.
+Then point each block's `body.heygen` at its new `video_id` with status
+`processing`, leaving `video_url` on the deterministic re-host path.
+`20260724044044_rewire_orientation_videos_after_credit_topup.sql` is the
+pattern for an already-published course.
+
+`generate-landing-video.mjs` is the sibling script for marketing videos; it
+downloads an MP4 into `public/marketing/`, which is not what a course block
+wants.
