@@ -183,5 +183,60 @@
         }
       ]
     }
-  ]
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "falls-b1-why": {
+        "video_id": "4bca5132db184869aa9dd5d960b44672",
+        "seconds": 146,
+        "mb": 27.3
+      },
+      "falls-b2-meds": {
+        "video_id": "65e1e4bf6abd47a685aefa2fc65b7301",
+        "seconds": 100,
+        "mb": 3.4
+      },
+      "falls-b2b-acute": {
+        "video_id": "c674ad3d3b114ef79333d943bf54ea30",
+        "seconds": 84,
+        "mb": 2.8
+      },
+      "falls-b3-baseline": {
+        "video_id": "cf969b1ecb0648428daff588311212b6",
+        "seconds": 170,
+        "mb": 12.7
+      },
+      "falls-b4-fifteen": {
+        "video_id": "0296507bf79843dda1e7bc6b1825b54d",
+        "seconds": 146,
+        "mb": 27.7
+      },
+      "falls-b5-room": {
+        "video_id": "442cba3efdd84dfc9a219d3632f89746",
+        "seconds": 140,
+        "mb": 4.8
+      },
+      "falls-b6-transfers": {
+        "video_id": "6ad9f0608822488db1668ca800de0724",
+        "seconds": 126,
+        "mb": 4.3
+      },
+      "falls-b7-after": {
+        "video_id": "0b0f824712f3490dbe8c5e639ba53c87",
+        "seconds": 150,
+        "mb": 28.6
+      },
+      "falls-b8-document": {
+        "video_id": "67d285a032f94a1a848cc5d6ff767764",
+        "seconds": 140,
+        "mb": 4.7
+      },
+      "falls-b9-close": {
+        "video_id": "5d07de3c8ddf471d831a0ffe6477a5dd",
+        "seconds": 70,
+        "mb": 8.6
+      }
+    }
+  }
 }
