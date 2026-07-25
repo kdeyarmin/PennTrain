@@ -1092,7 +1092,39 @@ but that is unchanged by this work — measured against a clean tree — and rem
 again: fifteen columns on `incidents`, the `incident_pathways` table, `resident_assessment_reviews.
 incident_id`, and six functions.
 
-**Remaining in Phase 6:** 6c (trends) and 6d (QAPI recommendations and the meeting packet).
+### Phase 6c/6d — Trends and QAPI recommendations
+
+| Delivered | Detail |
+| --- | --- |
+| Drillable trends | `incidentTrends.ts` — falls by shift, location and resident; injuries by kind; medication events; elopement; behavioral events; emergency transfers; recurring root causes; repeat residents; overdue investigations; corrective-action effectiveness |
+| Every figure opens its records | A `TrendBucket` is a list of incident ids that knows its own size, not a count with a label. Nothing in the UI displays a number that cannot be clicked through to the incidents behind it |
+| Recommendations, not scores | `qapiRecommendations.ts` — eight patterns, each carrying the threshold it crossed, the records that crossed it, and a drafted problem statement. A test asserts no numeric field ever appears on a recommendation |
+| Real duplicate prevention | `qapi_projects.pattern_key` with a partial unique index, mirroring the existing `(source_type, source_id)` dedupe that incident escalation uses. A pattern has no uuid to put in `source_id`, which is why it needed its own column |
+| Meeting packet | The trends and recommendations render as a print view off the QAPI dashboard, using plain CSS bars rather than a chart library so the printed page matches the screen |
+
+**Why the grouping is in TypeScript rather than SQL.** An aggregation RPC would have had to return
+the source ids anyway to stay drillable — at which point it is the same payload with the logic moved
+somewhere that cannot be unit-tested. Incidents are low-volume, so `get_incident_trend_records`
+returns the rows for a bounded window (730 days maximum, so a mistyped date cannot ask for the whole
+register) and the grouping happens under test.
+
+**Two judgment calls worth naming.** A shift is only blamed for falls when it clears the count
+threshold *and* holds more than half of them — without the second condition a busy quarter
+recommends a staffing project for whichever shift happens to be largest. And a closed QAPI project
+does not suppress its pattern: if the problem is still happening after the project closed, that is
+exactly when somebody needs to see it again.
+
+**Thresholds are exported constants** (`QAPI_THRESHOLDS`), because three falls in ninety days is a
+defensible starting point rather than a law, and a bare integer buried in a call frame cannot be
+argued with in review.
+
+**Verified:** typecheck clean; 844 tests pass (46 new across `incidentTrends` and
+`qapiRecommendations`); build succeeds; every bundle budget passes. `create_qapi_project` was
+re-declared to accept the pattern key with its old 12-argument signature dropped *first*, since an
+added defaulted parameter creates an overload and would make every existing 12-argument call
+ambiguous while both existed.
+
+**Phase 6 is now complete.** Phase 7 (universal work queue and the merged home surface) is next.
 
 ## 6. What to do first
 

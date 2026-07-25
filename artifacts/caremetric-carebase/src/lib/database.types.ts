@@ -20609,6 +20609,7 @@ export type Database = {
           measurable_objective: string | null
           measurement_frequency: string | null
           organization_id: string
+          pattern_key: string | null
           planned_interventions: string | null
           problem_statement: string
           project_lead_profile_id: string | null
@@ -20644,6 +20645,7 @@ export type Database = {
           measurable_objective?: string | null
           measurement_frequency?: string | null
           organization_id: string
+          pattern_key?: string | null
           planned_interventions?: string | null
           problem_statement: string
           project_lead_profile_id?: string | null
@@ -20679,6 +20681,7 @@ export type Database = {
           measurable_objective?: string | null
           measurement_frequency?: string | null
           organization_id?: string
+          pattern_key?: string | null
           planned_interventions?: string | null
           problem_statement?: string
           project_lead_profile_id?: string | null
@@ -35151,6 +35154,7 @@ export type Database = {
           p_baseline_data: string
           p_facility_id: string
           p_measurable_objective: string
+          p_pattern_key?: string
           p_problem_statement: string
           p_project_lead: string
           p_source_id?: string
@@ -36021,6 +36025,10 @@ export type Database = {
           p_status?: string
           p_today?: string
         }
+        Returns: Json
+      }
+      get_incident_trend_records: {
+        Args: { p_facility_id: string; p_from: string; p_to: string }
         Returns: Json
       }
       get_integration_control_plane: {
