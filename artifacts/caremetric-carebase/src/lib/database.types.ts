@@ -23359,6 +23359,136 @@ export type Database = {
           },
         ]
       }
+      resident_assessment_reviews: {
+        Row: {
+          answers: Json
+          assessor_name: string | null
+          assessor_profile_id: string | null
+          assessor_signed_at: string | null
+          clinical_reviewed_at: string | null
+          clinical_reviewer_profile_id: string | null
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          hospital_episode_id: string | null
+          id: string
+          organization_id: string
+          resident_id: string
+          review_date: string
+          status: string
+          superseded_by_id: string | null
+          template_key: string
+          template_version: number
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          assessor_name?: string | null
+          assessor_profile_id?: string | null
+          assessor_signed_at?: string | null
+          clinical_reviewed_at?: string | null
+          clinical_reviewer_profile_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id: string
+          hospital_episode_id?: string | null
+          id?: string
+          organization_id: string
+          resident_id: string
+          review_date?: string
+          status?: string
+          superseded_by_id?: string | null
+          template_key: string
+          template_version: number
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          assessor_name?: string | null
+          assessor_profile_id?: string | null
+          assessor_signed_at?: string | null
+          clinical_reviewed_at?: string | null
+          clinical_reviewer_profile_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string
+          hospital_episode_id?: string | null
+          id?: string
+          organization_id?: string
+          resident_id?: string
+          review_date?: string
+          status?: string
+          superseded_by_id?: string | null
+          template_key?: string
+          template_version?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_assessment_reviews_assessor_profile_id_fkey"
+            columns: ["assessor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_clinical_reviewer_profile_id_fkey"
+            columns: ["clinical_reviewer_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_hospital_episode_id_fkey"
+            columns: ["hospital_episode_id"]
+            isOneToOne: false
+            referencedRelation: "hospital_transfer_episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_superseded_by_id_fkey"
+            columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "resident_assessment_reviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_census_events: {
         Row: {
           actor_profile_id: string | null
@@ -35230,6 +35360,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      finalize_resident_assessment_review: {
+        Args: {
+          p_assessor_name: string
+          p_review_id: string
+          p_supersedes_review_id?: string
+        }
+        Returns: boolean
+      }
       finalize_signup_attempt: {
         Args: {
           p_attempt_id: string
@@ -36676,6 +36814,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_assessment_review_clinical_review: {
+        Args: { p_review_id: string }
+        Returns: boolean
+      }
       record_change_event_notification: {
         Args: {
           p_contact: string
@@ -37925,6 +38067,18 @@ export type Database = {
       save_resident_administrative_master: {
         Args: { p_contacts?: Json; p_profile: Json; p_resident_id: string }
         Returns: boolean
+      }
+      save_resident_assessment_review: {
+        Args: {
+          p_answers: Json
+          p_hospital_episode_id?: string
+          p_resident_id: string
+          p_review_date?: string
+          p_review_id?: string
+          p_template_key: string
+          p_template_version: number
+        }
+        Returns: string
       }
       save_resident_care_profile: {
         Args: { p_profile: Json; p_resident_id: string }

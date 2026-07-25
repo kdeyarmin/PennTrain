@@ -857,10 +857,43 @@ budget passes with the resident route unchanged at 50.3 KiB. Phase 1's CI ran gr
 including the `database` job that replays migrations and regenerates types — confirming the
 hand-written `database.types.ts` entries matched the generator.
 
-**Still outstanding in Phase 2:** the template engine (2b) — generalizing
-`residentAssessmentFormSchema.ts` from two hard-coded form types into ten governed templates with
-conditional questions, inline guidance, and per-template signature rules. Phase 3's field-level
-conflict detection depends on it, so it is the next slice.
+### Phase 2b — template engine delivered; Phase 2 complete
+
+**Scope decision: extend, do not rewrite.** The plan said "generalize
+`residentAssessmentFormSchema.ts` from two hard-coded form types into a governed template model".
+Doing that literally would have rewritten the one state-form workflow that already works — 899 lines
+faithfully modelling the DHS RASP/ASP, driving the editor, the prefill tools, and PDF generation —
+for no gain, because that file's shape is dictated by DHS, not by us.
+
+`assessmentTemplates.ts` therefore sits alongside it, and templates come in two kinds. The split is
+a real distinction, not an accident:
+
+- **`state_form_backed`** (initial, annual, significant-change, support plan) — these *are* the
+  RASP/ASP. The template records their governance (citation, participation, signature rules,
+  version, effective date) and defers content to the existing schema. Their `sections` are
+  deliberately empty, and a test enforces that so nobody starts a second definition of the DHS form.
+- **`internal_review`** (pre-admission, hospital return, cognitive/behavioral, mobility/fall,
+  nutritional, continence) — no DHS form prescribes these. They define their own typed fields.
+
+| Delivered | Notes |
+| --- | --- |
+| Ten governed templates | Required fields, conditional questions, inline PA guidance, source regulation, signature rules, version and effective dates |
+| `resident_assessment_reviews` | Own table for the six internal reviews, rather than forcing them into `resident_assessment_forms` whose content shape is the RASP/ASP. Template version pinned at creation so a later revision cannot change what was asked; one draft per resident per template; a finalized review is superseded, never edited |
+| Validation | Lives in the template definition and runs before finalize. `finalize_resident_assessment_review` deliberately does **not** re-implement it in SQL — one source of what "complete" means. The signature and status invariants that make the record evidence *are* enforced in the table's check constraints |
+| Clinical review | `record_assessment_review_clinical_review` rejects the assessor signing as their own second reviewer |
+
+**The Phase 3 hand-off is the point of the typed fields.** Conflict detection has to compare an
+assessment answer against the care header ("assessment says two-person transfer; plan says
+one-person"). That is only computable if answers live at stable keys sharing a vocabulary with the
+header. `comparesTo` is that link, `comparableAnswers()` is the accessor, and six parity tests
+assert the template option values stay identical to the coded values in `residentCareHeader.ts` —
+drift there would break every conflict rule silently.
+
+**Verified:** typecheck clean; 92 test files / 604 tests pass (37 new); build succeeds; bundle
+budget passes with the resident route at 50.4 KiB.
+
+**Phase 2 is now complete.** Phase 3 (assessment→plan→service engine, field-level conflicts,
+intervention-to-service coverage) is next and is unblocked.
 
 ## 6. What to do first
 
