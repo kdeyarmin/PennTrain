@@ -59,6 +59,10 @@ begin
 end $$;
 
 create temp table target(id uuid) on commit drop;
+-- The grant matters more than it looks. Without it every statement below that runs as `authenticated`
+-- fails with 42501 reading the temp table itself, which is indistinguishable from the authorization
+-- error this suite is trying to assert -- the org-admin case passed for entirely the wrong reason.
+grant all on target to authenticated, anon, service_role;
 insert into target select id from public.dhs_citation_topics where citation_ref is not null order by sort_order limit 1;
 
 -- "Verified" cannot be claimed without provenance -----------------------------------------------
