@@ -55,3 +55,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# HeyGen render output (video ids get written into a migration, not committed)
+rendered-segments.json
+*-blocks.json

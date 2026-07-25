@@ -51,8 +51,8 @@ select is(
       and c.status = 'published'
       and c.catalog_code is not null
   ),
-  74,
-  'the published system catalog contains 74 individually cataloged modules (73 annual, plus one one-time new-hire orientation)'
+  79,
+  'the published system catalog contains 79 individually cataloged modules (78 annual, plus one one-time new-hire orientation)'
 );
 
 select results_eq(

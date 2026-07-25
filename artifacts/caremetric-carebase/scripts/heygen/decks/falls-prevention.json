@@ -1,0 +1,242 @@
+{
+  "course": "PA-DHS-STANDALONE-FALLS-PREVENTION",
+  "slides": "falls-prevention-slides.json",
+  "note": "Nine studio blocks. Each stays near three minutes so its file clears the ~50MB storage re-host. Kevin's three existing segments are reused by scriptFile rather than duplicated here.",
+  "blocks": [
+    {
+      "id": "falls-b1-why",
+      "title": "Why a fall changes a life faster than a diagnosis",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-falls-prevention-1.txt"
+        }
+      ]
+    },
+    {
+      "id": "falls-b2-meds",
+      "title": "Medications, and the week after a change",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-sec-risk",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "falls-meds",
+          "script": "Start with what a resident is taking, because medications sit at the top of every fall-risk list anybody has ever published, and for good reason. Sleep aids and sedatives slow reaction time. Blood pressure medications drop the pressure exactly when somebody stands up, which is exactly when they need it. Diuretics do something worse than either: they cause dizziness and they send a person to the bathroom in a hurry, so you get impairment and urgency in the same body at the same time. Opioids and muscle relaxants add drowsiness on top of all of it. But here is the part that changes what you do on a shift. The danger is not steady. It spikes right after something changes. Started, stopped, dose adjusted, brand switched. A resident who is new on something is a genuinely different person this week than they were last week, and that is worth knowing before you walk in the room rather than after. One more thing about medications, and it is the kind of detail that separates staff who prevent falls from staff who report them. Look at the whole list, not the newest line on it. A resident on a sleep aid and a blood pressure medication and a diuretic is not carrying three separate small risks. Those stack, and they stack hardest in the first hours after waking, when the blood pressure medication is working and the sleep aid has not fully worn off and the bladder is full. If your building has a resident who reliably falls between five and seven in the morning, that is very often what you are looking at, and it is fixable by people above your pay grade the moment somebody writes down the pattern."
+        }
+      ]
+    },
+    {
+      "id": "falls-b2b-acute",
+      "title": "The change that arrives before the fall",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-acute",
+          "script": "Then there is the category that gets missed the most, and it is the one you can actually do something about, because every item on it is reversible if somebody catches it early. A urinary tract infection. Dehydration. Blood sugar that has dropped. Constipation, which sounds minor until you watch what it does to an older adult's balance and appetite. And pain that nobody is treating, which makes people move badly and rush. Every one of those produces weakness, or dizziness, or fog. So when a resident is suddenly unsteady, or sleepier than usual, or more confused than they were yesterday, that is not just a higher fall risk. That is a person telling you something medical is happening right now. The fall is only how the rest of the building finds out, if nobody says anything first. I want to be concrete about how this shows up, because it rarely arrives labeled. A woman who has walked to breakfast every morning for a year asks to stay in bed. A man who has never once been confused asks you where his wife is, and she died in 2019. Somebody who has been continent for months has two accidents in a day. None of that looks like an infection in a textbook. All of it is how an infection looks in an eighty-eight-year-old. Report the change and let somebody qualified decide what it means. You are not being asked to diagnose anything. You are being asked to notice, and to say it to a person who can act."
+        }
+      ]
+    },
+    {
+      "id": "falls-b3-baseline",
+      "title": "Baseline risk and the plan on the wall",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-baseline",
+          "script": "Underneath the things that change sits the baseline, the standing picture of who this person is. A previous fall leads that list, and it is not close. Somebody who has fallen once is the single most likely person in your building to fall again, which is why every fall has to be reported accurately even when nobody was hurt. Then muscle weakness and arthritis. Vision that is not what it was, or glasses with an old prescription. Hearing loss, which matters more than people expect, because a resident who cannot hear you coming is startled by you arriving. Blood pressure that drops on standing. And dementia, which takes judgment and takes depth perception, so a shadow on the floor can read as a step down that is not there. There is one more item that belongs on this list and almost never makes it, which is fear. A resident who has fallen once, even without an injury, often starts moving less on purpose. They sit longer. They skip the walk to the dining room. And every week of that costs real strength, which raises the odds of the next fall, which produces more fear. It is a loop, and it runs quietly, and by the time it is obvious a resident has lost months of independence to it. If you notice somebody pulling back after a scare, that is worth reporting with the same urgency as a new medication."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-fear",
+          "script": "I want to name this one on its own, because it does more damage in a building like yours than most people realize, and it never shows up in an incident report. A resident falls, is checked over, and is completely fine. No fracture, no bruise worth noting, nothing to write beyond the fall itself. And then they change. They stop going down to activities. They ask somebody to walk with them, then they stop asking and just stay in the room. Six weeks later the person who used to walk the length of the building twice a day cannot manage it once. Nothing broke. Fear did all of it, and fear is not something the resident will usually volunteer, so you find it by noticing what somebody has quietly stopped doing."
+        },
+        {
+          "type": "avatar",
+          "script": "So what do you actually do with all of that? Know what your residents' plans say, and treat those plans as live information rather than paperwork somebody filed at admission. Fall risk is not a label that gets stuck on at move-in and left there. It moves, sometimes inside a single shift. And you are the person standing close enough to notice it move. Which brings me to the part of this job I would push hardest on. When what you are seeing stops matching what is written down, say so. Out loud, to somebody who can change the plan. Not at the end of the week, not in passing on your way out the door. That gap between the written plan and the person actually in front of you is where almost every preventable fall lives."
+        }
+      ]
+    },
+    {
+      "id": "falls-b4-fifteen",
+      "title": "The fifteen seconds before you leave",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-sec-room",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-falls-prevention-2.txt"
+        }
+      ]
+    },
+    {
+      "id": "falls-b5-room",
+      "title": "The room, the bathroom, and the call bell",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-checks",
+          "script": "These six take about fifteen seconds and they prevent more falls than every piece of equipment in your building put together. Call bell in reach, and I mean actually in reach, not clipped to a sheet that got pulled to the foot of the bed. Walker or cane where they can get to it from where they are, not where it was convenient for you to park it. Water, glasses, the remote, whatever they are going to want in the next hour. Bed low enough that their feet reach the floor. Brakes locked. And a path clear enough to walk in the dark, because that is the condition it will actually be walked in. Here is why this list works. People do not usually fall doing something ambitious. They fall reaching for something somebody left out of reach. And do these on the way out, every time, not just when something feels off. The reason is that the shifts where you are most likely to skip them are the exact shifts where they matter most. When you are two people short and behind on everything, that is when a walker gets parked wherever, and that is the night somebody tries to reach it."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-hazards",
+          "script": "While you are in there, look at the room like you have never seen it before, because after a few weeks you stop seeing it at all. A wet floor with no sign on it. A spill nobody has claimed. A cord running across the middle of the room to a fan. The bathroom light that has been out for a week on the exact path somebody walks at two in the morning, which is when a very large share of these happen. A bed cranked too high, so the resident slides down to the floor to stand instead of stepping down. Socks on a hard floor. None of that requires a work order from you. It requires you to notice it and tell somebody who can fix it, before it finds the next resident. One habit worth building: when you spot something you cannot fix yourself, report it the same shift rather than at the end of the week. Burned-out lights, brakes that do not hold, a grab bar that has gone loose, flooring that has started to lift at a seam. None of that fixes itself, and every one of those items has a resident's name attached to it eventually."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-bell",
+          "script": "And then the bathroom, which deserves its own minute, because a lot of these come down to somebody who simply could not wait. Proactive rounds prevent falls. Asking instead of waiting to be asked prevents falls. And answering call bells quickly prevents falls, for a reason that is worth sitting with."
+        }
+      ]
+    },
+    {
+      "id": "falls-b6-transfers",
+      "title": "Setting up a transfer, and the line you do not cross",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-sec-transfer",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "falls-transfer-steps",
+          "script": "Helping somebody move is where the most people get hurt, on both sides of the transfer. So slow it down and set it up. Tell them what is about to happen, and wait for them to be with you before you start. Shoes on, not socks. Glasses on. Brakes locked on everything with wheels, path cleared before you begin rather than during. Let them sit on the edge of the bed for a moment before they stand, because blood pressure drops when people stand up and that alone puts residents on the floor. Then keep them close to your body, use your legs, and never lift under the arms or pull on a shoulder. And the one that gets ignored on a short shift: if the plan says two-person assist, that is two people. At three in the morning. When you are short. And when the resident swears they are fine, because their opinion does not change the assessment. And know what the resident can actually do today, which is not always what the plan said in March. Somebody who could bear weight last month may not be able to this morning, and they will often try anyway, because nobody wants to be the person who needs more help than they needed before. Watch the first few seconds of any transfer like you are prepared to stop it."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-transfer-rule",
+          "script": "Which brings us to the hardest line in this course to hold when you are alone on a hall and somebody needs help right now."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-help",
+          "script": "So here is when you go get somebody, and I want this to feel routine rather than like an admission of anything. When the plan says two people. When you have not been checked off on the lift, the sling, the sit-to-stand, or whatever else is in that room. When the resident turns out to be heavier or weaker or more unsteady than you expected when you got them to the edge of the bed. When anything about the setup has changed since the last time you did this with them. And when your gut says wait, even if you cannot articulate why, because after a while in this work your gut is reading things you have not consciously noticed yet. Every one of those is a reason to stop and get a second person. None of them is a reason to push through and hope."
+        }
+      ]
+    },
+    {
+      "id": "falls-b7-after",
+      "title": "You walk in and somebody is on the floor",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-sec-after",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-falls-prevention-3.txt"
+        }
+      ]
+    },
+    {
+      "id": "falls-b8-document",
+      "title": "Who stays down, and what you write",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-stay-down",
+          "script": "Here is the rule, and it is worth memorizing because you will be applying it under pressure with somebody embarrassed on the floor asking you to just help them up. Any sign of injury, they stay where they are. Any head strike, or any chance of one, they stay. Pain in the neck, the back, or the hip, they stay. Any loss of consciousness, they stay. And if they cannot tell you what happened, they stay. In every one of those cases you keep them still, you keep them warm, you stay with them, and you get help. The instinct to lift somebody up quickly is a kind instinct. It is also how a bad afternoon becomes an injury they do not recover from, because a broken hip moved wrong is a different outcome than a broken hip left alone. While you are waiting, there are things you can do that help. Stay with them, because being alone on a floor is frightening and frightened people try to get up. Keep them warm, since floors are cold and older adults lose heat fast. Ask what happened and listen to the whole answer. And do not fill the silence with reassurance that it is fine, because you do not know yet whether it is."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-unwitnessed",
+          "script": "Two situations deserve extra caution, and residents on blood thinners are the second one, because bleeding can build for hours behind a head that looked completely fine when you found them. No bruise right after a fall proves nothing at all."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-document",
+          "script": "Then you write it down, and you write what you saw rather than what you concluded. Where they were and in what position. What they said, in their own words, because the words often change on the second telling and that itself is information. What you found when you actually looked at them. Whether anybody witnessed it. And then the part there is a real pull not to write: the wet floor, the broken brake, the light that was out, the walker parked clear across the room. I understand the hesitation. It can feel like you are pointing at a coworker, or at the building. But nobody is helped by a report that quietly leaves it out, and that one detail is the only thing that gets the hazard fixed before it finds the next resident. And write it while it is fresh, on your shift, not from memory at the end of a double. The nurse is going to make decisions off your note, the facility is going to look for a pattern in it, and if this ever gets reviewed by somebody from the state, that note is what the building's version of events rests on."
+        }
+      ]
+    },
+    {
+      "id": "falls-b9-close",
+      "title": "What to carry out of this course",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "falls-checks",
+          "script": "Before Kevin closes this out, one recap worth carrying, because if the hour blurs together these six survive. Call bell in reach. Mobility aid where they can get it. The things they will want within arm's length. Bed low. Brakes locked. Path clear. Fifteen seconds, every room, every time. If you did nothing else differently after this course, doing that consistently would prevent more falls in your building this year than any other single change available to you."
+        },
+        {
+          "type": "slide",
+          "slide": "falls-close",
+          "script": "One last thing, and it matters more than it sounds like it does."
+        },
+        {
+          "type": "avatar",
+          "script": "Everything in this hour can be read as a case for keeping residents sitting down, and that would be the wrong lesson to take out of it. A resident who never moves gets weaker. Weaker is what causes the next fall. And the residents who stop walking after a scare, who start asking for a wheelchair to cross a hallway they used to walk, are on a path that ends somewhere nobody wants. So the goal was never no movement. It is safe movement. Your job is to make the moving they want to do as safe as you can make it, and then let them go do it. Know your residents. Do the fifteen seconds every time. Ask for the second set of hands. And when somebody is on the floor, stop, look, and get help before you lift. That is the whole course."
+        }
+      ]
+    }
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "falls-b1-why": {
+        "video_id": "4bca5132db184869aa9dd5d960b44672",
+        "seconds": 146,
+        "mb": 27.3
+      },
+      "falls-b2-meds": {
+        "video_id": "65e1e4bf6abd47a685aefa2fc65b7301",
+        "seconds": 100,
+        "mb": 3.4
+      },
+      "falls-b2b-acute": {
+        "video_id": "c674ad3d3b114ef79333d943bf54ea30",
+        "seconds": 84,
+        "mb": 2.8
+      },
+      "falls-b3-baseline": {
+        "video_id": "cf969b1ecb0648428daff588311212b6",
+        "seconds": 170,
+        "mb": 12.7
+      },
+      "falls-b4-fifteen": {
+        "video_id": "0296507bf79843dda1e7bc6b1825b54d",
+        "seconds": 146,
+        "mb": 27.7
+      },
+      "falls-b5-room": {
+        "video_id": "442cba3efdd84dfc9a219d3632f89746",
+        "seconds": 140,
+        "mb": 4.8
+      },
+      "falls-b6-transfers": {
+        "video_id": "6ad9f0608822488db1668ca800de0724",
+        "seconds": 126,
+        "mb": 4.3
+      },
+      "falls-b7-after": {
+        "video_id": "0b0f824712f3490dbe8c5e639ba53c87",
+        "seconds": 150,
+        "mb": 28.6
+      },
+      "falls-b8-document": {
+        "video_id": "67d285a032f94a1a848cc5d6ff767764",
+        "seconds": 140,
+        "mb": 4.7
+      },
+      "falls-b9-close": {
+        "video_id": "5d07de3c8ddf471d831a0ffe6477a5dd",
+        "seconds": 70,
+        "mb": 8.6
+      }
+    }
+  }
+}
