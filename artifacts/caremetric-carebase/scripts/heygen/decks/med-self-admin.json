@@ -7,15 +7,26 @@
       "id": "ms-b1-line",
       "title": "The line between supporting and administering",
       "scenes": [
-        { "type": "slide", "slide": "ms-title", "duration": 5 },
-        { "type": "avatar", "scriptFile": "inservice-med-self-admin-1.txt" }
+        {
+          "type": "slide",
+          "slide": "ms-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-med-self-admin-1.txt"
+        }
       ]
     },
     {
       "id": "ms-b2-model",
       "title": "What self-administration actually means in Pennsylvania",
       "scenes": [
-        { "type": "slide", "slide": "ms-sec-model", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ms-sec-model",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ms-model",
@@ -32,7 +43,11 @@
       "id": "ms-b3-check",
       "title": "The five rights, and the timing decision that is not yours",
       "scenes": [
-        { "type": "slide", "slide": "ms-sec-check", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ms-sec-check",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ms-rights",
@@ -49,8 +64,15 @@
       "id": "ms-b4-examples",
       "title": "The ones that actually happen, and how they start",
       "scenes": [
-        { "type": "slide", "slide": "ms-sec-handling", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-med-self-admin-2.txt" }
+        {
+          "type": "slide",
+          "slide": "ms-sec-handling",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-med-self-admin-2.txt"
+        }
       ]
     },
     {
@@ -73,7 +95,11 @@
       "id": "ms-b6-refusal",
       "title": "Refusals, and the question worth asking first",
       "scenes": [
-        { "type": "slide", "slide": "ms-sec-refusal", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ms-sec-refusal",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ms-refusal",
@@ -90,7 +116,11 @@
       "id": "ms-b7-classes",
       "title": "What these medications actually do",
       "scenes": [
-        { "type": "slide", "slide": "ms-sec-watch", "duration": 4 },
+        {
+          "type": "slide",
+          "slide": "ms-sec-watch",
+          "duration": 4
+        },
         {
           "type": "slide",
           "slide": "ms-classes",
@@ -118,8 +148,15 @@
       "id": "ms-b9-notice",
       "title": "What you notice, which matters more than the pills",
       "scenes": [
-        { "type": "slide", "slide": "ms-sec-outside", "duration": 4 },
-        { "type": "avatar", "scriptFile": "inservice-med-self-admin-3.txt" }
+        {
+          "type": "slide",
+          "slide": "ms-sec-outside",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-med-self-admin-3.txt"
+        }
       ]
     },
     {
@@ -142,5 +179,60 @@
         }
       ]
     }
-  ]
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "ms-b1-line": {
+        "video_id": "b47499943ecf42d691b01fa43bec261a",
+        "seconds": 154,
+        "mb": 28
+      },
+      "ms-b2-model": {
+        "video_id": "36edccf983ae478aae93f8d54e290317",
+        "seconds": 155,
+        "mb": 5.4
+      },
+      "ms-b3-check": {
+        "video_id": "d629506fa10f4c5dbef0e5565743e875",
+        "seconds": 171,
+        "mb": 5.9
+      },
+      "ms-b4-examples": {
+        "video_id": "f6220582eb6847bf85d42f3bdb975f57",
+        "seconds": 146,
+        "mb": 27.2
+      },
+      "ms-b5-handling": {
+        "video_id": "b4fa87018fb146769b321d8b40b788da",
+        "seconds": 167,
+        "mb": 5.7
+      },
+      "ms-b6-refusal": {
+        "video_id": "d9a4578184994215ac53055a58b431ed",
+        "seconds": 163,
+        "mb": 5.5
+      },
+      "ms-b7-classes": {
+        "video_id": "ccb663e0c62e4bb18390c60857eeeefc",
+        "seconds": 94,
+        "mb": 3.3
+      },
+      "ms-b8-lowsugar": {
+        "video_id": "789265be563f4f1faf94988108b62abf",
+        "seconds": 167,
+        "mb": 5.6
+      },
+      "ms-b9-notice": {
+        "video_id": "8d18b085f8ef4fbeb39be41a1be7403a",
+        "seconds": 157,
+        "mb": 28.7
+      },
+      "ms-b10-outside": {
+        "video_id": "578921ba31894d7e8658b397007ef28a",
+        "seconds": 180,
+        "mb": 16.5
+      }
+    }
+  }
 }
