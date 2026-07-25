@@ -63,7 +63,13 @@ export function useGenerateSupportPlanProposal() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => invalidateResidentCare(queryClient),
+    // Both: generating a proposal is what puts a row in the proposals list, and invalidating only
+    // the care-delivery keys left that list stale. The user saw "a proposal was generated" and an
+    // unchanged screen -- and clicking again generates another one.
+    onSuccess: () => {
+      invalidateResidentCare(queryClient);
+      invalidateSupportPlans(queryClient);
+    },
   });
 }
 
@@ -79,7 +85,12 @@ export function useCreateSupportPlanDraft() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => invalidateResidentCare(queryClient),
+    // Same reason as the proposal generator above: this creates a resident_support_plans row, and
+    // the plans list is keyed separately from the care-delivery queries.
+    onSuccess: () => {
+      invalidateResidentCare(queryClient);
+      invalidateSupportPlans(queryClient);
+    },
   });
 }
 

@@ -1566,6 +1566,45 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0f — Step 3, a stale list, and a dead engine of my own making
+
+**Coverage 7/12 (58%).** A finalized assessment now provably produces a proposal that waits for a
+human decision, and accepting it records the rationale alongside the outcome.
+
+**Production bug: the proposal you generate does not appear.** `useGenerateSupportPlanProposal`
+called `invalidateResidentCare`, which refreshes care-delivery, service tasks, work items and daily
+operations — but the proposals list is keyed `["support-plan-proposals", residentId]`, which it does
+not touch. A correct invalidator, `invalidateSupportPlans`, was sitting in the same file, unused by
+this mutation. So a user clicked "Check assessment for changes", got a toast reading *"A
+support-plan proposal was generated for review"*, and watched nothing change — and would reasonably
+click again, generating duplicates. `useCreateSupportPlanDraft` had the identical defect: it creates
+a `resident_support_plans` row and never refreshed the plans list. Both now invalidate both.
+
+**A dead path in my own Phase 3 delivery.** There are two proposal engines in the schema:
+
+| Function | Reads | Called by |
+| --- | --- | --- |
+| `generate_support_plan_proposal(assessment_form_id)` | `resident_assessment_forms` | the UI button |
+| `generate_support_plan_proposal_from_review(review_id)` | `resident_assessment_reviews` | **nothing** |
+
+The second is the mapping-rule engine Phase 3 added. It appears in exactly one file — its own
+migration — with a definition, a revoke and a grant. No UI calls it. No pgTAP test calls it; the
+proposal-engine suite exercises `mapping_rule_condition_matches` (the predicate) 22 ways and never
+the function that would use it. Phase 3's delivery note said the engine shipped. The parts shipped;
+the connection did not.
+
+**I did not wire it up, deliberately.** Choosing which of two overlapping engines is canonical is a
+product decision with real consequences for what a support plan is derived from, and quietly
+promoting mine mid-journey would be making that decision by stealth. Step 3 therefore exercises the
+engine a facility can actually reach, and the gap is written down here where it can be decided.
+
+**What this cost, and what it says.** Four local iterations: a service-role INSERT denial on
+`resident_assessment_forms` (the same grant asymmetry as `incident_notifications` — now a pattern
+worth a deliberate look), a `reason` check constraint wanting an enum value rather than prose, the
+stale-list bug above, and a `rationale` column I had guessed as `review_rationale`. Only one of
+those was a product defect; the harness found it because a journey exercises the seam between a
+mutation and the screen that should react to it, which neither unit tests nor pgTAP can see.
+
 ### Phase 0e — Step 2, and a correction I nearly got backwards
 
 **Coverage 6/12 (50%).** The initial-assessment compliance item is now proven compliant *only* with

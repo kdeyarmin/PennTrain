@@ -407,6 +407,78 @@ test.describe("resident lifecycle journey", () => {
   });
 
   // -------------------------------------------------------------------------------------------
+  // 3. Generate a support plan from the assessment
+  //
+  // Drives the path a user can actually reach. NOTE for whoever reads this next: there are two
+  // proposal engines in the schema. generate_support_plan_proposal(assessment_form_id) is the one
+  // wired to this button; generate_support_plan_proposal_from_review(review_id) -- the mapping-rule
+  // engine added in Phase 3 -- has no caller anywhere in the app or the test suite. This step
+  // deliberately exercises the reachable one, because a journey has to reflect what a facility can
+  // do, not what the schema can do.
+  //
+  // The finalized assessment form is seeded rather than driven: producing one is the RASP prep
+  // flow, which is its own workflow and not what this step claims to prove. What IS driven is the
+  // part the step is about -- generating a proposal from that assessment and accepting it.
+  // -------------------------------------------------------------------------------------------
+  test(`3. ${step("support-plan").title} ["support-plan"]`, async ({ page }) => {
+    test.fixme(step("support-plan").status === "pending", step("support-plan").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to plan for");
+
+    // Inserted as the user: service_role lacks INSERT on resident_assessment_forms, the same grant
+    // asymmetry already seen on incident_notifications. Going through the user is also the honest
+    // shape -- a facility's own account is what creates these.
+    const { error: formError } = await userClient.from("resident_assessment_forms").insert({
+      organization_id: organizationId,
+      facility_id: facilityId,
+      resident_id: residentId!,
+      form_type: "RASP",
+      reason: "initial",
+      status: "finalized",
+      content: {
+        transfer_assistance: "one_person",
+        ambulation_status: "walker",
+        falls_last_90_days: 2,
+      },
+    });
+    if (formError) throw formError;
+
+    await signIn(page);
+    await page.goto(`/app/residents/${residentId}?tab=support-plan`);
+
+    await page.getByRole("button", { name: "Check assessment for changes" }).click();
+
+    // A proposal exists and is awaiting a decision -- the state that matters, because a proposal
+    // auto-applied to the plan would be the product deciding care on its own.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("support_plan_proposals")
+        .select("id, state")
+        .eq("resident_id", residentId!);
+      if (error) throw error;
+      return data.map((row) => row.state).sort();
+    }, { timeout: 30000 }).toContain("proposed");
+
+    // Accepting requires a rationale of its own: the decision is recorded, not just the outcome.
+    await page.getByRole("button", { name: /Review/ }).first().click();
+    const decision = page.getByRole("dialog");
+    await expect(decision).toBeVisible();
+    await decision.getByRole("textbox").first().fill(
+      "Mobility findings match the fall this resident had; the standby assistance belongs in the plan.",
+    );
+    await decision.getByRole("button", { name: /^(Save|Confirm|Record)/ }).first().click();
+
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("support_plan_proposals")
+        .select("state, rationale")
+        .eq("resident_id", residentId!);
+      if (error) throw error;
+      const accepted = data.find((row) => row.state === "accepted");
+      return accepted ? { accepted: true, hasRationale: (accepted.rationale ?? "").length > 5 } : { accepted: false, hasRationale: false };
+    }, { timeout: 30000 }).toEqual({ accepted: true, hasRationale: true });
+  });
+
+  // -------------------------------------------------------------------------------------------
   // 8. Report a fall
   //
   // Two stages, because that is how the product works: intake records what happened, and the
@@ -710,7 +782,7 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "fall", "investigation", "survey-packet", "discharge"]);
+  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "support-plan", "fall", "investigation", "survey-packet", "discharge"]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {

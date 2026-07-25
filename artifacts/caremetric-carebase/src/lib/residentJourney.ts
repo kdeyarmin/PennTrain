@@ -59,9 +59,10 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     id: "support-plan",
     ordinal: 3,
     title: "Generate a support plan from the assessment",
-    proves: "Assessment findings produce plan proposals, and an accepted proposal becomes a plan item.",
-    status: "pending",
-    blockedBy: "Depends on step 2: there is no finalized assessment to propose from.",
+    proves:
+      "A finalized assessment produces a support-plan proposal that waits for a human decision, and "
+      + "accepting it records the rationale alongside the outcome.",
+    status: "implemented",
   },
   {
     id: "deliver-services",
