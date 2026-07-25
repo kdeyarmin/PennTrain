@@ -14394,18 +14394,18 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "incidents_pathway_key_fkey"
-            columns: ["pathway_key"]
-            isOneToOne: false
-            referencedRelation: "incident_pathways"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "incidents_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_pathway_key_fkey"
+            columns: ["pathway_key"]
+            isOneToOne: false
+            referencedRelation: "incident_pathways"
+            referencedColumns: ["key"]
           },
           {
             foreignKeyName: "incidents_qapi_project_id_fkey"
@@ -23566,6 +23566,13 @@ export type Database = {
             columns: ["hospital_episode_id"]
             isOneToOne: false
             referencedRelation: "hospital_transfer_episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_assessment_reviews_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incident_list_rows"
             referencedColumns: ["id"]
           },
           {
@@ -34118,6 +34125,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_incident_investigation: {
+        Args: { p_incident_id: string; p_note?: string }
+        Returns: boolean
+      }
       approve_regulatory_rule_version: {
         Args: { p_review_notes: string; p_version_id: string }
         Returns: {
@@ -34160,10 +34171,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      approve_incident_investigation: {
-        Args: { p_incident_id: string; p_note?: string }
-        Returns: boolean
       }
       approve_support_plan: {
         Args: {
@@ -35048,6 +35055,9 @@ export type Database = {
           p_staff_involved?: Json
         }
         Returns: {
+          administrator_approval_note: string | null
+          administrator_approved_at: string | null
+          administrator_approved_by: string | null
           closed_at: string | null
           closed_by_profile_id: string | null
           created_at: string
@@ -35056,6 +35066,7 @@ export type Database = {
           final_report_submitted_at: string | null
           id: string
           idempotency_key: string | null
+          immediate_response: string | null
           incident_type: string
           investigation_findings: string | null
           investigation_started_at: string | null
@@ -35065,14 +35076,25 @@ export type Database = {
           narrative: string
           occurred_at: string
           organization_id: string
+          pathway_answers: Json
+          pathway_completed_at: string | null
+          pathway_key: string | null
+          pathway_version: number | null
+          qapi_consideration: string
+          qapi_project_id: string | null
           report_pdf_storage_bucket: string | null
           report_pdf_storage_path: string | null
+          reportability_determined_at: string | null
+          reportability_determined_by: string | null
+          reportability_rationale: string | null
+          reportability_status: string
           reported_at: string
           reported_by_profile_id: string | null
           resident_id: string | null
           resident_identifier: string | null
           resident_identifier_snapshot: string | null
           root_cause: string | null
+          root_cause_method: string | null
           severity: string
           state_form_pdf_generated_at: string | null
           state_form_pdf_storage_bucket: string | null
@@ -38371,6 +38393,25 @@ export type Database = {
         }
         Returns: string
       }
+      save_incident_investigation_step: {
+        Args: {
+          p_immediate_response?: string
+          p_incident_id: string
+          p_investigation_findings?: string
+          p_root_cause?: string
+          p_root_cause_method?: string
+        }
+        Returns: boolean
+      }
+      save_incident_pathway: {
+        Args: {
+          p_answers: Json
+          p_complete?: boolean
+          p_incident_id: string
+          p_pathway_key: string
+        }
+        Returns: boolean
+      }
       save_medication_integration_source: {
         Args: {
           p_credential_id?: string
@@ -38479,25 +38520,6 @@ export type Database = {
           p_time_zone: string
         }
         Returns: string
-      }
-      save_incident_investigation_step: {
-        Args: {
-          p_immediate_response?: string
-          p_incident_id: string
-          p_investigation_findings?: string
-          p_root_cause?: string
-          p_root_cause_method?: string
-        }
-        Returns: boolean
-      }
-      save_incident_pathway: {
-        Args: {
-          p_answers: Json
-          p_complete?: boolean
-          p_incident_id: string
-          p_pathway_key: string
-        }
-        Returns: boolean
       }
       save_resident_administrative_master: {
         Args: { p_contacts?: Json; p_profile: Json; p_resident_id: string }
