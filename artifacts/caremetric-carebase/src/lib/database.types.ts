@@ -236,12 +236,18 @@ export type Database = {
       }
       admission_prospects: {
         Row: {
+          affordability_notes: string | null
+          barriers: string | null
+          care_needs: string | null
           clinical_review_status: string
+          competitor_selected: string | null
           created_at: string
           created_by: string | null
           date_of_birth: string | null
           decision_reason: string | null
+          deposit_received_at: string | null
           email: string | null
+          expected_monthly_revenue: number | null
           expected_move_in_date: string | null
           facility_id: string
           financial_review_status: string
@@ -250,26 +256,39 @@ export type Database = {
           inquiry_date: string
           last_name: string
           lost_lead_reason: string | null
+          next_follow_up_at: string | null
           notes: string | null
           organization_id: string
           phone: string | null
+          pipeline_stage: string
+          pipeline_stage_changed_at: string
           preferred_name: string | null
+          preferred_room_id: string | null
           primary_contact_email: string | null
           primary_contact_name: string | null
           primary_contact_phone: string | null
           primary_contact_relationship: string | null
+          probability_percent: number | null
           referral_source_id: string | null
           resident_id: string | null
           stage: string
+          tour_completed_at: string | null
+          tour_scheduled_at: string | null
           updated_at: string
         }
         Insert: {
+          affordability_notes?: string | null
+          barriers?: string | null
+          care_needs?: string | null
           clinical_review_status?: string
+          competitor_selected?: string | null
           created_at?: string
           created_by?: string | null
           date_of_birth?: string | null
           decision_reason?: string | null
+          deposit_received_at?: string | null
           email?: string | null
+          expected_monthly_revenue?: number | null
           expected_move_in_date?: string | null
           facility_id: string
           financial_review_status?: string
@@ -278,17 +297,24 @@ export type Database = {
           inquiry_date?: string
           last_name: string
           lost_lead_reason?: string | null
+          next_follow_up_at?: string | null
           notes?: string | null
           organization_id: string
           phone?: string | null
+          pipeline_stage?: string
+          pipeline_stage_changed_at?: string
           preferred_name?: string | null
+          preferred_room_id?: string | null
           primary_contact_email?: string | null
           primary_contact_name?: string | null
           primary_contact_phone?: string | null
           primary_contact_relationship?: string | null
+          probability_percent?: number | null
           referral_source_id?: string | null
           resident_id?: string | null
           stage?: string
+          tour_completed_at?: string | null
+          tour_scheduled_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -339,6 +365,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admission_prospects_preferred_room_id_fkey"
+            columns: ["preferred_room_id"]
+            isOneToOne: false
+            referencedRelation: "facility_rooms"
             referencedColumns: ["id"]
           },
           {
@@ -34183,6 +34216,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      advance_admission_pipeline_stage: {
+        Args: { p_note?: string; p_pipeline_stage: string; p_prospect_id: string }
+        Returns: boolean
       }
       amend_clinical_observation: {
         Args: {

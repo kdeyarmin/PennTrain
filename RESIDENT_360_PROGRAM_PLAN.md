@@ -1301,7 +1301,51 @@ appointment with nobody assigned is a scheduling gap rather than workload that e
 
 **Verified:** typecheck clean; 927 tests pass (26 new); build succeeds; all bundle budgets pass.
 
-**Phase 8 is now complete.** Phase 9 (admissions CRM and occupancy board) is next.
+**Phase 8 is now complete.**
+
+### Phase 9a — Admissions funnel
+
+**The fourteen stages could not simply widen `stage`, and finding out why was the work.**
+`admission_prospects.stage` looks like a funnel but is not one: `reserve_bed_for_prospect` refuses
+unless the stage is approved/waitlisted/reserved **and** clinical review **and** financial review are
+both approved, and `start_move_in_workspace` requires 'reserved'. It is a *decision lifecycle* that
+gates real operations on a bed.
+
+The request's fourteen stages are a *sales funnel*. "Contact attempted" and "tour scheduled" say
+nothing about clinical approval, and forcing them into one column would either loosen the reservation
+gate or invent a clinical meaning for a phone call. So: two columns, two questions — which is also
+what the plan meant by "additive to the existing prospect model, mapping current states forward".
+
+The practical consequence is that **no existing function was re-declared**. Given that this program
+has now had two re-declarations silently drop a guard, avoiding three more was worth more than the
+tidiness of a single column.
+
+| Delivered | Detail |
+| --- | --- |
+| Fourteen stages | `pipeline_stage`, with the existing eight mapped forward — each to the *earliest* funnel stage its decision state implies, never later, because claiming a tour happened when the record does not say so invents history |
+| One-way sync | A trigger drags the funnel forward when a decision state implies it, and never backwards. The funnel can never drag the decision lifecycle, which would be a way to reserve a bed by claiming a tour |
+| CRM fields | Preferred room, care needs, affordability, barriers, competitor selected, probability, expected monthly revenue, follow-up date, tour and deposit timestamps |
+| Funnel metrics | `admissionPipeline.ts` — stage counts, referral-source performance, overdue follow-ups, weighted pipeline value |
+| Surfaced | A lazy funnel section on the admissions page |
+
+**Three deliberate choices in the metrics.** Conversion divides by *concluded* inquiries, not all of
+them — dividing by everything counts somebody who enquired yesterday as a failure, which makes a
+source look worse the more recent business it brings in. Revenue forecasts exclude admitted and lost
+prospects, because neither is a forecast. And a prospect with no recorded probability contributes
+**nothing** to the weighted figure rather than a guessed default, with the excluded amount reported
+separately: an invented default is how a forecast becomes fiction nobody can trace.
+
+**Backwards movement is allowed.** Tours get cancelled and families go quiet. A funnel that refuses
+to record a step backwards gets worked around in a spreadsheet, and then the pipeline in the product
+is fiction. `admitted` is the one stage a person cannot set — the move-in workflow sets it, because
+that is what creates the resident record.
+
+**Verified:** typecheck clean; 952 tests pass (25 new); build succeeds; all bundle budgets pass.
+
+**Remaining in Phase 9:** 9b — the occupancy board (item 21) over `facility_buildings` /
+`residential_units` / `residents.bed_id`, including the plan's requirement that licensed capacity
+come from the facility licence record rather than a count of rows, and that the board show when
+census exceeds it.
 
 ## 6. What to do first
 
