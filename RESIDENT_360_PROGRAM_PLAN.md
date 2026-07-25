@@ -985,10 +985,43 @@ refusal instruction at the moment a refusal is recorded — the one moment that 
 **Verified:** typecheck clean; 681 tests pass (23 new, plus 10 new pgTAP assertions); build succeeds;
 bundle budget passes.
 
-**Still outstanding in Phase 4:** wiring the documented assistance level into the conflict detector's
-`serviceExceptions` input (the detector and its tests are complete; the resident page still passes an
-empty array), and the change-of-condition hand-off from a documented exception. Both are small and
-belong with Phase 5's change intelligence.
+### Phase 5a — change intelligence
+
+**The Phase 4 loose end is closed.** `documented_assistance_exceeds_plan` now reads real records:
+`useResidentServiceExceptions` filters server-side on the partial index added with the exception
+columns, so a resident with a year of clean documentation does not download it all.
+
+**Twelve detections, no score.** The request rules out a black-box risk number by name, and this
+holds the line: every signal states what changed, the records that say so, the date range, why it
+matters, the recommended review, and who must respond. `summarizeChangeSignals` returns counts only —
+a weighted total would become a risk score the moment somebody sorted by it.
+
+| Detection | Source |
+| --- | --- |
+| Increased assistance, repeated refusals | Structured exception documentation (Phase 4b) |
+| Repeated unscheduled services, increased supervision | Unscheduled-service capture (Phase 4c) |
+| Multiple falls | Incidents **and** condition changes together — a fall without injury is routinely recorded only as a condition change, so one source undercounts |
+| Reduced meal intake | `resident_meal_records`, with a minimum sample: two poor meals out of three is noise, not a trend |
+| Weight change | 5% in 30 days or 10% in 180 — the conventional clinical thresholds, reported as a measurement rather than a diagnosis |
+| Behaviour, continence, skin, mobility | Recorded condition changes, lifted rather than re-inferred |
+| Hospital visit | Transfer episodes, excluding cancelled ones |
+
+Every threshold is a named exported constant, so a facility can read the rule before arguing with it,
+and the tests assert the boundary in both directions — fires at the threshold, silent below it, and
+silent for records outside the window.
+
+**Verified:** typecheck clean; 709 tests pass (28 new); build succeeds; bundle budget passes.
+
+**Bundle:** aggregate JS crossed its 90% warning line at 3790.0 KiB, so the budget went 4200 → 4700
+under the file's documented convention. Worth noting what did *not* move: the Resident Detail route
+chunk has held at ~51 KiB across the entire program, because every new surface — conflicts, change
+signals, each tab — is its own lazy chunk. The aggregate grows with feature count by design; the
+per-page weight is the number that matters and it stayed flat.
+
+**Still outstanding in Phase 5:** 5b — the hospital departure/return workflow UI and its follow-up
+work items. The schema already models nearly all of it (`hospital_transfer_episodes`), and the change
+detector already surfaces the visit; what is missing is the workflow surface and the deadlined
+follow-up that the `assessment_review_required` / `support_plan_review_required` flags should drive.
 
 ## 6. What to do first
 

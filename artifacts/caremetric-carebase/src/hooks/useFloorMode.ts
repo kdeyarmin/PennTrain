@@ -101,3 +101,38 @@ export function useResidentServiceUtilization(residentId: string | undefined, da
     staleTime: 60_000,
   });
 }
+
+/**
+ * Documented exceptions for one resident, newest first. Feeds the conflict detector's
+ * `documented_assistance_exceeds_plan` rule, which was wired to an empty array until structured
+ * exception documentation existed.
+ *
+ * Filters server-side on the partial index added with the exception columns: routine completions are
+ * excluded, so a resident with a year of clean documentation does not download it all.
+ */
+export function useResidentServiceExceptions(residentId: string | undefined, limit = 100) {
+  return useQuery({
+    queryKey: ["resident-service-exceptions", residentId, limit],
+    enabled: !!residentId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("resident_service_task_instances")
+        .select("id, service_name, status, completion_response, documented_assistance_level, performed_at, scheduled_start")
+        .eq("resident_id", residentId!)
+        .not("completion_response", "is", null)
+        .neq("completion_response", "completed_as_planned")
+        .order("performed_at", { ascending: false, nullsFirst: false })
+        .limit(limit);
+      if (error) throw error;
+      return data as {
+        id: string;
+        service_name: string;
+        status: string;
+        completion_response: string | null;
+        documented_assistance_level: string | null;
+        performed_at: string | null;
+        scheduled_start: string;
+      }[];
+    },
+  });
+}

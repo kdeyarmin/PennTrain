@@ -36,6 +36,7 @@ import type { ResidentTabProps } from "./resident-tabs/types";
 // workspace, the portal workspace, and the support-plan section in one eager chunk that already sat
 // at ~90% of its bundle budget; splitting is what keeps the header and attention panel affordable.
 const ResidentCareConflictsSection = lazy(() => import("@/components/residents/ResidentCareConflictsSection"));
+const ResidentChangeSignalsSection = lazy(() => import("@/components/residents/ResidentChangeSignalsSection"));
 
 const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentType<ResidentTabProps>>> = {
   overview: lazy(() => import("./resident-tabs/OverviewTab")),
@@ -229,6 +230,13 @@ export default function ResidentDetail() {
 
         <Suspense fallback={null}>
           <ResidentCareConflictsSection
+            residentId={resident.id}
+            residentHref={`${residentPathPrefix}/${resident.id}`}
+          />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <ResidentChangeSignalsSection
             residentId={resident.id}
             residentHref={`${residentPathPrefix}/${resident.id}`}
           />

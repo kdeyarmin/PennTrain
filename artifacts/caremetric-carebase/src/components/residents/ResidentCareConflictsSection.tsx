@@ -3,6 +3,7 @@ import { useResidentCareHeader } from "@/hooks/useResidentCareHeader";
 import { useResidentAssessmentReviews } from "@/hooks/useResidentAssessmentReviews";
 import { useResidentConflictDispositions } from "@/hooks/useResidentCareConflicts";
 import { useResidentSupportPlans } from "@/hooks/useResidentCareDelivery";
+import { useResidentServiceExceptions } from "@/hooks/useFloorMode";
 import { comparableAnswers, getTemplate } from "@/lib/assessmentTemplates";
 import { applyConflictDispositions, detectResidentCareConflicts } from "@/lib/residentCareConflicts";
 
@@ -23,6 +24,7 @@ export default function ResidentCareConflictsSection({
   const { data: assessmentReviews } = useResidentAssessmentReviews(residentId);
   const { data: conflictDispositions } = useResidentConflictDispositions(residentId);
   const { data: supportPlans } = useResidentSupportPlans(residentId);
+  const { data: serviceExceptions } = useResidentServiceExceptions(residentId);
 
   // Conflicts are derived from current records on every render rather than stored, so a
   // disagreement that returns after being resolved reappears instead of staying dismissed. Only the
@@ -48,9 +50,15 @@ export default function ResidentCareConflictsSection({
         reviewLabel: latestReviewTemplate?.title ?? null,
         reviewDate: latestFinalReview?.review_date ?? null,
         activePlan,
-        // Typed service exceptions arrive with the floor-execution phase; until then the detector
-        // runs on the signals that exist rather than inventing one.
-        serviceExceptions: [],
+        // Structured exception documentation now exists (Phase 4b), so the detector reads real
+        // records rather than an empty array. `assistance_level` is the denormalized column, which
+        // is why this does not have to unpack exception_details client-side.
+        serviceExceptions: (serviceExceptions ?? []).map((exception) => ({
+          status: exception.completion_response ?? exception.status,
+          service_name: exception.service_name,
+          at: exception.performed_at ?? exception.scheduled_start,
+          assistance_level: exception.documented_assistance_level,
+        })),
         hospitalReturn: careHeader.data.hospital.state === "returned_reconciliation_incomplete"
           && careHeader.data.hospital.episodeId
           ? {

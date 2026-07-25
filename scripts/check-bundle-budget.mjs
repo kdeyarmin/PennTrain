@@ -55,7 +55,11 @@ const budgets = {
   // warning for several branches. The same change cut the Resident Detail route chunk from
   // 89.8 KiB to 50.3 KiB, so the aggregate growth is new feature code plus per-chunk
   // overhead from the split, not a route regression.
-  totalJavaScript: 4200 * 1024,
+  // Raised 4200 -> 4700 with the Phase 4/5 care-execution work (floor mode, exception
+  // documentation, unscheduled services, change detection): measured 3790.0 KiB, which had crossed
+  // the 90% warning line. Every one of those surfaces is its own lazy chunk -- the resident route
+  // held at ~51 KiB across the whole program -- so this is feature count, not per-page weight.
+  totalJavaScript: 4700 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted.
   totalCss: 160 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.
