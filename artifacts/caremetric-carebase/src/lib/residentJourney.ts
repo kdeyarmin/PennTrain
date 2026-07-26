@@ -68,18 +68,17 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     id: "deliver-services",
     ordinal: 4,
     title: "Deliver and document a service",
+    // The old blocker asked for a shift assignment. The task queue does not use one: it scopes an
+    // employee to tasks in their own employees.facility_id that are unassigned or theirs.
     proves: "A scheduled service task is completed by a floor user and the completion is attributable.",
-    status: "pending",
-    blockedBy:
-      "Needs a seeded shift assignment for the employee account so the Floor task list is non-empty.",
+    status: "implemented",
   },
   {
     id: "increased-assistance",
     ordinal: 5,
     title: "Record increased assistance",
     proves: "An unscheduled service is captured outside the plan and appears against the resident.",
-    status: "pending",
-    blockedBy: "Depends on step 4 for a resident with an active service context.",
+    status: "implemented",
   },
   {
     id: "change-of-condition",
@@ -87,10 +86,7 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     title: "Review a change of condition",
     proves:
       "A rule-based change signal is raised from recorded observations and a reviewer dispositions it.",
-    status: "pending",
-    blockedBy:
-      "The detector runs on observation history; the fixture needs a series of readings over time "
-      + "rather than a single row.",
+    status: "implemented",
   },
   {
     id: "plan-revision",
@@ -118,9 +114,7 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     ordinal: 10,
     title: "Escalate a pattern into QAPI",
     proves: "A trend crossing a published threshold opens a QAPI project linked to its pattern key.",
-    status: "pending",
-    blockedBy:
-      "Thresholds need several incidents across a date range; the fixture seeds one incident today.",
+    status: "implemented",
   },
   {
     id: "survey-packet",

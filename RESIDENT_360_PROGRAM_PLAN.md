@@ -1528,6 +1528,49 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0i — The last four steps, and the ratchet reaches zero
+
+**Coverage 12/12 (100%), ceiling 0.** Steps 4, 5, 6 and 10 land together. Every step in the registry
+now has a browser body that has been executed end to end against a real stack, in order, in one run.
+
+**Three of the four blockers were wrong, and being wrong was the useful part.**
+
+| Step | The blocker said | What was actually true |
+| --- | --- | --- |
+| 4 — deliver a service | "needs a seeded shift assignment" | The floor queue never looks at shifts. It scopes an employee to tasks in their own `employees.facility_id` that are unassigned or theirs. What was missing was an employee user, not a shift |
+| 5 — increased assistance | (same, inherited) | Same. What it did need was its *own* scheduled task: the queue shows today's `scheduled` tasks, so step 4 documenting the only one leaves step 5 with an empty list and no controls to click |
+| 6 — change of condition | "the detector needs readings over time" | Correct, and the only blocker that was. Five unscheduled services in fourteen days crosses `UNSCHEDULED_COUNT_THRESHOLD` |
+| 10 — QAPI | "needs several incidents across a date range" | Correct as far as it went; the harder part was that `service_role` holds no INSERT on `incidents` |
+
+A blocker recorded from reading rather than running is a guess with a citation. These three read as
+facts for weeks. The registry now records only what the runs established.
+
+**Two product defects found by running the steps.**
+
+`generate_resident_service_tasks` takes `(p_from, p_through, p_requirement_id)` — there is no
+`p_resident_id`, which is what the first attempt passed. And documenting a routine task is one tap
+by design (`DocumentCareDialog` says so outright: if the routine path costs more, staff pick it for
+everything and the exception data stops meaning anything) — the test's extra "Save" click was
+demanding a confirmation the product deliberately does not have.
+
+**Enabler: `LogChangeOfConditionDialog`'s thirteen labels were all free-floating.** Not one carried
+`htmlFor`, so no field in the change-of-condition form announced itself to a screen reader. This is
+the same defect the Add Resident dialog had in Phase 0a, in a repo that runs axe. Fixed for all
+thirteen, which is also what let step 6 address the fields by name.
+
+**The service-role grant held, again.** Step 10 needs three falls across ninety days;
+`service_role` has no INSERT on `incidents`. The fixture goes through `create_incident_atomic` and
+`save_incident_pathway` as the signed-in user — the product's own path — rather than widening a
+grant so a fixture is easier to write. That is the fourth time this program has taken that route and
+the reasoning has not changed: a grant added for a test is a grant that ships.
+
+**Assertions written to fail for the right reason.** Step 5 asserts the service *kind* and the note
+text the test typed, not that a row exists — "a row exists" would pass on any unscheduled service.
+Step 10 asserts `pattern_key` equals `repeated_falls_resident:<residentId>`, not that a project was
+created: a project with a null key cannot be traced to the trend that justified it, and nothing
+stops the same pattern opening a second one. Both fixtures spread their records across the detector's
+window rather than stamping them at one instant, because a trend is a claim about a period.
+
 ### Phase 0a correction — coverage is 0/12, not 1/12
 
 **Step 1 was marked implemented on a browser body that had never been run.** There is no Supabase

@@ -58,6 +58,8 @@ let mfaSecret: string;
 let userClient: SupabaseClient;
 let residentId: string | null = null;
 let incidentId: string | null = null;
+let employeeEmail: string;
+let employeeProfileId: string;
 
 const step = (id: string) => {
   const found = RESIDENT_JOURNEY_STEPS.find((entry) => entry.id === id);
@@ -96,25 +98,38 @@ function watchForFailures(page: import("@playwright/test").Page) {
   return errors;
 }
 
-/** Signs in and lands on the authenticated home. */
-async function signIn(page: import("@playwright/test").Page) {
+/**
+ * Signs in and waits for the authenticated shell to render.
+ *
+ * The MFA step-up applies to administrators: the org session policy holds them on an interstitial
+ * until an enrolled factor is verified for THIS browser session. Employees are not held there, so
+ * the floor steps sign in without it -- which is also the shape of the real thing, since a care
+ * worker on a shared device is not enrolling an authenticator mid-shift.
+ */
+async function signIn(
+  page: import("@playwright/test").Page,
+  options: { email?: string; landsOn?: string; stepUp?: boolean } = {},
+) {
+  const email = options.email ?? adminEmail;
+  const landsOn = options.landsOn ?? "/app/today";
+  const stepUp = options.stepUp ?? true;
   const errors = watchForFailures(page);
 
   await page.goto("/login");
-  await page.getByLabel("Email").fill(adminEmail);
+  await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe(landsOn);
 
-  // Step up to aal2: the session policy holds admins on the MFA interstitial until the enrolled
-  // factor is verified for THIS browser session. Mirrors verifyOrgAdminBrowserMfa in the role suite.
-  await page.goto("/account/security");
-  const code = page.getByLabel("Authenticator code");
-  await expect(code).toBeVisible();
-  await code.fill(totpCode(mfaSecret));
-  await page.getByRole("button", { name: "Verify authenticator" }).click();
-  await expect(page.getByText(/session is already verified/i)).toBeVisible();
-  await page.goto("/app/today");
+  if (stepUp) {
+    await page.goto("/account/security");
+    const code = page.getByLabel("Authenticator code");
+    await expect(code).toBeVisible();
+    await code.fill(totpCode(mfaSecret));
+    await page.getByRole("button", { name: "Verify authenticator" }).click();
+    await expect(page.getByText(/session is already verified/i)).toBeVisible();
+    await page.goto(landsOn);
+  }
 
   let lastState = "";
   const startedAt = Date.now();
@@ -140,6 +155,64 @@ test.describe("resident lifecycle journey", () => {
   // the journey starts. The first run of this step reported "Test timeout of 30000ms exceeded" at
   // the button, which reads as a missing control but was the test simply running out of time.
   test.describe.configure({ mode: "serial", timeout: 120_000 });
+
+  /**
+   * Puts one scheduled task on today's floor queue and returns its requirement id.
+   *
+   * Tasks are generated from service REQUIREMENTS, not from plan services directly, so the
+   * requirement is seeded and the product's own generator builds the schedule -- the times are the
+   * product's, not the test's. service_role is used because resident_service_requirements is
+   * RPC-only for authenticated users: the product fills it during assessment finalisation through
+   * an app_private helper that cannot be called from a client.
+   *
+   * Each caller passes its own source_key. The floor queue shows today's SCHEDULED tasks only, so a
+   * step that documents a task removes it from the list -- a later step sharing one requirement
+   * would find an empty queue and no controls to click.
+   */
+  const seedScheduledTask = async (
+    options: { sourceKey: string; serviceName: string; instructions: string },
+  ): Promise<string> => {
+    const { data: form, error: formError } = await admin
+      .from("resident_assessment_forms")
+      .select("id, version_number")
+      .eq("resident_id", residentId!)
+      .limit(1)
+      .single();
+    if (formError) throw formError;
+
+    const { data: requirement, error: requirementError } = await admin
+      .from("resident_service_requirements")
+      .insert({
+        organization_id: organizationId,
+        facility_id: facilityId,
+        resident_id: residentId!,
+        source_assessment_form_id: form.id,
+        source_plan_version: form.version_number,
+        source_section: "mobility",
+        source_key: options.sourceKey,
+        service_code: "mobility." + options.sourceKey,
+        service_name: options.serviceName,
+        special_instructions: options.instructions,
+        frequency: "daily",
+        responsible_role: "direct_care",
+        effective_from: new Date().toISOString().slice(0, 10),
+        status: "active",
+      })
+      .select("id")
+      .single();
+    if (requirementError) throw requirementError;
+
+    // The generator's signature is (p_from, p_through, p_requirement_id) -- there is no
+    // p_resident_id. Scoping to this requirement keeps each step's assertions about its own task.
+    const today = new Date().toISOString().slice(0, 10);
+    const { error: generateError } = await admin.rpc("generate_resident_service_tasks" as never, {
+      p_from: today,
+      p_through: today,
+      p_requirement_id: requirement.id,
+    } as never);
+    if (generateError) throw generateError;
+    return requirement.id as string;
+  };
 
   test.beforeAll(async () => {
     if (!supabaseUrl || !serviceRoleKey || !anonKey || !password) {
@@ -270,6 +343,40 @@ test.describe("resident lifecycle journey", () => {
     });
     if (verifyError) throw verifyError;
     userClient = adminAuthClient;
+
+    // A care worker, for the floor steps. The task queue scopes an employee to tasks in their own
+    // employees.facility_id that are unassigned or theirs -- no shift assignment involved, which is
+    // what the registry's blocker got wrong.
+    employeeEmail = `journey-aide-${suffix}@test.local`;
+    const { data: aideUser, error: aideError } = await admin.auth.admin.createUser({
+      email: employeeEmail,
+      password,
+      email_confirm: true,
+      app_metadata: { role: "employee", organization_id: organizationId },
+      user_metadata: { first_name: "Journey", last_name: "Aide" },
+    });
+    if (aideError || !aideUser.user) throw aideError ?? new Error("Aide creation returned no user");
+    employeeProfileId = aideUser.user.id;
+
+    const { error: aideProfileError } = await admin.rpc("admin_update_profile", {
+      p_user_id: aideUser.user.id,
+      p_role: "employee",
+      p_organization_id: organizationId,
+      p_is_active: true,
+    });
+    if (aideProfileError) throw aideProfileError;
+
+    const { error: employeeError } = await admin.from("employees").insert({
+      organization_id: organizationId,
+      facility_id: facilityId,
+      profile_id: aideUser.user.id,
+      first_name: "Journey",
+      last_name: "Aide",
+      email: employeeEmail,
+      job_title: "Direct Care Worker",
+      status: "active",
+    });
+    if (employeeError) throw employeeError;
   });
 
   // -------------------------------------------------------------------------------------------
@@ -481,6 +588,225 @@ test.describe("resident lifecycle journey", () => {
         ? { accepted: true, reviewerRecorded: (accepted.review_reason ?? "").includes("standby assistance") }
         : { accepted: false, reviewerRecorded: false };
     }, { timeout: 30000 }).toEqual({ accepted: true, reviewerRecorded: true });
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // 4. Deliver and document a service
+  //
+  // A care worker signs in, sees the day's tasks for their own facility, and documents one. The
+  // queue scopes an employee to tasks in their employees.facility_id that are unassigned or theirs
+  // -- no shift assignment, which is what the old blocker claimed.
+  // -------------------------------------------------------------------------------------------
+  test(`4. ${step("deliver-services").title} ["deliver-services"]`, async ({ page }) => {
+    test.fixme(step("deliver-services").status === "pending", step("deliver-services").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to care for");
+
+    const requirementId = await seedScheduledTask({
+      sourceKey: "standby_ambulation",
+      serviceName: "Standby assistance during ambulation",
+      instructions: "Remain within arm's reach while the resident is walking.",
+    });
+
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_service_task_instances")
+        .select("id")
+        .eq("requirement_id", requirementId);
+      if (error) throw error;
+      return data.length;
+    }, { timeout: 20000 }).toBeGreaterThan(0);
+
+    await signIn(page, { email: employeeEmail, landsOn: "/me", stepUp: false });
+    await page.goto("/me/floor");
+
+    await page.getByRole("button", { name: /Resident tasks/ }).click();
+    await expect(page.getByText("Standby assistance during ambulation").first()).toBeVisible({ timeout: 20000 });
+    await page.getByRole("button", { name: "Document", exact: true }).first().click();
+
+    const document = page.getByRole("dialog");
+    await expect(document).toBeVisible();
+    // No Save step: routine documentation is deliberately one tap, and the dialog closes itself.
+    // Adding a Save click here would have made the test demand a confirmation the product does not
+    // have -- and its absence is a design decision (DocumentCareDialog says so outright).
+    await document.getByRole("button", { name: "Completed as planned" }).click();
+    await expect(document).toBeHidden({ timeout: 20000 });
+
+    // Attributable: the point of documenting care is that a named person did it at a known time.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_service_task_instances")
+        .select("status, performed_at, completed_by_employee_id, completion_response")
+        .eq("resident_id", residentId!);
+      if (error) throw error;
+      const done = data.find((row) => row.status === "completed");
+      return done
+        ? {
+            response: done.completion_response,
+            timed: done.performed_at !== null,
+            attributed: done.completed_by_employee_id !== null,
+          }
+        : { response: null, timed: false, attributed: false };
+    }, { timeout: 30000 }).toEqual({
+      response: "completed_as_planned",
+      timed: true,
+      attributed: true,
+    });
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // 5. Record increased assistance
+  //
+  // Care given outside the plan. It matters because a resident quietly needing more help than the
+  // plan says is the signal that the plan is out of date -- and it is invisible if the only thing
+  // a worker can record is whether the scheduled task happened.
+  // -------------------------------------------------------------------------------------------
+  test(`5. ${step("increased-assistance").title} ["increased-assistance"]`, async ({ page }) => {
+    test.fixme(step("increased-assistance").status === "pending", step("increased-assistance").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete");
+
+    // "Extra care" hangs off a task row, and step 4 documented the only one -- a documented task
+    // leaves the SCHEDULED queue, so this step seeds its own rather than depending on leftovers.
+    const requirementId = await seedScheduledTask({
+      sourceKey: "transfer_assist",
+      serviceName: "Assistance with transfers",
+      instructions: "Assist from bed to chair.",
+    });
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_service_task_instances")
+        .select("id")
+        .eq("requirement_id", requirementId);
+      if (error) throw error;
+      return data.length;
+    }, { timeout: 20000 }).toBeGreaterThan(0);
+
+    await signIn(page, { email: employeeEmail, landsOn: "/me", stepUp: false });
+    await page.goto("/me/floor");
+    await page.getByRole("button", { name: /Resident tasks/ }).click();
+
+    await page.getByRole("button", { name: /Extra care/ }).first().click();
+    const extra = page.getByRole("dialog");
+    await expect(extra).toBeVisible();
+    // First tap selects the kind and reveals the note; the footer's Record submits. (Tapping the
+    // same kind twice would also submit, which would skip the note entirely.)
+    await extra.getByRole("button", { name: "Extra transfer help" }).click();
+    await extra.getByLabel(/Anything worth noting/).fill(
+      "Needed two-person assistance to stand; plan currently says standby only.",
+    );
+    await extra.getByRole("button", { name: "Record" }).click();
+    await expect(extra).toBeHidden({ timeout: 20000 });
+
+    // The kind and the note are asserted, not just row presence: "a row exists" would pass on any
+    // unscheduled service and prove nothing about what the worker actually recorded.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_unscheduled_services")
+        .select("service_kind, note, recorded_by_profile_id")
+        .eq("resident_id", residentId!);
+      if (error) throw error;
+      const row = data.find((entry) => entry.service_kind === "extra_transfer_assistance");
+      return row
+        ? {
+            captured: true,
+            noted: (row.note ?? "").includes("two-person assistance"),
+            attributed: row.recorded_by_profile_id !== null,
+          }
+        : { captured: false, noted: false, attributed: false };
+    }, { timeout: 30000 }).toEqual({ captured: true, noted: true, attributed: true });
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // 6. Review a change of condition
+  //
+  // The detector is a set of published rules over records staff already made -- deliberately not a
+  // score. This step drives the "repeated unscheduled services" rule: five or more in fourteen days
+  // raises a signal, which is why the fixture is a series of records over time rather than one row.
+  //
+  // The signal is a prompt, never a record. ResidentChangeSignalsSection says so outright ("these
+  // detections never create one on their own"), so the disposition has to be a human opening the
+  // change-of-condition record and stating a decision. Asserting only that the card appeared would
+  // prove the detector and nothing about the review.
+  // -------------------------------------------------------------------------------------------
+  test(`6. ${step("change-of-condition").title} ["change-of-condition"]`, async ({ page }) => {
+    test.fixme(step("change-of-condition").status === "pending", step("change-of-condition").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to review");
+
+    // Spread across the detector's window rather than stamped at one instant: the rule counts what
+    // happened over fourteen days, and a fixture that piles them onto one timestamp would pass the
+    // count while testing nothing about the window.
+    const daysAgo = (days: number) =>
+      new Date(Date.now() - days * 86_400_000).toISOString();
+    const { error: seedError } = await admin.from("resident_unscheduled_services").insert(
+      [
+        { service_kind: "unscheduled_toileting", days: 1 },
+        { service_kind: "unscheduled_toileting", days: 3 },
+        { service_kind: "extra_transfer_assistance", days: 5 },
+        { service_kind: "additional_hygiene", days: 8 },
+        { service_kind: "unplanned_safety_check", days: 11 },
+      ].map((entry) => ({
+        organization_id: organizationId,
+        facility_id: facilityId,
+        resident_id: residentId!,
+        service_kind: entry.service_kind,
+        occurred_at: daysAgo(entry.days),
+        recorded_by_profile_id: employeeProfileId,
+        note: "Recorded on the floor at the time of care.",
+      })),
+    );
+    if (seedError) throw seedError;
+
+    await signIn(page);
+    await page.goto(`/app/residents/${residentId}`);
+
+    // The signal, with its evidence. The count is left open: step 5 records one of these through
+    // the UI, so pinning an exact number would make this step fail whenever that one lands first.
+    // No ancestor scoping -- the section's title is a styled div, not a heading, so climbing from it
+    // lands somewhere arbitrary. These strings only appear on a rendered signal card.
+    await expect(page.getByText(/unscheduled services in 14 days/)).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText("unscheduled toileting × 2")).toBeVisible();
+    // The evidence window, which is what makes it a trend rather than a tally.
+    await expect(page.getByText(/Supporting records ·/)).toBeVisible();
+
+    // The disposition: a reviewer opens the record and states a decision.
+    await page.goto(`/app/residents/${residentId}?tab=incidents`);
+    await page.getByRole("button", { name: /Log change of condition/ }).click();
+
+    const review = page.getByRole("dialog");
+    await expect(review).toBeVisible();
+    await review.getByLabel("Immediate observations *").fill(
+      "Five unscheduled services in two weeks, mostly toileting; resident is asking for help more often.",
+    );
+    await review.getByLabel("Immediate action taken *").fill(
+      "Increased toileting checks and referred the pattern for a support-plan review.",
+    );
+    // Both notifications must leave 'pending' for the record to be dispositioned rather than parked.
+    await review.getByLabel("Provider notification").click();
+    await page.getByRole("option", { name: "completed" }).click();
+    await review.getByLabel("Designated-person notification").click();
+    await page.getByRole("option", { name: "completed" }).click();
+    await review.getByLabel("Incident report decision *").click();
+    await page.getByRole("option", { name: "Incident report not required" }).click();
+
+    await review.getByRole("button", { name: /Start Guided Workflow/ }).click();
+    await expect(review).toBeHidden({ timeout: 30000 });
+
+    // The reviewer's words and decision are on the record -- not merely that a row appeared.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_change_events")
+        .select("status, incident_decision, immediate_observations, provider_notification_status")
+        .eq("resident_id", residentId!);
+      if (error) throw error;
+      const event = data[0];
+      return event
+        ? {
+            opened: true,
+            decided: event.incident_decision === "not_required",
+            observed: (event.immediate_observations ?? "").includes("unscheduled services"),
+            notified: event.provider_notification_status === "completed",
+          }
+        : { opened: false, decided: false, observed: false, notified: false };
+    }, { timeout: 30000 }).toEqual({ opened: true, decided: true, observed: true, notified: true });
   });
 
   // -------------------------------------------------------------------------------------------
@@ -757,6 +1083,94 @@ test.describe("resident lifecycle journey", () => {
   });
 
   // -------------------------------------------------------------------------------------------
+  // 10. Escalate a pattern into QAPI
+  //
+  // The thresholds are published constants (QAPI_THRESHOLDS), which is the point: a facility can
+  // disagree with "three falls by one resident" explicitly rather than argue with a score. This
+  // step crosses that one and opens the project the recommendation suggests.
+  //
+  // The pattern key is what makes the project traceable back to the trend that justified it, and
+  // the unique index on (organization, facility, pattern_key) is what stops the same pattern
+  // opening a second project -- so the key, not just the row, is what this asserts.
+  // -------------------------------------------------------------------------------------------
+  test(`10. ${step("qapi").title} ["qapi"]`, async ({ page }) => {
+    test.fixme(step("qapi").status === "pending", step("qapi").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to trend");
+
+    // Three falls spread across the 90-day window the dashboard defaults to. The dates are spread
+    // deliberately: a trend is a claim about a period, and three rows sharing one timestamp would
+    // satisfy the count while saying nothing about the window the recommendation cites.
+    //
+    // Created through create_incident_atomic and save_incident_pathway as the signed-in user, not
+    // by a service-role insert: service_role holds no INSERT on incidents, and the fix for that is
+    // to use the product's own path, never to widen a grant so a fixture is easier to write.
+    const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    for (const days of [10, 35, 60]) {
+      const { data: fall, error: fallError } = await userClient.rpc("create_incident_atomic" as never, {
+        p_organization_id: organizationId,
+        p_facility_id: facilityId,
+        p_incident_type: "significant_injury",
+        p_occurred_at: daysAgo(days),
+        p_resident_id: residentId!,
+        p_resident_identifier_snapshot: null,
+        p_location_detail: "Room 12",
+        p_narrative: "Resident was found on the floor beside the bed and assisted up.",
+        p_severity: "moderate",
+        // Required, and required to differ per fall: the key is what stops a double-submitted
+        // report becoming two incidents, so one shared key here would silently seed a single fall.
+        p_idempotency_key: `journey-fall-${residentId}-${days}`,
+      } as never);
+      if (fallError) throw fallError;
+      // The pathway is what makes it a fall to the trend engine: incident_type is
+      // 'significant_injury', and FALL_PATHWAYS keys off pathway_key alone.
+      const { error: pathwayError } = await userClient.rpc("save_incident_pathway" as never, {
+        p_incident_id: (fall as unknown as { id: string }).id,
+        p_pathway_key: "fall",
+        p_answers: {},
+      } as never);
+      if (pathwayError) throw pathwayError;
+    }
+
+    await signIn(page);
+    await page.goto("/app/qapi");
+
+    // Nothing on this dashboard renders until a facility is chosen -- the trends are a claim about
+    // one facility's records, and the org here holds two.
+    await page.getByRole("combobox").filter({ hasText: /Select facility|Journey/ }).first().click();
+    await page.getByRole("option", { name: "Journey PCH" }).click();
+
+    // The recommendation, with the threshold it crossed shown next to it. Naming the resident in
+    // the match keeps this from passing on somebody else's pattern.
+    const recommendation = page
+      .getByText("Repeated falls — Journey Resident")
+      .locator("xpath=ancestor::div[contains(@class,'rounded-md')][1]");
+    await expect(recommendation).toBeVisible({ timeout: 30000 });
+    await expect(recommendation.getByText(/3 or more falls by one resident/)).toBeVisible();
+
+    await recommendation.getByRole("button", { name: "Open a QAPI project" }).click();
+    const projectDialog = page.getByRole("dialog");
+    await expect(projectDialog).toBeVisible();
+    await projectDialog.getByLabel("Project lead").click();
+    await page.getByRole("option").first().click();
+    await projectDialog.getByRole("button", { name: /Open project/ }).click();
+    await expect(projectDialog).toBeHidden({ timeout: 30000 });
+
+    // Linked to its pattern key, not merely created: a project with a null key cannot be traced
+    // back to the trend that justified it, and nothing stops the same pattern opening another.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("qapi_projects")
+        .select("pattern_key, problem_statement, facility_id")
+        .eq("organization_id", organizationId);
+      if (error) throw error;
+      const project = data.find((row) => row.pattern_key === `repeated_falls_resident:${residentId}`);
+      return project
+        ? { opened: true, stated: (project.problem_statement ?? "").length > 10 }
+        : { opened: false, stated: false, keys: data.map((row) => row.pattern_key) };
+    }, { timeout: 30000 }).toEqual({ opened: true, stated: true });
+  });
+
+  // -------------------------------------------------------------------------------------------
   // 11. Produce a survey packet
   //
   // Reachable now for two reasons that were previously blockers: the fixture holds the
@@ -885,7 +1299,7 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "support-plan", "plan-revision", "fall", "investigation", "survey-packet", "discharge"]);
+  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "support-plan", "deliver-services", "increased-assistance", "plan-revision", "fall", "investigation", "survey-packet", "discharge"]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {
