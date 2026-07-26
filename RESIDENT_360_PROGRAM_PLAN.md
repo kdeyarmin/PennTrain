@@ -1566,6 +1566,28 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0g — An assertion of mine that proved nothing
+
+**Coverage stays 7/12.** No step was added; a step that was already green was made honest.
+
+Step 3 claimed to prove that "accepting a proposal records the rationale alongside the outcome", and
+asserted `support_plan_proposals.rationale` was non-empty. It passed. It proved nothing: `rationale`
+is written when the proposal is **generated** — it holds the mapping rule's justification — while
+`review_support_plan_proposal` writes the reviewer's words to **`review_reason`**. The assertion
+would have stayed green with the reviewer's decision recorded nowhere.
+
+It now asserts `review_reason` contains text the test itself typed, so it can only pass if the
+reviewer's words actually reached the record. Re-run confirms they do.
+
+This is the same failure mode as the incident suite's temp-table grant, and it is the one worth
+being most alert to in this whole program: **an assertion that passes for a reason other than the
+one it claims.** A red test costs a round; a green test that proves nothing costs whatever it was
+supposed to be guarding, discovered much later.
+
+**Stack:** a reaped daemon can leave `containerd` running with no socket, after which `dockerd`
+waits for it and dies reporting "timeout waiting for containerd to start" — which reads as a Docker
+fault rather than the leftover it is. The script now clears that orphan before starting.
+
 ### Phase 0f — Step 3, a stale list, and a dead engine of my own making
 
 **Coverage 7/12 (58%).** A finalized assessment now provably produces a proposal that waits for a

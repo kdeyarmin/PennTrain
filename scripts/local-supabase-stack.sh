@@ -31,6 +31,15 @@ log "Docker daemon"
 if docker info >/dev/null 2>&1; then
   echo "already running"
 else
+  # A reaped daemon can leave containerd behind, alive but with no socket. dockerd then finds a
+  # running containerd, waits for it, and dies with "timeout waiting for containerd to start" --
+  # which reads like a Docker problem rather than the leftover it is. Clear it first.
+  if pgrep -x containerd >/dev/null 2>&1 && [ ! -S /run/containerd/containerd.sock ]; then
+    echo "clearing an orphaned containerd (running, no socket)"
+    pkill -x containerd || true
+    sleep 3
+  fi
+
   echo "starting dockerd..."
   # setsid, not just nohup: the daemon must leave this script's process group entirely, or a
   # sandbox that reaps a session's process tree takes the whole stack down with it between

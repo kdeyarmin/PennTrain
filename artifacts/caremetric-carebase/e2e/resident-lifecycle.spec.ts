@@ -470,12 +470,17 @@ test.describe("resident lifecycle journey", () => {
     await expect.poll(async () => {
       const { data, error } = await admin
         .from("support_plan_proposals")
-        .select("state, rationale")
+        // review_reason, NOT rationale. `rationale` is written when the proposal is GENERATED (the
+        // mapping rule's justification); review_support_plan_proposal writes the reviewer's words to
+        // review_reason. Asserting `rationale` passed while proving nothing about the decision.
+        .select("state, review_reason")
         .eq("resident_id", residentId!);
       if (error) throw error;
       const accepted = data.find((row) => row.state === "accepted");
-      return accepted ? { accepted: true, hasRationale: (accepted.rationale ?? "").length > 5 } : { accepted: false, hasRationale: false };
-    }, { timeout: 30000 }).toEqual({ accepted: true, hasRationale: true });
+      return accepted
+        ? { accepted: true, reviewerRecorded: (accepted.review_reason ?? "").includes("standby assistance") }
+        : { accepted: false, reviewerRecorded: false };
+    }, { timeout: 30000 }).toEqual({ accepted: true, reviewerRecorded: true });
   });
 
   // -------------------------------------------------------------------------------------------
