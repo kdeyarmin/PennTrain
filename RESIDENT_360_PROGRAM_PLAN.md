@@ -1528,6 +1528,50 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0n — The audit coverage report could not see what it was missing
+
+Same shape as Phase 0m, in the audit trail of a compliance product — which makes it the more serious
+of the two.
+
+`get_audit_coverage()`, the platform-admin audit coverage report, iterates
+`app_private.audit_entity_manifest`. **A table that is not in the manifest produces no row**, so it
+cannot be reported as uncovered. It is simply absent, and the report reads as complete.
+
+The manifest's own seeding shows the intent was total coverage: `20260711155016` populated it by
+selecting *every* table in `pg_tables`. That was a one-time snapshot. **415 public tables today, 187
+in the manifest — 228 unlisted, 193 of those with no audit trigger either.** The convention did not
+lapse for want of a decision; several later migrations do add their rows. It lapsed for want of
+enforcement.
+
+**What classifying actually found.** Rather than only counting, the tables this program added were
+checked individually — and three held resident-identifiable care records with no audit trail at all:
+
+| Table | Before |
+| --- | --- |
+| `support_plan_acknowledgments` | Who has read the revised plan — **zero** audit writes. Evidence a surveyor asks for directly |
+| `resident_service_task_instances` | The record that care was delivered. Audited for exactly one narrow action; `record_service_task_response` — the path that documents the care itself — wrote nothing |
+| `resident_service_requirements` | The schedule care is delivered against |
+
+All three now carry the row trigger. `support_plan_proposals` deliberately does **not**: nine
+explicit `audit_logs` writes already cover generation and review, which is what `domain_evidence`
+means, and a trigger would duplicate every one of them. Claiming `domain_evidence` was verified
+against the actual writes rather than assumed — the first draft of this migration classified four
+tables as `row_trigger` without checking, and three of them had no trigger.
+
+**What this deliberately does not do.** It does not invent classifications for the other 193. A new
+`unclassified` mode records the truth; backfilling them as `not_required` would have been the same
+overclaim in a new place — *"reviewed and found not to need auditing"* is a statement about work
+nobody did. The count is a ceiling that may fall, never rise, like the journey ratchet. A test
+asserts unclassified tables are never reported as covered, so the honest state cannot quietly become
+a quieter version of the bug it replaced.
+
+**A pre-existing assertion, narrowed rather than broken.** `phase1_platform_trust` checked
+`where not has_required_trigger`. Its stated claim — an entry that *declares* `row_trigger` has one —
+is unchanged; it is now scoped to classified entries, because an unclassified table has no declared
+requirement to satisfy and reporting it as satisfied would be the overclaim again. `is_classified` is
+a separate column for that reason: *"does the declared mode have its trigger"* and *"has anyone
+decided the mode"* are different questions, and folding them together hides one behind the other.
+
 ### Phase 0m — 22 scheduled jobs nobody was watching
 
 Sweeping for more instances of the failure class Phase 0l fixed turned up a much larger one, and it

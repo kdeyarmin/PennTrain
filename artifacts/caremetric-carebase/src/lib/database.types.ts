@@ -36447,6 +36447,7 @@ export type Database = {
           audit_mode: string
           contains_regulated_data: boolean
           has_required_trigger: boolean
+          is_classified: boolean
           rationale: string
           table_name: string
         }[]

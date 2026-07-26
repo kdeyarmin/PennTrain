@@ -320,14 +320,22 @@ $$;
 
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000c4');
 
+-- `and is_classified` added by 20260726260000. That migration introduced an explicit 'unclassified'
+-- audit_mode for the 193 tables added after the Phase 1 manifest snapshot, and reports them with
+-- has_required_trigger = false -- an unclassified table has no declared requirement to satisfy, and
+-- reporting it as satisfied would be the overclaim the migration exists to remove.
+--
+-- This assertion's stated claim is unchanged: an entry that DECLARES row_trigger has one. Entries
+-- that declare nothing yet are counted by the unclassified ceiling in
+-- audit_manifest_covers_every_table.test.sql instead.
 select is(
   (
     select count(*)::bigint
     from public.get_audit_coverage()
-    where not has_required_trigger
+    where not has_required_trigger and is_classified
   ),
   0::bigint,
-  'every row-trigger entry in the audit manifest has its required trigger'
+  'every classified entry in the audit manifest has the trigger its mode requires'
 );
 
 -- 23 -> 45 when 20260726250000 registered the 22 scheduled jobs that had no definition row.
