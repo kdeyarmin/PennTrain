@@ -23,6 +23,7 @@ export type NeedsAttentionKind =
   | "assessment_overdue"
   | "support_plan_review"
   | "support_plan_missing"
+  | "support_plan_activation_stalled"
   | "change_of_condition_open"
   | "incident_follow_up"
   | "hospital_return_reconciliation"
@@ -102,6 +103,12 @@ export interface NeedsAttentionInput {
   hospitalState: "in_facility" | "out_at_hospital" | "returned_reconciliation_incomplete";
   hospitalSince: string | null;
   supportPlan: { versionNumber: number; state: string; reviewDueDate: string | null } | null;
+  /**
+   * An approved plan whose effective date has passed while it is still not active. Separate from
+   * `supportPlan` because that field is the plan IN FORCE -- the care header prefers the active
+   * row, which is correct there and is exactly why a stalled newer version was invisible.
+   */
+  pendingActivation: { versionNumber: number; effectiveDate: string } | null;
   careProfileStale: boolean;
   careProfileAsOf: string | null;
   /** Aggregate from get_resident_360_snapshot. Split into typed exception kinds in a later phase. */
@@ -256,6 +263,28 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
       dueDate: input.supportPlan.reviewDueDate,
       since: null,
       actionLabel: "Review support plan",
+      href: `${base}?tab=support-plan`,
+    });
+  }
+
+  // Independent of the two above: a stalled activation can coexist with a perfectly current plan in
+  // force, and it is about a DIFFERENT version, so it is not part of that if/else chain.
+  //
+  // Urgent because the consequence is not a stale status. Activation is what supersedes the prior
+  // version and regenerates service requirements, so while a plan sits here the floor is still
+  // being given tasks from the plan this one was meant to replace.
+  if (input.pendingActivation) {
+    cards.push({
+      id: "support-plan-activation-stalled",
+      kind: "support_plan_activation_stalled",
+      severity: "urgent",
+      title: "Approved support plan has not taken effect",
+      why: "Staff tasks are still generated from the previous version, so care is being delivered to a plan that was already replaced.",
+      evidence: `Version ${input.pendingActivation.versionNumber} was approved to take effect ${input.pendingActivation.effectiveDate} and is still not active.`,
+      owner: "Administrator",
+      dueDate: input.pendingActivation.effectiveDate,
+      since: input.pendingActivation.effectiveDate,
+      actionLabel: "Activate plan",
       href: `${base}?tab=support-plan`,
     });
   }

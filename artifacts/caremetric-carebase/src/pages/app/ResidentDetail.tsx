@@ -165,6 +165,12 @@ export default function ResidentDetail() {
           reviewDueDate: careHeader.data.supportPlan.reviewDueDate,
         }
         : null,
+      pendingActivation: careHeader.data.pendingActivation
+        ? {
+          versionNumber: careHeader.data.pendingActivation.versionNumber,
+          effectiveDate: careHeader.data.pendingActivation.effectiveDate,
+        }
+        : null,
       careProfileStale: isCareProfileStale(careHeader.data.care.asOf),
       careProfileAsOf: careHeader.data.care.asOf,
       serviceExceptionsLast7Days: snapshot.data?.serviceDelivery.exceptionsLast7Days ?? 0,

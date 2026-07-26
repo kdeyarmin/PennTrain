@@ -60,6 +60,19 @@ export interface ResidentCareHeader {
     effectiveDate: string | null;
     reviewDueDate: string | null;
   } | null;
+  /**
+   * An approved plan whose effective date has passed while it is still not active -- the scheduled
+   * promotion did not run. Null in the normal case.
+   *
+   * Reported separately from `supportPlan` because that is the plan IN FORCE: the header prefers the
+   * active row, which is right for "what governs care today" and is precisely why a stalled newer
+   * version had no way to surface.
+   */
+  pendingActivation: {
+    id: string;
+    versionNumber: number;
+    effectiveDate: string;
+  } | null;
 }
 
 export type HospitalState = "in_facility" | "out_at_hospital" | "returned_reconciliation_incomplete";

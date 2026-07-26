@@ -34299,6 +34299,10 @@ export type Database = {
         Args: { p_note?: string; p_plan_id: string }
         Returns: boolean
       }
+      activate_due_support_plan: {
+        Args: { p_plan_id: string }
+        Returns: boolean
+      }
       activate_due_support_plans: { Args: never; Returns: number }
       activate_notification_template: {
         Args: { p_template_id: string }

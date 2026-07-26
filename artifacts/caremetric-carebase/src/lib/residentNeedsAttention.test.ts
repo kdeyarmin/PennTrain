@@ -29,6 +29,7 @@ function clean(overrides: Partial<NeedsAttentionInput> = {}): NeedsAttentionInpu
     hospitalState: "in_facility",
     hospitalSince: null,
     supportPlan: { versionNumber: 3, state: "effective", reviewDueDate: "2026-12-01" },
+    pendingActivation: null,
     careProfileStale: false,
     careProfileAsOf: "2026-07-01T00:00:00.000Z",
     serviceExceptionsLast7Days: 0,
@@ -328,5 +329,35 @@ describe("stated coverage limits", () => {
       "Care-level review recommended",
     ]);
     for (const entry of UNAVAILABLE_CARDS) expect(entry.blockedBy).toBeTruthy();
+  });
+});
+
+describe("stalled support-plan activation", () => {
+  it("raises an urgent card when an approved plan is past its effective date", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      pendingActivation: { versionNumber: 4, effectiveDate: "2026-07-20" },
+    }));
+    const card = cards.find((entry) => entry.kind === "support_plan_activation_stalled");
+    expect(card).toBeDefined();
+    expect(card?.severity).toBe("urgent");
+    // The evidence has to name the version and the date, because the remedy is version-specific.
+    expect(card?.evidence).toContain("Version 4");
+    expect(card?.evidence).toContain("2026-07-20");
+  });
+
+  it("says nothing when the scheduled promotion has run", () => {
+    const cards = buildResidentNeedsAttention(clean({ pendingActivation: null }));
+    expect(cards.some((entry) => entry.kind === "support_plan_activation_stalled")).toBe(false);
+  });
+
+  // A stalled activation is about a DIFFERENT version than the plan in force, so it must not be
+  // suppressed by that plan being perfectly current.
+  it("coexists with a current plan in force", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      supportPlan: { versionNumber: 3, state: "active", reviewDueDate: "2026-12-01" },
+      pendingActivation: { versionNumber: 4, effectiveDate: "2026-07-20" },
+    }));
+    expect(cards.some((entry) => entry.kind === "support_plan_activation_stalled")).toBe(true);
+    expect(cards.some((entry) => entry.kind === "support_plan_review")).toBe(false);
   });
 });

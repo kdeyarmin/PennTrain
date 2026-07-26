@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   allowedSupportPlanTransitions, canTransitionSupportPlan, diffSupportPlanVersions,
-  isSupportPlanInFlight, isSupportPlanState, summarizePlanDiff, SUPPORT_PLAN_STATE_DESCRIPTIONS,
+  isActivationOverdue, isSupportPlanInFlight, isSupportPlanState, summarizePlanDiff,
+  SUPPORT_PLAN_STATE_DESCRIPTIONS,
   SUPPORT_PLAN_STATE_LABELS, SUPPORT_PLAN_STATES, supportPlanStateLabel, transitionRequiresReason,
 } from "./supportPlanLifecycle";
 
@@ -199,5 +200,35 @@ describe("version comparison", () => {
     const before = { version_number: 1, services: [{ key: "a", service_name: "A", frequency: "daily" }, { key: "b", service_name: "B" }] };
     const after = { version_number: 2, services: [{ key: "a", service_name: "A", frequency: "weekly" }, { key: "c", service_name: "C" }] };
     expect(summarizePlanDiff(diffSupportPlanVersions(before, after))).toBe("1 added, 1 removed, 1 changed");
+  });
+});
+
+describe("isActivationOverdue", () => {
+  const today = new Date(2026, 6, 26); // 26 July 2026, local
+
+  it("is true once the effective date has passed", () => {
+    expect(isActivationOverdue("2026-07-24", today)).toBe(true);
+  });
+
+  // The server's condition is `effective_date <= current_date`, so today counts. A plan effective
+  // today whose promotion has not run is already late by the time anyone looks.
+  it("is true on the effective date itself", () => {
+    expect(isActivationOverdue("2026-07-26", today)).toBe(true);
+  });
+
+  it("is false for a plan legitimately scheduled ahead", () => {
+    expect(isActivationOverdue("2026-08-03", today)).toBe(false);
+  });
+
+  it("is false when there is no effective date", () => {
+    expect(isActivationOverdue(null, today)).toBe(false);
+    expect(isActivationOverdue(undefined, today)).toBe(false);
+  });
+
+  // Regression guard: `new Date("2026-07-26")` is UTC midnight, which is 25 July in any western
+  // zone -- a plan effective today would then read as NOT overdue, hiding the button precisely
+  // when it is needed.
+  it("compares calendar dates, not UTC instants", () => {
+    expect(isActivationOverdue("2026-07-26", new Date(2026, 6, 26, 1, 0, 0))).toBe(true);
   });
 });

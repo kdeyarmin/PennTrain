@@ -278,3 +278,24 @@ export function summarizePlanDiff(diff: PlanVersionDiff): string {
   if (modified) parts.push(`${modified} changed`);
   return parts.length ? parts.join(", ") : "No changes";
 }
+
+/**
+ * True when an approved plan's effective date has already passed -- meaning the scheduled promotion
+ * (`activate_due_support_plans`, run by pg_cron) has not run.
+ *
+ * Mirrors the server's condition in `activate_due_support_plan` rather than re-deciding it: the
+ * server refuses a plan that is not yet due, so a UI that offered the action more widely would only
+ * produce errors. Date-only comparison, matching the server's `effective_date <= current_date`.
+ */
+export function isActivationOverdue(
+  effectiveDate: string | null | undefined,
+  today: Date = new Date(),
+): boolean {
+  if (!effectiveDate) return false;
+  const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  // Split rather than `new Date(effectiveDate)`: a bare "YYYY-MM-DD" parses as UTC midnight, which
+  // is the previous day west of Greenwich -- so a plan effective today would read as overdue.
+  const [year, month, day] = effectiveDate.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return false;
+  return new Date(year, month - 1, day) <= localToday;
+}

@@ -1528,6 +1528,49 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0l — The pg_cron gap, closed by making the symptom visible and fixable
+
+This PR listed one item under **"Known gap worth a reviewer's eye"**: the `approved` → `active`
+promotion depends on a `pg_cron` job, guarded by an extension check, so a stack without `pg_cron`
+"would then silently never promote future-dated plans". Investigating it found the gap is worse than
+the sentence, in two ways.
+
+**The consequence is care delivery, not status.** `app_private.activate_support_plan()` is what
+supersedes the prior plan *and* regenerates `resident_service_requirements`. A plan stuck in
+`approved` means the floor keeps being given tasks generated from the version this one was meant to
+replace — staff deliver the old plan while the record says a newer one was approved.
+
+**There was no remedy and no way to notice.** `app_private.activate_support_plan` is revoked from
+`public`, `anon`, `authenticated` *and* `service_role`; `activate_due_support_plans()` is granted to
+`service_role` only. So a facility that somehow noticed could do nothing. And it could not notice:
+`get_resident_care_header()` orders by `(state = 'active') desc`, which is right for "the plan in
+force" and is exactly why a newer approved-and-overdue version was invisible on the resident's page.
+
+| Delivered | Notes |
+| --- | --- |
+| `activate_due_support_plan(plan_id)` | Manager-gated repair. Refuses a plan not yet due (`22023`), refuses a non-approved plan (`55000`), idempotent if the job won the race, and audits as `support_plan.activated_manually` — a run of those is itself the evidence the scheduled job is broken |
+| `pendingActivation` on the care header | Detects by **symptom**, not cause: "approved, past its effective date, still not active" covers pg_cron absent, unscheduled later, and erroring — all identical from the resident's side |
+| Urgent Needs Attention card | Independent of the two existing plan cards, because it concerns a *different version* and must not be suppressed by the plan in force being current |
+| "Activate now" button | Shown only once the date has passed, mirroring the server's condition rather than re-deciding it |
+
+**What the repair deliberately is not.** It will not activate a plan whose effective date has not
+arrived. Future-dating is a clinical decision someone made; a repair button that could override it
+would convert a safety property into a suggestion. Two pgTAP assertions pin the refusal and that the
+plan is left `approved` afterwards.
+
+**A date bug avoided by writing the test first.** `new Date("2026-07-26")` parses as UTC midnight,
+which is the previous day anywhere west of Greenwich — so a plan effective *today* would read as not
+overdue and the button would hide exactly when it is needed. `isActivationOverdue` splits the string
+and compares calendar dates; a regression test pins it.
+
+**The near-miss worth recording.** The first draft of this migration rewrote
+`get_resident_care_header` from memory and would have destroyed it — inventing column names and
+dropping the facility block, the hospital-state derivation, the assessment fallback and the
+allergies. It was caught by diffing the draft against the real body *before* running anything, one
+commit after the same class of error (a `create or replace` rebased on a stale copy) deleted an
+authorization guard. The body is now spliced programmatically from the current definition rather
+than retyped.
+
 ### Phase 0k — The rule pack fires when the information arrives
 
 **The seeded PA rules were unreachable in practice.** All four key off *internal-review* fields —

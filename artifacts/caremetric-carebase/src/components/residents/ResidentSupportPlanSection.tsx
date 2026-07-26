@@ -5,6 +5,7 @@ import { useListResidentAssessmentForms } from "@/hooks/useResidentAssessmentFor
 import {
   useApproveSupportPlan,
   useCreateSupportPlanDraft,
+  useActivateDueSupportPlan,
   useGenerateSupportPlanProposal,
   useResidentSupportPlanProposals,
   useResidentSupportPlans,
@@ -28,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, ClipboardList, FileCheck2, GitBranch, GitCompareArrows } from "lucide-react";
 import {
-  allowedSupportPlanTransitions, diffSupportPlanVersions, summarizePlanDiff,
+  allowedSupportPlanTransitions, diffSupportPlanVersions, isActivationOverdue, summarizePlanDiff,
   SUPPORT_PLAN_STATE_DESCRIPTIONS, supportPlanStateLabel, transitionRequiresReason,
   type SupportPlanState,
 } from "@/lib/supportPlanLifecycle";
@@ -154,6 +155,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   const recordSignature = useRecordSupportPlanSignature();
   const approvePlan = useApproveSupportPlan();
   const generateProposal = useGenerateSupportPlanProposal();
+  const activatePlan = useActivateDueSupportPlan();
   const reviewProposal = useReviewSupportPlanProposal();
 
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -243,6 +245,15 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       setApproveFor(null);
     } catch (e) {
       toast({ title: "Could not approve", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  }
+
+  async function activateDue(plan: { id: string }) {
+    try {
+      await activatePlan.mutateAsync({ planId: plan.id });
+      toast({ title: "Plan activated", description: "Service tasks now generate from this version." });
+    } catch (e) {
+      toast({ title: "Could not activate the plan", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   }
 
@@ -408,6 +419,14 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                         {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => { setParticipationFor(plan); setParticipationDate(toLocalIsoDate()); }}>Record participation</Button>}
                         {plan.state === "awaiting_signature" && <Button size="sm" variant="outline" onClick={() => setSignatureFor(plan)}>Record signature</Button>}
                         {(plan.state === "awaiting_signature" || plan.state === "approved") && <Button size="sm" onClick={() => openApprove(plan)}>Approve</Button>}
+                        {/* Only when the date has actually passed. An approved plan effective next
+                            Monday shows nothing here -- the scheduled job owns that, and offering a
+                            button would turn future-dating into a suggestion. */}
+                        {plan.state === "approved" && isActivationOverdue(plan.effective_date) && (
+                          <Button size="sm" onClick={() => activateDue(plan)} disabled={activatePlan.isPending}>
+                            Activate now
+                          </Button>
+                        )}
                         {/* Every remaining legal move comes from the shared transition table, so the
                             UI can never offer an edge the server will reject. Participation and
                             signature have their own dialogs above because they capture evidence. */}

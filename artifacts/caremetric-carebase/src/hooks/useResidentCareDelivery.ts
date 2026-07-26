@@ -169,6 +169,28 @@ export function useApproveSupportPlan() {
   });
 }
 
+/**
+ * Promotes an approved plan whose effective date has already passed -- the repair for a scheduled
+ * activation that did not run. The server refuses a plan that is not yet due, so this cannot be used
+ * to bring a future-dated plan forward.
+ */
+export function useActivateDueSupportPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { planId: string }) => {
+      const { data, error } = await supabase.rpc("activate_due_support_plan" as never, {
+        p_plan_id: input.planId,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      invalidateSupportPlans(queryClient);
+      invalidateResidentCare(queryClient);
+    },
+  });
+}
+
 export function useReviewSupportPlanProposal() {
   const queryClient = useQueryClient();
   return useMutation({
