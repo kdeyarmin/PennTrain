@@ -1528,6 +1528,49 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0m — 22 scheduled jobs nobody was watching
+
+Sweeping for more instances of the failure class Phase 0l fixed turned up a much larger one, and it
+inverted the assumption behind the sweep. Almost every `cron.schedule` in the repo is *unguarded* —
+so a stack without `pg_cron` fails at the first migration rather than running silently degraded. The
+guarded pattern was the anomaly, not the norm.
+
+**The real gap: the database schedules 39 cron jobs and `system_job_definitions` held 23.** Both
+surfaces that report job health are driven by that table — `run_system_job_watchdog()` iterates it to
+emit stale-job events, and `get_system_job_control_plane()` backs `/admin/system-jobs`. A job with no
+definition row is in neither. So the operator page listed 23 jobs and read as a complete, healthy
+list while 22 others ran unobserved. *"All jobs healthy"* and *"all jobs I know about are healthy"*
+are indistinguishable on screen.
+
+What was unwatched was not obscure:
+
+| Job | What its silence does |
+| --- | --- |
+| `generate-resident-service-tasks-daily` | The floor is issued **no tasks at all**. Staff see an empty queue with no reason to suspect the schedule rather than a quiet day |
+| `activate-due-support-plans` | The Phase 0l defect, unmonitored |
+| `escalate-change-followups` / `-overdue-work-items` / `-shift-handoffs` | Everything time-based stops escalating while the queue still looks populated |
+| `run-data-lifecycle-nightly` | Retention stops — a compliance exposure nothing else surfaces |
+| `billing-quantity-sync`, `billing-trial-expiry-notices` | Billing drifts silently |
+| `system-job-last-success-watchdog` | **The watchdog did not watch the watchdog.** The one job whose failure suppresses every other job's alerting was the only one nothing could report on |
+
+All 22 are now registered. **Criticality is not uniform and was not guessed**: `is_critical` drives
+paging, and marking everything critical produces a stream nobody reads — operationally the same as
+watching nothing. The rule applied was *critical when silence causes care, compliance, or billing
+harm that no other surface would reveal*; a digest that fails to send is noticed by its absence, a
+task generator that fails to run is not. Five are registered deliberately non-critical, and a test
+asserts that split still exists so criticality keeps discriminating.
+
+**The ratchet.** `app_private.unwatched_cron_jobs()` joins `cron.job` against the definitions, and
+the suite fails naming any job neither surface can see. This gap was not created deliberately — it
+accumulated one migration at a time — so the fix has to be a build failure, not a memo. Verified by
+scheduling a probe job inside a transaction and confirming the function reports it.
+
+**An existing assertion that overclaimed.** `phase1_platform_trust.test.sql` pinned the control-plane
+count at 23 with the message *"registers every platform job"*. It did not, and a bare count over
+`system_job_definitions` structurally **cannot** notice a cron job missing *from* that table — which
+is what 22 of them were. The count is updated and the wording no longer claims more than it checks;
+the real check is the join.
+
 ### Phase 0l — The pg_cron gap, closed by making the symptom visible and fixable
 
 This PR listed one item under **"Known gap worth a reviewer's eye"**: the `approved` → `active`

@@ -330,10 +330,19 @@ select is(
   'every row-trigger entry in the audit manifest has its required trigger'
 );
 
+-- 23 -> 45 when 20260726250000 registered the 22 scheduled jobs that had no definition row.
+--
+-- The old message claimed this proved the control plane "registers every platform job". It did not,
+-- and could not: a bare count over system_job_definitions cannot notice a cron job that is missing
+-- FROM that table, which is exactly what 22 of them were. The real check lives in
+-- every_scheduled_job_is_watched.test.sql, which joins cron.job against the definitions and names
+-- any job neither the watchdog nor /admin/system-jobs can see.
+--
+-- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  23::bigint,
-  'the control plane registers every platform job, including organization exports, the weekly manager digest, and the regulatory digest send'
+  45::bigint,
+  'the control plane returns one row per registered job definition'
 );
 
 create temporary table phase1_hold_ids as
