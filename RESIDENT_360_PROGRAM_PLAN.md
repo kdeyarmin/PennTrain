@@ -1528,6 +1528,34 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0q — Auditing the tests themselves
+
+Having written a vacuous assertion in Phase 0o, the obvious question was whether others existed. All
+**2,629** pgTAP assertions and **977** unit assertions were scanned for structural tautologies —
+`is(x, x)`, `ok(true)`, self-comparisons, `A and not A`. **Four hits, all false positives**: three
+were `set column = column + 1` inside UPDATE statements (assignment, not comparison) and one was the
+comment describing the bug already fixed. No vacuous assertion survives.
+
+The same question applied to tests that never execute: no `.only(` anywhere (which would silently
+disable every other test in its file), no skipped or todo unit tests, and the single `test.fixme` is
+the journey's placeholder generator, which is inert at 12/12.
+
+**But that generator hid a real staleness.** It skips steps listed in a hand-maintained
+`WITH_WRITTEN_BODIES` set — and that set was written when ten steps had bodies and never updated when
+`change-of-condition` and `qapi` gained theirs in Phase 0i. Nothing failed, because the loop only
+fires for *pending* steps and there were none. The drift would have surfaced only when somebody
+un-marked one of those two and got **two tests for one step** — a placeholder claiming it was blocked
+running beside the real body that proves it is not.
+
+The set is corrected, and `check-journey-coverage.mjs` now enforces three rules so it cannot drift
+again: every id with a written body must be listed, every listed id must have a body, and every
+listed id must be a real step id. All three were **verified by introducing the drift and watching
+each fire** — the third one only exists because the first attempt at direction-two didn't fire, and
+finding out why exposed that a typo'd id was invisible to both other rules.
+
+This is the same defect as everything else in Phase 0m–0p, one level up: a list nobody is forced to
+update stops being true quietly, and this one was a list guarding the tests.
+
 ### Phase 0p — The sweeps that found nothing, made permanent
 
 Several sweeps run while hunting the "check that cannot see what is missing" defect class came back

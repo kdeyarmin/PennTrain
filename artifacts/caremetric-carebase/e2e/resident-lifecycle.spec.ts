@@ -1297,7 +1297,19 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "support-plan", "deliver-services", "increased-assistance", "plan-revision", "fall", "investigation", "survey-packet", "discharge"]);
+  // Every id with a `test(...)` body above. Hand-maintained lists drift: this one was written when
+  // ten steps had bodies and was not updated when change-of-condition and qapi gained theirs, so
+  // un-marking either as pending would have produced BOTH the real body (self-gated on the
+  // registry) and a generated placeholder -- two tests for one step, one of them a lie.
+  //
+  // Kept as an explicit list rather than derived, because deriving it from the registry's `status`
+  // is what it must be checked AGAINST: if it were `status === "implemented"` this loop could never
+  // fire and the placeholder mechanism would be silently dead.
+  const WITH_WRITTEN_BODIES = new Set([
+    "admit", "initial-assessment", "support-plan", "deliver-services", "increased-assistance",
+    "change-of-condition", "plan-revision", "fall", "investigation", "qapi", "survey-packet",
+    "discharge",
+  ]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {
