@@ -249,8 +249,13 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   async function checkAssessment() {
     if (!latestFinalizedAssessment) return;
     try {
-      await generateProposal.mutateAsync({ assessmentFormId: latestFinalizedAssessment.id });
-      toast({ title: "Assessment reviewed", description: "A support-plan proposal was generated for review." });
+      // A null id means no mapping rule matched this resident's answers -- not a failure. Saying
+      // "a proposal was generated" either way would send the user looking for something that is
+      // not there, and would hide the more useful answer: the plan already covers what was found.
+      const proposalId = await generateProposal.mutateAsync({ assessmentFormId: latestFinalizedAssessment.id });
+      toast(proposalId
+        ? { title: "Assessment reviewed", description: "A support-plan proposal was generated for review." }
+        : { title: "Assessment reviewed", description: "No plan changes are suggested by the current assessment and reviews." });
     } catch (e) {
       toast({ title: "Could not generate proposal", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }

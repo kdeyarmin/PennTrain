@@ -61,7 +61,10 @@ export function useGenerateSupportPlanProposal() {
         p_reason: input.reason ?? "Assessment change requires support-plan review",
       } as never);
       if (error) throw error;
-      return data as string;
+      // Null when no mapping rule matched: the engine deliberately creates nothing rather than an
+      // empty proposal with a high-priority work item attached to it. Callers must distinguish
+      // "nothing to suggest" from "it worked", so the type says so.
+      return data as string | null;
     },
     // Both: generating a proposal is what puts a row in the proposals list, and invalidating only
     // the care-delivery keys left that list stale. The user saw "a proposal was generated" and an

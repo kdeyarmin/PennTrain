@@ -1528,6 +1528,44 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0k — The rule pack fires when the information arrives
+
+**The seeded PA rules were unreachable in practice.** All four key off *internal-review* fields —
+`transfer_assistance`, `ambulation_status`, `scheduled_toileting`, `requests_assistance_reliably`
+are keys defined by the mobility/fall and continence templates, and the rationales say so
+("The mobility review recorded that the resident needs supervision or hands-on help to transfer").
+But `finalize_resident_assessment_review()` recorded the review and stopped. The only way to act on
+one was for somebody to independently remember to open the support-plan tab and press *Check
+assessment for changes*. A rule pack that fires only when a user guesses it should is a rule pack
+that does not fire.
+
+`20260726230000` makes finalizing a review generate the proposal, anchored to the resident's latest
+finalized assessment form. Its pgTAP suite asserts the **shipped** `pa.mobility.standby_ambulation`
+rule fires on a real finalized review — testing only a rule the suite itself inserted would prove
+the engine works on test data and leave the actual pack as untested as it was.
+
+**Second defect, surfaced by the evaluation fix.** `generate_support_plan_proposal` created a
+proposal unconditionally. Before conditions were evaluated that was harmless because every call
+matched every rule; once they are, "nothing matched" is the *normal* case, and an empty proposal
+carrying a high-priority "Review support-plan proposal" work item is a false alarm. It now returns
+null and creates nothing. The UI said "A support-plan proposal was generated for review" either
+way; it now distinguishes that from "No plan changes are suggested".
+
+**Finalizing never fails because proposing did.** Finalizing is the clinician's act and the review
+is evidence; a malformed mapping rule must not be able to block clinical documentation. The
+generation is wrapped — but the failure is written to the audit log, not swallowed, so an operator
+can see that the proposal did not happen and why. A bare `EXCEPTION WHEN OTHERS THEN NULL` would
+hide exactly the thing worth knowing.
+
+**A guard I deleted and the suite caught.** This migration's `create or replace` of
+`finalize_resident_assessment_review` was written over the **original** body from `20260726030000`,
+not the current one — silently dropping the `assert_duty_eligible(…, 'resident_assessor', …)` check
+that `20260726140000` had added. `duty_eligibility_enforcement.test.sql` failed on the next run and
+named it precisely. Two things worth keeping: rebasing a `create or replace` on an old copy is a
+standing hazard in a migration-per-change repo, and the reason it cost one round rather than
+shipping is that the guard had its own test. The restored line now carries a comment saying which
+migration it came from.
+
 ### Phase 0j — Two proposal engines become one
 
 **The dead engine was the one with more features.** That inverted the obvious call. Asked to delete
