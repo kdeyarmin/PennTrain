@@ -1528,6 +1528,42 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0j — Two proposal engines become one
+
+**The dead engine was the one with more features.** That inverted the obvious call. Asked to delete
+whichever had fewer, the honest answer was that deleting by that rule would have removed the *live*
+engine — breaking the UI button, journey steps 3 and 7, and the plan-merge fix from `20260726210000`.
+So they were merged instead.
+
+| | `generate_support_plan_proposal` (form-keyed) | `generate_support_plan_proposal_from_review` |
+| --- | --- | --- |
+| Callers | 1 — the Generate-proposal button | **0** |
+| Evaluates rule conditions | **No** — selected every active rule | Yes |
+| Per-item provenance | No | Yes — rule key, version, answer, rationale |
+| Output the plan merge can read | Yes | **No** — emitted `items[]` |
+
+`20260726220000` keeps the live entry point and the plan-compatible output, and takes the evaluation
+step and the provenance from the dead one. Three things are better than either predecessor:
+
+1. **Conditions are evaluated.** Only rules that actually fired appear. The old engine's latent bug
+   was not hypothetical — the PA rule pack *is* seeded globally, so every proposal it built already
+   contained all four rules regardless of the resident. The journey's own resident answers two of
+   them; it was being proposed all four.
+2. **Both answer sources are read.** Form `content` is nested, review `answers` are flat, so both are
+   flattened to dotted paths (`section1.items.ambulation.degree`) and merged, review winning. That is
+   what "combine" means for inputs — the review path stops being unreachable without becoming the
+   only path.
+3. **Entries carry a `key`.** `merge_plan_entries` dedupes on it, so accepting the same proposal twice
+   is no longer additive. Neither predecessor stamped one. A rule's *own* curated key wins over the
+   rule-key fallback, because the seeded rules deliberately share keys across rules and splitting
+   those would quietly double the plan.
+
+**The assertion that would have passed for the wrong reason.** "Only the matching rule fires" is
+satisfied just as well by a typo'd `assessment_item_key` — an unresolvable key yields a null answer,
+which also fails to match. The suite now proves the non-matching rule's key *resolves to a real
+answer* first, so its exclusion is provably the condition's doing. 22 assertions; 2,569 across the
+whole suite pass on a clean database.
+
 ### Phase 0i — The last four steps, and the ratchet reaches zero
 
 **Coverage 12/12 (100%), ceiling 0.** Steps 4, 5, 6 and 10 land together. Every step in the registry

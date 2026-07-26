@@ -516,12 +516,10 @@ test.describe("resident lifecycle journey", () => {
   // -------------------------------------------------------------------------------------------
   // 3. Generate a support plan from the assessment
   //
-  // Drives the path a user can actually reach. NOTE for whoever reads this next: there are two
-  // proposal engines in the schema. generate_support_plan_proposal(assessment_form_id) is the one
-  // wired to this button; generate_support_plan_proposal_from_review(review_id) -- the mapping-rule
-  // engine added in Phase 3 -- has no caller anywhere in the app or the test suite. This step
-  // deliberately exercises the reachable one, because a journey has to reflect what a facility can
-  // do, not what the schema can do.
+  // Drives the path a user can actually reach. There used to be two proposal engines in the schema
+  // and this note warned which one was wired; 20260726220000 merged them, so there is now exactly
+  // one -- generate_support_plan_proposal(assessment_form_id) -- and it both evaluates the mapping
+  // rules' conditions and emits the shape the plan merge consumes.
   //
   // The finalized assessment form is seeded rather than driven: producing one is the RASP prep
   // flow, which is its own workflow and not what this step claims to prove. What IS driven is the

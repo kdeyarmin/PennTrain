@@ -36425,10 +36425,6 @@ export type Database = {
         Args: { p_assessment_form_id: string; p_reason?: string }
         Returns: string
       }
-      generate_support_plan_proposal_from_review: {
-        Args: { p_reason?: string; p_review_id: string }
-        Returns: string
-      }
       get_active_survey_day_session: {
         Args: { p_facility_id: string }
         Returns: Json
