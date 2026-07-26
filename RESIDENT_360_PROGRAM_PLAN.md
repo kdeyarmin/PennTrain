@@ -1528,6 +1528,51 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0p — The sweeps that found nothing, made permanent
+
+Several sweeps run while hunting the "check that cannot see what is missing" defect class came back
+**clean**: RLS coverage, storage bucket exposure, unrestricted RLS policies, edge-function
+authentication. That is a result worth keeping, and a one-off sweep keeps nothing — it proves the
+schema was sound on the afternoon somebody ran it. `tenant_isolation_invariants.test.sql` pins them
+so they hold on every commit.
+
+| Invariant | State |
+| --- | --- |
+| Every public table has RLS enabled | 415/415 |
+| No policy-less table is readable by `authenticated`/`anon` | the 3 policy-less tables also grant nothing |
+| No unrestricted permissive policy outside enumerated global catalogues | 9 catalogues, each checked individually |
+| Cohort *membership* is org-scoped even though the catalogue is not | held |
+| No storage bucket is public; every bucket is named by a policy | 23 buckets |
+| The anon-reachable SECURITY DEFINER surface is exactly 28 | ratcheted |
+| Every SECURITY DEFINER function pins its `search_path` | held |
+
+**Two invariants I drafted were wrong about how the system must work**, and the corrections matter
+more than the assertions:
+
+- *"No SECURITY DEFINER function in public is executable by anon"* — false **by design**. The guest
+  and resident-portal flows are reached by tokenised link with no account, so they must be
+  anon-executable. Their security is the token each validates, not the grant. Replaced with a
+  **count ratchet**: that surface bypasses RLS by definition, so it must not grow without someone
+  deciding to grow it.
+- *"No `app_private` function is executable by authenticated"* — **impossible**. Most are RLS policy
+  helpers (`admission_row_visible`, `clinical_record_visible`), and a policy cannot evaluate a
+  function the invoking role may not execute. `app_private` is protected by not being an exposed
+  PostgREST schema at all — confirmed by calling one over REST and getting a 404. The grant was never
+  the control. Replaced with the `search_path` pinning check, which is a real escalation vector and
+  currently holds everywhere.
+
+**A false positive caught before it was reported.** The first edge-function sweep flagged
+`run-data-lifecycle` as unauthenticated: `verify_jwt = false`, service-role client, no visible auth
+check — and the cron job *does* send `X-CareMetric-Cron-Secret`. It looked like a serious hole.
+Reading the handler showed `authorizeRequest = requireCronRequest` as a default parameter, called on
+the first line. The detector's regex simply did not know the repo's own helper name. Corrected, the
+sweep reports **0 of 59**. The lesson is the one this program keeps relearning in the other
+direction: verify before claiming, whether the claim is *"this is broken"* or *"this is fine"*.
+
+**Every assertion here was watched failing** before being trusted — a table without RLS, a
+SECURITY DEFINER function without a pinned `search_path`, and a public bucket were each introduced
+inside a transaction to confirm the check reports them.
+
 ### Phase 0o — The backlog is prioritised, and an assertion of mine that proved nothing
 
 Phase 0n made the audit gap visible and counted: 188 tables carrying `unclassified`. But an
