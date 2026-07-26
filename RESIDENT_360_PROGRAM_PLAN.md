@@ -1528,6 +1528,42 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0o — The backlog is prioritised, and an assertion of mine that proved nothing
+
+Phase 0n made the audit gap visible and counted: 188 tables carrying `unclassified`. But an
+undifferentiated list of 188 is only marginally more useful than the invisible list it replaced.
+Whoever works it needs to know which entries hold resident and employee records and which are lookup
+and configuration tables.
+
+**The evidence is mechanical, not a judgement.** A table with a foreign key to `public.residents` or
+`public.employees` is keyed to a data subject — a schema fact. **70 of the 188 qualify**, and they are
+now flagged `contains_regulated_data`. `get_audit_coverage()` already sorts by (unclassified, then
+regulated), so the report opens on *"holds subject records, no audit decision recorded"* instead of an
+alphabetical list where those tables are indistinguishable from a colour-palette lookup.
+
+**The bound that makes the flag informative.** Keying on a `profiles` foreign key instead would have
+matched **152** of the 188 — nearly every table has one for `created_by`/actor columns — and a flag on
+almost everything carries exactly as much information as a flag on nothing. A test pins that the
+flagged set is a strict subset for this reason.
+
+**Flagging is deliberately not classifying.** This records what a table *holds*; it does not set
+`audit_mode`. Deciding a table needs a row trigger is a compliance judgement with a real
+write-throughput cost, and 70 of those made mechanically would be 70 guesses. `contains_regulated_data`
+is metadata — it costs nothing and cannot break a write path.
+
+**An assertion of mine that proved nothing.** The test guarding that separation was first written as:
+
+```sql
+where audit_mode = 'unclassified' and audit_mode <> 'unclassified'
+```
+
+Always false, so the surrounding `NOT EXISTS` was always true. It passed without testing anything —
+the same failure mode as Phase 0g's `rationale`/`review_reason` mix-up, committed by the person who
+wrote Phase 0g. It now pins the unclassified total at 188, so a future change that starts deriving
+`audit_mode` from the regulated flag shrinks the backlog and fails the test. **Verified by deriving
+one classification inside a transaction and watching the count move to 187.** An assertion nobody has
+seen fail is a hypothesis.
+
 ### Phase 0n — The audit coverage report could not see what it was missing
 
 Same shape as Phase 0m, in the audit trail of a compliance product — which makes it the more serious
