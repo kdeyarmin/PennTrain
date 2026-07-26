@@ -1566,6 +1566,49 @@ database means CI is the first execution, and each hypothesis costs a full round
 three real findings and one precise open question — but it is the wrong ratio, and the lesson for the
 remaining eleven steps is to diagnose the shell first, once, rather than discover it eleven times.
 
+### Phase 0h — The support plan could never be used, and now can
+
+**Coverage 8/12 (66%).** Step 7 runs the full lifecycle and a revision. Getting there required
+fixing the most serious defect found in this program.
+
+**A resident's first support plan could never contain anything.** Every write path was accounted
+for and none of them wrote content:
+
+- `create_support_plan_draft` copies needs/goals/services/interventions from a **prior** plan. For a
+  first plan there is no prior, so the draft is empty.
+- Submit and approve move `state` only.
+- `authenticated` holds **no table grants at all** on `resident_support_plans` — it is RPC-only.
+- `review_support_plan_proposal` updated the proposal row and closed its work item. It never touched
+  the plan.
+
+An empty plan fails `planHasContent()`, so "Submit for review" stays disabled permanently. The plan
+could never be submitted, never became active — and because floor service tasks are generated from
+an active plan's services, **items 6 and 7 of the request were non-functional for any new resident**,
+along with journey steps 4, 5 and 7.
+
+**This was a bug, not a design gap, and the product said so itself.** Submitting an empty plan
+raises: *"An empty support plan can't be submitted. Start the draft from the active plan or accept
+an assessment proposal so it has needs, goals, services, or interventions."* The contract was
+written in the UI and never implemented underneath.
+
+`20260726210000_accepted_proposals_reach_the_plan.sql` makes accepting a proposal merge its
+content into the draft, creating that draft if none exists. Merging is keyed and idempotent —
+accepting twice is not two services — and rejection deliberately changes nothing. 10 pgTAP
+assertions cover the merge semantics directly, including that a key-less entry is kept rather than
+silently dropped.
+
+**Two stale names found by running it.** Submitting lands in `awaiting_clinical_review`, a stage
+between draft and participation that the shared transition table offers generically. And the
+terminal state is `active`, though `approve_support_plan`'s original body wrote `'effective'` —
+asserting the older name would have left the step waiting for a state nothing produces.
+
+**The service-role grant asymmetry: investigated, not a defect.** 78 tables grant SELECT to
+`authenticated` but not `service_role`. The migration that restored them says in its own header that
+it covers "every active **authenticated** policy" — `service_role` was never in scope. No edge
+function reads any of the 78. So this is least-privilege that inconveniences service-role test
+fixtures and nothing else; widening 78 tables' grants for test convenience would be a security
+regression. The fixtures go through the user instead, which is the more faithful shape anyway.
+
 ### Phase 0g — An assertion of mine that proved nothing
 
 **Coverage stays 7/12.** No step was added; a step that was already green was made honest.

@@ -484,6 +484,104 @@ test.describe("resident lifecycle journey", () => {
   });
 
   // -------------------------------------------------------------------------------------------
+  // 7. Revise the support plan
+  //
+  // Runs the whole lifecycle, because until 20260726210000 it could not run at all: a first plan
+  // had no way to acquire content, so "Submit for review" stayed disabled forever. Accepting the
+  // proposal in step 3 now fills the draft, which is what makes this reachable.
+  //
+  // draft -> in_review -> awaiting participation -> awaiting signature -> effective, then a
+  // revision that supersedes it while keeping the prior version on the record.
+  // -------------------------------------------------------------------------------------------
+  test(`7. ${step("plan-revision").title} ["plan-revision"]`, async ({ page }) => {
+    test.fixme(step("plan-revision").status === "pending", step("plan-revision").blockedBy ?? "");
+    test.skip(residentId === null, "step 1 did not complete, so there is no resident to plan for");
+
+    await signIn(page);
+    await page.goto(`/app/residents/${residentId}?tab=support-plan`);
+
+    // The draft exists and carries the accepted proposal's content.
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_support_plans")
+        .select("state, version_number, needs, services")
+        .eq("resident_id", residentId!);
+      if (error) throw error;
+      const draft = data.find((row) => row.state === "draft");
+      return draft
+        ? { hasContent: (draft.needs as unknown[]).length + (draft.services as unknown[]).length > 0 }
+        : { hasContent: false };
+    }, { timeout: 20000 }).toEqual({ hasContent: true });
+
+    await page.reload();
+    await page.getByRole("button", { name: "Submit for review" }).click();
+
+    // Clinical review comes before participation. It has no evidence dialog of its own, so it is
+    // offered through the shared transition table -- the UI only ever offers edges the server
+    // accepts, which is why the label is generated from the state name.
+    await page.getByRole("button", { name: "Move to awaiting resident participation" }).click();
+    const toParticipation = page.getByRole("dialog");
+    await expect(toParticipation).toBeVisible();
+    // No reason field on this edge: transitionRequiresReason() asks for one only where the move is
+    // a judgement (returning for revision), not where it is simply the next stage.
+    await toParticipation.getByRole("button", { name: "Confirm" }).click();
+
+    await page.getByRole("button", { name: "Record participation" }).click();
+    const participation = page.getByRole("dialog");
+    await expect(participation).toBeVisible();
+    await participation.getByLabel("Notes").fill("Resident and daughter took part in the review.");
+    await participation.getByRole("button", { name: "Record participation" }).click();
+
+    await page.getByRole("button", { name: "Record signature" }).click();
+    const signature = page.getByRole("dialog");
+    await expect(signature).toBeVisible();
+    await signature.getByRole("button", { name: "Record outcome" }).click();
+
+    await page.getByRole("button", { name: "Approve" }).click();
+    const approve = page.getByRole("dialog");
+    await expect(approve).toBeVisible();
+    // Approval is gated on an explicit attestation; the button stays disabled without it, which is
+    // the point -- activating a care plan should be a deliberate act.
+    await approve.getByRole("checkbox").check();
+    await approve.getByRole("button", { name: "Approve & activate" }).click();
+
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_support_plans")
+        .select("state, version_number")
+        .eq("resident_id", residentId!);
+      if (error) throw error;
+      // "active", not "effective": approve_support_plan's original body wrote 'effective', but the
+      // lifecycle the product runs on settles at 'active'. Asserting the stale name would have this
+      // step waiting for a state nothing produces.
+      return data.filter((row) => row.state === "active").length;
+    }, { timeout: 30000 }).toBe(1);
+
+    // The revision: a new draft carries the prior plan's content forward, and approving it
+    // supersedes the old version rather than overwriting it. A plan that replaced its predecessor
+    // in place would leave a facility unable to say what the care plan was on any earlier date.
+    await page.reload();
+    await page.getByRole("button", { name: "Start new draft" }).click();
+
+    await expect.poll(async () => {
+      const { data, error } = await admin
+        .from("resident_support_plans")
+        .select("state, version_number, services")
+        .eq("resident_id", residentId!)
+        .order("version_number");
+      if (error) throw error;
+      const versions = data.map((row) => row.version_number);
+      const draft = data.find((row) => row.state === "draft");
+      return {
+        versions: versions.length,
+        priorRetained: data.some((row) => row.state === "active"),
+        // The revision starts from the plan in force, not from nothing.
+        draftInherited: draft ? (draft.services as unknown[]).length > 0 : false,
+      };
+    }, { timeout: 30000 }).toEqual({ versions: 2, priorRetained: true, draftInherited: true });
+  });
+
+  // -------------------------------------------------------------------------------------------
   // 8. Report a fall
   //
   // Two stages, because that is how the product works: intake records what happened, and the
@@ -787,7 +885,7 @@ test.describe("resident lifecycle journey", () => {
   // Registered from the registry so the count in the Playwright report and the count in
   // scripts/check-journey-coverage.mjs cannot disagree. Each carries its real blocker.
   // -------------------------------------------------------------------------------------------
-  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "support-plan", "fall", "investigation", "survey-packet", "discharge"]);
+  const WITH_WRITTEN_BODIES = new Set(["admit", "initial-assessment", "support-plan", "plan-revision", "fall", "investigation", "survey-packet", "discharge"]);
   for (const pending of RESIDENT_JOURNEY_STEPS.filter(
     (entry) => entry.status === "pending" && !WITH_WRITTEN_BODIES.has(entry.id),
   )) {

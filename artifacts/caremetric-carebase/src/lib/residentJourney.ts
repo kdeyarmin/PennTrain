@@ -97,8 +97,7 @@ export const RESIDENT_JOURNEY_STEPS: readonly JourneyStep[] = [
     ordinal: 7,
     title: "Revise the support plan",
     proves: "The plan moves through its lifecycle to a new version with the prior version retained.",
-    status: "pending",
-    blockedBy: "Depends on step 3: there is no support plan yet, so there is nothing to revise.",
+    status: "implemented",
   },
   {
     id: "fall",
