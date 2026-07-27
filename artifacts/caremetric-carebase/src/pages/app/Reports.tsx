@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { csvEscape } from "@/lib/csv";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { escapeOrValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -447,7 +447,7 @@ export default function Reports() {
   const [payPeriodStart, setPayPeriodStart] = useState(() => {
     const date = new Date(); date.setDate(date.getDate() - 13); return toLocalIsoDate(date);
   });
-  const [payPeriodEnd, setPayPeriodEnd] = useState(() => toLocalIsoDate());
+  const [payPeriodEnd, setPayPeriodEnd] = useState(() => facilityToday());
   const [exportingPayroll, setExportingPayroll] = useState(false);
   const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("none");
@@ -650,7 +650,7 @@ export default function Reports() {
         } while (offset < totalRows);
 
         const csv = toCsv(headers, rows);
-        const timestamp = new Date().toISOString().split("T")[0];
+        const timestamp = facilityToday();
         downloadCsv(csv, `${report.id}-${timestamp}.csv`);
         toast({ title: `${report.title} exported`, description: `${rows.length} row(s) exported from bounded server pages.` });
         setPendingReport(null);

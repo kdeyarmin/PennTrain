@@ -33,7 +33,7 @@ insert into public.profiles(id, organization_id, email, first_name, last_name, r
 on conflict(id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 select set_config('app.privileged_write', 'off', true);
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
-values ('f3000000-0000-4000-8000-000000000301', 'f3000000-0000-4000-8000-000000000001', 'f3000000-0000-4000-8000-000000000011', 'Frances', 'Resident', current_date - 90, 'active');
+values ('f3000000-0000-4000-8000-000000000301', 'f3000000-0000-4000-8000-000000000001', 'f3000000-0000-4000-8000-000000000011', 'Frances', 'Resident', public.pa_today() - 90, 'active');
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
 returns void language plpgsql as $$
@@ -95,7 +95,7 @@ select lives_ok($$select public.create_qapi_project(
   'f3000000-0000-4000-8000-000000000011', 'Repeated falls - Frances Resident',
   'Frances Resident experienced repeated falls in the last 90 days.',
   '3 falls in the last 90 days', '3 falls', 'Reduce falls', 'Zero falls in 90 days',
-  0, current_date + 90, 'f3000000-0000-4000-8000-000000000101',
+  0, public.pa_today() + 90, 'f3000000-0000-4000-8000-000000000101',
   null, null, 'repeated_falls_resident:f3000000-0000-4000-8000-000000000301')$$,
   'a project is opened from a recommendation');
 
@@ -112,7 +112,7 @@ select is(
     'f3000000-0000-4000-8000-000000000011', 'Repeated falls - Frances Resident (again)',
     'A second attempt at the same pattern.',
     '3 falls in the last 90 days', '3 falls', 'Reduce falls', 'Zero falls in 90 days',
-    0, current_date + 90, 'f3000000-0000-4000-8000-000000000101',
+    0, public.pa_today() + 90, 'f3000000-0000-4000-8000-000000000101',
     null, null, 'repeated_falls_resident:f3000000-0000-4000-8000-000000000301'),
   (select id from public.qapi_projects where organization_id = 'f3000000-0000-4000-8000-000000000001'),
   'opening the same pattern twice returns the project that already exists'
@@ -131,7 +131,7 @@ select throws_ok($$select public.create_qapi_project(
   'f3000000-0000-4000-8000-000000000011', 'Lead from nowhere',
   'A project naming a lead who cannot access this facility.',
   'Manager judgement', null, null, null,
-  null, current_date + 90, 'f3000000-0000-4000-8000-000000000301')$$,
+  null, public.pa_today() + 90, 'f3000000-0000-4000-8000-000000000301')$$,
   '23514',
   null,
   'a project lead who is not an active manager for this facility is refused');
@@ -142,7 +142,7 @@ select lives_ok($$select public.create_qapi_project(
   'f3000000-0000-4000-8000-000000000011', 'An ordinary project',
   'A project created without any pattern behind it.',
   'Manager judgement', null, null, null,
-  null, current_date + 90, 'f3000000-0000-4000-8000-000000000101')$$,
+  null, public.pa_today() + 90, 'f3000000-0000-4000-8000-000000000101')$$,
   'projects without a pattern key are still unrestricted');
 
 select * from finish();

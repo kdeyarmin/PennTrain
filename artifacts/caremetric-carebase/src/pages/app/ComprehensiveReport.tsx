@@ -34,7 +34,7 @@ import {
 } from "@/hooks/useDomainListSummaries";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import {
   buildComprehensiveReport,
   REPORT_FACETS,
@@ -60,7 +60,7 @@ export default function ComprehensiveReport() {
 
   // A single point-in-time stamp for the whole snapshot. Held in state (not recomputed each
   // render) so the date-scoped summary query keys below stay stable and don't refetch in a loop.
-  const [today] = useState(() => toLocalIsoDate());
+  const [today] = useState(() => facilityToday());
   const [now] = useState(() => new Date().toISOString());
   const [generatedAt] = useState(() => new Date());
 

@@ -46,13 +46,13 @@ insert into public.facility_assignments(profile_id, facility_id) values
   ('93000000-0000-4000-8000-000000000102', '93000000-0000-4000-8000-000000000011');
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
-  ('93000000-0000-4000-8000-000000000201', '93000000-0000-4000-8000-000000000001', '93000000-0000-4000-8000-000000000011', 'Portfolio', 'Resident', current_date, 'active');
+  ('93000000-0000-4000-8000-000000000201', '93000000-0000-4000-8000-000000000001', '93000000-0000-4000-8000-000000000011', 'Portfolio', 'Resident', public.pa_today(), 'active');
 
 insert into public.resident_compliance_items(
   organization_id, facility_id, resident_id, item_type, due_date, status
 ) values (
   '93000000-0000-4000-8000-000000000001', '93000000-0000-4000-8000-000000000011',
-  '93000000-0000-4000-8000-000000000201', 'medical_evaluation', current_date - 1, 'expired'
+  '93000000-0000-4000-8000-000000000201', 'medical_evaluation', public.pa_today() - 1, 'expired'
 );
 
 insert into public.work_items(

@@ -173,21 +173,21 @@ select results_eq(
 -- completed not_applicable direct record for the other-staff employee proves that evidence on an
 -- excluded type neither changes the decision nor leaks hours into the selected 12-hour bucket.
 update public.employee_training_records r
-set status = 'missing', completion_date = current_date, hours = 24, completion_method = 'manual_entry'
+set status = 'missing', completion_date = public.pa_today(), hours = 24, completion_method = 'manual_entry'
 from public.training_types tt
 where tt.id = r.training_type_id
   and r.employee_id = '00000000-0000-0000-0000-00000000aa21'
   and tt.code = 'GH-DIRECT-ANNUAL';
 
 update public.employee_training_records r
-set status = 'missing', completion_date = current_date, hours = 6, completion_method = 'manual_entry'
+set status = 'missing', completion_date = public.pa_today(), hours = 6, completion_method = 'manual_entry'
 from public.training_types tt
 where tt.id = r.training_type_id
   and r.employee_id = '00000000-0000-0000-0000-00000000aa22'
   and tt.code = 'GH-OTHER-ANNUAL';
 
 update public.employee_training_records r
-set status = 'not_applicable', completion_date = current_date, hours = 24, completion_method = 'manual_entry'
+set status = 'not_applicable', completion_date = public.pa_today(), hours = 24, completion_method = 'manual_entry'
 from public.training_types tt
 where tt.id = r.training_type_id
   and r.employee_id = '00000000-0000-0000-0000-00000000aa22'
@@ -207,7 +207,7 @@ select results_eq(
     select required_hours, completed_hours, status
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa21'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   $$ values (24.00::numeric, 24.00::numeric, 'compliant'::text) $$,
@@ -219,7 +219,7 @@ select results_eq(
     select required_hours, completed_hours
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa22'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   $$ values (12.00::numeric, 6.00::numeric) $$,
@@ -234,7 +234,7 @@ select results_eq(
       '00000000-0000-0000-0000-00000000aa21',
       '00000000-0000-0000-0000-00000000aa22'
     )
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   array[2],
@@ -246,7 +246,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa23'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
   $$,
   'an unconfirmed group-home employee has no annual-hour denominator'
 );
@@ -271,7 +271,7 @@ select results_eq(
     where r.employee_id = '00000000-0000-0000-0000-00000000aa21'
       and tt.code = 'GH-DIRECT-ANNUAL'
   $$,
-  $$ values ('compliant'::text, current_date) $$,
+  $$ values ('compliant'::text, public.pa_today()) $$,
   'recalculation preserves and renews completed evidence for a confirmed audience'
 );
 
@@ -280,7 +280,7 @@ select results_eq(
     select required_hours, completed_hours
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa24'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   $$ values (12.00::numeric, 0.00::numeric) $$,
@@ -292,7 +292,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa25'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
   $$,
   'an unconfirmed nursing-home employee is not treated as a nurse aide'
 );
@@ -302,7 +302,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa26'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
   $$,
   'an unconfirmed PCH employee has no direct-care annual bucket'
 );
@@ -312,7 +312,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa27'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   'an unconfirmed ALR employee has no direct-care annual bucket'
@@ -323,7 +323,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa27'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'alr_dementia'
   $$,
   'the ALR dementia bucket also waits for its own audience confirmation'
@@ -342,7 +342,7 @@ insert into public.training_types (
 );
 
 update public.employee_training_records r
-set completion_date = current_date,
+set completion_date = public.pa_today(),
     hours = case
       when r.employee_id = '00000000-0000-0000-0000-00000000aa21' then 3
       else 2
@@ -361,7 +361,7 @@ select results_eq(
     select required_hours, completed_hours
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa21'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   $$ values (24.00::numeric, 27.00::numeric) $$,
@@ -373,7 +373,7 @@ select results_eq(
     select required_hours, completed_hours
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa22'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   $$ values (12.00::numeric, 8.00::numeric) $$,
@@ -385,7 +385,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa23'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   'a custom one-hour type cannot bypass an unconfirmed mandatory system audience'
@@ -406,7 +406,7 @@ select isnt_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa23'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   'confirming one exact audience materializes its bucket'
@@ -426,7 +426,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa23'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   'returning the only applicable audience to pending review removes the stale bucket'
@@ -468,7 +468,7 @@ select
   '00000000-0000-0000-0000-00000000aa01',
   '00000000-0000-0000-0000-00000000aa11',
   '00000000-0000-0000-0000-00000000aa28',
-  tt.id, current_date, 'compliant', 5, 'manual_entry'
+  tt.id, public.pa_today(), 'compliant', 5, 'manual_entry'
 from public.training_types tt
 where tt.organization_id is null and tt.code = 'GH-DIRECT-ANNUAL';
 
@@ -492,7 +492,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa28'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   'a current pending decision is not defeated by an older active record of the exact type'
@@ -503,7 +503,7 @@ select results_eq(
     select count(*)::integer
     from public.employee_training_records
     where id = '00000000-0000-0000-0000-00000000aa41'
-      and completion_date = current_date
+      and completion_date = public.pa_today()
       and hours = 5
   $$,
   array[1],
@@ -521,7 +521,7 @@ select results_eq(
     select required_hours, completed_hours
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa28'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   $$ values (24.00::numeric, 5.00::numeric) $$,
@@ -539,7 +539,7 @@ select is_empty(
     select 1
     from public.employee_training_hour_buckets
     where employee_id = '00000000-0000-0000-0000-00000000aa28'
-      and training_year = extract(year from current_date)::integer
+      and training_year = extract(year from public.pa_today())::integer
       and bucket_type = 'general_annual'
   $$,
   'a current not-applicable decision removes the bucket despite older active history'

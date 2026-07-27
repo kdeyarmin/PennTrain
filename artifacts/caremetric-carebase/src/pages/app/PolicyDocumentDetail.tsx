@@ -21,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
 
 function fmtDate(iso: string | null | undefined): string {
@@ -38,7 +38,7 @@ function AttestationStatusBadge({ attestation }: { attestation: PolicyAttestatio
   if (attestation.status === "attested") {
     return <Badge className="bg-success text-success-foreground hover:bg-success/80">Attested</Badge>;
   }
-  if (attestation.due_date && attestation.due_date < toLocalIsoDate()) {
+  if (attestation.due_date && attestation.due_date < facilityToday()) {
     return <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">Overdue</Badge>;
   }
   return <Badge className="bg-warning text-warning-foreground hover:bg-warning/80">Pending</Badge>;
@@ -415,7 +415,7 @@ export default function PolicyDocumentDetail() {
     versions: (versions ?? []).map((v) => ({ id: v.id, status: v.status })),
     campaigns: campaigns ?? [],
     attestations: (attestations ?? []).filter((a) => campaignIds.has(a.campaign_id)),
-    today: toLocalIsoDate(),
+    today: facilityToday(),
   }), [document?.current_version_id, versions, campaigns, attestations, campaignIds]);
 
   if (isLoading) {

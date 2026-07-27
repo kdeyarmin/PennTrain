@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { buildMedicationSafetySummary } from "@/lib/medicationSafetyAnalytics";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { Pill, CheckCircle2, XCircle, Droplet, AlertTriangle, ClipboardCheck } from "lucide-react";
 
 // "Authorized today" reads compliant OR due_soon as still-currently-valid -- due_soon means
@@ -86,7 +86,7 @@ export default function MedAdminRoster() {
   }, [medAdminEmployees, trainingRecords, practicums, medRenewTypeId, medInitTypeId, diabetesEduTypeId]);
 
   const authorizedCount = rows.filter(r => r.authorizedToday).length;
-  const medicationSafety = useMemo(() => buildMedicationSafetySummary({ incidents: incidents ?? [], correctiveActions: correctiveActions ?? [], today: toLocalIsoDate() }), [incidents, correctiveActions]);
+  const medicationSafety = useMemo(() => buildMedicationSafetySummary({ incidents: incidents ?? [], correctiveActions: correctiveActions ?? [], today: facilityToday() }), [incidents, correctiveActions]);
 
   return (
     <div className="space-y-6">

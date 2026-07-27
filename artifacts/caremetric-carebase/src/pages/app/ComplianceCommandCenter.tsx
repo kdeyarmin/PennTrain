@@ -17,7 +17,7 @@ import {
   computeComplianceScore, effectiveStatus, isDueSoon, isMissingEvidence, recurrenceLabel,
   statusBadgeClassName, statusLabel, summarizeInstances, type InstanceLike,
 } from "@/lib/complianceCommandCenter";
-import { formatDateForDisplay, formatDueDistance, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { downloadCsv } from "@/lib/csv";
 import { StatCard } from "@/components/StatCard";
 import { QueryError } from "@/components/QueryState";
@@ -161,7 +161,7 @@ export default function ComplianceCommandCenter() {
 
   function exportCsv() {
     downloadCsv(
-      `compliance-requirements-${toLocalIsoDate()}.csv`,
+      `compliance-requirements-${facilityToday()}.csv`,
       tableRows.map((r) => ({
         Requirement: r.requirement?.title ?? "",
         Category: categoryLabel(r.requirement?.category),

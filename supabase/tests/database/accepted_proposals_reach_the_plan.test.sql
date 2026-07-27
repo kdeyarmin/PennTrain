@@ -55,7 +55,7 @@ select set_config('app.privileged_write', 'off', true);
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
 values ('fb000000-0000-4000-8000-000000000201', 'fb000000-0000-4000-8000-000000000001',
-        'fb000000-0000-4000-8000-000000000011', 'Plan', 'Resident', current_date, 'active');
+        'fb000000-0000-4000-8000-000000000011', 'Plan', 'Resident', public.pa_today(), 'active');
 
 -- Two assessment forms: support_plan_proposals is unique on (organization, assessment_form,
 -- resident) and treats NULL form ids as equal, so two proposals for one resident need two forms.

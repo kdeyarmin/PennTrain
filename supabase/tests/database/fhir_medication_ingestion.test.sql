@@ -38,7 +38,7 @@ insert into public.profiles(id, organization_id, email, first_name, last_name, r
 on conflict(id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 select set_config('app.privileged_write', 'off', true);
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
-values ('f1000000-0000-4000-8000-000000000301', 'f1000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000011', 'Ravi', 'Resident', current_date - 30, 'active');
+values ('f1000000-0000-4000-8000-000000000301', 'f1000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000011', 'Ravi', 'Resident', public.pa_today() - 30, 'active');
 insert into public.integration_api_credentials(
   id, organization_id, name, key_prefix, scopes, status, expires_at, rate_limit_per_minute, created_by
 ) values (

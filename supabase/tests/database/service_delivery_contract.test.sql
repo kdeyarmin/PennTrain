@@ -73,7 +73,7 @@ select throws_ok(
       source_section, source_key, service_code, service_name, special_instructions, frequency,
       responsible_role, effective_from, required_qualification_key)
     values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 1,
-      's', 'k', 'c', 'n', 'i', 'daily', 'employee', current_date, 'Not A Valid Key')$$,
+      's', 'k', 'c', 'n', 'i', 'daily', 'employee', public.pa_today(), 'Not A Valid Key')$$,
   null,
   'a malformed qualification key is rejected'
 );

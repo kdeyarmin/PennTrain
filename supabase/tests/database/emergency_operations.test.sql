@@ -90,7 +90,7 @@ insert into public.residents (
   id, organization_id, facility_id, first_name, last_name, room, admission_date, status
 ) values (
   '70000000-0000-4000-8000-000000000201', '70000000-0000-4000-8000-000000000001',
-  '70000000-0000-4000-8000-000000000011', 'Prepared', 'Resident', '101', current_date, 'active'
+  '70000000-0000-4000-8000-000000000011', 'Prepared', 'Resident', '101', public.pa_today(), 'active'
 );
 
 insert into public.resident_informal_supports (
@@ -123,7 +123,7 @@ select lives_ok($$
   insert into emergency_test_ids values (
     'plan-v1',
     public.create_emergency_plan_version(
-      '70000000-0000-4000-8000-000000000011', 'All-Hazards Emergency Plan', current_date,
+      '70000000-0000-4000-8000-000000000011', 'All-Hazards Emergency Plan', public.pa_today(),
       'Initial approved emergency plan', '{"evacuationZones":["North","South"]}', null, null
     )
   )
@@ -142,7 +142,7 @@ select lives_ok($$
   insert into emergency_test_ids values (
     'plan-v2',
     public.create_emergency_plan_version(
-      '70000000-0000-4000-8000-000000000011', 'All-Hazards Emergency Plan', current_date + 1,
+      '70000000-0000-4000-8000-000000000011', 'All-Hazards Emergency Plan', public.pa_today() + 1,
       'Added transportation vendor escalation', '{"evacuationZones":["North","South"],"transportationEscalation":true}', null, null
     )
   )
@@ -378,7 +378,7 @@ select is(
 );
 select throws_ok($$
   select public.create_emergency_plan_version(
-    '70000000-0000-4000-8000-000000000011', 'Auditor Rewrite', current_date,
+    '70000000-0000-4000-8000-000000000011', 'Auditor Rewrite', public.pa_today(),
     'Auditor should not publish', '{}', null, null
   )
 $$, '42501', null, 'auditor cannot publish emergency plans');

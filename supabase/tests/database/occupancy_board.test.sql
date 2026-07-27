@@ -22,11 +22,11 @@ insert into public.residents(
   id, organization_id, facility_id, first_name, last_name, admission_date, status
 ) values
   ('e8000000-0000-4000-8000-000000000301', 'e8000000-0000-4000-8000-000000000001',
-   'e8000000-0000-4000-8000-000000000011', 'Ola', 'Resident', current_date - 100, 'active'),
+   'e8000000-0000-4000-8000-000000000011', 'Ola', 'Resident', public.pa_today() - 100, 'active'),
   ('e8000000-0000-4000-8000-000000000302', 'e8000000-0000-4000-8000-000000000001',
-   'e8000000-0000-4000-8000-000000000011', 'Omar', 'Away', current_date - 100, 'hospital_leave'),
+   'e8000000-0000-4000-8000-000000000011', 'Omar', 'Away', public.pa_today() - 100, 'hospital_leave'),
   ('e8000000-0000-4000-8000-000000000303', 'e8000000-0000-4000-8000-000000000001',
-   'e8000000-0000-4000-8000-000000000011', 'Opal', 'Gone', current_date - 300, 'discharged');
+   'e8000000-0000-4000-8000-000000000011', 'Opal', 'Gone', public.pa_today() - 300, 'discharged');
 
 insert into public.facility_beds(
   id, organization_id, facility_id, room_id, bed_label, status, occupied_by_resident_id
@@ -65,7 +65,7 @@ insert into public.facility_licenses(
 ) values (
   'e8000000-0000-4000-8000-000000000001', 'e8000000-0000-4000-8000-000000000011',
   'personal_care_home', 'PCH-12345', 'active',
-  current_date - 30, current_date + 300, 16
+  public.pa_today() - 30, public.pa_today() + 300, 16
 );
 
 select is(
@@ -91,14 +91,14 @@ select is(
 );
 
 -- An expired licence is not a licence.
-update public.facility_licenses set expires_on = current_date - 1
+update public.facility_licenses set expires_on = public.pa_today() - 1
 where facility_id = 'e8000000-0000-4000-8000-000000000011';
 select ok(
   public.get_facility_occupancy_board('e8000000-0000-4000-8000-000000000011')
     ->> 'licensedCapacity' is null,
   'an expired licence stops providing a capacity figure'
 );
-update public.facility_licenses set expires_on = current_date + 300
+update public.facility_licenses set expires_on = public.pa_today() + 300
 where facility_id = 'e8000000-0000-4000-8000-000000000011';
 
 -- Census -------------------------------------------------------------------------------
@@ -136,7 +136,7 @@ insert into public.residents(
   id, organization_id, facility_id, first_name, last_name, admission_date, status
 ) values (
   'e8000000-0000-4000-8000-000000000304', 'e8000000-0000-4000-8000-000000000001',
-  'e8000000-0000-4000-8000-000000000011', 'Otto', 'Bedless', current_date - 5, 'active'
+  'e8000000-0000-4000-8000-000000000011', 'Otto', 'Bedless', public.pa_today() - 5, 'active'
 );
 select is(
   jsonb_array_length(public.get_facility_occupancy_board('e8000000-0000-4000-8000-000000000011')

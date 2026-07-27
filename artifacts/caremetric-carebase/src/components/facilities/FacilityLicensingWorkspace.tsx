@@ -35,7 +35,7 @@ import {
   type LicensingRecord,
 } from "@/hooks/useFacilityLicensing";
 import { useToast } from "@/hooks/use-toast";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 
 type Kind = "license" | "condition" | "waiver" | "filing";
 type Form = Record<string, string>;
@@ -121,7 +121,7 @@ export function FacilityLicensingWorkspace({
           licenseNumber: common.license_number ?? "",
           status: common.status ?? "active",
           issuedOn: common.issued_on ?? "",
-          effectiveFrom: common.effective_from ?? toLocalIsoDate(),
+          effectiveFrom: common.effective_from ?? facilityToday(),
           expiresOn: common.expires_on ?? "",
           licensedCapacity: common.licensed_capacity ?? "",
           issuingAuthority:
@@ -140,7 +140,7 @@ export function FacilityLicensingWorkspace({
           licenseId: common.facility_license_id ?? currentLicense?.id ?? "",
           conditionType: common.condition_type ?? "conditional",
           description: common.description ?? "",
-          imposedOn: common.imposed_on ?? toLocalIsoDate(),
+          imposedOn: common.imposed_on ?? facilityToday(),
           reviewDueOn: common.review_due_on ?? "",
           resolvedOn: common.resolved_on ?? "",
           status: common.status ?? "open",

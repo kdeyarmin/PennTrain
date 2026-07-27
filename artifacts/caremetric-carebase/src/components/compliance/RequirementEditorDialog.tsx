@@ -9,7 +9,7 @@ import {
   type ComplianceRequirement,
 } from "@/hooks/useComplianceRequirements";
 import { COMPLIANCE_CATEGORIES, RECURRENCE_OPTIONS, CHAPTER_OPTIONS } from "@/lib/complianceCommandCenter";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +57,7 @@ function fromRequirement(r: ComplianceRequirement | null | undefined, defaultFac
     responsibleProfileId: r?.responsible_profile_id ?? "",
     recurrence: r?.recurrence ?? (isTemplate ? "annual" : "annual"),
     customIntervalDays: r?.custom_interval_days ? String(r.custom_interval_days) : "",
-    anchorDate: r?.anchor_date ?? toLocalIsoDate(),
+    anchorDate: r?.anchor_date ?? facilityToday(),
     warningDays: String(r?.warning_days ?? 14),
     requiresEvidence: r?.requires_evidence ?? true,
     requiresReview: r?.requires_review ?? false,

@@ -17,6 +17,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
+import { paToday } from "../_shared/paDay.ts";
   compressCopilotForVoice,
   copilotIntentForTopic,
   DEADLINE_ROW_LIMIT,
@@ -198,7 +199,7 @@ Deno.serve(async (req: Request) => {
 
       case "get_upcoming_deadlines": {
         const days = typeof args.days === "number" ? args.days : 30;
-        const asOf = new Date().toISOString().slice(0, 10);
+        const asOf = paToday();
         const through = addDays(asOf, days);
         // Same caller-scoped selects as the copilot's due-date grounding,
         // ordered by due date BEFORE the limit so a facility with more

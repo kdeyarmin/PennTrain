@@ -28,7 +28,7 @@ values
 on conflict(id) do update set organization_id=excluded.organization_id,role=excluded.role,is_active=true;
 select set_config('app.privileged_write', 'off', true);
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date)
-values ('70000000-0000-4000-8000-000000000201','70000000-0000-4000-8000-000000000001','70000000-0000-4000-8000-000000000011','Resident','Example',current_date-30);
+values ('70000000-0000-4000-8000-000000000201','70000000-0000-4000-8000-000000000001','70000000-0000-4000-8000-000000000011','Resident','Example',public.pa_today()-30);
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
 returns void language plpgsql as $$
@@ -73,10 +73,10 @@ select is((
   where c.id=(select id from complaint_ids where key='reportable')
 ), 'abuse_allegation', 'abuse indicator maps to reportable incident type');
 select is((public.get_qapi_source_metrics(
-  '70000000-0000-4000-8000-000000000011', current_date-7, current_date
+  '70000000-0000-4000-8000-000000000011', public.pa_today()-7, public.pa_today()
 )->>'complaints')::integer, 2, 'QAPI source metrics automatically count complaints');
 select is((public.get_qapi_source_metrics(
-  '70000000-0000-4000-8000-000000000011', current_date-7, current_date
+  '70000000-0000-4000-8000-000000000011', public.pa_today()-7, public.pa_today()
 )->>'residentRightsComplaints')::integer, 1, 'QAPI identifies resident-rights complaint trends');
 
 select lives_ok($$select public.add_complaint_interview(

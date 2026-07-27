@@ -70,7 +70,7 @@ values (
   public.create_admission_prospect(
     '58000000-0000-4000-8000-000000000011', 'Morgan', 'Lee', '1950-01-02',
     '555-0101', 'morgan@test.local', (select id from admission_ids where key = 'source'),
-    current_date + 7, 'Taylor Lee', 'Designated person', '555-0102',
+    public.pa_today() + 7, 'Taylor Lee', 'Designated person', '555-0102',
     'taylor@test.local', 'Interested in a private room'
   )
 );
@@ -89,7 +89,7 @@ select lives_ok(
 select lives_ok(
   $$select public.update_admission_prospect(
     (select id from admission_ids where key = 'prospect'),
-    'approved', 'approved', 'approved', current_date + 7,
+    'approved', 'approved', 'approved', public.pa_today() + 7,
     'Clinical and financial review complete', null, 'Ready for room reservation'
   )$$,
   'approved pipeline stage requires both reviews'

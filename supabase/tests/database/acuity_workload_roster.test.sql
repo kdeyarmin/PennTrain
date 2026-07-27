@@ -14,22 +14,22 @@ insert into public.residents(
   level_of_care, transfer_assistance, ambulation_status, fall_risk, elopement_risk, cognitive_status
 ) values
   ('c6000000-0000-4000-8000-000000000301', 'c6000000-0000-4000-8000-000000000001',
-   'c6000000-0000-4000-8000-000000000011', 'Casey', 'Heavy', current_date - 400, 'active',
+   'c6000000-0000-4000-8000-000000000011', 'Casey', 'Heavy', public.pa_today() - 400, 'active',
    'total_physical_assistance', 'two_person', 'wheelchair', 'high', 'monitored', 'moderate_impairment'),
   ('c6000000-0000-4000-8000-000000000302', 'c6000000-0000-4000-8000-000000000001',
-   'c6000000-0000-4000-8000-000000000011', 'Cameron', 'Light', current_date - 400, 'active',
+   'c6000000-0000-4000-8000-000000000011', 'Cameron', 'Light', public.pa_today() - 400, 'active',
    'independent', 'independent', 'independent', 'low', 'none', 'no_impairment'),
   -- A discharged resident must not appear: a roster that counts people who have left produces a
   -- workload figure for care nobody is giving.
   ('c6000000-0000-4000-8000-000000000303', 'c6000000-0000-4000-8000-000000000001',
-   'c6000000-0000-4000-8000-000000000011', 'Cody', 'Discharged', current_date - 400, 'discharged',
+   'c6000000-0000-4000-8000-000000000011', 'Cody', 'Discharged', public.pa_today() - 400, 'discharged',
    'total_physical_assistance', 'mechanical_lift', 'bedfast', 'high', 'high', 'severe_impairment');
 
 insert into public.schedules(
   id, organization_id, facility_id, title, period_start, period_end
 ) values (
   'c6000000-0000-4000-8000-000000000401', 'c6000000-0000-4000-8000-000000000001',
-  'c6000000-0000-4000-8000-000000000011', 'Test week', current_date, current_date + 6
+  'c6000000-0000-4000-8000-000000000011', 'Test week', public.pa_today(), public.pa_today() + 6
 );
 
 select is(

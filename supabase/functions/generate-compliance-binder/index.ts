@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
+import { paToday } from "../_shared/paDay.ts";
 
 const BINDER_JOB_KEY = "binder-export-generation";
 const BINDER_BUCKET = "binder-exports";
@@ -572,7 +573,7 @@ async function buildBinderPdf(
   const alertSeverityCounts = new Map<string, number>();
   for (const a of alerts) alertSeverityCounts.set(a.severity, (alertSeverityCounts.get(a.severity) ?? 0) + 1);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = paToday();
   const attestedCount = attestations.filter((a) => a.status === "attested").length;
   const overdueAttestations = attestations.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
   const pendingAttestations = attestations.filter((a) => a.status === "pending" && (!a.due_date || a.due_date >= today));

@@ -28,7 +28,7 @@ insert into public.profiles(id,organization_id,email,first_name,last_name,role,i
 on conflict(id) do update set organization_id=excluded.organization_id,role=excluded.role,is_active=true;
 select set_config('app.privileged_write','off',true);
 insert into public.residents(id,organization_id,facility_id,first_name,last_name,admission_date,status) values
-  ('77000000-0000-4000-8000-000000000201','77000000-0000-4000-8000-000000000001','77000000-0000-4000-8000-000000000011','Monthly','Resident',current_date-90,'active');
+  ('77000000-0000-4000-8000-000000000201','77000000-0000-4000-8000-000000000001','77000000-0000-4000-8000-000000000011','Monthly','Resident',public.pa_today()-90,'active');
 
 create or replace function pg_temp.act_as(p_id uuid,p_role text default 'authenticated')
 returns void language plpgsql as $$

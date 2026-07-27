@@ -28,7 +28,7 @@ select set_config('app.privileged_write', 'off', true);
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
 values ('fe000000-0000-4000-8000-000000000201', 'fe000000-0000-4000-8000-000000000001',
-        'fe000000-0000-4000-8000-000000000011', 'Stan', 'Stall', current_date, 'active');
+        'fe000000-0000-4000-8000-000000000011', 'Stan', 'Stall', public.pa_today(), 'active');
 
 -- v1 active, v2 approved and overdue: the exact shape a missed promotion leaves behind.
 -- approved_by and approved_at are not decoration: the table refuses to let a plan claim approval
@@ -39,14 +39,14 @@ insert into public.resident_support_plans(
 ) values
   ('fe000000-0000-4000-8000-000000000301', 'fe000000-0000-4000-8000-000000000001',
    'fe000000-0000-4000-8000-000000000011', 'fe000000-0000-4000-8000-000000000201', 1, 'active',
-   current_date - 30, 'fe000000-0000-4000-8000-000000000101', now() - interval '31 days', current_date - 40, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb),
+   public.pa_today() - 30, 'fe000000-0000-4000-8000-000000000101', now() - interval '31 days', public.pa_today() - 40, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb),
   ('fe000000-0000-4000-8000-000000000302', 'fe000000-0000-4000-8000-000000000001',
    'fe000000-0000-4000-8000-000000000011', 'fe000000-0000-4000-8000-000000000201', 2, 'approved',
-   current_date - 2, 'fe000000-0000-4000-8000-000000000101', now() - interval '3 days', current_date - 40, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb),
+   public.pa_today() - 2, 'fe000000-0000-4000-8000-000000000101', now() - interval '3 days', public.pa_today() - 40, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb),
   -- Approved but NOT yet due. This one must stay untouched by everything below.
   ('fe000000-0000-4000-8000-000000000303', 'fe000000-0000-4000-8000-000000000001',
    'fe000000-0000-4000-8000-000000000011', 'fe000000-0000-4000-8000-000000000201', 3, 'approved',
-   current_date + 7, 'fe000000-0000-4000-8000-000000000101', now(), current_date - 40, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb);
+   public.pa_today() + 7, 'fe000000-0000-4000-8000-000000000101', now(), public.pa_today() - 40, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb);
 
 create or replace function pg_temp.act_as(p_id uuid)
 returns void language plpgsql as $$
@@ -75,7 +75,7 @@ select is(
 -- The not-yet-due v3 must not be reported as stalled; it is simply scheduled.
 select is(
   (public.get_resident_care_header('fe000000-0000-4000-8000-000000000201') -> 'pendingActivation' ->> 'effectiveDate'),
-  (current_date - 2)::text,
+  (public.pa_today() - 2)::text,
   'the reported date is the overdue one, not the plan legitimately scheduled for next week'
 );
 reset role;

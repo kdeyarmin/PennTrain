@@ -52,7 +52,7 @@ insert into public.profiles(id, organization_id, email, first_name, last_name, r
 on conflict(id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 select set_config('app.privileged_write', 'off', true);
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
-values ('e2000000-0000-4000-8000-000000000301', 'e2000000-0000-4000-8000-000000000001', 'e2000000-0000-4000-8000-000000000011', 'Ellis', 'Resident', current_date - 60, 'active');
+values ('e2000000-0000-4000-8000-000000000301', 'e2000000-0000-4000-8000-000000000001', 'e2000000-0000-4000-8000-000000000011', 'Ellis', 'Resident', public.pa_today() - 60, 'active');
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
 returns void language plpgsql as $$

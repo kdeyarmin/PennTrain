@@ -26,10 +26,10 @@ select set_config('app.privileged_write', 'off', true);
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
 values
   ('fd000000-0000-4000-8000-000000000201', 'fd000000-0000-4000-8000-000000000001',
-   'fd000000-0000-4000-8000-000000000011', 'Rex', 'Review', current_date, 'active'),
+   'fd000000-0000-4000-8000-000000000011', 'Rex', 'Review', public.pa_today(), 'active'),
   -- A second resident, for the no-anchor case: a review with no finalized assessment behind it.
   ('fd000000-0000-4000-8000-000000000202', 'fd000000-0000-4000-8000-000000000001',
-   'fd000000-0000-4000-8000-000000000011', 'Nan', 'Noform', current_date, 'active');
+   'fd000000-0000-4000-8000-000000000011', 'Nan', 'Noform', public.pa_today(), 'active');
 
 -- The anchor. Its own content answers nothing the rules ask about, so anything proposed must have
 -- come from the review -- which is the point of the test.

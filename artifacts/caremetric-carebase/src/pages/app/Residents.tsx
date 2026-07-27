@@ -16,7 +16,7 @@ import { BedDouble, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { complianceStatusBadgeClassName, getComplianceFormLabel, formatDateOnly } from "@/lib/residentCompliance";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -55,7 +55,7 @@ interface ResidentFormData {
 
 const EMPTY_FORM: ResidentFormData = {
   facilityId: "", firstName: "", lastName: "", room: "",
-  admissionDate: toLocalIsoDate(), sdcu: false, hospice: false, admissionTrack: "standard",
+  admissionDate: facilityToday(), sdcu: false, hospice: false, admissionTrack: "standard",
 };
 
 const RESIDENTS_URL_DEFAULTS = { search: "", facility: "all", status: "active", page: "1" };
@@ -87,7 +87,7 @@ export default function Residents() {
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
     search: urlState.search,
-    today: toLocalIsoDate(),
+    today: facilityToday(),
   });
   const residents = residentQuery.data?.rows ?? [];
   const totalCount = residentQuery.data?.count ?? 0;

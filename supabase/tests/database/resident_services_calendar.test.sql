@@ -38,9 +38,9 @@ select set_config('app.privileged_write', 'off', true);
 insert into public.facility_assignments(profile_id, facility_id) values
   ('74000000-0000-4000-8000-000000000102', '74000000-0000-4000-8000-000000000011');
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
-  ('74000000-0000-4000-8000-000000000201', '74000000-0000-4000-8000-000000000001', '74000000-0000-4000-8000-000000000011', 'Jordan', 'Calendar', current_date - 30, 'active'),
-  ('74000000-0000-4000-8000-000000000202', '74000000-0000-4000-8000-000000000001', '74000000-0000-4000-8000-000000000012', 'Unassigned', 'Calendar', current_date - 20, 'active'),
-  ('74000000-0000-4000-8000-000000000203', '74000000-0000-4000-8000-000000000002', '74000000-0000-4000-8000-000000000013', 'Other', 'Calendar', current_date - 10, 'active');
+  ('74000000-0000-4000-8000-000000000201', '74000000-0000-4000-8000-000000000001', '74000000-0000-4000-8000-000000000011', 'Jordan', 'Calendar', public.pa_today() - 30, 'active'),
+  ('74000000-0000-4000-8000-000000000202', '74000000-0000-4000-8000-000000000001', '74000000-0000-4000-8000-000000000012', 'Unassigned', 'Calendar', public.pa_today() - 20, 'active'),
+  ('74000000-0000-4000-8000-000000000203', '74000000-0000-4000-8000-000000000002', '74000000-0000-4000-8000-000000000013', 'Other', 'Calendar', public.pa_today() - 10, 'active');
 insert into public.employees(
   id, organization_id, facility_id, profile_id, first_name, last_name, job_title, department, status
 ) values (
@@ -165,8 +165,8 @@ select lives_ok($$
   )
 $$, 'manager records a no-show');
 select is((select status from public.resident_service_calendar_events where id=(select id from calendar_ids where key='noshow')), 'no_show', 'no-show outcome is retained');
-select is((public.get_qapi_source_metrics('74000000-0000-4000-8000-000000000011', current_date-1, current_date+1)->>'appointmentFailures')::integer, 1, 'QAPI receives authoritative appointment failures');
-select ok(public.get_qapi_source_metrics('74000000-0000-4000-8000-000000000011', current_date-1, current_date+1) ? 'nutritionExceptions', 'QAPI retains prior dietary signals');
+select is((public.get_qapi_source_metrics('74000000-0000-4000-8000-000000000011', public.pa_today()-1, public.pa_today()+1)->>'appointmentFailures')::integer, 1, 'QAPI receives authoritative appointment failures');
+select ok(public.get_qapi_source_metrics('74000000-0000-4000-8000-000000000011', public.pa_today()-1, public.pa_today()+1) ? 'nutritionExceptions', 'QAPI retains prior dietary signals');
 
 select lives_ok($$
   insert into calendar_ids values ('transport1', public.create_resident_service_calendar_event(

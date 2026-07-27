@@ -17,6 +17,8 @@
 //
 // Pure and injectable-clock, in the style of moveInReadiness.ts / careLevelReview.ts.
 
+import { facilityToday } from "./dateUtils";
+
 export type NeedsAttentionSeverity = "urgent" | "high" | "attention" | "info";
 
 export type NeedsAttentionKind =
@@ -346,7 +348,7 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
       severity: "urgent",
       title: `${formatCount(recentFalls.length, "fall")} in ${FALL_CLUSTER_WINDOW_DAYS} days`,
       why: "Repeat falls indicate the current fall-prevention interventions are not working.",
-      evidence: `${formatCount(recentFalls.length, "fall record")} across incidents and condition changes since ${new Date(fallWindowStart).toISOString().slice(0, 10)}.`,
+      evidence: `${formatCount(recentFalls.length, "fall record")} across incidents and condition changes since ${facilityToday(new Date(fallWindowStart))}.`,
       owner: "Administrator",
       dueDate: null,
       since: recentFalls.sort()[0] ?? null,

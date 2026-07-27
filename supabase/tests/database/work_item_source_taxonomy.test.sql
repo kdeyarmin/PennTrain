@@ -64,7 +64,7 @@ insert into public.organizations(id, name, slug, subscription_status) values
 insert into public.facilities(id, organization_id, name, facility_type) values
   ('a4000000-0000-4000-8000-000000000011', 'a4000000-0000-4000-8000-000000000001', 'Work Facility', 'PCH');
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
-values ('a4000000-0000-4000-8000-000000000301', 'a4000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000011', 'Wren', 'Resident', current_date - 10, 'active');
+values ('a4000000-0000-4000-8000-000000000301', 'a4000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000011', 'Wren', 'Resident', public.pa_today() - 10, 'active');
 
 -- The trigger classifies on the way in, so a creator that still passes the catch-all is fixed
 -- without that creator being rewritten.
@@ -128,7 +128,7 @@ insert into public.resident_compliance_items(
   organization_id, facility_id, resident_id, item_type, due_date, status
 ) values (
   'a4000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000011',
-  'a4000000-0000-4000-8000-000000000301', 'initial_assessment_15day', current_date + 3, 'due_soon'
+  'a4000000-0000-4000-8000-000000000301', 'initial_assessment_15day', public.pa_today() + 3, 'due_soon'
 );
 
 set local role service_role;

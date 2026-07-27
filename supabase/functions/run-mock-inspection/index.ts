@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { paToday } from "../_shared/paDay.ts";
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const ROLES = new Set(["platform_admin","org_admin","facility_manager","trainer","auditor"]);
@@ -31,7 +32,7 @@ Deno.serve(async (req: Request) => {
     .eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${(await caller.from("profiles").select("organization_id").eq("id", user.id).single()).data?.organization_id}`)
     .order("sort_order").limit(40);
   if (itemError || !items?.length) return json({ error: "No visible entrance-conference checklist exists" }, 422);
-  const asOfDate = /^\d{4}-\d{2}-\d{2}$/.test(body.asOfDate || "") ? body.asOfDate! : new Date().toISOString().slice(0, 10);
+  const asOfDate = /^\d{4}-\d{2}-\d{2}$/.test(body.asOfDate || "") ? body.asOfDate! : paToday();
 
   const inspectItem = async (item: typeof items[number]) => {
     try {

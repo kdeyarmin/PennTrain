@@ -49,11 +49,11 @@ select set_config('app.privileged_write', 'off', true);
 insert into public.employees(
   id, organization_id, facility_id, profile_id, first_name, last_name, email, job_title, hire_date, status
 ) values
-  ('e5000000-0000-4000-8000-000000000112', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'e5000000-0000-4000-8000-000000000102', 'Ann', 'Aide', 'ea-emp@test.local', 'Direct Care Staff', current_date, 'active');
+  ('e5000000-0000-4000-8000-000000000112', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'e5000000-0000-4000-8000-000000000102', 'Ann', 'Aide', 'ea-emp@test.local', 'Direct Care Staff', public.pa_today(), 'active');
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
-  ('e5000000-0000-4000-8000-000000000301', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'Rosa', 'Resident', current_date - 30, 'active'),
-  ('e5000000-0000-4000-8000-000000000302', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'Remy', 'Resident', current_date - 20, 'active');
+  ('e5000000-0000-4000-8000-000000000301', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'Rosa', 'Resident', public.pa_today() - 30, 'active'),
+  ('e5000000-0000-4000-8000-000000000302', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'Remy', 'Resident', public.pa_today() - 20, 'active');
 
 -- A write-back-enabled FHIR source + patient mapping for resident 301 (but not 302).
 insert into public.fhir_integration_sources(

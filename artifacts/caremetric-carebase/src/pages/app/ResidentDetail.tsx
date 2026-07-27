@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
 import { ResidentCareHeaderPanel } from "@/components/residents/ResidentCareHeader";
 import { ResidentNeedsAttentionPanel } from "@/components/residents/ResidentNeedsAttention";
@@ -216,7 +216,7 @@ export default function ResidentDetail() {
                   onValueChange={(v) => updateResident({
                     id: resident.id,
                     status: v as typeof resident.status,
-                    discharge_date: v === "discharged" ? toLocalIsoDate() : null,
+                    discharge_date: v === "discharged" ? facilityToday() : null,
                   })}
                 >
                   {/* Named: an unlabelled combobox announces only its current value, so a screen

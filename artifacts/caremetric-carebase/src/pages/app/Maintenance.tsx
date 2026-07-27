@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { AlertTriangle, CalendarClock, Plus, RefreshCw, Search, ShieldAlert, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -50,7 +50,7 @@ const emptyOrder = {
 
 const emptySchedule = {
   facilityId: "", assetId: "none", locationId: "none", title: "", description: "",
-  frequencyUnit: "month", frequencyInterval: "1", nextDueDate: toLocalIsoDate(),
+  frequencyUnit: "month", frequencyInterval: "1", nextDueDate: facilityToday(),
   priority: "routine", employeeId: "none", vendor: "", durationMinutes: "", estimatedCost: "", parts: "",
 };
 

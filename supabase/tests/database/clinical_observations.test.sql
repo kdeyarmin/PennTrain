@@ -49,11 +49,11 @@ select set_config('app.privileged_write', 'off', true);
 insert into public.employees(
   id, organization_id, facility_id, profile_id, first_name, last_name, email, job_title, hire_date, status
 ) values
-  ('a1000000-0000-4000-8000-000000000112', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'a1000000-0000-4000-8000-000000000102', 'Ann', 'Aide', 'a1-emp@test.local', 'Direct Care Staff', current_date, 'active'),
-  ('a1000000-0000-4000-8000-000000000113', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000012', 'a1000000-0000-4000-8000-000000000103', 'Al', 'Aide', 'a2-emp@test.local', 'Direct Care Staff', current_date, 'active');
+  ('a1000000-0000-4000-8000-000000000112', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'a1000000-0000-4000-8000-000000000102', 'Ann', 'Aide', 'a1-emp@test.local', 'Direct Care Staff', public.pa_today(), 'active'),
+  ('a1000000-0000-4000-8000-000000000113', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000012', 'a1000000-0000-4000-8000-000000000103', 'Al', 'Aide', 'a2-emp@test.local', 'Direct Care Staff', public.pa_today(), 'active');
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
-values ('a1000000-0000-4000-8000-000000000301', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'Rosa', 'Resident', current_date - 30, 'active');
+values ('a1000000-0000-4000-8000-000000000301', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'Rosa', 'Resident', public.pa_today() - 30, 'active');
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
 returns void language plpgsql as $$

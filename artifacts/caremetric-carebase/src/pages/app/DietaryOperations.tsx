@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 
 const human = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const commaList = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -113,7 +113,7 @@ type Report = (title: string) => { onSuccess: () => void; onError: (error: Error
 function ResidentNutrition({ residentId, residentName, profile, reviews, canManage, report }: { residentId: string; residentName: string; profile: ReturnType<typeof useDietaryOperations>["data"] extends infer T ? any : never; reviews: any[]; canManage: boolean; report: Report }) {
   const saveProfile = useSaveDietaryProfile();
   const saveReview = useRecordNutritionReview();
-  const [form, setForm] = useState({ dietOrder: "", prescribedDiet: "", orderedByName: "", effectiveDate: toLocalIsoDate(), reviewDueDate: futureDate(30), allergies: "", texture: "regular", liquid: "thin", fluidPlan: "none", fluidTarget: "", equipment: "", assistance: "independent", preferences: "", cultural: "", risk: "low", factors: "", notes: "", reason: "Initial dietary profile" });
+  const [form, setForm] = useState({ dietOrder: "", prescribedDiet: "", orderedByName: "", effectiveDate: facilityToday(), reviewDueDate: futureDate(30), allergies: "", texture: "regular", liquid: "thin", fluidPlan: "none", fluidTarget: "", equipment: "", assistance: "independent", preferences: "", cultural: "", risk: "low", factors: "", notes: "", reason: "Initial dietary profile" });
   useEffect(() => {
     if (!profile) return;
     setForm({ dietOrder: profile.diet_order ?? "", prescribedDiet: profile.prescribed_diet ?? "", orderedByName: profile.ordered_by_name ?? "", effectiveDate: profile.effective_date, reviewDueDate: profile.review_due_date ?? "", allergies: profile.food_allergies.join(", "), texture: profile.texture_consistency, liquid: profile.liquid_consistency, fluidPlan: profile.fluid_plan_type, fluidTarget: profile.fluid_target_ml?.toString() ?? "", equipment: profile.adaptive_equipment.join(", "), assistance: profile.feeding_assistance, preferences: profile.resident_preferences ?? "", cultural: profile.cultural_religious_preferences ?? "", risk: profile.nutrition_risk, factors: profile.risk_factors.join(", "), notes: profile.notes ?? "", reason: "Dietary plan reviewed and updated" });
@@ -160,7 +160,7 @@ function ResidentMonitoring({ residentId, data, profiles, canManage, canRecord, 
   const mealMutation = useRecordMeal(), hydrationMutation = useRecordHydration(), assignMutation = useAssignWeightMonitoring(), weightMutation = useRecordWeight();
   const [meal, setMeal] = useState({ period: "breakfast", attendance: "attended", outcome: "accepted", intake: "100", substitution: "", assistance: "", reason: "" });
   const [hydration, setHydration] = useState({ offered: "240", consumed: "240", outcome: "accepted", exception: false, reason: "" });
-  const [assignment, setAssignment] = useState({ frequency: "weekly", due: toLocalIsoDate(), threshold: "5", owner: "", reason: "Routine nutrition monitoring" });
+  const [assignment, setAssignment] = useState({ frequency: "weekly", due: facilityToday(), threshold: "5", owner: "", reason: "Routine nutrition monitoring" });
   const activeAssignment = data?.assignments?.find((item: any) => item.active);
   const [weight, setWeight] = useState({ pounds: "", notes: "" });
   if (!residentId) return <Empty>Select a resident to record meals, hydration rounds, weight monitoring, and exceptions.</Empty>;
@@ -194,7 +194,7 @@ function ResidentMonitoring({ residentId, data, profiles, canManage, canRecord, 
 
 function MenuOperations({ facilityId, menus, canManage, report }: { facilityId: string; menus: any[]; canManage: boolean; report: Report }) {
   const mutation = useCreateMenuCycle();
-  const [form, setForm] = useState({ name: "", starts: toLocalIsoDate(), length: "7", status: "draft", day: "1", period: "breakfast", description: "", substitution: "", texture: "", allergens: "" });
+  const [form, setForm] = useState({ name: "", starts: facilityToday(), length: "7", status: "draft", day: "1", period: "breakfast", description: "", substitution: "", texture: "", allergens: "" });
   const [entries, setEntries] = useState<Array<{ dayNumber: number; mealPeriod: string; menuDescription: string; substitutions: string; textureAlternatives: { alternate?: string }; declaredAllergens: string[] }>>([]);
   const addEntry = () => {
     setEntries((current) => [...current.filter((entry) => entry.dayNumber !== Number(form.day) || entry.mealPeriod !== form.period), { dayNumber: Number(form.day), mealPeriod: form.period, menuDescription: form.description, substitutions: form.substitution, textureAlternatives: form.texture ? { alternate: form.texture } : {}, declaredAllergens: commaList(form.allergens) }]);

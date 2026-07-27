@@ -17,7 +17,7 @@ import {
   type ResidentSupportPlan,
   type SupportPlanProposal,
 } from "@/hooks/useResidentCareDelivery";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -160,13 +160,13 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
 
   const [expanded, setExpanded] = useState<string | null>(null);
   const [approveFor, setApproveFor] = useState<ResidentSupportPlan | null>(null);
-  const [effectiveDate, setEffectiveDate] = useState(toLocalIsoDate());
+  const [effectiveDate, setEffectiveDate] = useState(facilityToday());
   const [reviewDueDate, setReviewDueDate] = useState("");
   const [attested, setAttested] = useState(false);
   const [transitionFor, setTransitionFor] = useState<{ plan: ResidentSupportPlan; next: SupportPlanState } | null>(null);
   const [transitionReason, setTransitionReason] = useState("");
   const [participationFor, setParticipationFor] = useState<ResidentSupportPlan | null>(null);
-  const [participationDate, setParticipationDate] = useState(toLocalIsoDate());
+  const [participationDate, setParticipationDate] = useState(facilityToday());
   const [participationNotes, setParticipationNotes] = useState("");
   const [residentTookPart, setResidentTookPart] = useState(true);
   const [designatedTookPart, setDesignatedTookPart] = useState(false);
@@ -219,8 +219,8 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
 
   function openApprove(plan: ResidentSupportPlan) {
     setApproveFor(plan);
-    setEffectiveDate(toLocalIsoDate());
-    setReviewDueDate(oneYearOut(toLocalIsoDate()));
+    setEffectiveDate(facilityToday());
+    setReviewDueDate(oneYearOut(facilityToday()));
     setAttested(false);
   }
 
@@ -416,7 +416,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                     {canManage && (
                       <div className="flex gap-1.5">
                         {plan.state === "draft" && <Button size="sm" variant="outline" onClick={() => submit(plan)} disabled={submitPlan.isPending || !planHasContent(plan)} title={!planHasContent(plan) ? "Add plan content before submitting" : undefined}>Submit for review</Button>}
-                        {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => { setParticipationFor(plan); setParticipationDate(toLocalIsoDate()); }}>Record participation</Button>}
+                        {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => { setParticipationFor(plan); setParticipationDate(facilityToday()); }}>Record participation</Button>}
                         {plan.state === "awaiting_signature" && <Button size="sm" variant="outline" onClick={() => setSignatureFor(plan)}>Record signature</Button>}
                         {(plan.state === "awaiting_signature" || plan.state === "approved") && <Button size="sm" onClick={() => openApprove(plan)}>Approve</Button>}
                         {/* Only when the date has actually passed. An approved plan effective next

@@ -58,7 +58,7 @@ on conflict (id) do update set
 
 insert into public.residents (id, organization_id, facility_id, first_name, last_name, admission_date, status) values
   ('77000000-0000-0000-0000-000000000004', '77000000-0000-0000-0000-000000000001',
-   '77000000-0000-0000-0000-000000000002', 'Reminder', 'Resident', current_date - 30, 'active');
+   '77000000-0000-0000-0000-000000000002', 'Reminder', 'Resident', public.pa_today() - 30, 'active');
 
 select ok(
   (select count(*) from public.resident_compliance_items
@@ -78,7 +78,7 @@ insert into public.facilities (id, organization_id, name, facility_type) values
   ('77000000-0000-0000-0000-000000000012', '77000000-0000-0000-0000-000000000011', 'No Admin Home', 'PCH');
 insert into public.residents (id, organization_id, facility_id, first_name, last_name, admission_date, status) values
   ('77000000-0000-0000-0000-000000000014', '77000000-0000-0000-0000-000000000011',
-   '77000000-0000-0000-0000-000000000012', 'Unheard', 'Resident', current_date - 30, 'active');
+   '77000000-0000-0000-0000-000000000012', 'Unheard', 'Resident', public.pa_today() - 30, 'active');
 update public.resident_compliance_items
 set status = 'due_soon', reminder_sent_at = null
 where resident_id = '77000000-0000-0000-0000-000000000014'

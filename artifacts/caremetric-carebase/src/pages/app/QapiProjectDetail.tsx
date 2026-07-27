@@ -32,11 +32,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 
 const human = (v: string) =>
     v.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-  today = () => toLocalIsoDate();
+  today = () => facilityToday();
 export default function QapiProjectDetail() {
   const { id } = useParams<{ id: string }>(),
     { user } = useAuth(),

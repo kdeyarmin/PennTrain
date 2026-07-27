@@ -21,7 +21,7 @@ import { useListCourses } from "@/hooks/useCourses";
 import { useCreateCourseAssignment } from "@/hooks/useCourseAssignments";
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
 import { QueryError } from "@/components/QueryState";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -463,7 +463,7 @@ export default function IncidentDetail() {
                     <div className="flex items-center gap-2 shrink-0">
                       <CorrectiveActionStatusBadge status={ca.status} />
                       {canManage && ca.status !== "completed" && ca.status !== "cancelled" && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: facilityToday() })}>
                           <Check className="h-3.5 w-3.5" />
                         </Button>
                       )}

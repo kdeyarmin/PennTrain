@@ -9,7 +9,7 @@ import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useAuth } from "@/lib/auth";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -86,7 +86,7 @@ export default function TrainerClasses() {
   const [form, setForm] = useState({
     className: "",
     trainingTypeId: "",
-    classDate: toLocalIsoDate(),
+    classDate: facilityToday(),
     facilityId: "none",
     location: "",
     durationHours: "1",
@@ -126,7 +126,7 @@ export default function TrainerClasses() {
     setForm({
       className: "",
       trainingTypeId: "",
-      classDate: toLocalIsoDate(),
+      classDate: facilityToday(),
       facilityId: "none",
       location: "",
       durationHours: "1",
@@ -144,7 +144,7 @@ export default function TrainerClasses() {
     setForm({
       className: cls.class_name,
       trainingTypeId: cls.training_type_id,
-      classDate: toLocalIsoDate(),
+      classDate: facilityToday(),
       facilityId: cls.facility_id ?? "none",
       location: cls.location ?? "",
       durationHours: String(cls.duration_hours),

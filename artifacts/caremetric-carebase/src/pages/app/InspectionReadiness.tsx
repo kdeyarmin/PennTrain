@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import { Link } from "wouter";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { buildBestAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
@@ -111,7 +111,7 @@ export default function InspectionReadiness() {
       .sort((a, b) => a.compliant_count / a.total_count - b.compliant_count / b.total_count);
   }, [breakdown]);
 
-  const today = toLocalIsoDate();
+  const today = facilityToday();
   const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
   const activeFacility = facilities?.find((facility) => facility.id === activeFacilityId);
   const specialCareSummary = useMemo(() => buildSpecialCareComplianceSummary({

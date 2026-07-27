@@ -34,11 +34,11 @@ insert into public.profiles(id, organization_id, email, first_name, last_name, r
 on conflict(id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 select set_config('app.privileged_write', 'off', true);
 insert into public.employees(id, organization_id, facility_id, profile_id, first_name, last_name, email, job_title, hire_date, status) values
-  ('c1000000-0000-4000-8000-000000000112', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000011', 'c1000000-0000-4000-8000-000000000102', 'Cody', 'Aide', 'c-emp1@test.local', 'Direct Care Staff', current_date, 'active'),
-  ('c1000000-0000-4000-8000-000000000113', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000012', 'c1000000-0000-4000-8000-000000000103', 'Cleo', 'Aide', 'c-emp2@test.local', 'Direct Care Staff', current_date, 'active');
+  ('c1000000-0000-4000-8000-000000000112', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000011', 'c1000000-0000-4000-8000-000000000102', 'Cody', 'Aide', 'c-emp1@test.local', 'Direct Care Staff', public.pa_today(), 'active'),
+  ('c1000000-0000-4000-8000-000000000113', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000012', 'c1000000-0000-4000-8000-000000000103', 'Cleo', 'Aide', 'c-emp2@test.local', 'Direct Care Staff', public.pa_today(), 'active');
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
-  ('c1000000-0000-4000-8000-000000000301', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000011', 'Cameron', 'Resident', current_date - 30, 'active'),
-  ('c1000000-0000-4000-8000-000000000302', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000012', 'Dana', 'Resident', current_date - 25, 'active');
+  ('c1000000-0000-4000-8000-000000000301', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000011', 'Cameron', 'Resident', public.pa_today() - 30, 'active'),
+  ('c1000000-0000-4000-8000-000000000302', 'c1000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000012', 'Dana', 'Resident', public.pa_today() - 25, 'active');
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
 returns void language plpgsql as $$

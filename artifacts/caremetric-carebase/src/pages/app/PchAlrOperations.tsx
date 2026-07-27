@@ -4,7 +4,7 @@ import { AlertTriangle, BedDouble, Building2, CalendarClock, ChevronRight, Clipb
 import { PCH_ALR_OPERATIONS_ITEMS, buildInspectionDayChecklist, buildPchAlrEvidencePackage, evidencePackageToCsv, evidencePackageToText, searchPchAlrOperations, type OperationsDomain, type PchAlrOperationsItem } from "@/lib/pchAlrOperations";
 import { buildPchAlrOperationsQueueFromSnapshot, summarizePchAlrQueue } from "@/lib/pchAlrOperationalSnapshot";
 import { useAuth } from "@/lib/auth";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { facilityTypeLabel, PCH_ALR_ONLY_FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useOperationsCommandCenter, usePortfolioOperationsCommandCenter, type PortfolioReadinessStatus } from "@/hooks/useOperationsCommandCenter";
@@ -81,7 +81,7 @@ export default function PchAlrOperations() {
   const activeFacilityName = snapshot?.facility.name ?? facilities?.find((facility) => facility.id === activeFacilityId)?.name ?? "Selected facility";
   const evidencePackage = useMemo(() => buildPchAlrEvidencePackage({
     facilityName: activeFacilityName,
-    asOfDate: toLocalIsoDate(),
+    asOfDate: facilityToday(),
     queue: operationsQueue,
   }), [activeFacilityName, operationsQueue]);
 
@@ -99,7 +99,7 @@ export default function PchAlrOperations() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `pch-alr-documentation-package-${toLocalIsoDate()}.csv`;
+    anchor.download = `pch-alr-documentation-package-${facilityToday()}.csv`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();

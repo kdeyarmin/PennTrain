@@ -9,7 +9,7 @@ import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
 import { facilityTypeLabel, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { csvEscape } from "@/lib/csv";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { formatTimestampLabel } from "@/lib/freshness";
 import { useAuth } from "@/lib/auth";
 import { useDailyOperationsCommandCenter } from "@/hooks/useDailyOperations";
@@ -228,7 +228,7 @@ export default function OrgDashboard() {
       summarizeResidentComplianceAnalytics(
         (residents ?? []).filter((r) => r.status === "active"),
         residentItems ?? [],
-        toLocalIsoDate(),
+        facilityToday(),
       ),
     [residents, residentItems],
   );
@@ -295,7 +295,7 @@ export default function OrgDashboard() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `caremetric-carebase-action-plan-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `caremetric-carebase-action-plan-${facilityToday()}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();

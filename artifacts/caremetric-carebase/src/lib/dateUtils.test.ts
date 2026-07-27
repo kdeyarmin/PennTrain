@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { daysUntil, formatDateForDisplay, formatDueDistance, toLocalIsoDate } from "./dateUtils";
+import { daysUntil, facilityToday, formatDateForDisplay, formatDueDistance, toLocalIsoDate } from "./dateUtils";
 
 describe("toLocalIsoDate", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -12,6 +12,43 @@ describe("toLocalIsoDate", () => {
 
   it("pads single-digit months and days", () => {
     expect(toLocalIsoDate(new Date(2026, 0, 5, 12))).toBe("2026-01-05");
+  });
+});
+
+describe("facilityToday", () => {
+  // The clock is passed in rather than faked, so these assert on fixed instants. They are written
+  // as UTC instants deliberately: the point of the function is that its answer does NOT depend on
+  // where the browser thinks it is, and the test would be circular if it built dates the same way
+  // the implementation reads them.
+
+  it("is still yesterday's date in Pennsylvania once UTC has rolled over", () => {
+    // 2026-07-27T00:56Z is 2026-07-26 20:56 EDT -- the hour the underlying bug was found in.
+    expect(facilityToday(new Date("2026-07-27T00:56:00Z"))).toBe("2026-07-26");
+    expect(facilityToday(new Date("2026-07-27T03:59:00Z"))).toBe("2026-07-26");
+    expect(facilityToday(new Date("2026-07-27T04:01:00Z"))).toBe("2026-07-27");
+  });
+
+  it("follows daylight saving rather than a fixed offset", () => {
+    // EST is UTC-5, so 04:59Z in January is still the previous day...
+    expect(facilityToday(new Date("2026-01-15T04:59:00Z"))).toBe("2026-01-14");
+    // ...while EDT is UTC-4, so the same 04:59Z in July is already the new one.
+    expect(facilityToday(new Date("2026-07-15T04:59:00Z"))).toBe("2026-07-15");
+  });
+
+  it("disagrees with the browser's local day when the browser is not in Pennsylvania", () => {
+    // This is the case that broke the resident lifecycle journey: a UTC browser at 20:56 ET offered
+    // tomorrow as the default participation date and the server rejected it.
+    const evening = new Date("2026-07-27T00:56:00Z");
+    const inUtcBrowser = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(evening);
+    expect(inUtcBrowser).toBe("2026-07-27");
+    expect(facilityToday(evening)).toBe("2026-07-26");
+  });
+
+  it("zero-pads so the result compares and sorts as a date string", () => {
+    expect(facilityToday(new Date("2026-03-05T17:00:00Z"))).toBe("2026-03-05");
+    expect(facilityToday(new Date("2026-11-09T17:00:00Z"))).toBe("2026-11-09");
   });
 });
 

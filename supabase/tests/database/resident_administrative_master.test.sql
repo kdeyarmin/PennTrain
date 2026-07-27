@@ -37,8 +37,8 @@ on conflict(id) do update set organization_id = excluded.organization_id, role =
 select set_config('app.privileged_write', 'off', true);
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date) values
-  ('61000000-0000-4000-8000-000000000201', '61000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000011', 'Jordan', 'Resident', current_date - 20),
-  ('61000000-0000-4000-8000-000000000202', '61000000-0000-4000-8000-000000000002', '61000000-0000-4000-8000-000000000012', 'Other', 'Resident', current_date - 10);
+  ('61000000-0000-4000-8000-000000000201', '61000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000011', 'Jordan', 'Resident', public.pa_today() - 20),
+  ('61000000-0000-4000-8000-000000000202', '61000000-0000-4000-8000-000000000002', '61000000-0000-4000-8000-000000000012', 'Other', 'Resident', public.pa_today() - 10);
 insert into public.resident_documents(
   id, organization_id, facility_id, resident_id, storage_bucket, storage_path,
   file_name, file_type, document_label
@@ -86,7 +86,7 @@ select is((select count(*)::integer from public.resident_administrative_history 
 
 insert into master_ids values('property', public.upsert_resident_property_item(
   '61000000-0000-4000-8000-000000000201', 'Gold watch', 1, null,
-  'Engraved wristwatch', 'Good', current_date, null, null, now(),
+  'Engraved wristwatch', 'Good', public.pa_today(), null, null, now(),
   '61000000-0000-4000-8000-000000000301', 'Resident reviewed inventory', true
 ));
 select is((select condition_at_receipt from public.resident_property_items where id = (select id from master_ids where key = 'property')), 'Good', 'property condition is retained');
@@ -94,7 +94,7 @@ select ok((select resident_acknowledged_at is not null from public.resident_prop
 
 insert into master_ids values('legal', public.upsert_resident_legal_record(
   '61000000-0000-4000-8000-000000000201', 'court_order', 'Guardianship order', 'active',
-  null, 'York County Court', 'Guardian appointed for administrative decisions', current_date - 30,
+  null, 'York County Court', 'Guardian appointed for administrative decisions', public.pa_today() - 30,
   null, now(), '61000000-0000-4000-8000-000000000301'
 ));
 select is((select authority_name from public.resident_legal_records where id = (select id from master_ids where key = 'legal')), 'York County Court', 'court authority is structured');

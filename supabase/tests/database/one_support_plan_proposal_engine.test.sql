@@ -49,7 +49,7 @@ select set_config('app.privileged_write', 'off', true);
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
 values ('fc000000-0000-4000-8000-000000000201', 'fc000000-0000-4000-8000-000000000001',
-        'fc000000-0000-4000-8000-000000000011', 'Engine', 'Resident', current_date, 'active');
+        'fc000000-0000-4000-8000-000000000011', 'Engine', 'Resident', public.pa_today(), 'active');
 
 -- The resident needs some physical assistance with ambulation, and has no behavioural problem.
 insert into public.resident_assessment_forms(

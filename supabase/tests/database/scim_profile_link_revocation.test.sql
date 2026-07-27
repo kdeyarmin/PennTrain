@@ -353,7 +353,7 @@ insert into public.employees (
 values (
   '77000000-0000-4000-8000-000000000031', '77000000-0000-4000-8000-000000000001',
   '77000000-0000-4000-8000-000000000011', 'Backfill', 'User',
-  'backfill-user@pt008.example', current_date, 'Direct Care', 'active'
+  'backfill-user@pt008.example', public.pa_today(), 'Direct Care', 'active'
 );
 
 select is(

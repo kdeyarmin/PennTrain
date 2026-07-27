@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -54,7 +54,7 @@ interface ViolationFormData {
 
 const EMPTY_FORM: ViolationFormData = {
   facilityId: "", citationTopicId: "", citationRef: "",
-  inspectionDate: toLocalIsoDate(), surveyorName: "",
+  inspectionDate: facilityToday(), surveyorName: "",
   description: "", severity: "moderate", pocDueDate: "",
 };
 

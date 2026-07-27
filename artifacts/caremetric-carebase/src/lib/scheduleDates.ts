@@ -1,22 +1,26 @@
-import { toLocalIsoDate } from "./dateUtils";
+import { facilityToday } from "./dateUtils";
 
 // Small date-math helpers shared by the scheduling pages. All inputs/outputs are "yyyy-mm-dd"
 // strings (matching the rest of the app's plain-native-Date convention -- no date-fns/dayjs
 // dependency).
 //
 // Mixed timezone behavior:
-//   - todayIso() returns the caller's LOCAL calendar date (via toLocalIsoDate) so that "today"
-//     matches the user's wall clock rather than UTC.
+//   - todayIso() returns the FACILITY's calendar date (America/New_York, via facilityToday). It
+//     used to return the browser's local date, on the reasoning that "today" should match the
+//     user's wall clock. That is right for a clock widget and wrong for a schedule: a shift belongs
+//     to the day the facility says it does, and after 20260727010000 the server agrees only with
+//     the facility's day. The two answers differ for anyone not sitting in Pennsylvania.
 //   - addDaysIso / startOfWeekIso / enumerateDatesIso / formatDateLabel all operate in UTC
 //     internally to avoid local-timezone off-by-one shifts when doing arithmetic on bare date
-//     strings.
+//     strings. That is unchanged and is correct: they never ask what day it is now, they only shift
+//     a "yyyy-mm-dd" that was already decided.
 
 export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
 export function todayIso(): string {
-  return toLocalIsoDate();
+  return facilityToday();
 }
 
 export function addDaysIso(iso: string, days: number): string {

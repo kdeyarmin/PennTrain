@@ -43,7 +43,7 @@ insert into public.facility_assignments(profile_id,facility_id) values
   ('76000000-0000-4000-8000-000000000105','76000000-0000-4000-8000-000000000012'),
   ('76000000-0000-4000-8000-000000000102','76000000-0000-4000-8000-000000000011');
 insert into public.residents(id,organization_id,facility_id,first_name,last_name,admission_date,status) values
-  ('76000000-0000-4000-8000-000000000201','76000000-0000-4000-8000-000000000001','76000000-0000-4000-8000-000000000011','Payee','Resident',current_date-60,'active');
+  ('76000000-0000-4000-8000-000000000201','76000000-0000-4000-8000-000000000001','76000000-0000-4000-8000-000000000011','Payee','Resident',public.pa_today()-60,'active');
 
 create or replace function pg_temp.act_as(p_id uuid,p_role text default 'authenticated')
 returns void language plpgsql as $$
@@ -78,7 +78,7 @@ select throws_ok($$
 $$,'P0002',null,'payee profile cannot be configured before a personal funds account exists');
 
 select lives_ok($$
-  select public.open_resident_personal_fund_account('76000000-0000-4000-8000-000000000201',current_date,0,true,null)
+  select public.open_resident_personal_fund_account('76000000-0000-4000-8000-000000000201',public.pa_today(),0,true,null)
 $$,'manager opens the resident personal funds account');
 
 -- Happy path: first configuration records a history event whose evidence diffs

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   useCreateIncident, type Incident, type IncidentInsert,
@@ -134,7 +134,7 @@ export default function Incidents() {
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
     search: urlState.search,
-    today: toLocalIsoDate(),
+    today: facilityToday(),
   });
   const incidents = incidentQuery.data?.rows ?? [];
   const totalCount = incidentQuery.data?.count ?? 0;

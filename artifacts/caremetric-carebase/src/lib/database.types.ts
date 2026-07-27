@@ -37486,6 +37486,12 @@ export type Database = {
       org_ai_allowed: { Args: { p_org: string }; Returns: boolean }
       org_feature_enabled: { Args: { p_feature_key: string }; Returns: boolean }
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
+      pa_clock: { Args: { p_at: string }; Returns: string }
+      pa_day: { Args: { p_at: string }; Returns: string }
+      pa_midnight: { Args: { p_day: string }; Returns: string }
+      pa_now: { Args: never; Returns: string }
+      pa_today: { Args: never; Returns: string }
+      pa_week_start: { Args: { p_at: string }; Returns: string }
       pin_survey_day_binder: {
         Args: { p_binder_job_id: string; p_session_id: string }
         Returns: {

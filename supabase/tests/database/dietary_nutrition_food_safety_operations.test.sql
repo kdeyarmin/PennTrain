@@ -47,9 +47,9 @@ select set_config('app.privileged_write', 'off', true);
 insert into public.facility_assignments(profile_id, facility_id) values
   ('73000000-0000-4000-8000-000000000102', '73000000-0000-4000-8000-000000000011');
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
-  ('73000000-0000-4000-8000-000000000201', '73000000-0000-4000-8000-000000000001', '73000000-0000-4000-8000-000000000011', 'Jordan', 'Resident', current_date - 30, 'active'),
-  ('73000000-0000-4000-8000-000000000202', '73000000-0000-4000-8000-000000000001', '73000000-0000-4000-8000-000000000012', 'Unassigned', 'Resident', current_date - 20, 'active'),
-  ('73000000-0000-4000-8000-000000000203', '73000000-0000-4000-8000-000000000002', '73000000-0000-4000-8000-000000000013', 'Other', 'Resident', current_date - 10, 'active');
+  ('73000000-0000-4000-8000-000000000201', '73000000-0000-4000-8000-000000000001', '73000000-0000-4000-8000-000000000011', 'Jordan', 'Resident', public.pa_today() - 30, 'active'),
+  ('73000000-0000-4000-8000-000000000202', '73000000-0000-4000-8000-000000000001', '73000000-0000-4000-8000-000000000012', 'Unassigned', 'Resident', public.pa_today() - 20, 'active'),
+  ('73000000-0000-4000-8000-000000000203', '73000000-0000-4000-8000-000000000002', '73000000-0000-4000-8000-000000000013', 'Other', 'Resident', public.pa_today() - 10, 'active');
 insert into public.employees(
   id, organization_id, facility_id, profile_id, first_name, last_name, job_title, department, status
 ) values (
@@ -104,14 +104,14 @@ select set_config('request.jwt.claims', json_build_object('sub', '73000000-0000-
 
 select lives_ok($$
   insert into dietary_ids values ('menu1', public.create_dietary_menu_cycle(
-    '73000000-0000-4000-8000-000000000011', 'Summer cycle A', current_date, 7, 'active',
+    '73000000-0000-4000-8000-000000000011', 'Summer cycle A', public.pa_today(), 7, 'active',
     '[{"dayNumber":1,"mealPeriod":"breakfast","menuDescription":"Oatmeal, fruit, milk","substitutions":"Cream of wheat","textureAlternatives":{"pureed":"Pureed oatmeal and fruit"},"declaredAllergens":["Milk"]},{"dayNumber":1,"mealPeriod":"lunch","menuDescription":"Chicken, rice, green beans","substitutions":"Baked fish","textureAlternatives":{},"declaredAllergens":[]}]'::jsonb
   ))
 $$, 'manager publishes a menu cycle with substitutions and texture alternatives');
 select is((select count(*)::integer from public.dietary_menu_entries where menu_cycle_id = (select id from dietary_ids where key = 'menu1')), 2, 'menu cycle retains meal entries');
 select lives_ok($$
   insert into dietary_ids values ('menu2', public.create_dietary_menu_cycle(
-    '73000000-0000-4000-8000-000000000011', 'Summer cycle B', current_date + 7, 7, 'active',
+    '73000000-0000-4000-8000-000000000011', 'Summer cycle B', public.pa_today() + 7, 7, 'active',
     '[{"dayNumber":1,"mealPeriod":"breakfast","menuDescription":"Eggs and toast","textureAlternatives":{},"declaredAllergens":["Egg","Wheat"]}]'::jsonb
   ))
 $$, 'manager activates a replacement menu cycle');
@@ -151,7 +151,7 @@ select ok((select work_item_id is not null from public.resident_hydration_rounds
 select pg_temp.act_as('73000000-0000-4000-8000-000000000101');
 select lives_ok($$
   insert into dietary_ids values ('weight_assignment', public.assign_resident_weight_monitoring(
-    '73000000-0000-4000-8000-000000000201', 'weekly', current_date, 5,
+    '73000000-0000-4000-8000-000000000201', 'weekly', public.pa_today(), 5,
     '73000000-0000-4000-8000-000000000102', 'Weekly nutrition-risk monitoring'
   ))
 $$, 'manager assigns weight monitoring with a review threshold');
@@ -176,7 +176,7 @@ select lives_ok($$
     '73000000-0000-4000-8000-000000000201', now(), 'high',
     'Repeated low intake and configured weight-change threshold require follow-up.',
     'Send current records to dietitian and track recommendations.',
-    'dietitian', 'Community Dietitian', 'pending', current_date + 3
+    'dietitian', 'Community Dietitian', 'pending', public.pa_today() + 3
   ))
 $$, 'manager records nutrition-risk review and pending referral');
 select ok((select work_item_id is not null from public.nutrition_risk_reviews where id = (select id from dietary_ids where key = 'review')), 'pending nutrition referral automatically creates follow-up work');
@@ -220,7 +220,7 @@ select lives_ok($$
 $$, 'third similar food-safety exception is recorded');
 select pg_temp.act_as('73000000-0000-4000-8000-000000000101');
 select ok((select qapi_project_id is not null from public.dietary_exception_patterns where pattern_key = 'food-safety:' || (select id from dietary_ids where key = 'fridge')), 'three similar exceptions automatically feed a QAPI project');
-select is((public.get_qapi_source_metrics('73000000-0000-4000-8000-000000000011', current_date - 7, current_date)->>'foodSafetyExceptions')::integer, 3, 'QAPI metrics count authoritative food-safety exceptions');
+select is((public.get_qapi_source_metrics('73000000-0000-4000-8000-000000000011', public.pa_today() - 7, public.pa_today())->>'foodSafetyExceptions')::integer, 3, 'QAPI metrics count authoritative food-safety exceptions');
 select lives_ok($$
   select public.verify_food_safety_log(
     (select id from dietary_ids where key = 'food_exception1'),
@@ -255,7 +255,7 @@ select pg_temp.act_as('73000000-0000-4000-8000-000000000101');
 select lives_ok($$
   insert into dietary_ids values ('qualification', public.upsert_food_service_qualification(
     '73000000-0000-4000-8000-000000000301', 'food_handler_certification',
-    'County food handler certificate', current_date - 30, current_date + 335,
+    'County food handler certificate', public.pa_today() - 30, public.pa_today() + 335,
     'compliant', 'County Health Department', 'Certificate FH-1001', 'Verified original'
   ))
 $$, 'manager records food-service employee qualification evidence');

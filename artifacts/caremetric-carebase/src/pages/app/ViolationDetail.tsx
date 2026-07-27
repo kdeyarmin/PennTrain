@@ -34,7 +34,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
@@ -246,7 +246,7 @@ export default function ViolationDetail() {
                             </Button>
                           )}
                           {canEdit && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })} aria-label="Complete corrective action">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: facilityToday() })} aria-label="Complete corrective action">
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}

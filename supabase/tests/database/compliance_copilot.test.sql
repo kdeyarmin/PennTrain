@@ -60,7 +60,7 @@ insert into public.compliance_copilot_runs(
   (
     '76000000-0000-4000-8000-000000000201', '76000000-0000-4000-8000-000000000001',
     '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101',
-    'readiness_score', 'Why is the readiness score low?', 'PA', 'PCH', current_date,
+    'readiness_score', 'Why is the readiness score low?', 'PA', 'PCH', public.pa_today(),
     'confirmed_system_determination', 'completed', 'claude-test',
     '[{"id":"rule:1","citation":"55 Pa. Code 2600.65","version":"2026.1"}]',
     '[{"id":"evidence:1","kind":"readiness_snapshot"}]', '[]',
@@ -71,7 +71,7 @@ insert into public.compliance_copilot_runs(
   (
     '76000000-0000-4000-8000-000000000202', '76000000-0000-4000-8000-000000000001',
     '76000000-0000-4000-8000-000000000012', '76000000-0000-4000-8000-000000000103',
-    'draft_plan_of_correction', 'Draft a plan from verified findings.', 'PA', 'ALR', current_date,
+    'draft_plan_of_correction', 'Draft a plan from verified findings.', 'PA', 'ALR', public.pa_today(),
     'recommendation', 'completed', 'claude-test', '[]', '[]',
     '["No governed source matched the supplied finding."]',
     '{"answer":"A human-reviewed draft requires more information."}',
@@ -81,7 +81,7 @@ insert into public.compliance_copilot_runs(
   (
     '76000000-0000-4000-8000-000000000203', '76000000-0000-4000-8000-000000000002',
     '76000000-0000-4000-8000-000000000013', '76000000-0000-4000-8000-000000000105',
-    'due_next_30_days', 'What is due in the next 30 days?', 'PA', 'PCH', current_date,
+    'due_next_30_days', 'What is due in the next 30 days?', 'PA', 'PCH', public.pa_today(),
     'confirmed_system_determination', 'failed', null, '[]', '[]', '[]', '{}',
     '{"readOnly":true,"humanConfirmationRequired":true,"operationalMutationsAllowed":false}',
     repeat('e', 64), null, 'Provider unavailable'
@@ -123,7 +123,7 @@ select throws_ok($$
   ) values (
     '76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011',
     '76000000-0000-4000-8000-000000000101', 'readiness_score', 'Can I create this receipt?',
-    'PA', 'PCH', current_date, 'recommendation', 'completed', 'browser-model', '{"answer":"No"}',
+    'PA', 'PCH', public.pa_today(), 'recommendation', 'completed', 'browser-model', '{"answer":"No"}',
     '{"readOnly":true,"humanConfirmationRequired":true}', repeat('f', 64), repeat('0', 64)
   )
 $$, '42501', null, 'authenticated callers cannot forge copilot receipts');
@@ -133,23 +133,23 @@ select throws_ok($$update public.compliance_copilot_runs set question = 'Rewritt
 select throws_ok($$delete from public.compliance_copilot_runs where id = '76000000-0000-4000-8000-000000000201'$$, '55000', null, 'receipts cannot be deleted even by a database owner');
 select throws_ok($$
   insert into public.compliance_copilot_runs(organization_id, facility_id, requested_by, intent, question, jurisdiction_code, facility_type, as_of_date, determination_kind, status, model, response, safeguards, request_checksum_sha256, response_checksum_sha256)
-  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'invented_intent', 'Invalid intent', 'PA', 'PCH', current_date, 'recommendation', 'completed', 'test', '{"answer":"x"}', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64), repeat('b',64))
+  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'invented_intent', 'Invalid intent', 'PA', 'PCH', public.pa_today(), 'recommendation', 'completed', 'test', '{"answer":"x"}', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64), repeat('b',64))
 $$, '23514', null, 'unsupported intents are rejected');
 select throws_ok($$
   insert into public.compliance_copilot_runs(organization_id, facility_id, requested_by, intent, question, jurisdiction_code, facility_type, as_of_date, determination_kind, status, model, response, safeguards, request_checksum_sha256, response_checksum_sha256)
-  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'readiness_score', 'Unsafe safeguards', 'PA', 'PCH', current_date, 'recommendation', 'completed', 'test', '{"answer":"x"}', '{"readOnly":false,"humanConfirmationRequired":true}', repeat('a',64), repeat('b',64))
+  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'readiness_score', 'Unsafe safeguards', 'PA', 'PCH', public.pa_today(), 'recommendation', 'completed', 'test', '{"answer":"x"}', '{"readOnly":false,"humanConfirmationRequired":true}', repeat('a',64), repeat('b',64))
 $$, '23514', null, 'read-only and human-confirmation safeguards are mandatory');
 select throws_ok($$
   insert into public.compliance_copilot_runs(organization_id, facility_id, requested_by, intent, question, jurisdiction_code, facility_type, as_of_date, determination_kind, status, model, response, safeguards, request_checksum_sha256)
-  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'readiness_score', 'Missing checksum', 'PA', 'PCH', current_date, 'recommendation', 'completed', 'test', '{"answer":"x"}', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64))
+  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'readiness_score', 'Missing checksum', 'PA', 'PCH', public.pa_today(), 'recommendation', 'completed', 'test', '{"answer":"x"}', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64))
 $$, '23514', null, 'completed receipts require a response checksum');
 select throws_ok($$
   insert into public.compliance_copilot_runs(organization_id, facility_id, requested_by, intent, question, jurisdiction_code, facility_type, as_of_date, determination_kind, status, safeguards, request_checksum_sha256)
-  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'readiness_score', 'Silent failure', 'PA', 'PCH', current_date, 'recommendation', 'failed', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64))
+  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'readiness_score', 'Silent failure', 'PA', 'PCH', public.pa_today(), 'recommendation', 'failed', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64))
 $$, '23514', null, 'failed receipts require an error message');
 select throws_ok($$
   insert into public.compliance_copilot_runs(organization_id, facility_id, requested_by, intent, question, subject_type, jurisdiction_code, facility_type, as_of_date, determination_kind, status, model, response, safeguards, request_checksum_sha256, response_checksum_sha256)
-  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'employee_blocked', 'Why blocked?', 'employee', 'PA', 'PCH', current_date, 'confirmed_system_determination', 'completed', 'test', '{"answer":"x"}', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64), repeat('b',64))
+  values ('76000000-0000-4000-8000-000000000001', '76000000-0000-4000-8000-000000000011', '76000000-0000-4000-8000-000000000101', 'employee_blocked', 'Why blocked?', 'employee', 'PA', 'PCH', public.pa_today(), 'confirmed_system_determination', 'completed', 'test', '{"answer":"x"}', '{"readOnly":true,"humanConfirmationRequired":true}', repeat('a',64), repeat('b',64))
 $$, '23514', null, 'subject type and reference must be paired');
 select is((select rule_sources->0->>'citation' from public.compliance_copilot_runs where id = '76000000-0000-4000-8000-000000000201'), '55 Pa. Code 2600.65', 'receipts retain the exact citation used');
 select is((select evidence_used->0->>'id' from public.compliance_copilot_runs where id = '76000000-0000-4000-8000-000000000201'), 'evidence:1', 'receipts retain the referenced evidence ID');

@@ -45,9 +45,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 
-const today = () => toLocalIsoDate();
+const today = () => facilityToday();
 const ago = () => toLocalIsoDate(new Date(Date.now() - 30 * 864e5));
 const human = (v: string) =>
   v.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());

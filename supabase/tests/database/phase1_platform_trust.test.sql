@@ -228,8 +228,8 @@ values (
   '00000000-0000-0000-0000-0000000000c1',
   '00000000-0000-0000-0000-0000000000c2',
   'Phase One Schedule',
-  current_date,
-  current_date + 6,
+  public.pa_today(),
+  public.pa_today() + 6,
   'draft',
   '00000000-0000-0000-0000-0000000000c5'
 );

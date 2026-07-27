@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   Building2,
@@ -132,7 +132,7 @@ function LifecycleCommand() {
   const applyCommand = useEnterpriseRpcCommand();
   const [employeeId, setEmployeeId] = useState("");
   const [transition, setTransition] = useState("leave");
-  const [effectiveDate, setEffectiveDate] = useState(() => toLocalIsoDate());
+  const [effectiveDate, setEffectiveDate] = useState(() => facilityToday());
   const [targetFacilityId, setTargetFacilityId] = useState("");
   const [reason, setReason] = useState("");
   const [preview, setPreview] = useState<EnterpriseJson | null>(null);
