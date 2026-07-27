@@ -170,9 +170,16 @@ Deno.serve(async (req: Request) => {
       .from("employees")
       .select("id, profile_id, email")
       .eq("organization_id", effectiveOrgId);
+    // ilike here means "case-insensitive equality", not a pattern match -- but '%' and '_' are LIKE
+    // metacharacters, so an unescaped term matched more than the address asked for. The exact
+    // re-check below already refuses a mismatched row, so this was never a way to invite someone
+    // else; the reachable symptom was a legitimate address containing '_' (first_last@example.com
+    // is ordinary) also matching first-any-char-last@example.com and failing the whole invite with
+    // the "Multiple employee records use this email" 409. Escaping restores plain equality.
+    const emailPattern = email.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
     employeeQuery = employee_id
       ? employeeQuery.eq("id", employee_id)
-      : employeeQuery.ilike("email", email).limit(2);
+      : employeeQuery.ilike("email", emailPattern).limit(2);
 
     const { data: employeeMatches, error: employeeLookupError } = await employeeQuery;
     if (employeeLookupError) {
