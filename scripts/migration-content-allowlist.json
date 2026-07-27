@@ -1,6 +1,282 @@
 {
+  "20260704073204": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704073252": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (training content -> course). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260704073531": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704081318": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704164627": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704190000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704200000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (training -> course; training item' -> course'). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260704210000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704220000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704230000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704234451": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260704240000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705000457": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705001814": {
+    "reason": "Deployed statements differ structurally from this file ((nothing) -> organization_id SELECT current_org_id AND; AND EXISTS SELECT FROM public quiz_questions AS qq WHERE qq id quiz_question_explanations question_id AND qq organization_id SELECT current_org_id -> (nothing); (nothing) -> organization_id SELECT current_org_id AND, and 7 more). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260705002224": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705061816": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705140921": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705141141": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (an employee -> a learner; training -> course; training -> LMS, and 2 more). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260705152437": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705162933": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705180713": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (training -> course). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260705203242": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705203535": {
+    "reason": "Deployed statements differ structurally from this file (IF NOT EXISTS -> (nothing); IF NOT EXISTS -> (nothing); DROP POLICY IF EXISTS course_ai_generations_select ON public course_ai_generations -> (nothing), and 2 more). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260705203910": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260705223000": {
+    "reason": "Ledger bookkeeping row: the recorded statement is a provenance note, not SQL. Verified 2026-07-27 that the real content is recorded under version 20260705232225 and is identical to this file ignoring whitespace, so the migration did apply."
+  },
+  "20260705223100": {
+    "reason": "Ledger bookkeeping row: the recorded statement is a provenance note, not SQL. Verified 2026-07-27 that the real content is recorded under version 20260705232239 and is identical to this file ignoring whitespace, so the migration did apply."
+  },
+  "20260705224500": {
+    "reason": "Ledger bookkeeping row: the recorded statement is a provenance note, not SQL. Verified 2026-07-27 that the real content is recorded under version 20260705235350 and is identical to this file ignoring whitespace, so the migration did apply."
+  },
+  "20260706002752": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706171059": {
+    "reason": "Deployed statements differ structurally from this file (CareBase -> Train; training content -> courses; training items -> courses, and 67 more). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260706175837": {
+    "reason": "Deployed statements omit this file's `revoke all on function public.current_profile_active() from public, anon, authenticated`. Unlike every other divergence here, this one was real in production: checked on 2026-07-27, anon still held EXECUTE. Impact was limited -- the function returns a boolean and depends on auth.uid(), which is null for an anonymous caller, so it returned false and disclosed nothing. The revoke was reapplied in 20260727010000_reapply_current_profile_active_revoke.sql, and live grants are now {authenticated, service_role}. This file is left as-is because its content is correct; it is the deployment that was incomplete."
+  },
+  "20260706181200": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181210": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181220": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181230": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181240": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181250": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181300": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181310": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (an employee -> a learner; training -> course; training -> LMS, and 2 more). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260706181320": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181330": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181340": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181350": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181400": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181410": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181420": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181430": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181440": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181450": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181500": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706181510": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706190000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706190100": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260706190200": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260707000000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260707120000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (carebase -> train; CareBase -> Train; carebase -> train). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260709120000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (training -> course; training -> course). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260709123000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (CareBase -> Train; training content -> courses; training items -> courses). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260709124000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (training item' -> course'). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260711154819": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (an employee's -> a learner's; training -> course; CareBase Training Suite' -> Train LMS', and 1 more). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260711155016": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary ('Training -> 'Course; employee training -> learner; 'Training -> 'Course, and 2 more). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260711164439": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (CareBase -> Train; CareBase -> Train; CareBase' -> Train', and 4 more). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260711200648": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary ('Employee seat -> 'Learner; employee -> learner; 'employees' -> 'learners'). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260711200651": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary ('ccb_live_' -> 'cmt_live_'; 'ccb_live_' -> 'cmt_live_'; CareBase -> Train, and 1 more). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260711213100": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260712100000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (CareBase -> Train; CareBase' -> Train'; CareBase -> Train, and 1 more). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260712110000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260712120000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (CareBase -> Train; 'Training -> 'Course; training -> course). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260712130000": {
+    "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (training -> course; employee -> learner). Verified 2026-07-27 that no statement, predicate, or grant differs."
+  },
+  "20260712140000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260712150000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260712160001": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260712170000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260712180000": {
+    "reason": "Deployed statements differ structurally from this file (anon authenticated -> (nothing)). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260712190000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713053600": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713120000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713130000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713140000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713150000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713160000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713170000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713190000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713200000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713210000": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260713233707": {
+    "reason": "Deployed statements differ structurally from this file (extensions -> (nothing); extensions -> (nothing)). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260714012155": {
+    "reason": "Deployed statements differ structurally from this file (extensions -> (nothing)). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260723120000": {
+    "reason": "Ledger bookkeeping row: applied out-of-band via the Supabase SQL tool, and the recorded statement is the provenance note describing that rather than the SQL, so there is no deployed text to compare this file against."
+  },
+  "20260724040534": {
+    "reason": "Deployed statements differ structurally from this file (SELECT jobid FROM cron job WHERE jobname 'billing quantity sync' -> (nothing)). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260724040747": {
+    "reason": "Deployed statements differ structurally from this file ((nothing) -> DHS; EMPLOYEE PCH ALF' -> EMPLOYEE'; 'video' -> 'text', and 96 more). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
+  "20260724040837": {
+    "reason": "Deployed statements differ structurally from this file (DO declare v_updated integer begin update -> UPDATE; set -> SET; where -> WHERE, and 16 more). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
+  },
   "20260724042226": {
     "reason": "PT-051 reconciliation (2026-07-24): recovered from production statements with a provenance header, and replay-adapted to no-op when block 5 already carries the final trimmed-render state shipped by the committed orientation seed."
+  },
+  "20260724042243": {
+    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
+  },
+  "20260724042825": {
+    "reason": "Deployed statements differ structurally from this file (ALTER TABLE public organizations DISABLE TRIGGER protect_subscription_fields -> (nothing); ALTER TABLE public organizations ENABLE TRIGGER protect_subscription_fields -> (nothing)). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
   },
   "20260724043912": {
     "reason": "PT-051 reconciliation (2026-07-24): recovered from production statements with a provenance header, and replay-adapted because the committed orientation seed already inserts the renamed catalog_code."
@@ -19,6 +295,9 @@
   },
   "20260724051549": {
     "reason": "PT-051 reconciliation (2026-07-24): recovered verbatim from production statements; the added provenance header alone changes the file hash."
+  },
+  "20260724051609": {
+    "reason": "Deployed statements differ structurally from this file (Fire Safety and Emergency Preparedness -> (nothing); Abuse Neglect and Exploitation Reporting -> (nothing); Resident Rights and Dignity -> (nothing), and 3 more). Reviewed 2026-07-27 by checking the affected object against live catalog state, which matches this file's intent -- so the divergence is in what the ledger recorded, not in production."
   },
   "20260724051753": {
     "reason": "PT-051 reconciliation (2026-07-24): recovered verbatim from production statements; the added provenance header alone changes the file hash."
