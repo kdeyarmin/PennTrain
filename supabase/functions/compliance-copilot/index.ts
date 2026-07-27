@@ -8,7 +8,6 @@ import {
   type AliasMapEntry,
 } from "../_shared/aiRedaction.ts";
 import {
-import { paToday } from "../_shared/paDay.ts";
   COPILOT_SAFEGUARDS,
   COPILOT_SYSTEM_PROMPT,
   COPILOT_TOOL_NAME,
@@ -21,6 +20,7 @@ import { paToday } from "../_shared/paDay.ts";
   type CopilotIntent,
   type CopilotRuleSource,
 } from "../_shared/complianceCopilot.ts";
+import { paToday } from "../_shared/paDay.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",

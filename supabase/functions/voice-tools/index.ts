@@ -17,7 +17,6 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
-import { paToday } from "../_shared/paDay.ts";
   compressCopilotForVoice,
   copilotIntentForTopic,
   DEADLINE_ROW_LIMIT,
@@ -30,6 +29,7 @@ import { paToday } from "../_shared/paDay.ts";
   type ResidentItemRow,
   type TrainingDueRow,
 } from "../_shared/voiceTools.ts";
+import { paToday } from "../_shared/paDay.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
