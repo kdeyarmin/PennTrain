@@ -8,7 +8,7 @@ import { facilityToday } from "./dateUtils";
 //   - todayIso() returns the FACILITY's calendar date (America/New_York, via facilityToday). It
 //     used to return the browser's local date, on the reasoning that "today" should match the
 //     user's wall clock. That is right for a clock widget and wrong for a schedule: a shift belongs
-//     to the day the facility says it does, and after 20260727010000 the server agrees only with
+//     to the day the facility says it does, and after 20260727010100 the server agrees only with
 //     the facility's day. The two answers differ for anyone not sitting in Pennsylvania.
 //   - addDaysIso / startOfWeekIso / enumerateDatesIso / formatDateLabel all operate in UTC
 //     internally to avoid local-timezone off-by-one shifts when doing arithmetic on bare date

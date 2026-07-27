@@ -36,7 +36,7 @@ export const WORK_ITEM_CATEGORY_LABELS: Record<WorkItemCategory, string> = {
 };
 
 /**
- * Mirrors the seed across 20260726100000 (the taxonomy) and 20260726120000 (the completion that
+ * Mirrors the seed across 20260726100100 (the taxonomy) and 20260726120100 (the completion that
  * made it a superset of the types already in use). A test parses both and asserts they match.
  */
 export const WORK_ITEM_SOURCE_TYPES: WorkItemSourceType[] = [

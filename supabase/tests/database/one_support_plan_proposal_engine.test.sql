@@ -2,7 +2,7 @@ begin;
 select plan(22);
 
 -- The combined proposal engine. The assertions that matter most are the ones about rules that must
--- NOT fire: an engine that proposes everything is the failure mode 20260726040000 described, and it
+-- NOT fire: an engine that proposes everything is the failure mode 20260726040100 described, and it
 -- passes any test that only checks "a proposal was created".
 
 -- The flattener, tested directly ---------------------------------------------------------------

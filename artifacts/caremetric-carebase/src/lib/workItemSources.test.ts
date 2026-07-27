@@ -17,8 +17,8 @@ const REPO_ROOT = join(__dirname, "..", "..", "..", "..");
 // The taxonomy is seeded across two migrations: the original, and the follow-up that completed it
 // after the first seed turned out not to be a superset of the types already in use.
 const SEED_MIGRATIONS = [
-  "supabase/migrations/20260726100000_work_item_source_taxonomy_and_coverage.sql",
-  "supabase/migrations/20260726120000_complete_the_work_item_source_taxonomy.sql",
+  "supabase/migrations/20260726100100_work_item_source_taxonomy_and_coverage.sql",
+  "supabase/migrations/20260726120100_complete_the_work_item_source_taxonomy.sql",
 ];
 
 function migrationSql(relativePath: string): string {

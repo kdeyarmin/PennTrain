@@ -11,7 +11,7 @@
 --     `condition` to the resident's answers. With no rules seeded that was invisible; the moment
 --     rules exist it would propose every intervention in the pack for every resident.
 --
---   * public.generate_support_plan_proposal_from_review(review_id, reason) -- 20260726040000. Never
+--   * public.generate_support_plan_proposal_from_review(review_id, reason) -- 20260726040100. Never
 --     called from anywhere. It DID evaluate conditions, and it carried per-item provenance (which
 --     rule, which version, which answer, and the rule's rationale) so a reviewer could see why each
 --     item was suggested. But it emitted `items[]`, a shape the plan merge cannot read, so
@@ -23,7 +23,7 @@
 -- Three specific improvements over either predecessor:
 --
 --   1. Conditions are evaluated against the resident's own answers, so a proposal contains only
---      rules that actually fired. This is the fix the 20260726040000 header described.
+--      rules that actually fired. This is the fix the 20260726040100 header described.
 --   2. Answers are read from the assessment form's nested `content` (flattened to dotted paths) AND
 --      from the resident's most recent FINAL assessment review, with review answers winning. That
 --      is what "combine both" means for inputs: a rule can address either source by key, and the
@@ -37,7 +37,7 @@
 -- is a recommendation with no argument behind it.
 --
 -- Rollback: restore generate_support_plan_proposal from 20260726020100 and
--- generate_support_plan_proposal_from_review from 20260726040000; both bodies are intact there.
+-- generate_support_plan_proposal_from_review from 20260726040100; both bodies are intact there.
 
 -- ---------------------------------------------------------------------------
 -- Answer normalisation

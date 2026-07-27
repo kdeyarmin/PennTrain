@@ -9,9 +9,9 @@
 -- in the test is new, with no operations data behind it. That is exactly the state a real facility
 -- is in on its first day.
 --
--- The only change from 20260726110000 is the coalesce. Everything else is preserved verbatim.
+-- The only change from 20260726110100 is the coalesce. Everything else is preserved verbatim.
 --
--- Rollback: re-apply the definition from 20260726110000.
+-- Rollback: re-apply the definition from 20260726110100.
 
 create or replace function public.get_daily_operations_command_center(p_facility_id uuid default null)
 returns jsonb

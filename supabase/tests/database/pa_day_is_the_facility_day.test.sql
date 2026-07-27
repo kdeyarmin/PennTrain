@@ -5,14 +5,14 @@ select plan(11);
 --
 -- Hosted Supabase runs TimeZone = UTC. Every facility this product serves is in Pennsylvania, so
 -- from 19:00 or 20:00 local until midnight the database's `current_date` is already TOMORROW in the
--- terms the facility, the resident record, and the DHS inspector all use. 20260727010000 replaced
+-- terms the facility, the resident record, and the DHS inspector all use. 20260727010100 replaced
 -- `current_date` with public.pa_today() in all 59 functions that had it; this is what keeps it
 -- replaced.
 --
 -- The structural assertion at the bottom is the real deliverable. Re-introducing `current_date` is a
 -- one-token mistake, it is silently correct for 19 hours a day, and the most likely way it happens
 -- is not someone typing it fresh -- it is a future `create or replace` authored from a migration
--- file older than 20260727010000, which is a mistake this program has already made twice for other
+-- file older than 20260727010100, which is a mistake this program has already made twice for other
 -- reasons.
 
 -- Does the helper ignore the session's timezone? -------------------------------------------------

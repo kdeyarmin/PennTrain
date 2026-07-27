@@ -31,7 +31,7 @@
 -- swallowed -- an operator can see that the proposal did not happen and why, which a bare EXCEPTION
 -- WHEN OTHERS THEN NULL would hide.
 --
--- Rollback: restore finalize_resident_assessment_review from 20260726140000 (NOT 20260726030000 --
+-- Rollback: restore finalize_resident_assessment_review from 20260726140000 (NOT 20260726030100 --
 -- 140000 added the resident_assessor duty check) and generate_support_plan_proposal from
 -- 20260726220000.
 
@@ -242,7 +242,7 @@ begin
 
   -- Added by 20260726140000: signing as assessor is a duty, not just a text field. Carried forward
   -- deliberately -- this body is a `create or replace` over 20260726140000's, not over the original
-  -- in 20260726030000, and rebasing on the older text would silently delete this authorization
+  -- in 20260726030100, and rebasing on the older text would silently delete this authorization
   -- check. Its own pgTAP suite is what caught that.
   perform app_private.assert_duty_eligible(auth.uid(), 'resident_assessor', v.facility_id);
 

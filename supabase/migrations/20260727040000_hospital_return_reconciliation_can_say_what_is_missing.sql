@@ -18,7 +18,7 @@
 -- return that still has a gap -- the case the whole function exists for -- it dies with a raw
 -- Postgres type error instead of the sentence that says which gap. All five branches are affected.
 --
--- Found by `supabase db lint`, which has been reporting it since it shipped in 20260726070000.
+-- Found by `supabase db lint`, which has been reporting it since it shipped in 20260726070100.
 -- CI runs the linter without --fail-on error, so it printed the finding and went green. Nothing else
 -- could have caught it: complete_hospital_return_reconciliation has no pgTAP coverage at all, which
 -- is why hospital_return_reconciliation_reports_gaps.test.sql is added alongside this. That test

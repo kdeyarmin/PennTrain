@@ -1,7 +1,7 @@
 begin;
 select plan(9);
 
--- complete_hospital_return_reconciliation had no test at all when it shipped in 20260726070000, and
+-- complete_hospital_return_reconciliation had no test at all when it shipped in 20260726070100, and
 -- it was broken on its main path: appending to a text[] with `v_outstanding := v_outstanding || 'x'`
 -- raises 22P02 "malformed array literal", because a bare quoted literal is `unknown` and Postgres
 -- resolves `anyarray || unknown` as array-to-array. So the function succeeded only when nothing was

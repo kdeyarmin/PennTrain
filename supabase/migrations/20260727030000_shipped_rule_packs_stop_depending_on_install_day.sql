@@ -2,7 +2,7 @@
 --
 -- Two catalogues ship with the product and rely on the `effective_from` column default to date
 -- themselves: the mandatory workforce baseline profile (20260711200634) and the ten global PA
--- support-plan mapping rules (20260726040000). Neither insert names a date, so each row records
+-- support-plan mapping rules (20260726040100). Neither insert names a date, so each row records
 -- whichever calendar day its migration happened to run on.
 --
 -- That was already fragile -- the effective date of a rule pack is a property of the pack, not of
@@ -19,7 +19,7 @@
 -- during a Pennsylvania evening -- the pack sits inert until the following morning, silently, with
 -- the product reporting no applicable rules rather than an error.
 --
--- 20260727010000 changed the column DEFAULT to public.pa_today(), which fixes the next install but
+-- 20260727010100 changed the column DEFAULT to public.pa_today(), which fixes the next install but
 -- not the rows already written. This dates the two shipped catalogues explicitly, to the day their
 -- own migration was authored. The effect is that both are effective from a day in the past rather
 -- than a day that moves, which is what "shipped with the product" should mean; nothing else about

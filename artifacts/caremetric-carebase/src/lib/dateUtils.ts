@@ -24,7 +24,7 @@ const FACILITY_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
  * They agree for a user sitting in Pennsylvania, which is why the difference went unnoticed. They
  * stop agreeing the moment the browser is anywhere else -- a regional administrator on the road, a
  * corporate office in another state, a laptop whose clock is simply set wrong -- and after
- * 20260727010000 the server no longer tolerates the disagreement. `record_support_plan_-
+ * 20260727010100 the server no longer tolerates the disagreement. `record_support_plan_-
  * participation` rejects a participation date later than the Pennsylvania day, and the resident
  * lifecycle journey caught this immediately: running in a UTC container, the browser offered
  * tomorrow's date as the default, the server refused it, and the plan could not leave the

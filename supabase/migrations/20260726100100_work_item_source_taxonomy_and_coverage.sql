@@ -103,13 +103,13 @@ returns text language sql immutable set search_path = '' as $$
   select case
     -- Only the catch-all is reinterpreted. A creator that named a real type is authoritative.
     when p_source_type is distinct from 'rule_exception' then p_source_type
-    -- 20260726040000 conflict_dispositions_and_proposal_engine
+    -- 20260726040100 conflict_dispositions_and_proposal_engine
     when p_deduplication_key like 'support-plan-proposal:%' then 'support_plan'
-    -- 20260726060000 exception_documentation_and_unscheduled_services
+    -- 20260726060100 exception_documentation_and_unscheduled_services
     when p_deduplication_key like 'service-exception:%' then 'service_delivery'
     -- 20260713230000 resident_services_calendar
     when p_deduplication_key like 'appointment-follow-up:%' then 'resident_appointment'
-    -- 20260714100000 resident_care_admission_transition / 20260726070000 hospital_return_reconciliation
+    -- 20260714100000 resident_care_admission_transition / 20260726070100 hospital_return_reconciliation
     when p_deduplication_key like 'hospital-return-follow-up:%' then 'hospital_return'
     -- 20260714205323 facility_license_lifecycle
     when p_deduplication_key like 'facility-license:%' then 'facility_license'

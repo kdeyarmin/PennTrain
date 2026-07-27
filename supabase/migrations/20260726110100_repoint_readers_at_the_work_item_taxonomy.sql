@@ -1,6 +1,6 @@
 -- Repoint the two queries that read work items by the old catch-all source type (Phase 7a follow-up).
 --
--- 20260726100000 reclassified work items out of the `rule_exception` catch-all into real source
+-- 20260726100100 reclassified work items out of the `rule_exception` catch-all into real source
 -- types, deriving each from the deduplication key its creator writes. Two existing queries filter on
 -- `source_type = 'rule_exception'`, and the backfill silently changed what they match:
 --

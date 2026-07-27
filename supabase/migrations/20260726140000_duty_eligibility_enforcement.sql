@@ -26,7 +26,7 @@
 -- `schedule_eligibility_overrides` deliberately -- one override concept, two scopes.
 --
 -- Rollback: drop the trigger, the RPCs, then the override and rule tables. Restore
--- finalize_resident_assessment_review from 20260726030000.
+-- finalize_resident_assessment_review from 20260726030100.
 
 ------------------------------------------------------------------------------------------------
 -- 1. Rules: which duties require what.
@@ -344,7 +344,7 @@ grant execute on function public.grant_duty_eligibility_override(uuid, text, uui
 ------------------------------------------------------------------------------------------------
 -- 5. Enforcement on the assessor path.
 --
--- Re-declared from 20260726030000 (confirmed the newest definition). Every existing guard is kept;
+-- Re-declared from 20260726030100 (confirmed the newest definition). Every existing guard is kept;
 -- the duty check is added. The assessor is the caller: `finalize_resident_assessment_review` is what
 -- attaches a signature, and the signature is the caller's act.
 ------------------------------------------------------------------------------------------------

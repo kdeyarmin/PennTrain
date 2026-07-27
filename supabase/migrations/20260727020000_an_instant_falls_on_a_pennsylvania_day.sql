@@ -1,11 +1,11 @@
 -- An instant falls on a Pennsylvania day, not a UTC one.
 --
--- 20260727010000 gave "today" a correct definition. This is the other half of the same defect: the
+-- 20260727010100 gave "today" a correct definition. This is the other half of the same defect: the
 -- code that asks which day some INSTANT fell on, or which instant a DAY starts at, and answers in
 -- UTC. `some_timestamptz::date` is `at time zone TimeZone`, and TimeZone is UTC on hosted Supabase,
 -- so anything recorded between 20:00 ET and midnight is filed under tomorrow.
 --
--- This was not found by reading. It was found because 20260727010000's pgTAP fixtures were switched
+-- This was not found by reading. It was found because 20260727010100's pgTAP fixtures were switched
 -- from `current_date` to `public.pa_today()` -- and eight assertions that had been green went red.
 -- They had been green because fixture and function shared the same wrong clock: the test seeded a
 -- fall "today" in UTC and the function counted falls "today" in UTC, and the pair agreed with each
@@ -36,7 +36,7 @@
 --
 --   * COMPLIANCE PROFILE WINDOWS (phase2_scope_workforce) and the SEEDED PA RULE PACK
 --     (review_finalization_drives_proposals) -- both effective_from windows. These are NOT fixed
---     here: changing the column default in 20260727010000 fixed the next insert but left the rows
+--     here: changing the column default in 20260727010100 fixed the next insert but left the rows
 --     already written carrying the UTC day, so they needed 20260727030000 to date the shipped
 --     catalogues explicitly. They are listed because they were part of the same eight and are what
 --     led to the rest.
@@ -67,7 +67,7 @@
 --   * app_private.next_report_schedule_run and next_configured_report_schedule_run date_trunc a
 --     value that has already been converted to the schedule's own configured timezone.
 --
--- HOW THIS FILE WAS WRITTEN. As with 20260727010000: each body is `pg_get_functiondef` of the live
+-- HOW THIS FILE WAS WRITTEN. As with 20260727010100: each body is `pg_get_functiondef` of the live
 -- function with a fixed list of textual substitutions applied, generated rather than retyped, and
 -- verified afterwards by re-extracting every definition and diffing against the pre-migration
 -- definitions under the same substitutions. Every operand substituted was checked against the

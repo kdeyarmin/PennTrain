@@ -1,6 +1,6 @@
--- Complete the work item source taxonomy (fixes 20260726100000).
+-- Complete the work item source taxonomy (fixes 20260726100100).
 --
--- WHAT WENT WRONG. 20260726100000 added a trigger that rejects any `work_items.source_type` outside
+-- WHAT WENT WRONG. 20260726100100 added a trigger that rejects any `work_items.source_type` outside
 -- the taxonomy, and the taxonomy I seeded was not a superset of the types already in use. Three
 -- existing pgTAP suites failed immediately -- resident_services_calendar, dietary_nutrition_food_
 -- safety_operations, and emergency_operations -- because their creators insert `resident_calendar`,
@@ -16,7 +16,7 @@
 -- break a deployment. Only a genuinely new, never-before-used type is refused -- which is the case
 -- the trigger exists for.
 --
--- Rollback: delete the rows added here. The trigger from 20260726100000 will then start refusing the
+-- Rollback: delete the rows added here. The trigger from 20260726100100 will then start refusing the
 -- types they cover, so roll that back too.
 
 insert into public.work_item_source_types (key, label, category, description, sort_order) values

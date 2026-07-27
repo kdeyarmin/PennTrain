@@ -12,7 +12,7 @@
  *   * compliance-copilot and voice-tools used it as the default `asOf` for compliance questions,
  *     so an evening question was answered against the wrong day's picture.
  *
- * This is the TypeScript twin of public.pa_today() (supabase/migrations/20260727010000). Keeping the
+ * This is the TypeScript twin of public.pa_today() (supabase/migrations/20260727010100). Keeping the
  * two in step matters: an edge function that computes a day one way and then calls an RPC that
  * computes it the other produces answers that disagree with themselves.
  *

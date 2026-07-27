@@ -1834,7 +1834,7 @@ can see that the proposal did not happen and why. A bare `EXCEPTION WHEN OTHERS 
 hide exactly the thing worth knowing.
 
 **A guard I deleted and the suite caught.** This migration's `create or replace` of
-`finalize_resident_assessment_review` was written over the **original** body from `20260726030000`,
+`finalize_resident_assessment_review` was written over the **original** body from `20260726030100`,
 not the current one — silently dropping the `assert_duty_eligible(…, 'resident_assessor', …)` check
 that `20260726140000` had added. `duty_eligibility_enforcement.test.sql` failed on the next run and
 named it precisely. Two things worth keeping: rebasing a `create or replace` on an old copy is a
