@@ -149,6 +149,35 @@ jobs:
         if: always()
         run: supabase stop --no-backup
 
+  # PR-time guard for the rule the drift check enforces after the fact: a migration file
+  # whose version is already applied on the remote may not be modified, deleted, or
+  # renamed. Comment-only and string-only edits fail too (repo-wide find/replace is how
+  # this recurs); the escape hatch is revising that version's entry in
+  # scripts/migration-content-allowlist.json in the same PR. With SUPABASE_ACCESS_TOKEN
+  # available the check reads the remote ledger; without it (fork PRs), it conservatively
+  # treats every migration on the base ref as deployed, since merges to main deploy
+  # automatically via deploy-migrations.yml.
+  migration-immutability:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # The check diffs merge-base(base, HEAD)..HEAD, so it needs history and the
+          # base branch, not just the PR merge commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+
+      - name: Fail if an already-deployed migration file is edited
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/check-migration-immutability.mjs --base "origin/${GITHUB_BASE_REF}"
+
   secret-scan:
     runs-on: ubuntu-latest
     permissions:
