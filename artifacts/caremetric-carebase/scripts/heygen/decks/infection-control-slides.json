@@ -1,0 +1,218 @@
+[
+  {
+    "id": "ic-title",
+    "kind": "title",
+    "eyebrow": "Annual in-service",
+    "title": "Infection Prevention and Control",
+    "subtitle": "For staff at Pennsylvania personal care homes and assisted living facilities. 55 Pa. Code 2600.65(f)(4) and 2800.65(i)(4), which pair infection control with the risks of immobility.",
+    "footerRight": "One hour · Annual"
+  },
+  {
+    "id": "ic-sec-chain",
+    "kind": "section",
+    "eyebrow": "Part one",
+    "title": "How an infection actually gets from one resident to the next",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-chain",
+    "kind": "points",
+    "eyebrow": "Break any one link and it stops",
+    "title": "The route almost every spread takes",
+    "points": [
+      "Hands — the single busiest vehicle in the building",
+      "Shared equipment moving room to room",
+      "High-touch surfaces: rails, bells, knobs, handles",
+      "Droplets from a cough at conversational distance",
+      "Soiled linen, waste, and anything shaken out"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-sec-hands",
+    "kind": "section",
+    "eyebrow": "Part two",
+    "title": "Hand hygiene, done the way it actually works",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-moments",
+    "kind": "points",
+    "eyebrow": "The moments that matter most",
+    "title": "When hands get cleaned, every time",
+    "points": [
+      "Before you touch a resident, and after",
+      "Before anything clean: dressings, meals, meds",
+      "After body fluids, always",
+      "After gloves come off — not instead of",
+      "After touching the room, resident or not"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-technique",
+    "kind": "points",
+    "eyebrow": "Where the twenty seconds go",
+    "title": "The spots hands miss on their own",
+    "points": [
+      "Thumbs — the most skipped surface on the hand",
+      "Fingertips and under the nails",
+      "Between the fingers",
+      "The wrists, if a cuff or a glove sat there",
+      "Rings, watches, and long nails hold what you just washed off"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-cdiff",
+    "kind": "rule",
+    "eyebrow": "The exception people carry down the hall",
+    "quote": "Alcohol does not kill C. diff spores. It moves them.",
+    "attribution": "Diarrhea of any cause means soap, water, friction, and a rinse. The pump on the wall is the wrong tool, and it feels exactly like the right one.",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-sec-ppe",
+    "kind": "section",
+    "eyebrow": "Part three",
+    "title": "Personal protective equipment, and the sixty seconds it fails in",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-ppe-order",
+    "kind": "points",
+    "eyebrow": "On in this order, off in reverse",
+    "title": "Putting it on, taking it off",
+    "points": [
+      "On: hands, gown, mask, eyewear, gloves",
+      "Off: gloves, eyewear, gown, then mask",
+      "Gloves first — the dirtiest thing on you",
+      "Mask last, outside the room, by the ties",
+      "Clean hands after gloves, and at the end"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-ppe-fail",
+    "kind": "points",
+    "eyebrow": "Every one of these is common",
+    "title": "How protective equipment stops protecting",
+    "points": [
+      "A mask under the nose, or pulled to talk",
+      "Gloves worn room to room to save a trip",
+      "A phone or a door opened with gloves on",
+      "A gown pulled off over the head",
+      "Adjusting a mask with the gloves you wore"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-sec-surfaces",
+    "kind": "section",
+    "eyebrow": "Part four",
+    "title": "Surfaces, equipment, and the two-second wipe",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-contact-time",
+    "kind": "rule",
+    "eyebrow": "The number on the label is the product",
+    "quote": "If it dries in twenty seconds and the label says two minutes, you cleaned it. You did not disinfect it.",
+    "attribution": "The surface has to stay visibly wet for the whole contact time. Everything else on that bottle is packaging.",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-shared",
+    "kind": "points",
+    "eyebrow": "Between residents — not end of shift",
+    "title": "Equipment that travels, and what it carries",
+    "points": [
+      "Blood pressure cuff, thermometer, glucose meter",
+      "Wheelchairs, walkers, the lift and its sling",
+      "Bed rails, call bells, over-bed tables",
+      "Doorknobs, handrails, light switches",
+      "Anything you carried in and will carry back out"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-standard",
+    "kind": "rule",
+    "eyebrow": "Standard precautions, in one sentence",
+    "quote": "You cannot look at a person and know.",
+    "attribution": "So everybody gets the same protection. The moment you start deciding who seems risky, you get residents judged for a diagnosis that is nobody's business — and the one nobody suspected is the one who spreads it.",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-sec-precautions",
+    "kind": "section",
+    "eyebrow": "Part five",
+    "title": "When precautions go up on a door",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-precaution-types",
+    "kind": "points",
+    "eyebrow": "What the sign is asking you for",
+    "title": "Three kinds of added precaution",
+    "points": [
+      "Contact — gown, gloves, dedicated equipment",
+      "Droplet — a mask; a cough carries a few feet",
+      "Airborne — fitted respirator, door closed",
+      "Supplies stocked at the door, in advance",
+      "Read the sign every time — it changes"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-dignity",
+    "kind": "rule",
+    "eyebrow": "The part the sign does not say",
+    "quote": "A precaution sign is about an organism. It is not a verdict on a person.",
+    "attribution": "Residents on precautions get visited less, talked to less, and touched less, and they feel every bit of it. Suit up, then go in and stay a while.",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-sec-notice",
+    "kind": "section",
+    "eyebrow": "Part six",
+    "title": "Noticing early, and saying it out loud",
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-outbreak",
+    "kind": "points",
+    "eyebrow": "Two is a pattern, not a coincidence",
+    "title": "What a cluster looks like before anyone calls it one",
+    "points": [
+      "Two residents, same hall, same symptom",
+      "Staff calling off with the same thing",
+      "Several trays coming back untouched",
+      "A rash, or diarrhea, in more than one room",
+      "Say it the day you notice it"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-immobility",
+    "kind": "points",
+    "eyebrow": "Why Pennsylvania puts these together",
+    "title": "What stops when a resident stops moving",
+    "points": [
+      "Muscle is lost in days, not months",
+      "Skin breaks down over hips and tailbone",
+      "Lungs stop clearing — pneumonia gets in",
+      "Everything backs up, appetite included",
+      "Turning and walking are infection control"
+    ],
+    "footerRight": "Infection Prevention and Control"
+  },
+  {
+    "id": "ic-close",
+    "kind": "rule",
+    "eyebrow": "What to carry out of this course",
+    "quote": "Do this well and you prevent illnesses nobody will ever know about, including your own.",
+    "attribution": "There is no thank you for those. That is the job.",
+    "footerRight": "Infection Prevention and Control"
+  }
+]

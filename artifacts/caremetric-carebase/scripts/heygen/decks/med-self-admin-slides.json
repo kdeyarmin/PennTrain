@@ -1,0 +1,192 @@
+[
+  {
+    "id": "ms-title",
+    "kind": "title",
+    "eyebrow": "Annual in-service",
+    "title": "Medication Self-Administration Support",
+    "subtitle": "For staff at Pennsylvania personal care homes and assisted living facilities. 55 Pa. Code 2600.65(f)(1) and 2800.65(i)(1).",
+    "footerRight": "One hour · Annual"
+  },
+  {
+    "id": "ms-sec-model",
+    "kind": "section",
+    "eyebrow": "Part one",
+    "title": "What self-administration actually means here",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-model",
+    "kind": "points",
+    "eyebrow": "The starting assumption, not the exception",
+    "title": "How the model is supposed to work",
+    "points": [
+      "Residents handle their own medications by default",
+      "Someone assesses whether that is safe, in writing",
+      "The assessment is revisited when things change",
+      "Those who cannot do it safely get it administered",
+      "Administering takes certification, not seniority"
+    ],
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-two-jobs",
+    "kind": "rule",
+    "eyebrow": "Two different jobs in one hallway",
+    "quote": "Which job you are doing today has nothing to do with how long you have worked here.",
+    "attribution": "Not how comfortable you feel, not how short-handed the building is. Only whether you hold the certification.",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-sec-check",
+    "kind": "section",
+    "eyebrow": "Part two",
+    "title": "The check anybody can run, certified or not",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-rights",
+    "kind": "points",
+    "eyebrow": "Not authority — a stop sign",
+    "title": "Five things worth confirming out loud",
+    "points": [
+      "Right resident — the name on the label",
+      "Right medication — what the label says",
+      "Right dose — how many, and how strong",
+      "Right time — and whether it is actually due",
+      "Right route — swallowed, dropped, inhaled, applied"
+    ],
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-timing",
+    "kind": "rule",
+    "eyebrow": "The most casually crossed line",
+    "quote": "Moving a dose to later is a medication decision, and it is not yours.",
+    "attribution": "Not early because you are going on break, not late because she is at lunch, not skipped because her stomach is off. Report it and let someone qualified decide.",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-sec-handling",
+    "kind": "section",
+    "eyebrow": "Part three",
+    "title": "Containers, labels, and the things that never happen",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-never",
+    "kind": "points",
+    "eyebrow": "No exception, no emergency, no weekend",
+    "title": "The absolute rules",
+    "points": [
+      "Never move pills into a different container",
+      "Never give from an unlabeled bottle",
+      "Never use one resident's medication for another",
+      "Never carry two residents' medications at once",
+      "Never in your pocket, never left on a counter"
+    ],
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-crush",
+    "kind": "rule",
+    "eyebrow": "When swallowing gets hard",
+    "quote": "Some pills release a whole day's dose at once if you crush them.",
+    "attribution": "Extended-release and enteric-coated tablets are built to come apart slowly. Crushing is a medication decision. Report the swallowing problem instead — it is solvable, usually by a different form.",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-sec-refusal",
+    "kind": "section",
+    "eyebrow": "Part four",
+    "title": "Refusals, and the question worth asking",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-refusal",
+    "kind": "points",
+    "eyebrow": "A refusal is a right, and usually a message",
+    "title": "Why residents say no",
+    "points": [
+      "It is making them nauseated",
+      "It is genuinely hard to swallow",
+      "They connected it to feeling dizzy — often correctly",
+      "Nobody ever told them what it is for",
+      "It is the one decision of the day still theirs"
+    ],
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-covert",
+    "kind": "rule",
+    "eyebrow": "The kind thing that is a violation",
+    "quote": "A pill hidden in applesauce is covert administration.",
+    "attribution": "It removes a resident's right to refuse, and with a tablet that must not be crushed it is dangerous as well. Your job is not to solve the refusal. It is to report it.",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-sec-watch",
+    "kind": "section",
+    "eyebrow": "Part five",
+    "title": "What these medications actually do, and what to watch",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-classes",
+    "kind": "points",
+    "eyebrow": "You are not diagnosing — you are noticing",
+    "title": "The common ones, and their tell",
+    "points": [
+      "Blood thinners — bruising, and any head bump",
+      "Diabetes medication — shaky, sweaty, confused",
+      "Blood pressure medication — dizzy on standing",
+      "Opioids — drowsy, slowed breathing, constipation",
+      "Diuretics — dehydration, and urgent trips"
+    ],
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-low-sugar",
+    "kind": "rule",
+    "eyebrow": "The one that moves fastest",
+    "quote": "Sudden confusion in a resident on diabetes medication is a blood sugar until somebody proves otherwise.",
+    "attribution": "Shaky, sweaty, pale, irritable, not making sense. This does not go in a note for the morning — it goes to a nurse now.",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-sec-outside",
+    "kind": "section",
+    "eyebrow": "Part six",
+    "title": "Everything that arrives from outside the building",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-otc",
+    "kind": "points",
+    "eyebrow": "All of this is medication",
+    "title": "What has to go through your process",
+    "points": [
+      "Anything a family member brings in",
+      "Vitamins, herbals, and anything labeled natural",
+      "Sleep aids — a common wrong choice for elders",
+      "Antacids, laxatives, cough syrup, pain relievers",
+      "Medicated creams, drops, and patches"
+    ],
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-errors",
+    "kind": "rule",
+    "eyebrow": "Even when she looks completely fine",
+    "quote": "Do not wait to see whether anything happens.",
+    "attribution": "Missed, doubled, wrong one, or a dose you have no record of — report it now. Somebody qualified makes that call, and they cannot make it if they do not know.",
+    "footerRight": "Medication Self-Administration Support"
+  },
+  {
+    "id": "ms-close",
+    "kind": "rule",
+    "eyebrow": "What to carry out of this course",
+    "quote": "Almost no medication error here starts with carelessness. They start with somebody being kind.",
+    "attribution": "Which is why the rule is not a judgment call. If you are not sure which side of the line you are standing on, you are outside it, and you ask.",
+    "footerRight": "Medication Self-Administration Support"
+  }
+]

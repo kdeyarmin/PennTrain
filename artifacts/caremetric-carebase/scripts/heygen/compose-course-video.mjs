@@ -47,7 +47,21 @@ const MB_PER_SECOND_SLIDE = 0.04;
 const CHARS_PER_SECOND = 17.5;
 const POLL_INTERVAL_MS = 20_000;
 const POLL_TIMEOUT_MS = 45 * 60_000;
-const CREDITS_PER_MINUTE = 178; // measured: ~427 credits per 2.4-minute render
+// Credits do not price a slide minute like an avatar minute. These are solved
+// from two complete decks rather than guessed -- two measurements for two
+// unknowns:
+//
+//   infection control   8.4 avatar + 14.5 slide  =  2,353 credits
+//   safe management     9.0 avatar + 14.2 slide  =  2,459 credits
+//
+// which gives 199.9 and 46.5, and reproduces both totals to the credit. The
+// earlier single blended rate of 178/min came off an avatar-only render and
+// over-projected infection control by 72%.
+//
+// Re-derive these if HeyGen changes pricing: the balance before and after any
+// deck plus its avatar/slide split is one equation, and two decks pin it down.
+const CREDITS_PER_MINUTE_AVATAR = 200;
+const CREDITS_PER_MINUTE_SLIDE = 47;
 
 function fail(message) {
   console.error(`\n✖ ${message}\n`);
@@ -130,6 +144,7 @@ async function main() {
   console.log(`\n${deck.course}\nAvatar ${AVATAR_ID}\nVoice  ${VOICE_ID}\n`);
 
   let totalSeconds = 0;
+  let avatarSeconds = 0;
   let blocked = false;
   for (const block of blocks) {
     let seconds = 0;
@@ -137,6 +152,7 @@ async function main() {
     for (const scene of block.scenes) {
       const secs = sceneSeconds(scene, await sceneScript(scene));
       seconds += secs;
+      if (scene.type === "avatar") avatarSeconds += secs;
       mb += secs * (scene.type === "avatar" ? MB_PER_SECOND_AVATAR : MB_PER_SECOND_SLIDE);
     }
     totalSeconds += seconds;
@@ -152,9 +168,14 @@ async function main() {
   }
 
   const minutes = totalSeconds / 60;
+  const avatarMinutes = avatarSeconds / 60;
+  const slideMinutes = minutes - avatarMinutes;
+  const credits = Math.round(
+    avatarMinutes * CREDITS_PER_MINUTE_AVATAR + slideMinutes * CREDITS_PER_MINUTE_SLIDE,
+  );
   console.log(
-    `\n${blocks.length} block(s), ${Math.floor(minutes)}m${String(Math.round(totalSeconds % 60)).padStart(2, "0")}s of video, ` +
-      `roughly ${Math.round(minutes * CREDITS_PER_MINUTE)} credits.\n`,
+    `\n${blocks.length} block(s), ${Math.floor(minutes)}m${String(Math.round(totalSeconds % 60)).padStart(2, "0")}s of video ` +
+      `(${avatarMinutes.toFixed(1)}m avatar, ${slideMinutes.toFixed(1)}m slides), roughly ${credits} credits.\n`,
   );
   if (blocked) fail("Split the flagged blocks before spending credits.");
   if (dryRun) return;
