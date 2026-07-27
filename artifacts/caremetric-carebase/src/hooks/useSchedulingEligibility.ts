@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert } from "@/lib/database.types";
+import type { AcuityResidentLike, AcuityShiftLike } from "@/lib/acuityWorkload";
 
 export type ServiceWorkloadProfile = Tables<"service_workload_profiles">;
 export type ServiceWorkloadProfileInsert = TablesInsert<"service_workload_profiles">;
@@ -152,6 +153,29 @@ export function useScheduleServiceWorkload(scheduleId?: string) {
       const { data, error } = await supabase.rpc("get_schedule_service_workload", { p_schedule_id: scheduleId! });
       if (error) throw error;
       return data as unknown as ScheduleServiceWorkload;
+    },
+    enabled: !!scheduleId,
+  });
+}
+
+/**
+ * The acuity roster behind the advisory workload. Returns the roster only -- every figure is
+ * computed by `acuityWorkload.ts`, which is what makes the output reproducible from a fixture
+ * without a database.
+ */
+export function useScheduleAcuityRoster(scheduleId?: string) {
+  return useQuery({
+    queryKey: ["schedule-acuity-roster", scheduleId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_schedule_acuity_roster" as never, {
+        p_schedule_id: scheduleId!,
+      } as never);
+      if (error) throw error;
+      return data as unknown as {
+        residents: AcuityResidentLike[];
+        shifts: AcuityShiftLike[];
+        advisoryNotice: string;
+      };
     },
     enabled: !!scheduleId,
   });

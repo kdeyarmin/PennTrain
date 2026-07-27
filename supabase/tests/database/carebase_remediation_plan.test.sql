@@ -61,7 +61,7 @@ on conflict(id) do update set organization_id=excluded.organization_id, role=exc
 select set_config('app.privileged_write', 'off', true);
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, room, admission_date)
 values ('88000000-0000-4000-8000-000000000201','88000000-0000-4000-8000-000000000001',
-  '88000000-0000-4000-8000-000000000011','Resident','Example','12A',current_date - 30);
+  '88000000-0000-4000-8000-000000000011','Resident','Example','12A',public.pa_today() - 30);
 insert into public.integration_api_credentials(
   id, organization_id, name, key_prefix, scopes, status, expires_at, rate_limit_per_minute, created_by
 ) values (
@@ -93,7 +93,7 @@ select lives_ok($$
     '88000000-0000-4000-8000-000000000011',
     jsonb_build_object(
       'licenseType','personal_care_home','licenseNumber','PCH-TEST-001','status','active',
-      'effectiveFrom',current_date,'expiresOn',current_date+365,'licensedCapacity',20,
+      'effectiveFrom',public.pa_today(),'expiresOn',public.pa_today()+365,'licensedCapacity',20,
       'issuingAuthority','Pennsylvania Department of Human Services'
     ),'Initial verified certificate record'
   )

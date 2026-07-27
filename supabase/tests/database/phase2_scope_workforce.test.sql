@@ -139,9 +139,9 @@ insert into public.employees(
   id, organization_id, facility_id, profile_id, first_name, last_name,
   email, hire_date, job_title, status
 ) values
-  ('22000000-0000-4000-8000-000000000201', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000103', 'Facility', 'Manager A', 'phase2-manager-a@test.local', current_date - 100, 'Manager', 'active'),
-  ('22000000-0000-4000-8000-000000000202', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000106', 'Employee', 'A', 'phase2-employee-a@test.local', current_date - 60, 'Caregiver', 'active'),
-  ('22000000-0000-4000-8000-000000000203', '22000000-0000-4000-8000-000000000002', '22000000-0000-4000-8000-000000000013', '22000000-0000-4000-8000-000000000108', 'Employee', 'B', 'phase2-employee-b@test.local', current_date - 50, 'Caregiver', 'active');
+  ('22000000-0000-4000-8000-000000000201', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000103', 'Facility', 'Manager A', 'phase2-manager-a@test.local', public.pa_today() - 100, 'Manager', 'active'),
+  ('22000000-0000-4000-8000-000000000202', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000106', 'Employee', 'A', 'phase2-employee-a@test.local', public.pa_today() - 60, 'Caregiver', 'active'),
+  ('22000000-0000-4000-8000-000000000203', '22000000-0000-4000-8000-000000000002', '22000000-0000-4000-8000-000000000013', '22000000-0000-4000-8000-000000000108', 'Employee', 'B', 'phase2-employee-b@test.local', public.pa_today() - 50, 'Caregiver', 'active');
 
 insert into public.schedules(
   id, organization_id, facility_id, title, period_start, period_end, status, created_by
@@ -149,15 +149,15 @@ insert into public.schedules(
   '22000000-0000-4000-8000-000000000501',
   '22000000-0000-4000-8000-000000000001',
   '22000000-0000-4000-8000-000000000011',
-  'Phase 2 lifecycle schedule', current_date, current_date + 14,
+  'Phase 2 lifecycle schedule', public.pa_today(), public.pa_today() + 14,
   'published', '22000000-0000-4000-8000-000000000102'
 );
 insert into public.shift_assignments(
   id, organization_id, schedule_id, facility_id, employee_id,
   shift_date, start_time, end_time, status
 ) values
-  ('22000000-0000-4000-8000-000000000502', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000501', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000202', current_date + 2, '08:00', '16:00', 'confirmed'),
-  ('22000000-0000-4000-8000-000000000503', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000501', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000201', current_date + 3, '08:00', '16:00', 'scheduled');
+  ('22000000-0000-4000-8000-000000000502', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000501', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000202', public.pa_today() + 2, '08:00', '16:00', 'confirmed'),
+  ('22000000-0000-4000-8000-000000000503', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000501', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000201', public.pa_today() + 3, '08:00', '16:00', 'scheduled');
 
 insert into public.courses(id, organization_id, title, status, created_by)
 values (
@@ -194,8 +194,8 @@ insert into public.course_assignments(
   id, organization_id, facility_id, employee_id, course_id,
   course_version_id, assigned_by, due_date, status
 ) values
-  ('22000000-0000-4000-8000-000000000512', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000202', '22000000-0000-4000-8000-000000000510', '22000000-0000-4000-8000-000000000511', '22000000-0000-4000-8000-000000000102', current_date + 10, 'in_progress'),
-  ('22000000-0000-4000-8000-000000000513', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000201', '22000000-0000-4000-8000-000000000510', '22000000-0000-4000-8000-000000000511', '22000000-0000-4000-8000-000000000102', current_date + 11, 'assigned');
+  ('22000000-0000-4000-8000-000000000512', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000202', '22000000-0000-4000-8000-000000000510', '22000000-0000-4000-8000-000000000511', '22000000-0000-4000-8000-000000000102', public.pa_today() + 10, 'in_progress'),
+  ('22000000-0000-4000-8000-000000000513', '22000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000011', '22000000-0000-4000-8000-000000000201', '22000000-0000-4000-8000-000000000510', '22000000-0000-4000-8000-000000000511', '22000000-0000-4000-8000-000000000102', public.pa_today() + 11, 'assigned');
 select set_config('app.privileged_write', '', true);
 
 insert into public.training_types(
@@ -214,7 +214,7 @@ insert into public.training_classes(
   '22000000-0000-4000-8000-000000000011',
   '22000000-0000-4000-8000-000000000104',
   '22000000-0000-4000-8000-000000000520',
-  'Phase 2 future class', current_date + 5, 'draft'
+  'Phase 2 future class', public.pa_today() + 5, 'draft'
 );
 insert into public.training_class_attendees(id, class_id, employee_id) values
   ('22000000-0000-4000-8000-000000000522', '22000000-0000-4000-8000-000000000521', '22000000-0000-4000-8000-000000000202'),
@@ -410,7 +410,7 @@ values (
 select pg_temp.act_as('22000000-0000-4000-8000-000000000102');
 select lives_ok(
   $$ select public.apply_employee_lifecycle_transition(
-    '22000000-0000-4000-8000-000000000202', 'leave', current_date, null,
+    '22000000-0000-4000-8000-000000000202', 'leave', public.pa_today(), null,
     'Approved leave'
   ) $$,
   'organization administrator can apply a guarded leave transition'
@@ -469,7 +469,7 @@ reset role;
 select pg_temp.act_as('22000000-0000-4000-8000-000000000102');
 select lives_ok(
   $$ select public.apply_employee_lifecycle_transition(
-    '22000000-0000-4000-8000-000000000202', 'return', current_date, null,
+    '22000000-0000-4000-8000-000000000202', 'return', public.pa_today(), null,
     'Returned from approved leave'
   ) $$,
   'return transition closes leave suspension'
@@ -490,7 +490,7 @@ select results_eq(
 
 select lives_ok(
   $$ select public.apply_employee_lifecycle_transition(
-    '22000000-0000-4000-8000-000000000201', 'transfer', current_date,
+    '22000000-0000-4000-8000-000000000201', 'transfer', public.pa_today(),
     '22000000-0000-4000-8000-000000000012', 'Manager transferred to facility two'
   ) $$,
   'transfer rolls the employment episode under source and target authorization'
@@ -530,7 +530,7 @@ insert into public.shift_assignments(
   '22000000-0000-4000-8000-000000000001',
   '22000000-0000-4000-8000-000000000501',
   '22000000-0000-4000-8000-000000000011',
-  '22000000-0000-4000-8000-000000000202', current_date + 4,
+  '22000000-0000-4000-8000-000000000202', public.pa_today() + 4,
   '08:00', '16:00', 'scheduled'
 );
 insert into auth.sessions(id, user_id, created_at, updated_at, aal)
@@ -541,7 +541,7 @@ values (
 select pg_temp.act_as('22000000-0000-4000-8000-000000000102');
 select lives_ok(
   $$ select public.apply_employee_lifecycle_transition(
-    '22000000-0000-4000-8000-000000000202', 'terminate', current_date, null,
+    '22000000-0000-4000-8000-000000000202', 'terminate', public.pa_today(), null,
     'Employment ended'
   ) $$,
   'termination closes the active employment episode'
@@ -576,7 +576,7 @@ select ok(
 );
 select lives_ok(
   $$ select public.apply_employee_lifecycle_transition(
-    '22000000-0000-4000-8000-000000000202', 'rehire', current_date,
+    '22000000-0000-4000-8000-000000000202', 'rehire', public.pa_today(),
     '22000000-0000-4000-8000-000000000012', 'Rehired into facility two'
   ) $$,
   'rehire opens a new episode without rewriting prior employment evidence'
@@ -648,14 +648,14 @@ select throws_ok(
 select pg_temp.act_as('22000000-0000-4000-8000-000000000102');
 select ok(
   (public.explain_employee_compliance_profile(
-    '22000000-0000-4000-8000-000000000202', current_date
+    '22000000-0000-4000-8000-000000000202', public.pa_today()
   ) -> 'profiles') @> '[{"code":"mandatory-baseline"},{"code":"caregiver-primary"}]'::jsonb,
   'profile explanation includes mandatory baseline and deterministic mapping rule'
 );
 select lives_ok(
   $$ select public.upsert_compliance_profile_assignment(
     '22000000-0000-4000-8000-000000000202',
-    '22000000-0000-4000-8000-000000000401', current_date - 5, null,
+    '22000000-0000-4000-8000-000000000401', public.pa_today() - 5, null,
     'Approved caregiver profile'
   ) $$,
   'governed RPC can assign one primary workforce profile'
@@ -663,7 +663,7 @@ select lives_ok(
 select throws_ok(
   $$ select public.upsert_compliance_profile_assignment(
     '22000000-0000-4000-8000-000000000202',
-    '22000000-0000-4000-8000-000000000402', current_date - 4, null,
+    '22000000-0000-4000-8000-000000000402', public.pa_today() - 4, null,
     'Conflicting primary profile'
   ) $$,
   '23P01', null,
@@ -672,12 +672,12 @@ select throws_ok(
 select is(
   public.upsert_compliance_profile_assignment(
     '22000000-0000-4000-8000-000000000202',
-    '22000000-0000-4000-8000-000000000403', current_date - 2, null,
+    '22000000-0000-4000-8000-000000000403', public.pa_today() - 2, null,
     'Medication extension v1'
   ),
   public.upsert_compliance_profile_assignment(
     '22000000-0000-4000-8000-000000000202',
-    '22000000-0000-4000-8000-000000000403', current_date - 2, null,
+    '22000000-0000-4000-8000-000000000403', public.pa_today() - 2, null,
     'Medication extension v1'
   ),
   'exact assignment replay returns the canonical history row'
@@ -685,7 +685,7 @@ select is(
 select lives_ok(
   $$ select public.upsert_compliance_profile_assignment(
     '22000000-0000-4000-8000-000000000202',
-    '22000000-0000-4000-8000-000000000403', current_date, null,
+    '22000000-0000-4000-8000-000000000403', public.pa_today(), null,
     'Medication extension v2'
   ) $$,
   'assignment supersession closes history and appends a new explanation row'
@@ -695,8 +695,8 @@ select is(
    from public.employee_compliance_profile_assignments
    where employee_id = '22000000-0000-4000-8000-000000000202'
      and profile_definition_id = '22000000-0000-4000-8000-000000000403'
-     and effective_from <= current_date
-     and (effective_to is null or effective_to > current_date)),
+     and effective_from <= public.pa_today()
+     and (effective_to is null or effective_to > public.pa_today())),
   1,
   'half-open assignment boundary exposes only the successor on its start date'
 );
@@ -705,14 +705,14 @@ select is(
    from public.employee_compliance_profile_assignments
    where employee_id = '22000000-0000-4000-8000-000000000202'
      and profile_definition_id = '22000000-0000-4000-8000-000000000403'
-     and effective_from <= current_date - 1
-     and (effective_to is null or effective_to > current_date - 1)),
+     and effective_from <= public.pa_today() - 1
+     and (effective_to is null or effective_to > public.pa_today() - 1)),
   1,
   'half-open assignment boundary preserves the prior explanation before supersession'
 );
 select is(
   jsonb_array_length(public.explain_employee_compliance_profile(
-    '22000000-0000-4000-8000-000000000202', current_date
+    '22000000-0000-4000-8000-000000000202', public.pa_today()
   ) -> 'profiles'),
   3,
   'mandatory baseline, one primary, and an approved extension coexist'
@@ -739,7 +739,7 @@ select throws_ok(
        '22000000-0000-4000-8000-000000000001',
        '22000000-0000-4000-8000-000000000012',
        '22000000-0000-4000-8000-000000000202',
-       '22000000-0000-4000-8000-000000000403', current_date, 'manual', 'bypass'
+       '22000000-0000-4000-8000-000000000403', public.pa_today(), 'manual', 'bypass'
      ) $$,
   '42501', null,
   'direct compliance assignment cannot bypass the governed RPC'

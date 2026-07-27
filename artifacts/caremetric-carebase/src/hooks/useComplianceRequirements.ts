@@ -9,10 +9,12 @@ export type ComplianceDocument = Tables<"compliance_requirement_documents">;
 
 // supabase-js types rpc() against the generated Functions map; these workflow RPCs are registered in
 // the migration and called by name (mirrors the cast used in useIncidents.ts).
-const rpc = supabase.rpc as unknown as (
+// .bind(supabase) is required: rpc's body is `return this.rest.rpc(...)`, so a detached reference
+// loses `this` and throws on every call. See the same fix in useIncidents.ts.
+const rpc = (supabase.rpc as unknown as (
   name: string,
   args: Record<string, unknown>,
-) => Promise<{ data: unknown; error: { message: string } | null }>;
+) => Promise<{ data: unknown; error: { message: string } | null }>).bind(supabase);
 
 async function callRpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(name, args);

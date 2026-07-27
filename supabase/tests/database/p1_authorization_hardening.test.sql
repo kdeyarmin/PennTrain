@@ -71,15 +71,15 @@ insert into public.training_classes(
   id, organization_id, facility_id, trainer_profile_id, training_type_id,
   class_name, class_date, duration_hours
 ) values
-  ('91000000-0000-4000-8000-000000000401', '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000011', '91000000-0000-4000-8000-000000000104', '91000000-0000-4000-8000-000000000301', 'Trainer A class', current_date + 1, 1),
-  ('91000000-0000-4000-8000-000000000402', '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000011', '91000000-0000-4000-8000-000000000105', '91000000-0000-4000-8000-000000000301', 'Other trainer class', current_date + 1, 1);
+  ('91000000-0000-4000-8000-000000000401', '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000011', '91000000-0000-4000-8000-000000000104', '91000000-0000-4000-8000-000000000301', 'Trainer A class', public.pa_today() + 1, 1),
+  ('91000000-0000-4000-8000-000000000402', '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000011', '91000000-0000-4000-8000-000000000105', '91000000-0000-4000-8000-000000000301', 'Other trainer class', public.pa_today() + 1, 1);
 
 insert into public.schedules(
   id, organization_id, facility_id, title, period_start, period_end, status, created_by
 ) values (
   '91000000-0000-4000-8000-000000000501', '91000000-0000-4000-8000-000000000001',
-  '91000000-0000-4000-8000-000000000011', 'P1 published schedule', current_date,
-  current_date + 7, 'published', '91000000-0000-4000-8000-000000000101'
+  '91000000-0000-4000-8000-000000000011', 'P1 published schedule', public.pa_today(),
+  public.pa_today() + 7, 'published', '91000000-0000-4000-8000-000000000101'
 );
 insert into public.shift_assignments(
   id, organization_id, schedule_id, facility_id, employee_id,
@@ -87,7 +87,7 @@ insert into public.shift_assignments(
 ) values (
   '91000000-0000-4000-8000-000000000502', '91000000-0000-4000-8000-000000000001',
   '91000000-0000-4000-8000-000000000501', '91000000-0000-4000-8000-000000000011',
-  '91000000-0000-4000-8000-000000000202', current_date + 1, '08:00', '16:00', 'scheduled', 'manual'
+  '91000000-0000-4000-8000-000000000202', public.pa_today() + 1, '08:00', '16:00', 'scheduled', 'manual'
 );
 insert into public.support_tickets(
   id, organization_id, created_by, subject, category, priority, status
@@ -156,7 +156,7 @@ select throws_ok($$
   ) values (
     '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000013',
     '91000000-0000-4000-8000-000000000104', '91000000-0000-4000-8000-000000000301',
-    'Cross-tenant facility', current_date + 1, 1
+    'Cross-tenant facility', public.pa_today() + 1, 1
   )
 $$, '23514', null, 'training class rejects a cross-tenant facility');
 select throws_ok($$
@@ -166,7 +166,7 @@ select throws_ok($$
   ) values (
     '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000011',
     '91000000-0000-4000-8000-000000000104', '91000000-0000-4000-8000-000000000302',
-    'Cross-tenant type', current_date + 1, 1
+    'Cross-tenant type', public.pa_today() + 1, 1
   )
 $$, '23514', null, 'training class rejects a cross-tenant training type');
 select throws_ok($$
@@ -176,7 +176,7 @@ select throws_ok($$
   ) values (
     '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000011',
     '91000000-0000-4000-8000-000000000109', '91000000-0000-4000-8000-000000000301',
-    'Cross-tenant trainer', current_date + 1, 1
+    'Cross-tenant trainer', public.pa_today() + 1, 1
   )
 $$, '23514', null, 'training class rejects a cross-tenant trainer');
 select throws_ok($$
@@ -202,7 +202,7 @@ select throws_ok($$
   ) values (
     '91000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000012',
     '91000000-0000-4000-8000-000000000104', '91000000-0000-4000-8000-000000000301',
-    'Unassigned facility', current_date + 1, 1
+    'Unassigned facility', public.pa_today() + 1, 1
   )
 $$, '42501', null, 'trainer cannot create a class outside assigned facilities');
 select isnt_empty($$

@@ -7,6 +7,10 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useUrlState } from "@/hooks/useUrlState";
 import { usePaginatedWorkItems } from "@/hooks/useWorkItems";
+import {
+  WORK_ITEM_CATEGORY_LABELS, WORK_ITEM_SOURCE_TYPES, workItemSourceLabel,
+  type WorkItemCategory,
+} from "@/lib/workItemSources";
 import { useWorkItemListSummary, EMPTY_WORK_ITEM_LIST_SUMMARY } from "@/hooks/useDomainListSummaries";
 import {
   isWorkItemOverdue,
@@ -22,7 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 const URL_DEFAULTS = {
   scope: "mine",
@@ -38,23 +44,6 @@ const URL_DEFAULTS = {
 
 const PAGE_SIZE = 25;
 
-const SOURCE_LABELS: Record<string, string> = {
-  incident: "Incident",
-  near_miss: "Near miss",
-  violation: "Violation",
-  inspection: "Inspection",
-  training_gap: "Training gap",
-  exclusion_match: "Exclusion match",
-  credential: "Credential",
-  policy: "Policy",
-  rule_exception: "Rule exception",
-  move_in: "Move-in",
-  complaint: "Complaint",
-  support_plan: "Support plan",
-  qapi: "QAPI",
-  resident_calendar: "Resident calendar",
-  resident_finance: "Resident finance",
-};
 
 const PRIORITY_CLASS: Record<string, string> = {
   urgent: "border-red-300 bg-red-100 text-red-900",
@@ -281,8 +270,17 @@ export default function WorkQueue() {
               <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All sources</SelectItem>
-                {Object.entries(SOURCE_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                {/* Grouped by category: a flat list of thirty source types is not a filter anyone
+                    reads. The taxonomy's own order is used rather than alphabetical. */}
+                {(["resident_care", "quality", "compliance", "workforce", "facility"] as WorkItemCategory[]).map(category => (
+                  <SelectGroup key={category}>
+                    <SelectLabel>{WORK_ITEM_CATEGORY_LABELS[category]}</SelectLabel>
+                    {WORK_ITEM_SOURCE_TYPES
+                      .filter(entry => entry.category === category)
+                      .map(entry => (
+                        <SelectItem key={entry.key} value={entry.key}>{entry.label}</SelectItem>
+                      ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
@@ -350,7 +348,7 @@ export default function WorkQueue() {
                             {item.escalated_at && <p className="text-xs text-red-600">Escalated</p>}
                           </td>
                           {presentation.showFacilityColumn && <td className="text-sm">{item.facility?.name ?? "—"}</td>}
-                          {presentation.showSourceColumn && <td className="text-sm">{SOURCE_LABELS[item.source_type] ?? item.source_type}</td>}
+                          {presentation.showSourceColumn && <td className="text-sm">{workItemSourceLabel(item.source_type)}</td>}
                           {presentation.showOwnerColumn && (
                             <td className="text-sm">
                               {item.owner

@@ -53,8 +53,8 @@ insert into public.training_classes(
   id, organization_id, facility_id, trainer_profile_id, training_type_id,
   class_name, class_date, duration_hours, status
 ) values
-  ('92000000-0000-4000-8000-000000000401', '92000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000011', '92000000-0000-4000-8000-000000000102', '92000000-0000-4000-8000-000000000301', 'Completed P2 class', current_date, 1, 'draft'),
-  ('92000000-0000-4000-8000-000000000402', '92000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000011', '92000000-0000-4000-8000-000000000102', '92000000-0000-4000-8000-000000000301', 'Future P2 class', current_date + 1, 1, 'scheduled');
+  ('92000000-0000-4000-8000-000000000401', '92000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000011', '92000000-0000-4000-8000-000000000102', '92000000-0000-4000-8000-000000000301', 'Completed P2 class', public.pa_today(), 1, 'draft'),
+  ('92000000-0000-4000-8000-000000000402', '92000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000011', '92000000-0000-4000-8000-000000000102', '92000000-0000-4000-8000-000000000301', 'Future P2 class', public.pa_today() + 1, 1, 'scheduled');
 insert into public.training_class_attendees(id, class_id, employee_id, attended)
 values ('92000000-0000-4000-8000-000000000411', '92000000-0000-4000-8000-000000000401', '92000000-0000-4000-8000-000000000201', true);
 update public.training_classes set status='completed'
@@ -94,7 +94,7 @@ select lives_ok($$
   select public.save_training_record(null, jsonb_build_object(
     'employee_id','92000000-0000-4000-8000-000000000201',
     'training_type_id','92000000-0000-4000-8000-000000000301',
-    'status','compliant','approval_status','approved','completion_date',current_date
+    'status','compliant','approval_status','approved','completion_date',public.pa_today()
   ))
 $$, 'authorized controlled training evidence write succeeds');
 select is((select verified_by_profile_id from public.employee_training_records
@@ -104,12 +104,12 @@ select is((select verified_by_profile_id from public.employee_training_records
 select throws_ok($$
   insert into public.practicums(organization_id, facility_id, employee_id, practicum_year, status, verified_at)
   values ('92000000-0000-4000-8000-000000000001','92000000-0000-4000-8000-000000000011',
-    '92000000-0000-4000-8000-000000000201', extract(year from current_date)::int, 'compliant', now())
+    '92000000-0000-4000-8000-000000000201', extract(year from public.pa_today())::int, 'compliant', now())
 $$, '42501', null, 'direct practicum verification writes are revoked');
 select lives_ok($$
   select public.save_practicum(null, jsonb_build_object(
     'employee_id','92000000-0000-4000-8000-000000000201',
-    'practicum_year',extract(year from current_date)::int,'status','compliant'
+    'practicum_year',extract(year from public.pa_today())::int,'status','compliant'
   ))
 $$, 'authorized controlled practicum write succeeds');
 select is_empty($$

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetIncident, useUpdateIncident,
@@ -21,7 +21,7 @@ import { useListCourses } from "@/hooks/useCourses";
 import { useCreateCourseAssignment } from "@/hooks/useCourseAssignments";
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
 import { QueryError } from "@/components/QueryState";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,10 +46,18 @@ import { IncidentQapiEscalation } from "@/components/IncidentQapiEscalation";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 
+// Lazy: the follow-through section carries the pathway question set and three dialogs, and this page
+// is already one of the larger routes. Loading it on demand keeps it out of the main bundle.
+const IncidentFollowThroughSection = lazy(
+  () => import("@/components/incidents/IncidentFollowThroughSection"),
+);
+
 function NotificationStatusBadge({ status }: { status: string }) {
   const className =
     status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
     : status === "overdue" ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
+    // A notification a person determined was not needed is settled, not outstanding.
+    : status === "not_required" ? "bg-muted text-muted-foreground hover:bg-muted/80"
     : "bg-warning text-warning-foreground hover:bg-warning/80"; // pending
   return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
@@ -239,6 +247,10 @@ export default function IncidentDetail() {
           </div>
         )}
       </div>
+
+      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+        <IncidentFollowThroughSection incidentId={incident.id} canManage={canManage} />
+      </Suspense>
 
       <Card>
         <CardHeader><CardTitle>Narrative</CardTitle></CardHeader>
@@ -451,7 +463,7 @@ export default function IncidentDetail() {
                     <div className="flex items-center gap-2 shrink-0">
                       <CorrectiveActionStatusBadge status={ca.status} />
                       {canManage && ca.status !== "completed" && ca.status !== "cancelled" && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: toLocalIsoDate() })}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: facilityToday() })}>
                           <Check className="h-3.5 w-3.5" />
                         </Button>
                       )}

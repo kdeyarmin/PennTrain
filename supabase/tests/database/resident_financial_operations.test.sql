@@ -43,9 +43,9 @@ select set_config('app.privileged_write','off',true);
 insert into public.facility_assignments(profile_id,facility_id) values
   ('75000000-0000-4000-8000-000000000102','75000000-0000-4000-8000-000000000011');
 insert into public.residents(id,organization_id,facility_id,first_name,last_name,admission_date,status) values
-  ('75000000-0000-4000-8000-000000000201','75000000-0000-4000-8000-000000000001','75000000-0000-4000-8000-000000000011','Jordan','Ledger',current_date-60,'active'),
-  ('75000000-0000-4000-8000-000000000202','75000000-0000-4000-8000-000000000001','75000000-0000-4000-8000-000000000012','Unassigned','Ledger',current_date-30,'active'),
-  ('75000000-0000-4000-8000-000000000203','75000000-0000-4000-8000-000000000002','75000000-0000-4000-8000-000000000013','Other','Ledger',current_date-20,'active');
+  ('75000000-0000-4000-8000-000000000201','75000000-0000-4000-8000-000000000001','75000000-0000-4000-8000-000000000011','Jordan','Ledger',public.pa_today()-60,'active'),
+  ('75000000-0000-4000-8000-000000000202','75000000-0000-4000-8000-000000000001','75000000-0000-4000-8000-000000000012','Unassigned','Ledger',public.pa_today()-30,'active'),
+  ('75000000-0000-4000-8000-000000000203','75000000-0000-4000-8000-000000000002','75000000-0000-4000-8000-000000000013','Other','Ledger',public.pa_today()-20,'active');
 insert into public.employees(
   id,organization_id,facility_id,profile_id,first_name,last_name,job_title,department,status
 ) values (
@@ -85,7 +85,7 @@ select lives_ok($$
   insert into finance_ids values ('rate1',public.create_resident_rate_agreement(
     '75000000-0000-4000-8000-000000000201',jsonb_build_object(
       'residentAgreementVersionId',(select current_version_id from public.resident_agreements where resident_id='75000000-0000-4000-8000-000000000201' and agreement_type='fee_schedule'),
-      'effectiveFrom',current_date,'baseMonthlyCharge',1000,'levelOfCareCharge',200,
+      'effectiveFrom',public.pa_today(),'baseMonthlyCharge',1000,'levelOfCareCharge',200,
       'roomRate',300,'depositAmount',500,'communityFee',100,
       'ancillaryServices',jsonb_build_array(jsonb_build_object('name','Escort service','amount',25)),
       'prorationMethod','daily_actual','leaveOfAbsenceTerms','Credit after five continuous days',
@@ -98,13 +98,13 @@ select is((select base_monthly_charge from public.resident_rate_agreements where
 select is((select resident_agreement_version_id from public.resident_rate_agreements where id=(select id from finance_ids where key='rate1')),(select current_version_id from public.resident_agreements where resident_id='75000000-0000-4000-8000-000000000201' and agreement_type='fee_schedule'),'rate terms link to the resident agreement version');
 select throws_ok($$
   select public.create_resident_rate_agreement('75000000-0000-4000-8000-000000000201',jsonb_build_object(
-    'effectiveFrom',current_date+30,'baseMonthlyCharge',1100,'prorationMethod','daily_actual'
+    'effectiveFrom',public.pa_today()+30,'baseMonthlyCharge',1100,'prorationMethod','daily_actual'
   ))
 $$,'22023',null,'rate amendments require a reason');
 select lives_ok($$
   insert into finance_ids values ('rate2',public.create_resident_rate_agreement(
     '75000000-0000-4000-8000-000000000201',jsonb_build_object(
-      'effectiveFrom',current_date+30,'baseMonthlyCharge',1100,'levelOfCareCharge',250,
+      'effectiveFrom',public.pa_today()+30,'baseMonthlyCharge',1100,'levelOfCareCharge',250,
       'roomRate',300,'depositAmount',500,'communityFee',100,'ancillaryServices','[]'::jsonb,
       'prorationMethod','daily_30','amendmentReason','Annual rate and support-level review'
     )
@@ -117,7 +117,7 @@ select lives_ok($$
   insert into finance_ids values ('charge',public.post_resident_financial_transaction(
     '75000000-0000-4000-8000-000000000201',jsonb_build_object(
       'transactionKind','charge','entrySide','debit','category','base_monthly','amount',1000,
-      'effectiveOn',current_date,'servicePeriodStart',current_date,'servicePeriodEnd',current_date+29,
+      'effectiveOn',public.pa_today(),'servicePeriodStart',public.pa_today(),'servicePeriodEnd',public.pa_today()+29,
       'memo','Monthly resident service charge'
     )
   ))
@@ -127,7 +127,7 @@ select lives_ok($$
   insert into finance_ids values ('payment',public.post_resident_financial_transaction(
     '75000000-0000-4000-8000-000000000201',jsonb_build_object(
       'transactionKind','payment','entrySide','credit','category','payment','amount',200,
-      'effectiveOn',current_date,'paymentMethod','check','paymentReference','CHK-100',
+      'effectiveOn',public.pa_today(),'paymentMethod','check','paymentReference','CHK-100',
       'memo','Partial monthly payment'
     )
   ))
@@ -135,17 +135,17 @@ $$,'manager posts a payment');
 select is((select sum(case when entry_side='debit' then amount else -amount end) from public.resident_financial_transactions where resident_id='75000000-0000-4000-8000-000000000201'),800.00::numeric,'receivable balance derives from append-only debits and credits');
 select throws_ok($$
   select public.post_resident_financial_transaction('75000000-0000-4000-8000-000000000201',
-    jsonb_build_object('transactionKind','charge','entrySide','credit','category','room_rate','amount',25,'effectiveOn',current_date,'memo','Invalid side'))
+    jsonb_build_object('transactionKind','charge','entrySide','credit','category','room_rate','amount',25,'effectiveOn',public.pa_today(),'memo','Invalid side'))
 $$,'22023',null,'charges cannot be posted as credits');
 select throws_ok($$
   select public.post_resident_financial_transaction('75000000-0000-4000-8000-000000000201',
-    jsonb_build_object('transactionKind','adjustment','entrySide','credit','category','adjustment','amount',100,'effectiveOn',current_date,'memo','Unlinked adjustment'))
+    jsonb_build_object('transactionKind','adjustment','entrySide','credit','category','adjustment','amount',100,'effectiveOn',public.pa_today(),'memo','Unlinked adjustment'))
 $$,'22023',null,'financial adjustments require a target and reason');
 select lives_ok($$
   insert into finance_ids values ('adjustment',public.post_resident_financial_transaction(
     '75000000-0000-4000-8000-000000000201',jsonb_build_object(
       'transactionKind','adjustment','entrySide','credit','category','adjustment','amount',100,
-      'effectiveOn',current_date,'memo','Correct duplicate service portion',
+      'effectiveOn',public.pa_today(),'memo','Correct duplicate service portion',
       'adjustsTransactionId',(select id from finance_ids where key='charge'),
       'adjustmentReason','Correct a duplicated ancillary portion'
     )
@@ -156,7 +156,7 @@ select is((select sum(case when entry_side='debit' then amount else -amount end)
 
 select lives_ok($$
   insert into finance_ids values ('statement1',public.generate_resident_financial_statement(
-    '75000000-0000-4000-8000-000000000201',current_date-1,current_date,current_date+15
+    '75000000-0000-4000-8000-000000000201',public.pa_today()-1,public.pa_today(),public.pa_today()+15
   ))
 $$,'manager generates an immutable resident statement');
 select is((select ending_balance from public.resident_financial_statements where id=(select id from finance_ids where key='statement1')),700.00::numeric,'statement ending balance reconciles ledger activity');
@@ -164,7 +164,7 @@ select is(jsonb_array_length((select snapshot->'transactions' from public.reside
 select is(length((select snapshot_sha256 from public.resident_financial_statements where id=(select id from finance_ids where key='statement1'))),64,'statement snapshot is content-hashed');
 select lives_ok($$
   insert into finance_ids values ('statement2',public.generate_resident_financial_statement(
-    '75000000-0000-4000-8000-000000000201',current_date+1,current_date+30,current_date+45
+    '75000000-0000-4000-8000-000000000201',public.pa_today()+1,public.pa_today()+30,public.pa_today()+45
   ))
 $$,'next statement carries the unpaid prior balance');
 select is((select delinquent_amount from public.resident_financial_statements where id=(select id from finance_ids where key='statement2')),700.00::numeric,'carried unpaid balance is identified as delinquent');
@@ -172,7 +172,7 @@ select is((select count(*)::integer from public.work_items where source_type='re
 select is((select source_type from public.work_items where source_id=(select id from finance_ids where key='statement2')),'resident_finance','delinquency work retains resident-finance source context');
 select lives_ok($$
   insert into finance_ids values ('export',public.create_resident_accounting_export(
-    '75000000-0000-4000-8000-000000000011',current_date-1,current_date,'csv'
+    '75000000-0000-4000-8000-000000000011',public.pa_today()-1,public.pa_today(),'csv'
   ))
 $$,'manager creates an immutable accounting export');
 select is((select row_count from public.resident_accounting_exports where id=(select id from finance_ids where key='export')),3,'accounting export includes all period entries');
@@ -182,17 +182,17 @@ select is(length((select payload_sha256 from public.resident_accounting_exports 
 
 select lives_ok($$
   insert into finance_ids values ('funds',public.open_resident_personal_fund_account(
-    '75000000-0000-4000-8000-000000000201',current_date,100,true,null
+    '75000000-0000-4000-8000-000000000201',public.pa_today(),100,true,null
   ))
 $$,'manager opens personal funds with a beginning balance');
 select is((select balance_after from public.resident_personal_fund_transactions where personal_fund_account_id=(select id from finance_ids where key='funds')),100.00::numeric,'beginning balance is a ledger entry');
 select throws_ok($$
   select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
     'transactionKind','deposit','direction','in','amount',5,'purpose','Backdated second entry attempt',
-    'transactionAt',current_date - interval '1 day','residentAcknowledged',true))
+    'transactionAt',public.pa_today() - interval '1 day','residentAcknowledged',true))
 $$,'22023',null,'second personal-funds entry cannot predate the existing ledger entry');
 select throws_ok($$
-  select public.open_resident_personal_fund_account('75000000-0000-4000-8000-000000000201',current_date,0,true,null)
+  select public.open_resident_personal_fund_account('75000000-0000-4000-8000-000000000201',public.pa_today(),0,true,null)
 $$,'23505',null,'resident cannot have duplicate personal-funds accounts');
 select lives_ok($$
   insert into finance_ids values ('deposit',public.post_resident_personal_fund_transaction(
@@ -263,18 +263,37 @@ select lives_ok($$
 $$,'manager corrects personal funds with a linked adjustment');
 select is((select balance_after from public.resident_personal_fund_transactions where id=(select id from finance_ids where key='fund-adjustment')),120.00::numeric,'personal-funds adjustment preserves a correct running balance');
 select is((select amount from public.resident_personal_fund_transactions where id=(select id from finance_ids where key='withdrawal')),40.00::numeric,'personal-funds adjustment does not rewrite prior withdrawal');
+-- The period end is the day THESE transactions landed on, not "today".
+--
+-- post_resident_personal_fund_transaction rejects backdated entries, so every fixture above nudges
+-- transactionAt forward by two or three minutes to stay safely ahead of now(). For the last three
+-- minutes of each Pennsylvania day that nudge lands the transaction on TOMORROW, while pa_today() is
+-- still yesterday -- and reconcile_resident_personal_funds sums
+-- `public.pa_day(transaction_at) <= p_period_end`, so the adjustment fell outside its own period and
+-- the reconciliation came out unbalanced. This suite failed exactly that way at 04:00 UTC on
+-- 2026-07-27, which is 00:00 in Pennsylvania, and passed on a re-run a minute later.
+--
+-- Simulating the clock at 23:58 ET and running all 109 suites turned up this one and no other, so
+-- the shape is narrow rather than systemic -- worth stating, because 21 test files pair a
+-- future-dated fixture with pa_today() and only this one actually compares the two.
+--
+-- The two variance reconciliations below move to the same base for a second reason found the same
+-- way: reconciliations are UNIQUE (personal_fund_account_id, period_end). Fixing only the call above
+-- left it on pa_today()+1 == the corrected period, so under the straddle the second reconciliation
+-- collided with the first and the failure simply moved from assertions 63-64 to 66-67. Both have to
+-- name the same day the transactions actually landed on.
 select lives_ok($$
   insert into finance_ids values ('reconcile',public.reconcile_resident_personal_funds(
-    '75000000-0000-4000-8000-000000000201',current_date,120,null
+    '75000000-0000-4000-8000-000000000201',public.pa_day(now()+interval '3 minutes'),120,null
   ))
 $$,'manager records a balanced personal-funds reconciliation');
 select is((select result from public.resident_personal_fund_reconciliations where id=(select id from finance_ids where key='reconcile')),'balanced','matching counted funds reconcile as balanced');
 select throws_ok($$
-  select public.reconcile_resident_personal_funds('75000000-0000-4000-8000-000000000201',current_date+1,119,null)
+  select public.reconcile_resident_personal_funds('75000000-0000-4000-8000-000000000201',public.pa_day(now()+interval '3 minutes')+1,119,null)
 $$,'22023',null,'variance reconciliation requires notes');
 select lives_ok($$
   insert into finance_ids values ('variance',public.reconcile_resident_personal_funds(
-    '75000000-0000-4000-8000-000000000201',current_date+1,119,'One dollar variance requires supervisor review'
+    '75000000-0000-4000-8000-000000000201',public.pa_day(now()+interval '3 minutes')+1,119,'One dollar variance requires supervisor review'
   ))
 $$,'manager records an explained reconciliation variance');
 select is((select result from public.resident_personal_fund_reconciliations where id=(select id from finance_ids where key='variance')),'variance','unmatched counted funds retain variance status');
@@ -291,7 +310,7 @@ select is((select count(*)::integer from public.resident_personal_fund_accounts 
 select ok((select count(*) from public.resident_financial_history where resident_id='75000000-0000-4000-8000-000000000201') >= 10,'auditor can review resident finance history');
 select throws_ok($$
   select public.post_resident_financial_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
-    'transactionKind','charge','entrySide','debit','category','other','amount',10,'effectiveOn',current_date,'memo','Auditor write'))
+    'transactionKind','charge','entrySide','debit','category','other','amount',10,'effectiveOn',public.pa_today(),'memo','Auditor write'))
 $$,'42501',null,'auditor cannot post financial entries');
 
 select pg_temp.act_as('75000000-0000-4000-8000-000000000102');
@@ -299,20 +318,20 @@ select is((select count(*)::integer from public.resident_financial_accounts),0,'
 select is((select count(*)::integer from public.resident_personal_fund_accounts),0,'employee cannot read resident personal funds');
 select is((select count(*)::integer from public.resident_financial_history),0,'employee cannot read resident financial history');
 select throws_ok($$
-  select public.open_resident_personal_fund_account('75000000-0000-4000-8000-000000000202',current_date,0,true,null)
+  select public.open_resident_personal_fund_account('75000000-0000-4000-8000-000000000202',public.pa_today(),0,true,null)
 $$,'42501',null,'employee cannot open resident funds accounts');
 
 select pg_temp.act_as('75000000-0000-4000-8000-000000000104');
 select is((select count(*)::integer from public.resident_financial_accounts),0,'cross-tenant manager cannot read resident finance');
 select throws_ok($$
   select public.create_resident_rate_agreement('75000000-0000-4000-8000-000000000201',jsonb_build_object(
-    'effectiveFrom',current_date,'baseMonthlyCharge',100,'prorationMethod','daily_actual'))
+    'effectiveFrom',public.pa_today(),'baseMonthlyCharge',100,'prorationMethod','daily_actual'))
 $$,'42501',null,'cross-tenant manager cannot create resident rates');
 
 select pg_temp.act_as('00000000-0000-0000-0000-000000000000','anon');
 select throws_ok($$select count(*) from public.resident_financial_accounts$$,'42501',null,'anonymous role cannot read resident finance');
 select throws_ok($$
-  select public.generate_resident_financial_statement('75000000-0000-4000-8000-000000000201',current_date,current_date,current_date+1)
+  select public.generate_resident_financial_statement('75000000-0000-4000-8000-000000000201',public.pa_today(),public.pa_today(),public.pa_today()+1)
 $$,'42501',null,'anonymous role cannot execute resident finance commands');
 
 select * from finish();

@@ -1,4 +1,5 @@
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import { paToday } from "../_shared/paDay.ts";
 
 export const RUN_DATA_LIFECYCLE_HEADERS = withCronCorsHeader({
   "Content-Type": "application/json",
@@ -95,7 +96,7 @@ export function createRunDataLifecycleHandler({
       return json({ error: "Lifecycle policies could not be loaded" }, 500);
     }
 
-    const periodEnd = now().toISOString().slice(0, 10);
+    const periodEnd = paToday(now());
     const lifecycle: Array<Record<string, unknown>> = [];
     for (const policy of policies ?? []) {
       const { data, error } = await admin.rpc("run_data_lifecycle_policy", {

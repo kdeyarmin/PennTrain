@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -84,7 +84,7 @@ export default function EmergencyOperations() {
   const addAssignment = useAddEmergencyStaffAssignment();
 
   const [planTitle, setPlanTitle] = useState("All-Hazards Emergency Plan");
-  const [planEffectiveDate, setPlanEffectiveDate] = useState(toLocalIsoDate());
+  const [planEffectiveDate, setPlanEffectiveDate] = useState(facilityToday());
   const [planSummary, setPlanSummary] = useState("");
   const [evacuationProcedure, setEvacuationProcedure] = useState("");
   const [accountabilityProcedure, setAccountabilityProcedure] = useState("");

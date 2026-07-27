@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,7 +75,7 @@ export default function SupportTickets() {
       created_at: ticket.created_at,
       last_message_at: ticket.last_message_at,
     })),
-    toLocalIsoDate(),
+    facilityToday(),
   ), [allTicketsData]);
 
   return (

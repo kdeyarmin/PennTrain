@@ -15,7 +15,7 @@ import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileCheck2, ExternalLink, Loader2 } from "lucide-react";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
 function fmtDate(iso: string | null): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -25,7 +25,7 @@ function AttestationBadge({ attestation }: { attestation: PolicyAttestation }) {
   if (attestation.status === "attested") {
     return <Badge className="bg-success text-success-foreground hover:bg-success/80">Attested</Badge>;
   }
-  if (attestation.due_date && attestation.due_date < toLocalIsoDate()) {
+  if (attestation.due_date && attestation.due_date < facilityToday()) {
     return <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">Overdue</Badge>;
   }
   return <Badge className="bg-warning text-warning-foreground hover:bg-warning/80">Pending</Badge>;

@@ -1,9 +1,16 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link } from "wouter";
 import { BarChart3, ChevronRight, Plus, Target } from "lucide-react";
 import { BarChart } from "@/components/charts";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Lazy: the trends section carries the grouping, the recommendation engine, and a project dialog,
+// and it is only meaningful once a facility is chosen.
+const IncidentTrendsSection = lazy(
+  () => import("@/components/qapi/IncidentTrendsSection"),
+);
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import {
@@ -38,9 +45,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 
-const today = () => toLocalIsoDate();
+const today = () => facilityToday();
 const ago = () => toLocalIsoDate(new Date(Date.now() - 30 * 864e5));
 const human = (v: string) =>
   v.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -163,6 +170,9 @@ export default function QapiDashboard() {
               </CardContent>
             </Card>
           ) : null}
+          <Suspense fallback={<Skeleton className="h-72 w-full" />}>
+            <IncidentTrendsSection facilityId={fac} organizationId={org} />
+          </Suspense>
           <Card>
             <CardHeader>
               <CardTitle>Improvement projects</CardTitle>

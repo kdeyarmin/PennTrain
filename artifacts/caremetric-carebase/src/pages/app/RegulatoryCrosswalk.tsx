@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { csvEscape } from "@/lib/csv";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { buildRegulatoryCrosswalkRows, filterRegulatoryCrosswalkRows, type CrosswalkEvidenceSource, type CrosswalkStatus, type FacilityProgram } from "@/lib/regulatoryCrosswalk";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
@@ -69,7 +69,7 @@ export default function RegulatoryCrosswalk() {
   const governedRules = useActiveRegulatoryRules();
 
   const rows = useMemo(() => buildRegulatoryCrosswalkRows({
-    today: toLocalIsoDate(),
+    today: facilityToday(),
     trainingRecords,
     credentials,
     residentItems,
@@ -107,7 +107,7 @@ export default function RegulatoryCrosswalk() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `regulatory-crosswalk-${toLocalIsoDate()}.csv`;
+    anchor.download = `regulatory-crosswalk-${facilityToday()}.csv`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();

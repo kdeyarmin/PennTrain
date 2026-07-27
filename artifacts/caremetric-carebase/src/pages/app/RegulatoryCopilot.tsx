@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Mic, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -118,7 +118,7 @@ export default function RegulatoryCopilot() {
   const [employeeId, setEmployeeId] = useState("");
   const [violationId, setViolationId] = useState("");
   const [citationQuery, setCitationQuery] = useState("");
-  const [asOfDate, setAsOfDate] = useState(toLocalIsoDate());
+  const [asOfDate, setAsOfDate] = useState(facilityToday());
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   // facilities_select RLS is org-wide, but the copilot's/voice assistant's
@@ -188,7 +188,7 @@ export default function RegulatoryCopilot() {
             <CardHeader><CardTitle>Grounded question</CardTitle><CardDescription>{selectedIntent.help}</CardDescription></CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2"><Label>Facility</Label><Select value={activeFacilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{selectableFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>As-of date</Label><Input type="date" value={asOfDate} max={toLocalIsoDate()} onChange={(event) => setAsOfDate(event.target.value)} /></div>
+              <div className="space-y-2"><Label>As-of date</Label><Input type="date" value={asOfDate} max={facilityToday()} onChange={(event) => setAsOfDate(event.target.value)} /></div>
               <div className="space-y-2 md:col-span-2"><Label>Supported question</Label><Select value={intent} onValueChange={(value) => { setIntent(value as CopilotIntent); ask.reset(); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{INTENTS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
               {intent === "employee_blocked" && <div className="space-y-2 md:col-span-2"><Label>Employee</Label><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{(employees ?? []).map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} — {employee.job_title}</SelectItem>)}</SelectContent></Select></div>}
               {intent === "draft_plan_of_correction" && <div className="space-y-2 md:col-span-2"><Label>Verified finding / violation</Label><Select value={violationId} onValueChange={setViolationId}><SelectTrigger><SelectValue placeholder="Select violation" /></SelectTrigger><SelectContent>{(violations ?? []).map((violation) => <SelectItem key={violation.id} value={violation.id}>{violation.citation_ref ?? "Unnumbered finding"} — {violation.description.slice(0, 90)}</SelectItem>)}</SelectContent></Select></div>}

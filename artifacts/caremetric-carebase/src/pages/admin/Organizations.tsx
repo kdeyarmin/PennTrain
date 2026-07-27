@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { csvEscape } from "@/lib/csv";
 import { humanize } from "@/lib/utils";
+import { facilityToday } from "@/lib/dateUtils";
 
 // Every subscription_status the organizations table's check constraint allows (see
 // 20260706141329_block_canceled_orgs_and_lock_limit_checks.sql) -- kept in one place so the
@@ -98,7 +99,7 @@ export default function Organizations() {
       o.max_users?.toString() ?? "",
       o.trial_ends_at ? new Date(o.trial_ends_at).toLocaleDateString() : "",
     ]);
-    downloadCsv(toCsv(headers, rows), `organizations-${new Date().toISOString().slice(0, 10)}.csv`);
+    downloadCsv(toCsv(headers, rows), `organizations-${facilityToday()}.csv`);
   };
 
   const openCreate = () => {

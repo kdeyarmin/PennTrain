@@ -61,9 +61,18 @@ export function useGenerateSupportPlanProposal() {
         p_reason: input.reason ?? "Assessment change requires support-plan review",
       } as never);
       if (error) throw error;
-      return data as string;
+      // Null when no mapping rule matched: the engine deliberately creates nothing rather than an
+      // empty proposal with a high-priority work item attached to it. Callers must distinguish
+      // "nothing to suggest" from "it worked", so the type says so.
+      return data as string | null;
     },
-    onSuccess: () => invalidateResidentCare(queryClient),
+    // Both: generating a proposal is what puts a row in the proposals list, and invalidating only
+    // the care-delivery keys left that list stale. The user saw "a proposal was generated" and an
+    // unchanged screen -- and clicking again generates another one.
+    onSuccess: () => {
+      invalidateResidentCare(queryClient);
+      invalidateSupportPlans(queryClient);
+    },
   });
 }
 
@@ -79,7 +88,12 @@ export function useCreateSupportPlanDraft() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => invalidateResidentCare(queryClient),
+    // Same reason as the proposal generator above: this creates a resident_support_plans row, and
+    // the plans list is keyed separately from the care-delivery queries.
+    onSuccess: () => {
+      invalidateResidentCare(queryClient);
+      invalidateSupportPlans(queryClient);
+    },
   });
 }
 
@@ -144,6 +158,28 @@ export function useApproveSupportPlan() {
         p_effective_date: input.effectiveDate,
         p_review_due_date: input.reviewDueDate,
         p_staff_signature: input.staffSignature ?? {},
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      invalidateSupportPlans(queryClient);
+      invalidateResidentCare(queryClient);
+    },
+  });
+}
+
+/**
+ * Promotes an approved plan whose effective date has already passed -- the repair for a scheduled
+ * activation that did not run. The server refuses a plan that is not yet due, so this cannot be used
+ * to bring a future-dated plan forward.
+ */
+export function useActivateDueSupportPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { planId: string }) => {
+      const { data, error } = await supabase.rpc("activate_due_support_plan" as never, {
+        p_plan_id: input.planId,
       } as never);
       if (error) throw error;
       return data as boolean;
@@ -285,5 +321,95 @@ export function useStartHospitalTransfer() {
       return data as string;
     },
     onSuccess: () => invalidateResidentCare(queryClient),
+  });
+}
+
+// --- Support-plan lifecycle (program plan Phase 2c) -------------------------------------------
+
+export type SupportPlanAcknowledgment = Tables<"support_plan_acknowledgments">;
+
+export function useSupportPlanAcknowledgments(residentId: string | undefined) {
+  return useQuery({
+    queryKey: ["support-plan-acknowledgments", residentId],
+    enabled: !!residentId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("support_plan_acknowledgments")
+        .select("*")
+        .eq("resident_id", residentId!)
+        .order("acknowledged_at", { ascending: false });
+      if (error) throw error;
+      return data as SupportPlanAcknowledgment[];
+    },
+  });
+}
+
+/**
+ * Generic gated state move. The server rejects any edge outside its transition table, so the UI
+ * offers only what `allowedSupportPlanTransitions` lists rather than deciding legality itself.
+ */
+export function useTransitionSupportPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { planId: string; nextState: string; reason?: string }) => {
+      const { data, error } = await supabase.rpc("transition_support_plan_state" as never, {
+        p_plan_id: input.planId,
+        p_next_state: input.nextState,
+        p_reason: input.reason ?? null,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => invalidateSupportPlans(queryClient),
+  });
+}
+
+export function useRecordSupportPlanParticipation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { planId: string; participationDate: string; participants: Json }) => {
+      const { data, error } = await supabase.rpc("record_support_plan_participation" as never, {
+        p_plan_id: input.planId,
+        p_participation_date: input.participationDate,
+        p_participation_record: input.participants,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => invalidateSupportPlans(queryClient),
+  });
+}
+
+export function useRecordSupportPlanSignature() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { planId: string; signature: Json }) => {
+      const { data, error } = await supabase.rpc("record_support_plan_signature" as never, {
+        p_plan_id: input.planId,
+        p_signature: input.signature,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => invalidateSupportPlans(queryClient),
+  });
+}
+
+export function useAcknowledgeSupportPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { planId: string; note?: string }) => {
+      const { data, error } = await supabase.rpc("acknowledge_support_plan" as never, {
+        p_plan_id: input.planId,
+        p_note: input.note ?? null,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: (_result, variables) => {
+      invalidateSupportPlans(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["support-plan-acknowledgments"] });
+      void variables;
+    },
   });
 }

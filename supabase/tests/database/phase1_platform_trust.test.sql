@@ -228,8 +228,8 @@ values (
   '00000000-0000-0000-0000-0000000000c1',
   '00000000-0000-0000-0000-0000000000c2',
   'Phase One Schedule',
-  current_date,
-  current_date + 6,
+  public.pa_today(),
+  public.pa_today() + 6,
   'draft',
   '00000000-0000-0000-0000-0000000000c5'
 );
@@ -320,20 +320,37 @@ $$;
 
 select pg_temp.act_as('00000000-0000-0000-0000-0000000000c4');
 
+-- `and is_classified` added by 20260726260000. That migration introduced an explicit 'unclassified'
+-- audit_mode for the 193 tables added after the Phase 1 manifest snapshot, and reports them with
+-- has_required_trigger = false -- an unclassified table has no declared requirement to satisfy, and
+-- reporting it as satisfied would be the overclaim the migration exists to remove.
+--
+-- This assertion's stated claim is unchanged: an entry that DECLARES row_trigger has one. Entries
+-- that declare nothing yet are counted by the unclassified ceiling in
+-- audit_manifest_covers_every_table.test.sql instead.
 select is(
   (
     select count(*)::bigint
     from public.get_audit_coverage()
-    where not has_required_trigger
+    where not has_required_trigger and is_classified
   ),
   0::bigint,
-  'every row-trigger entry in the audit manifest has its required trigger'
+  'every classified entry in the audit manifest has the trigger its mode requires'
 );
 
+-- 23 -> 45 when 20260726250000 registered the 22 scheduled jobs that had no definition row.
+--
+-- The old message claimed this proved the control plane "registers every platform job". It did not,
+-- and could not: a bare count over system_job_definitions cannot notice a cron job that is missing
+-- FROM that table, which is exactly what 22 of them were. The real check lives in
+-- every_scheduled_job_is_watched.test.sql, which joins cron.job against the definitions and names
+-- any job neither the watchdog nor /admin/system-jobs can see.
+--
+-- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  23::bigint,
-  'the control plane registers every platform job, including organization exports, the weekly manager digest, and the regulatory digest send'
+  45::bigint,
+  'the control plane returns one row per registered job definition'
 );
 
 create temporary table phase1_hold_ids as

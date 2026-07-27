@@ -60,7 +60,13 @@ export function useCreateIncident() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ staffInvolved, notifications, idempotencyKey, ...incidentPayload }: CreateIncidentPayload) => {
-      const rpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: Incident | null; error: { message: string } | null }>;
+      // .bind(supabase) is load-bearing, not style. SupabaseClient.rpc is a prototype method whose
+      // body is `return this.rest.rpc(...)`, so calling it detached from the client throws
+      // "Cannot read properties of undefined (reading \'rest\')" -- which surfaced only as a toast
+      // saying the incident could not be reported. Reporting an incident was broken entirely.
+      // Cast to the narrow signature FIRST, then bind. Binding the generic rpc directly makes
+      // TypeScript instantiate its overloads too deeply (TS2589).
+      const rpc = (supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: Incident | null; error: { message: string } | null }>).bind(supabase);
       const residentId = "resident_id" in incidentPayload && typeof incidentPayload.resident_id === "string"
         ? incidentPayload.resident_id
         : typeof incidentPayload.resident_identifier === "string" && /^[0-9a-f-]{36}$/iu.test(incidentPayload.resident_identifier)

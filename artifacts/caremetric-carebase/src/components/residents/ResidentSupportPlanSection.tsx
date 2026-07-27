@@ -5,15 +5,19 @@ import { useListResidentAssessmentForms } from "@/hooks/useResidentAssessmentFor
 import {
   useApproveSupportPlan,
   useCreateSupportPlanDraft,
+  useActivateDueSupportPlan,
   useGenerateSupportPlanProposal,
   useResidentSupportPlanProposals,
   useResidentSupportPlans,
+  useRecordSupportPlanParticipation,
+  useRecordSupportPlanSignature,
   useReviewSupportPlanProposal,
   useSubmitSupportPlan,
+  useTransitionSupportPlan,
   type ResidentSupportPlan,
   type SupportPlanProposal,
 } from "@/hooks/useResidentCareDelivery";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,15 +27,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, ClipboardList, FileCheck2, GitBranch } from "lucide-react";
+import { AlertTriangle, ClipboardList, FileCheck2, GitBranch, GitCompareArrows } from "lucide-react";
+import {
+  allowedSupportPlanTransitions, diffSupportPlanVersions, isActivationOverdue, summarizePlanDiff,
+  SUPPORT_PLAN_STATE_DESCRIPTIONS, supportPlanStateLabel, transitionRequiresReason,
+  type SupportPlanState,
+} from "@/lib/supportPlanLifecycle";
+import { SupportPlanVersionComparison } from "@/components/residents/SupportPlanVersionComparison";
+import {
+  COMPLETION_RESPONSE_LABELS, defaultResponsesForKind, SERVICE_TASK_KIND_LABELS,
+  type CompletionResponse, type ServiceTaskKind,
+} from "@/lib/serviceDeliveryContract";
 
-const PLAN_STATE_META: Record<string, { label: string; className: string }> = {
-  draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
-  in_review: { label: "In review", className: "bg-warning text-warning-foreground" },
-  approved: { label: "Approved", className: "bg-success text-success-foreground" },
-  effective: { label: "Active", className: "bg-success text-success-foreground" },
-  superseded: { label: "Superseded", className: "bg-muted text-muted-foreground" },
-  archived: { label: "Archived", className: "bg-muted text-muted-foreground" },
+// Colour only; the label and description come from supportPlanLifecycle.ts so the UI cannot drift
+// from the server's state set.
+const PLAN_STATE_CLASS: Record<string, string> = {
+  draft: "bg-muted text-muted-foreground",
+  awaiting_clinical_review: "bg-warning text-warning-foreground",
+  awaiting_participation: "bg-warning text-warning-foreground",
+  awaiting_signature: "bg-warning text-warning-foreground",
+  approved: "bg-success text-success-foreground",
+  active: "bg-success text-success-foreground",
+  revision_required: "bg-destructive text-destructive-foreground",
+  superseded: "bg-muted text-muted-foreground",
+  closed: "bg-muted text-muted-foreground",
 };
 
 function asArray(value: unknown): Record<string, unknown>[] {
@@ -57,6 +76,58 @@ function itemLabel(item: Record<string, unknown>): string {
   return "Item";
 }
 
+/**
+ * Services carry a delivery contract -- what kind of task it is, who is qualified, what closes it,
+ * and what happens on a refusal. Showing it here is the difference between a plan that reads like an
+ * intention and one an aide can actually act on.
+ */
+function ServiceList({ value }: { value: unknown }) {
+  const items = asArray(value);
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground">Services ({items.length})</p>
+      <div className="mt-1 space-y-1.5">
+        {items.map((item, index) => {
+          const kind = typeof item.task_kind === "string" ? item.task_kind : "scheduled_care";
+          const responses = Array.isArray(item.acceptable_completion_responses)
+            ? (item.acceptable_completion_responses as string[])
+            : defaultResponsesForKind(kind);
+          const qualification = typeof item.required_qualification_key === "string" ? item.required_qualification_key : null;
+          const refusal = typeof item.refusal_handling === "string" ? item.refusal_handling : null;
+          const escalation = typeof item.escalation_conditions === "string" ? item.escalation_conditions : null;
+          const suppressed = item.generate_service === false;
+          return (
+            <div key={index} className="rounded-md border p-2 text-sm">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-medium">{itemLabel(item)}</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {SERVICE_TASK_KIND_LABELS[kind as ServiceTaskKind] ?? kind}
+                </Badge>
+                {qualification && <Badge variant="outline" className="text-[10px]">requires {qualification}</Badge>}
+                {suppressed && (
+                  <Badge variant="outline" className="text-[10px]">No staff task generated</Badge>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Closes with: {responses.map((response) =>
+                  COMPLETION_RESPONSE_LABELS[response as CompletionResponse] ?? response).join(", ")}
+              </p>
+              {refusal && <p className="text-[11px] text-muted-foreground">On refusal: {refusal}</p>}
+              {escalation && <p className="text-[11px] text-muted-foreground">Escalate when: {escalation}</p>}
+              {!refusal && responses.includes("resident_refused") && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-500">
+                  Refusal is an allowed outcome but the plan does not say what staff should do next.
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function JsonbList({ label, value }: { label: string; value: unknown }) {
   const items = asArray(value);
   if (items.length === 0) return null;
@@ -79,21 +150,35 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
 
   const createDraft = useCreateSupportPlanDraft();
   const submitPlan = useSubmitSupportPlan();
+  const transitionPlan = useTransitionSupportPlan();
+  const recordParticipation = useRecordSupportPlanParticipation();
+  const recordSignature = useRecordSupportPlanSignature();
   const approvePlan = useApproveSupportPlan();
   const generateProposal = useGenerateSupportPlanProposal();
+  const activatePlan = useActivateDueSupportPlan();
   const reviewProposal = useReviewSupportPlanProposal();
 
   const [expanded, setExpanded] = useState<string | null>(null);
   const [approveFor, setApproveFor] = useState<ResidentSupportPlan | null>(null);
-  const [effectiveDate, setEffectiveDate] = useState(toLocalIsoDate());
+  const [effectiveDate, setEffectiveDate] = useState(facilityToday());
   const [reviewDueDate, setReviewDueDate] = useState("");
   const [attested, setAttested] = useState(false);
+  const [transitionFor, setTransitionFor] = useState<{ plan: ResidentSupportPlan; next: SupportPlanState } | null>(null);
+  const [transitionReason, setTransitionReason] = useState("");
+  const [participationFor, setParticipationFor] = useState<ResidentSupportPlan | null>(null);
+  const [participationDate, setParticipationDate] = useState(facilityToday());
+  const [participationNotes, setParticipationNotes] = useState("");
+  const [residentTookPart, setResidentTookPart] = useState(true);
+  const [designatedTookPart, setDesignatedTookPart] = useState(false);
+  const [signatureFor, setSignatureFor] = useState<ResidentSupportPlan | null>(null);
+  const [signatureOutcome, setSignatureOutcome] = useState("signed");
+  const [signatureNote, setSignatureNote] = useState("");
   const [reviewFor, setReviewFor] = useState<SupportPlanProposal | null>(null);
   const [decision, setDecision] = useState<"accepted" | "rejected">("accepted");
   const [rationale, setRationale] = useState("");
 
   const plans = plansQuery.data ?? [];
-  const effectivePlan = plans.find((p) => p.state === "effective");
+  const effectivePlan = plans.find((p) => p.state === "active");
   const openProposals = (proposalsQuery.data ?? []).filter((p) => p.state === "proposed");
   const latestFinalizedAssessment = useMemo(
     () => (assessmentForms ?? []).filter((f) => f.status === "finalized").sort((a, b) => b.created_at.localeCompare(a.created_at))[0],
@@ -134,8 +219,8 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
 
   function openApprove(plan: ResidentSupportPlan) {
     setApproveFor(plan);
-    setEffectiveDate(toLocalIsoDate());
-    setReviewDueDate(oneYearOut(toLocalIsoDate()));
+    setEffectiveDate(facilityToday());
+    setReviewDueDate(oneYearOut(facilityToday()));
     setAttested(false);
   }
 
@@ -163,11 +248,25 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
     }
   }
 
+  async function activateDue(plan: { id: string }) {
+    try {
+      await activatePlan.mutateAsync({ planId: plan.id });
+      toast({ title: "Plan activated", description: "Service tasks now generate from this version." });
+    } catch (e) {
+      toast({ title: "Could not activate the plan", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  }
+
   async function checkAssessment() {
     if (!latestFinalizedAssessment) return;
     try {
-      await generateProposal.mutateAsync({ assessmentFormId: latestFinalizedAssessment.id });
-      toast({ title: "Assessment reviewed", description: "A support-plan proposal was generated for review." });
+      // A null id means no mapping rule matched this resident's answers -- not a failure. Saying
+      // "a proposal was generated" either way would send the user looking for something that is
+      // not there, and would hide the more useful answer: the plan already covers what was found.
+      const proposalId = await generateProposal.mutateAsync({ assessmentFormId: latestFinalizedAssessment.id });
+      toast(proposalId
+        ? { title: "Assessment reviewed", description: "A support-plan proposal was generated for review." }
+        : { title: "Assessment reviewed", description: "No plan changes are suggested by the current assessment and reviews." });
     } catch (e) {
       toast({ title: "Could not generate proposal", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
@@ -187,6 +286,57 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       setDecision("accepted");
     } catch (e) {
       toast({ title: "Could not record review", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  }
+
+  async function runTransition() {
+    if (!transitionFor) return;
+    try {
+      await transitionPlan.mutateAsync({
+        planId: transitionFor.plan.id,
+        nextState: transitionFor.next,
+        reason: transitionReason.trim() || undefined,
+      });
+      toast({ title: `Moved to ${supportPlanStateLabel(transitionFor.next).toLowerCase()}` });
+      setTransitionFor(null);
+      setTransitionReason("");
+    } catch (e) {
+      toast({ title: "Could not move the plan", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  }
+
+  async function saveParticipation() {
+    if (!participationFor) return;
+    try {
+      await recordParticipation.mutateAsync({
+        planId: participationFor.id,
+        participationDate,
+        participants: {
+          resident: residentTookPart ? "participated" : "did_not_participate",
+          designated_person: designatedTookPart ? "participated" : "did_not_participate",
+          notes: participationNotes.trim() || null,
+        },
+      });
+      toast({ title: "Participation recorded", description: "The plan now awaits signature." });
+      setParticipationFor(null);
+      setParticipationNotes("");
+    } catch (e) {
+      toast({ title: "Could not record participation", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  }
+
+  async function saveSignature() {
+    if (!signatureFor) return;
+    try {
+      await recordSignature.mutateAsync({
+        planId: signatureFor.id,
+        signature: { outcome: signatureOutcome, note: signatureNote.trim() || null, recorded_at: new Date().toISOString() },
+      });
+      toast({ title: "Signature outcome recorded" });
+      setSignatureFor(null);
+      setSignatureNote("");
+    } catch (e) {
+      toast({ title: "Could not record the signature", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   }
 
@@ -251,22 +401,49 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
         ) : (
           <div className="divide-y rounded-lg border">
             {plans.map((plan) => {
-              const meta = PLAN_STATE_META[plan.state] ?? PLAN_STATE_META.draft;
+              const stateClass = PLAN_STATE_CLASS[plan.state] ?? PLAN_STATE_CLASS.draft;
               const isOpen = expanded === plan.id;
               return (
                 <div key={plan.id} className="p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <button className="flex items-center gap-2 text-left" onClick={() => setExpanded(isOpen ? null : plan.id)}>
                       <span className="font-medium">Version {plan.version_number}</span>
-                      <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
-                      {plan.state === "effective" && plan.effective_date && (
+                      <Badge variant="outline" className={stateClass} title={SUPPORT_PLAN_STATE_DESCRIPTIONS[plan.state as SupportPlanState] ?? undefined}>{supportPlanStateLabel(plan.state)}</Badge>
+                      {plan.state === "active" && plan.effective_date && (
                         <span className="text-xs text-muted-foreground">Effective {formatDateForDisplay(plan.effective_date)}{plan.review_due_date ? ` · review by ${formatDateForDisplay(plan.review_due_date)}` : ""}</span>
                       )}
                     </button>
                     {canManage && (
                       <div className="flex gap-1.5">
                         {plan.state === "draft" && <Button size="sm" variant="outline" onClick={() => submit(plan)} disabled={submitPlan.isPending || !planHasContent(plan)} title={!planHasContent(plan) ? "Add plan content before submitting" : undefined}>Submit for review</Button>}
-                        {plan.state === "in_review" && <Button size="sm" onClick={() => openApprove(plan)}>Approve</Button>}
+                        {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => { setParticipationFor(plan); setParticipationDate(facilityToday()); }}>Record participation</Button>}
+                        {plan.state === "awaiting_signature" && <Button size="sm" variant="outline" onClick={() => setSignatureFor(plan)}>Record signature</Button>}
+                        {(plan.state === "awaiting_signature" || plan.state === "approved") && <Button size="sm" onClick={() => openApprove(plan)}>Approve</Button>}
+                        {/* Only when the date has actually passed. An approved plan effective next
+                            Monday shows nothing here -- the scheduled job owns that, and offering a
+                            button would turn future-dating into a suggestion. */}
+                        {plan.state === "approved" && isActivationOverdue(plan.effective_date) && (
+                          <Button size="sm" onClick={() => activateDue(plan)} disabled={activatePlan.isPending}>
+                            Activate now
+                          </Button>
+                        )}
+                        {/* Every remaining legal move comes from the shared transition table, so the
+                            UI can never offer an edge the server will reject. Participation and
+                            signature have their own dialogs above because they capture evidence. */}
+                        {allowedSupportPlanTransitions(plan.state)
+                          .filter((next) => !(plan.state === "awaiting_participation" && next === "awaiting_signature"))
+                          .filter((next) => !(plan.state === "awaiting_signature" && next === "approved"))
+                          .filter((next) => !(plan.state === "draft" && next === "awaiting_clinical_review"))
+                          .map((next) => (
+                            <Button
+                              key={next}
+                              size="sm"
+                              variant={next === "revision_required" ? "outline" : "ghost"}
+                              onClick={() => { setTransitionFor({ plan, next }); setTransitionReason(""); }}
+                            >
+                              {next === "revision_required" ? "Return for revision" : `Move to ${supportPlanStateLabel(next).toLowerCase()}`}
+                            </Button>
+                          ))}
                       </div>
                     )}
                   </div>
@@ -274,7 +451,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                     <div className="mt-3 space-y-2 border-t pt-3">
                       <JsonbList label="Needs" value={plan.needs} />
                       <JsonbList label="Goals" value={plan.goals} />
-                      <JsonbList label="Services" value={plan.services} />
+                      <ServiceList value={plan.services} />
                       <JsonbList label="Interventions" value={plan.interventions} />
                       {plan.staff_instructions && <div><p className="text-xs font-medium text-muted-foreground">Staff instructions</p><p className="text-sm whitespace-pre-wrap">{plan.staff_instructions}</p></div>}
                       {asArray(plan.needs).length === 0 && asArray(plan.services).length === 0 && !plan.staff_instructions && (
@@ -339,6 +516,117 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SupportPlanVersionComparison plans={plans} />
+
+      <Dialog open={!!transitionFor} onOpenChange={(open) => !open && setTransitionFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {transitionFor?.next === "revision_required" ? "Return for revision" : `Move to ${transitionFor ? supportPlanStateLabel(transitionFor.next).toLowerCase() : ""}`}
+            </DialogTitle>
+            <DialogDescription>
+              {transitionFor ? SUPPORT_PLAN_STATE_DESCRIPTIONS[transitionFor.next] : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {transitionFor && transitionRequiresReason(transitionFor.next) && (
+            <div className="space-y-1">
+              <Label className="text-xs" htmlFor="plan-transition-reason">Reason</Label>
+              <Textarea
+                id="plan-transition-reason"
+                rows={3}
+                value={transitionReason}
+                onChange={(event) => setTransitionReason(event.target.value)}
+                placeholder="What needs to change, and why. This is recorded on the version."
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Required — the next author and the survey record both need to know what prompted the revision.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransitionFor(null)}>Cancel</Button>
+            <Button
+              onClick={runTransition}
+              disabled={transitionPlan.isPending || (!!transitionFor && transitionRequiresReason(transitionFor.next) && !transitionReason.trim())}
+            >
+              {transitionPlan.isPending ? "Saving..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!participationFor} onOpenChange={(open) => !open && setParticipationFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record participation</DialogTitle>
+            <DialogDescription>
+              The resident and their designated person have a right to take part in developing the plan.
+              Recording that they did not is a legitimate outcome — leaving it blank is not.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs" htmlFor="participation-date">Participation date</Label>
+              <Input id="participation-date" type="date" value={participationDate} onChange={(event) => setParticipationDate(event.target.value)} />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={residentTookPart} onCheckedChange={(value) => setResidentTookPart(value === true)} />
+              Resident took part
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={designatedTookPart} onCheckedChange={(value) => setDesignatedTookPart(value === true)} />
+              Designated person took part
+            </label>
+            <div className="space-y-1">
+              <Label className="text-xs" htmlFor="participation-notes">Notes</Label>
+              <Textarea id="participation-notes" rows={2} value={participationNotes} onChange={(event) => setParticipationNotes(event.target.value)} placeholder="Who else was present, or why someone could not take part." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setParticipationFor(null)}>Cancel</Button>
+            <Button onClick={saveParticipation} disabled={recordParticipation.isPending || !participationDate}>
+              {recordParticipation.isPending ? "Saving..." : "Record participation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!signatureFor} onOpenChange={(open) => !open && setSignatureFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record signature outcome</DialogTitle>
+            <DialogDescription>
+              A refusal or an inability to sign is a documented outcome, exactly as it is on the state form —
+              not a failure to record.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs" htmlFor="signature-outcome">Outcome</Label>
+              <Select value={signatureOutcome} onValueChange={setSignatureOutcome}>
+                <SelectTrigger id="signature-outcome"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="signed">Signed</SelectItem>
+                  <SelectItem value="declined">Declined to sign</SelectItem>
+                  <SelectItem value="unable_to_sign">Unable to sign</SelectItem>
+                  <SelectItem value="unavailable">Not available to sign</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs" htmlFor="signature-note">Note</Label>
+              <Textarea id="signature-note" rows={2} value={signatureNote} onChange={(event) => setSignatureNote(event.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSignatureFor(null)}>Cancel</Button>
+            <Button onClick={saveSignature} disabled={recordSignature.isPending}>
+              {recordSignature.isPending ? "Saving..." : "Record outcome"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </Card>
   );
 }

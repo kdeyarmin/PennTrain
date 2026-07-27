@@ -100,11 +100,11 @@ insert into public.employees(
   id, organization_id, facility_id, first_name, last_name, job_title,
   status, hire_date, administers_medications, trainer_status, is_synthetic
 ) values
-  ('27000000-0000-4000-8000-000000000301', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'Alice', 'Able', 'Aide', 'active', current_date - 20, true, false, false),
-  ('27000000-0000-4000-8000-000000000302', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'Bob', 'Baker', 'Trainer', 'active', current_date - 200, false, true, false),
-  ('27000000-0000-4000-8000-000000000303', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000012', 'Cara', 'Clark', 'Aide', 'active', current_date - 300, false, false, false),
-  ('27000000-0000-4000-8000-000000000304', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000013', 'Demo', 'Sandbox', 'Demo', 'active', current_date - 10, false, false, true),
-  ('27000000-0000-4000-8000-000000000401', '27000000-0000-4000-8000-000000000002', '27000000-0000-4000-8000-000000000021', 'Other', 'Tenant', 'Aide', 'active', current_date - 200, false, false, false);
+  ('27000000-0000-4000-8000-000000000301', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'Alice', 'Able', 'Aide', 'active', public.pa_today() - 20, true, false, false),
+  ('27000000-0000-4000-8000-000000000302', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', 'Bob', 'Baker', 'Trainer', 'active', public.pa_today() - 200, false, true, false),
+  ('27000000-0000-4000-8000-000000000303', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000012', 'Cara', 'Clark', 'Aide', 'active', public.pa_today() - 300, false, false, false),
+  ('27000000-0000-4000-8000-000000000304', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000013', 'Demo', 'Sandbox', 'Demo', 'active', public.pa_today() - 10, false, false, true),
+  ('27000000-0000-4000-8000-000000000401', '27000000-0000-4000-8000-000000000002', '27000000-0000-4000-8000-000000000021', 'Other', 'Tenant', 'Aide', 'active', public.pa_today() - 200, false, false, false);
 
 insert into public.training_types(
   id, organization_id, code, name, category, applies_to_facility_type,
@@ -117,10 +117,10 @@ insert into public.employee_training_records(
   id, organization_id, facility_id, employee_id, training_type_id,
   completion_date, due_date, status, document_required
 ) values
-  ('27000000-0000-4000-8000-000000000601', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000301', '27000000-0000-4000-8000-000000000501', current_date - 40, current_date - 10, 'expired', true),
-  ('27000000-0000-4000-8000-000000000602', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000302', '27000000-0000-4000-8000-000000000502', current_date - 10, current_date + 30, 'due_soon', false),
-  ('27000000-0000-4000-8000-000000000603', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000012', '27000000-0000-4000-8000-000000000303', '27000000-0000-4000-8000-000000000501', current_date - 5, current_date + 300, 'compliant', false),
-  ('27000000-0000-4000-8000-000000000604', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000013', '27000000-0000-4000-8000-000000000304', '27000000-0000-4000-8000-000000000501', current_date - 5, current_date - 1, 'expired', false);
+  ('27000000-0000-4000-8000-000000000601', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000301', '27000000-0000-4000-8000-000000000501', public.pa_today() - 40, public.pa_today() - 10, 'expired', true),
+  ('27000000-0000-4000-8000-000000000602', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000302', '27000000-0000-4000-8000-000000000502', public.pa_today() - 10, public.pa_today() + 30, 'due_soon', false),
+  ('27000000-0000-4000-8000-000000000603', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000012', '27000000-0000-4000-8000-000000000303', '27000000-0000-4000-8000-000000000501', public.pa_today() - 5, public.pa_today() + 300, 'compliant', false),
+  ('27000000-0000-4000-8000-000000000604', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000013', '27000000-0000-4000-8000-000000000304', '27000000-0000-4000-8000-000000000501', public.pa_today() - 5, public.pa_today() - 1, 'expired', false);
 
 -- Simulate a transferred employee: the older selected-facility record remains
 -- at Facility One after the employee briefly belongs to Facility Two.
@@ -138,7 +138,7 @@ insert into public.employee_training_records(
   '27000000-0000-4000-8000-000000000012',
   '27000000-0000-4000-8000-000000000301',
   '27000000-0000-4000-8000-000000000501',
-  current_date - 1, current_date + 400, 'compliant', false
+  public.pa_today() - 1, public.pa_today() + 400, 'compliant', false
 );
 
 update public.employees
@@ -157,8 +157,8 @@ insert into public.dhs_violations(
   id, organization_id, facility_id, citation_topic_id, inspection_date,
   description, severity, status
 ) values
-  ('27000000-0000-4000-8000-000000000701', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000051', current_date, 'Visible fixture', 'moderate', 'open'),
-  ('27000000-0000-4000-8000-000000000702', '27000000-0000-4000-8000-000000000002', '27000000-0000-4000-8000-000000000021', '27000000-0000-4000-8000-000000000051', current_date, 'Other tenant fixture', 'moderate', 'open');
+  ('27000000-0000-4000-8000-000000000701', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000051', public.pa_today(), 'Visible fixture', 'moderate', 'open'),
+  ('27000000-0000-4000-8000-000000000702', '27000000-0000-4000-8000-000000000002', '27000000-0000-4000-8000-000000000021', '27000000-0000-4000-8000-000000000051', public.pa_today(), 'Other tenant fixture', 'moderate', 'open');
 
 create or replace function pg_temp.act_as(p_id uuid) returns void
 language plpgsql as $$
@@ -192,7 +192,7 @@ select throws_ok(
   'unknown report identifiers are rejected'
 );
 select throws_ok(
-  $$ select public.generate_paged_compliance_report('compliance-summary', null, null, current_date, current_date - 1) $$,
+  $$ select public.generate_paged_compliance_report('compliance-summary', null, null, public.pa_today(), public.pa_today() - 1) $$,
   '22023', null,
   'backwards date windows are rejected'
 );

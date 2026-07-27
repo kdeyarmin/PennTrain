@@ -29,3 +29,13 @@ paths = [
   '''^artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation\.tsx$''',
   '''^supabase/tests/database/platform_intelligence_web_push_and_lifecycle\.test\.sql$''',
 ]
+
+[[rules.allowlists]]
+description = "Ignore the non-secret incident pathway question key (a template field name, not a credential)"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^prior_falls_90_days$''']
+paths = [
+  '''^artifacts/caremetric-carebase/src/lib/incidentPathways\.ts$''',
+  '''^artifacts/caremetric-carebase/src/lib/incidentPathways\.test\.ts$''',
+]

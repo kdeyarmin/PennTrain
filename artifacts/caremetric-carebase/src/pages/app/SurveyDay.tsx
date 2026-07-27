@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -19,6 +19,11 @@ import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
 import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
 import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
+
+// Lazy, and given its own bundle budget, for the same reason the resident record splits by tab: the
+// log is the largest surface on this page and it is worth nothing until a session is active. The
+// header, entrance-conference checklist, and Close control paint without waiting for it.
+const SurveyDayLogSection = lazy(() => import("@/components/survey/SurveyDayLogSection"));
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
   useActivateSurveyDay, useRefreshSurveyDay, useSetSurveyDayDisposition, useCloseSurveyDay,
@@ -263,6 +268,9 @@ function Workspace({ sessionId, facilityId, facilityName, canManage }: { session
       </Card>
 
       <EntranceConferenceSection sessionId={sessionId} facilityId={facilityId} checklist={data.checklist} readOnly={data.session.status !== "active" || !canManage} />
+      <Suspense fallback={null}>
+        <SurveyDayLogSection sessionId={sessionId} readOnly={data.session.status !== "active" || !canManage} />
+      </Suspense>
       <BinderSection sessionId={sessionId} facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} />
       <StaffRosterSection sessionId={sessionId} />
       <EvidenceSection organizationId={data.session.organizationId} facilityId={facilityId} pinnedCollectionId={data.session.pinnedEvidenceCollectionId} />

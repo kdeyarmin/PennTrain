@@ -125,9 +125,9 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
         <div className="grid gap-4 py-2 sm:grid-cols-2">
           {!residentId && (
             <div className="space-y-1 sm:col-span-2">
-              <Label className="text-xs">Resident</Label>
+              <Label className="text-xs" htmlFor="coc-resident">Resident</Label>
               <Select value={selectedResidentId} onValueChange={setSelectedResidentId}>
-                <SelectTrigger><SelectValue placeholder="Select a resident" /></SelectTrigger>
+                <SelectTrigger id="coc-resident"><SelectValue placeholder="Select a resident" /></SelectTrigger>
                 <SelectContent>
                   {(residents ?? []).map((r) => (
                     <SelectItem key={r.id} value={r.id}>{r.last_name}, {r.first_name}</SelectItem>
@@ -137,9 +137,9 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
             </div>
           )}
           <div className="space-y-1">
-            <Label>Type of change *</Label>
+            <Label htmlFor="coc-category">Type of change *</Label>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="coc-category"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {[
                   "fall", "emergency_department_visit", "hospital_return", "mobility_decline",
@@ -151,19 +151,19 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1"><Label>Identified date and time *</Label><Input type="datetime-local" value={identifiedAt} onChange={event => setIdentifiedAt(event.target.value)} /></div>
-          <div className="space-y-1 sm:col-span-2"><Label>Immediate observations *</Label><Textarea value={observations} onChange={event => setObservations(event.target.value)} placeholder="Describe observable facts; do not diagnose." /></div>
-          <div className="space-y-1 sm:col-span-2"><Label>Immediate action taken *</Label><Textarea value={immediateAction} onChange={event => setImmediateAction(event.target.value)} placeholder="Safety action, escalation, or other response." /></div>
-          <div className="space-y-1"><Label>Provider notification</Label><Select value={providerStatus} onValueChange={setProviderStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["pending", "completed", "unable_to_reach", "not_required"].map(value => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1"><Label>Designated-person notification</Label><Select value={designatedStatus} onValueChange={setDesignatedStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["pending", "completed", "unable_to_reach", "not_required"].map(value => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor="coc-identified-at">Identified date and time *</Label><Input id="coc-identified-at" type="datetime-local" value={identifiedAt} onChange={event => setIdentifiedAt(event.target.value)} /></div>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor="coc-observations">Immediate observations *</Label><Textarea id="coc-observations" value={observations} onChange={event => setObservations(event.target.value)} placeholder="Describe observable facts; do not diagnose." /></div>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor="coc-immediate-action">Immediate action taken *</Label><Textarea id="coc-immediate-action" value={immediateAction} onChange={event => setImmediateAction(event.target.value)} placeholder="Safety action, escalation, or other response." /></div>
+          <div className="space-y-1"><Label htmlFor="coc-provider-notification">Provider notification</Label><Select value={providerStatus} onValueChange={setProviderStatus}><SelectTrigger id="coc-provider-notification"><SelectValue /></SelectTrigger><SelectContent>{["pending", "completed", "unable_to_reach", "not_required"].map(value => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor="coc-designated-notification">Designated-person notification</Label><Select value={designatedStatus} onValueChange={setDesignatedStatus}><SelectTrigger id="coc-designated-notification"><SelectValue /></SelectTrigger><SelectContent>{["pending", "completed", "unable_to_reach", "not_required"].map(value => <SelectItem key={value} value={value}>{value.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select></div>
           <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox checked={emergencyTransfer} onCheckedChange={value => setEmergencyTransfer(value === true)} />Emergency transfer occurred</label>
-          {emergencyTransfer && <div className="space-y-1 sm:col-span-2"><Label>Transfer destination *</Label><Input value={destination} onChange={event => setDestination(event.target.value)} /></div>}
-          <div className="space-y-1 sm:col-span-2"><Label>Monitoring instructions</Label><Textarea value={monitoringInstructions} onChange={event => setMonitoringInstructions(event.target.value)} placeholder="What staff should observe and report." /></div>
-          <div className="space-y-1"><Label>Monitoring frequency</Label><Input value={monitoringFrequency} onChange={event => setMonitoringFrequency(event.target.value)} placeholder="e.g. Every 2 hours" /></div>
-          <div className="space-y-1"><Label>Duration (hours)</Label><Input type="number" min={1} max={720} value={monitoringHours} onChange={event => setMonitoringHours(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Assigned staff</Label><Select value={assignedProfileId} onValueChange={setAssignedProfileId}><SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger><SelectContent>{profiles?.filter(profile => profile.is_active).map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1"><Label>Follow-up due *</Label><Input type="datetime-local" value={followUpDueAt} onChange={event => setFollowUpDueAt(event.target.value)} /></div>
-          <div className="space-y-1 sm:col-span-2"><Label>Incident report decision *</Label><Select value={incidentDecision} onValueChange={setIncidentDecision}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">Pending human decision</SelectItem><SelectItem value="required">Incident report required</SelectItem><SelectItem value="not_required">Incident report not required</SelectItem></SelectContent></Select></div>
+          {emergencyTransfer && <div className="space-y-1 sm:col-span-2"><Label htmlFor="coc-transfer-destination">Transfer destination *</Label><Input id="coc-transfer-destination" value={destination} onChange={event => setDestination(event.target.value)} /></div>}
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor="coc-monitoring-instructions">Monitoring instructions</Label><Textarea id="coc-monitoring-instructions" value={monitoringInstructions} onChange={event => setMonitoringInstructions(event.target.value)} placeholder="What staff should observe and report." /></div>
+          <div className="space-y-1"><Label htmlFor="coc-monitoring-frequency">Monitoring frequency</Label><Input id="coc-monitoring-frequency" value={monitoringFrequency} onChange={event => setMonitoringFrequency(event.target.value)} placeholder="e.g. Every 2 hours" /></div>
+          <div className="space-y-1"><Label htmlFor="coc-monitoring-hours">Duration (hours)</Label><Input id="coc-monitoring-hours" type="number" min={1} max={720} value={monitoringHours} onChange={event => setMonitoringHours(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor="coc-assigned-staff">Assigned staff</Label><Select value={assignedProfileId} onValueChange={setAssignedProfileId}><SelectTrigger id="coc-assigned-staff"><SelectValue placeholder="Select staff" /></SelectTrigger><SelectContent>{profiles?.filter(profile => profile.is_active).map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor="coc-follow-up-due">Follow-up due *</Label><Input id="coc-follow-up-due" type="datetime-local" value={followUpDueAt} onChange={event => setFollowUpDueAt(event.target.value)} /></div>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor="coc-incident-decision">Incident report decision *</Label><Select value={incidentDecision} onValueChange={setIncidentDecision}><SelectTrigger id="coc-incident-decision"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">Pending human decision</SelectItem><SelectItem value="required">Incident report required</SelectItem><SelectItem value="not_required">Incident report not required</SelectItem></SelectContent></Select></div>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={reassessmentRequired} onCheckedChange={value => setReassessmentRequired(value === true)} />Significant-change reassessment required</label>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={supportPlanRevisionRequired} onCheckedChange={value => setSupportPlanRevisionRequired(value === true)} />Support-plan revision review required</label>
         </div>

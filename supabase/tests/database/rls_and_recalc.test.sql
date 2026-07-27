@@ -184,14 +184,14 @@ select public.save_training_record(
   (select id from public.employee_training_records
    where employee_id = '00000000-0000-0000-0000-0000000000a6'
      and training_type_id = '00000000-0000-0000-0000-0000000000a7'),
-  jsonb_build_object('completion_date', current_date - 400)
+  jsonb_build_object('completion_date', public.pa_today() - 400)
 );
 
 select recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1');
 
 select results_eq(
   $$ select due_date from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' and training_type_id = '00000000-0000-0000-0000-0000000000a7' $$,
-  $$ select (current_date - 400 + 365)::date $$,
+  $$ select (public.pa_today() - 400 + 365)::date $$,
   'recalculate_org_compliance sets due_date = completion_date + renewal_interval_days'
 );
 
@@ -205,7 +205,7 @@ select public.save_training_record(
   (select id from public.employee_training_records
    where employee_id = '00000000-0000-0000-0000-0000000000a6'
      and training_type_id = '00000000-0000-0000-0000-0000000000a7'),
-  jsonb_build_object('completion_date', current_date - 300)
+  jsonb_build_object('completion_date', public.pa_today() - 300)
 );
 
 select recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1');
@@ -228,7 +228,7 @@ select pg_temp.act_as('00000000-0000-0000-0000-0000000000a3'); -- org_admin, org
 select lives_ok(
   $$ insert into public.residents (id, organization_id, facility_id, first_name, last_name, admission_date)
      values ('00000000-0000-0000-0000-0000000000a8', '00000000-0000-0000-0000-0000000000a1',
-             '00000000-0000-0000-0000-0000000000a2', 'Test', 'Resident', current_date) $$,
+             '00000000-0000-0000-0000-0000000000a2', 'Test', 'Resident', public.pa_today()) $$,
   'org_admin can insert a resident in their own org'
 );
 

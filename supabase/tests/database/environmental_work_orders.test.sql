@@ -71,7 +71,7 @@ insert into public.employees(
 ) values (
   '61000000-0000-4000-8000-000000000111', '61000000-0000-4000-8000-000000000001',
   '61000000-0000-4000-8000-000000000011', '61000000-0000-4000-8000-000000000102',
-  'Casey', 'Worker', 'maintenance-worker@test.local', 'Maintenance Technician', current_date - 100, 'active'
+  'Casey', 'Worker', 'maintenance-worker@test.local', 'Maintenance Technician', public.pa_today() - 100, 'active'
 );
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
@@ -116,7 +116,7 @@ insert into public.inspection_events(
 ) values (
   '61000000-0000-4000-8000-000000000302', '61000000-0000-4000-8000-000000000001',
   '61000000-0000-4000-8000-000000000011', '61000000-0000-4000-8000-000000000301',
-  current_date, 'Morgan Manager', '61000000-0000-4000-8000-000000000101',
+  public.pa_today(), 'Morgan Manager', '61000000-0000-4000-8000-000000000101',
   'fail', 'Battery backup did not illuminate during test', true
 );
 insert into maintenance_ids(key, id)
@@ -243,21 +243,21 @@ insert into public.preventive_maintenance_schedules(
   '61000000-0000-4000-8000-000000000401', '61000000-0000-4000-8000-000000000001',
   '61000000-0000-4000-8000-000000000011', '61000000-0000-4000-8000-000000000201',
   'Bathroom exhaust inspection', 'Inspect and clean exhaust fan; verify grille and airflow.',
-  'month', 1, current_date, 'routine', '61000000-0000-4000-8000-000000000111', 30, 25.00, 'Replacement filter if needed'
+  'month', 1, public.pa_today(), 'routine', '61000000-0000-4000-8000-000000000111', 30, 25.00, 'Replacement filter if needed'
 );
 select is(
-  public.generate_due_preventive_maintenance_work_orders(current_date),
+  public.generate_due_preventive_maintenance_work_orders(public.pa_today()),
   1,
   'due preventive-maintenance schedule generates one work order'
 );
 select is(
-  public.generate_due_preventive_maintenance_work_orders(current_date),
+  public.generate_due_preventive_maintenance_work_orders(public.pa_today()),
   0,
   'repeated generation does not duplicate an open scheduled work order'
 );
 select is(
   (select next_due_date from public.preventive_maintenance_schedules where id = '61000000-0000-4000-8000-000000000401'),
-  (current_date + interval '1 month')::date,
+  (public.pa_today() + interval '1 month')::date,
   'recurring schedule advances to its next due date'
 );
 select ok(

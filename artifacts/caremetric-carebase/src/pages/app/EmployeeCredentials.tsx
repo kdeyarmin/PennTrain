@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import {
   useListEmployeeCredentials, useCreateEmployeeCredential, useUpdateEmployeeCredential, useDeleteEmployeeCredential,
   type EmployeeCredential,
@@ -244,7 +244,7 @@ export default function EmployeeCredentials() {
       warning_days: c.warning_days,
       last_verified_date: c.last_verified_date,
     })),
-    toLocalIsoDate(),
+    facilityToday(),
   ), [allCredentials]);
   const credentialById = useMemo(() => new Map(allCredentials.map((c) => [c.id, c])), [allCredentials]);
   const topRiskCredentials = credentialSummary.topRiskCredentialIds

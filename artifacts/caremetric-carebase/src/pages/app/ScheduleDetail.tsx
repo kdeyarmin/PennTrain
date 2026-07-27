@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useLocation } from "wouter";
+
+// Lazy: the acuity engine and its weight tables are only meaningful on this page, and the schedule
+// route is already heavy.
+const AcuityWorkloadSection = lazy(
+  () => import("@/components/schedule/AcuityWorkloadSection"),
+);
 import { useGetSchedule, useGenerateScheduleAssignments, useClearAutoFilledAssignments, usePublishSchedule, useUnpublishSchedule } from "@/hooks/useSchedules";
 import { useGetFacility } from "@/hooks/useFacilities";
 import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
@@ -547,6 +553,11 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               </div>
             </div>
           </div>
+          {id && (
+            <Suspense fallback={null}>
+              <AcuityWorkloadSection scheduleId={id} />
+            </Suspense>
+          )}
           <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>

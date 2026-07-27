@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { supabase } from "@/lib/supabase";
 
 export interface ActiveRegulatoryRule {
@@ -21,7 +21,7 @@ export function useActiveRegulatoryRules() {
   return useQuery({
     queryKey: ["active-regulatory-rules"],
     queryFn: async (): Promise<ActiveRegulatoryRule[]> => {
-      const today = toLocalIsoDate();
+      const today = facilityToday();
       const { data, error } = await supabase
         .from("regulatory_rule_versions")
         .select("id,version_number,state,citation,source_uri,source_checksum_sha256,content_checksum_sha256,effective_from,effective_to,applicability,calculation_parameters,regulatory_rule_packs(rule_key,name)")

@@ -47,6 +47,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { lazy, Suspense } from "react";
+import type { ProspectLike } from "@/lib/admissionPipeline";
+
+// Lazy: the funnel model and its metrics are only used by this section.
+const PipelineFunnelSection = lazy(
+  () => import("@/components/admissions/PipelineFunnelSection"),
+);
+const OccupancyBoardSection = lazy(
+  () => import("@/components/admissions/OccupancyBoardSection"),
+);
+
 import { useToast } from "@/hooks/use-toast";
 
 const STAGES = ["prospect", "applicant", "approved", "waitlisted", "reserved", "admitted", "declined", "lost"];
@@ -333,6 +344,23 @@ export default function AdmissionOperations() {
         {canManage && <div className="flex gap-2"><Button variant="outline" onClick={() => setShowRoom(true)} disabled={facilityId === "all"}><Building2 className="mr-2 h-4 w-4" />Add room</Button><Button onClick={() => setShowProspect(true)} disabled={facilityId === "all"}><UserRoundPlus className="mr-2 h-4 w-4" />New inquiry</Button></div>}
       </div>
 
+      <Suspense fallback={null}>
+        <OccupancyBoardSection facilityId={facilityId === "all" ? undefined : facilityId} />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <PipelineFunnelSection
+          prospects={(prospects.data ?? []).map(prospect => ({
+            id: prospect.id,
+            pipeline_stage: (prospect as { pipeline_stage?: string }).pipeline_stage ?? "new_inquiry",
+            referral_source_name: prospect.referral_source?.name ?? null,
+            expected_monthly_revenue: (prospect as { expected_monthly_revenue?: number | null }).expected_monthly_revenue ?? null,
+            probability_percent: (prospect as { probability_percent?: number | null }).probability_percent ?? null,
+            next_follow_up_at: (prospect as { next_follow_up_at?: string | null }).next_follow_up_at ?? null,
+            inquiry_date: prospect.inquiry_date,
+          })) satisfies ProspectLike[]}
+        />
+      </Suspense>
       <Card><CardContent className="grid gap-2 pt-6 sm:grid-cols-3"><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select><Select value={stage} onValueChange={setStage}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active pipeline</SelectItem><SelectItem value="all">All stages</SelectItem>{STAGES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search prospect or referral source" /></CardContent></Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -346,7 +374,7 @@ export default function AdmissionOperations() {
             <CardHeader><CardTitle>Admission pipeline</CardTitle><CardDescription>Prospect through review, reservation, and admission with referral-source attribution.</CardDescription></CardHeader>
             <CardContent>
               {prospects.isError ? <QueryError what="admission prospects" error={prospects.error} onRetry={() => prospects.refetch()} /> : !filteredProspects.length ? <p className="py-10 text-center text-sm text-muted-foreground">No prospects match this view.</p> : (
-                <div className="overflow-x-auto"><table className="data-table min-w-[900px]"><thead><tr><th>Prospect</th><th>Facility</th><th>Referral</th><th>Clinical</th><th>Financial</th><th>Expected move-in</th><th>Stage</th><th /></tr></thead><tbody>{filteredProspects.map(prospect => <tr key={prospect.id}><td><p className="font-medium">{prospect.first_name} {prospect.last_name}</p><p className="text-xs text-muted-foreground">Inquiry {new Date(prospect.inquiry_date).toLocaleDateString()}</p></td><td>{prospect.facility?.name}</td><td>{prospect.referral_source?.name ?? "Direct inquiry"}</td><td><Badge variant="outline">{humanize(prospect.clinical_review_status)}</Badge></td><td><Badge variant="outline">{humanize(prospect.financial_review_status)}</Badge></td><td>{prospect.expected_move_in_date ? new Date(`${prospect.expected_move_in_date}T00:00:00`).toLocaleDateString() : "—"}</td><td><Badge variant="outline" className={`border-0 ${STAGE_CLASS[prospect.stage]}`}>{humanize(prospect.stage)}</Badge></td><td>{canManage && <Button size="sm" variant="outline" onClick={() => setSelectedProspect(prospect)}>Review <ChevronRight className="h-4 w-4" /></Button>}</td></tr>)}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="data-table min-w-[900px]"><thead><tr><th>Prospect</th><th>Facility</th><th>Referral</th><th>Clinical</th><th>Financial</th><th>Expected move-in</th><th>Stage</th><th /></tr></thead><tbody>{filteredProspects.map(prospect => <tr key={prospect.id}><td><p className="font-medium">{prospect.first_name} {prospect.last_name}</p><p className="text-xs text-muted-foreground">Inquiry {new Date(`${prospect.inquiry_date}T00:00:00`).toLocaleDateString()}</p></td><td>{prospect.facility?.name}</td><td>{prospect.referral_source?.name ?? "Direct inquiry"}</td><td><Badge variant="outline">{humanize(prospect.clinical_review_status)}</Badge></td><td><Badge variant="outline">{humanize(prospect.financial_review_status)}</Badge></td><td>{prospect.expected_move_in_date ? new Date(`${prospect.expected_move_in_date}T00:00:00`).toLocaleDateString() : "—"}</td><td><Badge variant="outline" className={`border-0 ${STAGE_CLASS[prospect.stage]}`}>{humanize(prospect.stage)}</Badge></td><td>{canManage && <Button size="sm" variant="outline" onClick={() => setSelectedProspect(prospect)}>Review <ChevronRight className="h-4 w-4" /></Button>}</td></tr>)}</tbody></table></div>
               )}
               {canManage && organizationId && (
                 <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4">

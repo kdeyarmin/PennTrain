@@ -42,13 +42,13 @@ insert into public.employees(
 ) values (
   '59000000-0000-4000-8000-000000000111', '59000000-0000-4000-8000-000000000001',
   '59000000-0000-4000-8000-000000000011', '59000000-0000-4000-8000-000000000102',
-  'Change', 'Worker', 'change-worker@test.local', 'Direct Care Staff', current_date, 'active'
+  'Change', 'Worker', 'change-worker@test.local', 'Direct Care Staff', public.pa_today(), 'active'
 );
 insert into public.residents(
   id, organization_id, facility_id, first_name, last_name, admission_date, status
 ) values (
   '59000000-0000-4000-8000-000000000201', '59000000-0000-4000-8000-000000000001',
-  '59000000-0000-4000-8000-000000000011', 'Jordan', 'Resident', current_date - 30, 'active'
+  '59000000-0000-4000-8000-000000000011', 'Jordan', 'Resident', public.pa_today() - 30, 'active'
 );
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
@@ -97,7 +97,7 @@ select ok(
     join public.resident_change_events e on e.compliance_item_id = c.id
     where e.id = (select id from change_ids where key = 'event')
       and c.item_type = 'significant_change_reassessment'
-      and c.due_date = current_date
+      and c.due_date = public.pa_today()
   ),
   'human reassessment decision creates immediately due compliance work'
 );

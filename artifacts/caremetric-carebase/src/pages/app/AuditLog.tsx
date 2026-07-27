@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { auditActionDescription, auditEntityLabel, auditEntityRoute } from "@/lib/auditEntityResolver";
+import { facilityToday } from "@/lib/dateUtils";
 
 // audit_log_trigger() (see supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
 // writes actions as `${tg_table_name}_${created|updated|deleted}`, e.g. "employees_created".
@@ -143,7 +144,7 @@ export default function AuditLog() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `audit-manifest-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.download = `audit-manifest-${facilityToday()}.json`;
       anchor.click();
       URL.revokeObjectURL(url);
       toast({ title: "Audit manifest created", description: "The JSON includes the independently verifiable SHA-256 checksum." });

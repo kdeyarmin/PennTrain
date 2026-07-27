@@ -104,8 +104,8 @@ select is(
 select is(
   public.get_resident_care_delivery_analytics(
     '94000000-0000-4000-8000-000000000002',
-    current_date - 30,
-    current_date
+    public.pa_today() - 30,
+    public.pa_today()
   )->'scope'->>'facilityId',
   '94000000-0000-4000-8000-000000000002',
   'resident care analytics executes against the real change-event schema'
@@ -116,8 +116,8 @@ select is(
     public.get_enterprise_operations_control_plane(
       '94000000-0000-4000-8000-000000000001',
       '94000000-0000-4000-8000-000000000002',
-      current_date - 30,
-      current_date
+      public.pa_today() - 30,
+      public.pa_today()
     )->'integrationRecovery'
   ),
   'array',

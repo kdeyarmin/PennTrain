@@ -130,6 +130,21 @@ jobs:
       - name: Role, public, guest, and accessibility browser journeys
         run: pnpm --filter @workspace/caremetric-carebase run test:e2e
 
+      # Playwright already writes a screenshot, video, and trace for every failure; without this they
+      # are discarded with the runner. Diagnosing a browser failure from the log message alone means
+      # one hypothesis per CI round -- five rounds went on a step whose screenshot would have shown
+      # the answer immediately.
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-failures-${{ github.sha }}
+          path: |
+            artifacts/caremetric-carebase/test-results
+            artifacts/caremetric-carebase/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Stop local Supabase stack
         if: always()
         run: supabase stop --no-backup

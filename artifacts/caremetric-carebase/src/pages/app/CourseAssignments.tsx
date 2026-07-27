@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListCourseAssignmentsPaginated,
   useCreateCourseAssignment,
@@ -239,7 +239,7 @@ export default function CourseAssignments() {
       due_date: a.due_date,
       completed_at: a.completed_at,
     })),
-    toLocalIsoDate(),
+    facilityToday(),
   ), [paginated]);
 
   // Employees offered in the assign dialog's multi-select, narrowed by that dialog's own facility

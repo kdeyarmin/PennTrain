@@ -33,7 +33,7 @@ import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { useListAdministratorProfiles, useListAdministratorCeEntriesByOrganization } from "@/hooks/useAdministratorProfiles";
 import { buildBestAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLicensingWorkspace";
 
@@ -120,7 +120,7 @@ export default function FacilityDetail() {
     return buildBestAdministratorRulePack(facility.facility_type, {
       profiles: administratorProfiles ?? [],
       ceEntries: administratorCeEntries ?? [],
-      today: toLocalIsoDate(),
+      today: facilityToday(),
     });
   }, [administratorProfiles, administratorCeEntries, facility]);
   const administratorRuleSummary = administratorEvaluation?.summary ?? summarizeAdministratorRulePack([]);

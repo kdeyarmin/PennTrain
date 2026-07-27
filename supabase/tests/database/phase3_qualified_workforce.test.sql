@@ -55,9 +55,9 @@ insert into public.employees(
   id, organization_id, facility_id, profile_id, employee_number,
   first_name, last_name, email, hire_date, job_title, status, trainer_status
 ) values
-  ('33000000-0000-4000-8000-000000000201', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000103', 'P3-A', 'Worker', 'Alpha', 'p3-worker-a@test.local', current_date-100, 'Direct Care', 'active', false),
-  ('33000000-0000-4000-8000-000000000202', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000104', 'P3-B', 'Worker', 'Beta', 'p3-worker-b@test.local', current_date-80, 'Direct Care', 'active', false),
-  ('33000000-0000-4000-8000-000000000203', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000102', 'P3-T', 'Phase', 'Trainer', 'p3-trainer@test.local', current_date-200, 'Trainer', 'active', true);
+  ('33000000-0000-4000-8000-000000000201', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000103', 'P3-A', 'Worker', 'Alpha', 'p3-worker-a@test.local', public.pa_today()-100, 'Direct Care', 'active', false),
+  ('33000000-0000-4000-8000-000000000202', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000104', 'P3-B', 'Worker', 'Beta', 'p3-worker-b@test.local', public.pa_today()-80, 'Direct Care', 'active', false),
+  ('33000000-0000-4000-8000-000000000203', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000102', 'P3-T', 'Phase', 'Trainer', 'p3-trainer@test.local', public.pa_today()-200, 'Trainer', 'active', true);
 
 create or replace function pg_temp.act_as(p_profile_id uuid, p_aal text default 'aal2', p_role text default 'authenticated')
 returns void language plpgsql as $$
@@ -94,12 +94,12 @@ select is(
 select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'aal2', 'service_role');
 insert into p3_ids values ('row-new', public.stage_hris_import_row(
   (select id from p3_ids where key='run'), 1, 'external-person-new', 'external-job-new', repeat('b',64),
-  jsonb_build_object('facilityId','33000000-0000-4000-8000-000000000011','employeeNumber','P3-NEW','firstName','Imported','lastName','Worker','email','imported@test.local','jobTitle','Caregiver','hireDate',current_date::text,'status','active')
+  jsonb_build_object('facilityId','33000000-0000-4000-8000-000000000011','employeeNumber','P3-NEW','firstName','Imported','lastName','Worker','email','imported@test.local','jobTitle','Caregiver','hireDate',public.pa_today()::text,'status','active')
 ));
 select is(
   public.stage_hris_import_row(
     (select id from p3_ids where key='run'), 1, 'external-person-new', 'external-job-new', repeat('b',64),
-    jsonb_build_object('facilityId','33000000-0000-4000-8000-000000000011','employeeNumber','P3-NEW','firstName','Imported','lastName','Worker','email','imported@test.local','jobTitle','Caregiver','hireDate',current_date::text,'status','active')
+    jsonb_build_object('facilityId','33000000-0000-4000-8000-000000000011','employeeNumber','P3-NEW','firstName','Imported','lastName','Worker','email','imported@test.local','jobTitle','Caregiver','hireDate',public.pa_today()::text,'status','active')
   ),
   (select id from p3_ids where key='row-new'),
   'resuming an identical HRIS row is idempotent'
@@ -113,7 +113,7 @@ select throws_ok(
 );
 insert into p3_ids values ('row-candidate', public.stage_hris_import_row(
   (select id from p3_ids where key='run'), 2, 'external-person-a', 'external-job-a', repeat('d',64),
-  jsonb_build_object('facilityId','33000000-0000-4000-8000-000000000011','employeeNumber','P3-A','firstName','Worker','lastName','Alpha','email','p3-worker-a@test.local','jobTitle','Direct Care','hireDate',(current_date-100)::text,'status','active')
+  jsonb_build_object('facilityId','33000000-0000-4000-8000-000000000011','employeeNumber','P3-A','firstName','Worker','lastName','Alpha','email','p3-worker-a@test.local','jobTitle','Direct Care','hireDate',(public.pa_today()-100)::text,'status','active')
 ));
 
 select pg_temp.act_as('33000000-0000-4000-8000-000000000101');
@@ -313,7 +313,7 @@ insert into public.training_classes(
 ) values (
   '33000000-0000-4000-8000-000000000604','33000000-0000-4000-8000-000000000001',
   '33000000-0000-4000-8000-000000000011','33000000-0000-4000-8000-000000000102',
-  '33000000-0000-4000-8000-000000000601','Phase 3 Class',current_date+1,
+  '33000000-0000-4000-8000-000000000601','Phase 3 Class',public.pa_today()+1,
   now()+interval '1 day',now()+interval '1 day 2 hours',2,'scheduled',1
 );
 select pg_temp.act_as('33000000-0000-4000-8000-000000000101');
@@ -384,7 +384,7 @@ reset role;
 insert into public.shift_definitions(id,organization_id,facility_id,name,start_time,end_time) values
   ('33000000-0000-4000-8000-000000000701','33000000-0000-4000-8000-000000000001','33000000-0000-4000-8000-000000000011','P3 Day','08:00','16:00');
 insert into public.schedules(id,organization_id,facility_id,title,period_start,period_end,status,created_by) values
-  ('33000000-0000-4000-8000-000000000702','33000000-0000-4000-8000-000000000001','33000000-0000-4000-8000-000000000011','P3 Open Shifts',current_date+3,current_date+9,'published','33000000-0000-4000-8000-000000000101');
+  ('33000000-0000-4000-8000-000000000702','33000000-0000-4000-8000-000000000001','33000000-0000-4000-8000-000000000011','P3 Open Shifts',public.pa_today()+3,public.pa_today()+9,'published','33000000-0000-4000-8000-000000000101');
 insert into public.open_shift_opportunities(
   id, organization_id, schedule_id, facility_id, shift_definition_id,
   shift_date, start_time, end_time, slots, required_qualification_keys,
@@ -392,7 +392,7 @@ insert into public.open_shift_opportunities(
 ) values (
   '33000000-0000-4000-8000-000000000703','33000000-0000-4000-8000-000000000001',
   '33000000-0000-4000-8000-000000000702','33000000-0000-4000-8000-000000000011',
-  '33000000-0000-4000-8000-000000000701',current_date+4,'08:00','16:00',1,
+  '33000000-0000-4000-8000-000000000701',public.pa_today()+4,'08:00','16:00',1,
   array['direct-care'],array['other'],array['33000000-0000-4000-8000-000000000601'::uuid],
   'open',now()+interval '3 days','33000000-0000-4000-8000-000000000101'
 );

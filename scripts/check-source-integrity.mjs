@@ -22,6 +22,12 @@ const productionSourcePrefixes = [
 ];
 const mockupSandboxReferenceAllowlist = new Set(["scripts/check-source-integrity.mjs"]);
 const mockupSandboxReference = /(?:artifacts\/mockup-sandbox|@workspace\/mockup-sandbox|mockup-sandbox)/;
+// SupabaseClient.rpc/from/functions are prototype methods whose bodies read `this.rest`, so a
+// detached reference throws "Cannot read properties of undefined (reading 'rest')" on every call.
+// This shipped in two hooks and broke incident reporting outright; it is invisible to typecheck
+// (the cast satisfies it) and to unit tests (they mock the client), so it needs a source rule.
+const detachedSupabaseMethod = /=\s*supabase\.(rpc|from|functions|storage)\b(?!\s*\.bind\b)(?!\()/;
+const detachedSupabaseMethodAllowlist = new Set(["scripts/check-source-integrity.mjs"]);
 const failures = [];
 
 for (const path of paths) {
@@ -40,6 +46,16 @@ for (const path of paths) {
       mockupSandboxReference.test(line)
     ) {
       failures.push(`${path}:${index + 1}: production source must not reference artifacts/mockup-sandbox`);
+    }
+    if (
+      isProductionSource &&
+      !detachedSupabaseMethodAllowlist.has(path) &&
+      detachedSupabaseMethod.test(line)
+    ) {
+      failures.push(
+        `${path}:${index + 1}: supabase client methods lose their receiver when assigned. `
+        + `Use supabase.rpc.bind(supabase) (or call it inline) -- a detached reference throws at runtime.`,
+      );
     }
   });
 }

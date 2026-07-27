@@ -15,7 +15,7 @@ import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAn
 import { listUpcomingRenewals, sortOpenItemsByUrgency } from "@/lib/stateFormWorkflow";
 import { StateFormWorkflowStepper } from "@/components/residents/StateFormWorkflowStepper";
 import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 
 const OPEN_STATUSES = new Set(["expired", "missing", "due_soon"]);
 const RENEWAL_WINDOW_DAYS = 60;
@@ -55,7 +55,7 @@ export default function StateFormsCenter() {
     facilityId: facilityId !== "all" ? facilityId : undefined,
   });
 
-  const today = toLocalIsoDate();
+  const today = facilityToday();
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const residentById = useMemo(() => new Map((residents ?? []).map((r) => [r.id, r])), [residents]);
   const itemById = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);

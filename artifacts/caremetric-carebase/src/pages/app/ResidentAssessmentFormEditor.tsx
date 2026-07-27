@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -900,7 +900,7 @@ export default function ResidentAssessmentFormEditor() {
 
   const handleAutoFillKnownFields = () => {
     if (!content) return;
-    const today = toLocalIsoDate();
+    const today = facilityToday();
     const { nextContent, changedFields } = buildResidentAssessmentAutoFill(
       content,
       {

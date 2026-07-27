@@ -50,13 +50,13 @@ insert into public.employees(
 ) values (
   '56000000-0000-4000-8000-000000000111', '56000000-0000-4000-8000-000000000001',
   '56000000-0000-4000-8000-000000000011', '56000000-0000-4000-8000-000000000102',
-  'Service', 'Worker', 'service-worker@test.local', 'Direct Care Staff', current_date, 'active'
+  'Service', 'Worker', 'service-worker@test.local', 'Direct Care Staff', public.pa_today(), 'active'
 );
 insert into public.residents(
   id, organization_id, facility_id, first_name, last_name, admission_date
 ) values (
   '56000000-0000-4000-8000-000000000201', '56000000-0000-4000-8000-000000000001',
-  '56000000-0000-4000-8000-000000000011', 'Jamie', 'Resident', current_date
+  '56000000-0000-4000-8000-000000000011', 'Jamie', 'Resident', public.pa_today()
 );
 
 insert into public.resident_assessment_forms(
@@ -67,7 +67,7 @@ insert into public.resident_assessment_forms(
   '56000000-0000-4000-8000-000000000011', '56000000-0000-4000-8000-000000000201',
   'RASP', 'initial', 1, 'draft',
   jsonb_build_object(
-    'assessmentInfo', jsonb_build_object('lastSupportPlanDate', current_date::text),
+    'assessmentInfo', jsonb_build_object('lastSupportPlanDate', public.pa_today()::text),
     'section1', jsonb_build_object(
       'items', jsonb_build_object(
         'bathing', jsonb_build_object(
@@ -135,7 +135,7 @@ select is(
 select pg_temp.act_as('56000000-0000-4000-8000-000000000102');
 select is(
   (select count(*)::integer from public.get_resident_service_task_queue(
-    current_date, current_date + interval '15 days', null, null
+    public.pa_today(), public.pa_today() + interval '15 days', null, null
   )),
   15,
   'direct-care employee sees unassigned facility service tasks'
@@ -186,7 +186,7 @@ insert into public.resident_assessment_forms(
   '56000000-0000-4000-8000-000000000011', '56000000-0000-4000-8000-000000000201',
   'RASP', 'significant_change', 2, '56000000-0000-4000-8000-000000000301', 'draft',
   jsonb_build_object(
-    'assessmentInfo', jsonb_build_object('lastSupportPlanDate', (current_date + 1)::text),
+    'assessmentInfo', jsonb_build_object('lastSupportPlanDate', (public.pa_today() + 1)::text),
     'section1', jsonb_build_object(
       'items', jsonb_build_object(
         'bathing', jsonb_build_object(
@@ -224,7 +224,7 @@ select ok(
     select 1 from public.resident_service_task_instances
     where source_assessment_form_id = '56000000-0000-4000-8000-000000000301'
       and status = 'scheduled'
-      and scheduled_start::date >= current_date + 1
+      and scheduled_start::date >= public.pa_today() + 1
   ),
   'future prior-version tasks are superseded at the new effective date'
 );

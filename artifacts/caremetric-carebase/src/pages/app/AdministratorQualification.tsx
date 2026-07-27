@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, FileCheck2, Send, Upload, Trash2, Download } from "lucide-react";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { supabase } from "@/lib/supabase";
 
@@ -112,7 +112,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
     return Array.from(types);
   }, [facilities]);
   const administratorRulePack = useMemo(
-    () => buildAdministratorRulePack(facilityTypePreview, { profile, ceEntries, today: toLocalIsoDate() }),
+    () => buildAdministratorRulePack(facilityTypePreview, { profile, ceEntries, today: facilityToday() }),
     [facilityTypePreview, profile, ceEntries],
   );
   const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);

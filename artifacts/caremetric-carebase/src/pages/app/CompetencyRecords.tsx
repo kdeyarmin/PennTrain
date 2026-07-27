@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, ChevronLeft, ChevronRight, Plus, Eye } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
 const PAGE_SIZE = 15;
 
@@ -62,7 +62,7 @@ interface RecordFormData {
 const EMPTY_RECORD_FORM: RecordFormData = {
   employeeId: "",
   templateId: "",
-  evaluationDate: toLocalIsoDate(),
+  evaluationDate: facilityToday(),
   overallResult: "met",
   signNow: false,
 };

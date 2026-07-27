@@ -36,8 +36,8 @@ on conflict(id) do update set organization_id = excluded.organization_id, role =
 select set_config('app.privileged_write', 'off', true);
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
-  ('62000000-0000-4000-8000-000000000201', '62000000-0000-4000-8000-000000000001', '62000000-0000-4000-8000-000000000011', 'Avery', 'Resident', current_date, 'reserved'),
-  ('62000000-0000-4000-8000-000000000202', '62000000-0000-4000-8000-000000000002', '62000000-0000-4000-8000-000000000012', 'Other', 'Resident', current_date, 'active');
+  ('62000000-0000-4000-8000-000000000201', '62000000-0000-4000-8000-000000000001', '62000000-0000-4000-8000-000000000011', 'Avery', 'Resident', public.pa_today(), 'reserved'),
+  ('62000000-0000-4000-8000-000000000202', '62000000-0000-4000-8000-000000000002', '62000000-0000-4000-8000-000000000012', 'Other', 'Resident', public.pa_today(), 'active');
 insert into public.resident_documents(
   id, organization_id, facility_id, resident_id, storage_bucket, storage_path,
   file_name, file_type, document_label
@@ -51,7 +51,7 @@ insert into public.move_in_workspaces(
 ) values (
   '62000000-0000-4000-8000-000000000402', '62000000-0000-4000-8000-000000000001',
   '62000000-0000-4000-8000-000000000011', '62000000-0000-4000-8000-000000000201',
-  '62000000-0000-4000-8000-000000000401', current_date + 3
+  '62000000-0000-4000-8000-000000000401', public.pa_today() + 3
 );
 insert into public.move_in_tasks(
   id, organization_id, facility_id, workspace_id, task_key, title, requires_signature, requires_approval

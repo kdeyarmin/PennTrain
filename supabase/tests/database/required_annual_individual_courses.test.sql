@@ -322,7 +322,7 @@ values
     'Annual',
     'Learner',
     'individual-course-learner@test.local',
-    current_date - 30,
+    public.pa_today() - 30,
     'Direct Care Staff',
     'active'
   ),
@@ -335,7 +335,7 @@ values
     'Annual',
     'Terminated',
     'individual-course-terminated@test.local',
-    current_date - 365,
+    public.pa_today() - 365,
     'Former Direct Care Staff',
     'terminated'
   );

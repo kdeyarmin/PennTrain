@@ -132,7 +132,10 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
   if (!mustVerify || location === "/account/security") return children;
   return (
     <div className="min-h-screen grid place-items-center bg-background px-4">
-      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle>Multi-factor verification required</CardTitle><CardDescription>Your organization requires administrators and managers to use an authenticator. Enroll or verify a factor before opening protected workspaces.</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href="/account/security">Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
+      {/* A real heading role: CardTitle renders a div, which left this full-screen gate invisible to
+          assistive tech (and to any instrumentation that asks "did a page render") -- a signed-in
+          admin's first screen deserves to announce itself. */}
+      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle role="heading" aria-level={1}>Multi-factor verification required</CardTitle><CardDescription>Your organization requires administrators and managers to use an authenticator. Enroll or verify a factor before opening protected workspaces.</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href="/account/security">Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
     </div>
   );
 }

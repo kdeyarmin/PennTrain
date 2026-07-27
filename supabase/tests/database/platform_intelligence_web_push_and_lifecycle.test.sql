@@ -57,7 +57,7 @@ select ok(
 );
 select ok(
   pg_get_functiondef('public.get_workforce_retention_metrics(uuid)'::regprocedure)
-    like '%ended_on between current_date - 364 and current_date%',
+    like '%ended_on between public.pa_today() - 364 and public.pa_today()%',
   'future termination dates are excluded from historical turnover'
 );
 select ok(
