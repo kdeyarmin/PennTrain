@@ -1,5 +1,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { stripSqlComments } from "./lib/sqlComments.mjs";
+
+export { stripSqlComments };
 
 // plpgsql RAISE with a `%` placeholder and no matching argument fails at CREATE FUNCTION time with
 // "too few parameters specified for RAISE" (42601). It is invisible to every static check in this
@@ -11,64 +14,6 @@ import path from "node:path";
 const BASELINE_VERSION = 20260720205629;
 const MIGRATIONS_DIR = "supabase/migrations";
 
-/**
- * Strip SQL comments WITHOUT stripping the inside of string literals.
- *
- * The regex this replaced matched `--` to end-of-line anywhere at all, so it could not tell a
- * comment from an em-dash inside a message -- and this codebase writes messages like 'This course
- * has not been started yet -- open it and work through at least one lesson before marking it
- * complete.' Everything from the em-dash onwards was deleted, which left an unterminated quote; the
- * scanner then ran on to the NEXT quote in the file and read
- * `using errcode = 'check_violation'` as a RAISE argument, reporting "0 placeholder(s) but 1
- * argument(s)" for three statements that have been correct since the day they were written.
- *
- * It stayed hidden because only migrations newer than the baseline are scanned, and until now no
- * post-baseline migration happened to put `--` inside a RAISE message. That is the same shape as the
- * other near-misses in this program: a check that could not see the case it was wrong about.
- */
-export function stripSqlComments(sql) {
-  let out = "";
-  let i = 0;
-  while (i < sql.length) {
-    const pair = sql.slice(i, i + 2);
-    if (pair === "--") {
-      while (i < sql.length && sql[i] !== "\n") i += 1;
-      out += " ";
-      continue;
-    }
-    if (pair === "/*") {
-      // Postgres block comments nest, so count depth rather than scanning to the first `*/`.
-      let depth = 1;
-      i += 2;
-      while (i < sql.length && depth > 0) {
-        if (sql.slice(i, i + 2) === "/*") { depth += 1; i += 2; }
-        else if (sql.slice(i, i + 2) === "*/") { depth -= 1; i += 2; }
-        else i += 1;
-      }
-      out += " ";
-      continue;
-    }
-    if (sql[i] === "'" || sql[i] === '"') {
-      const quote = sql[i];
-      out += quote;
-      i += 1;
-      while (i < sql.length) {
-        if (sql[i] === quote) {
-          if (sql[i + 1] === quote) { out += quote + quote; i += 2; continue; } // '' escape
-          out += quote;
-          i += 1;
-          break;
-        }
-        out += sql[i];
-        i += 1;
-      }
-      continue;
-    }
-    out += sql[i];
-    i += 1;
-  }
-  return out;
-}
 
 /** Count `%` placeholders, ignoring the `%%` escape. */
 export function countPlaceholders(format) {

@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripSqlComments } from "./lib/sqlComments.mjs";
 
 // Preventive migration policy lint (PT-048).
 //
@@ -53,12 +54,9 @@ const RULES = {
   DEFINER_WITHOUT_SEARCH_PATH: "definer-without-search-path",
 };
 
-/** Strip SQL line and block comments so keywords inside them do not trip the rules. */
-function stripSqlComments(sql) {
-  return sql
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/--[^\n]*/g, " ");
-}
+// stripSqlComments used to be a local pair of `replace` calls here. It knew nothing about string
+// literals, so a `--` or `/*` inside one deleted real SQL -- see scripts/lib/sqlComments.mjs. It ran
+// on every migration this lint scans, and on seven of them it was deleting statements.
 
 function normalizeIdentifier(raw) {
   // Drop quotes and a trailing schema/paren boundary; return { schema, name }.
@@ -252,6 +250,34 @@ const SELF_TEST_FIXTURES = [
           create table public.notes (id uuid primary key);
           alter table public.notes enable row level security;`,
     expect: [],
+  },
+  // The three below fail against the previous stripSqlComments, which was a pair of `replace` calls
+  // with no idea what a string literal was. Each was run against it to confirm that, because a
+  // regression guard nobody has seen fail is a guess.
+  //
+  // This codebase really does write `--` inside strings -- `comment on column ... is '... -- see
+  // resident_rate_agreements.level_of_care_charge.'` is a real line in a real migration -- and it
+  // really does put several statements on one line. Together those are this case.
+  {
+    name: "an em-dash inside a string does not swallow the rest of the line",
+    sql: `comment on table public.widgets is 'legacy -- superseded by gadgets'; grant select on public.widgets to anon;`,
+    expect: [RULES.ANON_PUBLIC_GRANT],
+  },
+  {
+    name: "nor swallow an enable row level security that follows it",
+    sql: `create table public.widgets (id uuid primary key);
+          comment on table public.widgets is 'see notes -- and the handbook'; alter table public.widgets enable row level security;`,
+    expect: [],
+  },
+  // A block comment is matched across newlines, so a `/*` inside a string reaches forward to the
+  // next `*/` anywhere in the file and deletes everything between. This is the shape that can hide
+  // an arbitrary number of statements rather than the tail of one line.
+  {
+    name: "a block-comment opener inside a string does not delete the statements after it",
+    sql: `comment on table public.widgets is 'pattern /* start';
+          grant select on public.widgets to anon;
+          comment on table public.gadgets is 'end */ of pattern';`,
+    expect: [RULES.ANON_PUBLIC_GRANT],
   },
 ];
 
