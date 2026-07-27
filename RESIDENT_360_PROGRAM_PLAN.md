@@ -1528,6 +1528,43 @@ best.
 types format check passes over 420 entries; RAISE-arity and migration-policy lints pass over 89
 migrations. The pgTAP suite runs only in CI.
 
+### Phase 0r — A date-only column compared against an instant
+
+Phase 0l fixed one timezone bug (`isActivationOverdue`). One is an incident; a sweep found two more,
+which makes it a pattern worth a build check.
+
+**The clinical one.** `residentCareConflicts.ts` rule 5 flags a support plan that predates a hospital
+return recording changes. It compared `new Date(plan.effective_date)` — a **DATE** column, so UTC
+midnight — against `new Date(episode.return_time)`, a **timestamptz** with a real offset. A resident
+returning at 09:00 in Pennsylvania is `13:00Z`, so a plan made effective *that same day* — very
+plausibly **because** of the return — sorted earlier and was flagged as predating it. The direction of
+the error changes with the deployment's timezone, which is the tell: east of Greenwich it under-fires
+instead.
+
+A plan effective on a given day covers that whole day, so it predates the return only when its
+calendar date is strictly earlier. Both cases are now tested: same-day does not fire, previous-day
+still does. **The failing test was written and watched failing before the fix.**
+
+**Two display bugs.** `inquiry_date` and `target_go_live_date` rendered a day early west of
+Greenwich. The first sits on the *same line* as `expected_move_in_date`, which correctly appends
+`T00:00:00` — the convention was already there and simply not applied.
+
+**`scripts/check-date-only-parsing.mjs`** now enforces it across 25 DATE columns, wired into
+`check:all`. Sorting-only uses are allowlisted explicitly, with the reason: a uniform offset cannot
+change an ordering.
+
+**The check's first version reported three false positives**, and they are worth recording because
+this is the third over-eager detector in three phases:
+
+- `String(offer.shift_date)` — the nested `)` closed the match early, truncating the argument before
+  its `T12:00:00` was visible. Parens are now balanced rather than matched with `[^)]*`.
+- ``T${shift.start_time}`` — a time supplied by an expression rather than a literal digit. The
+  pinned-time test accepts both forms now.
+
+Each time the pattern was the same: the detector did not know something the codebase already did.
+The habit that catches it is checking what the code actually does before believing the tool — the
+same habit that turned an apparent unauthenticated-endpoint finding in Phase 0p into a false alarm.
+
 ### Phase 0q — Auditing the tests themselves
 
 Having written a vacuous assertion in Phase 0o, the obvious question was whether others existed. All

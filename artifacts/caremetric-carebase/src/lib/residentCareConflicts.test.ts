@@ -256,6 +256,35 @@ describe("plan predating a hospital return", () => {
     expect(conflicts.map((conflict) => conflict.kind)).not.toContain("plan_predates_hospital_return");
   });
 
+  // A date-only effective_date compared against an instant is a category error. Parsed as UTC
+  // midnight, a plan made effective the SAME DAY as the return -- very likely because of it --
+  // sorts before any return time later than 00:00Z, so west of Greenwich this fired on plans that
+  // were the response to the return. The direction of the error depends on the deployment's
+  // offset, which is the tell.
+  it("does not fire when the plan takes effect the same day as the return", () => {
+    const conflicts = detectResidentCareConflicts(clean({
+      activePlan: {
+        id: "plan-2", version_number: 4, state: "active",
+        effective_date: "2026-07-26", services: [], interventions: [{ intervention: "Fall checks" }],
+      },
+      // 09:00 in Pennsylvania (EDT) on the same calendar day.
+      hospitalReturn: { episodeId: "ep-1", returnedAt: "2026-07-26T13:00:00.000Z", recordedChanges: true },
+    }));
+    expect(conflicts.map((conflict) => conflict.kind)).not.toContain("plan_predates_hospital_return");
+  });
+
+  // The rule must still fire when the plan genuinely predates the return by a calendar day.
+  it("still fires when the plan predates the return by a day", () => {
+    const conflicts = detectResidentCareConflicts(clean({
+      activePlan: {
+        id: "plan-2", version_number: 4, state: "active",
+        effective_date: "2026-07-25", services: [], interventions: [{ intervention: "Fall checks" }],
+      },
+      hospitalReturn: { episodeId: "ep-1", returnedAt: "2026-07-26T13:00:00.000Z", recordedChanges: true },
+    }));
+    expect(conflicts.map((conflict) => conflict.kind)).toContain("plan_predates_hospital_return");
+  });
+
   it("does not fire when the plan was revised after the return", () => {
     const conflicts = detectResidentCareConflicts(clean({
       activePlan: { id: "plan-2", version_number: 4, state: "active", effective_date: "2026-07-24", services: [], interventions: [{ intervention: "Fall checks" }] },

@@ -125,6 +125,24 @@ const MORE_ASSISTANCE_STATUSES = new Set(["completed_late", "not_completed"]);
 export const DOCUMENTED_ASSISTANCE_THRESHOLD = 3;
 export const DOCUMENTED_ASSISTANCE_WINDOW_DAYS = 14;
 
+/**
+ * The local calendar day an instant falls on, as "YYYY-MM-DD".
+ *
+ * Needed because DATE columns (`effective_date`) carry no time while `timestamptz` columns do, and
+ * comparing the two directly is a category error: `new Date("2026-07-26")` is UTC midnight, so a
+ * same-day return recorded at 09:00 EDT (13:00Z) looks LATER than a plan effective that day.
+ * Everything here is reduced to a calendar day first, and "YYYY-MM-DD" strings compare correctly
+ * with `<` because the format is fixed-width and big-endian.
+ */
+function localCalendarDay(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return null;
+  const month = String(at.getMonth() + 1).padStart(2, "0");
+  const day = String(at.getDate()).padStart(2, "0");
+  return `${at.getFullYear()}-${month}-${day}`;
+}
+
 function asEntries(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is Record<string, unknown> =>
@@ -297,9 +315,15 @@ export function detectResidentCareConflicts(input: CareConflictInput): CareConfl
 
   // 5. The resident returned from hospital with recorded changes, but the plan predates the return.
   if (input.hospitalReturn?.returnedAt && input.hospitalReturn.recordedChanges && input.activePlan) {
-    const planAt = input.activePlan.effective_date ? new Date(input.activePlan.effective_date).getTime() : NaN;
-    const returnAt = new Date(input.hospitalReturn.returnedAt).getTime();
-    if (!Number.isNaN(planAt) && !Number.isNaN(returnAt) && planAt < returnAt) {
+    // Calendar dates, not instants. `effective_date` is a DATE column with no time in it, so
+    // `new Date("2026-07-26")` yields UTC midnight -- which sorts before a same-day return recorded
+    // at any local time after 00:00Z. West of Greenwich that flagged plans written IN RESPONSE to
+    // the return as predating it, and the direction of the error changed with the deployment's
+    // offset. A plan effective on a given day covers that whole day, so it predates the return only
+    // when its date is strictly earlier than the return's local calendar date.
+    const planDay = input.activePlan.effective_date?.slice(0, 10) ?? null;
+    const returnDay = localCalendarDay(input.hospitalReturn.returnedAt);
+    if (planDay && returnDay && planDay < returnDay) {
       const age = daysBetween(input.hospitalReturn.returnedAt, now);
       conflicts.push({
         key: `plan-predates-return:${input.hospitalReturn.episodeId}:${input.activePlan.id}`,
