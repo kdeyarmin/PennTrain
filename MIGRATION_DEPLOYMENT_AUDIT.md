@@ -200,8 +200,9 @@ them:
 
 ## Preventing recurrence
 
-Two layers close the gap — automated deployment, plus a check that fails loudly if drift ever
-reappears.
+Three layers close the gap — automated deployment, a check that fails loudly if drift ever
+reappears, and a PR-time gate that stops deployed migration files from being edited in the
+first place.
 
 ### 1. Automated deploy on merge — `.github/workflows/deploy-migrations.yml`
 
@@ -237,3 +238,26 @@ SUPABASE_ACCESS_TOKEN=sbp_... pnpm run check:migration-drift
 It needs a Supabase access token, so it belongs in the credentialed deploy job above (where it
 already runs as the final step) rather than untrusted PR CI. A green run is the proof that
 "every migration is deployed."
+
+### 3. Immutability gate — `scripts/check-migration-immutability.mjs` (`pnpm run check:migration-immutability`)
+
+The drift check's CONTENT class exists because deployed migration files kept being edited
+after the fact — 93 mismatches accumulated (mostly a rebrand find/replace sweeping historical
+files), and one real never-deployed `revoke` hid in that noise. This gate moves the rule to PR
+time, where the feedback lands on the person making the edit: the `migration-immutability` CI
+job fails a pull request that modifies, deletes, or renames a migration file whose version is
+already applied on the remote. Comment-only and string-only edits fail too — those are exactly
+what a repo-wide find/replace produces.
+
+```bash
+node scripts/check-migration-immutability.mjs --base origin/main
+```
+
+With `SUPABASE_ACCESS_TOKEN` set it reads the remote ledger; without one (fork PRs, local
+runs) it conservatively treats every migration file on the base ref as deployed, which is
+accurate here because merges to `main` deploy automatically (layer 1 above). If a deployed
+migration genuinely needs different behavior, write a new migration. If a file must be
+corrected in place for reasons a new migration cannot express, add or revise that version's
+entry in `scripts/migration-content-allowlist.json` (with a written reason) in the same PR —
+the gate accepts the edit and the drift check then verifies the recorded divergence. Deleting
+a deployed migration file is never accepted.
