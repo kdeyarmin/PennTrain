@@ -1,5 +1,5 @@
 begin;
-select plan(7);
+select plan(8);
 
 -- An undifferentiated backlog of 188 tables is only slightly more useful than the invisible list it
 -- replaced. These assertions are about the backlog being ORDERED by consequence: the tables holding
@@ -21,37 +21,64 @@ select ok(
 );
 
 -- The evidence is a schema fact, so it is checked against the schema, not against a stored list.
+--
+-- Both assertions below were originally written with the SAME one-hop rule the migration used, which
+-- made them restatements rather than tests: the converse could not see a table two hops from a
+-- resident because it was looking for exactly what had already been flagged. Twenty tables were
+-- missed that way -- clinical_observation_amendments, clinical_progress_note_versions, the
+-- change-of-condition history and follow-up tables, and four resident-complaint tables. They are
+-- written against the transitive CLOSURE now, so the property is "reachable from a data subject",
+-- not "matches the query somebody happened to run".
+create or replace function pg_temp.subject_closure()
+returns table(t text) language sql stable as $fn$
+  with recursive fk(child, parent) as (
+    select c.relname::text collate "C", fc.relname::text collate "C"
+    from pg_catalog.pg_constraint con
+    join pg_catalog.pg_class c on c.oid = con.conrelid and c.relnamespace = 'public'::regnamespace
+    join pg_catalog.pg_class fc on fc.oid = con.confrelid and fc.relnamespace = 'public'::regnamespace
+    where con.contype = 'f' and c.relname <> fc.relname
+  ),
+  closure(t) as (
+    select 'residents'::text collate "C"
+    union select 'employees'::text collate "C"
+    union select fk.child from closure c join fk on fk.parent = c.t
+  )
+  select t from closure
+$fn$;
+
 select is(
-  (select count(*)::int
+  (select coalesce(string_agg(r.table_name, ', ' order by r.table_name), '(none)')
    from app_private.regulated_unclassified_tables() r
-   where not exists (
-     select 1
-     from pg_catalog.pg_constraint con
-     join pg_catalog.pg_class c on c.oid = con.conrelid
-     join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-     join pg_catalog.pg_class fc on fc.oid = con.confrelid
-     where n.nspname = 'public' and con.contype = 'f'
-       and c.relname = r.table_name and fc.relname in ('residents', 'employees')
-   )),
-  0,
-  'every flagged table really is keyed to a resident or an employee'
+   where r.table_name not in (select t from pg_temp.subject_closure())
+     -- Polymorphic subject_type/subject_id tables carry no foreign key at all, so the closure cannot
+     -- reach them; they are flagged on named evidence instead.
+     and r.table_name not in ('compliance_copilot_runs', 'workflow_automation_runs')),
+  '(none)',
+  'every flagged table is reachable from a resident or employee, or named as polymorphic'
 );
--- And the converse: nothing subject-keyed was missed.
+-- The converse, and the one that actually failed. This is the assertion the earlier version could not
+-- make, because it asked the same question the flag was set from.
 select is(
-  (select count(*)::int
+  (select coalesce(string_agg(m.table_name, ', ' order by m.table_name), '(none)')
    from app_private.audit_entity_manifest m
    where m.audit_mode = 'unclassified' and not m.contains_regulated_data
+     and m.table_name in (select t from pg_temp.subject_closure())),
+  '(none)',
+  'no table reachable from a data subject by ANY number of foreign key hops is left unflagged'
+);
+-- A polymorphic subject column is invisible to foreign-key analysis entirely, so it gets its own
+-- assertion rather than relying on the two names above staying correct.
+select is(
+  (select coalesce(string_agg(m.table_name, ', ' order by m.table_name), '(none)')
+   from app_private.audit_entity_manifest m
+   join pg_catalog.pg_class c on c.relname = m.table_name and c.relnamespace = 'public'::regnamespace
+   where m.audit_mode = 'unclassified' and not m.contains_regulated_data
      and exists (
-       select 1
-       from pg_catalog.pg_constraint con
-       join pg_catalog.pg_class c on c.oid = con.conrelid
-       join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-       join pg_catalog.pg_class fc on fc.oid = con.confrelid
-       where n.nspname = 'public' and con.contype = 'f'
-         and c.relname = m.table_name and fc.relname in ('residents', 'employees')
+       select 1 from pg_catalog.pg_attribute a
+       where a.attrelid = c.oid and not a.attisdropped and a.attname = 'subject_type'
      )),
-  0,
-  'no subject-keyed table is left unflagged in the backlog'
+  '(none)',
+  'no table carrying a polymorphic subject_type is left unflagged either'
 );
 
 -- Flagging must not be mistaken for classifying ---------------------------------------------------
