@@ -1,0 +1,247 @@
+{
+  "course": "PA-DHS-STANDALONE-INFECTION-CONTROL",
+  "slides": "infection-control-slides.json",
+  "note": "Ten studio blocks, same shape as falls-prevention.json. Each stays near three minutes so its file clears the ~50MB storage re-host. Kevin's three existing segments are reused by scriptFile rather than duplicated here; the narration written inline covers the material those three do not — the transmission routes, hand-hygiene technique, protective equipment, transmission-based precautions, and cluster recognition.",
+  "blocks": [
+    {
+      "id": "ic-b1-stakes",
+      "title": "Why a little bit sick is a different thing in your building",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-infection-control-1.txt"
+        }
+      ]
+    },
+    {
+      "id": "ic-b2-chain",
+      "title": "The five rides an infection can take",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-sec-chain",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ic-chain",
+          "script": "Before we get into technique, I want you to have a picture in your head of how this actually moves. Once you can see the route, you stop needing to memorize rules, because the rules start to look obvious.\n\nAn organism does not travel on its own. It needs a ride. And in a building like yours there are about five rides available, which is genuinely good news, because you only have to break one link to stop the whole thing.\n\nThe busiest one by a mile is hands. Yours, mostly. You touch a resident, you touch a rail, you touch a doorknob, you touch the next resident, and none of that felt like a hazard while you were doing it. That is the whole point. It never feels like anything.\n\nSecond is equipment that moves. A blood pressure cuff goes on six arms before lunch. A glucose meter goes down the hall in somebody's pocket. A walker gets pushed out of one room and parked in another. Those things travel, and whatever is on them travels with them.\n\nThird is surfaces, and specifically the ones everybody touches. Bed rails. Call bells. Doorknobs. And the handrails in the corridor, which is the one nobody thinks about, and which every unsteady resident in that building runs a hand along twice a day.\n\nFourth is droplets. Somebody coughs, and what comes out of them carries a few feet and lands. A few feet is normal conversation distance. A few feet is you leaning in because they are hard of hearing.\n\nAnd fifth is the dirty end of it. Linen, waste, and anything shaken out into the air.\n\nThat is the list. Everything else in this course is just a specific way of cutting one of those five."
+        }
+      ]
+    },
+    {
+      "id": "ic-b3-hands",
+      "title": "When hands get cleaned, and the spots they miss",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-sec-hands",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ic-moments",
+          "script": "So. Hand hygiene. I know. You have been hearing about this since you were four years old, and I am not going to insult you by explaining that germs are bad.\n\nWhat I do want to do is get specific about when, because when is where it actually breaks down. Not whether people believe in it. When.\n\nBefore you touch a resident, and after. Both. The after is the one everybody remembers, and the before is the one that protects them from you.\n\nBefore anything clean. A dressing change, a meal, a med pass. Anything where your hands are about to go somewhere sterile, or somewhere that ends up in a person's mouth.\n\nAfter body fluids. Always. There is no version of that one with an exception in it.\n\nAfter gloves come off. I said this a few minutes ago and I am going to keep saying it, because it is the single most common gap in this whole subject. Your hands get contaminated coming out of gloves nearly every time. The wash after is not the optional wash. It is the one that counts.\n\nAnd the last one surprises people. After you touch the room, even if you never touched the resident. You went in to fix a curtain and you leaned on the bed rail on your way past. That rail is the resident. Same thing.\n\nIf you want one shortcut that covers all of it, here it is. Any time you cross a doorway, and any time your hands change what they are doing, clean them."
+        },
+        {
+          "type": "slide",
+          "slide": "ic-technique",
+          "script": "Now the technique, quickly, because there are four spots that hands genuinely do not wash on their own.\n\nThumbs. Thumbs are the most skipped surface on the human hand and it is not close. Watch somebody wash sometime. The palms get scrubbed like they owe them money, and the thumbs just come along for the ride.\n\nFingertips, and under the nails. Which is the end of your hand that actually touches everything.\n\nBetween the fingers.\n\nAnd the wrists, if a glove cuff or a sleeve was sitting there.\n\nTwenty seconds, and the twenty seconds is not magic. The friction is what does the work. You are not really killing anything with hand soap so much as physically pulling it off your skin and sending it down the drain. That is why the rinse matters, and it is why a quick pass under running water with no scrubbing accomplishes close to nothing.\n\nOne more and then I will leave your hands alone. Rings, watches, and long nails hold onto exactly what you just washed off. If you wear them at work they need the same attention the rest of your hand gets. Honestly, a plain band and short nails will save you the trouble."
+        }
+      ]
+    },
+    {
+      "id": "ic-b4-ppe",
+      "title": "The alcohol exception, and the order that keeps you clean",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-cdiff",
+          "script": "Before we move on, one exception that people carry down the hall without ever knowing they did it.\n\nAlcohol rub does not kill C. diff spores. It does not weaken them. It does not slow them down. It moves them.\n\nSo if a resident has diarrhea — and I mean any diarrhea, not only a resident with a confirmed diagnosis, because most of the time you do not have the diagnosis yet — you use soap and water. Friction and a rinse. Every time.\n\nI want to be clear about why this one gets missed so reliably. It is not ignorance. It is that the pump on the wall is right there, and it is fast, and using it feels responsible. You are doing the conscientious thing. And you are walking spores to the next room while you do it.\n\nThat is the worst kind of failure to catch, because there is nothing about it that feels like cutting a corner."
+        },
+        {
+          "type": "slide",
+          "slide": "ic-sec-ppe",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ic-ppe-order",
+          "script": "Alright. Protective equipment.\n\nThere is an order, and the order is not somebody being fussy. It is built so that the dirtiest thing comes off first, and so that your hands are the last thing that ever gets near your face.\n\nGoing on: clean hands, then the gown, then the mask, then eye protection, then gloves. Gloves last, over the gown cuffs.\n\nComing off, you reverse it, and this half is the half that matters. Gloves first, because by then they are the dirtiest thing you own. Clean your hands. Then eye protection. Then the gown — and pull it away from you, roll it inward, do not drag the front of it across your uniform. Then out of the room, and the mask comes off last, by the ties or the loops, without touching the front of it.\n\nThen clean your hands again, the moment the last piece is in the bin.\n\nIf you remember nothing else from this part, remember that taking it off is the dangerous half. Putting it on, everything in your hands is clean. Taking it off, every single item in your hands is contaminated, and you are doing it at the end of a task when you are already thinking about the next one.\n\nThat is the sixty seconds where protective equipment stops protecting anybody."
+        }
+      ]
+    },
+    {
+      "id": "ic-b5-ppefail",
+      "title": "How protective equipment quietly stops working",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-ppe-fail",
+          "script": "Let me name the specific ways it goes wrong, because I have watched every one of these happen, and not one of them was done by a careless person.\n\nA mask under the nose. Or pulled down to talk, which is exactly backwards, because talking is when you are producing the most of what the mask is there to catch. A mask under your nose is a chin strap. It is doing nothing at all.\n\nGloves worn from room to room. Somebody is saving a trip, and I understand the arithmetic — you are behind, the box is back by the door, it is thirty seconds. But a glove you have already used is a hand you have already contaminated, and now it is a hand that never has to get washed.\n\nAnswering a phone with gloves on. Opening a door. Pulling out your own phone, which is the modern version of this and which nobody talks about. Whatever you touch with a used glove just joined the chain.\n\nPulling a gown off over your head, dragging the contaminated front of it across your face on the way. Untie it, pull it away from your body, roll it in on itself.\n\nAnd reaching up to adjust a mask with the gloves you were just working in. That one is almost a reflex. It puts your hands an inch from your eyes and your nose, which is the exact destination the whole outfit exists to protect."
+        },
+        {
+          "type": "avatar",
+          "script": "I want to say one thing about all of that, and then we will move on.\n\nNone of those failures are laziness. Every one of them is what a competent person does when they are short-staffed and moving fast and trying to get to everybody. The glove that stays on is somebody trying to save thirty seconds for a resident who is already waiting.\n\nI have been on the scheduling side of this. I know what those shifts feel like.\n\nBut the whole reason we sit down with this once a year is to put it back in front of you when you are not in the middle of it. So that when you are in the middle of it, the right thing is the automatic one. You do not get to reason it through at eleven o'clock at night on a short shift. You just do whatever you have already made a habit."
+        }
+      ]
+    },
+    {
+      "id": "ic-b6-wipe",
+      "title": "The two-second wipe, and what contact time actually means",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-sec-surfaces",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-infection-control-2.txt"
+        },
+        {
+          "type": "slide",
+          "slide": "ic-contact-time",
+          "duration": 6
+        }
+      ]
+    },
+    {
+      "id": "ic-b7-shared",
+      "title": "Equipment that travels, and why everybody gets the same care",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-shared",
+          "script": "Let me put a finer point on the equipment, because this is where a building's habits show.\n\nThe blood pressure cuff, the thermometer, the glucose meter. Those touch skin, they touch a lot of it, and they go arm to arm all morning.\n\nWheelchairs and walkers. The lift, and the sling. The sling is the one I would watch — it holds body weight, it holds moisture, and in a lot of buildings it just lives draped over something in a corner between uses.\n\nBed rails, call bells, over-bed tables. Doorknobs, handrails, light switches.\n\nAnd then the general rule, which covers everything I forgot: whatever you carried into a room, you are about to carry back out of it.\n\nBetween residents. Not at the end of the shift. Not when it starts to look dirty. Between residents, every time.\n\nAnd if the habit on your hall is a wipe-down at the end of the day, I would bet money on how that started. One person, one time, drowning, doing the best they could with what that shift handed them. And then it became how it is done, and nobody ever actually decided it. It has been quietly walking things room to room ever since.\n\nHabits like that do not need a bad person to form. They need one bad day and nobody noticing."
+        },
+        {
+          "type": "slide",
+          "slide": "ic-standard",
+          "script": "Underneath all of this sits one idea, and if you take a single sentence out of this course, take this one.\n\nYou cannot look at a person and know.\n\nYou cannot tell by looking who is carrying something. Not by how they seem, not by how clean the room is, not by whether there is a diagnosis written down anywhere. Plenty of people carry organisms without a single symptom. And the residents with a documented diagnosis are, if anything, the safer half of your building, because everybody already knows to be careful with them.\n\nSo everybody gets the same protection. Same hand hygiene, same equipment cleaning, same care with linen and with sharps. That is what standard precautions means. Standard, as in the same, applied to everyone.\n\nAnd the reason that matters is not only clinical. The second you start sorting residents into who seems risky and who does not, two things happen. You get a resident judged for a diagnosis that is genuinely nobody's business, in the place where they live. And you miss the one nobody suspected, who is the one who actually spreads it.\n\nTreating everybody the same is the protective thing and the decent thing at the same time. That does not happen very often. When it does, it is worth noticing."
+        }
+      ]
+    },
+    {
+      "id": "ic-b8-precautions",
+      "title": "What the sign on the door is asking for",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-sec-precautions",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ic-precaution-types",
+          "script": "Sometimes standard is not enough, and something goes up on a door.\n\nThat sign is asking you for one of three things, and it is worth knowing which, because they protect against completely different routes.\n\nContact precautions. Gown and gloves, and equipment that stays in that room. This is for things that move by touch — on hands, on rails, on the cuff you were about to carry to the next resident.\n\nDroplet precautions. A mask, because what comes out of a cough or a sneeze carries a few feet and then falls. You do not need a fitted respirator for that. You need something between their air and your face while you are close to them.\n\nAirborne precautions. A fitted respirator, and the door stays closed. Much smaller particles, they hang in the air, and an ordinary surgical mask is not built for it. If your building puts one of those up, that is a get-help-and-do-it-right situation, not a wing-it situation.\n\nTwo practical things. Supplies belong at the door, stocked, before anybody needs them. A precaution that requires a walk down to the supply closet is a precaution that gets skipped at two in the morning, and I do not entirely blame the person who skips it.\n\nAnd read the sign every time. Precautions change. They go up, they change type, they come down, and nobody is going to page you about it. That sign is the entire notification system."
+        },
+        {
+          "type": "slide",
+          "slide": "ic-dignity",
+          "script": "Now the part the sign does not say.\n\nA precaution sign is about an organism. It is not a verdict on a person.\n\nHere is what happens on precautions, in every building I have ever worked in. The visits get shorter. Staff do what has to be done and get out. Nobody sits down anymore. That little bit of conversation that normally happens while you are straightening a blanket just stops happening, because there is a gown involved and you are already behind.\n\nAnd the resident feels every bit of it. They know exactly when people started treating them differently. A lot of them read it as being unclean, or as being a burden, and most of them will never say so.\n\nSo put the gown on. Put the gloves on. Do it right. And then go in and stay a minute longer than the task actually requires, because the isolation that does the real damage in a personal care home is usually not the medical kind."
+        }
+      ]
+    },
+    {
+      "id": "ic-b9-notice",
+      "title": "Immobility, atypical presentation, and coming to work sick",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-sec-notice",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-infection-control-3.txt"
+        },
+        {
+          "type": "slide",
+          "slide": "ic-immobility",
+          "script": "Let me leave that list somewhere you can see it, because it is the half of this requirement people skip past.\n\nMuscle goes in days. Not months. Days. Skin breaks down over the hips and the tailbone. Everything backs up, appetite included. And the lungs stop clearing, because nobody takes a deep breath lying flat, which is how pneumonia gets an open door.\n\nSo turning somebody on schedule is infection prevention. Walking them down to the dining room instead of reaching for the wheelchair because it is faster is infection prevention. Actually looking at skin while you have already got them uncovered is infection prevention. It is just infection prevention far enough upstream that there is nothing to prevent yet."
+        }
+      ]
+    },
+    {
+      "id": "ic-b10-close",
+      "title": "Two is a pattern, and what to carry out of this hour",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ic-outbreak",
+          "script": "One more thing before we close, and it is the thing that turns a bad week into a manageable one.\n\nTwo is a pattern.\n\nNot proof of anything, and not your job to interpret. But the moment there are two, somebody above you needs to know, and the day you notice is worth a great deal more than the day it becomes obvious to everybody.\n\nTwo residents on the same hall with the same symptom. Two staff calling off in the same week with the same thing, which almost nobody connects, because call-offs feel like scheduling and not like information. Several meal trays coming back untouched at once. A rash in more than one room. Diarrhea in more than one room, which is the one I would move fastest on.\n\nNone of that is a diagnosis and none of it is your call. Your job is to say it out loud, to somebody who can act, the same day.\n\nAnd I will tell you what actually stops that from happening, because it is not indifference. It is that each person only ever sees their own piece. You know about your hall. The evening aide knows about hers. The kitchen noticed the trays. Nobody has the whole picture, and the whole picture is the only place a pattern lives.\n\nSo report the small thing that seems like nothing. That is how somebody else gets to see it."
+        },
+        {
+          "type": "slide",
+          "slide": "ic-close",
+          "script": "So here is what I would carry out of this hour, if I were you.\n\nWash your hands after the gloves come off. Soap and water for anything with diarrhea in it. Let the disinfectant sit as long as the bottle says it needs. Clean the equipment between residents and not at the end of the day. Treat everybody the same. Say the small thing out loud the day you notice it. And if you are sick, stay home — and I know exactly what I am asking."
+        },
+        {
+          "type": "avatar",
+          "script": "That is the whole course, and I want to end honestly.\n\nEverything in this hour is unglamorous. Nobody is ever going to walk up and thank you for the infection that did not happen, because nobody will ever know that it did not happen. There is no moment where the good outcome announces itself.\n\nWhat there is instead is a building where people get sick less often. Where the ones who do get caught early. Where somebody's daughter does not get the phone call that starts with, I'm afraid there's been a change.\n\nThat is real, and you are the reason for it, and almost nobody is ever going to say so out loud.\n\nSo I am saying it now. Thanks for sitting through this. Go take care of your people."
+        }
+      ]
+    }
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "ic-b1-stakes": {
+        "video_id": "71a0a995c71149e6ac5145e5cac68b7a",
+        "seconds": 135,
+        "mb": 24.6
+      },
+      "ic-b2-chain": {
+        "video_id": "a22e702f703941f2941ad355979403f3",
+        "seconds": 98,
+        "mb": 3.4
+      },
+      "ic-b3-hands": {
+        "video_id": "4a4ff79bbb58475db22f01d6ed5a850e",
+        "seconds": 148,
+        "mb": 5.1
+      },
+      "ic-b4-ppe": {
+        "video_id": "a5ee1b7e363b424f90b640eb5ebd4114",
+        "seconds": 118,
+        "mb": 4
+      },
+      "ic-b5-ppefail": {
+        "video_id": "8382aabe3b60483a946f55f506ed9776",
+        "seconds": 112,
+        "mb": 10.1
+      },
+      "ic-b6-wipe": {
+        "video_id": "34223ce4359941d18e35917af855df6e",
+        "seconds": 149,
+        "mb": 28.1
+      },
+      "ic-b7-shared": {
+        "video_id": "a114bd8f91e540478be1648dbe9d96b7",
+        "seconds": 146,
+        "mb": 4.9
+      },
+      "ic-b8-precautions": {
+        "video_id": "d311b331b4d44a91bed9ed787f8e8c19",
+        "seconds": 136,
+        "mb": 4.7
+      },
+      "ic-b9-notice": {
+        "video_id": "14ff0bef4dbf4b4cbf855bdcdd0d1c08",
+        "seconds": 193,
+        "mb": 29.5
+      },
+      "ic-b10-close": {
+        "video_id": "02618e7011f74ca0b3a7ffef47fcd297",
+        "seconds": 136,
+        "mb": 10.6
+      }
+    }
+  }
+}

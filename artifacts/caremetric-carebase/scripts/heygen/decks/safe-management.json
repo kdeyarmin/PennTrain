@@ -1,0 +1,242 @@
+{
+  "course": "PA-DHS-STANDALONE-SAFE-MANAGEMENT",
+  "slides": "safe-management-slides.json",
+  "note": "Ten studio blocks, same shape as falls-prevention.json and infection-control.json. Each stays near three minutes so its file clears the ~50MB storage re-host. Kevin's three existing segments are reused by scriptFile rather than duplicated here; the narration written inline covers what those three do not — the early signs of escalation, why reasoning fails in dementia, how to enter a room, the exact words to use and avoid, the care tasks this goes wrong in, and recognizing your own escalation.",
+  "blocks": [
+    {
+      "id": "sm-b1-communication",
+      "title": "Behavior is communication, and it is almost never about you",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-safe-management-1.txt"
+        }
+      ]
+    },
+    {
+      "id": "sm-b2-early",
+      "title": "What escalation looks like before anyone raises a voice",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-sec-early",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "sm-early",
+          "script": "Here is the thing almost nobody tells you when you start in this work. By the time a situation looks like a situation, you have already missed the easy part of it.\n\nBecause escalation is not a switch. It is a ramp. And there are usually several minutes on that ramp where a very small thing from you would have ended it, and where instead everybody was busy and nobody looked up.\n\nSo let me tell you what the ramp looks like, because once you can see it you will see it constantly.\n\nPacing. Or starting something and abandoning it, then starting it again. A resident who picks up a sweater, puts it down, picks it up, puts it down. That is not fidgeting. That is somebody who cannot settle, and they cannot settle because something is wrong that they have not been able to name yet.\n\nThe same question over and over. Where's my room. Where's my room. Where's my room. It is easy to hear that as a memory problem and answer it flatly for the fourth time. It is usually anxiety wearing a question as a costume, and answering the anxiety works better than answering the question.\n\nFollowing you around. Standing in a doorway. Shadowing one particular staff member. That is a person who has decided the world is not safe right now and has picked you as the safe thing in it, which is a compliment and a warning at the same time.\n\nWatch hands. Wringing. Fists that open and close. Picking at clothing or at their own skin. Hands escalate before mouths do, almost every time.\n\nAnd listen for speed before volume. People get fast before they get loud. If somebody's sentences are suddenly coming quicker than usual, you have maybe two minutes.\n\nNone of that requires a specialist to notice. It requires somebody in the hallway who is actually looking. That is the whole skill."
+        }
+      ]
+    },
+    {
+      "id": "sm-b3-dementia",
+      "title": "Cannot, not will not",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-sec-dementia",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "sm-cant-wont",
+          "script": "I want to give you one distinction, and I think it is the single most useful idea in this entire course.\n\nAlmost everything that looks like will not is actually cannot.\n\nA resident who does not follow your three-step instruction is very rarely refusing it. They lost it somewhere around step one and have been standing there since, and what you are watching is a person trying to cover for that. Which people do. Anybody would.\n\nA resident who will not get in the shower may not be able to work out what the shower is for right now, or may not recognize the room, or may be genuinely frightened of the sound of running water in a tiled space, which is a lot louder than you think it is when your hearing aid amplifies it.\n\nAnd here is why the distinction is worth carrying around. The error is not symmetrical.\n\nIf you treat a cannot like a will not, you push. You repeat the instruction, more firmly. You get frustrated, they feel the frustration, and now you are in a fight with somebody who never had the ability to do what you asked. That is how people get hurt.\n\nIf you treat a will not like a cannot, you slow down, simplify, and give them room. And if it turns out they genuinely were refusing, you have lost thirty seconds and they still get to refuse, because refusing care is their right anyway.\n\nSo one of those mistakes costs almost nothing and the other one costs a great deal. Guess cannot. Guess it every time."
+        },
+        {
+          "type": "slide",
+          "slide": "sm-catastrophic",
+          "script": "There is a specific thing that happens with dementia that has a name worth knowing, because if you do not know it you will take it personally. A catastrophic reaction. A response completely out of proportion to whatever set it off — tears, or shouting, or swinging, over a cardigan.\n\nWhat is actually happening is that the person is overwhelmed, and their ability to sort out which things matter has gone. Every input is arriving at the same volume. So the cardigan is not the cardigan. The cardigan is the last thing that landed on a pile that was already full.\n\nThe things that fill that pile are predictable. More than one instruction at a time. Being asked to remember something, which is being asked to perform the exact thing they know they are losing. Noise, and mirrors, and crowds, and a television going in a room where somebody is also talking to them. Late afternoon, when the day has genuinely used them up. And being touched before being spoken to, which startles anybody.\n\nWhen you see a reaction that seems way out of scale, do not go looking for what they are angry about. Go looking for what to remove. Turn something off. Send somebody out of the room. Stop asking questions. Take one thing off the pile, then wait, and very often you will watch the whole thing come down on its own."
+        }
+      ]
+    },
+    {
+      "id": "sm-b4-approach",
+      "title": "The thirty seconds before the task starts",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-sec-approach",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "sm-approach",
+          "script": "Most of what determines how a care task goes is decided before you touch anybody. It is decided in about thirty seconds, at the door.\n\nKnock. Then wait long enough to actually be seen. Not knock-and-enter as one motion, which is what a busy building teaches everybody to do within a week. You are walking into somebody's home. It is a small room and it is the only private thing they have got.\n\nApproach from the front. Never the blind side, and if you know somebody has lost vision on one side, then coming at them from there is a jump scare every single time and they will never get used to it.\n\nSay who you are and what you came in for. Every time, even if you were in that room forty minutes ago, because forty minutes ago may not exist anymore. Not a quiz — do you remember me — which is a test they might fail. Just the answer. It's Kevin, I'm here to help you get ready for lunch.\n\nGet down to eye level. If you are standing over somebody in a chair or in a bed, you are applying pressure before you open your mouth, and you cannot talk your way back out of it.\n\nAnd ask before you touch. Every time. I'm going to lift your arm now. That is not a formality and it is not slower. It is the difference between care and something happening to you."
+        },
+        {
+          "type": "slide",
+          "slide": "sm-one-thing",
+          "script": "And then the most reliable technique in this entire course, which is almost embarrassingly simple.\n\nOne instruction. Then wait.\n\nNot the plan for the next ten minutes. Not, we're going to get you up and get you dressed and then head down for lunch. That is three tasks and a schedule, and for somebody whose working memory is going, it arrives as noise.\n\nJust the next single step. Then stop talking, and give it time to land.\n\nThe waiting is the part people skip, and it is the part that works. Processing takes longer than you think — sometimes ten or fifteen seconds, which feels like an eternity when you are behind. So we fill it. We repeat ourselves. We add a second instruction on top of the first one that has not been understood yet. And every addition makes it harder.\n\nCount it out in your head if you have to. Ask, then wait, and let it be quiet."
+        }
+      ]
+    },
+    {
+      "id": "sm-b5-technique",
+      "title": "What actually works once it has started",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-sec-words",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-safe-management-2.txt"
+        }
+      ]
+    },
+    {
+      "id": "sm-b6-words",
+      "title": "The sentences that help, and the ones that do not",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-say",
+          "script": "Let me get very specific about words, because in the moment nobody composes a sentence. You say whatever you already had loaded. So it is worth loading a few good ones now.\n\nYou're right, that isn't fair. You would be amazed. Somebody who is furious is usually furious about something that genuinely is not fair — they cannot go home, they cannot find their things, somebody they do not know is in their bathroom. Agreeing with the feeling costs you nothing and it stops the argument before it starts, because now you are on the same side of it.\n\nI can hear how upset you are. Naming it out loud does something. People escalate partly to be believed, and the moment they are believed, the reason to escalate drops away.\n\nTell me what happened. This one is underrated. It hands them the floor, which is a piece of control, and it is real — you might learn the actual problem, which is very often not the thing they are shouting about.\n\nWe can do this later. Say it and mean it. Almost nothing you are doing has to happen in the next ten minutes. Saying so takes the fight out of the room instantly, because the fight was about whether it was going to be forced.\n\nAnd, what would help right now. Sometimes they know. Sometimes the answer is small and you can just do it."
+        },
+        {
+          "type": "slide",
+          "slide": "sm-dont-say",
+          "script": "Now the other list, and I want to be fair about it: every one of these is a thing decent people say when they are tired. I have said most of them.\n\nCalm down. Nobody in recorded history has ever calmed down because they were told to. What it actually communicates is, your reaction is the problem here, which adds one more thing to be upset about.\n\nYou have to let me do this. They do not, and they know they do not, and now you have picked a fight over a claim that is not even true. Refusing care is a right.\n\nI already told you. This is the one that stings, because it is a small punishment for a memory problem. And they hear the tone even when the words go by.\n\nThen the hardest one. Your daughter isn't coming, she died. When somebody with dementia is waiting for a person who is gone, correcting them does not inform them. It delivers the death as fresh news, and they grieve it like it is new, and an hour later you may get to do it again. You do not have to lie. You can go to the feeling instead — you miss her, tell me about her — and that is both kinder and more honest than a debate about the calendar.\n\nAnd, there's nothing to be upset about. There is. There always is. You just have not found it yet."
+        }
+      ]
+    },
+    {
+      "id": "sm-b7-flashpoints",
+      "title": "The tasks this goes wrong in, and how to restructure them",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-sec-flashpoints",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "sm-flashpoints",
+          "script": "If you pulled every incident report in a building like yours and sorted them by what the staff member was doing at the time, you would get almost the same list every time.\n\nShowers and bathing, well ahead of everything else. Dressing, especially being undressed with somebody watching. Toileting and incontinence care. Being moved — a transfer, or being asked to leave a room they do not want to leave. And medication somebody does not want to take.\n\nLook at what those five have in common. Every one of them involves a stranger's hands, on or near a body, doing something the person did privately and independently for eighty years. Every one is a moment where an adult is being handled.\n\nThat is not a coincidence and it is not a behavior problem. That is a predictable human response to a genuinely difficult situation, and the fact that it is predictable is the good news, because predictable things can be planned for.\n\nSo the move is not to brace for these tasks. It is to restructure them. Slow them down, do them in a warm room, do them with fewer people, do them at the time of day that resident is at their best rather than the time of day that suits the schedule. And narrate everything one step ahead, so nothing lands as a surprise."
+        },
+        {
+          "type": "slide",
+          "slide": "sm-shower",
+          "script": "Take the shower, since it leads the list by such a margin.\n\nThink about what you are actually asking. Take your clothes off. Be cold. Be wet. Be held by somebody you might not recognize, in a hard room where everything echoes, while the water makes it difficult to hear anything being said to you.\n\nAsk that of anybody in this building — staff included — and you would get a fight. It is not a dementia problem. It is a completely reasonable reaction to a genuinely awful set of conditions.\n\nSo change the conditions. Warm the room before they get in it, and warm the towels if you can. Keep them covered as much as the job allows, and uncover only the part you are working on. Say every step before it happens, not while it happens. Let them hold something — a washcloth, a rail, anything gives their hands a job and gives them something that is theirs.\n\nAnd if it still is not working, a bed bath today is not a failure. A resident who is clean and calm beat a resident who is very clean and terrified, every time."
+        }
+      ]
+    },
+    {
+      "id": "sm-b8-limits",
+      "title": "Restraint, coercion, and the line that does not move",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-sec-limits",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-safe-management-3.txt"
+        }
+      ]
+    },
+    {
+      "id": "sm-b9-you",
+      "title": "When you are the one escalating",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-sec-you",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "sm-your-signs",
+          "script": "This whole course has been about a resident. There is somebody else in the room.\n\nYou escalate too. Everybody does. And your escalation is harder to notice because it is happening on the inside of your own head, where you are also the one narrating it.\n\nSo here are the signs, and I would ask you to actually memorize these, because catching your own is worth more than any technique I have given you.\n\nYour voice got louder and you did not decide to. That is the earliest one and the most reliable.\n\nYou are explaining the same thing again, harder. Repeating with more force is what people do when they have run out of ideas, and it never once works.\n\nYou have started arguing about the facts. The coat was not stolen, her mother is not coming. The moment you are litigating reality, you have left the actual job.\n\nYou want to win more than you want to leave. That is the big one. If finishing this task has started to feel like a matter of principle, it is not about care anymore.\n\nAnd you are thinking about last week. What they said to you on Tuesday, or what they called you in front of a family member. That is you carrying something in, and it is completely human, and it means you are the wrong person for this particular ten minutes."
+        },
+        {
+          "type": "avatar",
+          "script": "And when you spot one of those in yourself, the answer is simple and it is not complicated by ego: hand it off.\n\nGo get a coworker. Trade tasks. Take their hall for ten minutes and let them take this room.\n\nI want to say something about that, because I know how it feels the first several times. It feels like losing. It feels like the resident won, or like you could not manage something a better aide would have managed.\n\nIt is not that. Somebody says no to me at nine o'clock and yes to my coworker at nine fifteen, and that is not a verdict on me. Sometimes it is a voice, or a height, or a face that reminds them of somebody. You will never know which, and it does not matter.\n\nThe people who last in this work are not the ones who never need help. They are the ones who ask early, while it is still a small ask."
+        }
+      ]
+    },
+    {
+      "id": "sm-b10-after",
+      "title": "What you write down, and what to carry out of this course",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "sm-document",
+          "script": "Afterward, you write it down, and how you write it matters more than people think.\n\nThe rule I would give you is: write what a camera would have seen.\n\nNot resident was combative. That tells the next person nothing they can use. It is a conclusion wearing the costume of an observation, and it quietly moves the problem onto the resident, where it will sit in their record for years.\n\nWrite what was happening right before it started, because that is the part that prevents the next one. Was it a shower. Was it four o'clock. Had somebody just told her she could not go home.\n\nWrite what they said, in their words. Her words are evidence. Your summary of her words is not.\n\nWrite what you tried, and in what order. This is the part everybody leaves out, and it is the part that helps your coworker tomorrow, because now they know what has already been ruled out.\n\nWrite what they did, in actions rather than adjectives. Pushed my hand away and stood up is useful. Was aggressive is not.\n\nAnd write how it ended, and who you told and when.\n\nOne more thing on that. New agitation in somebody who was fine last week is one of the most common ways a urinary tract infection announces itself. Behavior that gets filed under personality is how a real medical problem goes unnoticed for a month. So the report is not paperwork. It is sometimes the only route a sick person has to getting seen."
+        },
+        {
+          "type": "slide",
+          "slide": "sm-close",
+          "script": "So what do you carry out of this hour?\n\nGuess cannot, not will not. One instruction, then wait. Agree with the feeling even when you cannot agree with the facts. Change the conditions rather than bracing for the task. Never bargain with something that already belongs to them. Watch your own voice. And hand it off early."
+        },
+        {
+          "type": "avatar",
+          "script": "I want to close on the thing I would most like you to take with you, and it is a lower bar than people expect.\n\nYou are not in that room to win the next ten minutes. You are in there to get through them with nobody hurt.\n\nThat is it. That is the whole standard. Not to complete the task on schedule, not to prove you were right, not to get somebody to admit their coat was never stolen. Just to come out the other side with two people intact.\n\nAnd I will tell you what I have seen, having watched a lot of people do this work. The ones who are best at it are almost never the ones with the firmest hand. They are the ones who are hardest to provoke. Who can be shouted at and stay curious about why. Who can put a task down and pick it up an hour later without it costing them anything.\n\nThat is a learnable skill, and it is mostly practice, and every single one of you gets more practice at it in a month than most people get in a lifetime.\n\nGo easy on yourself, and go easy on them. Thanks for your time."
+        }
+      ]
+    }
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "sm-b1-communication": {
+        "video_id": "68662b14ef2648c6825caa2477a6ee40",
+        "seconds": 145,
+        "mb": 27.6
+      },
+      "sm-b2-early": {
+        "video_id": "4068c843f1174763ae3d9920be082edb",
+        "seconds": 106,
+        "mb": 3.7
+      },
+      "sm-b3-dementia": {
+        "video_id": "6e3320936d294508930efef422970252",
+        "seconds": 161,
+        "mb": 5.6
+      },
+      "sm-b4-approach": {
+        "video_id": "2f2fbc4ee9364c8393e9fdb0ab05fb86",
+        "seconds": 125,
+        "mb": 4.3
+      },
+      "sm-b5-technique": {
+        "video_id": "c28653494ac74a3fb0d74ad740736223",
+        "seconds": 140,
+        "mb": 26.1
+      },
+      "sm-b6-words": {
+        "video_id": "8ed68fa774ef497c87eb72eb9313776b",
+        "seconds": 139,
+        "mb": 4.6
+      },
+      "sm-b7-flashpoints": {
+        "video_id": "b2c506e6e39c41679722818ea0cd8e55",
+        "seconds": 138,
+        "mb": 4.8
+      },
+      "sm-b8-limits": {
+        "video_id": "bcd5539b516349238e825e743af555da",
+        "seconds": 162,
+        "mb": 30.2
+      },
+      "sm-b9-you": {
+        "video_id": "c140a83182184f8f883f03ab889ef8df",
+        "seconds": 119,
+        "mb": 11.6
+      },
+      "sm-b10-after": {
+        "video_id": "1eea27c178174d24ad4e6594e61f1e0b",
+        "seconds": 156,
+        "mb": 14.3
+      }
+    }
+  }
+}

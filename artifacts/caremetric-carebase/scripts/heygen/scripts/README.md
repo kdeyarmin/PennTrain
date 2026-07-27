@@ -100,3 +100,54 @@ Seed the narration as text, confirm the object, then rewire.
 `generate-landing-video.mjs` is the sibling script for marketing videos; it
 downloads an MP4 into `public/marketing/`, which is not what a course block
 wants.
+
+## Building a course as a studio deck
+
+The five-minute talking head is not the only shape. `compose-course-video.mjs`
+takes a deck — a JSON list of blocks, each a sequence of `avatar` and `image`
+scenes — and composes twenty-plus minutes of course video out of title cards,
+section frames, and slides Kevin narrates over. `decks/falls-prevention.json` and
+`decks/infection-control.json` are the two worked examples.
+
+Slides are cheaper than avatar footage in both dimensions that matter: about
+0.04MB per second against 0.27, and roughly 59 credits per minute against 178.
+That ratio is what lets a course reach twenty minutes without a twenty-minute
+render or a file that will not re-host. Both existing decks land near 8 avatar
+minutes and 14 slide minutes.
+
+```
+# render the slides; fails if any is clipped
+node scripts/heygen/slides/render-slides.mjs scripts/heygen/decks/<deck>-slides.json
+
+# price it, check every block against the ceilings, spend nothing
+node scripts/heygen/compose-course-video.mjs scripts/heygen/decks/<deck>.json --dry-run
+
+# render one block first if anything about the deck is new
+HEYGEN_API_KEY=... node scripts/heygen/compose-course-video.mjs \
+  scripts/heygen/decks/<deck>.json --only <block-id>
+```
+
+Record the returned ids under the deck's `rendered` key before doing anything
+else. The render is the paid artifact; losing the ids means paying again.
+
+### Two things that will bite you
+
+**Slides are clipped silently, not loudly.** The frame is a fixed 1280x720 with
+`overflow: hidden`, so a slide with one line too many slides under the footer and
+still produces a plausible-looking PNG. `render-slides.mjs` now measures the
+content and fails with the overshoot in pixels, but the copy is what has to
+change: keep a `points` slide to five bullets that each fit one line, around 40
+characters.
+
+**A compliance crosswalk is scoped to `course_version_id`, not `course_id`.** So
+a new version of a course that carries one needs its own row, or moving
+`current_version_id` silently drops the credit the course exists to carry — the
+course stays published and looks entirely correct while awarding nothing. The
+matching trap is the other direction: the old version's row has to be
+*deactivated* in the same step, because the catalog invariant is exactly one
+active mapping per course, on the current version.
+`comprehensive_annual_course_catalog.test.sql` asserts this as "no superseded
+starter version retains an active regulatory mapping", and
+`20260726060000_move_compliance_credit_with_current_version.sql` is the pattern
+for moving it. Of the standalone courses, only infection control carries a
+crosswalk today.

@@ -1,0 +1,4 @@
+# Rendered slide PNGs are a build artifact of render-slides.mjs. The deck JSON
+# beside it is the source; rendering is deterministic, so these are regenerable
+# and would otherwise add megabytes of derived binaries per course.
+slides-out/

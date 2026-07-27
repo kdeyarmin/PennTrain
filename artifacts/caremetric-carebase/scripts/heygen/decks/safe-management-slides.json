@@ -1,0 +1,211 @@
+[
+  {
+    "id": "sm-title",
+    "kind": "title",
+    "eyebrow": "Annual in-service",
+    "title": "Safe Management and De-escalation",
+    "subtitle": "For staff at Pennsylvania personal care homes and assisted living facilities. 55 Pa. Code 2600.65(f)(6) and 2800.65(i)(6).",
+    "footerRight": "One hour · Annual"
+  },
+  {
+    "id": "sm-sec-early",
+    "kind": "section",
+    "eyebrow": "Part one",
+    "title": "Seeing it coming, while it is still cheap to fix",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-early",
+    "kind": "points",
+    "eyebrow": "Minutes before anyone raises a voice",
+    "title": "What escalation looks like early",
+    "points": [
+      "Pacing, or starting and abandoning things",
+      "The same question, over and over",
+      "Following you, or blocking a doorway",
+      "Hands: wringing, fists, picking at clothes",
+      "A voice that got faster before it got louder"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-sec-dementia",
+    "kind": "section",
+    "eyebrow": "Part two",
+    "title": "Why reasoning stops working, and what replaces it",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-cant-wont",
+    "kind": "rule",
+    "eyebrow": "The distinction that changes everything",
+    "quote": "Almost everything that looks like will not is actually cannot.",
+    "attribution": "A resident who cannot follow three steps is not refusing them. Treat a cannot as a will not and you get a fight; treat a will not as a cannot and you lose nothing.",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-catastrophic",
+    "kind": "points",
+    "eyebrow": "A reaction out of all proportion",
+    "title": "What overwhelms a person with dementia",
+    "points": [
+      "More than one instruction at a time",
+      "Being asked to remember something",
+      "Noise, mirrors, crowds, a running television",
+      "Late afternoon, when the day has used them up",
+      "Being touched before being spoken to"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-sec-approach",
+    "kind": "section",
+    "eyebrow": "Part three",
+    "title": "The thirty seconds before you start the task",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-approach",
+    "kind": "points",
+    "eyebrow": "How you walk in decides most of it",
+    "title": "Entering a room without starting something",
+    "points": [
+      "Knock, and wait to be seen before you move",
+      "Approach from the front, never the blind side",
+      "Say who you are and what you came to do",
+      "Get to eye level — standing over is pressure",
+      "Ask before you touch, every single time"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-one-thing",
+    "kind": "rule",
+    "eyebrow": "The most reliable fix in this course",
+    "quote": "One instruction. Then wait.",
+    "attribution": "Not the whole plan for the next ten minutes. The next single step, and then enough silence for it to land. Most refusals are somebody who could not keep up saying so the only way they can.",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-sec-words",
+    "kind": "section",
+    "eyebrow": "Part four",
+    "title": "What to actually say, out loud, in the moment",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-say",
+    "kind": "points",
+    "eyebrow": "Short, and about them",
+    "title": "Sentences that lower the temperature",
+    "points": [
+      "“You’re right, that isn’t fair.”",
+      "“I can hear how upset you are.”",
+      "“Tell me what happened.”",
+      "“We can do this later.”",
+      "“What would help right now?”"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-dont-say",
+    "kind": "points",
+    "eyebrow": "Every one of these adds pressure",
+    "title": "Sentences that make it worse",
+    "points": [
+      "“Calm down.”",
+      "“You have to let me do this.”",
+      "“I already told you.”",
+      "“Your daughter isn’t coming, she died.”",
+      "“There’s nothing to be upset about.”"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-sec-flashpoints",
+    "kind": "section",
+    "eyebrow": "Part five",
+    "title": "The tasks this goes wrong in, almost every time",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-flashpoints",
+    "kind": "points",
+    "eyebrow": "Where the reports come from",
+    "title": "The care moments that start fights",
+    "points": [
+      "Showers and bathing, by a wide margin",
+      "Dressing, and being undressed in front of someone",
+      "Toileting and incontinence care",
+      "Being moved — transfers, or leaving a room",
+      "Medication a resident does not want"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-shower",
+    "kind": "rule",
+    "eyebrow": "Why the shower is the worst one",
+    "quote": "You are asking someone to be undressed, cold, and held by a person they may not recognize.",
+    "attribution": "Ask that of anybody and you would get a fight. Warm the room first, keep them covered, narrate every step before it happens, and let them hold something.",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-sec-limits",
+    "kind": "section",
+    "eyebrow": "Part six",
+    "title": "The line that does not move",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-sec-you",
+    "kind": "section",
+    "eyebrow": "Part seven",
+    "title": "The person in the room this course has not mentioned",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-your-signs",
+    "kind": "points",
+    "eyebrow": "Notice these in yourself",
+    "title": "When you are the one escalating",
+    "points": [
+      "Your voice got louder and you did not decide to",
+      "You are explaining the same thing again, harder",
+      "You have started arguing about the facts",
+      "You want to win more than you want to leave",
+      "You are thinking about what they said last week"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-tap-out",
+    "kind": "rule",
+    "eyebrow": "There is no medal for staying",
+    "quote": "Handing a resident to a coworker is a skill, not a failure.",
+    "attribution": "A resident who says no to you at nine and yes to somebody else at nine fifteen has told you nothing about your competence. Trade the task and take the next one.",
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-document",
+    "kind": "points",
+    "eyebrow": "Write what a camera would have seen",
+    "title": "What goes in the note",
+    "points": [
+      "What was happening right before it started",
+      "What they said, in their words",
+      "What you tried, and in what order",
+      "What they did — actions, not adjectives",
+      "How it ended, and who you told"
+    ],
+    "footerRight": "Safe Management and De-escalation"
+  },
+  {
+    "id": "sm-close",
+    "kind": "rule",
+    "eyebrow": "What to carry out of this course",
+    "quote": "You are not there to win the next ten minutes. You are there to get through them with nobody hurt.",
+    "attribution": "That is a lower bar than winning, and it is the one that actually protects everybody in the room, including you.",
+    "footerRight": "Safe Management and De-escalation"
+  }
+]

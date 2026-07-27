@@ -1,0 +1,238 @@
+{
+  "course": "PA-DHS-STANDALONE-MED-SELF-ADMIN",
+  "slides": "med-self-admin-slides.json",
+  "note": "Ten studio blocks, same shape as the four decks before it. Each stays near three minutes so its file clears the ~50MB storage re-host. Kevin's three existing segments are reused by scriptFile rather than duplicated here; the narration written inline covers what those three do not — what Pennsylvania's self-administration model actually is, the five-rights check as a stop sign rather than authority, why crushing is a medication decision, what a refusal usually means, the drug classes these residents are actually on and the one sign that cannot wait, and everything that arrives from outside the building.",
+  "blocks": [
+    {
+      "id": "ms-b1-line",
+      "title": "The line between supporting and administering",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-med-self-admin-1.txt"
+        }
+      ]
+    },
+    {
+      "id": "ms-b2-model",
+      "title": "What self-administration actually means in Pennsylvania",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-sec-model",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ms-model",
+          "script": "I want to slow down on the model itself, because if you came from a hospital or a nursing home it is genuinely backwards from what you are used to, and people carry the old assumption in without noticing.\n\nIn a hospital, medications are something staff do to patients. That is the default, and self-administration is the rare exception somebody has to argue for.\n\nHere it is the other way around. In a Pennsylvania personal care home or assisted living facility, the starting assumption is that a resident manages their own medications. This is their home. Managing your own pills is an ordinary part of being an adult, and the regulation treats it that way.\n\nSo somebody assesses whether a particular resident can do that safely, and writes that down. And the important word in that sentence is assesses, not assumes — it is a judgment somebody qualified made, on purpose, about that person.\n\nAnd it gets looked at again when things change. Which matters more than it sounds, because things change constantly. A new diagnosis. A hospital stay. A resident who managed a seven-day organizer beautifully for two years and has quietly started getting the days wrong.\n\nThat last one is where you come in, and it is worth saying plainly: if you are watching somebody lose the ability to do this safely, that is a report. Not a suspicion you keep to yourself because you do not want to take something away from her. The assessment exists to be updated, and you are the person standing close enough to notice it should be.\n\nAnd the residents who cannot do it safely get their medications administered — by staff who are certified and authorized to do exactly that."
+        },
+        {
+          "type": "slide",
+          "slide": "ms-two-jobs",
+          "script": "Which produces the situation that makes this course necessary. Two completely different jobs, happening in the same hallway, on the same shift, sometimes in adjacent rooms.\n\nCertified people administer. Everybody else supports.\n\nAnd I want to be blunt about what does not determine which one you are doing. Not how long you have worked here. Not how well you know the resident. Not how comfortable you feel, and not how confident you are that you would get it right — you probably would, honestly, and that is not the point. Not whether the building is short-handed tonight, which is the one that gets people.\n\nOnly whether you hold the certification.\n\nThat is a hard rule and it is meant to be, because the alternative is a rule that bends, and a rule that bends bends hardest on exactly the night it should not — nine at night, no nurse on the floor, and a resident who needs something."
+        }
+      ]
+    },
+    {
+      "id": "ms-b3-check",
+      "title": "The five rights, and the timing decision that is not yours",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-sec-check",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ms-rights",
+          "script": "There is an old checklist in this field called the five rights, and I want to hand it to you in a specific way, because it usually gets taught to the wrong audience.\n\nIt is normally taught as a procedure for the person administering. I want you to carry it as a stop sign, whichever job you are doing. It is not authority. It does not let you do anything you could not do before. It is five things you confirm out loud, and if any one of them does not line up, you stop and you ask somebody.\n\nRight resident. The name on the label is the name of the person in front of you. This sounds too obvious to say until you have watched somebody hand a container to the wrong woman because both of them were sitting in the same lounge and both are named Dorothy.\n\nRight medication. What the label says, matching what is actually in there.\n\nRight dose. How many, and how strong. Two pills of one strength is not the same as one pill of double it, and bottles get refilled at different strengths without anybody mentioning it.\n\nRight time. And genuinely due, not near enough.\n\nRight route. Swallowed, dropped in an eye, inhaled, applied to skin. Sounds impossible to get wrong. It is not — ear drops and eye drops sit next to each other in a lot of drawers and look almost identical.\n\nRun those five and you will catch nearly everything catchable. And when one of them does not line up, you have not caused a problem. You have found one."
+        },
+        {
+          "type": "slide",
+          "slide": "ms-timing",
+          "script": "Timing deserves its own minute, because it is the line that gets crossed most casually and it almost never feels like a decision at all.\n\nA resident says her stomach is off, she will take the morning ones at lunch. You say sure. And it is such a small, accommodating thing to say that it does not register as anything.\n\nBut you just moved a dose. That is a medication decision, and it is not yours to make — not because anybody thinks you are careless, but because the reason the timing matters is very often invisible from where you are standing. Some medications have to be spaced a certain distance apart. Some have to be taken with food, some emphatically without. Some are the reason the next one works.\n\nSame in the other direction. Not early because you are going on break. Not late because she is at lunch and you will catch her after. Not skipped because she seems fine today.\n\nWhat you do instead takes ten seconds. You report it. She does not want it now, here is what she said, when should this happen. Somebody qualified answers, and now it is a decision instead of an accident.\n\nAnd there is a real benefit to you in that, beyond the rule: once you have told somebody, it is documented. If something goes sideways afterward, the record shows a resident who declined and staff who reported it. If you quietly moved it, the record shows nothing at all, and you are the last person who touched it."
+        }
+      ]
+    },
+    {
+      "id": "ms-b4-examples",
+      "title": "The ones that actually happen, and how they start",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-sec-handling",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-med-self-admin-2.txt"
+        }
+      ]
+    },
+    {
+      "id": "ms-b5-handling",
+      "title": "The absolute rules, and the crushing question",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-never",
+          "script": "There is a short list of things with no exception on them at all, and I want to go through it slowly, because every single one of these has a perfectly sympathetic story attached to the time somebody broke it.\n\nNever move pills into a different container. Not into an envelope, not into a cup for later, not into a nicer organizer because hers is cracked. The container and the label are what make a pill identifiable. Out of it, a white tablet is just a white tablet, and nobody downstream can ever tell you what it was.\n\nNever give anything out of an unlabeled bottle. If the label is gone, or worn off, or you cannot read it, that bottle is out of service until somebody qualified sorts it out.\n\nNever use one resident's medication for another. This is the one that comes with the most sympathetic story in the world — she ran out over the weekend, the pharmacy is closed, the woman down the hall has the exact same prescription sitting right there. The answer is still no. That is her medication, prescribed for her, and there is a process for a resident who has run out. Use it, at whatever hour it is.\n\nNever carry two residents' medications at once. One resident, one container, one job, start to finish. Mix-ups do not happen because somebody is stupid. They happen because two things were in the same hands at the same time.\n\nAnd never in your pocket, never left sitting on a counter. A pocket is how medication leaves the building. A counter is how a wandering resident finds somebody else's pills."
+        },
+        {
+          "type": "slide",
+          "slide": "ms-crush",
+          "script": "Now the one that comes up constantly, and where the intuition is genuinely wrong.\n\nA resident is having trouble swallowing. Somebody suggests crushing it and putting it in pudding. It seems obviously helpful, and it looks like a texture problem rather than a medication problem.\n\nHere is why it is not. A lot of tablets are engineered to come apart slowly — extended release, or coated to survive the stomach and open further down. Crushing one of those does not make it easier to take. It delivers a whole day's dose at once, or dumps something into a stomach it was specifically built to get past.\n\nYou cannot tell which ones by looking. Some have letters in the name that hint at it and plenty do not.\n\nSo crushing is a medication decision, full stop, and it belongs to somebody qualified.\n\nBut do not just leave it there, because the resident still cannot swallow her pills and that problem does not go away by being out of scope. Report the swallowing difficulty itself. That is very often solvable — a liquid version, a smaller tablet, a patch, a different medication entirely. It just has to be solved by the person who can prescribe it.\n\nAnd while you are at it, mention when it started. New difficulty swallowing is worth somebody's attention for reasons that have nothing to do with medication."
+        }
+      ]
+    },
+    {
+      "id": "ms-b6-refusal",
+      "title": "Refusals, and the question worth asking first",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-sec-refusal",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ms-refusal",
+          "script": "A resident refusing a medication is exercising a right. That is the legal position and it is also the correct one, and it holds even when the refusal seems clearly bad for her.\n\nSo your job is not to talk her into it and it is definitely not to get it into her some other way. Your job is to report it.\n\nBut before you walk out, ask why. Not to argue — genuinely to find out, because refusals almost always mean something, and the reason is the useful part.\n\nIt is making her nauseated. That is extremely common and extremely fixable, sometimes just by taking it with food.\n\nIt is hard to swallow. Also fixable, and we just talked about how.\n\nShe noticed it makes her dizzy. Pay attention to this one. Residents are often right about this, and a resident who has connected a pill to feeling unsteady has handed you a genuinely valuable observation about a fall risk.\n\nNobody ever told her what it is for. This happens more than you would believe. Somebody has been swallowing a tablet twice a day for a year with no idea what it does, and one afternoon decides she is done with it.\n\nAnd sometimes it is the plainest reason of all: it is one of the few decisions left in her day that is still hers. Somebody else decides when she eats, when she showers, who comes in her room. This is a place she can say no, and the saying no is the point.\n\nAll of that goes in the report, because why she refused is what lets somebody actually solve it."
+        },
+        {
+          "type": "slide",
+          "slide": "ms-covert",
+          "script": "Which brings me to the thing I most want you to walk out of here refusing to do, and it is the one that is hardest to refuse, because it comes from a genuinely good place.\n\nThe pill in the applesauce.\n\nI understand the reasoning completely. She needs it. She will not take it. She will happily eat pudding. Nobody is harmed, everybody moves on, and there is a real sense in which you have taken care of her.\n\nBut that is covert administration. Two separate problems with it, and both matter.\n\nThe first is that it takes away her right to refuse, by removing her knowledge that there was anything to refuse. That is not a technicality. The right to decline is not conditional on declining for reasons we approve of.\n\nThe second is physical. You may have just crushed something that must not be crushed, or put something into food that it interacts with badly.\n\nAnd there is a third thing, which is about you. If a resident works out that her food has been used to hide medication, you do not just lose that afternoon. You lose her trust in everything she is handed by anybody in that building, permanently, and that is a very expensive thing to spend on one dose.\n\nHer refusal is not a problem for you to solve. It is information for somebody else to act on."
+        }
+      ]
+    },
+    {
+      "id": "ms-b7-classes",
+      "title": "What these medications actually do",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-sec-watch",
+          "duration": 4
+        },
+        {
+          "type": "slide",
+          "slide": "ms-classes",
+          "script": "You are not expected to know pharmacology and nobody is asking you to diagnose anything. But there are five groups of medication that nearly every resident in a building like yours is on, and knowing roughly what each one does turns you from somebody who reports changes into somebody who reports the right changes early.\n\nBlood thinners. The whole job of the medication is to stop clots forming, which means bleeding does not stop the way it normally would. So bruises appear from nothing, small cuts keep going, and a bump on the head is serious even when there is nothing to see, because bleeding inside can build for hours. A resident on a blood thinner who hits her head gets reported no matter how fine she looks.\n\nDiabetes medication. The risk here is the sugar going too low, and I am going to spend a minute on that one on its own because it is the fastest-moving thing in this whole course.\n\nBlood pressure medication. It brings the pressure down, and it does not know that she is about to stand up. So dizziness on standing is the tell, and the danger is a fall in the first few seconds of getting out of a chair or a bed.\n\nOpioids. Drowsiness, slowed breathing, and constipation — and that last one gets treated as a minor annoyance when in an older adult it can turn into a genuine emergency.\n\nDiuretics. They pull fluid off, which means dehydration and a lot of urgent trips to the bathroom, often at night, often in the dark, often by somebody who is already unsteady."
+        }
+      ]
+    },
+    {
+      "id": "ms-b8-lowsugar",
+      "title": "The one that will not wait, and errors",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-low-sugar",
+          "script": "The blood sugar one gets its own minute because it is the only thing on that list that can go from fine to dangerous inside about twenty minutes, and because it disguises itself as something else.\n\nHere is what low blood sugar looks like in an older adult. Sudden confusion. Shaky. Sweaty, sometimes clammy and pale. Irritable in a way that is out of character. Not making sense. Sometimes just profoundly not right in a way you cannot put your finger on.\n\nNow look at that list again and notice what it also looks like. It looks like a urinary tract infection. It looks like dementia getting worse. It looks like somebody being difficult. And a resident who has been in the building a while and is a bit confused sometimes gives everybody an easy explanation to reach for.\n\nSo carry this rule: sudden confusion in a resident on diabetes medication is a blood sugar until somebody qualified proves otherwise.\n\nEspecially if she has not eaten. Skipped breakfast, refused lunch, was off at an appointment through a meal, has been nauseated all morning. The medication still worked. The food did not arrive.\n\nThat does not go in a note for the nurse in the morning. That goes to a nurse now. And if she is having trouble breathing, or her face or lips or tongue are swelling, or there is chest pain, or she is suddenly not really there — that is your emergency process immediately, not a report at all."
+        },
+        {
+          "type": "slide",
+          "slide": "ms-errors",
+          "script": "And errors. Which happen, in every building, to good people.\n\nA missed dose. A doubled dose. The wrong one. Or the one that unsettles people most — a resident tells you she already took something this morning and you have no record of it at all, so either she did and it is not written down, or she did not and she is about to take it twice.\n\nReport all of it. Immediately. Including when she looks completely fine, and that is the whole point of the instruction, because looking fine is exactly when the urge to wait and see is strongest.\n\nWaiting to see whether something happens is a clinical judgment, and it is one of the most consequential ones there is. Somebody qualified gets to make it. They cannot make it if they do not know.\n\nAnd whatever you do, do not adjust a later dose to make the arithmetic come out even. Do not skip tonight's because this morning's got doubled. That is a second medication decision layered on top of the first, and now instead of one error somebody understands, there are two nobody can reconstruct.\n\nOne more, and this one is uncomfortable but it belongs in this course. A resident hoarding pills, or cheeking them, or passing them to the woman next door — that gets reported, not managed quietly between the two of you. And anything that appears to have gone missing, a controlled substance especially, goes up immediately. Diverting a resident's medication is stealing from her, and it is treated that way."
+        }
+      ]
+    },
+    {
+      "id": "ms-b9-notice",
+      "title": "What you notice, which matters more than the pills",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-sec-outside",
+          "duration": 4
+        },
+        {
+          "type": "avatar",
+          "scriptFile": "inservice-med-self-admin-3.txt"
+        }
+      ]
+    },
+    {
+      "id": "ms-b10-outside",
+      "title": "The bottle from outside, and what to carry out of this course",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "ms-otc",
+          "script": "Let me put a finer point on the things that arrive from outside the building, because this is where staff get put on the spot most often, usually by somebody entirely well-meaning.\n\nAnything a family member brings in. Vitamins. Anything labeled natural or herbal, which people genuinely do not think of as medication at all — and some of them interact hard with prescriptions, including with blood thinners.\n\nSleep aids, and I would flag these hardest. Several of the most common over-the-counter ones are a poor choice for an older adult specifically, because they cause confusion and unsteadiness. Which is to say they cause the falls we spend all day trying to prevent. Somebody buys one to help their mother sleep and it is the exact wrong thing, through no fault of theirs.\n\nAntacids, laxatives, cough syrup, ordinary pain relievers. Medicated creams, eye drops, patches — anything that goes on skin counts too.\n\nSo when her son turns up at the end of visiting hours with a bottle of something and asks you to just leave it on the nightstand, you do not. It goes through your process so somebody can check it against everything else she is taking.\n\nAnd say that kindly, because he is not being difficult and he is not trying to get around anybody. He is worried about his mother and he is trying to help her sleep. Tell him that is exactly why it gets checked — so that what he brought does not collide with something she is already on. Almost everybody hears that fine when it is said that way."
+        },
+        {
+          "type": "slide",
+          "slide": "ms-close",
+          "script": "So what do you carry out of this hour?\n\nRun the five. Never move a pill out of its container, never use one resident's medication for another, and never carry two at once. Timing and crushing are medication decisions and they are not yours. A refusal is a right — ask why, and report the why. Watch for the bleeding, the low sugar, the dizziness on standing. Report an error immediately, even when she looks fine. And everything that comes in from outside is medication too."
+        },
+        {
+          "type": "avatar",
+          "script": "I want to end where I started, because it is the thing that makes this course different from how people expect it to feel.\n\nAlmost no medication error in a building like yours starts with somebody being careless. I have looked at a lot of them. They start with somebody being kind. Somebody trying to help a resident who is struggling, in a hurry, with no nurse anywhere nearby, doing the thing that any decent person would want to do.\n\nWhich is exactly why the rule cannot be a judgment call. Because your judgment in that moment is going to be generous, and generous is the wrong instrument for this particular job.\n\nSo: if you are not sure which side of the line you are standing on, you are on the outside of it, and you ask.\n\nEvery time. Including when she is frustrated with you. Including at nine at night with nobody around. Including when you have watched somebody else do it a hundred times and nothing ever went wrong.\n\nNobody has ever been written up for asking. I have never once seen it. And I have seen the other thing.\n\nThanks for your time. Go take care of your people."
+        }
+      ]
+    }
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "ms-b1-line": {
+        "video_id": "b47499943ecf42d691b01fa43bec261a",
+        "seconds": 154,
+        "mb": 28
+      },
+      "ms-b2-model": {
+        "video_id": "36edccf983ae478aae93f8d54e290317",
+        "seconds": 155,
+        "mb": 5.4
+      },
+      "ms-b3-check": {
+        "video_id": "d629506fa10f4c5dbef0e5565743e875",
+        "seconds": 171,
+        "mb": 5.9
+      },
+      "ms-b4-examples": {
+        "video_id": "f6220582eb6847bf85d42f3bdb975f57",
+        "seconds": 146,
+        "mb": 27.2
+      },
+      "ms-b5-handling": {
+        "video_id": "b4fa87018fb146769b321d8b40b788da",
+        "seconds": 167,
+        "mb": 5.7
+      },
+      "ms-b6-refusal": {
+        "video_id": "d9a4578184994215ac53055a58b431ed",
+        "seconds": 163,
+        "mb": 5.5
+      },
+      "ms-b7-classes": {
+        "video_id": "ccb663e0c62e4bb18390c60857eeeefc",
+        "seconds": 94,
+        "mb": 3.3
+      },
+      "ms-b8-lowsugar": {
+        "video_id": "789265be563f4f1faf94988108b62abf",
+        "seconds": 167,
+        "mb": 5.6
+      },
+      "ms-b9-notice": {
+        "video_id": "8d18b085f8ef4fbeb39be41a1be7403a",
+        "seconds": 157,
+        "mb": 28.7
+      },
+      "ms-b10-outside": {
+        "video_id": "578921ba31894d7e8658b397007ef28a",
+        "seconds": 180,
+        "mb": 16.5
+      }
+    }
+  }
+}
