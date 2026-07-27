@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(9);
 
 -- An undifferentiated backlog of 188 tables is only slightly more useful than the invisible list it
 -- replaced. These assertions are about the backlog being ORDERED by consequence: the tables holding
@@ -58,13 +58,43 @@ select is(
 );
 -- The converse, and the one that actually failed. This is the assertion the earlier version could not
 -- make, because it asked the same question the flag was set from.
+--
+-- It also used to carry `audit_mode = 'unclassified'`, inherited from the migration that first drew
+-- the flag, and that restriction hid 21 more tables -- the whole native clinical chart, the emergency
+-- event family, resident_legal_records, resident_contacts, resident_property_items. A table with a
+-- row audit trigger is not thereby free of regulated data; how a table is audited and what it holds
+-- are different questions, which is the distinction the assertion below this one exists to protect.
 select is(
   (select coalesce(string_agg(m.table_name, ', ' order by m.table_name), '(none)')
    from app_private.audit_entity_manifest m
-   where m.audit_mode = 'unclassified' and not m.contains_regulated_data
-     and m.table_name in (select t from pg_temp.subject_closure())),
+   where not m.contains_regulated_data
+     and m.table_name in (select t from pg_temp.subject_closure())
+     -- Decided by a person during the Phase 1 audit coverage review, not by a rule. Overriding a
+     -- judgement someone made needs the reason it was made, which is not recorded in the row; they
+     -- are named here so they are visibly exempt rather than silently outside the rule. Removing one
+     -- from this list should mean either flagging it or writing down why it stays false.
+     and m.table_name not in (
+       'class_checkin_tokens', 'competency_record_items', 'course_blocks', 'course_feedback',
+       'course_progress', 'incident_staff_involved', 'quiz_answers', 'quiz_attempt_answers',
+       'quiz_attempts', 'quiz_question_explanations', 'quiz_questions', 'quizzes',
+       'training_class_attendees'
+     )),
   '(none)',
   'no table reachable from a data subject by ANY number of foreign key hops is left unflagged'
+);
+-- The defect underneath all of the above: a migration that wrote the column default and then wrote a
+-- sentence saying it had classified the row. 20260726260000 put `false` in the SELECT list one line
+-- above the CASE that produced 'Row audit trigger already present; classified from that evidence',
+-- so 32 tables carried a finding nobody had made -- and unlike the honest half of the same statement
+-- ('not yet classified'), they never came back up for review. A rationale is the only thing telling a
+-- later reader whether a value was decided or defaulted, so a false claim in one is worse than a
+-- blank.
+select is(
+  (select coalesce(string_agg(m.table_name, ', ' order by m.table_name), '(none)')
+   from app_private.audit_entity_manifest m
+   where m.rationale like '%classified from that evidence by 20260726260000%'),
+  '(none)',
+  'no manifest row cites a regulated-data classification that was never performed'
 );
 -- A polymorphic subject column is invisible to foreign-key analysis entirely, so it gets its own
 -- assertion rather than relying on the two names above staying correct.
