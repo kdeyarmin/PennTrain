@@ -14,6 +14,25 @@ export function escapeOrValue(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
 }
 
+// escapeOrValue above only protects PostgREST's *filter syntax*; the value it quotes is still
+// handed to ILIKE as a pattern, where '%', '_' and '\' are LIKE metacharacters. Interpolating a
+// raw search term into `%...%` therefore turned every roster search box into a wildcard query --
+// a bare '%' matched every row and 'P_ain' matched 'Plain' -- instead of literal-text search.
+// This is the client-side half of the same defect migration
+// 20260724190003_escape_work_item_search_wildcards.sql fixed for the work-queue RPCs; keep the two
+// escape orders identical (backslash first, or the escapes we add would themselves be escaped).
+// Postgres LIKE treats '\' as the default escape character, so no explicit ESCAPE clause is needed,
+// and escapeOrValue's own backslash doubling round-trips these back to a single '\' at the server.
+export function escapeLikePattern(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")
+}
+
+// The full "user typed this into a search box" -> PostgREST or()/ilike value pipeline: match the
+// term literally anywhere in the column, with both the LIKE pattern and the or() syntax escaped.
+export function containsFilterValue(search: string): string {
+  return escapeOrValue(`%${escapeLikePattern(search)}%`)
+}
+
 // Inclusive [from, to] row range for a 1-indexed page, as `.range()` expects.
 export function rangeFor(page: number, pageSize: number): [number, number] {
   const from = (Math.max(1, page) - 1) * pageSize

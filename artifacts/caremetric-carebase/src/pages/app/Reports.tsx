@@ -24,7 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { csvEscape } from "@/lib/csv";
 import { facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
-import { escapeOrValue } from "@/lib/utils";
+import { containsFilterValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -497,7 +497,7 @@ export default function Reports() {
       if (facilityId !== "all") query = query.eq("facility_id", facilityId);
       const term = employeeSearch.trim();
       if (term) {
-        const pattern = escapeOrValue(`%${term}%`);
+        const pattern = containsFilterValue(term);
         query = query.or(
           `first_name.ilike.${pattern},last_name.ilike.${pattern},employee_number.ilike.${pattern}`,
         );

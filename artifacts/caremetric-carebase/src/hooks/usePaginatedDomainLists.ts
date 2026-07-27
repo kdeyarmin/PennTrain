@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { escapeOrValue, rangeFor } from "@/lib/utils";
+import { containsFilterValue, rangeFor } from "@/lib/utils";
 import type { PaginatedResult, SortDirection } from "@/lib/dataTable";
 
 export type DomainListName =
@@ -90,7 +90,7 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
       if (filters.isActive !== undefined && config.activeColumn) query = query.eq(config.activeColumn, filters.isActive);
       const search = filters.search?.trim();
       if (search) {
-        const like = escapeOrValue(`%${search}%`);
+        const like = containsFilterValue(search);
         query = query.or(config.search.map((column) => `${column}.ilike.${like}`).join(","));
       }
       const sortField = filters.sortField || config.defaultSort;
@@ -122,7 +122,7 @@ export function usePaginatedViolations<T = Record<string, unknown>>(filters: Dom
       if (filters.severity) query = query.eq("severity", filters.severity);
       const search = filters.search?.trim();
       if (search) {
-        const like = escapeOrValue(`%${search}%`);
+        const like = containsFilterValue(search);
         query = query.or(
           ["citation_ref", "description", "citation_topic_title"]
             .map((column) => `${column}.ilike.${like}`)
