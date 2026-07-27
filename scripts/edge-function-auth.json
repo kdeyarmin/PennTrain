@@ -1,0 +1,135 @@
+{
+  "_comment": [
+    "How every edge function with verify_jwt = false authenticates its callers. The API gateway lets",
+    "these requests through unauthenticated, so the function itself is the only thing between the",
+    "internet and a service-role client. check-edge-function-auth.mjs requires an entry here for each",
+    "one, and requires each declared gate to still be reachable in that function's import closure.",
+    "Gates listed are the function's OWN inbound check; a marker reachable only through a shared",
+    "helper it imports for another purpose is deliberately not declared."
+  ],
+
+  "analyze-state-form": {
+    "gates": ["cron-secret", "user-jwt"],
+    "rationale": "Dual surface: the document-analyzer cron sweep (pg_net, no JWT) and a platform_admin 'process this upload now' kick, whose JWT is verified inside the function."
+  },
+  "dispatch-integration-webhooks": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker. The signing code it imports produces OUTBOUND signatures for the webhooks it delivers; it is not an inbound gate."
+  },
+  "dispatch-notifications": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker that drains the notification queue."
+  },
+  "email-savings-model": {
+    "gates": ["turnstile"],
+    "rationale": "Public marketing form; a Cloudflare Turnstile token is required before anything is sent."
+  },
+  "evidence-guest-download": {
+    "gates": ["guest-token"],
+    "rationale": "Reviewers and inspectors have no account. The per-grant token IS the credential and is validated against evidence_guest_grants."
+  },
+  "fhir-ingest": {
+    "gates": ["api-credential"],
+    "rationale": "Connected EHR/pharmacy systems present a Phase 2 integration API credential in the Authorization header; unknown or revoked credentials get 401."
+  },
+  "fhir-writeback": {
+    "gates": ["cron-secret"],
+    "rationale": "Cron-only outbound drain. Its crypto imports sign the requests it makes to the remote FHIR server."
+  },
+  "generate-certificate-pdf": {
+    "gates": ["cron-secret", "user-jwt"],
+    "rationale": "Dual surface: the PDF-job cron worker, and authenticated user downloads whose JWT is verified inside the function."
+  },
+  "generate-compliance-binder": {
+    "gates": ["cron-secret", "user-jwt"],
+    "rationale": "Dual surface: the binder-export cron worker, and authenticated user downloads/enqueues verified inside the function."
+  },
+  "get-platform-status": {
+    "gates": ["public"],
+    "rationale": "Deliberately public: the signup page and the pre-auth maintenance banner need to know whether signups are open before any session exists. Reads platform_settings with the service-role client but returns only two curated booleans, never the row."
+  },
+  "integration-api": {
+    "gates": ["api-credential"],
+    "rationale": "Partner-facing API. Callers present a Phase 2 integration credential in the Authorization header."
+  },
+  "poll-heygen-video-statuses": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker polling video render status."
+  },
+  "poll-regulatory-updates": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker fetching regulatory source pages."
+  },
+  "process-organization-export-jobs": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker draining the organization export queue."
+  },
+  "provision-demo-tenant": {
+    "gates": ["shared-secret"],
+    "rationale": "One-off ops action run as a deploy step, authorized by x-demo-provision-secret with an inline constant-time compare over SHA-256 digests rather than a signed-in admin."
+  },
+  "report-client-error": {
+    "gates": ["public"],
+    "rationale": "Deliberately public: browser error telemetry has to be reportable when the session is exactly what is broken. Bounded by method and body-size checks and PHI-scrubbed before storage; both behaviours are covered by its runtime tests."
+  },
+  "request-demo": {
+    "gates": ["turnstile"],
+    "rationale": "Public marketing form gated by a Cloudflare Turnstile token."
+  },
+  "resident-portal-download": {
+    "gates": ["guest-token"],
+    "rationale": "A resident's designated person has no account; the portal grant token is validated on every call, the same surface the portal RPCs expose to anon."
+  },
+  "run-data-lifecycle": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker running archival and purge sweeps. Authorization is injectable for tests but defaults to the shared cron check."
+  },
+  "scim-provision": {
+    "gates": ["api-credential"],
+    "rationale": "Identity-provider SCIM endpoint. The bearer credential is hashed and compared constant-time against the stored connection credential."
+  },
+  "screen-exclusions": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker running exclusion-list screening."
+  },
+  "send-auth-email": {
+    "gates": ["webhook-signature"],
+    "rationale": "Supabase Auth send-email hook. Authenticity is the Standard Webhooks signature over SEND_EMAIL_HOOK_SECRET; verify_jwt cannot apply because Auth itself is the caller."
+  },
+  "send-regulatory-digest": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker. It mints unsubscribe tokens for the emails it sends; that is outbound content, not an inbound gate."
+  },
+  "sendgrid-notification-webhook": {
+    "gates": ["webhook-signature"],
+    "rationale": "SendGrid event webhook, verified with SendGrid's ECDSA event-webhook signature before any row is written."
+  },
+  "signup-organization": {
+    "gates": ["turnstile"],
+    "rationale": "Public self-serve signup gated by a Cloudflare Turnstile token."
+  },
+  "stripe-billing-webhook": {
+    "gates": ["webhook-signature"],
+    "rationale": "Stripe webhook, verified against the stripe-signature header before the event is processed."
+  },
+  "submit-confidential-intake": {
+    "gates": ["turnstile"],
+    "rationale": "Confidential reporting intake, reachable by a reporter with no account and gated by a Turnstile token; reporter identity is stored separately from the intake."
+  },
+  "subscribe-updates": {
+    "gates": ["turnstile"],
+    "rationale": "Public newsletter signup gated by a Turnstile token. It also mints an unsubscribe token, which is outbound."
+  },
+  "sync-billing-quantities": {
+    "gates": ["cron-secret"],
+    "rationale": "Internal cron worker pushing seat counts to Stripe; its Stripe client is an outbound credential."
+  },
+  "twilio-notification-webhook": {
+    "gates": ["webhook-signature"],
+    "rationale": "Twilio status webhook, verified with Twilio's request signature over the full URL and parameters."
+  },
+  "unsubscribe-updates": {
+    "gates": ["guest-token"],
+    "rationale": "One-click unsubscribe from an email footer; the per-subscriber unsubscribe_token is the credential. Oracle-free -- the same page is returned whether or not the token matched."
+  }
+}
