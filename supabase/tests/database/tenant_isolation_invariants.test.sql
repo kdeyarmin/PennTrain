@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(9);
 
 -- Tenant isolation invariants, pinned.
 --
@@ -147,6 +147,31 @@ select is(
      )),
   '(none)',
   'every SECURITY DEFINER function pins its search_path'
+);
+
+-- auth.uid() in a policy must be hoistable ---------------------------------------------------------
+--
+-- `(select auth.uid())` becomes an InitPlan the planner evaluates once; a bare `auth.uid()` can be
+-- left as a function call in a per-row filter. Eighty-four of the eighty-five policies referencing it
+-- already use the scalar-subquery form, and 20260727060000 fixed the eighty-fifth -- the convention
+-- is what this pins, so the next policy written does not have to be caught by an external advisor.
+--
+-- This is a shape assertion, not a performance one. The actual cost of RLS in this schema lives in
+-- public.is_assigned_to_facility(), which is called per row by 215 policies across 126 tables and is
+-- unaffected by this; see docs/audits/RLS_ROW_FILTER_COST.md for the measurements and for why two
+-- plausible-looking fixes to that were both wrong.
+select is(
+  (select coalesce(string_agg(c.relname || '.' || p.polname, ', '
+                              order by c.relname || '.' || p.polname), '(none)')
+   from pg_catalog.pg_policy p
+   join pg_catalog.pg_class c on c.oid = p.polrelid
+   where c.relnamespace = 'public'::regnamespace
+     and (coalesce(pg_get_expr(p.polqual, p.polrelid), '')
+          || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')) ~ 'auth\.uid\(\)'
+     and (coalesce(pg_get_expr(p.polqual, p.polrelid), '')
+          || ' ' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')) !~ '\(\s*SELECT auth\.uid\(\)'),
+  '(none)',
+  'every policy reads auth.uid() through a scalar subquery so the planner can hoist it'
 );
 
 select * from finish();

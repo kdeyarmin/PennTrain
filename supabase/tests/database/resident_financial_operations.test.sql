@@ -263,18 +263,37 @@ select lives_ok($$
 $$,'manager corrects personal funds with a linked adjustment');
 select is((select balance_after from public.resident_personal_fund_transactions where id=(select id from finance_ids where key='fund-adjustment')),120.00::numeric,'personal-funds adjustment preserves a correct running balance');
 select is((select amount from public.resident_personal_fund_transactions where id=(select id from finance_ids where key='withdrawal')),40.00::numeric,'personal-funds adjustment does not rewrite prior withdrawal');
+-- The period end is the day THESE transactions landed on, not "today".
+--
+-- post_resident_personal_fund_transaction rejects backdated entries, so every fixture above nudges
+-- transactionAt forward by two or three minutes to stay safely ahead of now(). For the last three
+-- minutes of each Pennsylvania day that nudge lands the transaction on TOMORROW, while pa_today() is
+-- still yesterday -- and reconcile_resident_personal_funds sums
+-- `public.pa_day(transaction_at) <= p_period_end`, so the adjustment fell outside its own period and
+-- the reconciliation came out unbalanced. This suite failed exactly that way at 04:00 UTC on
+-- 2026-07-27, which is 00:00 in Pennsylvania, and passed on a re-run a minute later.
+--
+-- Simulating the clock at 23:58 ET and running all 109 suites turned up this one and no other, so
+-- the shape is narrow rather than systemic -- worth stating, because 21 test files pair a
+-- future-dated fixture with pa_today() and only this one actually compares the two.
+--
+-- The two variance reconciliations below move to the same base for a second reason found the same
+-- way: reconciliations are UNIQUE (personal_fund_account_id, period_end). Fixing only the call above
+-- left it on pa_today()+1 == the corrected period, so under the straddle the second reconciliation
+-- collided with the first and the failure simply moved from assertions 63-64 to 66-67. Both have to
+-- name the same day the transactions actually landed on.
 select lives_ok($$
   insert into finance_ids values ('reconcile',public.reconcile_resident_personal_funds(
-    '75000000-0000-4000-8000-000000000201',public.pa_today(),120,null
+    '75000000-0000-4000-8000-000000000201',public.pa_day(now()+interval '3 minutes'),120,null
   ))
 $$,'manager records a balanced personal-funds reconciliation');
 select is((select result from public.resident_personal_fund_reconciliations where id=(select id from finance_ids where key='reconcile')),'balanced','matching counted funds reconcile as balanced');
 select throws_ok($$
-  select public.reconcile_resident_personal_funds('75000000-0000-4000-8000-000000000201',public.pa_today()+1,119,null)
+  select public.reconcile_resident_personal_funds('75000000-0000-4000-8000-000000000201',public.pa_day(now()+interval '3 minutes')+1,119,null)
 $$,'22023',null,'variance reconciliation requires notes');
 select lives_ok($$
   insert into finance_ids values ('variance',public.reconcile_resident_personal_funds(
-    '75000000-0000-4000-8000-000000000201',public.pa_today()+1,119,'One dollar variance requires supervisor review'
+    '75000000-0000-4000-8000-000000000201',public.pa_day(now()+interval '3 minutes')+1,119,'One dollar variance requires supervisor review'
   ))
 $$,'manager records an explained reconciliation variance');
 select is((select result from public.resident_personal_fund_reconciliations where id=(select id from finance_ids where key='variance')),'variance','unmatched counted funds retain variance status');
