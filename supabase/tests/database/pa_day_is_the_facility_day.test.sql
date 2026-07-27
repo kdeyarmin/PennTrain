@@ -1,5 +1,5 @@
 begin;
-select plan(11);
+select plan(18);
 
 -- The facility's calendar day, pinned.
 --
@@ -217,6 +217,93 @@ select is(
      and p.prosrc ~ $q$date_trunc\('week', (now\(\)|p_[a-z_]*|[a-z_]+\.[a-z_]*_at)\)$q$),
   '(none)',
   'no function cuts a week on a raw instant -- use public.pa_week_start()'
+);
+
+-- The helpers cannot be shadowed ------------------------------------------------------------------
+--
+-- None of the six carries `set search_path`, on purpose: a SQL function with any SET clause cannot
+-- be inlined, and the planner then calls it once per row. Measured over 300,000 rows, pinning cost
+-- about 9x for both the argument-taking helpers (153ms -> 1415ms) and the zero-argument ones
+-- (94ms -> 893ms), so pinning is not free the way it usually is.
+--
+-- `supabase db advisors` reports function_search_path_mutable for all six as a result. The warning
+-- points at something real -- before 20260727050000, `select public.pa_today()` under a search_path
+-- containing a hostile `now()` returned 1998-12-31 -- and the fix was to fully qualify every name in
+-- the bodies rather than to pin the path. The advisor cannot see that, because it reads proconfig
+-- and not the body, so it still warns. This is the assertion that actually holds the property.
+--
+-- Shadowing both pg_catalog.now() and pg_catalog.timezone() covers the two ways in: the zero-argument
+-- helpers read the clock, the rest convert an instant.
+-- The expected values are computed HERE, before the hostile path is installed, and stashed. The
+-- first draft compared public.pa_today() against `(now() at time zone 'America/New_York')::date`
+-- evaluated INSIDE the hostile path -- so the probe shadowed both sides equally, the two agreed on
+-- 1998-12-31, and the assertion passed against the very body it was written to catch. A test whose
+-- expected value goes through the same poisoned lookup as the value under test proves nothing.
+create temp table shadow_expected as
+select (now() at time zone 'America/New_York')::date as today,
+       now() at time zone 'America/New_York' as now_local;
+
+create schema shadow_probe;
+create function shadow_probe.now() returns timestamptz language sql immutable
+  as $probe$ select timestamptz '1999-01-01 00:00:00+00' $probe$;
+create function shadow_probe.timezone(text, timestamptz) returns timestamp language sql immutable
+  as $probe$ select timestamp '1999-01-01 00:00:00' $probe$;
+create function shadow_probe.timezone(text, timestamp) returns timestamptz language sql immutable
+  as $probe$ select timestamptz '1999-01-01 00:00:00+00' $probe$;
+create function shadow_probe.date_trunc(text, timestamp) returns timestamp language sql immutable
+  as $probe$ select timestamp '1999-01-01 00:00:00' $probe$;
+
+-- `extensions` stays on the path because that is where pgtap lives; dropping it would make `is()`
+-- itself unresolvable and the failure would look like a shadowing result rather than a test bug.
+set local search_path = shadow_probe, public, extensions, pg_catalog;
+
+select is(
+  public.pa_today(),
+  (select today from shadow_expected),
+  'pa_today() ignores a hostile search_path -- it returned 1998-12-31 before 20260727050000'
+);
+select is(
+  public.pa_now(),
+  (select now_local from shadow_expected),
+  'pa_now() ignores a hostile search_path'
+);
+select is(
+  public.pa_week_start(timestamptz '2026-07-27 00:56:00+00'),
+  date '2026-07-20',
+  'pa_week_start() ignores a hostile date_trunc -- the PA week containing Sunday evening'
+);
+
+-- pa_day, pa_clock and pa_midnight were never vulnerable to the timezone() shadow: `x at time zone
+-- z` is parser syntax that binds to pg_catalog.timezone directly rather than resolving the name, so
+-- these three passed even before 20260727050000. They are asserted anyway, because the qualified
+-- rewrite means a future edit could reintroduce an unqualified call and these would then catch it.
+select is(
+  public.pa_day(timestamptz '2026-07-27 00:56:00+00'), date '2026-07-26',
+  'pa_day() ignores a hostile search_path'
+);
+select is(
+  public.pa_clock(timestamptz '2026-07-27 00:56:00+00'), time '20:56:00',
+  'pa_clock() ignores a hostile search_path'
+);
+select is(
+  public.pa_midnight(date '2026-07-26'), timestamptz '2026-07-26 04:00:00+00',
+  'pa_midnight() ignores a hostile search_path'
+);
+
+reset search_path;
+drop schema shadow_probe cascade;
+
+-- And the reason pinning was rejected: none of them may acquire a SET clause without someone
+-- re-measuring, because that silently turns an inlined expression into a per-row function call.
+select is(
+  (select coalesce(string_agg(p.proname, ', ' order by p.proname), '(none)')
+   from pg_catalog.pg_proc p
+   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname in ('pa_today', 'pa_day', 'pa_clock', 'pa_now', 'pa_midnight', 'pa_week_start')
+     and p.proconfig is not null),
+  '(none)',
+  'no day helper carries a SET clause -- that would stop it inlining, at roughly 9x on a large scan'
 );
 
 select * from finish();
