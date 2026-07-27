@@ -116,7 +116,27 @@ export function classifyMigrationEdits(changes, appliedVersions, allowlistRevise
           `changes; for an in-place correction, add or revise the ${version} entry in ` +
           `${ALLOWLIST_REPO_PATH} (with a written reason) in this same PR.`,
       });
+      continue;
     }
+
+    if (allowlistRevisedVersions.has(version)) {
+      excused.push({
+        path: change.path,
+        version,
+        reason: `its ${ALLOWLIST_REPO_PATH} entry was added or revised in this same diff`,
+      });
+      continue;
+    }
+
+    violations.push({
+      path: change.path,
+      version,
+      kind: `changed (${change.status})`,
+      detail:
+        "this version is already applied on the remote. Write a new migration for behavior " +
+        `changes; for an in-place correction, add or revise the ${version} entry in ` +
+        `${ALLOWLIST_REPO_PATH} (with a written reason) in this same PR.`,
+    });
   }
 
   return { violations, excused };
