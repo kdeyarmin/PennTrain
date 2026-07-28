@@ -204,7 +204,7 @@ export default function MfaSettings() {
 
   const verifyFactor = async () => {
     const factorId = enrollment?.factorId ?? selectedFactorId;
-    if (!factorId || !/^\d{6,8}$/.test(code.trim())) {
+    if (!factorId || !/^\d{6}$/.test(code.trim())) {
       toast({
         variant: "destructive",
         title: isPhoneFlow ? "Enter the code we texted you" : "Enter a valid authenticator code",
