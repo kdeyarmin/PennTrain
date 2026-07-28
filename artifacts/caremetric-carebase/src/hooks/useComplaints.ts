@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
-import { escapeOrValue, rangeFor } from "@/lib/utils";
+import { containsFilterValue, rangeFor } from "@/lib/utils";
 import type { PaginatedResult } from "@/lib/dataTable";
 
 export type Complaint = Tables<"complaints">;
@@ -92,7 +92,7 @@ export function usePaginatedComplaints(filters: PaginatedComplaintsFilters) {
       if (filters.category) query = query.eq("category", filters.category);
       const search = filters.search?.trim();
       if (search) {
-        const like = escapeOrValue(`%${search}%`);
+        const like = containsFilterValue(search);
         query = query.or(`complaint_number.ilike.${like},category.ilike.${like},complainant_name.ilike.${like}`);
       }
       const [from, to] = rangeFor(filters.page, filters.pageSize);

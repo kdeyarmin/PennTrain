@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
-import { escapeOrValue, rangeFor } from "@/lib/utils";
+import { containsFilterValue, rangeFor } from "@/lib/utils";
 
 export type Employee = Tables<"employees">;
 export type EmployeeInsert = TablesInsert<"employees">;
@@ -72,7 +72,7 @@ export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       const search = filters.search?.trim();
       if (search) {
-        const like = escapeOrValue(`%${search}%`);
+        const like = containsFilterValue(search);
         query = query.or(`first_name.ilike.${like},last_name.ilike.${like},job_title.ilike.${like},department.ilike.${like}`);
       }
       // filters.sortField ultimately comes from a URL query param on Employees.tsx (via

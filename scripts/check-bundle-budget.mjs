@@ -60,8 +60,13 @@ const budgets = {
   // the 90% warning line. Every one of those surfaces is its own lazy chunk -- the resident route
   // held at ~51 KiB across the whole program -- so this is feature count, not per-page weight.
   totalJavaScript: 4700 * 1024,
-  // Measured 129.3 KiB when this headroom policy was adopted.
-  totalCss: 160 * 1024,
+  // Measured 129.3 KiB when this headroom policy was adopted. Raised 160 -> 176 on the
+  // full-app-debugging branch: organic growth had reached 156.1 KiB, which is 97.5% of the old
+  // budget and under 4 KiB of headroom. This budget is not advisory on this repo -- Railway's
+  // buildCommand ends with this script (railway.json), so the first component that added a few
+  // KiB of CSS would have failed the production build and blocked the deploy, not just a branch.
+  // Restores ~12% headroom over the 156.1 KiB measurement rather than shaving to it.
+  totalCss: 176 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.
   initialShell: 1250 * 1024,
 };
@@ -80,7 +85,11 @@ const routeBudgets = [
   // module leaked back into the shell -- which is exactly what this budget should catch.
   { label: "Resident Detail route", pattern: /^ResidentDetail-.+\.js$/, budget: 70 * 1024 },
   { label: "Help Center route", pattern: /^HelpCenter-.+\.js$/, budget: 50 * 1024 },
-  { label: "Survey Day route", pattern: /^SurveyDay-.+\.js$/, budget: 30 * 1024 },
+  // Raised 30 -> 32 on the full-app-debugging branch: measured 27.7 KiB, 92.3% of the old budget.
+  // Same reasoning as totalCss above -- this script gates the Railway build, so a route a couple of
+  // KiB from its tripwire is a deploy risk rather than a branch nuisance. Small metric, so the
+  // round number carries proportionally more headroom (~15%).
+  { label: "Survey Day route", pattern: /^SurveyDay-.+\.js$/, budget: 32 * 1024 },
   // The live log (surveyors, requests, observations, packet) is lazy so the page shell paints while
   // a survey is starting. Budgeted separately rather than left uncovered: splitting a section out
   // must not be a way to move code past the tripwire.

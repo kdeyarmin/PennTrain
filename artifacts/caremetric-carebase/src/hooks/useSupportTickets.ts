@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
-import { escapeOrValue } from "@/lib/utils";
+import { containsFilterValue } from "@/lib/utils";
 
 export type SupportTicket = Tables<"support_tickets">;
 export type SupportTicketUpdate = TablesUpdate<"support_tickets">;
@@ -43,7 +43,7 @@ export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       const search = filters.search?.trim();
       if (search) {
-        const like = escapeOrValue(`%${search}%`);
+        const like = containsFilterValue(search);
         query = query.or(`subject.ilike.${like},category.ilike.${like}`);
       }
       const { data, error } = await query;
