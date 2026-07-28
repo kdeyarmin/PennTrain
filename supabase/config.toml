@@ -120,6 +120,23 @@ max_enrolled_factors = 10
 enroll_enabled = true
 verify_enabled = true
 
+# SMS one-time codes as a second factor, for staff who will not install an
+# authenticator app. A phone factor raises the same `aal2` claim TOTP does, so
+# every AAL2 policy and RLS check keeps working unchanged.
+#
+# Hosted projects need two things beyond this flag before the option works:
+#   1. The "Advanced MFA Phone" add-on enabled on the project (paid).
+#   2. An SMS provider (our Twilio account) configured under Authentication ->
+#      Phone, which is shared with phone login. Per-message Twilio charges apply.
+# The web UI only advertises SMS enrollment where VITE_MFA_SMS_ENABLED=true, so
+# a project without the add-on never offers a factor its Auth service rejects.
+#
+# Locally, `supabase start` has no SMS provider: set [auth.sms] test_otp to
+# exercise the flow without sending real messages.
+[auth.mfa.phone]
+enroll_enabled = true
+verify_enabled = true
+
 # Hosted Supabase Auth hooks are configured in the dashboard. For local end-to-end hook
 # testing, opt in by setting enabled=true and SEND_EMAIL_HOOK_SECRET_BASE64 to a base64
 # encoded Standard Webhooks secret; keep disabled by default so `supabase start` works
