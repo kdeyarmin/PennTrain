@@ -737,7 +737,7 @@ test.describe("role-aware release journeys", () => {
         await verifyOrgAdminBrowserMfa(page);
         await page.goto(account.expectedPath);
         await expect(page.locator("h1").first()).toBeVisible();
-      } else if (role === "platform_admin" || role === "facility_manager") {
+      } else if (role === "platform_admin") {
         await expect(page.getByText("Multi-factor verification required")).toBeVisible();
       } else {
         await expect(page.locator("h1").first()).toBeVisible();
