@@ -37,12 +37,13 @@ export function toMfaFactors(raw: readonly unknown[] | null | undefined): MfaFac
     const factorType = candidate.factor_type;
     if (factorType !== "totp" && factorType !== "phone") continue;
     if (typeof candidate.id !== "string") continue;
+    if (typeof candidate.created_at !== "string") continue;
     factors.push({
       id: candidate.id,
       factor_type: factorType,
       friendly_name: typeof candidate.friendly_name === "string" ? candidate.friendly_name : null,
       status: candidate.status === "verified" ? "verified" : "unverified",
-      created_at: typeof candidate.created_at === "string" ? candidate.created_at : "",
+      created_at: candidate.created_at,
       phone: typeof candidate.phone === "string" ? candidate.phone : null,
     });
   }
