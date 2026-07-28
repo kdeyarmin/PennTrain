@@ -87,6 +87,14 @@ running things in this environment.
   restart) after changing them. Then `pnpm run dev` serves `http://localhost:5173`.
 - **Seed login roles**: `supabase/seed.sql` places `role` and `organization_id`
   in trusted `raw_app_meta_data`, matching `handle_new_user`. The five Sunrise
-  customer-role accounts therefore resolve correctly after a local reset. The
-  predictable `demo123` password is local-only, and no platform-admin credential
-  is seeded.
+ customer-role accounts therefore resolve correctly after a local reset. The
+ predictable `demo123` password is local-only, and no platform-admin credential
+ is seeded.
+- **MFA gate blocks admin/manager UI login**: `MfaPolicyGate`
+ (`src/components/layout/SessionSecurityGates.tsx`) forces the `org_admin` and
+ `facility_manager` roles to enroll/verify an authenticator before any protected
+ page renders, so the seeded `admin@*`/`manager@*` accounts get stuck on a
+ "Multi-factor verification required" screen. For quick end-to-end UI checks that
+ don't need admin-only writes, log in as `trainer@sunrisehealthcare.com`
+ (`demo123`) — the trainer role isn't MFA-gated and can browse the app and take
+ learner actions (e.g. enrolling in a course from "My Training").
