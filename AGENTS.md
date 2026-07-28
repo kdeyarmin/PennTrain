@@ -90,11 +90,16 @@ running things in this environment.
  customer-role accounts therefore resolve correctly after a local reset. The
  predictable `demo123` password is local-only, and no platform-admin credential
  is seeded.
-- **MFA gate blocks admin/manager UI login**: `MfaPolicyGate`
- (`src/components/layout/SessionSecurityGates.tsx`) forces the `org_admin` and
- `facility_manager` roles to enroll/verify an authenticator before any protected
- page renders, so the seeded `admin@*`/`manager@*` accounts get stuck on a
- "Multi-factor verification required" screen. For quick end-to-end UI checks that
- don't need admin-only writes, log in as `trainer@sunrisehealthcare.com`
- (`demo123`) — the trainer role isn't MFA-gated and can browse the app and take
- learner actions (e.g. enrolling in a course from "My Training").
+- **MFA login gate is opt-in (default off)**: `MfaPolicyGate`
+ (`src/components/layout/SessionSecurityGates.tsx`) reads `get_my_mfa_policy()`.
+ As of migration `20260728120000_make_privileged_mfa_optional.sql`, an
+ organization with no `identity_security_policies` row (the default, incl. every
+ seeded org) is **not** MFA-gated, so `admin@*`/`manager@*` accounts log straight
+ into the dashboard with just `demo123`. MFA becomes mandatory again only when an
+ org inserts an identity-security-policy row (still forced to `require_aal2 = true`
+ by the `identity_security_policy_mfa_floor` check constraint), and the
+ `platform_admin` operator role stays MFA-mandatory. Per-operation step-up on
+ irreversible admin actions (`identity_operation_requires_aal2`) is unchanged, so
+ those still need a fresh AAL2 session where a policy is configured.
+ `trainer@sunrisehealthcare.com` (`demo123`) remains a handy non-privileged login
+ for learner-side flows (e.g. enrolling in a course from "My Training").
