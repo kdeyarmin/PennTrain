@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Tables } from "@/lib/database.types";
+import type { Json, Tables } from "@/lib/database.types";
+import { completionResponseForServiceOutcome } from "@/lib/serviceDeliveryContract";
 
 export type ResidentServiceRequirement = Tables<"resident_service_requirements">;
 export type ServiceTaskAlert = Tables<"service_task_alerts">;
@@ -54,6 +55,11 @@ function invalidateServiceTasks(queryClient: ReturnType<typeof useQueryClient>) 
   queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
   queryClient.invalidateQueries({ queryKey: ["resident-service-requirements"] });
   queryClient.invalidateQueries({ queryKey: ["service-task-alerts"] });
+  // The manager and Floor surfaces now write the same structured response. Both therefore refresh
+  // the resident-level exception and change detectors that consume completion_response.
+  queryClient.invalidateQueries({ queryKey: ["resident-360"] });
+  queryClient.invalidateQueries({ queryKey: ["resident-service-exceptions"] });
+  queryClient.invalidateQueries({ queryKey: ["resident-change-signals"] });
 }
 
 export function useResidentServiceTaskQueue(filters: ServiceTaskQueueFilters) {
@@ -140,6 +146,12 @@ export function useListServiceExceptionRules(facilityId?: string) {
   });
 }
 
+/**
+ * Backward-compatible manager mutation. The caller still supplies the existing manager-page status,
+ * but this hook translates it into the governed completion-response vocabulary and calls the same
+ * RPC as Floor. That removes the split where manager-entered refusals and exceptions never reached
+ * Resident 360 Needs Attention or change detection.
+ */
 export function useRecordResidentServiceTask() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -156,11 +168,17 @@ export function useRecordResidentServiceTask() {
       supervisorNotified: boolean;
       secondEmployeeId?: string | null;
     }) => {
-      const { data, error } = await supabase.rpc("record_resident_service_task" as never, {
+      const response = completionResponseForServiceOutcome(status);
+      const exceptionDetails: Json = {
+        note: note?.trim() || null,
+        supervisor_notified: supervisorNotified,
+        legacy_status: status,
+        completed_by_other: status === "completed_by_other",
+      };
+      const { data, error } = await supabase.rpc("record_service_task_response" as never, {
         p_task_id: taskId,
-        p_status: status,
-        p_note: note ?? null,
-        p_supervisor_notified: supervisorNotified,
+        p_response: response,
+        p_exception_details: exceptionDetails,
         p_second_employee_id: secondEmployeeId ?? null,
       } as never);
       if (error) throw error;
