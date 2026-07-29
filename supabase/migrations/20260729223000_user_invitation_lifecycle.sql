@@ -3,7 +3,7 @@
 -- Auth invitations previously disappeared into GoTrue: administrators could not distinguish a pending
 -- invite from an accepted, expired, or revoked one, and there was no durable receipt linking the email
 -- to the intended role, organization, or employee. This ledger is written only by the trusted invite
--- function and reconciled against auth.users by a daily service-role job.
+-- function and reconciled against auth.users by the existing daily compliance-maintenance job.
 
 create table public.user_invitation_lifecycle (
   id uuid primary key default gen_random_uuid(),
@@ -57,6 +57,20 @@ create trigger user_invitation_lifecycle_audit
 after insert or update or delete on public.user_invitation_lifecycle
 for each row execute function public.audit_log_trigger();
 
+insert into app_private.audit_entity_manifest(
+  table_name, audit_mode, contains_regulated_data, rationale
+) values (
+  'user_invitation_lifecycle',
+  'row_trigger',
+  true,
+  'Invitation identity, role, employee link, status, and delivery lifecycle are audited personnel-access evidence (20260729223000)'
+)
+on conflict (table_name) do update set
+  audit_mode = excluded.audit_mode,
+  contains_regulated_data = excluded.contains_regulated_data,
+  rationale = excluded.rationale,
+  updated_at = now();
+
 create or replace function public.record_user_invitation_sent(
   p_invited_user_id uuid,
   p_email text,
@@ -93,7 +107,7 @@ begin
   if p_created_by is not null and not exists (
     select 1 from public.profiles p
     where p.id = p_created_by
-      and (public.is_platform_admin(p.id) or p.organization_id is not distinct from p_organization_id)
+      and (p.role = 'platform_admin' or p.organization_id is not distinct from p_organization_id)
   ) then
     raise exception 'Invitation creator is outside scope' using errcode = '42501';
   end if;
@@ -162,44 +176,24 @@ $$;
 revoke all on function public.reconcile_user_invitation_lifecycle() from public, anon, authenticated;
 grant execute on function public.reconcile_user_invitation_lifecycle() to service_role;
 
-insert into app_private.system_job_definitions(
-  job_key, display_name, description, execution_kind, cron_job_name,
-  expected_interval, freshness_sla, is_critical, retry_mode, operator_route
-) values (
-  'user-invitation-lifecycle',
-  'User invitation lifecycle',
-  'Reconciles sent invitations with accepted accounts and expires invitations that were not completed.',
-  'sql_cron',
-  'user-invitation-lifecycle-hourly',
-  interval '1 hour',
-  interval '3 hours',
-  false,
-  'manual',
-  '/app/users'
-)
-on conflict (job_key) do update set
-  display_name = excluded.display_name,
-  description = excluded.description,
-  execution_kind = excluded.execution_kind,
-  cron_job_name = excluded.cron_job_name,
-  expected_interval = excluded.expected_interval,
-  freshness_sla = excluded.freshness_sla,
-  is_critical = excluded.is_critical,
-  retry_mode = excluded.retry_mode,
-  operator_route = excluded.operator_route,
-  updated_at = now();
+-- Keep the existing registered daily compliance-maintenance job as the single operational watchdog
+-- for compliance requirements, workforce readiness, and invitation expiry/acceptance reconciliation.
+update app_private.system_job_definitions
+set description = 'Generates recurring compliance occurrences, routes 30-day workforce readiness risks, and reconciles pending user invitations.',
+    updated_at = now()
+where job_key = 'compliance-requirement-maintenance-daily';
 
 do $$
 begin
   if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
     perform cron.unschedule(jobid)
     from cron.job
-    where jobname = 'user-invitation-lifecycle-hourly';
+    where jobname = 'compliance-requirement-maintenance-daily';
 
     perform cron.schedule(
-      'user-invitation-lifecycle-hourly',
-      '11 * * * *',
-      'select public.reconcile_user_invitation_lifecycle();'
+      'compliance-requirement-maintenance-daily',
+      '15 6 * * *',
+      'select public.run_compliance_requirement_maintenance(); select public.run_workforce_readiness_forecast_maintenance(); select public.reconcile_user_invitation_lifecycle();'
     );
   end if;
 end $$;
