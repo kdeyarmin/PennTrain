@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The hook module imports the Supabase client at module scope, which throws without
+// VITE_SUPABASE_* env vars. The helpers under test are pure, so stub the client out.
+vi.mock("@/lib/supabase", () => ({ supabase: {} }));
+
 import {
   credentialIsExpired,
   credentialSupportsMedicationWrite,
