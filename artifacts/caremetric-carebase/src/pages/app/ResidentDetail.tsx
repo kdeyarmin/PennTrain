@@ -26,10 +26,12 @@ import { useListIncidents } from "@/hooks/useIncidents";
 import { useResidentAgreements } from "@/hooks/useResidentAgreements";
 import { useResidentAdministrativeMaster } from "@/hooks/useResidentAdministrativeMaster";
 import { useResidentCareLevelFlags } from "@/hooks/useCareLevelReview";
+import { useResidentServiceExceptions } from "@/hooks/useFloorMode";
 import { buildResidentNeedsAttention } from "@/lib/residentNeedsAttention";
 import { isCareProfileStale } from "@/lib/residentCareHeader";
 import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
 import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
+import type { DetectionServiceException } from "@/lib/residentChangeDetection";
 import { resolveResidentTab, visibleResidentTabs } from "./resident-tabs/tabs";
 import type { ResidentTabProps } from "./resident-tabs/types";
 
@@ -84,6 +86,8 @@ export default function ResidentDetail() {
     ? { id: resident.id, first_name: resident.first_name, last_name: resident.last_name, room: resident.room }
     : null;
   const careLevelFlags = useResidentCareLevelFlags(id, resident?.facility_id, careLevelResident);
+  // Phase 4b floor-execution exception rows — same source change detection and care conflicts use.
+  const serviceExceptionsQuery = useResidentServiceExceptions(id);
 
   const { mutate: updateResident } = useUpdateResident();
 
@@ -150,7 +154,17 @@ export default function ResidentDetail() {
     officialContacts: administrativeMaster?.contacts ?? [],
   });
 
-  const needsAttentionLoading = itemsLoading || documentsLoading || careHeader.isLoading || careLevelFlags.isLoading;
+  const needsAttentionLoading = itemsLoading
+    || documentsLoading
+    || careHeader.isLoading
+    || careLevelFlags.isLoading
+    || serviceExceptionsQuery.isLoading;
+  const typedServiceExceptions: DetectionServiceException[] = (serviceExceptionsQuery.data ?? []).map((row) => ({
+    completion_response: row.completion_response,
+    documented_assistance_level: row.documented_assistance_level,
+    service_name: row.service_name,
+    at: row.performed_at ?? row.scheduled_start,
+  }));
   const needsAttentionCards = careHeader.data
     ? buildResidentNeedsAttention({
       resident,
@@ -178,6 +192,8 @@ export default function ResidentDetail() {
         : null,
       careProfileStale: isCareProfileStale(careHeader.data.care.asOf),
       careProfileAsOf: careHeader.data.care.asOf,
+      serviceExceptions: typedServiceExceptions,
+      // Snapshot aggregate is only a fallback while typed rows have not loaded yet.
       serviceExceptionsLast7Days: snapshot.data?.serviceDelivery.exceptionsLast7Days ?? 0,
       careLevelFlags: careLevelFlags.flags.map((flag) => ({ kind: flag.kind, message: flag.message })),
     })

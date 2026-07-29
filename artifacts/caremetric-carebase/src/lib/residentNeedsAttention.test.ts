@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  ASSISTANCE_COUNT_THRESHOLD,
+  ASSISTANCE_WINDOW_DAYS,
+  REFUSAL_COUNT_THRESHOLD,
+  REFUSAL_WINDOW_DAYS,
+} from "./residentChangeDetection";
+import {
   buildResidentNeedsAttention,
   FALL_CLUSTER_COUNT,
   SERVICE_EXCEPTION_THRESHOLD,
@@ -32,6 +38,7 @@ function clean(overrides: Partial<NeedsAttentionInput> = {}): NeedsAttentionInpu
     pendingActivation: null,
     careProfileStale: false,
     careProfileAsOf: "2026-07-01T00:00:00.000Z",
+    serviceExceptions: [],
     serviceExceptionsLast7Days: 0,
     careLevelFlags: [],
     now: NOW,
@@ -264,6 +271,77 @@ describe("hospital, agreements, contacts, and service delivery", () => {
     expect(at.map((card) => card.kind)).toContain("service_exceptions");
   });
 
+  it("raises increased-assistance at the shared change-detection threshold", () => {
+    const rows = Array.from({ length: ASSISTANCE_COUNT_THRESHOLD }, (_, i) => ({
+      completion_response: "completed_with_more_assistance",
+      documented_assistance_level: "two_person",
+      service_name: `Transfer ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    const below = buildResidentNeedsAttention(clean({
+      serviceExceptions: rows.slice(0, ASSISTANCE_COUNT_THRESHOLD - 1),
+    }));
+    expect(below.map((card) => card.kind)).not.toContain("increased_assistance");
+    const at = buildResidentNeedsAttention(clean({ serviceExceptions: rows }));
+    const card = at.find((entry) => entry.kind === "increased_assistance")!;
+    expect(card.severity).toBe("high");
+    expect(card.evidence).toContain("two person");
+  });
+
+  it("ignores assistance rows outside the shared window", () => {
+    const rows = Array.from({ length: ASSISTANCE_COUNT_THRESHOLD }, (_, i) => ({
+      completion_response: "completed_with_more_assistance",
+      documented_assistance_level: null,
+      service_name: `Bath ${i + 1}`,
+      at: daysAgo(ASSISTANCE_WINDOW_DAYS + 1 + i),
+    }));
+    expect(buildResidentNeedsAttention(clean({ serviceExceptions: rows })).map((c) => c.kind))
+      .not.toContain("increased_assistance");
+  });
+
+  it("raises repeated-refusals at the shared change-detection threshold", () => {
+    const rows = Array.from({ length: REFUSAL_COUNT_THRESHOLD }, (_, i) => ({
+      completion_response: "resident_refused",
+      documented_assistance_level: null,
+      service_name: `Meal ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    const below = buildResidentNeedsAttention(clean({
+      serviceExceptions: rows.slice(0, REFUSAL_COUNT_THRESHOLD - 1),
+    }));
+    expect(below.map((card) => card.kind)).not.toContain("repeated_refusals");
+    const at = buildResidentNeedsAttention(clean({ serviceExceptions: rows }));
+    const card = at.find((entry) => entry.kind === "repeated_refusals")!;
+    expect(card.title).toContain(`${REFUSAL_WINDOW_DAYS} days`);
+    expect(card.evidence).toContain("Refused: Meal 1");
+  });
+
+  it("does not double-count typed refusals on the residual service-exceptions card", () => {
+    const rows = Array.from({ length: Math.max(SERVICE_EXCEPTION_THRESHOLD, REFUSAL_COUNT_THRESHOLD) }, (_, i) => ({
+      completion_response: "resident_refused",
+      documented_assistance_level: null,
+      service_name: `Shower ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    const kinds = buildResidentNeedsAttention(clean({
+      serviceExceptions: rows,
+      serviceExceptionsLast7Days: 99,
+    })).map((card) => card.kind);
+    expect(kinds).toContain("repeated_refusals");
+    expect(kinds).not.toContain("service_exceptions");
+  });
+
+  it("still raises residual exceptions for non-assistance, non-refusal typed rows", () => {
+    const rows = Array.from({ length: SERVICE_EXCEPTION_THRESHOLD }, (_, i) => ({
+      completion_response: "resident_unavailable",
+      documented_assistance_level: null,
+      service_name: `Activity ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    expect(buildResidentNeedsAttention(clean({ serviceExceptions: rows })).map((c) => c.kind))
+      .toContain("service_exceptions");
+  });
+
   it("passes care-level review flags through with their own message as evidence", () => {
     const cards = buildResidentNeedsAttention(clean({
       careLevelFlags: [{ kind: "stale_assessment", message: "Assessment is 400 days old." }],
@@ -321,13 +399,8 @@ describe("ordering and summary", () => {
 });
 
 describe("stated coverage limits", () => {
-  it("names the cards this phase cannot compute and what unblocks each", () => {
-    // A panel that silently omits a promised check is worse than one that states the gap.
-    expect(UNAVAILABLE_CARDS.map((entry) => entry.label)).toEqual([
-      "Increased assistance documented",
-      "Repeated service refusals",
-    ]);
-    for (const entry of UNAVAILABLE_CARDS) expect(entry.blockedBy).toBeTruthy();
+  it("has no remaining unavailable Phase 1c cards once floor exceptions are wired", () => {
+    expect(UNAVAILABLE_CARDS).toEqual([]);
   });
 });
 

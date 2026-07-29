@@ -9,15 +9,20 @@
 //   1. Every card is derived from records, never from a score. The request is explicit about this
 //      for change detection ("do not create a black-box AI risk score") and the same standard
 //      applies here: a card states what is true, which records make it true, and what to do.
-//   2. A card only exists if the data behind it exists today. Several cards named in the request --
-//      "increased assistance documented" and refusal-specific counts -- need the structured service
-//      exceptions that arrive with the floor-execution phase. They are deliberately absent rather
-//      than approximated from free text; see UNAVAILABLE_CARDS below, which the UI renders as a
-//      stated limitation so the panel never implies coverage it does not have.
+//   2. A card only exists if the data behind it exists today. Increased-assistance and refusal
+//      cards read the same Phase 4b `completion_response` rows that change detection uses, with
+//      shared thresholds so the two surfaces cannot disagree about what "repeated" means.
 //
 // Pure and injectable-clock, in the style of moveInReadiness.ts / careLevelReview.ts.
 
 import { facilityToday } from "./dateUtils";
+import {
+  ASSISTANCE_COUNT_THRESHOLD,
+  ASSISTANCE_WINDOW_DAYS,
+  REFUSAL_COUNT_THRESHOLD,
+  REFUSAL_WINDOW_DAYS,
+  type DetectionServiceException,
+} from "./residentChangeDetection";
 
 export type NeedsAttentionSeverity = "urgent" | "high" | "attention" | "info";
 
@@ -33,6 +38,8 @@ export type NeedsAttentionKind =
   | "missing_physician"
   | "fall_cluster"
   | "service_exceptions"
+  | "increased_assistance"
+  | "repeated_refusals"
   | "missing_state_form"
   | "care_level_review"
   | "move_in_blockers"
@@ -113,7 +120,15 @@ export interface NeedsAttentionInput {
   pendingActivation: { versionNumber: number; effectiveDate: string } | null;
   careProfileStale: boolean;
   careProfileAsOf: string | null;
-  /** Aggregate from get_resident_360_snapshot. Split into typed exception kinds in a later phase. */
+  /**
+   * Typed Phase 4b exception rows (`completion_response` set). Drives increased-assistance and
+   * refusal cards, and the residual aggregate for other exception kinds.
+   */
+  serviceExceptions: DetectionServiceException[];
+  /**
+   * Fallback aggregate from get_resident_360_snapshot when typed rows were not loaded. Ignored once
+   * `serviceExceptions` is non-empty so refusal/assistance cards are not double-counted.
+   */
   serviceExceptionsLast7Days: number;
   /** Flags from careLevelReview.ts, already computed by the caller. */
   careLevelFlags: { kind: string; message: string }[];
@@ -131,6 +146,12 @@ export const FALL_CLUSTER_WINDOW_DAYS = 30;
 
 /** Service-delivery exceptions in a 7-day window before the pattern is worth a human look. */
 export const SERVICE_EXCEPTION_THRESHOLD = 3;
+export const SERVICE_EXCEPTION_WINDOW_DAYS = 7;
+
+const TYPED_ASSISTANCE_OR_REFUSAL = new Set([
+  "completed_with_more_assistance",
+  "resident_refused",
+]);
 
 const ASSESSMENT_ITEM_TYPES = new Set([
   "preadmission_screening",
@@ -148,26 +169,21 @@ const OPEN_COMPLIANCE_STATUSES = new Set(["missing", "expired", "due_soon", "ove
 const OPEN_AGREEMENT_STATUSES = new Set(["pending_signature", "partially_executed"]);
 
 /**
- * Cards named in the request that this phase deliberately does not compute, and what unblocks each.
- * Surfaced in the UI: a panel that silently omits a promised check is worse than one that says which
- * checks it does not yet run.
+ * Cards named in the request that this evaluator deliberately does not compute, and what unblocks
+ * each. Empty once every promised Phase 1c card has a real data path.
  */
-export const UNAVAILABLE_CARDS: { label: string; blockedBy: string }[] = [
-  {
-    label: "Increased assistance documented",
-    blockedBy: "Needs structured service-exception documentation (floor-execution phase).",
-  },
-  {
-    label: "Repeated service refusals",
-    blockedBy: "Needs refusal-typed exception records; today only an aggregate exception count exists.",
-  },
-];
+export const UNAVAILABLE_CARDS: { label: string; blockedBy: string }[] = [];
 
 function daysBetween(from: string | null | undefined, now: Date): number | null {
   if (!from) return null;
   const at = new Date(from);
   if (Number.isNaN(at.getTime())) return null;
   return Math.floor((now.getTime() - at.getTime()) / 86_400_000);
+}
+
+function withinWindow(at: string | null | undefined, now: Date, windowDays: number): boolean {
+  const days = daysBetween(at, now);
+  return days !== null && days >= 0 && days <= windowDays;
 }
 
 function isOverdue(dueDate: string | null | undefined, now: Date): boolean {
@@ -177,6 +193,10 @@ function isOverdue(dueDate: string | null | undefined, now: Date): boolean {
 
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function assistanceLabel(level: string | null): string {
+  return level ? ` — ${level.replace(/_/g, " ")}` : "";
 }
 
 export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAttentionCard[] {
@@ -428,15 +448,68 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
     });
   }
 
-  // --- Service delivery -----------------------------------------------------------------------
-  if (input.serviceExceptionsLast7Days >= SERVICE_EXCEPTION_THRESHOLD) {
+  // --- Service delivery (typed Phase 4b responses + residual aggregate) -----------------------
+  const typedExceptions = input.serviceExceptions ?? [];
+
+  const assistanceRecords = typedExceptions.filter((entry) =>
+    entry.completion_response === "completed_with_more_assistance"
+    && withinWindow(entry.at, now, ASSISTANCE_WINDOW_DAYS));
+  if (assistanceRecords.length >= ASSISTANCE_COUNT_THRESHOLD) {
+    cards.push({
+      id: "increased-assistance",
+      kind: "increased_assistance",
+      severity: "high",
+      title: `${formatCount(assistanceRecords.length, "service")} needed more help than planned`,
+      why: "Repeatedly needing more help than the plan describes means the plan understates what this resident requires, and the staffing built on it is short.",
+      evidence: assistanceRecords
+        .slice(0, 5)
+        .map((entry) => `${entry.service_name}${assistanceLabel(entry.documented_assistance_level)}`)
+        .join("; "),
+      owner: "Facility manager",
+      dueDate: null,
+      since: assistanceRecords.map((entry) => entry.at).filter(Boolean).sort()[0] ?? null,
+      actionLabel: "Review care delivery",
+      href: `${base}?tab=care`,
+    });
+  }
+
+  const refusals = typedExceptions.filter((entry) =>
+    entry.completion_response === "resident_refused"
+    && withinWindow(entry.at, now, REFUSAL_WINDOW_DAYS));
+  if (refusals.length >= REFUSAL_COUNT_THRESHOLD) {
+    cards.push({
+      id: "repeated-refusals",
+      kind: "repeated_refusals",
+      severity: "attention",
+      title: `${formatCount(refusals.length, "service refusal")} in ${REFUSAL_WINDOW_DAYS} days`,
+      why: "Refusals are the earliest signal that a plan no longer fits the resident — the care may be right in principle and wrong in how, when, or by whom it is offered.",
+      evidence: refusals.slice(0, 5).map((entry) => `Refused: ${entry.service_name}`).join("; "),
+      owner: "Facility manager",
+      dueDate: null,
+      since: refusals.map((entry) => entry.at).filter(Boolean).sort()[0] ?? null,
+      actionLabel: "Review care delivery",
+      href: `${base}?tab=care`,
+    });
+  }
+
+  // Residual aggregate covers unavailable / not-completed / late / partial / concern — not the
+  // typed assistance and refusal cards above. When typed rows are loaded, ignore the snapshot
+  // count so refusals are not double-flagged.
+  const otherExceptionCount = typedExceptions.length > 0
+    ? typedExceptions.filter((entry) =>
+      !TYPED_ASSISTANCE_OR_REFUSAL.has(entry.completion_response ?? "")
+      && withinWindow(entry.at, now, SERVICE_EXCEPTION_WINDOW_DAYS)).length
+    : input.serviceExceptionsLast7Days;
+  if (otherExceptionCount >= SERVICE_EXCEPTION_THRESHOLD) {
     cards.push({
       id: "service-exceptions",
       kind: "service_exceptions",
       severity: "attention",
-      title: `${formatCount(input.serviceExceptionsLast7Days, "service exception")} in 7 days`,
-      why: "Repeated refusals or missed services are the earliest signal that the plan no longer fits the resident.",
-      evidence: "Aggregate service-task exception count from the resident snapshot.",
+      title: `${formatCount(otherExceptionCount, "service exception")} in ${SERVICE_EXCEPTION_WINDOW_DAYS} days`,
+      why: "Missed, late, or unavailable services are an early signal that the plan no longer fits the resident.",
+      evidence: typedExceptions.length > 0
+        ? "Typed service-task exceptions excluding increased-assistance and refusal responses."
+        : "Aggregate service-task exception count from the resident snapshot.",
       owner: "Facility manager",
       dueDate: null,
       since: null,
