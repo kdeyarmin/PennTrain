@@ -161,11 +161,6 @@ export const UNAVAILABLE_CARDS: { label: string; blockedBy: string }[] = [
     label: "Repeated service refusals",
     blockedBy: "Needs refusal-typed exception records; today only an aggregate exception count exists.",
   },
-  {
-    label: "Care-level review recommended",
-    blockedBy:
-      "Evaluator supports it, but the resident page does not yet load rate agreements — wiring lands with the Financial tab.",
-  },
 ];
 
 function daysBetween(from: string | null | undefined, now: Date): number | null {

@@ -1,7 +1,15 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { buildCareLevelReview, type RateAgreementLike, type ResidentLike } from "@/lib/careLevelReview";
+import {
+  buildCareLevelReview,
+  computeResidentCareLevelReview,
+  currentRatesByResident,
+  latestAssessmentByResident,
+  type CareLevelFlag,
+  type RateAgreementLike,
+  type ResidentLike,
+} from "@/lib/careLevelReview";
 
 // Facility-wide care-level / billing review. Fetches the three sources that bridge assessed acuity to
 // the billed level of care -- rate agreements (the billed side) and the two assessment sources (the
@@ -46,4 +54,65 @@ export function useCareLevelReview(facilityId: string | undefined, residents: Re
   }, [residents, sources.data]);
 
   return { rows, isLoading: sources.isLoading, isError: sources.isError, error: sources.error };
+}
+
+/**
+ * Slim per-resident care-level flags for the Needs Attention panel. Three light selects —
+ * not the 11-query financial workspace — scoped to one resident so the header stays cheap.
+ */
+export function useResidentCareLevelFlags(
+  residentId: string | undefined,
+  facilityId: string | undefined,
+  resident: ResidentLike | null | undefined,
+) {
+  const sources = useQuery({
+    queryKey: ["care-level-review", "resident", residentId],
+    enabled: !!residentId && !!facilityId,
+    queryFn: async () => {
+      const [rates, clinical, forms] = await Promise.all([
+        supabase
+          .from("resident_rate_agreements")
+          .select("resident_id,level_of_care_charge,effective_from,effective_through,version_number")
+          .eq("resident_id", residentId!),
+        supabase
+          .from("clinical_assessments")
+          .select("resident_id,assessed_at")
+          .eq("resident_id", residentId!)
+          .in("status", ["final", "amended"]),
+        supabase
+          .from("resident_assessment_forms")
+          .select("resident_id,updated_at")
+          .eq("resident_id", residentId!)
+          .eq("status", "finalized"),
+      ]);
+      const failed = [rates, clinical, forms].find((result) => result.error);
+      if (failed?.error) throw failed.error;
+      return {
+        rates: (rates.data ?? []) as RateAgreementLike[],
+        clinical: (clinical.data ?? []).map((row) => ({
+          resident_id: row.resident_id,
+          at: row.assessed_at as string | null,
+        })),
+        forms: (forms.data ?? []).map((row) => ({
+          resident_id: row.resident_id,
+          at: row.updated_at as string | null,
+        })),
+      };
+    },
+  });
+
+  const flags = useMemo((): CareLevelFlag[] => {
+    if (!resident || !sources.data) return [];
+    const rate = currentRatesByResident(sources.data.rates).get(resident.id) ?? null;
+    const lastAssessedAt =
+      latestAssessmentByResident(sources.data.clinical, sources.data.forms).get(resident.id) ?? null;
+    return computeResidentCareLevelReview(resident, rate, lastAssessedAt).flags;
+  }, [resident, sources.data]);
+
+  return {
+    flags,
+    isLoading: sources.isLoading,
+    isError: sources.isError,
+    error: sources.error,
+  };
 }

@@ -737,7 +737,9 @@ test.describe("role-aware release journeys", () => {
         await verifyOrgAdminBrowserMfa(page);
         await page.goto(account.expectedPath);
         await expect(page.locator("h1").first()).toBeVisible();
-      } else if (role === "platform_admin") {
+      } else if (role === "platform_admin" || role === "facility_manager") {
+        // Privileged roles without a verified AAL2 session are held on the MFA gate
+        // (facility_manager is not enrolled in this suite; org_admin verifies above).
         await expect(page.getByText("Multi-factor verification required")).toBeVisible();
       } else {
         await expect(page.locator("h1").first()).toBeVisible();

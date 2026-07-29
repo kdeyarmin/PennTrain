@@ -25,6 +25,7 @@ import { useListResidentChangeEvents } from "@/hooks/useResidentChangeEvents";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useResidentAgreements } from "@/hooks/useResidentAgreements";
 import { useResidentAdministrativeMaster } from "@/hooks/useResidentAdministrativeMaster";
+import { useResidentCareLevelFlags } from "@/hooks/useCareLevelReview";
 import { buildResidentNeedsAttention } from "@/lib/residentNeedsAttention";
 import { isCareProfileStale } from "@/lib/residentCareHeader";
 import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
@@ -79,6 +80,10 @@ export default function ResidentDetail() {
   const { data: changeEvents } = useListResidentChangeEvents({ residentId: id });
   const { data: residentIncidents } = useListIncidents({ residentId: id });
   const { data: agreementData } = useResidentAgreements(id);
+  const careLevelResident = resident
+    ? { id: resident.id, first_name: resident.first_name, last_name: resident.last_name, room: resident.room }
+    : null;
+  const careLevelFlags = useResidentCareLevelFlags(id, resident?.facility_id, careLevelResident);
 
   const { mutate: updateResident } = useUpdateResident();
 
@@ -145,7 +150,7 @@ export default function ResidentDetail() {
     officialContacts: administrativeMaster?.contacts ?? [],
   });
 
-  const needsAttentionLoading = itemsLoading || documentsLoading || careHeader.isLoading;
+  const needsAttentionLoading = itemsLoading || documentsLoading || careHeader.isLoading || careLevelFlags.isLoading;
   const needsAttentionCards = careHeader.data
     ? buildResidentNeedsAttention({
       resident,
@@ -174,11 +179,7 @@ export default function ResidentDetail() {
       careProfileStale: isCareProfileStale(careHeader.data.care.asOf),
       careProfileAsOf: careHeader.data.care.asOf,
       serviceExceptionsLast7Days: snapshot.data?.serviceDelivery.exceptionsLast7Days ?? 0,
-      // Care-level flags need the resident's rate agreements, which live behind the 11-query
-      // financial workspace. Loading that eagerly for one card is the fan-out this page is meant to
-      // avoid; the check is listed in the panel's "not yet covered" section until the Financial tab
-      // owns that query.
-      careLevelFlags: [],
+      careLevelFlags: careLevelFlags.flags.map((flag) => ({ kind: flag.kind, message: flag.message })),
     })
     : [];
 

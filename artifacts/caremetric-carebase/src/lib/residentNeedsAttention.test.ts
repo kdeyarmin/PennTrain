@@ -326,9 +326,26 @@ describe("stated coverage limits", () => {
     expect(UNAVAILABLE_CARDS.map((entry) => entry.label)).toEqual([
       "Increased assistance documented",
       "Repeated service refusals",
-      "Care-level review recommended",
     ]);
     for (const entry of UNAVAILABLE_CARDS) expect(entry.blockedBy).toBeTruthy();
+  });
+});
+
+describe("care-level review flags", () => {
+  it("emits an attention card per supplied care-level flag", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      careLevelFlags: [
+        { kind: "no_rate_agreement", message: "No current rate agreement is in force." },
+        { kind: "stale_assessment", message: "Latest assessment is older than 365 days." },
+      ],
+    }));
+    const careCards = cards.filter((entry) => entry.kind === "care_level_review");
+    expect(careCards).toHaveLength(2);
+    expect(careCards[0]?.href).toContain("tab=financial");
+    expect(careCards.map((card) => card.evidence)).toEqual([
+      "No current rate agreement is in force.",
+      "Latest assessment is older than 365 days.",
+    ]);
   });
 });
 
