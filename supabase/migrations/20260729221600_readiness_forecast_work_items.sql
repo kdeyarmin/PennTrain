@@ -1,8 +1,10 @@
 -- Route the 30-day slice of the workforce forecast into the universal work queue.
 --
 -- A forecast that lives only on a dashboard still depends on a manager remembering to revisit it.
--- This maintenance job turns each current or near-term source record into one deduplicated work item,
--- reopens it if the condition returns, and closes it when the forecast no longer contains the risk.
+-- This maintenance function turns each current or near-term source record into one deduplicated work
+-- item, reopens it if the condition returns, and closes it when the forecast no longer contains the
+-- risk. It joins the existing daily compliance-maintenance cron rather than creating another narrowly
+-- scoped job and control-plane row.
 
 create or replace function public.run_workforce_readiness_forecast_maintenance()
 returns jsonb
@@ -147,46 +149,25 @@ $$;
 revoke all on function public.run_workforce_readiness_forecast_maintenance() from public, anon, authenticated;
 grant execute on function public.run_workforce_readiness_forecast_maintenance() to service_role;
 
--- Register before scheduling so the operator page and watchdog never have a blind spot, even during
--- a partial deployment.
-insert into app_private.system_job_definitions(
-  job_key, display_name, description, execution_kind, cron_job_name,
-  expected_interval, freshness_sla, is_critical, retry_mode, operator_route
-) values (
-  'workforce-readiness-forecast',
-  'Workforce readiness forecast',
-  'Projects credential, training, and duty-clearance risks and routes the next 30 days into the universal work queue.',
-  'sql_cron',
-  'workforce-readiness-forecast-daily',
-  interval '1 day',
-  interval '30 hours',
-  true,
-  'manual',
-  '/admin/system-jobs'
-)
-on conflict (job_key) do update set
-  display_name = excluded.display_name,
-  description = excluded.description,
-  execution_kind = excluded.execution_kind,
-  cron_job_name = excluded.cron_job_name,
-  expected_interval = excluded.expected_interval,
-  freshness_sla = excluded.freshness_sla,
-  is_critical = excluded.is_critical,
-  retry_mode = excluded.retry_mode,
-  operator_route = excluded.operator_route,
-  updated_at = now();
+-- Keep one registered daily compliance maintenance job. The watchdog and operator console retain the
+-- existing job key while its description and cron command now cover both recurring obligations and
+-- forward-looking workforce readiness.
+update app_private.system_job_definitions
+set description = 'Generates recurring compliance occurrences, sends/escalates requirement reminders, and routes 30-day workforce readiness risks into the universal work queue.',
+    updated_at = now()
+where job_key = 'compliance-requirement-maintenance-daily';
 
 do $$
 begin
   if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
     perform cron.unschedule(jobid)
     from cron.job
-    where jobname = 'workforce-readiness-forecast-daily';
+    where jobname = 'compliance-requirement-maintenance-daily';
 
     perform cron.schedule(
-      'workforce-readiness-forecast-daily',
-      '17 10 * * *',
-      'select public.run_workforce_readiness_forecast_maintenance();'
+      'compliance-requirement-maintenance-daily',
+      '15 6 * * *',
+      'select public.run_compliance_requirement_maintenance(); select public.run_workforce_readiness_forecast_maintenance();'
     );
   end if;
 end $$;
