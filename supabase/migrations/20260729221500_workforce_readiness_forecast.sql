@@ -13,9 +13,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_org uuid := app_private.assert_product_value_manager(p_facility_id);
+  v_org uuid;
   v_today date := public.pa_today();
 begin
+  -- Interactive callers use the same manager/facility authorization as the Value Center. The daily
+  -- maintenance worker runs as service_role and therefore has no auth.uid(); for that path derive the
+  -- organization from the facility itself rather than failing the user-session guard. No caller may
+  -- choose an organization independently of the facility id.
+  if current_user in ('postgres', 'service_role', 'supabase_admin') then
+    select f.organization_id into v_org
+    from public.facilities f
+    where f.id = p_facility_id and f.is_active;
+    if v_org is null then
+      raise exception 'Active facility was not found' using errcode = 'P0002';
+    end if;
+  else
+    v_org := app_private.assert_product_value_manager(p_facility_id);
+  end if;
+
   return (
     with facility_employees as (
       select distinct e.id, e.first_name, e.last_name, e.job_title, e.department,
@@ -183,4 +198,4 @@ revoke all on function public.get_workforce_readiness_forecast(uuid) from public
 grant execute on function public.get_workforce_readiness_forecast(uuid) to authenticated, service_role;
 
 comment on function public.get_workforce_readiness_forecast(uuid) is
-  'Returns an explainable 30/60/90-day readiness forecast for active employees assigned to one facility, using current credential/training records and caller-scoped authorization.';
+  'Returns an explainable 30/60/90-day readiness forecast for active employees assigned to one facility. Interactive callers are manager-scoped; the service-role maintenance worker derives scope only from the facility.';
