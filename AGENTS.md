@@ -90,16 +90,17 @@ running things in this environment.
  customer-role accounts therefore resolve correctly after a local reset. The
  predictable `demo123` password is local-only, and no platform-admin credential
  is seeded.
-- **MFA login gate is opt-in (default off)**: `MfaPolicyGate`
+- **MFA login gate defaults on for real tenants**: `MfaPolicyGate`
  (`src/components/layout/SessionSecurityGates.tsx`) reads `get_my_mfa_policy()`.
- As of migration `20260728120000_make_privileged_mfa_optional.sql`, an
- organization with no `identity_security_policies` row (the default, incl. every
- seeded org) is **not** MFA-gated, so `admin@*`/`manager@*` accounts log straight
- into the dashboard with just `demo123`. MFA becomes mandatory again only when an
- org inserts an identity-security-policy row (still forced to `require_aal2 = true`
- by the `identity_security_policy_mfa_floor` check constraint), and the
- `platform_admin` operator role stays MFA-mandatory. Per-operation step-up on
- irreversible admin actions (`identity_operation_requires_aal2`) is unchanged, so
- those still need a fresh AAL2 session where a policy is configured.
- `trainer@sunrisehealthcare.com` (`demo123`) remains a handy non-privileged login
- for learner-side flows (e.g. enrolling in a course from "My Training").
+ As of migration `20260729130000_restore_privileged_mfa_default_except_demo.sql`,
+ organizations without an `identity_security_policies` row require MFA for
+ `org_admin` / `facility_manager` again (`coalesce(require_aal2, true)`). Demo
+ orgs (`organizations.is_demo`, including every seeded Sunrise tenant) stay
+ exempt so `admin@*` / `manager@*` still log in with just `demo123`. Inserting
+ an identity-security-policy row (still forced to `require_aal2 = true` by the
+ `identity_security_policy_mfa_floor` check constraint) also enables the gate,
+ and the `platform_admin` operator role stays MFA-mandatory. Per-operation
+ step-up on irreversible admin actions (`identity_operation_requires_aal2`) is
+ unchanged. `trainer@sunrisehealthcare.com` (`demo123`) remains a handy
+ non-privileged login for learner-side flows (e.g. enrolling in a course from
+ "My Training").

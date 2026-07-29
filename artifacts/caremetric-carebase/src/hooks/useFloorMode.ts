@@ -8,6 +8,10 @@ function invalidateFloor(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
   queryClient.invalidateQueries({ queryKey: ["unscheduled-services"] });
   queryClient.invalidateQueries({ queryKey: ["resident-360"] });
+  // Floor exception documentation feeds Resident 360 Needs Attention
+  // (increased assistance / repeated refusals) and change-signal detection.
+  queryClient.invalidateQueries({ queryKey: ["resident-service-exceptions"] });
+  queryClient.invalidateQueries({ queryKey: ["resident-change-signals"] });
 }
 
 /**
