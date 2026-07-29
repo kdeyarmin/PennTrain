@@ -245,19 +245,26 @@ The drift check's CONTENT class exists because deployed migration files kept bei
 after the fact — 93 mismatches accumulated (mostly a rebrand find/replace sweeping historical
 files), and one real never-deployed `revoke` hid in that noise. This gate moves the rule to PR
 time, where the feedback lands on the person making the edit: the `migration-immutability` CI
-job fails a pull request that modifies, deletes, or renames a migration file whose version is
-already applied on the remote. Comment-only and string-only edits fail too — those are exactly
-what a repo-wide find/replace produces.
+job fails a pull request that modifies, deletes, renames, or type-changes a migration file
+whose version is already on the base branch (and therefore deployed, or about to be).
+Comment-only and string-only edits fail too — those are exactly what a repo-wide find/replace
+produces.
 
 ```bash
 node scripts/check-migration-immutability.mjs --base origin/main
 ```
 
-With `SUPABASE_ACCESS_TOKEN` set it reads the remote ledger; without one (fork PRs, local
-runs) it conservatively treats every migration file on the base ref as deployed, which is
-accurate here because merges to `main` deploy automatically (layer 1 above). If a deployed
-migration genuinely needs different behavior, write a new migration. If a file must be
-corrected in place for reasons a new migration cannot express, add or revise that version's
-entry in `scripts/migration-content-allowlist.json` (with a written reason) in the same PR —
-the gate accepts the edit and the drift check then verifies the recorded divergence. Deleting
-a deployed migration file is never accepted.
+PR CI never passes `SUPABASE_ACCESS_TOKEN` into this job: the workflow checks out untrusted
+PR code, so a rewritten script could exfiltrate the credential. Instead it treats every
+migration file on the base ref as deployed, which is accurate here because merges to `main`
+deploy automatically (layer 1 above) and also closes the merge-to-deploy lag window. Local
+or other trusted runs may set the token; the check then unions the remote ledger with the
+base-tree versions for the same reason.
+
+If a deployed migration genuinely needs different behavior, write a new migration. If a file
+must be corrected in place for reasons a new migration cannot express, add or revise that
+version's **reason** in `scripts/migration-content-allowlist.json` in the same PR — only
+content modifications (`M`) are excused that way, and only when the normalized reason text
+itself changes (whitespace-only tweaks or adding ignored properties do not count). The drift
+check then verifies the recorded divergence. Renames, deletions, and type changes (e.g.
+replacing a file with a symlink) are never accepted.
