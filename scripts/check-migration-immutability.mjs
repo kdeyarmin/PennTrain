@@ -19,21 +19,23 @@ import { fileURLToPath } from "node:url";
 // Comment-only and string-only edits fail too -- repo-wide find/replace is exactly how
 // this recurs. If a deployed migration genuinely needs different behavior, write a new
 // migration. If a file must be corrected in place for reasons a new migration cannot
-// express, the existing escape hatch applies: add or revise that version's entry in
-// scripts/migration-content-allowlist.json *in the same PR*. Touching the entry forces a
-// fresh written reason, and the drift check then verifies the recorded divergence.
-// Deleting a deployed migration file has no such hatch -- the drift check would report
-// the version as an ORPHAN regardless -- so deletions always fail here.
+// express, the existing escape hatch applies: add or revise that version's *reason* in
+// scripts/migration-content-allowlist.json *in the same PR*. Only content modifications
+// (git status M) can be excused that way -- renames, deletions, and type changes (e.g.
+// replacing a file with a symlink) are never excused, because the drift check cannot
+// catch a same-version rename and a deletion would be an ORPHAN regardless.
 //
 // What counts as "applied on the remote":
-//   - With SUPABASE_ACCESS_TOKEN set, the remote ledger itself: the versions in
-//     supabase_migrations.schema_migrations, read through the Supabase Management API
-//     query endpoint (same as check-migration-drift.mjs).
-//   - Without a token (fork PRs, local runs), a conservative fallback: every migration
-//     file present on the base ref. Merges to main deploy automatically
-//     (.github/workflows/deploy-migrations.yml), so "on main" and "deployed" coincide
-//     except for the minutes between merge and deploy -- and blocking edits during that
-//     window is the correct outcome anyway.
+//   - Without a token (the PR CI path): every migration file present on the base ref.
+//     Merges to main deploy automatically (.github/workflows/deploy-migrations.yml), so
+//     "on main" and "deployed" coincide except for the minutes between merge and deploy --
+//     and blocking edits during that window is the correct outcome anyway. PR CI
+//     deliberately does *not* pass SUPABASE_ACCESS_TOKEN: the job checks out untrusted
+//     PR code, and a contributor could rewrite this script to exfiltrate the token.
+//   - With SUPABASE_ACCESS_TOKEN set (local / trusted runs): the remote ledger
+//     (supabase_migrations.schema_migrations via the Management API) *unioned with*
+//     migrations on the base ref. The union closes the window where a migration has
+//     merged to main but the deploy job has not yet recorded it remotely.
 //
 // Usage:
 //   node scripts/check-migration-immutability.mjs --base origin/main
@@ -65,11 +67,11 @@ export function versionOf(path) {
  *
  * @param {{status: string, path: string, newPath?: string}[]} changes  parsed
  *   `git diff --name-status` entries limited to supabase/migrations/*.sql. `status` is
- *   one of A, M, D, R (rename similarity score stripped); for R, `path` is the old path
- *   and `newPath` the new one.
+ *   the first letter of the name-status code (A/M/D/R/T/…; rename similarity score
+ *   stripped); for R, `path` is the old path and `newPath` the new one.
  * @param {Set<string>} appliedVersions  versions considered deployed.
- * @param {Set<string>} allowlistRevisedVersions  versions whose entry in
- *   scripts/migration-content-allowlist.json was added or changed in the same diff.
+ * @param {Set<string>} allowlistRevisedVersions  versions whose allowlist *reason* was
+ *   added or meaningfully changed in the same diff.
  * @returns {{
  *   violations: {path: string, version: string, kind: string, detail: string}[],
  *   excused: {path: string, version: string, reason: string}[],
@@ -98,61 +100,66 @@ export function classifyMigrationEdits(changes, appliedVersions, allowlistRevise
       continue;
     }
 
-    if (change.status === "M" || change.status === "R") {
-      if (allowlistRevisedVersions.has(version)) {
-        excused.push({
-          path: change.path,
-          version,
-          reason: `its ${ALLOWLIST_REPO_PATH} entry was added or revised in this same diff`,
-        });
-        continue;
-      }
-      violations.push({
+    // Only content modifications (M) may use the allowlist escape hatch. Renames (R),
+    // type changes (T), and any other status are never excused: a same-version rename
+    // produces neither presence nor content drift, so the later drift check cannot catch
+    // it, and a symlink swap would let later edits hide outside supabase/migrations/.
+    if (change.status === "M" && allowlistRevisedVersions.has(version)) {
+      excused.push({
         path: change.path,
         version,
-        kind: change.status === "R" ? `renamed to ${change.newPath}` : "modified",
-        detail:
-          "this version is already applied on the remote. Write a new migration for behavior " +
-          `changes; for an in-place correction, add or revise the ${version} entry in ` +
-          `${ALLOWLIST_REPO_PATH} (with a written reason) in this same PR.`,
+        reason: `its ${ALLOWLIST_REPO_PATH} reason was added or revised in this same diff`,
       });
       continue;
     }
 
-    if (allowlistRevisedVersions.has(version)) {
-      excused.push({
-        path: change.path,
-        version,
-        reason: `its ${ALLOWLIST_REPO_PATH} entry was added or revised in this same diff`,
-      });
-      continue;
-    }
+    const kind =
+      change.status === "R"
+        ? `renamed to ${change.newPath}`
+        : change.status === "M"
+          ? "modified"
+          : `changed (${change.status})`;
 
     violations.push({
       path: change.path,
       version,
-      kind: `changed (${change.status})`,
+      kind,
       detail:
-        "this version is already applied on the remote. Write a new migration for behavior " +
-        `changes; for an in-place correction, add or revise the ${version} entry in ` +
-        `${ALLOWLIST_REPO_PATH} (with a written reason) in this same PR.`,
+        change.status === "M"
+          ? "this version is already applied on the remote. Write a new migration for behavior " +
+            `changes; for an in-place correction, add or revise the ${version} reason in ` +
+            `${ALLOWLIST_REPO_PATH} (with a written reason) in this same PR.`
+          : "this version is already applied on the remote. Renames, deletions, and type " +
+            "changes to deployed migration files are never allowed — restore the original " +
+            "file and write a new migration for any behavior change.",
     });
   }
 
   return { violations, excused };
 }
 
+/** Trimmed reason string, or null when the entry has no usable reason. */
+function normalizedReason(entry) {
+  if (!entry || typeof entry.reason !== "string") return null;
+  const trimmed = entry.reason.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 /**
- * Versions whose allowlist entry differs between the base and head allowlist objects
- * and whose head entry carries a nonempty written reason (the same rule the drift
- * check applies: an entry without a reason does not count).
+ * Versions whose allowlist *reason* differs between the base and head allowlist objects
+ * and whose head entry carries a nonempty written reason (the same rule the drift check
+ * applies: an entry without a reason does not count).
+ *
+ * Compares the normalized reason text itself — not the whole JSON object — so adding an
+ * ignored property or appending whitespace to an existing reason cannot excuse an edit.
  */
 export function allowlistRevisions(baseAllowlist, headAllowlist) {
   const revised = new Set();
   for (const [version, entry] of Object.entries(headAllowlist ?? {})) {
-    if (!entry || typeof entry.reason !== "string" || entry.reason.trim() === "") continue;
-    const baseEntry = (baseAllowlist ?? {})[version];
-    if (JSON.stringify(baseEntry) !== JSON.stringify(entry)) revised.add(version);
+    const headReason = normalizedReason(entry);
+    if (headReason === null) continue;
+    const baseReason = normalizedReason((baseAllowlist ?? {})[version]);
+    if (baseReason !== headReason) revised.add(version);
   }
   return revised;
 }
@@ -169,7 +176,8 @@ export function parseNameStatus(raw) {
   for (let i = 0; i < fields.length; ) {
     const status = fields[i][0]; // strip rename/copy similarity score
     if (status === "R" || status === "C") {
-      changes.push({ status: "R", path: fields[i + 1], newPath: fields[i + 2] });
+      // Treat copy (C) like rename for classification: both relocate an applied file.
+      changes.push({ status: status === "C" ? "C" : "R", path: fields[i + 1], newPath: fields[i + 2] });
       i += 3;
     } else {
       changes.push({ status, path: fields[i + 1] });
@@ -264,6 +272,15 @@ async function remoteAppliedVersions(projectRef, token) {
   return new Set(rows.map((row) => String(row.version)));
 }
 
+/** Union two version sets (remote ledger + base-tree) into a new Set. */
+export function unionVersions(...sets) {
+  const out = new Set();
+  for (const set of sets) {
+    for (const version of set) out.add(version);
+  }
+  return out;
+}
+
 const SELF_TEST_FIXTURES = [
   {
     name: "modifying an applied migration is a violation",
@@ -311,6 +328,33 @@ const SELF_TEST_FIXTURES = [
     ],
     applied: ["20260101000000"],
     revised: [],
+    expect: { violations: ["20260101000000"], excused: [] },
+  },
+  {
+    name: "renaming an applied migration is never excused by an allowlist revision",
+    changes: [
+      {
+        status: "R",
+        path: "supabase/migrations/20260101000000_a.sql",
+        newPath: "supabase/migrations/20260101000000_renamed.sql",
+      },
+    ],
+    applied: ["20260101000000"],
+    revised: ["20260101000000"],
+    expect: { violations: ["20260101000000"], excused: [] },
+  },
+  {
+    name: "type-changing an applied migration (e.g. file -> symlink) is a violation",
+    changes: [{ status: "T", path: "supabase/migrations/20260101000000_a.sql" }],
+    applied: ["20260101000000"],
+    revised: [],
+    expect: { violations: ["20260101000000"], excused: [] },
+  },
+  {
+    name: "type-changing an applied migration is never excused by an allowlist revision",
+    changes: [{ status: "T", path: "supabase/migrations/20260101000000_a.sql" }],
+    applied: ["20260101000000"],
+    revised: ["20260101000000"],
     expect: { violations: ["20260101000000"], excused: [] },
   },
   {
@@ -364,6 +408,29 @@ const ALLOWLIST_REVISION_FIXTURES = [
     head: { "20260101000000": { reason: "  " } },
     expect: [],
   },
+  {
+    name: "whitespace-only reason change does not count",
+    base: { "20260101000000": { reason: "reviewed" } },
+    head: { "20260101000000": { reason: "  reviewed  " } },
+    expect: [],
+  },
+  {
+    name: "adding an ignored property without changing the reason does not count",
+    base: { "20260101000000": { reason: "reviewed" } },
+    head: { "20260101000000": { reason: "reviewed", note: "noise" } },
+    expect: [],
+  },
+];
+
+const UNION_FIXTURES = [
+  {
+    name: "unionVersions merges remote and base without duplicates",
+    inputs: [
+      ["20260101000000", "20260101000001"],
+      ["20260101000001", "20260101000002"],
+    ],
+    expect: ["20260101000000", "20260101000001", "20260101000002"],
+  },
 ];
 
 function runSelfTest() {
@@ -383,11 +450,11 @@ function runSelfTest() {
     }
   }
 
-  const parsed = parseNameStatus("M\0a.sql\0R100\0old.sql\0new.sql\0D\0b.sql\0");
+  const parsed = parseNameStatus("M\0a.sql\0R100\0old.sql\0new.sql\0D\0b.sql\0T\0c.sql\0");
   const parsedSummary = parsed.map((c) => `${c.status}:${c.path}${c.newPath ? `->${c.newPath}` : ""}`).join(",");
-  if (parsedSummary !== "M:a.sql,R:old.sql->new.sql,D:b.sql") {
+  if (parsedSummary !== "M:a.sql,R:old.sql->new.sql,D:b.sql,T:c.sql") {
     failures += 1;
-    console.error(`✗ parseNameStatus mis-parsed rename output: ${parsedSummary}`);
+    console.error(`✗ parseNameStatus mis-parsed rename/type output: ${parsedSummary}`);
   }
 
   for (const fixture of SELF_TEST_FIXTURES) {
@@ -414,13 +481,23 @@ function runSelfTest() {
     }
   }
 
+  for (const fixture of UNION_FIXTURES) {
+    const actual = [...unionVersions(...fixture.inputs.map((list) => new Set(list)))].sort();
+    if (JSON.stringify(actual) !== JSON.stringify(fixture.expect)) {
+      failures += 1;
+      console.error(
+        `✗ ${fixture.name}\n    expected: ${JSON.stringify(fixture.expect)}\n    actual:   ${JSON.stringify(actual)}`,
+      );
+    }
+  }
+
   if (failures > 0) {
     console.error(`\nMigration immutability self-test FAILED (${failures} case(s)).`);
     process.exit(1);
   }
-  console.log(
-    `Migration immutability self-test passed (${SELF_TEST_FIXTURES.length + ALLOWLIST_REVISION_FIXTURES.length} fixtures).`,
-  );
+  const fixtureCount =
+    SELF_TEST_FIXTURES.length + ALLOWLIST_REVISION_FIXTURES.length + UNION_FIXTURES.length;
+  console.log(`Migration immutability self-test passed (${fixtureCount} fixtures).`);
 }
 
 function resolveBaseRef() {
@@ -461,19 +538,25 @@ async function run() {
     return;
   }
 
+  const baseVersions = await baseMigrationVersions(baseRef);
   const token = process.env.SUPABASE_ACCESS_TOKEN;
   let applied;
   let appliedSource;
   if (token) {
+    // Trusted/local path only. PR CI must not set this secret — the job runs PR-controlled
+    // code, and a rewritten script could exfiltrate the token before review.
     const projectRef = await resolveProjectRef();
-    applied = await remoteAppliedVersions(projectRef, token);
-    appliedSource = `remote ledger of project ${projectRef} (${applied.size} applied version(s))`;
+    const remote = await remoteAppliedVersions(projectRef, token);
+    applied = unionVersions(remote, baseVersions);
+    appliedSource =
+      `remote ledger of project ${projectRef} (${remote.size} applied) union ` +
+      `migrations on ${baseRef} (${baseVersions.size} version(s); ${applied.size} combined)`;
   } else {
-    applied = await baseMigrationVersions(baseRef);
+    applied = baseVersions;
     appliedSource =
       `migration files present on ${baseRef} (${applied.size} version(s)); ` +
-      "SUPABASE_ACCESS_TOKEN is not set, and merges to main deploy automatically, so the base " +
-      "tree stands in for the remote ledger";
+      "SUPABASE_ACCESS_TOKEN is not set (expected for PR CI), and merges to main deploy " +
+      "automatically, so the base tree stands in for the remote ledger";
   }
 
   const revised = allowlistRevisions(await allowlistAt(baseRef), await allowlistAt(null));

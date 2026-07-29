@@ -150,13 +150,17 @@ jobs:
         run: supabase stop --no-backup
 
   # PR-time guard for the rule the drift check enforces after the fact: a migration file
-  # whose version is already applied on the remote may not be modified, deleted, or
-  # renamed. Comment-only and string-only edits fail too (repo-wide find/replace is how
-  # this recurs); the escape hatch is revising that version's entry in
-  # scripts/migration-content-allowlist.json in the same PR. With SUPABASE_ACCESS_TOKEN
-  # available the check reads the remote ledger; without it (fork PRs), it conservatively
-  # treats every migration on the base ref as deployed, since merges to main deploy
-  # automatically via deploy-migrations.yml.
+  # whose version is already on the base branch (and therefore deployed, or about to be)
+  # may not be modified, deleted, or renamed. Comment-only and string-only edits fail too
+  # (repo-wide find/replace is how this recurs); the escape hatch for content edits is
+  # revising that version's *reason* in scripts/migration-content-allowlist.json in the
+  # same PR. Renames/deletions/type-changes are never excused.
+  #
+  # Deliberately does NOT pass SUPABASE_ACCESS_TOKEN: this job checks out untrusted PR
+  # code, and a contributor could rewrite the script to exfiltrate the token. The base
+  # tree is the right deployed set here anyway — merges to main deploy automatically via
+  # deploy-migrations.yml — and treating "on main" as deployed also closes the
+  # merge-to-deploy lag window.
   migration-immutability:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -174,8 +178,6 @@ jobs:
           node-version-file: .node-version
 
       - name: Fail if an already-deployed migration file is edited
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/check-migration-immutability.mjs --base "origin/${GITHUB_BASE_REF}"
 
   secret-scan:
