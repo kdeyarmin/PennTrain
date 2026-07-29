@@ -87,7 +87,7 @@ insert into public.training_types(
   id, organization_id, code, name, category, state, applies_to_facility_type, is_active
 ) values (
   'c2500000-0000-4000-8000-000000000301', 'c2500000-0000-4000-8000-000000000001',
-  'FORECAST-TRAINING', 'Forecast training', 'annual', 'PA', 'all', true
+  'FORECAST-TRAINING', 'Forecast training', 'annual', 'PA', 'BOTH', true
 );
 insert into public.employee_training_records(
   id, organization_id, facility_id, employee_id, training_type_id, status,
