@@ -4,6 +4,7 @@ import {
   isWorkItemOverdue,
   sortWorkItems,
   sourceRouteForWorkItem,
+  workItemSourceLabel,
   workQueuePathForRole,
   workQueuePresentationForRole,
 } from "./workItemQueue";
@@ -59,7 +60,7 @@ describe("work item queue", () => {
       .toEqual(["overdue", "urgent", "normal"]);
   });
 
-  it("routes source records and keeps employee work under self service", () => {
+  it("routes dedicated source records and keeps employee work under self service", () => {
     expect(sourceRouteForWorkItem(item({ source_type: "violation", source_id: "v1" })))
       .toBe("/app/violations/v1");
     expect(sourceRouteForWorkItem(item({
@@ -67,12 +68,72 @@ describe("work item queue", () => {
       source_id: "i1",
       deduplication_key: "confidential-intake:i1",
     }))).toBe("/app/confidential-incidents/i1");
-    expect(sourceRouteForWorkItem(item({ source_type: "resident_calendar", source_id: "follow-up-1" })))
-      .toBe("/app/resident-services-calendar");
-    expect(sourceRouteForWorkItem(item({ source_type: "resident_finance", source_id: "statement-1" })))
-      .toBe("/app/resident-finance");
+    expect(sourceRouteForWorkItem(item({ source_type: "complaint", source_id: "c1" })))
+      .toBe("/app/complaints/c1");
+    expect(sourceRouteForWorkItem(item({ source_type: "maintenance", source_id: "m1" })))
+      .toBe("/app/maintenance/m1");
     expect(workQueuePathForRole("employee", "w1")).toBe("/me/work/w1");
     expect(workQueuePathForRole("org_admin")).toBe("/app/work");
+  });
+
+  it("routes every registered operational source to a usable workspace", () => {
+    const expected: Record<string, string> = {
+      assessment: "/app/state-forms",
+      support_plan: "/app/state-forms",
+      service_delivery: "/app/services",
+      resident_appointment: "/app/resident-services-calendar",
+      resident_calendar: "/app/resident-services-calendar",
+      hospital_return: "/app/change-of-condition",
+      change_of_condition: "/app/change-of-condition/source-1",
+      resident_agreement: "/app/admissions",
+      admission_document: "/app/admissions",
+      move_in: "/app/residents/source-1",
+      resident_finance: "/app/resident-finance",
+      regulatory_requirement: "/app/compliance-command-center",
+      inspection: "/app/inspections/source-1",
+      inspection_war_room: "/app/value-center",
+      finding: "/app/inspection-readiness",
+      policy: "/app/policy-documents",
+      corrective_action: "/app/violations",
+      credential: "/app/credentials",
+      training_gap: "/app/training-matrix",
+      exclusion_match: "/app/exclusion-screening",
+      staffing: "/app/schedule",
+      shift_handoff: "/app/shift-handoffs",
+      facility_license: "/app/facilities",
+      emergency_drill: "/app/emergency",
+      qapi: "/app/qapi/projects/source-1",
+      medication_integration: "/app/medication-integration",
+      automation: "/app/value-center",
+      copilot_draft: "/app/regulatory-copilot",
+    };
+    for (const [sourceType, route] of Object.entries(expected)) {
+      expect(sourceRouteForWorkItem(item({ source_type: sourceType, source_id: "source-1" })), sourceType)
+        .toBe(route);
+    }
+  });
+
+  it("keeps legacy catch-all rows actionable from their stable deduplication prefixes", () => {
+    const cases: Array<[string, string]> = [
+      ["support-plan-proposal:1", "/app/state-forms"],
+      ["service-exception:1", "/app/services"],
+      ["appointment-follow-up:1", "/app/resident-services-calendar"],
+      ["hospital-return-follow-up:1", "/app/change-of-condition"],
+      ["facility-license:1", "/app/facilities"],
+      ["call-off:1", "/app/schedule"],
+      ["shift-log:1", "/app/shift-handoffs"],
+      ["inspection-war-room:1", "/app/value-center"],
+    ];
+    for (const [deduplicationKey, route] of cases) {
+      expect(sourceRouteForWorkItem(item({ source_type: "rule_exception", deduplication_key: deduplicationKey })))
+        .toBe(route);
+    }
+  });
+
+  it("uses governed source labels and a readable fallback", () => {
+    expect(workItemSourceLabel("service_delivery")).toBe("Service exception");
+    expect(workItemSourceLabel("inspection_war_room")).toBe("Inspection response request");
+    expect(workItemSourceLabel("future_source")).toBe("Future Source");
   });
 
   it("uses an employee-specific self-service presentation for /me/work", () => {
