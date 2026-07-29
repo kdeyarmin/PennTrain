@@ -81,7 +81,7 @@ insert into public.employee_credentials(
 ) values (
   'c2500000-0000-4000-8000-000000000201', 'c2500000-0000-4000-8000-000000000001',
   'c2500000-0000-4000-8000-000000000011', 'c2500000-0000-4000-8000-000000000101',
-  'first_aid', 'First aid', 'active', public.pa_today() + 20
+  'other', 'First aid', 'compliant', public.pa_today() + 20
 );
 insert into public.training_types(
   id, organization_id, code, name, category, state, applies_to_facility_type, is_active
