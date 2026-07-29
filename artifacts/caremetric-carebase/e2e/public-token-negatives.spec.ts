@@ -20,9 +20,17 @@ test.describe("public access token negatives", () => {
   });
 
   test("designated-person portal rejects a garbage access token", async ({ page }) => {
-    await page.goto("/resident-portal?access=not-a-real-portal-token");
+    // Long enough to clear the client length gate and hit get_resident_portal_experience.
+    await page.goto("/resident-portal?access=not-a-real-portal-token-xxxxxxxxxxxxxxxx");
     await expect.poll(() => new URL(page.url()).pathname).toBe("/resident-portal");
     // Credential must be stripped from the URL even when invalid.
+    await expect.poll(() => new URL(page.url()).search).toBe("");
+    await expect(page.getByRole("heading", { name: /Access link unavailable/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Review portal terms/i })).toHaveCount(0);
+  });
+
+  test("designated-person portal rejects an undersized access token without a blank page", async ({ page }) => {
+    await page.goto("/resident-portal?access=short-token");
     await expect.poll(() => new URL(page.url()).search).toBe("");
     await expect(page.getByRole("heading", { name: /Access link unavailable/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Review portal terms/i })).toHaveCount(0);

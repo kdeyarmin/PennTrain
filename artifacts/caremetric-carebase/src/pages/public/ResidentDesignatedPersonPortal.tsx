@@ -17,12 +17,20 @@ import {
 } from "@/hooks/useResidentPortal";
 
 const SESSION_TOKEN_KEY = "carebase-resident-portal-token";
+/** Real grants issue 64-char hex tokens; anything shorter never hits the RPC. */
+const MIN_PORTAL_TOKEN_LENGTH = 32;
 
 function loadAccessToken() {
   const url = new URL(window.location.href);
   const queryToken = url.searchParams.get("access")?.trim() ?? "";
   if (queryToken) {
-    sessionStorage.setItem(SESSION_TOKEN_KEY, queryToken);
+    // Persist only tokens that could be real. Storing garbage leaves a blank page on later
+    // visits to /resident-portal because the query stays disabled below the length gate.
+    if (queryToken.length >= MIN_PORTAL_TOKEN_LENGTH) {
+      sessionStorage.setItem(SESSION_TOKEN_KEY, queryToken);
+    } else {
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    }
     url.searchParams.delete("access");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     return queryToken;
@@ -36,6 +44,7 @@ function money(value: number) {
 
 export default function ResidentDesignatedPersonPortal() {
   const [token] = useState(loadAccessToken);
+  const tokenUsable = token.length >= MIN_PORTAL_TOKEN_LENGTH;
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [message, setMessage] = useState("");
   const [requestType, setRequestType] = useState("general");
@@ -43,7 +52,7 @@ export default function ResidentDesignatedPersonPortal() {
   const [requestDetail, setRequestDetail] = useState("");
   const snapshot = useQuery({
     queryKey: ["resident-designated-person-portal", token],
-    enabled: token.length >= 32,
+    enabled: tokenUsable,
     queryFn: () => getResidentPortalExperience(token),
     retry: false,
   });
@@ -78,7 +87,8 @@ export default function ResidentDesignatedPersonPortal() {
   });
 
   const data = snapshot.data;
-  const invalid = !token || snapshot.isError || data?.accessStatus === "invalid";
+  // Missing, undersized, RPC-failed, and server-invalid tokens all deny — never a blank page.
+  const invalid = !tokenUsable || snapshot.isError || data?.accessStatus === "invalid";
   const tabs = ["schedule", "finance", "documents", "messages", "requests", "payments"]
     .filter((permission) => data?.permissions?.includes(permission));
 
