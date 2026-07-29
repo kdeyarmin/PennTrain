@@ -1,12 +1,14 @@
 -- Register inspection response-room requests in the universal work-item taxonomy.
 --
 -- `add_inspection_war_room_request` has always written source_type = 'inspection_war_room'. The
--- later source-taxonomy trigger correctly rejects values that are not registered, but the original
--- taxonomy seed omitted this one value. The result is that opening a request in Value Center can fail
--- at the work-item insert even though the request workflow and route both exist.
+-- later source-taxonomy trigger correctly governs work-item values, but the original taxonomy seed
+-- omitted this one value and `work_item_templates` still carried a separate hard-coded CHECK list.
+-- The result was two sources of truth: adding a legitimate taxonomy value could still be rejected by
+-- the template table before the work-item trigger ever ran.
 --
--- This forward migration fixes the seam without editing either deployed migration. It also aligns the
--- system work-item template and keeps any historical catch-all rows actionable.
+-- This forward migration registers the missing value and replaces the brittle template CHECK with a
+-- foreign key to the taxonomy. Future source types now have one governed registration path instead of
+-- another cumulative CHECK list that can fall behind.
 
 insert into public.work_item_source_types(key, label, category, description, sort_order, active)
 values (
@@ -23,6 +25,30 @@ on conflict (key) do update set
   description = excluded.description,
   sort_order = excluded.sort_order,
   active = true;
+
+-- The taxonomy migration already adopted every source present in templates and work items. Repeat the
+-- adoption defensively before adding the FK so an environment with historical customer-defined
+-- templates converges rather than failing the migration.
+insert into public.work_item_source_types(key, label, category, description, sort_order, active)
+select distinct
+  t.source_type,
+  initcap(replace(t.source_type, '_', ' ')),
+  'other',
+  'Adopted from an existing work-item template; review and classify this source type.',
+  900,
+  true
+from public.work_item_templates t
+where t.source_type is not null
+on conflict (key) do nothing;
+
+alter table public.work_item_templates
+  drop constraint if exists work_item_templates_source_type_check;
+alter table public.work_item_templates
+  drop constraint if exists work_item_templates_source_type_fkey;
+alter table public.work_item_templates
+  add constraint work_item_templates_source_type_fkey
+  foreign key (source_type) references public.work_item_source_types(key)
+  on update cascade;
 
 update public.work_item_templates
 set source_type = 'inspection_war_room', updated_at = now()
@@ -53,5 +79,18 @@ begin
       and source_type <> 'inspection_war_room'
   ) then
     raise exception 'inspection war-room template source type remains inconsistent';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_catalog.pg_constraint c
+    join pg_catalog.pg_class r on r.oid = c.conrelid
+    join pg_catalog.pg_namespace n on n.oid = r.relnamespace
+    where n.nspname = 'public'
+      and r.relname = 'work_item_templates'
+      and c.conname = 'work_item_templates_source_type_fkey'
+      and c.contype = 'f'
+  ) then
+    raise exception 'work-item template source taxonomy foreign key is missing';
   end if;
 end $$;
