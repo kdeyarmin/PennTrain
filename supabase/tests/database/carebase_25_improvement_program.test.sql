@@ -45,19 +45,22 @@ select ok(
   'the stale cumulative source-type CHECK no longer competes with the taxonomy'
 );
 
-select like(
-  pg_get_functiondef('public.initialize_implementation_project(text,date,uuid,jsonb)'::regprocedure),
-  '%administrator-profile%',
+select ok(
+  position('administrator-profile' in pg_get_functiondef(
+    'public.initialize_implementation_project(text,date,uuid,jsonb)'::regprocedure
+  )) > 0,
   'new implementation projects include administrator qualification'
 );
-select like(
-  pg_get_functiondef('public.initialize_implementation_project(text,date,uuid,jsonb)'::regprocedure),
-  '%roles-access%',
+select ok(
+  position('roles-access' in pg_get_functiondef(
+    'public.initialize_implementation_project(text,date,uuid,jsonb)'::regprocedure
+  )) > 0,
   'new implementation projects include user and access configuration'
 );
-select like(
-  pg_get_functiondef('public.initialize_implementation_project(text,date,uuid,jsonb)'::regprocedure),
-  '%survey-rehearsal%',
+select ok(
+  position('survey-rehearsal' in pg_get_functiondef(
+    'public.initialize_implementation_project(text,date,uuid,jsonb)'::regprocedure
+  )) > 0,
   'new implementation projects include a Survey Day rehearsal'
 );
 
