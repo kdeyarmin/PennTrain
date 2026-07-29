@@ -49,6 +49,23 @@ create trigger workflow_automation_rule_versions_immutable
 before update or delete on public.workflow_automation_rule_versions
 for each row execute function app_private.prevent_workflow_automation_version_mutation();
 
+-- The row is itself the immutable domain evidence for what configuration existed at each version.
+-- Classify it explicitly so the audit manifest never gains another invisible table and do not add a
+-- second generic audit trigger that would duplicate the same version snapshot on every insert.
+insert into app_private.audit_entity_manifest(
+  table_name, audit_mode, contains_regulated_data, rationale
+) values (
+  'workflow_automation_rule_versions',
+  'domain_evidence',
+  false,
+  'Append-only version snapshots are the immutable evidence for every automation configuration change (20260729221700)'
+)
+on conflict (table_name) do update set
+  audit_mode = excluded.audit_mode,
+  contains_regulated_data = excluded.contains_regulated_data,
+  rationale = excluded.rationale,
+  updated_at = now();
+
 create or replace function app_private.capture_workflow_automation_rule_version()
 returns trigger
 language plpgsql
