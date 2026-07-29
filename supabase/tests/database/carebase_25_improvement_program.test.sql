@@ -1,8 +1,10 @@
 begin;
-select plan(14);
+select plan(18);
 
 select has_function('public', 'get_workforce_readiness_forecast', array['uuid'],
   'the 30/60/90-day workforce forecast RPC exists');
+select has_function('public', 'run_workforce_readiness_forecast_maintenance',
+  'the forecast-to-work maintenance function exists');
 select has_function('public', 'initialize_implementation_project', array['text', 'date', 'uuid', 'jsonb'],
   'the governed implementation initializer exists');
 
@@ -122,6 +124,37 @@ select is(
     -> 'risks' -> 0 ->> 'employeeName',
   'Future Risk',
   'the forecast names the employee rather than returning an unexplained count'
+);
+
+select lives_ok(
+  $$select public.run_workforce_readiness_forecast_maintenance()$$,
+  'the forecast maintenance runs through the governed service-role path'
+);
+select is(
+  (select count(*)::int from public.work_items
+   where organization_id = 'c2500000-0000-4000-8000-000000000001'
+     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+  1,
+  'one expiring credential becomes one deduplicated work item'
+);
+select is(
+  (select priority from public.work_items
+   where organization_id = 'c2500000-0000-4000-8000-000000000001'
+     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+  'high',
+  'a future 30-day readiness risk is high priority rather than a current urgent blocker'
+);
+
+update public.employee_credentials
+set expiration_date = public.pa_today() + 100
+where id = 'c2500000-0000-4000-8000-000000000201';
+select public.run_workforce_readiness_forecast_maintenance();
+select is(
+  (select state from public.work_items
+   where organization_id = 'c2500000-0000-4000-8000-000000000001'
+     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+  'closed',
+  'the forecast work item closes when the source record no longer presents a 30-day risk'
 );
 
 select * from finish();
