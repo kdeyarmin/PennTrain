@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadModule as loadPgQuery, parseSync } from "libpg-query";
 
 // Migration deployment drift check.
 //
@@ -57,17 +58,81 @@ function md5(text) {
 }
 
 /**
+ * Reproduce how Supabase records `schema_migrations.statements` for a migration
+ * file, then joins them with a single newline (the form hashed remotely).
+ *
+ * `supabase db push` parses the file into statements and stores each without its
+ * terminating semicolon and without the blank lines that separated them in the
+ * file. Comparing the raw file bytes therefore false-positives CONTENT drift on
+ * every freshly pushed multi-statement migration (blocking edge-function deploy
+ * after a successful push). Rebuilding the joined-statements form closes that gap.
+ *
+ * libpg-query's stmt_location/stmt_len spans occasionally leave a single orphan
+ * character in the gap after `$$;` or overrun a lone `;` into the next statement's
+ * leading comment. The orphan/carry handling below matches what the CLI stores.
+ */
+export function supabaseStatementsJoined(sql) {
+  const ast = parseSync(sql);
+  const stmts = ast.stmts || [];
+  if (stmts.length === 0) return sql.replace(/\s+$/, "");
+
+  const parts = [];
+  let carry = "";
+  for (let i = 0; i < stmts.length; i++) {
+    const start = stmts[i].stmt_location ?? 0;
+    const len = stmts[i].stmt_len;
+    const end = len == null ? sql.length : start + len;
+    let raw = sql.slice(start, end);
+
+    if (i > 0) {
+      const prev = stmts[i - 1];
+      const prevEnd = (prev.stmt_location ?? 0) + (prev.stmt_len ?? 0);
+      const gap = sql.slice(prevEnd, start);
+      const orphan = gap.replace(/^[\s;]*/, "").replace(/[\s;]*$/, "");
+      if (orphan) raw = orphan + raw;
+    }
+    if (carry) {
+      raw = carry + raw;
+      carry = "";
+    }
+
+    raw = raw.replace(/;\s*$/, "");
+    const overrun = raw.search(/\n;\s*\n/);
+    if (overrun !== -1) {
+      carry = raw.slice(overrun).replace(/^\n;\s*/, "");
+      raw = raw.slice(0, overrun);
+    }
+    parts.push(raw.replace(/^\s+/, "").replace(/\s+$/, ""));
+  }
+  if (carry.trim()) {
+    parts[parts.length - 1] = `${parts[parts.length - 1]}\n${carry.replace(/^\s+/, "").replace(/\s+$/, "")}`.replace(
+      /\s+$/,
+      "",
+    );
+  }
+  return parts.join("\n");
+}
+
+/**
  * Hash candidates for one local migration file, matched against the remote
- * md5(array_to_string(statements, E'\n')). The joined statement text is the file
- * content as recorded at apply time, which may lack the file's trailing newline
- * (editors/POSIX add one; statement joins don't). Accept either the exact file hash
- * or the hash with trailing whitespace stripped, so a final-newline difference is
- * not reported as content drift while any real edit still is.
+ * md5(array_to_string(statements, E'\n')). Accept:
+ *   1. the exact file hash
+ *   2. the hash with trailing whitespace stripped (final-newline-only drift)
+ *   3. the hash of the supabase statement-join form (semicolon/blank-line drift
+ *      introduced when the CLI records statements at apply time)
  */
 export function localContentHashes(sql) {
   const exact = md5(sql);
   const trimmed = md5(sql.replace(/\s+$/, ""));
-  return exact === trimmed ? [exact] : [exact, trimmed];
+  const hashes = exact === trimmed ? [exact] : [exact, trimmed];
+  try {
+    const joined = md5(supabaseStatementsJoined(sql));
+    if (!hashes.includes(joined)) hashes.push(joined);
+  } catch {
+    // Unparseable SQL still compares on exact/trimmed hashes; real apply would
+    // have failed the same way, so there is no silent false match here.
+  }
+  return hashes;
 }
 
 /**
@@ -298,8 +363,9 @@ const CONTENT_SELF_TEST_FIXTURES = [
   },
 ];
 
-function runSelfTest() {
+async function runSelfTest() {
   let failures = 0;
+  await loadPgQuery();
 
   // localContentHashes: known md5 and trailing-newline behavior.
   const helloHashes = localContentHashes("hello");
@@ -311,6 +377,21 @@ function runSelfTest() {
   if (newlineHashes.length !== 2 || !newlineHashes.includes("5d41402abc4b2a76b9719d911017c592")) {
     failures += 1;
     console.error(`✗ localContentHashes("hello\\n") should include the trimmed hash, got ${JSON.stringify(newlineHashes)}`);
+  }
+
+  // Statement-join form: trailing statement semicolon and blank lines between
+  // statements must not count as content drift against the remote hash. Leading
+  // comments stay attached to the first statement (matching schema_migrations).
+  const multi = "-- header\n\nselect 1;\n\nselect 2;\n";
+  const multiJoined = supabaseStatementsJoined(multi);
+  if (multiJoined !== "-- header\n\nselect 1\nselect 2") {
+    failures += 1;
+    console.error(`✗ supabaseStatementsJoined should strip semis/blank lines, got ${JSON.stringify(multiJoined)}`);
+  }
+  const multiHashes = localContentHashes(multi);
+  if (!multiHashes.includes(md5(multiJoined))) {
+    failures += 1;
+    console.error(`✗ localContentHashes should include the statement-join hash, got ${JSON.stringify(multiHashes)}`);
   }
 
   for (const fixture of CONTENT_SELF_TEST_FIXTURES) {
@@ -336,13 +417,16 @@ function runSelfTest() {
     console.error(`\nMigration content-drift self-test FAILED (${failures} case(s)).`);
     process.exit(1);
   }
-  console.log(`Migration content-drift self-test passed (${CONTENT_SELF_TEST_FIXTURES.length} fixtures).`);
+  console.log(
+    `Migration content-drift self-test passed (${CONTENT_SELF_TEST_FIXTURES.length} fixtures + statement-join).`,
+  );
 }
 
 async function run() {
   // Always validate the comparison logic against fixtures first, so a comparator that
   // silently stops catching drift fails loudly instead of passing every version.
-  runSelfTest();
+  await loadPgQuery();
+  await runSelfTest();
   if (process.argv.includes("--self-test")) {
     return;
   }
@@ -443,7 +527,10 @@ async function run() {
   process.exit(1);
 }
 
-run().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) {
+  run().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
+}

@@ -109,7 +109,12 @@ export function useDownloadCourseForOffline() {
       if (!versionId) throw new Error("The offline course version was not returned.");
       return cacheCourseBundle({ identity, assignmentId, title, versionId, manifestId: bundle.manifestId, expiresAt: bundle.expiresAt, bundle: bundle.bundle });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["offline-course-library"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["offline-course-library"] });
+      // Warm the lazy OfflineCourse chunk while online so a cold restart without
+      // network can still open a downloaded course from the cache.
+      void import("@/pages/employee/OfflineCourse");
+    },
   });
 }
 

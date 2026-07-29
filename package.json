@@ -32,6 +32,7 @@
   },
   "private": true,
   "devDependencies": {
+    "libpg-query": "17.7.3",
     "typescript": "~5.9.2"
   },
   "packageManager": "pnpm@11.13.0",

@@ -8,6 +8,7 @@ import { isPublicPath } from "./publicPaths";
 import { loginPathWithNext } from "./loginRedirect";
 import { useToast } from "@/hooks/use-toast";
 import { AuthProfileError } from "@/components/AuthProfileError";
+import { isDefinitiveProfileAbsence } from "@/lib/authProfileErrors";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
@@ -241,7 +242,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return data;
     },
     enabled: !!session,
-    retry: false,
+    // Retry transient network failures so an offline cold start can keep the
+    // session long enough for AuthProfileError / offline routes to take over.
+    // A definitive missing profile (PGRST116) still fails immediately.
+    retry: (failureCount, error) => !isDefinitiveProfileAbsence(error) && failureCount < 2,
   });
 
   const isLoading = sessionLoading || (!!session && profileLoading);
@@ -267,10 +271,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, session, isError, setLocation]);
 
-  // A valid Auth session without a readable profile cannot be authorized by the app. End the
-  // session explicitly instead of leaving the visitor in a half-signed-in landing/login loop.
+  // A valid Auth session with a definitively missing profile cannot be authorized. End the
+  // session instead of leaving the visitor in a half-signed-in landing/login loop. Transient
+  // load failures (network / offline) keep the session and surface AuthProfileError with retry
+  // so a downloaded offline course remains reachable without connectivity.
   useEffect(() => {
-    if (!session || !isError) return;
+    if (!session || !isError || !isDefinitiveProfileAbsence(profileError)) return;
     (async () => {
       await supabase.auth.signOut();
       queryClient.clear();
@@ -281,7 +287,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setLocation("/login");
     })();
-  }, [session, isError, queryClient, toast, setLocation]);
+  }, [session, isError, profileError, queryClient, toast, setLocation]);
 
   // A deactivated profile still has a valid Supabase session -- isAuthenticated above already
   // treats that as signed out, but the session itself needs to be torn down too, or the very
