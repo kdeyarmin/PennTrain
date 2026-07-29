@@ -28,12 +28,13 @@ on conflict (key) do update set
 
 -- The taxonomy migration already adopted every source present in templates and work items. Repeat the
 -- adoption defensively before adding the FK so an environment with historical customer-defined
--- templates converges rather than failing the migration.
+-- templates converges rather than failing the migration. `compliance` is the conservative allowed
+-- fallback category; already-registered values keep their reviewed category through ON CONFLICT.
 insert into public.work_item_source_types(key, label, category, description, sort_order, active)
 select distinct
   t.source_type,
   initcap(replace(t.source_type, '_', ' ')),
-  'other',
+  'compliance',
   'Adopted from an existing work-item template; review and classify this source type.',
   900,
   true
