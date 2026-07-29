@@ -1,5 +1,5 @@
 begin;
-select plan(25);
+select plan(26);
 
 select has_table('public', 'user_invitation_lifecycle', 'invitation lifecycle ledger exists');
 select has_table('public', 'data_import_jobs', 'import jobs table exists');
