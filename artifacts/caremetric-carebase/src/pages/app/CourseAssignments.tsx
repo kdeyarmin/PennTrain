@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { QueryError } from "@/components/QueryState";
 import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2, Download, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -223,7 +224,13 @@ export default function CourseAssignments() {
       .map(c => c.id);
   }, [courses, trimmedSearch]);
 
-  const { data: assignmentsPage, isLoading } = useListCourseAssignmentsPaginated({
+  const {
+    data: assignmentsPage,
+    isLoading,
+    isError: assignmentsError,
+    error: assignmentsErrorDetail,
+    refetch: refetchAssignments,
+  } = useListCourseAssignmentsPaginated({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
     matchingEmployeeIds,
@@ -472,36 +479,38 @@ export default function CourseAssignments() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="premium-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Visible completion</p>
-          <p className="mt-1 text-2xl font-semibold">{assignmentSummary.completionRate}%</p>
-          <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.completed} of {assignmentSummary.total} on this page complete.</p>
+      {!assignmentsError && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <div className="premium-card p-4">
+            <p className="text-xs font-medium text-muted-foreground">Visible completion</p>
+            <p className="mt-1 text-2xl font-semibold">{assignmentSummary.completionRate}%</p>
+            <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.completed} of {assignmentSummary.total} on this page complete.</p>
+          </div>
+          <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => { setStatusFilter("overdue"); setPage(1); }}>
+            <p className="text-xs font-medium text-muted-foreground">Overdue on page</p>
+            <p className="mt-1 text-2xl font-semibold text-destructive">{assignmentSummary.overdue}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Click to filter all overdue assignments.</p>
+          </button>
+          <div className="premium-card p-4">
+            <p className="text-xs font-medium text-muted-foreground">Due within 7 days</p>
+            <p className="mt-1 text-2xl font-semibold">{assignmentSummary.dueWithin7Days}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.inProgress} in progress · {assignmentSummary.assigned} not started</p>
+          </div>
+          <div className="premium-card p-4">
+            <p className="text-xs font-medium text-muted-foreground">Oldest overdue</p>
+            <p className="mt-1 text-lg font-semibold">
+              {assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {assignmentSummary.oldestOverdueAssignmentId ? (
+                <button type="button" className="text-primary hover:underline" onClick={() => setProgressAssignmentId(assignmentSummary.oldestOverdueAssignmentId)}>
+                  Open progress details
+                </button>
+              ) : "No overdue assignments on this page."}
+            </p>
+          </div>
         </div>
-        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => { setStatusFilter("overdue"); setPage(1); }}>
-          <p className="text-xs font-medium text-muted-foreground">Overdue on page</p>
-          <p className="mt-1 text-2xl font-semibold text-destructive">{assignmentSummary.overdue}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Click to filter all overdue assignments.</p>
-        </button>
-        <div className="premium-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Due within 7 days</p>
-          <p className="mt-1 text-2xl font-semibold">{assignmentSummary.dueWithin7Days}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.inProgress} in progress · {assignmentSummary.assigned} not started</p>
-        </div>
-        <div className="premium-card p-4">
-          <p className="text-xs font-medium text-muted-foreground">Oldest overdue</p>
-          <p className="mt-1 text-lg font-semibold">
-            {assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {assignmentSummary.oldestOverdueAssignmentId ? (
-              <button type="button" className="text-primary hover:underline" onClick={() => setProgressAssignmentId(assignmentSummary.oldestOverdueAssignmentId)}>
-                Open progress details
-              </button>
-            ) : "No overdue assignments on this page."}
-          </p>
-        </div>
-      </div>
+      )}
 
       {canManage && selectedAssignmentIds.size > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
@@ -562,7 +571,11 @@ export default function CourseAssignments() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {assignmentsError ? (
+          <div className="p-6">
+            <QueryError what="course assignments" error={assignmentsErrorDetail} onRetry={() => refetchAssignments()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
@@ -711,10 +724,12 @@ export default function CourseAssignments() {
         )}
       </div>
 
-      <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-        <ClipboardList className="h-4 w-4" />
-        <span>{totalCount} assignment{totalCount !== 1 ? "s" : ""} total</span>
-      </div>
+      {!assignmentsError && (
+        <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+          <ClipboardList className="h-4 w-4" />
+          <span>{totalCount} assignment{totalCount !== 1 ? "s" : ""} total</span>
+        </div>
+      )}
 
       <Dialog open={showAssignForm} onOpenChange={o => { if (!o) setShowAssignForm(false); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
