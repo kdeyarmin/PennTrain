@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { toDateTimeLocal, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityDateRangeBounds, toDateTimeLocal, toLocalIsoDate } from "@/lib/dateUtils";
 
 const EVENT_TYPES = [
   "medical_appointment", "dental_appointment", "behavioral_health_appointment",
@@ -65,10 +65,11 @@ export default function ResidentServicesCalendar() {
   const vehicles = useFacilityTransportVehicles(facilityId);
   const safeFromDate = fromDate || toLocalIsoDate(addDays(-7));
   const safeThroughDate = throughDate || toLocalIsoDate(addDays(30));
+  const rangeBounds = facilityDateRangeBounds(safeFromDate, safeThroughDate);
   const events = useResidentServicesCalendar({
     facilityId: facilityId || undefined,
-    from: new Date(`${safeFromDate}T00:00:00`).toISOString(),
-    through: new Date(`${safeThroughDate}T23:59:59`).toISOString(),
+    from: rangeBounds.from,
+    through: rangeBounds.through,
     residentId: residentId || undefined,
     eventType: eventType || undefined,
     status: status || undefined,

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { facilityDaysUntil } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -37,8 +38,8 @@ function suitabilityBadgeClass(determination: string): string {
 
 function provisionalStatus(profile: BackgroundCheckProfile | undefined): { label: string; className: string } | null {
   if (!profile?.provisional_start_date || !profile.provisional_max_days) return null;
-  const start = new Date(`${profile.provisional_start_date}T00:00:00`);
-  const daysElapsed = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
+  // Count whole PA facility calendar days so the badge agrees with server/regulatory windows.
+  const daysElapsed = -(facilityDaysUntil(profile.provisional_start_date) ?? 0);
   const remaining = profile.provisional_max_days - daysElapsed;
   if (remaining < 0) {
     return { label: `Provisional period expired ${Math.abs(remaining)}d ago`, className: "bg-destructive text-destructive-foreground hover:bg-destructive/80" };

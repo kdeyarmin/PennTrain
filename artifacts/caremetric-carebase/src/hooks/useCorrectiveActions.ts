@@ -41,7 +41,12 @@ export function useCreateCorrectiveAction() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["corrective_actions"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["corrective_actions"] });
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
   });
 }
 
@@ -53,7 +58,12 @@ export function useUpdateCorrectiveAction() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["corrective_actions"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["corrective_actions"] });
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
   });
 }
 
@@ -64,7 +74,12 @@ export function useDeleteCorrectiveAction() {
       const { error } = await supabase.from("corrective_actions").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["corrective_actions"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["corrective_actions"] });
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
   });
 }
 

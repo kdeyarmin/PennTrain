@@ -18,6 +18,8 @@
  * count of things that happened, and the records are one click away.
  */
 
+import { facilityToday } from "./dateUtils";
+
 const TIME_ZONE = "America/New_York";
 const hourFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: TIME_ZONE, hour: "numeric", hour12: false,
@@ -256,10 +258,11 @@ export function buildIncidentTrends(input: IncidentTrendInput): IncidentTrends {
   const live = correctiveActions.filter((action) => action.status !== "cancelled");
   const completed = live.filter((action) => action.status === "completed" || action.completed_date !== null);
   const verified = completed.filter((action) => (action.verification_notes ?? "").trim().length > 0);
+  const today = facilityToday(now);
   const overdueActions = live.filter((action) => {
     if (action.status === "completed" || action.completed_date) return false;
-    const due = new Date(`${action.due_date}T23:59:59`).getTime();
-    return Number.isFinite(due) && due < now.getTime();
+    if (!action.due_date || !/^\d{4}-\d{2}-\d{2}$/.test(action.due_date)) return false;
+    return action.due_date < today;
   });
 
   return {

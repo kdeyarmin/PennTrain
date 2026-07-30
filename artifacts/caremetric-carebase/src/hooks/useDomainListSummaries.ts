@@ -176,6 +176,7 @@ export function useWorkItemListSummary(filters: WorkItemListSummaryFilters) {
 }
 
 interface IncidentListSummaryFilters {
+  organizationId?: string;
   facilityId?: string;
   residentId?: string;
   severity?: string;

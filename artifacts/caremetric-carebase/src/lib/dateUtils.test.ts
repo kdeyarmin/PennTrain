@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { daysUntil, facilityToday, formatDateForDisplay, formatDueDistance, toLocalIsoDate } from "./dateUtils";
+import {
+  daysUntil,
+  facilityDateRangeBounds,
+  facilityDateTimeToUtc,
+  facilityDayBounds,
+  facilityDaysUntil,
+  facilityToday,
+  formatDateForDisplay,
+  formatDueDistance,
+  toLocalIsoDate,
+} from "./dateUtils";
 
 describe("toLocalIsoDate", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -49,6 +59,48 @@ describe("facilityToday", () => {
   it("zero-pads so the result compares and sorts as a date string", () => {
     expect(facilityToday(new Date("2026-03-05T17:00:00Z"))).toBe("2026-03-05");
     expect(facilityToday(new Date("2026-11-09T17:00:00Z"))).toBe("2026-11-09");
+  });
+});
+
+describe("facilityDayBounds", () => {
+  it("covers a full EDT calendar day as a half-open UTC range", () => {
+    // 2026-07-15 is EDT (UTC-4): midnight local = 04:00Z, next midnight = 04:00Z next day.
+    const bounds = facilityDayBounds("2026-07-15");
+    expect(bounds.from).toBe("2026-07-15T04:00:00.000Z");
+    expect(bounds.through).toBe("2026-07-16T04:00:00.000Z");
+  });
+
+  it("covers a full EST calendar day as a half-open UTC range", () => {
+    // 2026-01-15 is EST (UTC-5): midnight local = 05:00Z.
+    const bounds = facilityDayBounds("2026-01-15");
+    expect(bounds.from).toBe("2026-01-15T05:00:00.000Z");
+    expect(bounds.through).toBe("2026-01-16T05:00:00.000Z");
+  });
+
+  it("facilityDateTimeToUtc lands on Eastern midnight for the given day", () => {
+    expect(facilityDateTimeToUtc("2026-07-15", "00:00:00").toISOString()).toBe("2026-07-15T04:00:00.000Z");
+    expect(facilityDateTimeToUtc("2026-01-15", "00:00:00").toISOString()).toBe("2026-01-15T05:00:00.000Z");
+  });
+
+  it("facilityDateRangeBounds includes the full through day", () => {
+    const range = facilityDateRangeBounds("2026-07-10", "2026-07-12");
+    expect(range.from).toBe("2026-07-10T04:00:00.000Z");
+    expect(range.through).toBe("2026-07-13T04:00:00.000Z");
+  });
+});
+
+describe("facilityDaysUntil", () => {
+  it("counts facility calendar days independent of browser timezone", () => {
+    // 2026-07-25T12:00Z is still 2026-07-25 in Pennsylvania (EDT).
+    const now = new Date("2026-07-25T12:00:00Z");
+    expect(facilityDaysUntil("2026-07-25", now)).toBe(0);
+    expect(facilityDaysUntil("2026-07-28", now)).toBe(3);
+    expect(facilityDaysUntil("2026-07-24", now)).toBe(-1);
+  });
+
+  it("handles missing and non-date values", () => {
+    expect(facilityDaysUntil(null)).toBeNull();
+    expect(facilityDaysUntil("not-a-date")).toBeNull();
   });
 });
 

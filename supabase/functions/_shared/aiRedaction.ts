@@ -299,8 +299,8 @@ export function redactEvidenceForModel<E extends RedactableEvidence>(
 ): E[] {
   return items.map((item) => ({
     ...item,
-    label: directory.redactText(item.label),
-    details: transformStrings(item.details, (text) => directory.redactText(text)),
+    label: scrubDirectIdentifierText(directory.redactText(item.label)),
+    details: transformStrings(item.details, (text) => scrubDirectIdentifierText(directory.redactText(text))),
   }));
 }
 

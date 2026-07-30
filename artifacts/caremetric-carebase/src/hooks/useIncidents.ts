@@ -90,7 +90,12 @@ export function useCreateIncident() {
       if (!incident) throw new Error("The incident transaction completed without returning a record.");
       return incident;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["incidents"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
+    },
   });
 }
 
@@ -105,6 +110,10 @@ export function useUpdateIncident() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
       queryClient.invalidateQueries({ queryKey: ["incidents", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["corrective_actions"] });
     },
   });
 }

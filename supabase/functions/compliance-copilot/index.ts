@@ -5,6 +5,7 @@ import {
   AliasDirectory,
   redactEvidenceForModel,
   restoreCopilotResponseText,
+  scrubDirectIdentifierText,
   type AliasMapEntry,
 } from "../_shared/aiRedaction.ts";
 import {
@@ -592,13 +593,16 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Failed to prepare the privacy pseudonymization layer" }, 500);
   }
 
+  // Alias roster names first, then scrub residual direct identifiers (SSN/phone/email/
+  // address/DOB) so free-text evidence cannot leak them even when the name directory misses.
+  const redactForModel = (text: string) => scrubDirectIdentifierText(directory.redactText(text));
   const prompt = [
-    `USER_QUESTION: ${directory.redactText(question)}`,
+    `USER_QUESTION: ${redactForModel(question)}`,
     `INTENT: ${intent}`,
     `RESPONSE_LABEL: ${determinationKind}`,
     `AS_OF_DATE: ${asOf}`,
     `FACILITY: ${JSON.stringify({ id: facility.id, name: facility.name, facilityType: facility.facility_type, jurisdictionCode })}`,
-    `SERVER_MISSING_INFORMATION: ${JSON.stringify(missingInformation.map((item) => directory.redactText(item)))}`,
+    `SERVER_MISSING_INFORMATION: ${JSON.stringify(missingInformation.map((item) => redactForModel(item)))}`,
     `RULE_SOURCES: ${JSON.stringify(sources)}`,
     `SYSTEM_EVIDENCE: ${JSON.stringify(redactEvidenceForModel(systemEvidence, directory))}`,
   ].join("\n\n").slice(0, 90_000);
