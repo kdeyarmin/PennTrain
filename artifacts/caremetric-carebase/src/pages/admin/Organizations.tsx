@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useListOrganizations, useCreateOrganization } from "@/hooks/useOrganizations";
 import { useListPackages } from "@/hooks/usePackages";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -28,6 +28,7 @@ const SUBSCRIPTION_STATUSES = ["trial", "active", "past_due", "suspended", "canc
 const ORGANIZATIONS_URL_DEFAULTS = {
   search: "",
   status: "all",
+  plan: "all",
 };
 
 // csvEscape also neutralizes formula injection (leading = + - @) for user-entered text.
@@ -82,9 +83,24 @@ export default function Organizations() {
   const { data: packages } = useListPackages();
   const { mutate: createOrganization, isPending: creating } = useCreateOrganization();
 
+  // Distinct plan names present in the current org set (plus any package catalog names that have
+  // not yet been assigned) so the filter always has a complete, sorted option list even when the
+  // live data is sparse.
+  const planOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const o of orgs ?? []) {
+      if (o.plan_name) names.add(o.plan_name);
+    }
+    for (const pkg of packages ?? []) {
+      if (pkg.name) names.add(pkg.name);
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [orgs, packages]);
+
   const filtered = orgs?.filter(o =>
     (!urlState.search || o.name.toLowerCase().includes(urlState.search.toLowerCase())) &&
-    (urlState.status === "all" || o.subscription_status === urlState.status)
+    (urlState.status === "all" || o.subscription_status === urlState.status) &&
+    (urlState.plan === "all" || (o.plan_name ?? "Standard") === urlState.plan)
   ) ?? [];
 
   const handleExportCsv = () => {
@@ -189,6 +205,20 @@ export default function Organizations() {
                 {SUBSCRIPTION_STATUSES.map(s => (
                   <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={urlState.plan} onValueChange={v => setUrlState({ plan: v })}>
+              <SelectTrigger className="w-44"><SelectValue placeholder="All Plans" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Plans</SelectItem>
+                {planOptions.map(p => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+                {/* Orgs with a null plan_name render as "Standard" in the list -- include it so
+                    the filter can isolate those rows even when no package catalog entry exists. */}
+                {!planOptions.includes("Standard") && (
+                  <SelectItem value="Standard">Standard</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
