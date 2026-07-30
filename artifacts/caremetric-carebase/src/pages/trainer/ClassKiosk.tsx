@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useGetTrainingClass, useListClassAttendees, useCheckinViaKioskPin } from "@/hooks/useTrainingClasses";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,26 @@ export default function ClassKiosk() {
     { enabled: !!cls?.facility_id },
   );
   // ClassDetail's Add Attendees dialog isn't facility-restricted, so a class can legitimately have
-  // an attendee whose home facility differs from the class's own -- without this, that person could
-  // never be found by the facility-scoped search above and could never check in. Merged in below,
-  // scoped to just the actual attendee roster rather than opening the whole search back up org-wide.
-  const { data: allActiveEmployees } = useListEmployees({ status: "active" });
+  // an attendee whose home facility differs from the class's own. Fetch ONLY those missing
+  // attendee ids (not the entire active roster) so they can still check in without an org-wide load.
+  const attendeeEmployeeIds = useMemo(
+    () => [...new Set((attendees ?? []).map((a) => a.employee_id))],
+    [attendees],
+  );
+  const facilityEmployeeIds = useMemo(
+    () => new Set((facilityEmployees ?? []).map((e) => e.id)),
+    [facilityEmployees],
+  );
+  const missingAttendeeIds = useMemo(() => {
+    if (!cls?.facility_id) return [];
+    return attendeeEmployeeIds.filter((id) => !facilityEmployeeIds.has(id));
+  }, [cls?.facility_id, attendeeEmployeeIds, facilityEmployeeIds]);
+  const { data: crossFacilityAttendees } = useListEmployeesByIds(missingAttendeeIds);
+  // Org-wide active list only when the class itself is not facility-scoped (facility_id null).
+  const { data: allActiveEmployees } = useListEmployees(
+    { status: "active" },
+    { enabled: !!cls && !cls.facility_id },
+  );
   const { data: facilities } = useListFacilities();
   const { mutateAsync: checkinKiosk, isPending } = useCheckinViaKioskPin();
 
@@ -43,12 +59,8 @@ export default function ClassKiosk() {
 
   const employees = useMemo(() => {
     if (!cls?.facility_id) return allActiveEmployees ?? [];
-    const facilityEmployeeIds = new Set((facilityEmployees ?? []).map((e) => e.id));
-    const outOfFacilityAttendees = (allActiveEmployees ?? []).filter(
-      (e) => attendeeByEmployeeId.has(e.id) && !facilityEmployeeIds.has(e.id)
-    );
-    return [...(facilityEmployees ?? []), ...outOfFacilityAttendees];
-  }, [cls?.facility_id, facilityEmployees, allActiveEmployees, attendeeByEmployeeId]);
+    return [...(facilityEmployees ?? []), ...(crossFacilityAttendees ?? [])];
+  }, [cls?.facility_id, facilityEmployees, crossFacilityAttendees, allActiveEmployees]);
 
   const filteredEmployees = employees
     .filter((e) => !search || `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase()));
