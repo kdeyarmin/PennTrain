@@ -29678,6 +29678,7 @@ export type Database = {
           last_rotated_at: string
           organization_id: string
           provider: string
+          rate_limit_per_minute: number
           status: string
           updated_at: string
         }
@@ -29694,6 +29695,7 @@ export type Database = {
           last_rotated_at?: string
           organization_id: string
           provider: string
+          rate_limit_per_minute?: number
           status?: string
           updated_at?: string
         }
@@ -29710,6 +29712,7 @@ export type Database = {
           last_rotated_at?: string
           organization_id?: string
           provider?: string
+          rate_limit_per_minute?: number
           status?: string
           updated_at?: string
         }
