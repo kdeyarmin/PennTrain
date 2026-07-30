@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(19);
 
 select has_function('public', 'get_workforce_readiness_forecast', array['uuid'],
   'the 30/60/90-day workforce forecast RPC exists');
