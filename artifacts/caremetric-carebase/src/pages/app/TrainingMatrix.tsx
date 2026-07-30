@@ -701,12 +701,28 @@ export default function TrainingMatrix() {
     status: "active",
   });
   const trainingTypesQuery = useListTrainingTypes({ isActive: true });
-  const trainingRecordsQuery = useListTrainingRecords({
-    facilityId: facilityId !== "all" ? facilityId : undefined,
-  });
-  const facilities = facilitiesQuery.data;
+
   const employees = employeesQuery.data;
   const trainingTypes = trainingTypesQuery.data;
+
+  // Scope records to the exact active employees + active types the matrix will render.
+  // When facility is selected this is already facility-scoped via employees; when "all" it still
+  // avoids historical rows for terminated staff and inactive training types.
+  const matrixEmployeeIds = useMemo(() => (employees ?? []).map(e => e.id), [employees]);
+  const matrixTrainingTypeIds = useMemo(() => (trainingTypes ?? []).map(t => t.id), [trainingTypes]);
+
+  const trainingRecordsQuery = useListTrainingRecords(
+    {
+      facilityId: facilityId !== "all" ? facilityId : undefined,
+      employeeIds: matrixEmployeeIds,
+      trainingTypeIds: matrixTrainingTypeIds,
+    },
+    {
+      // Wait until both lists have resolved so we never fire an unscoped (or empty-in) query.
+      enabled: employeesQuery.isSuccess && trainingTypesQuery.isSuccess,
+    },
+  );
+  const facilities = facilitiesQuery.data;
   const trainingRecords = trainingRecordsQuery.data;
   const matrixQueries = [facilitiesQuery, employeesQuery, trainingTypesQuery, trainingRecordsQuery];
   const matrixLoading = matrixQueries.some((query) => query.isLoading);
