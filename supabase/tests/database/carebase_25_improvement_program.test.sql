@@ -159,9 +159,11 @@ select is(
   'a future 30-day readiness risk is high priority rather than a current urgent blocker'
 );
 
+reset role;
 update public.employee_credentials
 set expiration_date = public.pa_today() + 100
 where id = 'c2500000-0000-4000-8000-000000000201';
+set local role service_role;
 select public.run_workforce_readiness_forecast_maintenance();
 select is(
   (select state from public.work_items
