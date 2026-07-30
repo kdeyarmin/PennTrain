@@ -26,7 +26,8 @@ import {
 export default function RetrainingMonitor() {
   const { user } = useAuth();
   const facilitiesQuery = useListFacilities();
-  const employeesQuery = useListEmployees();
+  // Only active med-admin staff -- matches what buildFacilityRetrainingStatus counts.
+  const employeesQuery = useListEmployees({ status: "active", administersMedications: true });
   const practicumsQuery = useListPracticums({ year: new Date().getFullYear() });
   const { data: facilities, isLoading: facilitiesLoading } = facilitiesQuery;
   const { data: employees, isLoading: employeesLoading } = employeesQuery;
@@ -45,7 +46,6 @@ export default function RetrainingMonitor() {
     () => new Set((myAssignments ?? []).map((a) => a.facility_id)),
     [myAssignments]
   );
-
   const isLoading =
     facilitiesLoading ||
     employeesLoading ||
@@ -220,7 +220,7 @@ export default function RetrainingMonitor() {
                   {!fac.isVisible ? (
                     <p className="text-sm text-muted-foreground">
                       You are not assigned to this facility, so staff and practicum
-                      records aren&apos;t visible here. This is not the same as being
+                      records aren't visible here. This is not the same as being
                       verified compliant &mdash; ask an org admin or auditor to review it.
                     </p>
                   ) : (
