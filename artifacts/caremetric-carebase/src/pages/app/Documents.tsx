@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useDocuments";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { QueryError } from "@/components/QueryState";
 import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-react";
 
 // Matches the training_documents_delete RLS policy (org_admin/facility_manager, or
@@ -76,7 +77,13 @@ export default function Documents() {
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [facilityId, employeeId, docType]);
-  const { data: documentsPage, isLoading } = usePaginatedDocuments({
+  const {
+    data: documentsPage,
+    isLoading,
+    isError: documentsError,
+    error: documentsErrorDetail,
+    refetch: refetchDocuments,
+  } = usePaginatedDocuments({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     employeeId: employeeId !== "all" ? employeeId : undefined,
     documentType: docType !== "all" ? docType : undefined,
@@ -402,7 +409,9 @@ export default function Documents() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {documentsError ? (
+            <QueryError what="documents" error={documentsErrorDetail} onRetry={() => refetchDocuments()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
             </div>

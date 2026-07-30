@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { QueryError } from "@/components/QueryState";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployees, type Employee } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -392,7 +393,13 @@ export default function PendingApprovals() {
   const [facilityId, setFacilityId] = useState<string>("all");
   const [hideOldDocuments, setHideOldDocuments] = useState(true);
 
-  const { data: documents, isLoading: documentsLoading } = useListDocuments({ documentTypes: EXTERNAL_CERT_DOC_TYPES });
+  const {
+    data: documents,
+    isLoading: documentsLoading,
+    isError: documentsError,
+    error: documentsErrorDetail,
+    refetch: refetchDocuments,
+  } = useListDocuments({ documentTypes: EXTERNAL_CERT_DOC_TYPES });
   // Active roster only; push the facility filter into the query when a site is selected so the
   // employee picker never downloads terminated staff or other facilities' full headcount.
   const { data: employees } = useListEmployees({
@@ -403,10 +410,22 @@ export default function PendingApprovals() {
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   // Only rows that already point at an external certificate document -- enough to build the
   // linked-id Set without downloading every training record in the tenant.
-  const { data: linkedCertRecords, isLoading: recordsLoading } = useListTrainingRecords({
+  const {
+    data: linkedCertRecords,
+    isLoading: recordsLoading,
+    isError: linkedCertRecordsError,
+    error: linkedCertRecordsErrorDetail,
+    refetch: refetchLinkedCertRecords,
+  } = useListTrainingRecords({
     hasExternalCertificateDocument: true,
   });
-  const { data: pendingRecords, isLoading: pendingLoading } = useListTrainingRecords({ approvalStatus: "pending" });
+  const {
+    data: pendingRecords,
+    isLoading: pendingLoading,
+    isError: pendingRecordsError,
+    error: pendingRecordsErrorDetail,
+    refetch: refetchPendingRecords,
+  } = useListTrainingRecords({ approvalStatus: "pending" });
 
   const createRecord = useCreateTrainingRecord();
   const updateRecord = useUpdateTrainingRecord();
@@ -486,6 +505,7 @@ export default function PendingApprovals() {
   };
 
   const unlinkedLoading = documentsLoading || recordsLoading;
+  const unlinkedError = documentsError ? documentsErrorDetail : linkedCertRecordsError ? linkedCertRecordsErrorDetail : null;
 
   return (
     <div className="space-y-6">
@@ -531,7 +551,15 @@ export default function PendingApprovals() {
                   Hide documents older than {UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS} days
                 </label>
               </div>
-              {unlinkedLoading ? (
+              {unlinkedError ? (
+                <QueryError
+                  what="pending approvals"
+                  error={unlinkedError}
+                  onRetry={() => {
+                    void Promise.all([refetchDocuments(), refetchLinkedCertRecords()]);
+                  }}
+                />
+              ) : unlinkedLoading ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-muted animate-pulse rounded-lg" />)}
                 </div>
@@ -577,7 +605,9 @@ export default function PendingApprovals() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {pendingLoading ? (
+              {pendingRecordsError ? (
+                <QueryError what="pending approvals" error={pendingRecordsErrorDetail} onRetry={() => refetchPendingRecords()} />
+              ) : pendingLoading ? (
                 <div className="space-y-3">
                   {[...Array(3)].map((_, i) => <div key={i} className="h-28 bg-muted animate-pulse rounded-lg" />)}
                 </div>
