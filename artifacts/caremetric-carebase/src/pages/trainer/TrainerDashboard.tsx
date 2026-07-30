@@ -1,16 +1,6 @@
-import { useMemo } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
-import { useListEmployees } from "@/hooks/useEmployees";
-import { useListFacilities } from "@/hooks/useFacilities";
-import { useListTrainingClasses, useClassAttendeeCounts } from "@/hooks/useTrainingClasses";
-import { useListPracticums } from "@/hooks/usePracticums";
-import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
-import {
-  buildFacilityRetrainingStatus,
-  ORG_WIDE_VISIBILITY_ROLES,
-} from "@/lib/facilityRetrainingStatus";
-import { todayIso } from "@/lib/scheduleDates";
+import { useTrainerDashboardSummary } from "@/hooks/useDashboardSummary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,54 +21,25 @@ import { Link } from "wouter";
 export default function TrainerDashboard() {
   const { user } = useAuth();
 
-  const facilitiesQuery = useListFacilities();
-  // Only active med-admin staff -- matches what buildFacilityRetrainingStatus counts.
-  const employeesQuery = useListEmployees({ status: "active", administersMedications: true });
-  const classesQuery = useListTrainingClasses();
-  const practicumsQuery = useListPracticums({ year: new Date().getFullYear() });
-  const { data: facilities } = facilitiesQuery;
-  const { data: employees } = employeesQuery;
-  const { data: classes } = classesQuery;
-  const { data: attendeeCounts } = useClassAttendeeCounts();
-  const { data: practicums, isLoading: practicumsLoading } = practicumsQuery;
-  // Every widget on this page derives from these four queries; a failed fetch
-  // must not render as "0 classes / all facilities compliant".
-  const primaryQueries = [facilitiesQuery, employeesQuery, classesQuery, practicumsQuery];
-  const primaryError = primaryQueries.find((query) => query.isError);
+  // One RLS-scoped server round trip replaces the previous four unbounded table
+  // downloads + client aggregation (see get_trainer_dashboard_summary).
+  const {
+    data: summary,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useTrainerDashboardSummary();
 
-  const hasOrgWideVisibility = !user?.role || ORG_WIDE_VISIBILITY_ROLES.has(user.role);
-  const { data: myAssignments } = useListMyFacilityAssignments(user?.id, !hasOrgWideVisibility);
-  const assignedFacilityIds = useMemo(
-    () => new Set((myAssignments ?? []).map((a) => a.facility_id)),
-    [myAssignments]
-  );
-
-  const allEmployees = employees ?? [];
-  // Already restricted to administers_medications=true at the query level.
-  const totalMedAdmin = allEmployees.length;
-  const totalFacilities = facilities?.length ?? 0;
-  const allClasses = classes ?? [];
-  const totalClasses = allClasses.length;
-  const draftClasses = allClasses.filter((c) => c.status === "draft").length;
-  // "Recent Classes" below is sorted by date descending (a future-dated class can outrank
-  // today's), and reaching the kiosk from there is dashboard -> class detail -> "Open Kiosk Mode".
-  // Surface today's still-open class(es) directly here with a one-click kiosk launch. Only draft
-  // classes qualify -- a completed/cancelled class dated today has nothing left to check in.
-  const todaysClasses = allClasses.filter((c) => c.class_date === todayIso() && c.status === "draft");
-  const compliant = practicums?.filter((p) => p.status === "compliant").length ?? 0;
-  const pending = practicums?.filter((p) => p.status !== "compliant").length ?? 0;
-
-  const retraining = useMemo(
-    () =>
-      buildFacilityRetrainingStatus(facilities ?? [], allEmployees, practicums ?? [], {
-        role: user?.role ?? null,
-        assignedFacilityIds,
-      }),
-    [facilities, allEmployees, practicums, user?.role, assignedFacilityIds]
-  );
-  const facilitiesNeedingAttention = retraining.filter(
-    (f) => f.overallStatus === "critical" || f.overallStatus === "expired" || f.overallStatus === "due_soon"
-  );
+  const totalClasses = summary?.classes.totalCount ?? 0;
+  const draftClasses = summary?.classes.draftCount ?? 0;
+  const totalFacilities = summary?.staff.totalFacilities ?? 0;
+  const totalMedAdmin = summary?.staff.totalMedAdminStaff ?? 0;
+  const compliant = summary?.staff.practicumsCompliant ?? 0;
+  const pending = summary?.staff.practicumsPending ?? 0;
+  const todaysClasses = summary?.classes.todays ?? [];
+  const recentClasses = summary?.classes.recent ?? [];
+  const facilitiesNeedingAttention = summary?.facilitiesNeedingAttention ?? [];
 
   return (
     <div className="space-y-6">
@@ -100,14 +61,14 @@ export default function TrainerDashboard() {
         </Link>
       </div>
 
-      {primaryError && (
+      {isError && (
         <QueryError
           what="the training dashboard"
-          error={primaryError.error}
-          onRetry={() => primaryQueries.forEach((query) => void query.refetch())}
+          error={error}
+          onRetry={() => void refetch()}
         />
       )}
-      {!primaryError && (
+      {!isError && (
       <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -115,11 +76,11 @@ export default function TrainerDashboard() {
             <div className="flex items-center gap-3">
               <GraduationCap className="h-8 w-8 text-primary" />
               <div>
-                <p className="text-2xl font-bold">{totalClasses}</p>
+                <p className="text-2xl font-bold">{isLoading ? "—" : totalClasses}</p>
                 <p className="text-sm text-muted-foreground">Total Classes</p>
               </div>
             </div>
-            {draftClasses > 0 && (
+            {!isLoading && draftClasses > 0 && (
               <p className="text-xs text-yellow-600 mt-2">
                 {draftClasses} draft{draftClasses > 1 ? "s" : ""} pending
               </p>
@@ -131,7 +92,7 @@ export default function TrainerDashboard() {
             <div className="flex items-center gap-3">
               <Building2 className="h-8 w-8 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold">{totalFacilities}</p>
+                <p className="text-2xl font-bold">{isLoading ? "—" : totalFacilities}</p>
                 <p className="text-sm text-muted-foreground">Facilities</p>
               </div>
             </div>
@@ -142,7 +103,7 @@ export default function TrainerDashboard() {
             <div className="flex items-center gap-3">
               <Users className="h-8 w-8 text-emerald-600" />
               <div>
-                <p className="text-2xl font-bold">{totalMedAdmin}</p>
+                <p className="text-2xl font-bold">{isLoading ? "—" : totalMedAdmin}</p>
                 <p className="text-sm text-muted-foreground">Med Admin Staff</p>
               </div>
             </div>
@@ -151,14 +112,14 @@ export default function TrainerDashboard() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              {pending > 0 ? (
+              {!isLoading && pending > 0 ? (
                 <Clock className="h-8 w-8 text-yellow-600" />
               ) : (
                 <CheckCircle className="h-8 w-8 text-green-600" />
               )}
               <div>
                 <p className="text-2xl font-bold">
-                  {practicumsLoading ? "—" : compliant}
+                  {isLoading ? "—" : compliant}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Practicums OK
@@ -180,7 +141,7 @@ export default function TrainerDashboard() {
                     {todaysClasses.length === 1 ? "Today's Class" : `${todaysClasses.length} Classes Today`}
                   </p>
                   <p className="text-lg font-semibold">
-                    {todaysClasses.length === 1 ? todaysClasses[0].class_name : "Ready to check people in?"}
+                    {todaysClasses.length === 1 ? todaysClasses[0].className : "Ready to check people in?"}
                   </p>
                 </div>
               </div>
@@ -189,7 +150,7 @@ export default function TrainerDashboard() {
                   <Link key={c.id} href={`/trainer/classes/${c.id}/kiosk`}>
                     <Button size="sm">
                       <Monitor className="h-4 w-4 mr-2" />
-                      {todaysClasses.length === 1 ? "Open Kiosk" : `Open Kiosk — ${c.class_name}`}
+                      {todaysClasses.length === 1 ? "Open Kiosk" : `Open Kiosk — ${c.className}`}
                     </Button>
                   </Link>
                 ))}
@@ -216,7 +177,11 @@ export default function TrainerDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            {allClasses.length === 0 ? (
+            {isLoading ? (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground text-sm">Loading…</p>
+              </div>
+            ) : recentClasses.length === 0 ? (
               <div className="text-center py-6">
                 <p className="text-muted-foreground text-sm mb-3">
                   No classes yet.
@@ -230,7 +195,7 @@ export default function TrainerDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {allClasses.slice(0, 5).map((c) => (
+                {recentClasses.map((c) => (
                   <Link
                     key={c.id}
                     href={`/trainer/classes/${c.id}`}
@@ -238,12 +203,12 @@ export default function TrainerDashboard() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">
-                        {c.class_name}
+                        {c.className}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDateForDisplay(c.class_date)} &middot;{" "}
-                        {attendeeCounts?.[c.id] ?? 0} attendee
-                        {(attendeeCounts?.[c.id] ?? 0) === 1 ? "" : "s"}
+                        {formatDateForDisplay(c.classDate)} &middot;{" "}
+                        {c.attendeeCount} attendee
+                        {c.attendeeCount === 1 ? "" : "s"}
                       </p>
                     </div>
                     <Badge
@@ -280,7 +245,11 @@ export default function TrainerDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            {facilitiesNeedingAttention.length === 0 ? (
+            {isLoading ? (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground text-sm">Loading…</p>
+              </div>
+            ) : facilitiesNeedingAttention.length === 0 ? (
               <div className="text-center py-6">
                 <CheckCircle className="h-10 w-10 text-green-600/30 mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">
@@ -289,7 +258,7 @@ export default function TrainerDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {facilitiesNeedingAttention.slice(0, 5).map((f) => {
+                {facilitiesNeedingAttention.map((f) => {
                   const badgeVariant =
                     f.overallStatus === "critical" || f.overallStatus === "expired"
                       ? "destructive"
