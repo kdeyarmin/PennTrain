@@ -26,7 +26,7 @@ Deno.test("capture-product-event validates the telemetry allowlists", async () =
     single: async () => ({ data: { organization_id: "org-1", role: "org_admin", is_active: true } }),
   };
   const handler = createCaptureProductEventHandler({
-    createClient: () => ({
+    createClient: (_url: string, _key: string, _options?: Record<string, unknown>) => ({
       auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
       from: () => profileQuery,
     }),
@@ -53,23 +53,34 @@ Deno.test("capture-product-event records a sanitized event through the real hand
     eq: () => profileQuery,
     single: async () => ({ data: { organization_id: "org-1", role: "auditor", is_active: true } }),
   };
+  // Service-role path only uses `.from().insert()`; include a stub `auth` so the
+  // mock still satisfies the strict ClientFactory return type used by the handler.
   const admin = {
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: { message: "service role" } }),
+    },
     from: (table: string) => ({
       insert: async (value: Record<string, unknown>) => {
         assertEquals(table, "product_events");
         inserted.value = value;
         return { error: null };
       },
+      // Unused on the admin path; present so the shape is assignable if select is ever probed.
+      select: (_cols: string) => ({
+        eq: (_col: string, _val: string) => ({
+          single: async () => ({ data: null }),
+        }),
+      }),
     }),
   };
   let callCount = 0;
   const handler = createCaptureProductEventHandler({
-    createClient: () => {
+    createClient: (_url: string, _key: string, _options?: Record<string, unknown>) => {
       callCount += 1;
       if (callCount === 1) {
         return {
           auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
-          from: () => profileQuery,
+          from: (_table: string) => profileQuery,
         };
       }
       return admin;
