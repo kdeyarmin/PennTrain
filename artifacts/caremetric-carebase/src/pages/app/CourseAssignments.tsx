@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListCourseAssignmentsPaginated,
@@ -125,6 +125,8 @@ export default function CourseAssignments() {
   const [progressAssignmentId, setProgressAssignmentId] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
+  const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<string>>(new Set());
+  const [bulkCompleting, setBulkCompleting] = useState(false);
 
   // RLS also lets an employee complete their own assignment, but that
   // self-service path lives on the employee training page -- this admin view
@@ -142,7 +144,7 @@ export default function CourseAssignments() {
   } = useListCourseVersionsForCourses(courseIds);
 
   const { mutateAsync: createAssignmentAsync } = useCreateCourseAssignment();
-  const { mutate: completeAssignment, isPending: completing } = useCompleteCourseAssignment();
+  const { mutate: completeAssignment, mutateAsync: completeAssignmentAsync, isPending: completing } = useCompleteCourseAssignment();
   // Unfiltered on purpose -- RLS (certificates_select) already scopes this to certificates the
   // current caller is allowed to see (their own, or org/facility staff), the same population this
   // page's own assignments query is implicitly scoped to. Mirrors the "fetch full set, look up
@@ -241,6 +243,53 @@ export default function CourseAssignments() {
     })),
     facilityToday(),
   ), [paginated]);
+
+  // Same eligibility gate as the single-row "Mark Complete" button -- not completed, version
+  // metadata loaded, and not a comprehensive content_standard that requires learner evidence.
+  const isEligibleForComplete = (a: CourseAssignment) => {
+    if (a.status === "completed") return false;
+    const assignmentVersion = courseVersionById.get(a.course_version_id);
+    const versionMetadataReady =
+      !courseVersionsLoading && !courseVersionsError && !!assignmentVersion;
+    if (!versionMetadataReady) return false;
+    if (assignmentVersion?.content_standard === "comprehensive") return false;
+    return true;
+  };
+
+  const eligibleOnPage = useMemo(
+    () => paginated.filter(isEligibleForComplete),
+    // isEligibleForComplete closes over version maps that change with courseVersionsLoading
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paginated, courseVersionById, courseVersionsLoading, courseVersionsError],
+  );
+  const allEligibleSelected =
+    eligibleOnPage.length > 0 && eligibleOnPage.every((a) => selectedAssignmentIds.has(a.id));
+  const someEligibleSelected = eligibleOnPage.some((a) => selectedAssignmentIds.has(a.id));
+
+  useEffect(() => {
+    setSelectedAssignmentIds(new Set());
+  }, [facilityId, statusFilter, search, page]);
+
+  const toggleAssignment = (id: string) => {
+    setSelectedAssignmentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllEligible = () => {
+    setSelectedAssignmentIds((prev) => {
+      const next = new Set(prev);
+      if (allEligibleSelected) {
+        for (const a of eligibleOnPage) next.delete(a.id);
+      } else {
+        for (const a of eligibleOnPage) next.add(a.id);
+      }
+      return next;
+    });
+  };
 
   // Employees offered in the assign dialog's multi-select, narrowed by that dialog's own facility
   // filter (assignFacilityFilter) -- independent of the page-level facilityId filter above.
@@ -354,10 +403,43 @@ export default function CourseAssignments() {
         // The completion RPC now commits the assignment, compliance documentation, certificate,
         // lifecycle event, and PDF job together. There is deliberately no second issuance call.
         toast({ title: "Marked complete", description: "Certificate issued and PDF preparation queued." });
+        setSelectedAssignmentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(assignment.id);
+          return next;
+        });
       },
       onError: (e: Error) => toast({ title: "Failed to mark complete", description: e.message, variant: "destructive" }),
       onSettled: () => setCompletingId(null),
     });
+  };
+
+  const handleBulkComplete = async () => {
+    if (selectedAssignmentIds.size === 0) return;
+    const ids = Array.from(selectedAssignmentIds);
+    setBulkCompleting(true);
+    const results = await Promise.allSettled(
+      ids.map((id) => completeAssignmentAsync(id)),
+    );
+    setBulkCompleting(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    toast({
+      title:
+        failed === 0
+          ? `${succeeded} assignment${succeeded === 1 ? "" : "s"} marked complete`
+          : succeeded === 0
+            ? "Bulk mark complete failed"
+            : "Bulk mark complete partially completed",
+      description:
+        failed > 0
+          ? `${succeeded} of ${results.length} completed. ${failed} failed.`
+          : "Certificates issued and PDF preparation queued.",
+      variant: failed === 0 ? "success" : succeeded === 0 ? "destructive" : undefined,
+    });
+
+    if (succeeded > 0) setSelectedAssignmentIds(new Set());
   };
 
   const handleDownloadCertificate = async (certificateId: string) => {
@@ -421,6 +503,30 @@ export default function CourseAssignments() {
         </div>
       </div>
 
+      {canManage && selectedAssignmentIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
+          <span className="text-sm font-medium">
+            {selectedAssignmentIds.size} assignment{selectedAssignmentIds.size === 1 ? "" : "s"} selected
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleBulkComplete}
+            disabled={bulkCompleting}
+          >
+            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+            {bulkCompleting ? "Completing..." : "Mark Complete Selected"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedAssignmentIds(new Set())}
+          >
+            Clear Selection
+          </Button>
+        </div>
+      )}
+
       <div className="premium-card">
         <div className="filter-bar">
           <div className="relative flex-1 min-w-48">
@@ -468,10 +574,23 @@ export default function CourseAssignments() {
           </div>
         ) : (
           <>
+            {canManage && eligibleOnPage.length > 0 && (
+              <div className="flex items-center gap-2 px-5 py-2 border-b border-border/60">
+                <Checkbox
+                  checked={allEligibleSelected ? true : someEligibleSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleSelectAllEligible}
+                  aria-label="Select all eligible assignments on this page"
+                />
+                <span className="text-xs text-muted-foreground">
+                  Select all eligible on page ({eligibleOnPage.length})
+                </span>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
+                    {canManage && <th className="w-10" />}
                     <th>Employee</th>
                     <th>Training item</th>
                     <th>Status</th>
@@ -489,8 +608,20 @@ export default function CourseAssignments() {
                       !courseVersionsLoading && !courseVersionsError && !!assignmentVersion;
                     const requiresLearnerEvidence = assignmentVersion?.content_standard === "comprehensive";
                     const cert = certificateByAssignmentId.get(a.id);
+                    const eligible = isEligibleForComplete(a);
                     return (
                       <tr key={a.id}>
+                        {canManage && (
+                          <td>
+                            {eligible ? (
+                              <Checkbox
+                                checked={selectedAssignmentIds.has(a.id)}
+                                onCheckedChange={() => toggleAssignment(a.id)}
+                                aria-label={`Select assignment for ${emp ? `${emp.last_name}, ${emp.first_name}` : a.employee_id}`}
+                              />
+                            ) : null}
+                          </td>
+                        )}
                         <td>
                           <span className="font-medium text-foreground">
                             {emp ? `${emp.last_name}, ${emp.first_name}` : `Employee #${a.employee_id.slice(0, 8)}`}
@@ -544,7 +675,7 @@ export default function CourseAssignments() {
                                 size="sm"
                                 className="h-8 text-xs text-muted-foreground hover:text-foreground"
                                 onClick={() => handleComplete(a)}
-                                disabled={completing && completingId === a.id}
+                                disabled={(completing && completingId === a.id) || bulkCompleting}
                               >
                                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
                                 {completing && completingId === a.id ? "Completing..." : "Mark Complete"}
