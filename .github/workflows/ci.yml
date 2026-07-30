@@ -75,6 +75,12 @@ jobs:
         with:
           version: 2.109.1
 
+      - name: Stop any leftover Supabase stack from a previous run
+        # Warm runner VMs can retain orphaned Docker containers or stale iptables
+        # NAT rules from a prior CI run, causing supabase start to fail with
+        # "port 54322 already in use". Stopping first ensures a clean slate.
+        run: supabase stop --no-backup 2>/dev/null || true
+
       - name: Start clean local Supabase stack
         # Browser journeys need Auth, PostgREST, and the API gateway in addition
         # to Postgres. `supabase db start` starts only the database service.
