@@ -156,7 +156,14 @@ function Empty({ children }: { children: string }) {
 
 function ReadinessBar({ percent }: { percent: number }) {
   return (
-    <div className="h-3 overflow-hidden rounded-full bg-muted" aria-label={`${percent}% ready`}>
+    <div
+      className="h-3 overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      aria-label={`${percent}% ready`}
+      aria-valuenow={percent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
     </div>
   );
