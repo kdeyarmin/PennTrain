@@ -146,14 +146,14 @@ select lives_ok(
 select is(
   (select count(*)::int from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   1,
   'one expiring credential becomes one deduplicated work item'
 );
 select is(
   (select priority from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   'high',
   'a future 30-day readiness risk is high priority rather than a current urgent blocker'
 );
@@ -166,7 +166,7 @@ select public.run_workforce_readiness_forecast_maintenance();
 select is(
   (select state from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   'closed',
   'the forecast work item closes when the source record no longer presents a 30-day risk'
 );
