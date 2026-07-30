@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import {
   decodePhase2Cursor,
   encodePhase2Cursor,
@@ -12,14 +13,9 @@ import {
 } from "../_shared/phase2Integration.ts";
 
 const MAX_BODY_BYTES = 256 * 1024;
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, content-type, idempotency-key, x-correlation-id, x-request-id",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
 
 function response(
+  req: Request,
   body: unknown,
   status: number,
   correlationId: string,
@@ -27,28 +23,28 @@ function response(
 ): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, ...phase2IntegrationHeaders(correlationId, rate) },
+    headers: { ...corsHeadersForRequest(req, { headers: "authorization, content-type, idempotency-key, x-correlation-id, x-request-id", methods: "GET, POST, OPTIONS" }), ...phase2IntegrationHeaders(correlationId, rate) },
   });
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: "authorization, content-type, idempotency-key, x-correlation-id, x-request-id", methods: "GET, POST, OPTIONS" });
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const url = new URL(req.url);
   const isCommands = url.pathname.endsWith("/v1/commands") && req.method === "POST";
   const isEvents = url.pathname.endsWith("/v1/events") && req.method === "GET";
   const isEntitlements = url.pathname.endsWith("/v1/entitlements") && req.method === "GET";
   if (!isCommands && !isEvents && !isEntitlements) {
-    return response({ error: { code: "route_not_found" }, meta: { correlationId } }, 404, correlationId);
+    return response(req, { error: { code: "route_not_found" }, meta: { correlationId } }, 404, correlationId);
   }
   const plaintextKey = parsePhase2ApiCredential(req.headers.get("authorization"));
   if (!plaintextKey) {
-    return response({ error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
+    return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
   }
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
-    return response({ error: { code: "service_not_configured" }, meta: { correlationId } }, 503, correlationId);
+    return response(req, { error: { code: "service_not_configured" }, meta: { correlationId } }, 503, correlationId);
   }
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
@@ -62,20 +58,20 @@ Deno.serve(async (req: Request) => {
   if (isCommands) {
     const declaredLength = Number(req.headers.get("content-length") ?? "0");
     if (declaredLength > MAX_BODY_BYTES) {
-      return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
+      return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
     }
     rawBody = await req.text();
     if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-      return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
+      return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(rawBody);
     } catch {
-      return response({ error: { code: "invalid_json" }, meta: { correlationId } }, 400, correlationId);
+      return response(req, { error: { code: "invalid_json" }, meta: { correlationId } }, 400, correlationId);
     }
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return response({ error: { code: "invalid_command_envelope" }, meta: { correlationId } }, 400, correlationId);
+      return response(req, { error: { code: "invalid_command_envelope" }, meta: { correlationId } }, 400, correlationId);
     }
     commandBody = parsed as Record<string, unknown>;
     commandType = typeof commandBody.commandType === "string" ? commandBody.commandType : "";
@@ -102,7 +98,7 @@ Deno.serve(async (req: Request) => {
     }
   }
   if (!credential) {
-    return response({ error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
+    return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
   }
   const { data: rateRows, error: rateError } = await admin.rpc("consume_integration_rate_limit", {
     p_credential_id: credential.credential_id,
@@ -110,7 +106,7 @@ Deno.serve(async (req: Request) => {
   });
   const rateRow = Array.isArray(rateRows) ? rateRows[0] : rateRows;
   if (rateError || !rateRow) {
-    return response({ error: { code: "rate_limit_unavailable" }, meta: { correlationId } }, 503, correlationId);
+    return response(req, { error: { code: "rate_limit_unavailable" }, meta: { correlationId } }, 503, correlationId);
   }
   const rate = {
     limit: credential.rate_limit_per_minute as number,
@@ -118,7 +114,7 @@ Deno.serve(async (req: Request) => {
     resetAt: rateRow.reset_at as string,
   };
   if (!rateRow.allowed) {
-    return response({ error: { code: "rate_limit_exceeded" }, meta: { correlationId } }, 429, correlationId, rate);
+    return response(req, { error: { code: "rate_limit_exceeded" }, meta: { correlationId } }, 429, correlationId, rate);
   }
 
   if (isCommands) {
@@ -128,14 +124,14 @@ Deno.serve(async (req: Request) => {
       !/^[a-z][a-z0-9_.:-]{1,149}$/.test(commandType) ||
       typeof body.payload !== "object" || body.payload === null || Array.isArray(body.payload) ||
       (body.organizationId !== undefined && body.organizationId !== credential.organization_id)) {
-      return response({ error: { code: "invalid_command_envelope" }, meta: { correlationId } }, 400, correlationId, rate);
+      return response(req, { error: { code: "invalid_command_envelope" }, meta: { correlationId } }, 400, correlationId, rate);
     }
     // Per-command contract: registered commands must be submitted at their
     // registered version; everything else keeps the global baseline.
     const contract = phase2CommandContract(commandType);
     const versionError = phase2CommandSchemaVersionError(commandType, body.schemaVersion);
     if (versionError) {
-      return response({
+      return response(req, {
         error: {
           code: "schema_version_mismatch",
           message: versionError,
@@ -155,13 +151,13 @@ Deno.serve(async (req: Request) => {
     });
     if (commandError) {
       const conflict = commandError.code === "23505";
-      return response({
+      return response(req, {
         error: { code: conflict ? "idempotency_conflict" : "command_rejected" },
         meta: { schemaVersion: contract.schemaVersion, correlationId },
       }, conflict ? 409 : 422, correlationId, rate);
     }
     const command = Array.isArray(commandRows) ? commandRows[0] : commandRows;
-    return response({
+    return response(req, {
       data: {
         commandId: command.command_id,
         status: command.command_status,
@@ -176,7 +172,7 @@ Deno.serve(async (req: Request) => {
     try {
       afterSequence = decodePhase2Cursor(url.searchParams.get("cursor"));
     } catch {
-      return response({ error: { code: "invalid_cursor" }, meta: { correlationId } }, 400, correlationId, rate);
+      return response(req, { error: { code: "invalid_cursor" }, meta: { correlationId } }, 400, correlationId, rate);
     }
     const requestedLimit = Number(url.searchParams.get("limit") ?? "100");
     const limit = Number.isSafeInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
@@ -185,7 +181,7 @@ Deno.serve(async (req: Request) => {
       p_after_sequence: afterSequence,
       p_limit: limit,
     });
-    if (error) return response({ error: { code: "event_read_failed" }, meta: { correlationId } }, 500, correlationId, rate);
+    if (error) return response(req, { error: { code: "event_read_failed" }, meta: { correlationId } }, 500, correlationId, rate);
     const events = (rows ?? []).map((row: Record<string, unknown>) => ({
       sequence: row.sequence_number,
       eventId: row.event_id,
@@ -197,7 +193,7 @@ Deno.serve(async (req: Request) => {
       data: row.payload,
     }));
     const lastSequence = events.length ? Number(events[events.length - 1].sequence) : afterSequence;
-    return response({
+    return response(req, {
       data: events,
       page: {
         nextCursor: events.length ? encodePhase2Cursor(lastSequence) : null,
@@ -212,9 +208,9 @@ Deno.serve(async (req: Request) => {
     p_as_of: new Date().toISOString(),
   });
   if (entitlementError) {
-    return response({ error: { code: "entitlement_read_failed" }, meta: { correlationId } }, 500, correlationId, rate);
+    return response(req, { error: { code: "entitlement_read_failed" }, meta: { correlationId } }, 500, correlationId, rate);
   }
-  return response({
+  return response(req, {
     data: entitlements,
     meta: { schemaVersion: PHASE2_INTEGRATION_SCHEMA_VERSION, correlationId },
   }, 200, correlationId, rate);

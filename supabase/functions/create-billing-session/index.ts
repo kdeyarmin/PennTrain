@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import {
   phase2CheckoutTrialDays,
   phase2StripePost,
@@ -8,56 +9,51 @@ import {
   validatePhase2BillingReturnUrl,
 } from "../_shared/phase2Billing.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, idempotency-key, x-correlation-id, x-request-id",
-};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function json(body: unknown, status = 200): Response {
+function json(req: Request, body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req, { headers: "authorization, x-client-info, apikey, content-type, idempotency-key, x-correlation-id, x-request-id" }) },
   });
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: { code: "method_not_allowed" } }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: "authorization, x-client-info, apikey, content-type, idempotency-key, x-correlation-id, x-request-id" });
+  if (req.method !== "POST") return json(req, { error: { code: "method_not_allowed" } }, 405);
   const declaredLength = Number(req.headers.get("content-length") ?? "0");
-  if (declaredLength > 32 * 1024) return json({ error: { code: "payload_too_large" } }, 413);
+  if (declaredLength > 32 * 1024) return json(req, { error: { code: "payload_too_large" } }, 413);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !stripeSecretKey) {
-    return json({ error: { code: "billing_not_configured" } }, 503);
+    return json(req, { error: { code: "billing_not_configured" } }, 503);
   }
   const authorization = req.headers.get("authorization");
-  if (!authorization) return json({ error: { code: "unauthorized" } }, 401);
+  if (!authorization) return json(req, { error: { code: "unauthorized" } }, 401);
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
   });
   const { data: { user }, error: userError } = await callerClient.auth.getUser();
-  if (userError || !user) return json({ error: { code: "unauthorized" } }, 401);
+  if (userError || !user) return json(req, { error: { code: "unauthorized" } }, 401);
   const { data: assurance, error: assuranceError } = await callerClient.auth.mfa
     .getAuthenticatorAssuranceLevel();
   if (assuranceError || assurance?.currentLevel !== "aal2") {
-    return json({ error: { code: "aal2_required" } }, 403);
+    return json(req, { error: { code: "aal2_required" } }, 403);
   }
   const { data: assuranceCurrent, error: freshnessError } = await callerClient.rpc(
     "identity_assurance_is_current",
     { p_operation: "billing_admin" },
   );
   if (freshnessError || assuranceCurrent !== true) {
-    return json({ error: { code: "fresh_aal2_required" } }, 403);
+    return json(req, { error: { code: "fresh_aal2_required" } }, 403);
   }
   const { data: profile, error: profileError } = await callerClient.from("profiles")
     .select("id, email, role, organization_id, is_active").eq("id", user.id).single();
   if (profileError || !profile?.is_active) {
-    return json({ error: { code: "forbidden" } }, 403);
+    return json(req, { error: { code: "forbidden" } }, 403);
   }
 
   let body: {
@@ -75,14 +71,14 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return json({ error: { code: "invalid_json" } }, 400);
+    return json(req, { error: { code: "invalid_json" } }, 400);
   }
   const organizationId = profile.role === "platform_admin"
     ? body.organizationId
     : profile.organization_id;
   if (!organizationId || !UUID.test(organizationId) ||
     (profile.role !== "platform_admin" && body.organizationId && body.organizationId !== organizationId)) {
-    return json({ error: { code: "invalid_organization" } }, 403);
+    return json(req, { error: { code: "invalid_organization" } }, 403);
   }
   if (profile.role !== "platform_admin") {
     const { data: hasPermission, error: permissionError } = await callerClient.rpc(
@@ -95,12 +91,12 @@ Deno.serve(async (req: Request) => {
       },
     );
     if (permissionError || (!hasPermission && profile.role !== "org_admin")) {
-      return json({ error: { code: "forbidden" } }, 403);
+      return json(req, { error: { code: "forbidden" } }, 403);
     }
   }
   const action = body.action ?? "checkout";
   if (!(["checkout", "portal"] as string[]).includes(action)) {
-    return json({ error: { code: "invalid_action" } }, 400);
+    return json(req, { error: { code: "invalid_action" } }, 400);
   }
 
   // Return URLs are validated against configured origins only; the request
@@ -124,10 +120,10 @@ Deno.serve(async (req: Request) => {
     quantity: number;
   } | null = null;
   if (action === "portal") {
-    if (!account?.stripe_customer_id) return json({ error: { code: "billing_customer_missing" } }, 409);
+    if (!account?.stripe_customer_id) return json(req, { error: { code: "billing_customer_missing" } }, 409);
     const returnUrl = body.returnUrl;
     if (!returnUrl || !validatePhase2BillingReturnUrl(returnUrl, configuredOrigins)) {
-      return json({ error: { code: "invalid_return_url" } }, 400);
+      return json(req, { error: { code: "invalid_return_url" } }, 400);
     }
     stripeResult = await phase2StripePost(
       "/v1/billing_portal/sessions",
@@ -138,11 +134,11 @@ Deno.serve(async (req: Request) => {
     kind = "portal";
   } else {
     if (!body.packageId || !UUID.test(body.packageId)) {
-      return json({ error: { code: "package_required" } }, 400);
+      return json(req, { error: { code: "package_required" } }, 400);
     }
     const billingInterval = body.billingInterval ?? "month";
     if (billingInterval !== "month" && billingInterval !== "year") {
-      return json({ error: { code: "invalid_billing_interval" } }, 400);
+      return json(req, { error: { code: "invalid_billing_interval" } }, 400);
     }
     const { data: existingSubscription, error: existingSubscriptionError } = await admin
       .from("billing_subscriptions")
@@ -153,10 +149,10 @@ Deno.serve(async (req: Request) => {
       .limit(1)
       .maybeSingle();
     if (existingSubscriptionError) {
-      return json({ error: { code: "billing_state_unavailable" } }, 503);
+      return json(req, { error: { code: "billing_state_unavailable" } }, 503);
     }
     if (existingSubscription) {
-      return json({ error: { code: "existing_subscription_requires_portal" } }, 409);
+      return json(req, { error: { code: "existing_subscription_requires_portal" } }, 409);
     }
     const { data: price, error: priceError } = await admin.from("package_billing_prices")
       .select("stripe_price_id, billing_metric, pricing_model, minimum_quantity, maximum_quantity, packages!inner(is_active, trial_days)")
@@ -167,14 +163,14 @@ Deno.serve(async (req: Request) => {
       .lte("effective_from", new Date().toISOString())
       .or(`effective_to.is.null,effective_to.gt.${new Date().toISOString()}`)
       .order("effective_from", { ascending: false }).limit(1).maybeSingle();
-    if (priceError || !price) return json({ error: { code: "active_price_missing" } }, 409);
+    if (priceError || !price) return json(req, { error: { code: "active_price_missing" } }, 409);
     const { data: usageRows, error: usageError } = await admin.rpc(
       "get_organization_billing_usage",
       { p_organization_id: organizationId },
     );
     const usage = Array.isArray(usageRows) ? usageRows[0] : null;
     if (usageError || !usage) {
-      return json({ error: { code: "billing_usage_unavailable" } }, 503);
+      return json(req, { error: { code: "billing_usage_unavailable" } }, 503);
     }
     const measuredQuantity = phase2MeasuredBillingQuantity(price.billing_metric, {
       active_learners: Number(usage.active_learners),
@@ -183,7 +179,7 @@ Deno.serve(async (req: Request) => {
       facilities: Number(usage.facilities),
     });
     if (measuredQuantity === null) {
-      return json({ error: { code: "invalid_billing_usage" } }, 503);
+      return json(req, { error: { code: "invalid_billing_usage" } }, 503);
     }
     const quantity = resolvePhase2BillingQuantity(
       price.billing_metric,
@@ -192,12 +188,12 @@ Deno.serve(async (req: Request) => {
       price.maximum_quantity,
     );
     if (quantity === null) {
-      return json({ error: { code: "billing_quantity_outside_self_service_range" } }, 409);
+      return json(req, { error: { code: "billing_quantity_outside_self_service_range" } }, 409);
     }
     if (!body.successUrl || !body.cancelUrl ||
       !validatePhase2BillingReturnUrl(body.successUrl, configuredOrigins) ||
       !validatePhase2BillingReturnUrl(body.cancelUrl, configuredOrigins)) {
-      return json({ error: { code: "invalid_return_url" } }, 400);
+      return json(req, { error: { code: "invalid_return_url" } }, 400);
     }
     const packageConfiguration = Array.isArray(price.packages) ? price.packages[0] : price.packages;
     const configuredTrialDays = typeof packageConfiguration?.trial_days === "number"
@@ -213,10 +209,10 @@ Deno.serve(async (req: Request) => {
       .eq("id", organizationId)
       .maybeSingle();
     if (organizationError) {
-      return json({ error: { code: "billing_state_unavailable" } }, 503);
+      return json(req, { error: { code: "billing_state_unavailable" } }, 503);
     }
     if (!organization) {
-      return json({ error: { code: "invalid_organization" } }, 403);
+      return json(req, { error: { code: "invalid_organization" } }, 403);
     }
     const trialDays = phase2CheckoutTrialDays(
       typeof organization.trial_ends_at === "string" ? organization.trial_ends_at : null,
@@ -268,11 +264,11 @@ Deno.serve(async (req: Request) => {
       organizationId,
       correlationId,
     });
-    return json({ error: { code: "stripe_request_failed" }, meta: { correlationId } }, 502);
+    return json(req, { error: { code: "stripe_request_failed" }, meta: { correlationId } }, 502);
   }
   const sessionId = typeof stripeResult.data.id === "string" ? stripeResult.data.id : null;
   const url = typeof stripeResult.data.url === "string" ? stripeResult.data.url : null;
-  if (!sessionId || !url) return json({ error: { code: "invalid_stripe_response" } }, 502);
+  if (!sessionId || !url) return json(req, { error: { code: "invalid_stripe_response" } }, 502);
 
   const { error: auditError } = await admin.from("audit_logs").insert({
     organization_id: organizationId,
@@ -290,7 +286,7 @@ Deno.serve(async (req: Request) => {
   const expiresAt = typeof stripeResult.data.expires_at === "number"
     ? new Date(stripeResult.data.expires_at * 1000).toISOString()
     : undefined;
-  return json({
+  return json(req, {
     data: { kind, sessionId, url, checkoutConfiguration, ...(expiresAt ? { expiresAt } : {}) },
     meta: { requestId, correlationId, stripeApiVersion: STRIPE_API_VERSION },
   });
