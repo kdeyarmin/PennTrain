@@ -20,7 +20,7 @@ begin
   -- maintenance worker runs as service_role and therefore has no auth.uid(); for that path derive the
   -- organization from the facility itself rather than failing the user-session guard. No caller may
   -- choose an organization independently of the facility id.
-  if current_user in ('postgres', 'service_role', 'supabase_admin') then
+if session_user in ('postgres', 'service_role', 'supabase_admin') then
     select f.organization_id into v_org
     from public.facilities f
     where f.id = p_facility_id and f.is_active;
