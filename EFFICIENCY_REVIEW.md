@@ -285,6 +285,21 @@ UX (accept a facility name, resolved server-side) · add bulk *Resolve* next to 
 admin dashboard's KPI tiles to actually filter their target pages · fix the Documents employee-filter dead code ·
 add the `enabled` guard to the 6 employee self-service hooks missing it.
 
+> **Pass 1 is complete as of July 30 2026 — every item above was verified against the code, not assumed.**
+> `queryClient.ts` sets `staleTime: 60_000` + `refetchOnWindowFocus: false`, and 34 files now tune it (the review
+> counted 2); `useAlerts.ts` names that default explicitly when opting out of it. All five pages have search.
+> `IncidentDetail`, `EmployeeDetail`, `EmployeeCredentials` and `Users` all use `AlertDialog`; `ResidentDetail`
+> was split into tabs, and the document delete that moved to `resident-tabs/DocumentsTab.tsx` confirms (the one
+> remaining "remove" in `OverviewTab.tsx` drops a row from local form state, so a dialog there would be noise).
+> `bulk-import-employees` takes `facility_name`, resolved case-insensitively server-side, as its documented
+> primary path. `Alerts.tsx` has bulk Resolve and bulk Dismiss sharing one handler. The Documents employee filter
+> feeds the query. Six of the seven `/me` pages pass an `enabled` guard; `MyShift` needs none, since
+> `useMyShiftWorkspace()` resolves the employee server-side instead of taking an id.
+>
+> The KPI-tile item was the last one open and landed in #323. Note the direction of the drift: **every finding
+> here was stale in the "already fixed" direction.** Verify against the code before picking anything up from
+> Pass 2 or 3 — this document is a July 2026 snapshot, not a live backlog.
+
 **Pass 2 — the systemic fixes that need real (but mechanical) rollout (M)**
 Server-side pagination on the highest-row-count tables (employees, training records, incidents,
 course_assignments, audit_logs) · URL-persisted filters on the list pages that already have filter state · extend
