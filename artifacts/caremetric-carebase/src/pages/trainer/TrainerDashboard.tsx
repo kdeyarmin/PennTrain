@@ -32,7 +32,8 @@ export default function TrainerDashboard() {
   const { user } = useAuth();
 
   const facilitiesQuery = useListFacilities();
-  const employeesQuery = useListEmployees();
+  // Only active med-admin staff -- matches what buildFacilityRetrainingStatus counts.
+  const employeesQuery = useListEmployees({ status: "active", administersMedications: true });
   const classesQuery = useListTrainingClasses();
   const practicumsQuery = useListPracticums({ year: new Date().getFullYear() });
   const { data: facilities } = facilitiesQuery;
@@ -53,7 +54,8 @@ export default function TrainerDashboard() {
   );
 
   const allEmployees = employees ?? [];
-  const totalMedAdmin = allEmployees.filter((e) => e.administers_medications).length;
+  // Already restricted to administers_medications=true at the query level.
+  const totalMedAdmin = allEmployees.length;
   const totalFacilities = facilities?.length ?? 0;
   const allClasses = classes ?? [];
   const totalClasses = allClasses.length;
