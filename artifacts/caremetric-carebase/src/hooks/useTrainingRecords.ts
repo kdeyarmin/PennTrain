@@ -15,6 +15,8 @@ export interface ListTrainingRecordsFilters {
   approvalStatus?: string;
   /** Restrict to specific training types (e.g. MED-INIT / MED-RENEW / DIABETES-EDU on MedAdminRoster). */
   trainingTypeIds?: string[];
+  /** Only rows whose external_certificate_document_id is non-null (PendingApprovals linked-id set). */
+  hasExternalCertificateDocument?: boolean;
 }
 
 // `options.enabled` matters for callers that intend to scope by employeeId but don't have one yet
@@ -54,6 +56,12 @@ export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {},
       if (filters.approvalStatus) query = query.eq("approval_status", filters.approvalStatus);
       if (sortedTrainingTypeIds && sortedTrainingTypeIds.length > 0) {
         query = query.in("training_type_id", sortedTrainingTypeIds);
+      }
+      // PendingApprovals builds a Set of already-linked document ids from this column. Restricting
+      // to non-null values keeps that Set correct without downloading every training row in the
+      // tenant (most of which have never been tied to an external certificate upload).
+      if (filters.hasExternalCertificateDocument) {
+        query = query.not("external_certificate_document_id", "is", null);
       }
       const { data, error } = await query;
       if (error) throw error;

@@ -135,7 +135,12 @@ export default function Practicums() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const { data: facilities } = useListFacilities();
-  const { data: employeesAll } = useListEmployees();
+  // Active staff only; push the page's facility filter into the query so selecting a site does
+  // not download every other facility's roster just to resolve names / populate the create dialog.
+  const { data: employeesAll } = useListEmployees({
+    status: "active",
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+  });
   // Practicums track annual medication-administration competency, so only staff who administer
   // medications are relevant here -- mirrors this page's pre-existing employee filter.
   const employees = useMemo(() => employeesAll?.filter(e => e.administers_medications), [employeesAll]);

@@ -9,8 +9,8 @@
 -- matching the data the client-side aggregation saw.
 --
 -- Parity notes with retired client logic (TrainerDashboard.tsx + facilityRetrainingStatus.ts):
---   * totalMedAdminStaff counts every visible employee with administers_medications (no status
---     filter) -- same as the top card. Facility-level med-admin counts use active only.
+--   * totalMedAdminStaff counts active employees with administers_medications -- same as the
+--     top card (useListEmployees({ status: "active", administersMedications: true })).
 --   * practicums are restricted to the current Pennsylvania calendar year (pa_today()).
 --   * "Practicums OK" / pending match client: compliant vs not-compliant for that year.
 --   * Today's classes use pa_today() and status = 'draft' (only still-open classes).
@@ -63,7 +63,7 @@ recent_classes as (
 ),
 staff as (
   select
-    count(*) filter (where administers_medications) as total_med_admin,
+    count(*) filter (where status = 'active' and administers_medications) as total_med_admin,
     (select count(*) from public.facilities) as total_facilities
   from public.employees
 ),
