@@ -50,6 +50,8 @@ const UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS = 90;
 // awaiting triage as long as no record's external_certificate_document_id points at it. There's
 // no server-side way to express that as a single filter on training_documents (the FK lives on
 // the other table), so we fetch both sides and exclude client-side via a Set of linked ids.
+// Only rows that already carry a document FK are needed for that Set -- see
+// hasExternalCertificateDocument on useListTrainingRecords.
 function useLinkedDocumentIds(records: TrainingRecord[] | undefined): Set<string> {
   return useMemo(() => {
     const ids = new Set<string>();
@@ -158,7 +160,7 @@ interface UnlinkedDocumentRowProps {
   doc: TrainingDocument;
   employees: Employee[];
   trainingTypes: TrainingType[];
-  allRecords: TrainingRecord[];
+  decisionRecords: TrainingRecord[];
   currentUserId: string;
   busy: boolean;
   canManage: boolean;
@@ -168,7 +170,7 @@ interface UnlinkedDocumentRowProps {
 }
 
 function UnlinkedDocumentRow({
-  doc, employees, trainingTypes, allRecords, currentUserId, busy, canManage, onDecide, onView, viewPending,
+  doc, employees, trainingTypes, decisionRecords, currentUserId, busy, canManage, onDecide, onView, viewPending,
 }: UnlinkedDocumentRowProps) {
   const { toast } = useToast();
   const [manualEmployeeId, setManualEmployeeId] = useState("");
@@ -208,7 +210,10 @@ function UnlinkedDocumentRow({
       comment,
       reviewerId: currentUserId,
     });
-    const existing = findCurrentRecord(allRecords, employeeId, trainingTypeId);
+    // decisionRecords is the union of linked-certificate rows + pending-approval rows -- the only
+    // populations this queue mutates. A brand-new employee/training-type pair correctly falls
+    // through to create (mirrors successive renewal cycles on TrainingMatrix).
+    const existing = findCurrentRecord(decisionRecords, employeeId, trainingTypeId);
     await onDecide(existing, payload);
   };
 
@@ -388,17 +393,35 @@ export default function PendingApprovals() {
   const [hideOldDocuments, setHideOldDocuments] = useState(true);
 
   const { data: documents, isLoading: documentsLoading } = useListDocuments({ documentTypes: EXTERNAL_CERT_DOC_TYPES });
-  const { data: employees } = useListEmployees({});
+  // Active roster only; push the facility filter into the query when a site is selected so the
+  // employee picker never downloads terminated staff or other facilities' full headcount.
+  const { data: employees } = useListEmployees({
+    status: "active",
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+  });
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
-  const { data: allRecords, isLoading: recordsLoading } = useListTrainingRecords({});
+  // Only rows that already point at an external certificate document -- enough to build the
+  // linked-id Set without downloading every training record in the tenant.
+  const { data: linkedCertRecords, isLoading: recordsLoading } = useListTrainingRecords({
+    hasExternalCertificateDocument: true,
+  });
   const { data: pendingRecords, isLoading: pendingLoading } = useListTrainingRecords({ approvalStatus: "pending" });
 
   const createRecord = useCreateTrainingRecord();
   const updateRecord = useUpdateTrainingRecord();
   const getSignedUrl = useDocumentSignedUrl();
 
-  const linkedDocumentIds = useLinkedDocumentIds(allRecords);
+  const linkedDocumentIds = useLinkedDocumentIds(linkedCertRecords);
+
+  // Union of linked-certificate + pending rows -- the only populations this queue updates when a
+  // reviewer decides. Brand-new employee/training-type pairs fall through to create.
+  const decisionRecords = useMemo(() => {
+    const byId = new Map<string, TrainingRecord>();
+    for (const r of linkedCertRecords ?? []) byId.set(r.id, r);
+    for (const r of pendingRecords ?? []) byId.set(r.id, r);
+    return Array.from(byId.values());
+  }, [linkedCertRecords, pendingRecords]);
 
   // Unfiltered by facility/age -- used only to tell "genuinely nothing to review" apart from
   // "the view filters are just hiding everything" in the empty state below.
@@ -530,7 +553,7 @@ export default function PendingApprovals() {
                       doc={doc}
                       employees={employees ?? []}
                       trainingTypes={trainingTypes ?? []}
-                      allRecords={allRecords ?? []}
+                      decisionRecords={decisionRecords}
                       currentUserId={user?.id ?? ""}
                       busy={busy}
                       canManage={canManage}
