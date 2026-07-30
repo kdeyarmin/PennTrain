@@ -8,9 +8,13 @@ export type TrainingRecordUpdate = TablesUpdate<"employee_training_records">;
 
 export interface ListTrainingRecordsFilters {
   employeeId?: string;
+  /** Prefer this over a full roster load when the page already has a known employee set. */
+  employeeIds?: string[];
   facilityId?: string;
   status?: string;
   approvalStatus?: string;
+  /** Restrict to specific training types (e.g. MED-INIT / MED-RENEW / DIABETES-EDU on MedAdminRoster). */
+  trainingTypeIds?: string[];
 }
 
 // `options.enabled` matters for callers that intend to scope by employeeId but don't have one yet
@@ -22,14 +26,35 @@ export interface ListTrainingRecordsFilters {
 // useCourseAssignments.ts's useListCourseAssignments. Defaults to `undefined`, which react-query
 // treats as "always enabled," so every existing caller that doesn't pass `options` is unaffected.
 export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {}, options: { enabled?: boolean } = {}) {
+  // Stabilize array keys so reordering the same set of ids does not produce a new queryKey.
+  const sortedEmployeeIds = filters.employeeIds ? [...filters.employeeIds].filter(Boolean).sort() : undefined;
+  const sortedTrainingTypeIds = filters.trainingTypeIds ? [...filters.trainingTypeIds].filter(Boolean).sort() : undefined;
+  const stableFilters = {
+    ...filters,
+    employeeIds: sortedEmployeeIds,
+    trainingTypeIds: sortedTrainingTypeIds,
+  };
+
   return useQuery({
-    queryKey: ["training_records", filters],
+    queryKey: ["training_records", stableFilters],
     queryFn: async () => {
+      // Empty array scopes mean "nothing matches" -- short-circuit instead of sending an empty
+      // .in() (PostgREST treats .in("col", []) as a syntax error / empty result depending on version).
+      if (sortedEmployeeIds && sortedEmployeeIds.length === 0) return [] as TrainingRecord[];
+      if (sortedTrainingTypeIds && sortedTrainingTypeIds.length === 0) return [] as TrainingRecord[];
+
       let query = supabase.from("employee_training_records").select("*").order("due_date");
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+      if (sortedEmployeeIds && sortedEmployeeIds.length > 0) {
+        query = query.in("employee_id", sortedEmployeeIds);
+      } else if (filters.employeeId) {
+        query = query.eq("employee_id", filters.employeeId);
+      }
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
       if (filters.approvalStatus) query = query.eq("approval_status", filters.approvalStatus);
+      if (sortedTrainingTypeIds && sortedTrainingTypeIds.length > 0) {
+        query = query.in("training_type_id", sortedTrainingTypeIds);
+      }
       const { data, error } = await query;
       if (error) throw error;
       return data;
