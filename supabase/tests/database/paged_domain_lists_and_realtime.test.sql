@@ -7,7 +7,7 @@ select has_view('public', 'resident_roster_rows', 'residents have a compliance-a
 
 select has_function(
   'public', 'get_incident_list_summary',
-  array['uuid', 'uuid', 'text', 'text', 'text', 'date'],
+  array['uuid', 'uuid', 'text', 'text', 'text', 'date', 'uuid'],
   'incident list aggregates are computed server-side'
 );
 select has_function(
@@ -53,7 +53,7 @@ select ok(
 select ok(
   has_function_privilege(
     'authenticated',
-    'public.get_incident_list_summary(uuid,uuid,text,text,text,date)',
+    'public.get_incident_list_summary(uuid,uuid,text,text,text,date,uuid)',
     'EXECUTE'
   )
   and has_function_privilege(
@@ -63,7 +63,7 @@ select ok(
   )
   and not has_function_privilege(
     'anon',
-    'public.get_incident_list_summary(uuid,uuid,text,text,text,date)',
+    'public.get_incident_list_summary(uuid,uuid,text,text,text,date,uuid)',
     'EXECUTE'
   ),
   'only authenticated/service callers can execute list summary functions'

@@ -19,11 +19,9 @@ import {
 import { buildPhoneTargets } from "./phone/targets.js";
 import { createPhoneStateStores } from "./phone/postgres-stores.js";
 import {
-  InMemoryPendingSessionStore,
   type PendingSessionStore,
 } from "./session/pending-sessions.js";
 import { ActiveSessionTracker } from "./session/voice-session.js";
-import { createUsageLimits } from "./session/usage-limits.js";
 
 export interface GatewayServerOptions {
   config: GatewayConfig | null;
@@ -39,17 +37,16 @@ const PHONE_STREAM_PATH = "/phone/stream";
 
 /** Phone channel needs the OpenAI key, Twilio token, a public base URL,
  *  and at least one routable target — otherwise it stays dark (503). */
-function buildPhoneRuntime(opts: GatewayServerOptions): PhoneRuntime | null {
+function buildPhoneRuntime(
+  opts: GatewayServerOptions,
+  stores: ReturnType<typeof createPhoneStateStores>,
+): PhoneRuntime | null {
   if (!opts.config?.twilioAuthToken || !opts.config.publicBaseUrl) return null;
   const targets = buildPhoneTargets(
     opts.registry,
     opts.env ?? process.env,
   );
   if (targets.length === 0) return null;
-  // Durable (Postgres) handoff stores when VOICE_STATE_DATABASE_URL is
-  // set; in-memory fallback (pilot-only — a deploy drops live calls
-  // mid-handoff) otherwise.
-  const stores = createPhoneStateStores(opts.config.voiceStateDatabaseUrl);
   console.log(
     JSON.stringify({
       evt: "voice.gateway.phone.state_store",
@@ -66,10 +63,14 @@ function buildPhoneRuntime(opts: GatewayServerOptions): PhoneRuntime | null {
 }
 
 export function createGatewayServer(opts: GatewayServerOptions): http.Server {
-  const pendingStore = opts.pendingStore ?? new InMemoryPendingSessionStore();
+  // Shared voice state (phone handoff + browser pending + usage meters).
+  // When VOICE_STATE_DATABASE_URL is set every store is Postgres-backed so
+  // multi-instance deploys share claim-once tickets and spend caps.
+  const voiceState = createPhoneStateStores(opts.config?.voiceStateDatabaseUrl);
+  const pendingStore = opts.pendingStore ?? voiceState.browserPendingStore;
   const tracker = new ActiveSessionTracker();
-  const usage = createUsageLimits();
-  const phone = buildPhoneRuntime(opts);
+  const usage = voiceState.usage;
+  const phone = buildPhoneRuntime(opts, voiceState);
 
   const app = buildHttpApp({
     config: opts.config,
@@ -99,7 +100,7 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
         socket.destroy();
         return;
       }
-      handleBrowserUpgrade(
+      void handleBrowserUpgrade(
         {
           config: opts.config,
           registry: opts.registry,
@@ -114,7 +115,19 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
         socket,
         head,
         realtime[1] ?? "",
-      );
+      ).catch((error: unknown) => {
+        console.error(
+          JSON.stringify({
+            evt: "voice.browser.upgrade_error",
+            message: error instanceof Error ? error.message : String(error),
+          }),
+        );
+        try {
+          socket.destroy();
+        } catch {
+          /* already closed */
+        }
+      });
       return;
     }
 
@@ -157,9 +170,10 @@ export function createGatewayServer(opts: GatewayServerOptions): http.Server {
   // instead of handing back the in-flight pool.end(); the only way to wait for
   // that drain is to hold on to this exact promise.
   server.on("close", () => {
+    // Always drain the shared voice-state pool (browser pending + usage + phone).
     storeCleanup.set(
       server,
-      phone?.closeStores?.().catch(() => undefined) ?? Promise.resolve(),
+      voiceState.close().catch(() => undefined),
     );
   });
 

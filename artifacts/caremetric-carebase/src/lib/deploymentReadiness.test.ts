@@ -32,4 +32,18 @@ describe("deploymentReadinessChecks", () => {
     expect(checks.find((check) => check.id === "server-secrets")?.status).toBe("manual");
     expect(highestReadinessStatus(checks)).toBe("manual");
   });
+
+  it("fails production builds that embed demo account passwords without the public-demo flag", () => {
+    const checks = deploymentReadinessChecks({
+      viteSupabaseUrl: "https://example.supabase.co",
+      viteSupabaseAnonKey: "anon",
+      viteTurnstileSiteKey: "site",
+      viteDemoAccountsJson: '[{"label":"Admin","email":"a@b.com","password":"x","role":"org_admin"}]',
+      isProd: true,
+      systemJobsStale: 0,
+      systemJobsFailed: 0,
+    });
+    expect(checks.find((check) => check.id === "vite-demo-accounts")?.status).toBe("fail");
+    expect(highestReadinessStatus(checks)).toBe("fail");
+  });
 });

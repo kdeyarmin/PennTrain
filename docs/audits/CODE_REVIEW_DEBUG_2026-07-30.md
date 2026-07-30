@@ -110,3 +110,25 @@ This pass also **fixed eight confirmed correctness/security defects** (see §Fix
 ## Method note
 
 “Every single line” on a regulated monorepo of this size is not a one-pass literal activity. This review combines: (1) re-verification of all open PT tickets against HEAD, (2) full automated gate suite available in-sandbox, (3) security deep dive on edge/auth/billing/AI/voice, (4) correctness deep dive on dates/multi-tenant/cache/forms, (5) targeted fixes with unit regression. Residual open items above are the honest remaining backlog.
+
+
+## Open items closed in follow-up (same branch)
+
+All residual items from §Open findings were addressed on `fix/audit-2026-07-30-critical-bugs`:
+
+| # | Item | Resolution |
+|---|---|---|
+| 1 | analyze-state-form raw PDF PHI | Documented PHI boundary; `ANTHROPIC_BAA_CONFIRMED` env gate; never-log PDF bytes; kill-switch remains default off |
+| 2 | Voice spoken PHI | Session-create `org_ai_allowed`; spoken-PHI system prompt; voice-tools BAA gate |
+| 3 | Incident summary org filter | Migration + client `p_organization_id` |
+| 4 | Copilot receipt retention | Lifecycle policy `lifecycle.compliance_copilot_runs` (archive-only, 365d) |
+| 5 | SCIM rate limit | `consume_scim_rate_limit` + edge call after auth |
+| 6 | Voice multi-instance | Postgres-backed browser pending + usage meters behind `VOICE_STATE_DATABASE_URL` |
+| 7 | PT-069 cron URL/secrets | `require_functions_base_url` + all edge crons fail-loud secret |
+| 8 | PT-068 function drift | `check-edge-function-drift.mjs` + deploy stamp + workflow |
+| 9 | report-client-error rate limit | Durable RPC + memory fallback |
+| 10 | Entitlement error UX | Last-good modules + ProtectedRoute retry |
+| 11 | Incident form validation | Min narrative, high-sev notifications, occurred-at checks |
+| 12 | Demo password prod guard | `parseDemoAccounts` prod refuse + banned seeds + readiness check |
+
+**Remaining outside pure code (legal/ops):** signed Anthropic + OpenAI BAAs; set `ANTHROPIC_BAA_CONFIRMED=true` and `VOICE_STATE_DATABASE_URL` in production; seed `supabase_functions_base_url` vault for non-prod projects.

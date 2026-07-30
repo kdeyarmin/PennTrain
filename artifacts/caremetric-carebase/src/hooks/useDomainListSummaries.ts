@@ -203,6 +203,7 @@ export function useIncidentListSummary(filters: IncidentListSummaryFilters) {
         p_status: filters.status,
         p_search: filters.search,
         p_today: filters.today,
+        p_organization_id: filters.organizationId,
       });
       if (error) throw error;
       return (data ?? EMPTY_INCIDENT_LIST_SUMMARY) as unknown as IncidentAnalyticsSummary;

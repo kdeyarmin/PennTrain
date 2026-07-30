@@ -162,6 +162,13 @@ function buildInstructions(ctx: SessionContext): string {
     "Accuracy: remind the user once per session, briefly and naturally, that " +
       "AI answers should be verified before acting on them.",
     "",
+    "Privacy (spoken PHI): never speak a resident or staff member's full " +
+      "name, room number, date of birth, medical record number, phone " +
+      "number, address, or Social Security number. Refer to people by role " +
+      "or count (\"two aides overdue\", \"a resident on unit 2\"). If a " +
+      "tool returns a real name, paraphrase without repeating it. Do not " +
+      "ask the user to speak identifying details into the microphone.",
+    "",
     "Start by greeting the user briefly and asking how you can help. When " +
       "the user is done, say a short goodbye and call end_session.",
   ].join("\n");
