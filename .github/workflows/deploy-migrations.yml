@@ -55,6 +55,16 @@ jobs:
         with:
           node-version-file: .node-version
 
+      # The drift check below (scripts/check-migration-drift.mjs) imports libpg-query from
+      # node_modules, so dependencies must be installed the same way CI installs them.
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.13.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       # Pin both the setup action and the CLI version to match the CI database job, so
       # push behavior reproduces what CI validated.
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
