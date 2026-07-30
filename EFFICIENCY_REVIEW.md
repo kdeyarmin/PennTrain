@@ -228,6 +228,14 @@ are covered under Part 1 #6 and #7.)*
 *(Missing confirmation on Users.tsx role changes/deactivation, and per-row-only notification retry, are covered
 under Part 1 #7 and #3.)*
 
+**Status, July 30 2026 — the first three rows above are resolved; only PlatformSettings remains.**
+`Organizations.tsx` now has both a status and a plan filter, `NotificationDeliveries.tsx` searches recipient and
+organization name, and `SupportTickets.tsx` searches server-side — all three synced through `useUrlState`, so the
+filters survive Back/Forward and are shareable as links. The KPI-tile row was half-done: both target pages read
+`?status=` as of that work, but the four organization tiles on `AdminDashboard.tsx` passed no `href` at all and
+were not clickable, so the "Past Due"/"Trial" counts still had no click-through. They now deep-link to
+`/admin/organizations?status=…`. Re-verify against the code before picking any of these up again.
+
 ### Shared chrome, navigation, auth
 
 Most of what this area surfaced became the systemic Part 1 findings (#1, #2, #5, #6). What's left:

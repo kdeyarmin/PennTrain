@@ -347,10 +347,15 @@ export default function AdminDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard label="Total Organizations" value={totalOrgs} icon={Building2} tone="primary" />
-        <StatCard label="Active Subscriptions" value={activeOrgs} icon={CheckCircle} tone="success" />
-        <StatCard label="Trial Accounts" value={trialOrgs} icon={TrendingUp} tone="info" />
-        <StatCard label="Past Due" value={pastDueOrgs} icon={AlertCircle} tone="warning" />
+        {/* Each tile deep-links to Organizations with the matching subscription_status
+            pre-selected -- the page reads `?status=` via useUrlState, so a tile that counts
+            past-due tenants lands on exactly those rows instead of the unfiltered list the
+            admin then has to scan badge by badge. Values must stay in the set the column's
+            check constraint allows (SUBSCRIPTION_STATUSES in Organizations.tsx). */}
+        <StatCard label="Total Organizations" value={totalOrgs} icon={Building2} tone="primary" href="/admin/organizations" />
+        <StatCard label="Active Subscriptions" value={activeOrgs} icon={CheckCircle} tone="success" href="/admin/organizations?status=active" />
+        <StatCard label="Trial Accounts" value={trialOrgs} icon={TrendingUp} tone="info" href="/admin/organizations?status=trial" />
+        <StatCard label="Past Due" value={pastDueOrgs} icon={AlertCircle} tone="warning" href="/admin/organizations?status=past_due" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
