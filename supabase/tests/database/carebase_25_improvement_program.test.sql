@@ -75,6 +75,14 @@ insert into public.employees(
   'c2500000-0000-4000-8000-000000000101', 'c2500000-0000-4000-8000-000000000001',
   'c2500000-0000-4000-8000-000000000011', 'Future', 'Risk', 'Caregiver', 'active', true
 );
+
+-- Employee/training triggers may auto-create baseline rows; remove only this test employee's generated
+-- records so the forecast assertions are driven by explicit fixture data.
+delete from public.employee_credentials
+where employee_id = 'c2500000-0000-4000-8000-000000000101';
+delete from public.employee_training_records
+where employee_id = 'c2500000-0000-4000-8000-000000000101';
+
 insert into public.employee_credentials(
   id, organization_id, facility_id, employee_id, credential_type, credential_label,
   status, expiration_date
@@ -148,6 +156,7 @@ select is(
   'a future 30-day readiness risk is high priority rather than a current urgent blocker'
 );
 
+reset role;
 update public.employee_credentials
 set expiration_date = public.pa_today() + 100
 where id = 'c2500000-0000-4000-8000-000000000201';
