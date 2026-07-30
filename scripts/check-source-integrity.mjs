@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { extname } from "node:path";
 
 const git = process.platform === "win32" ? "git.exe" : "git";
 const listed = spawnSync(git, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
@@ -28,14 +29,50 @@ const mockupSandboxReference = /(?:artifacts\/mockup-sandbox|@workspace\/mockup-
 // (the cast satisfies it) and to unit tests (they mock the client), so it needs a source rule.
 const detachedSupabaseMethod = /=\s*supabase\.(rpc|from|functions|storage)\b(?!\s*\.bind\b)(?!\()/;
 const detachedSupabaseMethodAllowlist = new Set(["scripts/check-source-integrity.mjs"]);
+
+// Extensions whose contents are legitimately binary. A NUL byte in anything else is a defect
+// rather than a reason to stop looking -- see the skip logic below.
+const BINARY_ASSET_EXTENSIONS = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".avif", ".bmp",
+  ".pdf", ".mp4", ".webm", ".mov", ".mp3", ".wav",
+  ".woff", ".woff2", ".ttf", ".otf", ".eot",
+  ".zip", ".gz", ".br", ".wasm",
+]);
+
 const failures = [];
+let scanned = 0;
+let skippedBinary = 0;
 
 for (const path of paths) {
   const bytes = await readFile(path);
-  // A NUL byte is a reliable signal that the source file is binary. Avoid
-  // decoding generated PDFs/images while still scanning every text format,
-  // including SQL and Markdown files that TypeScript cannot protect.
-  if (bytes.includes(0)) continue;
+  // A NUL byte means this file cannot be read as text. For a real asset that is expected and the
+  // file is skipped. For anything else it is a defect worth failing on, because the consequences
+  // are silent and compounding: git renders the file as "Binary files differ" so changes to it are
+  // invisible in review, grep reports "binary file matches" instead of the line, and -- the reason
+  // this rule exists -- the `continue` below used to drop the file from every check in this script
+  // while the summary still counted it as scanned.
+  //
+  // That is not hypothetical. scripts/check-database-types-format.mjs carried two literal NUL
+  // bytes as a join separator, and was silently exempt from the conflict-marker, mockup-sandbox
+  // and detached-supabase-method rules for as long as it did. Writing the separator as the "\0"
+  // escape is byte-identical at runtime and keeps the file text.
+  //
+  // An unrecognized binary type fails rather than passes; adding its extension above is a
+  // deliberate act, which is the right direction for a rule about invisible files.
+  if (bytes.includes(0)) {
+    if (BINARY_ASSET_EXTENSIONS.has(extname(path).toLowerCase())) {
+      skippedBinary += 1;
+      continue;
+    }
+    failures.push(
+      `${path}: contains NUL byte(s), so git diffs it as binary, grep skips it, and this check `
+      + `cannot read it. If a NUL is intended (e.g. a join separator), write it as the "\\0" `
+      + `escape instead of a literal byte. If the file really is a binary asset, add its `
+      + `extension to BINARY_ASSET_EXTENSIONS.`,
+    );
+    continue;
+  }
+  scanned += 1;
   const lines = bytes.toString("utf8").split(/\r?\n/);
   const isProductionSource = productionSourcePrefixes.some((prefix) => path.startsWith(prefix));
   lines.forEach((line, index) => {
@@ -65,4 +102,9 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Source integrity check passed (${paths.length} source files scanned).`);
+// Report what was actually read, not how many paths git listed. The previous wording counted
+// binary skips as scanned, which is the same overstatement this script now guards against.
+console.log(
+  `Source integrity check passed (${scanned} source file(s) scanned, `
+  + `${skippedBinary} binary asset(s) skipped).`,
+);
