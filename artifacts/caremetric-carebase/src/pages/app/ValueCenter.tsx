@@ -369,14 +369,16 @@ export default function ValueCenter() {
     setBaselineForm(current => ({ ...current, [field]: fieldValue }));
   };
 
-  if (workspace.isLoading || facilities.isLoading) return <QueryLoading what="CareBase Value Center" />;
-  const primaryFailure = [workspace, facilities].find(query => query.isError);
+  if (workspace.isLoading || facilities.isLoading || profiles.isLoading) {
+    return <QueryLoading what="CareBase Value Center" />;
+  }
+  const primaryFailure = [workspace, facilities, profiles].find(query => query.isError);
   if (primaryFailure?.error) {
     return (
       <QueryError
         what="CareBase Value Center"
         error={primaryFailure.error}
-        onRetry={() => void Promise.all([workspace.refetch(), facilities.refetch()])}
+        onRetry={() => void Promise.all([workspace.refetch(), facilities.refetch(), profiles.refetch()])}
       />
     );
   }
