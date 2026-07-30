@@ -76,7 +76,7 @@ const EMPTY_RECORD_FORM: RecordFormData = {
 function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | null; onClose: () => void }) {
   const { data: recordItems, isLoading: itemsLoading } = useListCompetencyRecordItems(record?.id);
   const { data: templateItems } = useListCompetencyTemplateItems(record?.template_id);
-  const { data: employees } = useListEmployees();
+  const { data: employees } = useListEmployees({ status: "active" });
   const { data: templates } = useListCompetencyTemplates();
   const { data: evaluators } = useListProfiles();
 
@@ -174,7 +174,7 @@ export default function CompetencyRecords() {
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees();
+  const { data: employees } = useListEmployees({ status: "active" });
   const { data: templates } = useListCompetencyTemplates();
   const { data: records, isLoading } = useListCompetencyRecords({
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,

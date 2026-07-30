@@ -229,7 +229,7 @@ export default function ClassDetail() {
     error: attendeesErrorDetail,
     refetch: refetchAttendees,
   } = useListClassAttendees(classId);
-  const { data: allEmployees } = useListEmployees();
+  const { data: allEmployees } = useListEmployees({ status: "active" });
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
 

@@ -134,7 +134,7 @@ export default function CourseAssignments() {
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees();
+  const { data: employees } = useListEmployees({ status: "active" });
   const { data: courses } = useListCourses();
   const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
   const {

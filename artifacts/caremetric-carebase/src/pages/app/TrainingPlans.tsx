@@ -236,7 +236,7 @@ function ApplyPlanDialog({
 // ---------------------------------------------------------------------------
 function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
   const { data: assignments, isLoading } = useListCourseAssignments({ trainingPlanId: plan.id });
-  const { data: employees } = useListEmployees();
+  const { data: employees } = useListEmployees({ status: "active" });
   const { data: courses } = useListCourses();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
