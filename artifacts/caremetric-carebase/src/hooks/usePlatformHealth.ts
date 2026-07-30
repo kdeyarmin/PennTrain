@@ -14,6 +14,24 @@ export interface PlatformHealth {
   totalFacilities: number;
   totalEmployees: number;
   totalCourses: number;
+  // Expanded aggregates for AdminDashboard KPI tiles (additive; older RPCs omit these).
+  activeEmployees?: number;
+  employeesMissingEmail?: number;
+  employeesMissingFacility?: number;
+  expiredCredentials?: number;
+  expiringCredentialsWithin30Days?: number;
+  openIncidents?: number;
+  openViolations?: number;
+  openCorrectiveActions?: number;
+  overdueCorrectiveActions?: number;
+  publishedCourses?: number;
+  draftCourses?: number;
+  incompleteCourseAssignments?: number;
+  overdueCourseAssignments?: number;
+  overdueTrainingRecords?: number;
+  pendingPolicyAttestations?: number;
+  overduePolicyAttestations?: number;
+  openAlerts?: number;
 }
 
 export function useGetPlatformHealth() {

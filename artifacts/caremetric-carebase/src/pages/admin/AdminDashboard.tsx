@@ -4,7 +4,6 @@ import { useListSupportTickets } from "@/hooks/useSupportTickets";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
-import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
 import { useListInspectionItems } from "@/hooks/useInspectionItems";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useListViolations } from "@/hooks/useViolations";
@@ -12,12 +11,9 @@ import { useListAlerts } from "@/hooks/useAlerts";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { useListCourses } from "@/hooks/useCourses";
 import { useListCourseAssignments } from "@/hooks/useCourseAssignments";
-import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
-import { useListPolicyAttestations } from "@/hooks/usePolicyAttestations";
 import { useListTrainingPlans } from "@/hooks/useTrainingPlans";
 import { todayIso } from "@/lib/scheduleDates";
-import { formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
-import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,10 +53,10 @@ export default function AdminDashboard() {
   const { data: health, isLoading: healthLoading } = useGetPlatformHealth();
   const { data: openTickets } = useListSupportTickets({ status: "open" });
   const { data: facilities } = useListFacilities();
-  // Active employees only -- data-quality counts and tenant health scores only care about the live roster.
+  // Active employees only -- tenant health scores still need the live roster per org.
   const { data: employees } = useListEmployees({ status: "active" });
   const { data: profiles } = useListProfiles();
-  const { data: credentials } = useListEmployeeCredentials();
+  // Row-level fetches retained only for inspection readiness + compliance timeline + assignment hotspots.
   const { data: inspectionItems } = useListInspectionItems({ isActive: true });
   const { data: incidents } = useListIncidents();
   const { data: violations } = useListViolations();
@@ -68,9 +64,6 @@ export default function AdminDashboard() {
   const { data: correctiveActions } = useListCorrectiveActions();
   const { data: courses } = useListCourses();
   const { data: courseAssignments } = useListCourseAssignments();
-  const { data: trainingRecords } = useListTrainingRecords();
-  // Pending attestations only -- pending/overdue KPIs never need completed rows.
-  const { data: policyAttestations } = useListPolicyAttestations({ status: "pending" });
   const { data: trainingPlans } = useListTrainingPlans();
 
   const totalOrgs = orgs?.length ?? 0;
@@ -89,32 +82,24 @@ export default function AdminDashboard() {
   const missingOrgContacts = orgs?.filter((org) => !org.contact_email || !org.contact_name).length ?? 0;
   const facilitiesMissingLicense = facilities?.filter((facility) => !facility.license_number).length ?? 0;
   const facilitiesMissingAddress = facilities?.filter((facility) => !facility.address || !facility.city || !facility.state || !facility.zip).length ?? 0;
-  // Already restricted to status=active at the query level.
-  const employeesMissingEmail = employees?.filter((employee) => !employee.email).length ?? 0;
-  const employeesMissingFacility = employees?.filter((employee) => !employee.facility_id).length ?? 0;
+  // Prefer RPC aggregates when present; fall back to client counts during migration rollout.
+  const employeesMissingEmail = health?.employeesMissingEmail ?? employees?.filter((employee) => !employee.email).length ?? 0;
+  const employeesMissingFacility = health?.employeesMissingFacility ?? employees?.filter((employee) => !employee.facility_id).length ?? 0;
   const organizationsWithoutAdmin = orgs?.filter((org) => !profiles?.some((profile) => profile.organization_id === org.id && profile.role === "org_admin" && profile.is_active)).length ?? 0;
   const today = todayIso();
-  const soon = new Date();
-  soon.setDate(soon.getDate() + 30);
-  const soonIso = toLocalIsoDate(soon);
-  const expiredCredentials = credentials?.filter((credential) => credential.expiration_date && credential.expiration_date < today).length ?? 0;
-  const expiringCredentials = credentials?.filter((credential) => credential.expiration_date && credential.expiration_date >= today && credential.expiration_date <= soonIso).length ?? 0;
-  const openIncidents = incidents?.filter((incident) => incident.status !== "closed").length ?? 0;
-  const openViolations = violations?.filter((violation) => violation.status !== "verified").length ?? 0;
-  const openCorrectiveActions = correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled").length ?? 0;
-  const overdueCorrectiveActions = correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled" && action.due_date && action.due_date < today).length ?? 0;
-  const publishedCourses = courses?.filter((course) => course.status === "published").length ?? 0;
-  const draftCourses = courses?.filter((course) => course.status !== "published").length ?? 0;
-  const incompleteAssignments = courseAssignments?.filter((assignment) => assignment.status !== "completed").length ?? 0;
-  const overdueAssignments = courseAssignments?.filter((assignment) => assignment.status !== "completed" && assignment.due_date && assignment.due_date < today).length ?? 0;
-  // Renewals leave superseded rows "expired" forever; only the current record per
-  // (employee, training type) may count toward past-due exposure.
-  const overdueTrainingRecords = selectCurrentTrainingRecords(trainingRecords ?? [])
-    .filter((record) => (record.status === "expired" || record.status === "due_soon") && record.due_date && record.due_date < today)
-    .length;
-  // Already restricted to status=pending at the query level.
-  const pendingAttestations = policyAttestations?.length ?? 0;
-  const overdueAttestations = policyAttestations?.filter((attestation) => attestation.due_date && attestation.due_date < today).length ?? 0;
+  const expiredCredentials = health?.expiredCredentials ?? 0;
+  const expiringCredentials = health?.expiringCredentialsWithin30Days ?? 0;
+  const openIncidents = health?.openIncidents ?? incidents?.filter((incident) => incident.status !== "closed").length ?? 0;
+  const openViolations = health?.openViolations ?? violations?.filter((violation) => violation.status !== "verified").length ?? 0;
+  const openCorrectiveActions = health?.openCorrectiveActions ?? correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled").length ?? 0;
+  const overdueCorrectiveActions = health?.overdueCorrectiveActions ?? correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled" && action.due_date && action.due_date < today).length ?? 0;
+  const publishedCourses = health?.publishedCourses ?? courses?.filter((course) => course.status === "published").length ?? 0;
+  const draftCourses = health?.draftCourses ?? courses?.filter((course) => course.status !== "published").length ?? 0;
+  const incompleteAssignments = health?.incompleteCourseAssignments ?? courseAssignments?.filter((assignment) => assignment.status !== "completed").length ?? 0;
+  const overdueAssignments = health?.overdueCourseAssignments ?? courseAssignments?.filter((assignment) => assignment.status !== "completed" && assignment.due_date && assignment.due_date < today).length ?? 0;
+  const overdueTrainingRecords = health?.overdueTrainingRecords ?? 0;
+  const pendingAttestations = health?.pendingPolicyAttestations ?? 0;
+  const overdueAttestations = health?.overduePolicyAttestations ?? 0;
 
   const launchActions = [
     {
