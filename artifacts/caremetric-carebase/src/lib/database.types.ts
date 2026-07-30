@@ -37180,6 +37180,7 @@ export type Database = {
         Returns: Json
       }
       get_org_dashboard_summary: { Args: never; Returns: Json }
+      get_trainer_dashboard_summary: { Args: never; Returns: Json }
       get_organization_billing_usage: {
         Args: { p_organization_id?: string }
         Returns: {
