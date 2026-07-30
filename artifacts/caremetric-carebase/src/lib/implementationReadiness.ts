@@ -23,8 +23,12 @@ export interface ImplementationReadinessSummary {
 const SETTLED = new Set(["complete", "not_applicable"]);
 
 function localDate(value: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
 }
 
 export function summarizeImplementationReadiness(
