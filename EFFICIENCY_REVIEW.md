@@ -7,6 +7,24 @@ fast, clear, and low-friction? Produced by reading every page component, every d
 layout/UI layer in full (not just grep matches), organized by functional area. The highest-stakes claims were
 independently re-verified against the current code before inclusion, not taken on faith from a single pass.*
 
+> ## ⚠️ This backlog is closed — all three passes shipped (verified July 30 2026)
+>
+> **Every item in Part 4's Pass 1, Pass 2 and Pass 3 was checked against the code and found already
+> implemented.** Read this document as a record of what was fixed, not as a queue of what to fix.
+>
+> Spot checks behind that claim: `queryClient.ts` sets `staleTime: 60_000` + `refetchOnWindowFocus: false`;
+> `usePaginatedDomainLists.ts` plus `.range()` in ten hook files cover every table Pass 2 named; 22 pages persist
+> filters through `useUrlState`; `GlobalSearch` is debounced and role-aware for all roles; `AuditLog.tsx` has
+> pagination, date filters and entity deep-links; `components/DataTable.tsx`, `components/CorrectiveActionForm.tsx`,
+> `components/employees/EmployeeFormFields.tsx`, `useCloneCourseVersion()` and a consolidated `humanize()` in
+> `lib/utils.ts` all exist; and `StatusBadge`'s `type` is now optional, with the color bucket derived from status
+> semantics (call sites still passing `type=` are vestigial, not broken).
+>
+> **Every finding was stale in the same direction — already fixed.** Two separate attempts to pull work from this
+> document ended in rediscovering completed work, and PR #320 went further and rebuilt an admin dashboard that
+> already existed. If you want a real backlog, re-run the audit against current code. Do not treat any line below
+> as actionable without checking it first.
+
 ---
 
 ## Part 1 — Fix once, felt everywhere
