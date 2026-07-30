@@ -85,7 +85,11 @@ export function useCreatePracticum() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["practicums"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["practicums"] });
+      // Practicum OK / pending cards + facilities-needing-attention on TrainerDashboard.
+      queryClient.invalidateQueries({ queryKey: ["trainer_dashboard_summary"] });
+    },
   });
 }
 
@@ -100,6 +104,9 @@ export function useUpdatePracticum() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["practicums"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["practicums"] });
+      queryClient.invalidateQueries({ queryKey: ["trainer_dashboard_summary"] });
+    },
   });
 }
