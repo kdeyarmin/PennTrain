@@ -710,6 +710,7 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:libpg-query@17.7.3",
         "npm:typescript@~5.9.2"
       ]
     }
