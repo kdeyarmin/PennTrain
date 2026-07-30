@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -11,7 +12,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import {
   usePaginatedDocuments, useUploadDocument, useDocumentSignedUrl, useDeleteDocument,
-  type TrainingDocument, type UploadDocumentInput,
+  type TrainingDocument, type UploadDocumentInput, type TrainingDocumentWithEmployee,
 } from "@/hooks/useDocuments";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -90,9 +91,54 @@ export default function Documents() {
   const getSignedUrl = useDocumentSignedUrl();
   const deleteDocument = useDeleteDocument();
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteDoc, setDeleteDoc] = useState<TrainingDocument | null>(null);
+  const [bulkDeletePending, setBulkDeletePending] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [uploadingBatch, setUploadingBatch] = useState(false);
+
+  // Clear selection when the visible page/filters change so checkboxes never refer to rows the
+  // user can no longer see.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [facilityId, employeeId, docType, page]);
+
+  const rowById = useMemo(
+    () => new Map(rows.map((d) => [d.id, d])),
+    [rows],
+  );
+
+  const allPageSelected = rows.length > 0 && rows.every((d) => selectedIds.has(d.id));
+  const somePageSelected = rows.some((d) => selectedIds.has(d.id));
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllPage = () => {
+    if (allPageSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        rows.forEach((d) => next.delete(d.id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        rows.forEach((d) => next.add(d.id));
+        return next;
+      });
+    }
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     if (!uploadFacility) {
       toast({ title: "Select a facility first", variant: "destructive" });
       return;
@@ -102,34 +148,93 @@ export default function Documents() {
       return;
     }
 
-    try {
-      await uploadDocument.mutateAsync({
-        file,
-        bucket: DOC_TYPE_BUCKETS[uploadDocType] ?? "external-uploads",
-        organizationId: user.organizationId,
-        facilityId: uploadFacility,
-        employeeId: uploadEmployee !== "none" ? uploadEmployee : undefined,
-        documentType: uploadDocType,
-      });
-      toast({ title: "Document uploaded successfully" });
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err) {
-      toast({ title: "Upload failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
-    }
-  };
+    const organizationId = user.organizationId;
+    const bucket = DOC_TYPE_BUCKETS[uploadDocType] ?? "external-uploads";
+    const employeeIdForUpload = uploadEmployee !== "none" ? uploadEmployee : undefined;
 
-  const [deleteDoc, setDeleteDoc] = useState<TrainingDocument | null>(null);
+    setUploadingBatch(true);
+    const results = await Promise.allSettled(
+      files.map((file) =>
+        uploadDocument.mutateAsync({
+          file,
+          bucket,
+          organizationId,
+          facilityId: uploadFacility,
+          employeeId: employeeIdForUpload,
+          documentType: uploadDocType,
+        }),
+      ),
+    );
+    setUploadingBatch(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    toast({
+      title:
+        failed === 0
+          ? files.length === 1
+            ? "Document uploaded successfully"
+            : `${succeeded} documents uploaded successfully`
+          : succeeded === 0
+            ? "Upload failed"
+            : "Upload partially completed",
+      description:
+        failed > 0
+          ? `${succeeded} of ${results.length} file${results.length === 1 ? "" : "s"} uploaded. ${failed} failed.`
+          : undefined,
+      variant: failed === 0 ? undefined : succeeded === 0 ? "destructive" : undefined,
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const confirmDelete = async () => {
     if (!deleteDoc) return;
     try {
       await deleteDocument.mutateAsync(deleteDoc);
       toast({ title: "Document deleted" });
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deleteDoc.id);
+        return next;
+      });
     } catch {
       toast({ title: "Delete failed", variant: "destructive" });
     } finally {
       setDeleteDoc(null);
     }
+  };
+
+  const confirmBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const docs = Array.from(selectedIds)
+      .map((id) => rowById.get(id))
+      .filter((d): d is TrainingDocumentWithEmployee => !!d);
+
+    setBulkDeletePending(true);
+    const results = await Promise.allSettled(
+      docs.map((doc) => deleteDocument.mutateAsync(doc)),
+    );
+    setBulkDeletePending(false);
+    setConfirmBulkDelete(false);
+
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - succeeded;
+    toast({
+      title:
+        failed === 0
+          ? `${succeeded} document${succeeded === 1 ? "" : "s"} deleted`
+          : succeeded === 0
+            ? "Bulk delete failed"
+            : "Bulk delete partially completed",
+      description:
+        failed > 0
+          ? `${succeeded} of ${results.length} deleted. ${failed} failed.`
+          : undefined,
+      variant: failed === 0 ? undefined : succeeded === 0 ? "destructive" : undefined,
+    });
+
+    if (succeeded > 0) setSelectedIds(new Set());
   };
 
   const handleDownload = async (doc: TrainingDocument) => {
@@ -141,7 +246,7 @@ export default function Documents() {
     }
   };
 
-  const uploading = uploadDocument.isPending;
+  const uploading = uploadingBatch || uploadDocument.isPending;
   const canDelete = !!user && DOCUMENTS_DELETE_ROLES.includes(user.role);
 
   return (
@@ -209,21 +314,44 @@ export default function Documents() {
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="mr-2 h-4 w-4" />
-              {uploading ? "Uploading..." : "Choose File"}
+              {uploading ? "Uploading..." : "Choose Files"}
             </Button>
             <input
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png"
+              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              multiple
               onChange={handleUpload}
             />
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Accepted formats: PDF, JPG, PNG, DOC, DOCX. Max 20MB.
+            Accepted formats: PDF, JPG, PNG, DOC, DOCX. Max 20MB each. Multiple files can be selected at once.
           </p>
         </CardContent>
       </Card>
+
+      {canDelete && selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
+          <span className="text-sm font-medium">{selectedIds.size} document{selectedIds.size === 1 ? "" : "s"} selected</span>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => setConfirmBulkDelete(true)}
+            disabled={bulkDeletePending}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            {bulkDeletePending ? "Deleting..." : "Delete Selected"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear Selection
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -286,10 +414,27 @@ export default function Documents() {
             </div>
           ) : (
             <div className="space-y-4">
+            {canDelete && (
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <Checkbox
+                  checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleSelectAllPage}
+                  aria-label="Select all documents on this page"
+                />
+                <span className="text-xs text-muted-foreground">Select all on page</span>
+              </div>
+            )}
             <div className="space-y-2">
               {rows.map(doc => (
                 <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 gap-3">
                   <div className="flex items-center gap-3 min-w-0">
+                    {canDelete && (
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={() => toggleSelected(doc.id)}
+                        aria-label={`Select ${doc.file_name}`}
+                      />
+                    )}
                     <FileText className="h-9 w-9 shrink-0 text-primary/70" />
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{doc.file_name}</p>
@@ -342,6 +487,29 @@ export default function Documents() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmBulkDelete} onOpenChange={(open) => !open && setConfirmBulkDelete(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedIds.size} document{selectedIds.size === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the selected files from storage and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeletePending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDelete}
+              disabled={bulkDeletePending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeletePending ? "Deleting..." : "Delete Selected"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
