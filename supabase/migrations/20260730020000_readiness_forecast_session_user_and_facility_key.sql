@@ -1,10 +1,8 @@
--- Route the 30-day slice of the workforce forecast into the universal work queue.
---
--- A forecast that lives only on a dashboard still depends on a manager remembering to revisit it.
--- This maintenance function turns each current or near-term source record into one deduplicated work
--- item, reopens it if the condition returns, and closes it when the forecast no longer contains the
--- risk. It joins the existing daily compliance-maintenance cron rather than creating another narrowly
--- scoped job and control-plane row.
+-- Forward-only fix for readiness forecast maintenance:
+-- 1. Prefer session_user for the privileged-role guard (more reliable under SET ROLE).
+-- 2. Scope deduplication keys by facility so the same source record in different
+--    facilities does not collide.
+-- Historical migration 20260729221600 is left untouched (immutable).
 
 create or replace function public.run_workforce_readiness_forecast_maintenance()
 returns jsonb
@@ -28,7 +26,7 @@ declare
   v_refreshed integer := 0;
   v_closed integer := 0;
 begin
-  if current_user not in ('postgres', 'service_role', 'supabase_admin') then
+  if session_user not in ('postgres', 'service_role', 'supabase_admin') then
     raise exception 'service role required' using errcode = '42501';
   end if;
 
@@ -60,7 +58,14 @@ begin
           else 'staffing'
         end;
         v_source_id := (v_reason ->> 'sourceId')::uuid;
-        v_key := concat('readiness-forecast:', v_reason ->> 'type', ':', v_source_id);
+        v_key := concat(
+          'readiness-forecast:',
+          v_facility.id,
+          ':',
+          v_reason ->> 'type',
+          ':',
+          v_source_id
+        );
         v_seen_keys := array_append(v_seen_keys, v_key);
         v_due_at := case
           when coalesce((v_reason ->> 'currentBlocker')::boolean, false) or v_risk_date is null
@@ -148,26 +153,3 @@ $$;
 
 revoke all on function public.run_workforce_readiness_forecast_maintenance() from public, anon, authenticated;
 grant execute on function public.run_workforce_readiness_forecast_maintenance() to service_role;
-
--- Keep one registered daily compliance maintenance job. The watchdog and operator console retain the
--- existing job key while its description and cron command now cover both recurring obligations and
--- forward-looking workforce readiness.
-update app_private.system_job_definitions
-set description = 'Generates recurring compliance occurrences, sends/escalates requirement reminders, and routes 30-day workforce readiness risks into the universal work queue.',
-    updated_at = now()
-where job_key = 'compliance-requirement-maintenance-daily';
-
-do $$
-begin
-  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
-    perform cron.unschedule(jobid)
-    from cron.job
-    where jobname = 'compliance-requirement-maintenance-daily';
-
-    perform cron.schedule(
-      'compliance-requirement-maintenance-daily',
-      '15 6 * * *',
-      'select public.run_compliance_requirement_maintenance(); select public.run_workforce_readiness_forecast_maintenance();'
-    );
-  end if;
-end $$;
