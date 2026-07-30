@@ -112,7 +112,7 @@ export default function Incidents() {
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees();
+  const { data: employees } = useListEmployees({ status: "active" });
   // Scoped to whichever facility is currently selected in the create form (not the page's own
   // facility filter above) -- powers the Resident picker on that form only.
   const { data: formFacilityResidents } = useListResidents(form.facilityId ? { facilityId: form.facilityId } : {});
