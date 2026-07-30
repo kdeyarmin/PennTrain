@@ -8,7 +8,8 @@ FROM supabase/cli:v2.109.1 AS supabase-cli
 
 FROM node:24.15.0-bookworm
 
-ARG PNPM_VERSION=10.28.1
+# Must match package.json "packageManager" / engines.pnpm and CI corepack prepare.
+ARG PNPM_VERSION=11.13.0
 
 ENV PNPM_HOME=/home/node/.local/share/pnpm \
     DENO_DIR=/home/node/.cache/deno \
