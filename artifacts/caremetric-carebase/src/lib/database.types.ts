@@ -5367,6 +5367,242 @@ export type Database = {
           },
         ]
       }
+      data_import_events: {
+        Row: {
+          actor_profile_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          job_id: string
+          organization_id: string
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          job_id: string
+          organization_id: string
+        }
+        Update: {
+          actor_profile_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          job_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_import_events_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_import_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "data_import_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_import_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_import_jobs: {
+        Row: {
+          applied_at: string | null
+          applied_rows: number
+          canceled_at: string | null
+          created_at: string
+          created_by: string | null
+          definition_version: string
+          domain: string
+          duplicate_strategy: string
+          error_rows: number
+          facility_id: string | null
+          finalized_at: string | null
+          id: string
+          last_error: string | null
+          mapping: Json
+          organization_id: string
+          original_file_name: string
+          original_file_sha256: string
+          reverted_rows: number
+          rolled_back_at: string | null
+          skipped_rows: number
+          started_at: string | null
+          status: string
+          total_rows: number
+          updated_at: string
+          valid_rows: number
+          warning_rows: number
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_rows?: number
+          canceled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          definition_version?: string
+          domain: string
+          duplicate_strategy?: string
+          error_rows?: number
+          facility_id?: string | null
+          finalized_at?: string | null
+          id?: string
+          last_error?: string | null
+          mapping?: Json
+          organization_id: string
+          original_file_name: string
+          original_file_sha256: string
+          reverted_rows?: number
+          rolled_back_at?: string | null
+          skipped_rows?: number
+          started_at?: string | null
+          status?: string
+          total_rows?: number
+          updated_at?: string
+          valid_rows?: number
+          warning_rows?: number
+        }
+        Update: {
+          applied_at?: string | null
+          applied_rows?: number
+          canceled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          definition_version?: string
+          domain?: string
+          duplicate_strategy?: string
+          error_rows?: number
+          facility_id?: string | null
+          finalized_at?: string | null
+          id?: string
+          last_error?: string | null
+          mapping?: Json
+          organization_id?: string
+          original_file_name?: string
+          original_file_sha256?: string
+          reverted_rows?: number
+          rolled_back_at?: string | null
+          skipped_rows?: number
+          started_at?: string | null
+          status?: string
+          total_rows?: number
+          updated_at?: string
+          valid_rows?: number
+          warning_rows?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_import_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_import_jobs_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_import_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_import_rows: {
+        Row: {
+          applied_at: string | null
+          before_snapshot: Json | null
+          created_at: string
+          errors: Json
+          id: string
+          job_id: string
+          normalized_row: Json
+          organization_id: string
+          proposed_action: string
+          reverted_at: string | null
+          row_number: number
+          source_row: Json
+          status: string
+          target_id: string | null
+          target_table: string | null
+          updated_at: string
+          warnings: Json
+        }
+        Insert: {
+          applied_at?: string | null
+          before_snapshot?: Json | null
+          created_at?: string
+          errors?: Json
+          id?: string
+          job_id: string
+          normalized_row?: Json
+          organization_id: string
+          proposed_action?: string
+          reverted_at?: string | null
+          row_number: number
+          source_row?: Json
+          status: string
+          target_id?: string | null
+          target_table?: string | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Update: {
+          applied_at?: string | null
+          before_snapshot?: Json | null
+          created_at?: string
+          errors?: Json
+          id?: string
+          job_id?: string
+          normalized_row?: Json
+          organization_id?: string
+          proposed_action?: string
+          reverted_at?: string | null
+          row_number?: number
+          source_row?: Json
+          status?: string
+          target_id?: string | null
+          target_table?: string | null
+          updated_at?: string
+          warnings?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_import_rows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "data_import_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_import_rows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       data_lifecycle_holds: {
         Row: {
           created_at: string
@@ -7991,6 +8227,132 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_lifecycle_cases: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          canceled_at: string | null
+          canceled_by: string | null
+          cancellation_reason: string | null
+          created_at: string
+          effective_on: string
+          employee_id: string
+          id: string
+          lifecycle_event_id: string | null
+          organization_id: string
+          preview: Json
+          previewed_at: string | null
+          reason: string
+          requested_by: string | null
+          source_facility_id: string
+          status: string
+          target_facility_id: string | null
+          transition: string
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          canceled_at?: string | null
+          canceled_by?: string | null
+          cancellation_reason?: string | null
+          created_at?: string
+          effective_on: string
+          employee_id: string
+          id?: string
+          lifecycle_event_id?: string | null
+          organization_id: string
+          preview?: Json
+          previewed_at?: string | null
+          reason: string
+          requested_by?: string | null
+          source_facility_id: string
+          status?: string
+          target_facility_id?: string | null
+          transition: string
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          canceled_at?: string | null
+          canceled_by?: string | null
+          cancellation_reason?: string | null
+          created_at?: string
+          effective_on?: string
+          employee_id?: string
+          id?: string
+          lifecycle_event_id?: string | null
+          organization_id?: string
+          preview?: Json
+          previewed_at?: string | null
+          reason?: string
+          requested_by?: string | null
+          source_facility_id?: string
+          status?: string
+          target_facility_id?: string | null
+          transition?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_lifecycle_cases_applied_by_fkey"
+            columns: ["applied_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_lifecycle_cases_canceled_by_fkey"
+            columns: ["canceled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_lifecycle_cases_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_lifecycle_cases_lifecycle_event_id_fkey"
+            columns: ["lifecycle_event_id"]
+            isOneToOne: false
+            referencedRelation: "employment_lifecycle_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_lifecycle_cases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_lifecycle_cases_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_lifecycle_cases_source_facility_id_fkey"
+            columns: ["source_facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_lifecycle_cases_target_facility_id_fkey"
+            columns: ["target_facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
         ]
@@ -32385,6 +32747,100 @@ export type Database = {
           },
         ]
       }
+      user_invitation_lifecycle: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          created_by: string | null
+          delivery_failed_at: string | null
+          email: string
+          employee_id: string | null
+          expires_at: string
+          first_name: string
+          id: string
+          invited_role: string
+          invited_user_id: string
+          last_error: string | null
+          last_name: string
+          last_sent_at: string
+          organization_id: string | null
+          redirect_to: string | null
+          revoked_at: string | null
+          send_count: number
+          sent_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivery_failed_at?: string | null
+          email: string
+          employee_id?: string | null
+          expires_at?: string
+          first_name: string
+          id?: string
+          invited_role: string
+          invited_user_id: string
+          last_error?: string | null
+          last_name: string
+          last_sent_at?: string
+          organization_id?: string | null
+          redirect_to?: string | null
+          revoked_at?: string | null
+          send_count?: number
+          sent_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivery_failed_at?: string | null
+          email?: string
+          employee_id?: string | null
+          expires_at?: string
+          first_name?: string
+          id?: string
+          invited_role?: string
+          invited_user_id?: string
+          last_error?: string | null
+          last_name?: string
+          last_sent_at?: string
+          organization_id?: string | null
+          redirect_to?: string | null
+          revoked_at?: string | null
+          send_count?: number
+          sent_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_invitation_lifecycle_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_invitation_lifecycle_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_invitation_lifecycle_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       violation_documents: {
         Row: {
           created_at: string
@@ -34677,6 +35133,10 @@ export type Database = {
         Args: { p_new_body: string; p_note_id: string; p_reason: string }
         Returns: boolean
       }
+      apply_employee_lifecycle_case: {
+        Args: { p_case_id: string }
+        Returns: Json
+      }
       apply_employee_lifecycle_transition: {
         Args: {
           p_effective_on?: string
@@ -35075,6 +35535,10 @@ export type Database = {
       }
       can_read_employee_peer_data: {
         Args: { p_facility_id: string; p_organization_id: string }
+        Returns: boolean
+      }
+      cancel_employee_lifecycle_case: {
+        Args: { p_case_id: string; p_reason: string }
         Returns: boolean
       }
       cancel_shift_swap_request: {
@@ -35627,6 +36091,16 @@ export type Database = {
           p_plan_snapshot?: Json
           p_storage_path?: string
           p_title: string
+        }
+        Returns: string
+      }
+      create_employee_lifecycle_case: {
+        Args: {
+          p_effective_on: string
+          p_employee_id: string
+          p_reason?: string
+          p_target_facility_id?: string
+          p_transition: string
         }
         Returns: string
       }
@@ -36333,6 +36807,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      finalize_data_import_job: { Args: { p_job_id: string }; Returns: Json }
       finalize_resident_assessment_form: {
         Args: { p_form_id: string }
         Returns: {
@@ -37845,6 +38320,7 @@ export type Database = {
         }
         Returns: string
       }
+      reconcile_user_invitation_lifecycle: { Args: never; Returns: Json }
       record_admission_activity: {
         Args: {
           p_activity_type: string
@@ -37955,6 +38431,15 @@ export type Database = {
           p_submission_id: string
         }
         Returns: boolean
+      }
+      record_data_import_chunk: {
+        Args: {
+          p_job_id: string
+          p_job_status?: string
+          p_last_error?: string
+          p_rows: Json
+        }
+        Returns: Json
       }
       record_emergency_accountability: {
         Args: {
@@ -38390,6 +38875,20 @@ export type Database = {
         }
         Returns: string
       }
+      record_user_invitation_sent: {
+        Args: {
+          p_created_by: string
+          p_email: string
+          p_employee_id: string
+          p_first_name: string
+          p_invited_role: string
+          p_invited_user_id: string
+          p_last_name: string
+          p_organization_id: string
+          p_redirect_to: string
+        }
+        Returns: string
+      }
       record_work_item_effectiveness: {
         Args: { p_result: string; p_work_item_id: string }
         Returns: boolean
@@ -38397,6 +38896,10 @@ export type Database = {
       refresh_benchmark_snapshots: {
         Args: { p_k_threshold?: number; p_period_end?: string }
         Returns: number
+      }
+      refresh_employee_lifecycle_case: {
+        Args: { p_case_id: string }
+        Returns: Json
       }
       refresh_move_in_readiness: {
         Args: { p_workspace_id: string }
@@ -38860,6 +39363,10 @@ export type Database = {
       revoke_resident_portal_grant: {
         Args: { p_grant_id: string; p_reason: string }
         Returns: undefined
+      }
+      rollback_employee_import_job: {
+        Args: { p_job_id: string }
+        Returns: Json
       }
       rotate_integration_api_credential: {
         Args: { p_credential_id: string; p_expires_at?: string }
@@ -39712,6 +40219,18 @@ export type Database = {
       start_course_assignment: {
         Args: { p_assignment_id: string }
         Returns: undefined
+      }
+      start_data_import_job: {
+        Args: {
+          p_domain: string
+          p_duplicate_strategy?: string
+          p_facility_id?: string
+          p_file_name: string
+          p_file_sha256: string
+          p_organization_id?: string
+          p_total_rows: number
+        }
+        Returns: string
       }
       start_emergency_event: {
         Args: {
