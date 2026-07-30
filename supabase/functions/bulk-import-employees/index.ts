@@ -168,16 +168,24 @@ Deno.serve(async (req: Request) => {
   const results: ImportRowResult[] = [];
   const ledgerRows: Record<string, unknown>[] = [];
 
+  const startRowNumber = offset + 2;
+  const endRowNumber = endIndex + 1; // inclusive row_number for the last row in this chunk
+  const { data: existingLedgers, error: ledgerLoadError } = await callerClient
+    .from("data_import_rows")
+    .select("row_number, status, target_id, proposed_action")
+    .eq("job_id", jobId)
+    .gte("row_number", startRowNumber)
+    .lte("row_number", endRowNumber);
+  if (ledgerLoadError) {
+    return json({ error: `Failed to load existing import receipts: ${ledgerLoadError.message}`, job_id: jobId }, 500);
+  }
+  const existingLedgerByRowNumber = new Map((existingLedgers ?? []).map((r) => [r.row_number, r]));
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2; // +1 for 0-index, +1 for the header row already stripped
 
-    const { data: existingLedger } = await callerClient
-      .from("data_import_rows")
-      .select("status, target_id, proposed_action")
-      .eq("job_id", jobId)
-      .eq("row_number", rowNumber)
-      .maybeSingle();
+    const existingLedger = existingLedgerByRowNumber.get(rowNumber);
     if (existingLedger && ["applied", "skipped", "reverted"].includes(existingLedger.status)) {
       results.push({
         row: rowNumber,
