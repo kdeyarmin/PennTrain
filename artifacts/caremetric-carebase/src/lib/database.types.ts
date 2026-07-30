@@ -37533,6 +37533,7 @@ export type Database = {
           retry_cost_units_24h: number
         }[]
       }
+      get_trainer_dashboard_summary: { Args: never; Returns: Json }
       get_work_item_list_summary: {
         Args: {
           p_facility_id?: string

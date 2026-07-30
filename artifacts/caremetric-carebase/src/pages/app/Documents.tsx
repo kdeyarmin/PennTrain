@@ -205,7 +205,7 @@ export default function Documents() {
     }
   };
 
-  const confirmBulkDelete = async () => {
+  const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     const docs = Array.from(selectedIds)
       .map((id) => rowById.get(id))
@@ -505,7 +505,7 @@ export default function Documents() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={bulkDeletePending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmBulkDelete}
+              onClick={handleBulkDelete}
               disabled={bulkDeletePending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
