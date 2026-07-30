@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { QueryError } from "@/components/QueryState";
 import {
   Dialog,
   DialogContent,
@@ -339,7 +340,19 @@ export default function EmergencyOperations() {
         </CardContent>
       </Card>
 
-      {facilityId && (
+      {facilities.isError && (
+        <QueryError what="facilities" error={facilities.error} onRetry={() => void facilities.refetch()} />
+      )}
+
+      {facilityId && (readiness.isError || events.isError) && (
+        <QueryError
+          what="emergency operations"
+          error={readiness.error ?? events.error}
+          onRetry={() => { void readiness.refetch(); void events.refetch(); }}
+        />
+      )}
+
+      {facilityId && !readiness.isError && !events.isError && (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {[

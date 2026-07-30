@@ -28,6 +28,7 @@ import { containsFilterValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { QueryError } from "@/components/QueryState";
 import { ReportViewer } from "@/components/reports/ReportViewer";
 import {
   useDeleteReportView,
@@ -845,6 +846,14 @@ export default function Reports() {
               ))}
             </SelectContent>
           </Select>
+          {facilitiesQuery.isError && (
+            <QueryError
+              what="facilities"
+              error={facilitiesQuery.error}
+              onRetry={() => void facilitiesQuery.refetch()}
+              className="mt-2"
+            />
+          )}
         </div>
       </div>
 
@@ -853,12 +862,20 @@ export default function Reports() {
           <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Workforce analytics and payroll</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-4">
-            <div><p className="text-2xl font-bold">{retentionTotal?.annualizedTurnoverRate ?? "--"}{retentionTotal?.annualizedTurnoverRate != null ? "%" : ""}</p><p className="text-xs text-muted-foreground">annualized turnover</p></div>
-            <div><p className="text-2xl font-bold">{retentionTotal?.ninetyDayRetentionRate ?? "--"}{retentionTotal?.ninetyDayRetentionRate != null ? "%" : ""}</p><p className="text-xs text-muted-foreground">90-day retention</p></div>
-            <div><p className="text-2xl font-bold">{retentionTotal?.averageTenureDays ?? "--"}</p><p className="text-xs text-muted-foreground">average tenure days</p></div>
-            <div><p className="text-2xl font-bold">{retentionTotal?.currentHeadcount ?? "--"}</p><p className="text-xs text-muted-foreground">current headcount</p></div>
-          </div>
+          {retentionQuery.isError ? (
+            <QueryError
+              what="workforce retention metrics"
+              error={retentionQuery.error}
+              onRetry={() => void retentionQuery.refetch()}
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div><p className="text-2xl font-bold">{retentionTotal?.annualizedTurnoverRate ?? "--"}{retentionTotal?.annualizedTurnoverRate != null ? "%" : ""}</p><p className="text-xs text-muted-foreground">annualized turnover</p></div>
+              <div><p className="text-2xl font-bold">{retentionTotal?.ninetyDayRetentionRate ?? "--"}{retentionTotal?.ninetyDayRetentionRate != null ? "%" : ""}</p><p className="text-xs text-muted-foreground">90-day retention</p></div>
+              <div><p className="text-2xl font-bold">{retentionTotal?.averageTenureDays ?? "--"}</p><p className="text-xs text-muted-foreground">average tenure days</p></div>
+              <div><p className="text-2xl font-bold">{retentionTotal?.currentHeadcount ?? "--"}</p><p className="text-xs text-muted-foreground">current headcount</p></div>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">Turnover uses trailing-12-month separations divided by average starting/current headcount. Select a facility above for facility-level results; role segments are included in the underlying report response.</p>
           <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
             <div><Label htmlFor="payroll-from">Pay period start</Label><Input id="payroll-from" type="date" value={payPeriodStart} onChange={(event) => setPayPeriodStart(event.target.value)} /></div>

@@ -20,6 +20,7 @@ import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { buildInspectionReadinessActions, type ReadinessActionChecklistItem } from "@/lib/inspectionReadiness";
 import { buildRemediationPlanDraft, remediationPlanToText } from "@/lib/remediationPlan";
 import { useToast } from "@/hooks/use-toast";
+import { QueryError } from "@/components/QueryState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,7 +66,13 @@ export default function InspectionReadiness() {
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
 
-  const { data: breakdown, isLoading: breakdownLoading } = useFacilityReadinessBreakdown(activeFacilityId || undefined);
+  const {
+    data: breakdown,
+    isLoading: breakdownLoading,
+    isError: breakdownError,
+    error: breakdownErrorDetail,
+    refetch: refetchBreakdown,
+  } = useFacilityReadinessBreakdown(activeFacilityId || undefined);
   // The readiness RPC returns the citation reference but not whether anyone ever verified it.
   // Joined here rather than widening the RPC's return signature: the topics list is already a
   // cached org-wide read, and the qualifier must never be dropped on the way to the screen.
@@ -311,7 +318,9 @@ export default function InspectionReadiness() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {breakdownLoading ? (
+          {breakdownError ? (
+            <QueryError what="facility readiness score" error={breakdownErrorDetail} onRetry={() => void refetchBreakdown()} />
+          ) : breakdownLoading ? (
             <div className="h-16 bg-muted animate-pulse rounded-lg" />
           ) : overall === null ? (
             <p className="text-sm text-muted-foreground">No compliance data yet for this facility.</p>
