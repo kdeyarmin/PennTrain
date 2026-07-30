@@ -981,9 +981,11 @@ export default function TrainingMatrix() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base">
               Compliance Matrix
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                ({filteredRows.length} employees)
-              </span>
+              {!matrixError && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  ({filteredRows.length} employees)
+                </span>
+              )}
             </CardTitle>
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
