@@ -6,8 +6,124 @@ on:
     branches:
       - main
 
+# Path-aware CI:
+# - push to main: always full matrix (deploy-migrations.yml waits on a complete validation)
+# - pull_request: skip expensive jobs when their inputs did not change
+#   (e.g. Edge Function CORS-only PRs run application + secret-scan, not database/e2e)
+#
+# Branch protection: prefer requiring the aggregate `ci-result` job rather than
+# individual matrix jobs, so skipped path-filtered jobs do not block merge.
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      application: ${{ steps.filter.outputs.application }}
+      database: ${{ steps.filter.outputs.database }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # Need base..head history for an accurate PR diff.
+          fetch-depth: 0
+
+      - name: Detect changed path groups
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Full matrix on main pushes — production deploy depends on complete CI.
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "application=true" >> "$GITHUB_OUTPUT"
+            echo "database=true" >> "$GITHUB_OUTPUT"
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+            echo "Path filter: push event → full matrix"
+            exit 0
+          fi
+
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          mapfile -t FILES < <(git diff --name-only "$BASE"..."$HEAD")
+
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "application=false" >> "$GITHUB_OUTPUT"
+            echo "database=false" >> "$GITHUB_OUTPUT"
+            echo "migrations=false" >> "$GITHUB_OUTPUT"
+            echo "Path filter: empty diff → skip gated jobs"
+            exit 0
+          fi
+
+          application=false
+          database=false
+          migrations=false
+
+          matches() {
+            local path="$1"
+            shift
+            local pattern
+            for pattern in "$@"; do
+              # shellcheck disable=SC2254
+              case "$path" in
+                $pattern) return 0 ;;
+              esac
+            done
+            return 1
+          }
+
+          # application → check:all (typecheck, unit tests, edge-function checks, builds)
+          APP_PATTERNS=(
+            "artifacts/*"
+            "scripts/*"
+            "package.json"
+            "pnpm-lock.yaml"
+            "pnpm-workspace.yaml"
+            ".node-version"
+            "supabase/functions/*"
+            "supabase/config.toml"
+            ".github/workflows/ci.yml"
+          )
+
+          # database → local Supabase stack, advisors, types drift, Playwright e2e
+          DB_PATTERNS=(
+            "supabase/migrations/*"
+            "supabase/tests/*"
+            "supabase/seed*"
+            "supabase/config.toml"
+            "artifacts/caremetric-carebase/*"
+            "scripts/check-database*"
+            "scripts/check-migration*"
+            "scripts/check-raise-arity*"
+            "scripts/check-journey-coverage*"
+            ".github/workflows/ci.yml"
+          )
+
+          # migration-immutability → only when migration files or its checker/allowlist change
+          MIG_PATTERNS=(
+            "supabase/migrations/*"
+            "scripts/migration-content-allowlist.json"
+            "scripts/check-migration-immutability.mjs"
+          )
+
+          for f in "${FILES[@]}"; do
+            if matches "$f" "${APP_PATTERNS[@]}"; then application=true; fi
+            if matches "$f" "${DB_PATTERNS[@]}"; then database=true; fi
+            if matches "$f" "${MIG_PATTERNS[@]}"; then migrations=true; fi
+          done
+
+          echo "application=$application" >> "$GITHUB_OUTPUT"
+          echo "database=$database" >> "$GITHUB_OUTPUT"
+          echo "migrations=$migrations" >> "$GITHUB_OUTPUT"
+
+          echo "Changed files (${#FILES[@]}):"
+          printf '  %s\n' "${FILES[@]}"
+          echo "Path filter → application=$application database=$database migrations=$migrations"
+
   application:
+    needs: changes
+    if: needs.changes.outputs.application == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,6 +165,8 @@ jobs:
           retention-days: 14
 
   database:
+    needs: changes
+    if: needs.changes.outputs.database == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -168,7 +286,8 @@ jobs:
   # deploy-migrations.yml — and treating "on main" as deployed also closes the
   # merge-to-deploy lag window.
   migration-immutability:
-    if: github.event_name == 'pull_request'
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.migrations == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -199,3 +318,53 @@ jobs:
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Stable required-check target when path filters skip individual jobs.
+  # Treat skipped as OK; failure/cancelled of any needed job fails the gate.
+  # secret-scan must always succeed (never path-skipped).
+  ci-result:
+    if: always()
+    needs:
+      - changes
+      - application
+      - database
+      - migration-immutability
+      - secret-scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Aggregate CI outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="${{ needs.application.result }}"
+          db="${{ needs.database.result }}"
+          mig="${{ needs.migration-immutability.result }}"
+          sec="${{ needs.secret-scan.result }}"
+          chg="${{ needs.changes.result }}"
+
+          echo "changes=$chg application=$app database=$db migration-immutability=$mig secret-scan=$sec"
+
+          if [ "$chg" != "success" ]; then
+            echo "::error::changes job did not succeed ($chg)"
+            exit 1
+          fi
+          if [ "$sec" != "success" ]; then
+            echo "::error::secret-scan must succeed (got $sec)"
+            exit 1
+          fi
+
+          for name_and_result in "application:$app" "database:$db" "migration-immutability:$mig"; do
+            name="${name_and_result%%:*}"
+            result="${name_and_result##*:}"
+            case "$result" in
+              success|skipped) ;;
+              *)
+                echo "::error::$name ended with $result"
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "CI path-filtered matrix OK"
