@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import {
   PDFDocument,
   PDFFont,
@@ -14,16 +15,10 @@ import {
   setFirstMatchingTextField,
 } from "../_shared/dhsStateFormFill.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -1067,11 +1062,11 @@ async function buildAssessmentPdf(input: {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS")
-    return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+    return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -1086,7 +1081,7 @@ Deno.serve(async (req: Request) => {
     error: callerAuthError,
   } = await callerClient.auth.getUser();
   if (callerAuthError || !callerUser)
-    return json({ error: "Invalid or expired session" }, 401);
+    return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -1094,17 +1089,17 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
   let body: { formId?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const { formId } = body;
-  if (!formId) return json({ error: "formId is required" }, 400);
+  if (!formId) return json(req, { error: "formId is required" }, 400);
 
   // RLS-scoped read on the caller's own client: resident_assessment_forms_select gates who can even
   // SEE this form (platform_admin, org_admin/auditor org-wide, facility_manager assigned to its
@@ -1124,11 +1119,11 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", formId)
     .maybeSingle();
-  if (formError) return json({ error: formError.message }, 500);
-  if (!form) return json({ error: "Assessment form not found" }, 404);
+  if (formError) return json(req, { error: formError.message }, 500);
+  if (!form) return json(req, { error: "Assessment form not found" }, 404);
 
   if (form.status !== "finalized") {
-    return json(
+    return json(req, 
       { error: "Only finalized assessment forms can be exported to PDF" },
       400,
     );
@@ -1153,7 +1148,7 @@ Deno.serve(async (req: Request) => {
     hasWriteAccess = !!assignment;
   }
   if (!hasWriteAccess) {
-    return json({ error: "Not authorized to generate this document" }, 403);
+    return json(req, { error: "Not authorized to generate this document" }, 403);
   }
 
   // Finalizing locks the form's own content, but Part-I fields (resident DOB, physician/dentist/
@@ -1172,9 +1167,9 @@ Deno.serve(async (req: Request) => {
       .eq("document_label", documentLabel)
       .maybeSingle();
   if (existingDocumentError)
-    return json({ error: existingDocumentError.message }, 500);
+    return json(req, { error: existingDocumentError.message }, 500);
   if (existingDocument) {
-    return json(
+    return json(req, 
       {
         error:
           "A document has already been generated for this finalized form. Contact an administrator if it needs to be replaced.",
@@ -1219,7 +1214,7 @@ Deno.serve(async (req: Request) => {
     .select("name, relationship, phone")
     .eq("resident_id", form.resident_id)
     .order("sort_order");
-  if (supportsError) return json({ error: supportsError.message }, 500);
+  if (supportsError) return json(req, { error: supportsError.message }, 500);
 
   const { pdfBytes, template } = await buildAssessmentPdf({
     formType: form.form_type,
@@ -1258,7 +1253,7 @@ Deno.serve(async (req: Request) => {
       contentType: "application/pdf",
       upsert: true,
     });
-  if (uploadError) return json({ error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   // One resident_documents row per assessment-form version -- the existence check above already
   // guarantees no row with this document_label exists yet, so this is always a fresh insert.
@@ -1278,16 +1273,16 @@ Deno.serve(async (req: Request) => {
     uploaded_by_profile_id: callerUser.id,
     is_state_form: false,
   });
-  if (docError) return json({ error: docError.message }, 500);
+  if (docError) return json(req, { error: docError.message }, 500);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
-  return json({
+  return json(req, {
     success: true,
     url: signedUrlData.signedUrl,
     path,

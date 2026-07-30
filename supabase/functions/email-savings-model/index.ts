@@ -2,6 +2,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Public, unauthenticated "email me my savings model" intake for the /savings marketing
 // calculator (requires verify_jwt:false for [functions.email-savings-model] in
@@ -15,11 +16,6 @@ import { clientIp } from "../_shared/clientIp.ts";
 // visitor entered -- so the endpoint cannot be used as an arbitrary-content relay. Each request is
 // stored as a warm-lead row in public.savings_model_requests (service-role write only), which also
 // backs the per-IP rate limit.
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,10 +46,10 @@ class HttpError extends Error {
   }
 }
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -264,8 +260,8 @@ async function sendViaSendGrid(to: string, subject: string, text: string, html: 
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   let body: {
     email?: string;
@@ -279,20 +275,20 @@ Deno.serve(async (req: Request) => {
   try {
     body = await readJsonBody(req);
   } catch (error) {
-    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
-    return json({ error: "Invalid JSON body" }, 400);
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
 
   const email = body.email?.trim().toLowerCase();
   if (!email || email.length < 3 || email.length > 320 || !EMAIL_RE.test(email)) {
-    return json({ ok: false, error: "Enter a valid email address" }, 400);
+    return json(req, { ok: false, error: "Enter a valid email address" }, 400);
   }
   if (body.residents === undefined || body.residents === null) {
     // A payload with every other field but no `residents` is a stale cached client still sending
     // the pre-rename `fac` field (the PWA can cache the /savings route script for up to 7 days).
     // Reject rather than silently defaulting, so the emailed worksheet can never diverge from what
     // the visitor's on-screen calculator actually showed them.
-    return json({ ok: false, error: "Your page is out of date. Refresh and try again." }, 400);
+    return json(req, { ok: false, error: "Your page is out of date. Refresh and try again." }, 400);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -364,7 +360,7 @@ Deno.serve(async (req: Request) => {
     const { subject, text, html } = buildEmail(model);
     await sendViaSendGrid(email, subject, text, html);
 
-    return json({ ok: true });
+    return json(req, { ok: true });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     const isHttpError = error instanceof HttpError;
@@ -373,6 +369,6 @@ Deno.serve(async (req: Request) => {
     if (!isHttpError || status >= 500 || internalDetail) {
       console.error(isHttpError ? "email-savings-model HttpError:" : "Unexpected email-savings-model error:", error, internalDetail ?? "");
     }
-    return json({ ok: false, error: message }, status);
+    return json(req, { ok: false, error: message }, status);
   }
 });

@@ -1,16 +1,12 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -190,11 +186,11 @@ async function buildIncidentReportPdf(input: {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -205,7 +201,7 @@ Deno.serve(async (req: Request) => {
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -213,17 +209,17 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
   let body: { incidentId?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const { incidentId } = body;
-  if (!incidentId) return json({ error: "incidentId is required" }, 400);
+  if (!incidentId) return json(req, { error: "incidentId is required" }, 400);
 
   // RLS-scoped read on the caller's own client: incidents_select already gates who can see this
   // incident (platform_admin, org_admin/auditor org-wide, facility_manager assigned to its
@@ -237,8 +233,8 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", incidentId)
     .maybeSingle();
-  if (incidentError) return json({ error: incidentError.message }, 500);
-  if (!incident) return json({ error: "Incident not found" }, 404);
+  if (incidentError) return json(req, { error: incidentError.message }, 500);
+  if (!incident) return json(req, { error: "Incident not found" }, 404);
 
   const [staffRes, notificationsRes, correctiveActionsRes] = await Promise.all([
     callerClient.from("incident_staff_involved").select("involvement_type, employees(first_name, last_name)").eq("incident_id", incidentId),
@@ -249,7 +245,7 @@ Deno.serve(async (req: Request) => {
   // yields a "successful" PDF silently missing staff, notifications, or corrective
   // actions, and that incomplete document reads as authoritative survey evidence.
   const relatedError = staffRes.error ?? notificationsRes.error ?? correctiveActionsRes.error;
-  if (relatedError) return json({ error: relatedError.message }, 500);
+  if (relatedError) return json(req, { error: relatedError.message }, 500);
   const { data: staff } = staffRes;
   const { data: notifications } = notificationsRes;
   const { data: correctiveActions } = correctiveActionsRes;
@@ -286,20 +282,20 @@ Deno.serve(async (req: Request) => {
     contentType: "application/pdf",
     upsert: true,
   });
-  if (uploadError) return json({ error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   const { error: updateError } = await adminClient
     .from("incidents")
     .update({ report_pdf_storage_bucket: REPORTS_BUCKET, report_pdf_storage_path: path })
     .eq("id", incident.id);
-  if (updateError) return json({ error: updateError.message }, 500);
+  if (updateError) return json(req, { error: updateError.message }, 500);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(REPORTS_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
-  return json({ success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
+  return json(req, { success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
 });

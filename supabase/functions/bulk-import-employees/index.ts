@@ -1,16 +1,12 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -43,11 +39,11 @@ function escapedIlike(value: string): string {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -60,7 +56,7 @@ Deno.serve(async (req: Request) => {
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -68,10 +64,10 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
   if (!["platform_admin", "org_admin", "facility_manager"].includes(callerProfile.role as string)) {
-    return json({ error: "not authorized to import employees" }, 403);
+    return json(req, { error: "not authorized to import employees" }, 403);
   }
 
   // offset/limit let the client validate or apply in small, resumable chunks. Older callers that
@@ -90,38 +86,38 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
 
   const { csv, organization_id } = body;
-  if (!csv || typeof csv !== "string") return json({ error: "csv (string) is required" }, 400);
+  if (!csv || typeof csv !== "string") return json(req, { error: "csv (string) is required" }, 400);
   const offset = Number.isFinite(body.offset) ? Math.max(0, Math.floor(body.offset as number)) : 0;
   const limit = Number.isFinite(body.limit) ? Math.max(1, Math.min(200, Math.floor(body.limit as number))) : null;
   const mode = body.mode === "validate" ? "validate" : "apply";
   const duplicateStrategy = ["create", "skip", "update"].includes(body.duplicate_strategy ?? "")
     ? body.duplicate_strategy!
     : "create";
-  if (body.job_id && !UUID_PATTERN.test(body.job_id)) return json({ error: "job_id must be a UUID" }, 400);
+  if (body.job_id && !UUID_PATTERN.test(body.job_id)) return json(req, { error: "job_id must be a UUID" }, 400);
 
   const effectiveOrgId = callerProfile.role === "platform_admin" ? organization_id : callerProfile.organization_id;
-  if (!effectiveOrgId) return json({ error: "organization_id is required" }, 400);
+  if (!effectiveOrgId) return json(req, { error: "organization_id is required" }, 400);
 
   let rows: Record<string, string | undefined>[];
   try {
     rows = (await parse(csv, { skipFirstRow: true, strip: true })) as Record<string, string | undefined>[];
   } catch (e) {
-    return json({ error: `Failed to parse CSV: ${(e as Error).message}` }, 400);
+    return json(req, { error: `Failed to parse CSV: ${(e as Error).message}` }, 400);
   }
 
-  if (rows.length === 0) return json({ error: "CSV contains no data rows" }, 400);
-  if (rows.length > 1000) return json({ error: "CSV exceeds the 1000-row import limit; split into smaller files" }, 400);
+  if (rows.length === 0) return json(req, { error: "CSV contains no data rows" }, 400);
+  if (rows.length > 1000) return json(req, { error: "CSV exceeds the 1000-row import limit; split into smaller files" }, 400);
 
   const missingCols = REQUIRED_COLUMNS.filter((column) => !(column in rows[0]));
   if (missingCols.length > 0) {
-    return json({ error: `CSV is missing required columns: ${missingCols.join(", ")}` }, 400);
+    return json(req, { error: `CSV is missing required columns: ${missingCols.join(", ")}` }, 400);
   }
   if (!("facility_name" in rows[0]) && !("facility_id" in rows[0])) {
-    return json({ error: "CSV is missing required columns: facility_name (or facility_id)" }, 400);
+    return json(req, { error: "CSV is missing required columns: facility_name (or facility_id)" }, 400);
   }
 
   const fileSha256 = await sha256Hex(csv);
@@ -136,7 +132,7 @@ Deno.serve(async (req: Request) => {
       p_facility_id: null,
       p_organization_id: callerProfile.role === "platform_admin" ? effectiveOrgId : null,
     });
-    if (error) return json({ error: `Unable to start import job: ${error.message}` }, 400);
+    if (error) return json(req, { error: `Unable to start import job: ${error.message}` }, 400);
     jobId = data as string;
   }
 
@@ -146,12 +142,12 @@ Deno.serve(async (req: Request) => {
     .from("facilities")
     .select("id, name")
     .eq("organization_id", effectiveOrgId);
-  if (facilitiesError) return json({ error: `Failed to load facilities: ${facilitiesError.message}` }, 500);
+  if (facilitiesError) return json(req, { error: `Failed to load facilities: ${facilitiesError.message}` }, 500);
   const facilityIdByName = new Map((orgFacilities ?? []).map((facility) => [facility.name.trim().toLowerCase(), facility.id as string]));
 
   const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
   if (offset >= rows.length) {
-    return json({
+    return json(req, {
       success: true,
       mode,
       job_id: jobId,
@@ -177,7 +173,7 @@ Deno.serve(async (req: Request) => {
     .gte("row_number", startRowNumber)
     .lte("row_number", endRowNumber);
   if (ledgerLoadError) {
-    return json({ error: `Failed to load existing import receipts: ${ledgerLoadError.message}`, job_id: jobId }, 500);
+    return json(req, { error: `Failed to load existing import receipts: ${ledgerLoadError.message}`, job_id: jobId }, 500);
   }
   const existingLedgerByRowNumber = new Map((existingLedgers ?? []).map((r) => [r.row_number, r]));
 
@@ -367,13 +363,13 @@ Deno.serve(async (req: Request) => {
     p_last_error: null,
   });
   if (ledgerError) {
-    return json({ error: `Rows were processed but the import receipt failed: ${ledgerError.message}`, job_id: jobId }, 500);
+    return json(req, { error: `Rows were processed but the import receipt failed: ${ledgerError.message}`, job_id: jobId }, 500);
   }
 
   const succeeded = results.filter((result) => result.success).length;
   const failed = results.length - succeeded;
 
-  return json({
+  return json(req, {
     success: true,
     mode,
     job_id: jobId,

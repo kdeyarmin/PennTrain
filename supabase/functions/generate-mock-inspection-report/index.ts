@@ -1,8 +1,13 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
-function json(body: unknown, status: number) { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...CORS } }); }
+function json(req: Request, body: unknown, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
+  });
+}
 function clean(value: unknown) { return String(value ?? "").replace(/[^\x20-\x7E\n]/g, " ").replace(/\s+/g, " ").trim(); }
 function wrap(text: string, width = 92) {
   const words = clean(text).split(" "); const lines: string[] = []; let line = "";
@@ -11,16 +16,16 @@ function wrap(text: string, width = 92) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  const auth = req.headers.get("Authorization"); if (!auth) return json({ error: "Authentication required" }, 401);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
+  const auth = req.headers.get("Authorization"); if (!auth) return json(req, { error: "Authentication required" }, 401);
   const url = Deno.env.get("SUPABASE_URL"); const anon = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!url || !anon) return json({ error: "Report service is not configured" }, 500);
-  let body: { runId?: string }; try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
-  if (!body.runId) return json({ error: "runId is required" }, 400);
+  if (!url || !anon) return json(req, { error: "Report service is not configured" }, 500);
+  let body: { runId?: string }; try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON" }, 400); }
+  if (!body.runId) return json(req, { error: "runId is required" }, 400);
   const caller = createClient(url, anon, { global: { headers: { Authorization: auth } } });
   const { data: run } = await caller.from("mock_inspection_runs").select("*,facilities(name,facility_type,state)").eq("id", body.runId).single();
-  if (!run) return json({ error: "Mock inspection not found or outside scope" }, 404);
+  if (!run) return json(req, { error: "Mock inspection not found or outside scope" }, 404);
   const doc = await PDFDocument.create(); const regular = await doc.embedFont(StandardFonts.Helvetica); const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   let page: PDFPage; let y = 0;
   function newPage() { page = doc.addPage([612, 792]); y = 750; page.drawText("CareMetric CareBase - Mock Inspection Gap Report", { x: 42, y, size: 15, font: bold, color: rgb(0.06,0.16,0.26) }); y -= 28; }
@@ -42,5 +47,12 @@ Deno.serve(async (req: Request) => {
   }
   const bytes = await doc.save();
   const pdfBody = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  return new Response(pdfBody, { headers: { ...CORS, "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="mock-inspection-${run.as_of_date}.pdf"`, "Cache-Control": "private, no-store" } });
+  return new Response(pdfBody, {
+    headers: {
+      ...corsHeadersForRequest(req),
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="mock-inspection-${run.as_of_date}.pdf"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
 });

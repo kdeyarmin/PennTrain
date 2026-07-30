@@ -2,21 +2,17 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { paToday } from "../_shared/paDay.ts";
 
 const BINDER_JOB_KEY = "binder-export-generation";
 const BINDER_BUCKET = "binder-exports";
 const SIGNED_URL_TTL_SECONDS = 600;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -168,40 +164,40 @@ class PdfWriter {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     console.error("Compliance binder worker is missing required Supabase environment variables");
-    return json({ error: "Service is not configured" }, 500);
+    return json(req, { error: "Service is not configured" }, 500);
   }
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
 
   // Cron worker path: claim queued binder_export_jobs, render, store, finish.
   if (req.headers.has(CRON_SECRET_HEADER)) {
-    const denied = requireCronRequest(req, CORS_HEADERS);
+    const denied = requireCronRequest(req, corsHeadersForRequest(req));
     if (denied) return denied;
     return await runWorkerBatch(req, adminClient);
   }
 
   // User paths (caller-authorized): enqueue an export, or fetch a finished export's URL.
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
   const callerClient = createClient<any>(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   let body: { job_id?: string; organization_id?: string; facility_id?: string; facility_ids?: string[] } = {};
   if (req.headers.get("content-length") !== "0") {
     try {
       body = await req.json();
     } catch {
-      return json({ error: "Invalid JSON body" }, 400);
+      return json(req, { error: "Invalid JSON body" }, 400);
     }
   }
 
@@ -213,21 +209,21 @@ Deno.serve(async (req: Request) => {
       .select("id, status, storage_bucket, storage_path, last_error_message")
       .eq("id", body.job_id)
       .maybeSingle();
-    if (jobError) return json({ error: jobError.message }, 500);
-    if (!job) return json({ error: "binder export not found" }, 404);
+    if (jobError) return json(req, { error: jobError.message }, 500);
+    if (!job) return json(req, { error: "binder export not found" }, 404);
     if (job.status === "failed") {
-      return json({ success: false, status: "failed", error: job.last_error_message ?? "Binder generation failed" }, 200);
+      return json(req, { success: false, status: "failed", error: job.last_error_message ?? "Binder generation failed" }, 200);
     }
     if (job.status !== "succeeded" || !job.storage_path) {
-      return json({ success: true, status: job.status }, 202);
+      return json(req, { success: true, status: job.status }, 202);
     }
     const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
       .from(job.storage_bucket ?? BINDER_BUCKET)
       .createSignedUrl(job.storage_path, SIGNED_URL_TTL_SECONDS);
     if (signedUrlError || !signedUrlData) {
-      return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+      return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
     }
-    return json({
+    return json(req, {
       success: true,
       status: "succeeded",
       url: signedUrlData.signedUrl,
@@ -250,9 +246,9 @@ Deno.serve(async (req: Request) => {
   });
   if (requestError) {
     const status = requestError.code === "42501" ? 403 : requestError.code === "22023" ? 400 : 500;
-    return json({ error: requestError.message }, status);
+    return json(req, { error: requestError.message }, status);
   }
-  return json({ success: true, jobId: jobRow?.id ?? null, status: jobRow?.status ?? "pending" }, 202);
+  return json(req, { success: true, jobId: jobRow?.id ?? null, status: jobRow?.status ?? "pending" }, 202);
 });
 
 async function runWorkerBatch(req: Request, adminClient: any): Promise<Response> {
@@ -272,10 +268,10 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
     p_trigger_type: "scheduled",
     p_provider_request_id: null,
   });
-  if (claimError) return json({ error: claimError.message }, 500);
+  if (claimError) return json(req, { error: claimError.message }, 500);
   const run = Array.isArray(claimRows) ? claimRows[0] : claimRows;
   if (!run?.should_execute) {
-    return json({ success: true, skipped: true, status: run?.existing_status ?? "skipped" });
+    return json(req, { success: true, skipped: true, status: run?.existing_status ?? "skipped" });
   }
 
   const runId = run.run_id;
@@ -383,7 +379,7 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
     });
   }
 
-  return json({ success: !batchError, attempted, succeeded, failed });
+  return json(req, { success: !batchError, attempted, succeeded, failed });
 }
 
 // PostgREST caps unpaged selects (1000 rows by default), so every binder list query

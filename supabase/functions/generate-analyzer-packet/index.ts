@@ -7,20 +7,16 @@
 // raw AI output.
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 const ANALYZER_BUCKET = "state-form-analyzer";
 const SIGNED_URL_TTL_SECONDS = 600;
 const MAX_PACKET_JOBS = 200;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -188,11 +184,11 @@ class PdfWriter {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -202,7 +198,7 @@ Deno.serve(async (req: Request) => {
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -210,19 +206,19 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
   if (callerProfile.role !== "platform_admin") {
-    return json({ error: "not authorized to export analyzer packets" }, 403);
+    return json(req, { error: "not authorized to export analyzer packets" }, 403);
   }
-  if (!serviceRoleKey) return json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
+  if (!serviceRoleKey) return json(req, { error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
 
   let body: { job_ids?: string[] } = {};
   if (req.headers.get("content-length") !== "0") {
     try {
       body = await req.json();
     } catch {
-      return json({ error: "Invalid JSON body" }, 400);
+      return json(req, { error: "Invalid JSON body" }, 400);
     }
   }
   // A provided-but-degenerate filter (empty array, non-strings) must never widen into an
@@ -234,11 +230,11 @@ Deno.serve(async (req: Request) => {
       || body.job_ids.length === 0
       || body.job_ids.some((id) => typeof id !== "string" || id.length === 0)
     ) {
-      return json({ error: "job_ids must be a non-empty array of job ids" }, 400);
+      return json(req, { error: "job_ids must be a non-empty array of job ids" }, 400);
     }
     requestedIds = Array.from(new Set(body.job_ids));
     if (requestedIds.length > MAX_PACKET_JOBS) {
-      return json({ error: `A packet can include at most ${MAX_PACKET_JOBS} forms; export in smaller batches.` }, 400);
+      return json(req, { error: `A packet can include at most ${MAX_PACKET_JOBS} forms; export in smaller batches.` }, 400);
     }
   }
 
@@ -255,12 +251,12 @@ Deno.serve(async (req: Request) => {
     .limit(MAX_PACKET_JOBS);
   if (requestedIds) jobsQuery = jobsQuery.in("id", requestedIds);
   const { data: jobs, error: jobsError, count: approvedCount } = await jobsQuery;
-  if (jobsError) return json({ error: jobsError.message }, 500);
+  if (jobsError) return json(req, { error: jobsError.message }, 500);
   if (!jobs || jobs.length === 0) {
-    return json({ error: "No approved forms to export. Approve at least one reviewed form first." }, 400);
+    return json(req, { error: "No approved forms to export. Approve at least one reviewed form first." }, 400);
   }
   if (requestedIds && jobs.length !== requestedIds.length) {
-    return json({ error: "Every requested form must exist and be approved for export" }, 409);
+    return json(req, { error: "Every requested form must exist and be approved for export" }, 409);
   }
   const totalApproved = approvedCount ?? jobs.length;
   const omittedCount = Math.max(0, totalApproved - jobs.length);
@@ -275,8 +271,8 @@ Deno.serve(async (req: Request) => {
       ? callerClient.from("facilities").select("id, name").in("id", facilityIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (approversRes.error) return json({ error: approversRes.error.message }, 500);
-  if (facilitiesRes.error) return json({ error: facilitiesRes.error.message }, 500);
+  if (approversRes.error) return json(req, { error: approversRes.error.message }, 500);
+  if (facilitiesRes.error) return json(req, { error: facilitiesRes.error.message }, 500);
   const approverById = new Map((approversRes.data ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`]));
   const facilityById = new Map((facilitiesRes.data ?? []).map((f) => [f.id, f.name]));
 
@@ -365,13 +361,13 @@ Deno.serve(async (req: Request) => {
   const { error: uploadError } = await adminClient.storage
     .from(ANALYZER_BUCKET)
     .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
-  if (uploadError) return json({ error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(ANALYZER_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
   // The deterministic path above means each re-export overwrites the previous packet
@@ -386,10 +382,10 @@ Deno.serve(async (req: Request) => {
     new_values: { job_ids: jobs.map((j) => j.id), storage_path: path },
   });
   if (auditError) {
-    return json({ error: `The packet was generated but could not be recorded in the audit log (${auditError.message}). The download link is withheld until the export can be audited.` }, 500);
+    return json(req, { error: `The packet was generated but could not be recorded in the audit log (${auditError.message}). The download link is withheld until the export can be audited.` }, 500);
   }
 
-  return json({
+  return json(req, {
     success: true,
     url: signedUrlData.signedUrl,
     path,

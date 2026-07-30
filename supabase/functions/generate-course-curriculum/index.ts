@@ -2,16 +2,12 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -209,11 +205,11 @@ function isValidDraft(draft: Record<string, unknown> | null): draft is Record<st
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -223,7 +219,7 @@ Deno.serve(async (req: Request) => {
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -231,10 +227,10 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
   if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
-    return json({ error: "not authorized to generate AI course curricula" }, 403);
+    return json(req, { error: "not authorized to generate AI course curricula" }, 403);
   }
 
   const { data: aiGenerationSetting } = await callerClient
@@ -244,28 +240,28 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   const aiCourseGenerationEnabled = aiGenerationSetting?.value !== false;
   if (!aiCourseGenerationEnabled) {
-    return json({ error: "AI course generation is currently disabled by the platform administrator." }, 403);
+    return json(req, { error: "AI course generation is currently disabled by the platform administrator." }, 403);
   }
 
   // Checked only after auth/role so an unconfigured secret never leaks ahead of a 401/403 to a
   // caller who wasn't going to be allowed to use this endpoint anyway.
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
+  if (!anthropicApiKey) return json(req, { error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   let body: CurriculumRequestBody;
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
 
   const { generation_mode, organization_id, plan_name, course_count, title_hint, category, training_type_id, source_material, desired_module_count, desired_duration_minutes, notes } = body;
   const isTrainingPlan = generation_mode === "training_plan";
   if (isTrainingPlan && !organization_id) {
-    return json({ error: "organization_id is required when generating a training plan" }, 400);
+    return json(req, { error: "organization_id is required when generating a training plan" }, 400);
   }
   if (!title_hint?.trim() && !source_material?.trim() && !notes?.trim() && !plan_name?.trim()) {
-    return json({ error: "at least one of plan_name, title_hint, source_material, or notes is required" }, 400);
+    return json(req, { error: "at least one of plan_name, title_hint, source_material, or notes is required" }, 400);
   }
 
   // PT-019: per-organization BAA gate, on top of the platform switch above. The only
@@ -273,7 +269,7 @@ Deno.serve(async (req: Request) => {
   // organization; a plain course draft is platform-catalog work (courses.organization_id
   // stays NULL) with no tenant in scope, so only the platform switch gates it.
   if (isTrainingPlan && !(await orgAiAllowed(callerClient, organization_id))) {
-    return json(orgAiDisabledBody(), 403);
+    return json(req, orgAiDisabledBody(), 403);
   }
 
   // Best-effort: pull the training type's own name/description/citation_note (if any) into the
@@ -327,7 +323,7 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (generationInsertError || !generationRow) {
-    return json({ error: generationInsertError?.message ?? "failed to create audit record for this generation" }, 500);
+    return json(req, { error: generationInsertError?.message ?? "failed to create audit record for this generation" }, 500);
   }
   const generationId = generationRow.id as string;
 
@@ -356,11 +352,11 @@ Deno.serve(async (req: Request) => {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === "AbortError") {
       await markFailed(`Anthropic API request timed out after ${ANTHROPIC_TIMEOUT_MS / 1000}s`);
-      return json({ error: "AI course generation timed out", generation_id: generationId }, 504);
+      return json(req, { error: "AI course generation timed out", generation_id: generationId }, 504);
     }
     const message = e instanceof Error ? e.message : String(e);
     await markFailed(message);
-    return json({ error: message, generation_id: generationId }, 502);
+    return json(req, { error: message, generation_id: generationId }, 502);
   }
   clearTimeout(timeoutId);
 
@@ -371,7 +367,7 @@ Deno.serve(async (req: Request) => {
   if (!result.ok) {
     const message = (result.body as { error?: { message?: string } } | null)?.error?.message ?? `Anthropic API returned ${result.status}`;
     await markFailed(message);
-    return json({ error: message, generation_id: generationId }, 502);
+    return json(req, { error: message, generation_id: generationId }, 502);
   }
 
   if (isTrainingPlan) {
@@ -381,7 +377,7 @@ Deno.serve(async (req: Request) => {
     }
     if (!isValidPlanDraft(planDraft)) {
       await markFailed("AI response did not include a valid multi-course training plan draft");
-      return json({ error: "AI response did not include a valid training plan draft", generation_id: generationId }, 502);
+      return json(req, { error: "AI response did not include a valid training plan draft", generation_id: generationId }, 502);
     }
 
     // Create the plan row first so that on any subsequent failure we can delete
@@ -394,7 +390,7 @@ Deno.serve(async (req: Request) => {
       .single();
     if (planError || !plan) {
       await markFailed(planError?.message ?? "failed to create training plan");
-      return json({ error: planError?.message ?? "failed to create training plan", generation_id: generationId }, 500);
+      return json(req, { error: planError?.message ?? "failed to create training plan", generation_id: generationId }, 500);
     }
 
     const createdCourses: { course_id: string; course_version_id: string; title: string }[] = [];
@@ -410,7 +406,7 @@ Deno.serve(async (req: Request) => {
         await callerClient.from("training_plans").delete().eq("id", plan.id);
         for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
         await markFailed(msg);
-        return json({ error: msg, generation_id: generationId }, 500);
+        return json(req, { error: msg, generation_id: generationId }, 500);
       }
       const { data: rpcResult, error: rpcError } = await callerClient
         .rpc("create_course_from_ai_draft", { p_draft: courseDraft, p_generation_id: childGeneration.id })
@@ -421,7 +417,7 @@ Deno.serve(async (req: Request) => {
         await callerClient.from("training_plans").delete().eq("id", plan.id);
         for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
         await markFailed(msg);
-        return json({ error: rpcError?.message ?? "failed to create a course from the AI training plan", generation_id: generationId }, 500);
+        return json(req, { error: rpcError?.message ?? "failed to create a course from the AI training plan", generation_id: generationId }, 500);
       }
       const { course_id, course_version_id } = rpcResult as { course_id: string; course_version_id: string };
       createdCourses.push({ course_id, course_version_id, title: String(courseDraft.title) });
@@ -434,10 +430,10 @@ Deno.serve(async (req: Request) => {
       await callerClient.from("training_plans").delete().eq("id", plan.id);
       for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
       await markFailed(itemsError.message);
-      return json({ error: itemsError.message, generation_id: generationId }, 500);
+      return json(req, { error: itemsError.message, generation_id: generationId }, 500);
     }
     await callerClient.from("course_ai_generations").update({ status: "completed", response_summary: { plan_name: planDraft.plan_name, course_count: createdCourses.length } }).eq("id", generationId);
-    return json({ success: true, training_plan_id: plan.id, courses: createdCourses, generation_id: generationId });
+    return json(req, { success: true, training_plan_id: plan.id, courses: createdCourses, generation_id: generationId });
   }
 
   const draft = extractToolInput(result.body, TOOL_NAME);
@@ -446,7 +442,7 @@ Deno.serve(async (req: Request) => {
   }
   if (!isValidDraft(draft)) {
     await markFailed("AI response did not include a valid course draft (missing title/description/modules)");
-    return json({ error: "AI response did not include a valid course draft", generation_id: generationId }, 502);
+    return json(req, { error: "AI response did not include a valid course draft", generation_id: generationId }, 502);
   }
 
   const { data: rpcResult, error: rpcError } = await callerClient
@@ -454,7 +450,7 @@ Deno.serve(async (req: Request) => {
     .single();
   if (rpcError || !rpcResult) {
     await markFailed(rpcError?.message ?? "create_course_from_ai_draft RPC failed");
-    return json({ error: rpcError?.message ?? "failed to create course from AI draft", generation_id: generationId }, 500);
+    return json(req, { error: rpcError?.message ?? "failed to create course from AI draft", generation_id: generationId }, 500);
   }
 
   const { course_id: courseId, course_version_id: courseVersionId } = rpcResult as { course_id: string; course_version_id: string };
@@ -466,5 +462,5 @@ Deno.serve(async (req: Request) => {
     .update({ response_summary: { title: draft.title, module_count: (draft.modules as unknown[]).length } })
     .eq("id", generationId);
 
-  return json({ success: true, course_id: courseId, course_version_id: courseVersionId, generation_id: generationId });
+  return json(req, { success: true, course_id: courseId, course_version_id: courseVersionId, generation_id: generationId });
 });
