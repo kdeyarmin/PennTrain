@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   COMPLETION_RESPONSE_LABELS, COMPLETION_RESPONSES, DEFAULT_COMPLETION_RESPONSES,
-  defaultResponsesForKind, describeServiceDeliveryContract, isExceptionResponse, isFloorTaskKind,
-  isServiceDeliveryContractValid, SERVICE_TASK_KIND_DESCRIPTIONS, SERVICE_TASK_KIND_LABELS,
-  SERVICE_TASK_KINDS, taskKindHasDueWindow, validateServiceDeliveryContract,
-  type ServiceDeliveryContract,
+  completionResponseForServiceOutcome, defaultResponsesForKind, describeServiceDeliveryContract,
+  isExceptionResponse, isFloorTaskKind, isServiceDeliveryContractValid,
+  SERVICE_TASK_KIND_DESCRIPTIONS, SERVICE_TASK_KIND_LABELS, SERVICE_TASK_KINDS,
+  taskKindHasDueWindow, validateServiceDeliveryContract, type ServiceDeliveryContract,
 } from "./serviceDeliveryContract";
 
 function contract(overrides: Partial<ServiceDeliveryContract> = {}): ServiceDeliveryContract {
@@ -46,6 +46,22 @@ describe("vocabulary", () => {
     }
   });
 
+  it("maps the manager's legacy statuses into the same structured response contract", () => {
+    expect(completionResponseForServiceOutcome("completed")).toBe("completed_as_planned");
+    expect(completionResponseForServiceOutcome("completed_late")).toBe("completed_as_planned");
+    expect(completionResponseForServiceOutcome("completed_by_other")).toBe("completed_as_planned");
+    expect(completionResponseForServiceOutcome("resident_refused")).toBe("resident_refused");
+    expect(completionResponseForServiceOutcome("resident_unavailable")).toBe("resident_unavailable");
+    expect(completionResponseForServiceOutcome("not_completed")).toBe("not_completed");
+  });
+
+  it("passes the structured vocabulary through unchanged and rejects unknown outcomes", () => {
+    for (const response of COMPLETION_RESPONSES) {
+      expect(completionResponseForServiceOutcome(response)).toBe(response);
+    }
+    expect(() => completionResponseForServiceOutcome("teleported")).toThrow(/Unsupported service outcome/);
+  });
+
   it("treats only 'completed as planned' as a non-exception", () => {
     // That is the whole premise of exception-based documentation: one response closes a task with
     // nothing more to say, and every other response asks for more.
@@ -78,8 +94,6 @@ describe("default responses per kind", () => {
   });
 
   it("does not offer a resident refusal on manager or documentation work", () => {
-    // A resident cannot refuse a manager's review; offering it invites recording something that
-    // did not happen.
     expect(defaultResponsesForKind("manager_review")).not.toContain("resident_refused");
     expect(defaultResponsesForKind("documentation_requirement")).not.toContain("resident_refused");
   });
@@ -118,7 +132,6 @@ describe("validation", () => {
   });
 
   it("requires refusal handling when refusal is an allowed outcome", () => {
-    // "Resident refused" with no instruction leaves the aide to invent one at the bedside.
     const issues = validateServiceDeliveryContract(contract({ refusalHandling: null }));
     expect(issues.map((issue) => issue.kind)).toContain("missing_refusal_handling");
   });

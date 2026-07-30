@@ -94,6 +94,29 @@ export const COMPLETION_RESPONSE_LABELS: Record<CompletionResponse, string> = {
 };
 
 /**
+ * The manager workspace originally wrote the task status directly while Floor wrote the structured
+ * completion response. Accept both vocabularies at the shared boundary so every surface reaches the
+ * same server-side response RPC and therefore the same Needs Attention and change-detection logic.
+ */
+export function completionResponseForServiceOutcome(outcome: string): CompletionResponse {
+  if ((COMPLETION_RESPONSES as string[]).includes(outcome)) return outcome as CompletionResponse;
+  switch (outcome) {
+    case "completed":
+    case "completed_late":
+    case "completed_by_other":
+      return "completed_as_planned";
+    case "resident_refused":
+      return "resident_refused";
+    case "resident_unavailable":
+      return "resident_unavailable";
+    case "not_completed":
+      return "not_completed";
+    default:
+      throw new Error(`Unsupported service outcome: ${outcome}`);
+  }
+}
+
+/**
  * Responses that are exceptions: the ones that require follow-up documentation and that feed the
  * change detector. "Completed as planned" is the only response that closes a task with nothing more
  * to say -- which is the whole point of exception-based documentation.
