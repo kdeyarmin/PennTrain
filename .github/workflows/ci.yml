@@ -74,6 +74,12 @@ jobs:
           }
 
           # application → check:all (typecheck, unit tests, edge-function checks, builds)
+          #
+          # `supabase/migrations/**` belongs here as well as in DB_PATTERNS: check:all runs
+          # check:migration-policies, check:raise-arity, check:migration-drift and
+          # check:date-only-parsing, which read the migration files directly. Without it a
+          # migrations-only PR would skip exactly the static checks written to guard migrations.
+          # deno.lock pins the Edge Function dependency graph that check:edge-functions resolves.
           APP_PATTERNS=(
             "artifacts/*"
             "scripts/*"
@@ -81,18 +87,25 @@ jobs:
             "pnpm-lock.yaml"
             "pnpm-workspace.yaml"
             ".node-version"
+            ".npmrc"
             "supabase/functions/*"
+            "supabase/migrations/*"
             "supabase/config.toml"
+            "deno.lock"
             ".github/workflows/ci.yml"
           )
 
           # database → local Supabase stack, advisors, types drift, Playwright e2e
+          # Dependency manifests are included because the e2e run builds CareBase from them.
           DB_PATTERNS=(
             "supabase/migrations/*"
             "supabase/tests/*"
             "supabase/seed*"
             "supabase/config.toml"
             "artifacts/caremetric-carebase/*"
+            "package.json"
+            "pnpm-lock.yaml"
+            "pnpm-workspace.yaml"
             "scripts/check-database*"
             "scripts/check-migration*"
             "scripts/check-raise-arity*"
