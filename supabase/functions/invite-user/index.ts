@@ -258,10 +258,43 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invite provisioning failed; no account was created" }, 500);
   }
 
+  // A successful auth invite is not operationally complete until it has a durable lifecycle receipt.
+  // Make this part of the same compensating transaction boundary: an untracked pending identity is
+  // deleted so the manager can retry cleanly instead of being left with an email that now appears
+  // "already registered" but has no invitation status in CareBase.
+  const { data: invitationId, error: invitationError } = await adminClient.rpc("record_user_invitation_sent", {
+    p_invited_user_id: invited.user.id,
+    p_email: email,
+    p_first_name: first_name,
+    p_last_name: last_name,
+    p_invited_role: role,
+    p_organization_id: effectiveOrgId,
+    p_employee_id: employeeToLink?.id ?? null,
+    p_redirect_to: redirectTo,
+    p_created_by: callerUser.id,
+  });
+  if (invitationError) {
+    console.error("invite-user lifecycle receipt failed", {
+      user_id: invited.user.id,
+      lifecycle_error: invitationError.message,
+    });
+    const { error: cleanupError } = await adminClient.auth.admin.deleteUser(invited.user.id);
+    if (cleanupError) {
+      console.error("invite-user lifecycle cleanup failed", {
+        user_id: invited.user.id,
+        lifecycle_error: invitationError.message,
+        cleanup_error: cleanupError.message,
+      });
+      return json({ error: "Invitation was sent but its lifecycle receipt requires administrator review" }, 500);
+    }
+    return json({ error: "Invitation could not be recorded; no account was kept" }, 500);
+  }
+
   return json({
     success: true,
     user: { id: invited.user.id, email: invited.user.email },
     profile: updatedProfile,
     employee_id: employeeToLink?.id ?? null,
+    invitation_id: invitationId,
   });
 });
