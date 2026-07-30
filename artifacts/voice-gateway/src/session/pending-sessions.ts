@@ -2,13 +2,9 @@
 // pennfit's pending-session pattern. The session id on the WS URL is an
 // opaque single-use ticket; the JWT and identity never ride the URL.
 //
-// This in-memory implementation matches the current single-instance
-// deployment. Known limit (accepted for the browser channel, documented in
-// the README): a deploy in the seconds between session creation and the WS
-// open loses the handoff and the browser retries with one click. The phone
-// channel — where a deploy mid-handoff kills a LIVE call (pennfit's
-// error-31920 lesson) — has its Postgres-backed swap-in already:
-// phone/postgres-stores.ts, enabled by VOICE_STATE_DATABASE_URL.
+// In-memory is fine for single-instance. Postgres-backed swap lives in
+// phone/postgres-stores.ts (shared voice_gateway schema), enabled by
+// VOICE_STATE_DATABASE_URL — required before multi-replica browser voice.
 
 export interface PendingSession {
   sessionId: string;
@@ -22,9 +18,9 @@ export interface PendingSession {
 }
 
 export interface PendingSessionStore {
-  register(entry: PendingSession): void;
+  register(entry: PendingSession): Promise<void>;
   /** One-shot: a second claim of the same id returns null. */
-  claim(sessionId: string): PendingSession | null;
+  claim(sessionId: string): Promise<PendingSession | null>;
 }
 
 export const PENDING_SESSION_TTL_MS = 60_000;
@@ -32,12 +28,12 @@ export const PENDING_SESSION_TTL_MS = 60_000;
 export class InMemoryPendingSessionStore implements PendingSessionStore {
   private readonly entries = new Map<string, PendingSession>();
 
-  register(entry: PendingSession): void {
+  async register(entry: PendingSession): Promise<void> {
     this.sweep();
     this.entries.set(entry.sessionId, entry);
   }
 
-  claim(sessionId: string): PendingSession | null {
+  async claim(sessionId: string): Promise<PendingSession | null> {
     this.sweep();
     const entry = this.entries.get(sessionId);
     if (!entry) return null;

@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -18,6 +18,8 @@ interface ProductModuleAccessContextValue {
   enabledModules: ReadonlySet<ProductModuleId>;
   isLoading: boolean;
   isError: boolean;
+  /** Re-fetch entitlements after a transient failure (error UX retry). */
+  refetch: () => void;
   canAccessModule: (moduleId: ProductModuleId) => boolean;
   canAccessPath: (path: string) => boolean;
   homePath: string | null;
@@ -30,6 +32,7 @@ const ProductModuleAccessContext = createContext<ProductModuleAccessContextValue
   enabledModules: ALL_MODULES,
   isLoading: false,
   isError: false,
+  refetch: () => {},
   canAccessModule: () => true,
   canAccessPath: () => true,
   homePath: null,
@@ -41,6 +44,7 @@ const ALLOW_LEGACY_MODULE_FAIL_OPEN = import.meta.env.VITE_CAREMETRIC_ALLOW_LEGA
 export function ProductModuleAccessProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const shouldLoadEntitlements = !!user?.organizationId && isAuthenticated && user.role !== "platform_admin";
+  const lastGoodModules = useRef<ReadonlySet<ProductModuleId> | null>(null);
   const entitlements = useQuery({
     queryKey: ["product-module-entitlements", user?.organizationId],
     queryFn: async () => {
@@ -52,13 +56,18 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
     },
     enabled: shouldLoadEntitlements,
     staleTime: 5 * 60_000,
+    retry: 2,
   });
 
   const enabledModules = useMemo(() => {
     if (!user || !isAuthenticated) return CORE_ONLY;
     if (user.role === "platform_admin") return BUILD_MODULES;
-    if (!shouldLoadEntitlements || entitlements.isError) return CORE_ONLY;
-    if (!entitlements.data) return CORE_ONLY;
+    // Transient RPC failure: keep last-good modules when we have them so paid
+    // routes do not vanish; otherwise fail closed to core-only.
+    if (shouldLoadEntitlements && entitlements.isError) {
+      return lastGoodModules.current ?? CORE_ONLY;
+    }
+    if (!shouldLoadEntitlements || !entitlements.data) return CORE_ONLY;
 
     const rows = new Map(entitlements.data.map((row) => [row.feature_key, row]));
     const hasModuleDefinitions = PRODUCT_MODULES.some((module) => rows.has(module.entitlementKey));
@@ -71,19 +80,24 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
       ? [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS]
       : [];
 
-    return withModuleDependencies(
+    const next = withModuleDependencies(
       commerciallyEnabled.filter((moduleId) => BUILD_MODULES.has(moduleId)),
     );
+    lastGoodModules.current = next;
+    return next;
   }, [entitlements.data, entitlements.isError, isAuthenticated, shouldLoadEntitlements, user]);
 
   const value = useMemo<ProductModuleAccessContextValue>(() => ({
     enabledModules,
     isLoading: shouldLoadEntitlements && entitlements.isLoading,
     isError: shouldLoadEntitlements && entitlements.isError,
+    refetch: () => {
+      void entitlements.refetch();
+    },
     canAccessModule: (moduleId) => enabledModules.has(moduleId),
     canAccessPath: (path) => canAccessProductPath(path, enabledModules),
     homePath: moduleHomePathForRole(user?.role, enabledModules),
-  }), [enabledModules, entitlements.isError, entitlements.isLoading, shouldLoadEntitlements, user?.role]);
+  }), [enabledModules, entitlements, shouldLoadEntitlements, user?.role]);
 
   return (
     <ProductModuleAccessContext.Provider value={value}>

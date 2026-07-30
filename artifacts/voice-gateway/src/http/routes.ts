@@ -7,7 +7,7 @@ import type { Request } from "express";
 import { z } from "zod";
 import type { GatewayConfig } from "../config.js";
 import type { AppRegistry } from "../apps/registry.js";
-import { verifyAppUser } from "../auth/verify-user.js";
+import { orgAiAllowedForUser, verifyAppUser } from "../auth/verify-user.js";
 import { corsHeaders, isOriginAllowed } from "./cors.js";
 import {
   PENDING_SESSION_TTL_MS,
@@ -155,11 +155,11 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
       // Cost controls, all BEFORE any Realtime session opens: the global
       // daily minutes budget, this caller's rolling-hour call/minute caps,
       // and the phone-channel + global concurrency budgets.
-      if (deps.usage.dailyBudget.isExhausted(config)) {
+      if (await deps.usage.dailyBudget.isExhausted(config)) {
         res.type("text/xml").send(busyTwiml());
         return;
       }
-      if (deps.usage.phoneCallers.check(from, config) !== "ok") {
+      if ((await deps.usage.phoneCallers.check(from, config)) !== "ok") {
         res.type("text/xml").send(busyTwiml());
         return;
       }
@@ -177,7 +177,7 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
         res.type("text/xml").send(busyTwiml());
         return;
       }
-      deps.usage.phoneCallers.recordCall(from);
+      await deps.usage.phoneCallers.recordCall(from);
       respondConnect(ticket.sid);
     })().catch((err: unknown) => {
       console.error(
@@ -274,9 +274,24 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
         return;
       }
 
+      // BAA-gated org AI: refuse Realtime sessions for orgs that have not
+      // accepted a BAA (or have ai_features_enabled=false). Platform staff
+      // without an organization_id pass this check; the platform kill-switch
+      // still gates tools.
+      const aiAllowed = await orgAiAllowedForUser(
+        appDef,
+        jwt,
+        verified.user.organizationId,
+        deps.fetchImpl,
+      );
+      if (!aiAllowed) {
+        res.status(403).json({ error: "org_ai_disabled" });
+        return;
+      }
+
       // Daily minutes kill-switch (both channels share the budget). After
       // auth on purpose: anonymous probes learn nothing about spend state.
-      if (deps.usage.dailyBudget.isExhausted(deps.config)) {
+      if (await deps.usage.dailyBudget.isExhausted(deps.config)) {
         res.status(503).json({ error: "voice_budget_exhausted" });
         return;
       }
@@ -287,7 +302,7 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
       }
 
       const sessionId = crypto.randomUUID();
-      deps.pendingStore.register({
+      await deps.pendingStore.register({
         sessionId,
         appId: appDef.id,
         userId: verified.user.userId,

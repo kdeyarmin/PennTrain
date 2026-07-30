@@ -1,3 +1,5 @@
+import { facilityToday } from "./dateUtils";
+
 /**
  * Incident follow-through (program plan Phase 6b).
  *
@@ -218,9 +220,11 @@ function correctiveActionStage(
     }
     return { status: "complete", outstanding: null };
   }
+  // Bare Postgres `date` values: compare as facility calendar days, not browser-local midnight.
+  const today = facilityToday(now);
   const overdue = open.filter((action) => {
-    const due = new Date(`${action.due_date}T23:59:59`);
-    return !Number.isNaN(due.getTime()) && due.getTime() < now.getTime();
+    if (!action.due_date || !/^\d{4}-\d{2}-\d{2}$/.test(action.due_date)) return false;
+    return action.due_date < today;
   });
   if (overdue.length > 0) {
     return { status: "overdue", outstanding: `${overdue.length} corrective action${overdue.length === 1 ? " is" : "s are"} past due.` };

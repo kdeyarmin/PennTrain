@@ -1,8 +1,8 @@
 // Cost/abuse controls for the anonymous phone front door plus the global
-// daily spend kill-switch — in-memory, same accepted single-instance limit
-// as ActiveSessionTracker and the pending stores (documented in the
-// README; the DB-backed swap is the go-live prerequisite for publishing
-// the number).
+// daily spend kill-switch. In-memory by default; Postgres-backed
+// implementations (voice_gateway.session_spans / phone_call_starts) are
+// selected when VOICE_STATE_DATABASE_URL is set so multi-instance deploys
+// share the same meters.
 //
 // Two independent meters:
 //   - PhoneCallerLimiter: per Twilio `From` number, rolling-hour caps on
@@ -22,6 +22,8 @@ const MINUTE_MS = 60_000;
 /** Live-session handle; holds the span the meters bill against. */
 export interface SessionSpan {
   startedAt: number;
+  /** Durable row id when using Postgres-backed meters. */
+  id?: string;
 }
 
 interface CallerHistory {
@@ -44,7 +46,8 @@ function overlapMs(
 
 export type PhoneCallerVerdict = "ok" | "call_cap" | "minutes_cap";
 
-/** Per-`From` rolling-hour caps (calls + minutes). */
+/** Per-`From` rolling-hour caps (calls + minutes). Async so the Postgres
+ *  multi-instance implementation can share one interface. */
 export class PhoneCallerLimiter {
   private readonly callers = new Map<string, CallerHistory>();
 
@@ -52,7 +55,7 @@ export class PhoneCallerLimiter {
 
   /** Both caps, checked before answering. "unknown" callers (no From on
    *  the webhook) share one bucket — strictest treatment, not a bypass. */
-  check(from: string, config: GatewayConfig): PhoneCallerVerdict {
+  async check(from: string, config: GatewayConfig): Promise<PhoneCallerVerdict> {
     const history = this.sweep(this.key(from));
     if (!history) return "ok";
     const t = this.now();
@@ -68,18 +71,18 @@ export class PhoneCallerLimiter {
   }
 
   /** Count an ANSWERED call (a freshly minted stream ticket). */
-  recordCall(from: string): void {
+  async recordCall(from: string): Promise<void> {
     this.ensure(this.key(from)).callStarts.push(this.now());
   }
 
   /** Start the minutes meter when the media session actually opens. */
-  sessionStarted(from: string): SessionSpan {
+  async sessionStarted(from: string): Promise<SessionSpan> {
     const span = { startedAt: this.now(), endedAt: null };
     this.ensure(this.key(from)).sessions.push(span);
     return span;
   }
 
-  sessionEnded(from: string, span: SessionSpan): void {
+  async sessionEnded(from: string, span: SessionSpan): Promise<void> {
     const history = this.callers.get(this.key(from));
     const live = history?.sessions.find((s) => s === span);
     if (live && live.endedAt === null) live.endedAt = this.now();
@@ -123,7 +126,7 @@ export class DailyMinutesBudget {
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  isExhausted(config: GatewayConfig): boolean {
+  async isExhausted(config: GatewayConfig): Promise<boolean> {
     this.roll();
     const t = this.now();
     let usedMs = this.finishedMs;
@@ -131,14 +134,14 @@ export class DailyMinutesBudget {
     return usedMs >= config.dailyMinutesBudget * MINUTE_MS;
   }
 
-  sessionStarted(): SessionSpan {
+  async sessionStarted(): Promise<SessionSpan> {
     this.roll();
     const span: SessionSpan = { startedAt: this.now() };
     this.live.add(span);
     return span;
   }
 
-  sessionEnded(span: SessionSpan): void {
+  async sessionEnded(span: SessionSpan): Promise<void> {
     this.roll();
     if (this.live.delete(span)) {
       this.finishedMs += Math.max(0, this.now() - span.startedAt);

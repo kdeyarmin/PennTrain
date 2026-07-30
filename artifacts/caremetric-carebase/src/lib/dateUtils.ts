@@ -6,8 +6,10 @@ export function toLocalIsoDate(date = new Date()): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+const FACILITY_TIME_ZONE = "America/New_York";
+
 const FACILITY_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/New_York",
+  timeZone: FACILITY_TIME_ZONE,
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -37,6 +39,70 @@ const FACILITY_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
  */
 export function facilityToday(now = new Date()): string {
   return FACILITY_DAY_FORMAT.format(now);
+}
+
+/**
+ * Offset of `timeZone` relative to UTC at the given instant, in milliseconds
+ * (positive when the zone is ahead of UTC). Used only to invert wall-clock
+ * facility times into UTC instants for timestamptz range filters.
+ */
+function timeZoneOffsetMs(timeZone: string, instant: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instant);
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? Number.NaN);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return asUtc - instant.getTime();
+}
+
+/**
+ * Convert a facility calendar date + wall-clock time (America/New_York) into a UTC Date.
+ * Iterates twice so DST transitions land on the correct offset.
+ */
+export function facilityDateTimeToUtc(isoDate: string, timeHms = "00:00:00"): Date {
+  const match = DATE_ONLY_PATTERN.exec(isoDate);
+  if (!match) throw new Error(`expected YYYY-MM-DD, got ${isoDate}`);
+  const [hour, minute, second] = timeHms.split(":").map(Number);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  let utcMs = Date.UTC(year, month - 1, day, hour, minute, second || 0);
+  for (let i = 0; i < 2; i++) {
+    const offset = timeZoneOffsetMs(FACILITY_TIME_ZONE, new Date(utcMs));
+    utcMs = Date.UTC(year, month - 1, day, hour, minute, second || 0) - offset;
+  }
+  return new Date(utcMs);
+}
+
+/**
+ * Half-open `[from, through)` UTC instants covering one Pennsylvania calendar day.
+ * Use for timestamptz range filters so "today" means the facility day, not the browser day.
+ */
+export function facilityDayBounds(isoDate: string): { from: string; through: string } {
+  const match = DATE_ONLY_PATTERN.exec(isoDate);
+  if (!match) throw new Error(`expected YYYY-MM-DD, got ${isoDate}`);
+  const from = facilityDateTimeToUtc(isoDate, "00:00:00");
+  const next = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + 1));
+  const nextIso = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+  const through = facilityDateTimeToUtc(nextIso, "00:00:00");
+  return { from: from.toISOString(), through: through.toISOString() };
+}
+
+/**
+ * Inclusive facility-day range as half-open UTC bounds: from 00:00 on `fromDate`
+ * through 00:00 on the day after `throughDate` (so the full through day is included).
+ */
+export function facilityDateRangeBounds(fromDate: string, throughDate: string): { from: string; through: string } {
+  const start = facilityDayBounds(fromDate);
+  const end = facilityDayBounds(throughDate);
+  return { from: start.from, through: end.through };
 }
 
 /** Convert a Date or ISO timestamp to a local `YYYY-MM-DDTHH:mm` string for datetime-local inputs. */
@@ -76,6 +142,23 @@ export function daysUntil(value: string | null | undefined, today = new Date()):
 
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   return Math.round((startOfDay(target) - startOfDay(today)) / MS_PER_DAY);
+}
+
+/**
+ * Whole facility-calendar-day difference from Pennsylvania "today" to a bare Postgres `date`.
+ * Prefer this over `daysUntil` when the countdown is a compliance/regulatory window
+ * (provisional hire periods, corrective-action due dates) that must agree with `pa_today()`.
+ */
+export function facilityDaysUntil(value: string | null | undefined, now = new Date()): number | null {
+  if (!value) return null;
+  const match = DATE_ONLY_PATTERN.exec(value);
+  if (!match) return null;
+  const today = facilityToday(now);
+  const todayMatch = DATE_ONLY_PATTERN.exec(today);
+  if (!todayMatch) return null;
+  const targetUtc = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const todayUtc = Date.UTC(Number(todayMatch[1]), Number(todayMatch[2]) - 1, Number(todayMatch[3]));
+  return Math.round((targetUtc - todayUtc) / MS_PER_DAY);
 }
 
 /**

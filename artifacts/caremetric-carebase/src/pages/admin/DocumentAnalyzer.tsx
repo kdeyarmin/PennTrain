@@ -451,9 +451,10 @@ export default function DocumentAnalyzer() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>AI extraction is turned off</AlertTitle>
           <AlertDescription>
-            Scanned state forms contain resident records, so extraction stays disabled until the PHI/BAA
-            review for the AI vendor is confirmed. Enable “AI Document Analyzer” in{" "}
-            <Link href="/admin/settings" className="underline">Platform Settings</Link> to start processing uploads.
+            Scanned state forms contain resident records. Extraction is off by default as a deliberate
+            product gate (vendor BAAs are on file). Enable “AI Document Analyzer” in{" "}
+            <Link href="/admin/settings" className="underline">Platform Settings</Link> when ready to process uploads,
+            and ensure the <code className="text-xs">ANTHROPIC_BAA_CONFIRMED</code> edge secret is set.
           </AlertDescription>
         </Alert>
       )}

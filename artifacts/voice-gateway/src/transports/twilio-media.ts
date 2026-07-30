@@ -159,12 +159,12 @@ function attachPhoneCall(
     if (trackerKey && !trackerFinished) {
       trackerFinished = true;
       deps.tracker.finish(trackerKey, "phone");
-      if (callerSpan) deps.usage.phoneCallers.sessionEnded(meteredFrom, callerSpan);
-      if (budgetSpan) deps.usage.dailyBudget.sessionEnded(budgetSpan);
+      if (callerSpan) void deps.usage.phoneCallers.sessionEnded(meteredFrom, callerSpan);
+      if (budgetSpan) void deps.usage.dailyBudget.sessionEnded(budgetSpan);
     }
   };
 
-  const startSession = (pending: PendingCall): void => {
+  const startSession = async (pending: PendingCall): Promise<void> => {
     // Re-check capacity here: /phone/inbound checked before answering,
     // but calls race between the webhook and the stream connecting.
     trackerKey = `phone:${pending.callSid}`;
@@ -175,8 +175,8 @@ function attachPhoneCall(
     }
     deps.tracker.start(trackerKey, "phone");
     meteredFrom = pending.from;
-    callerSpan = deps.usage.phoneCallers.sessionStarted(meteredFrom);
-    budgetSpan = deps.usage.dailyBudget.sessionStarted();
+    callerSpan = await deps.usage.phoneCallers.sessionStarted(meteredFrom);
+    budgetSpan = await deps.usage.dailyBudget.sessionStarted();
     session = new PhoneVoiceSession({
       config: deps.config,
       registry: deps.registry,
@@ -235,7 +235,7 @@ function attachPhoneCall(
     },
   };
 
-  if (claimed) startSession(claimed);
+  if (claimed) void startSession(claimed);
 
   ws.on("message", (data) => {
     let envelope: Record<string, unknown>;
@@ -279,7 +279,7 @@ function attachPhoneCall(
               return;
             }
             if (ws.readyState !== ws.OPEN) return;
-            startSession(pending);
+            void startSession(pending);
             clearTimeout(startDeadline);
           })
           .catch((err: unknown) => {

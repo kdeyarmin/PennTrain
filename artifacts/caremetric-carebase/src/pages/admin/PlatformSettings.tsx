@@ -40,7 +40,7 @@ const SETTINGS_CONFIG: Record<string, SettingConfig> = {
   },
   ai_wellness_summary_generation_enabled: {
     label: "AI Wellness Summary Generation",
-    description: "Resident assessment summary drafting via Claude. Keep disabled until the PHI/BAA review is complete.",
+    description: "Resident assessment summary drafting via Claude. Vendor BAAs are on file; enable only when ready to process production assessment data (also requires ANTHROPIC_BAA_CONFIRMED and per-org BAA).",
     type: "boolean",
   },
   ai_compliance_copilot_enabled: {
@@ -50,7 +50,7 @@ const SETTINGS_CONFIG: Record<string, SettingConfig> = {
   },
   ai_document_analyzer_enabled: {
     label: "AI Document Analyzer",
-    description: "State form extraction from scanned PDFs via Claude. Keep disabled until the PHI/BAA review is complete.",
+    description: "State form extraction from scanned PDFs via Claude. Vendor BAAs are on file; enable only when ready for live forms (also requires ANTHROPIC_BAA_CONFIRMED and per-org BAA).",
     type: "boolean",
   },
   ai_video_generation_enabled: {

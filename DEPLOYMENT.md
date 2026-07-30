@@ -56,6 +56,7 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```bash
    npx supabase secrets set HEYGEN_API_KEY=... \
      ANTHROPIC_API_KEY=... \
+     ANTHROPIC_BAA_CONFIRMED=true \
      SENDGRID_API_KEY=... \
      NOTIFICATION_FROM_EMAIL='CareMetric CareBase <notifications@cmcarebase.com>' \
      SEND_EMAIL_HOOK_SECRET='v1,whsec_...' \
@@ -68,6 +69,8 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      SIGNUP_REDIRECT_ORIGINS='https://cmcarebase.com' \
      PUBLIC_APP_URL='https://cmcarebase.com'
    ```
+   Set `ANTHROPIC_BAA_CONFIRMED=true` once the Anthropic BAA is on file (signed 2026-07-30).
+   The document analyzer refuses provider calls until this secret is exactly `true`.
    The AI Edge Functions default to the highest-capability generally available Claude model and
    then fall back through current strong models. If Anthropic changes availability, cost, or account
    entitlements, override model selection without a code deploy by setting model secrets (and
@@ -524,25 +527,22 @@ policy at all, so it was never exploitable there, but the trigger was extended f
   `current_org_id()` (derived from the authenticated JWT's `profiles` row), not a client-supplied
   value, so a request cannot claim another org's `organization_id` and have it honored.
   `facility_id` spoofing (a narrower, in-org concern) is covered by the fix above.
-- **PHI/HIPAA**: this app stores healthcare-adjacent compliance/training data (employee names,
-  training records, certificates), not clinical PHI, but treat it with the same care. Before storing
-  any real patient-linked data, confirm a Business Associate Agreement (BAA) is in place with both
-  Supabase and Railway, and that both platforms' HIPAA-eligible service tiers are enabled -- neither
-  is HIPAA-eligible by default on their base plans. Do not upload real PHI to any storage bucket
-  until that's confirmed.
-- **AI + resident data**: `resident_assessment_forms.content` is the one place in the app that
-  stores real clinical/functional-assessment content (see `residentAssessmentFormSchema.ts`). The
-  `generate-resident-assessment-summary` edge function can draft its "Overall Wellness Summary" via
-  Anthropic Claude, but this is gated off by the `ai_wellness_summary_generation_enabled`
-  `platform_settings` row, which defaults to `false`. The state form document analyzer
-  (`analyze-state-form` edge function) likewise sends scanned historical state forms -- real
-  resident demographics and handwritten clinical notes -- to Anthropic for extraction, and is
-  gated off by the `ai_document_analyzer_enabled` `platform_settings` row, which also defaults
-  to `false` (uploads still land in the Supabase-BAA-covered `state-form-analyzer` bucket and
-  simply wait in the queue). Every other AI integration in this codebase (course drafting) is
-  scoped to training content and never touches resident data -- do not flip either setting to
-  `true` until a BAA with the AI vendor has been confirmed to cover resident data, same as the
-  Supabase/Railway BAA requirement above.
+- **PHI/HIPAA — BAAs signed (2026-07-30).** CareMetric has signed Business Associate Agreements
+  covering production PHI with Supabase, Railway (as applicable to traffic that may carry PHI),
+  Anthropic (document analyzer, compliance copilot, assessment summaries, course AI), and OpenAI
+  (voice Realtime). HIPAA-eligible service tiers must remain enabled on each vendor. Per-organization
+  AI still requires a recorded org BAA acceptance (`organizations.baa_version` / `org_ai_allowed`)
+  before tenant AI features run.
+- **AI + resident data (post-BAA enablement):** `resident_assessment_forms.content` holds
+  clinical/functional-assessment content. Provider paths remain **double-gated**:
+  1. Edge secret `ANTHROPIC_BAA_CONFIRMED=true` (set in Supabase after the Anthropic BAA was filed —
+     required by `analyze-state-form` before any PDF is sent).
+  2. Platform kill-switches (`ai_wellness_summary_generation_enabled`, `ai_document_analyzer_enabled`,
+     `ai_compliance_copilot_enabled`, `voice_assistant_enabled`) — still default **false** except
+     voice which is product-enabled; flip deliberately per feature when ready to process production data.
+  3. Per-org `org_ai_allowed` (BAA stamp + `ai_features_enabled`).
+  Document analyzer uploads still land in the Supabase-covered `state-form-analyzer` bucket and wait
+  in queue until the platform switch is on. Course drafting remains training-content-only.
 
 ## 8. Verifying the deployment
 

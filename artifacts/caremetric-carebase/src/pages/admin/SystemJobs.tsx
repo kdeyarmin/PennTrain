@@ -184,6 +184,9 @@ export default function SystemJobs() {
     viteSupabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     viteSupabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     viteTurnstileSiteKey: import.meta.env.VITE_TURNSTILE_SITE_KEY,
+    viteDemoAccountsJson: import.meta.env.VITE_DEMO_ACCOUNTS_JSON,
+    viteEnablePublicDemo: import.meta.env.VITE_ENABLE_PUBLIC_DEMO,
+    isProd: import.meta.env.PROD,
     systemJobsStale: stale,
     systemJobsFailed: failed,
   });

@@ -45,8 +45,9 @@ export function useListAnalyzerJobs() {
 }
 
 /**
- * The extraction kill switch (PHI/BAA gate). Platform admins can read
- * platform_settings directly; the edge worker enforces the same setting server-side.
+ * The extraction kill switch (product enablement; vendor BAAs are on file).
+ * Platform admins can read platform_settings directly; the edge worker also
+ * requires ANTHROPIC_BAA_CONFIRMED and enforces the same setting server-side.
  */
 export function useAnalyzerEnabled() {
   return useQuery({

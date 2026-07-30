@@ -37148,6 +37148,7 @@ export type Database = {
           p_severity?: string
           p_status?: string
           p_today?: string
+          p_organization_id?: string
         }
         Returns: Json
       }

@@ -78,6 +78,21 @@ Deno.serve(async (request: Request) => {
     return json({ error: "Unauthorized" }, 401, requestId);
   }
 
+  // Per-connection rate limit (after auth, before body work) — credential theft
+  // cannot mass-provision / map org_admin without a throttle.
+  const { data: rateRows, error: rateError } = await admin.rpc("consume_scim_rate_limit", {
+    p_connection_id: material.connection_id,
+    p_cost: 1,
+  });
+  if (rateError) {
+    console.error("SCIM rate limit unavailable", rateError.message);
+    return json({ error: "Service unavailable" }, 503, requestId);
+  }
+  const rate = Array.isArray(rateRows) ? rateRows[0] : rateRows;
+  if (!rate || rate.allowed !== true) {
+    return json({ error: "rate_limit_exceeded" }, 429, requestId);
+  }
+
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
     return json({ error: "Request body is too large" }, 413, requestId);

@@ -12,6 +12,8 @@ import type { AppDefinition } from "../apps/types.js";
 export interface VerifiedUser {
   userId: string;
   role: string;
+  /** Caller's organization; null for platform-internal staff without an org. */
+  organizationId: string | null;
 }
 
 export interface VerifyFailure {
@@ -59,7 +61,7 @@ export async function verifyAppUser(
   let profileRes: Response;
   try {
     profileRes = await fetchImpl(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,is_active`,
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,is_active,organization_id`,
       { headers: { ...headers, Accept: "application/vnd.pgrst.object+json" } },
     );
   } catch {
@@ -68,9 +70,13 @@ export async function verifyAppUser(
   if (!profileRes.ok) {
     return { ok: false, failure: { status: 403, code: "no_profile" } };
   }
-  let profile: { role?: unknown; is_active?: unknown };
+  let profile: { role?: unknown; is_active?: unknown; organization_id?: unknown };
   try {
-    profile = (await profileRes.json()) as { role?: unknown; is_active?: unknown };
+    profile = (await profileRes.json()) as {
+      role?: unknown;
+      is_active?: unknown;
+      organization_id?: unknown;
+    };
   } catch {
     return { ok: false, failure: { status: 502, code: "auth_unreachable" } };
   }
@@ -82,5 +88,46 @@ export async function verifyAppUser(
     return { ok: false, failure: { status: 403, code: "role_not_allowed" } };
   }
 
-  return { ok: true, user: { userId: user.id, role: profile.role } };
+  const organizationId =
+    typeof profile.organization_id === "string" && profile.organization_id
+      ? profile.organization_id
+      : null;
+
+  return {
+    ok: true,
+    user: { userId: user.id, role: profile.role, organizationId },
+  };
+}
+
+/**
+ * BAA-gated org AI check via the caller's JWT (public.org_ai_allowed).
+ * Fails closed on network/RPC errors when an organization is in scope.
+ * Platform-internal callers with no organizationId are allowed (platform
+ * kill-switch still applies at tool time).
+ */
+export async function orgAiAllowedForUser(
+  app: AppDefinition,
+  jwt: string,
+  organizationId: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  if (!organizationId) return true;
+  const { supabaseUrl, anonKey } = app.auth;
+  try {
+    const res = await fetchImpl(`${supabaseUrl}/rest/v1/rpc/org_ai_allowed`, {
+      method: "POST",
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${jwt}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ p_org: organizationId }),
+    });
+    if (!res.ok) return false;
+    const body = await res.json();
+    return body === true;
+  } catch {
+    return false;
+  }
 }

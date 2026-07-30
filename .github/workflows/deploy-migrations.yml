@@ -92,8 +92,18 @@ jobs:
 
       # Deploy every edge function with its supabase/config.toml settings (verify_jwt et al.)
       # after the database is migrated, so functions never run ahead of the schema they need.
-      # Deploy success implies every local function directory now exists remotely at this
-      # commit's content; a content-level drift check (deployed hash vs local) remains open
-      # under PT-068's residual slice.
+      # Presence drift is re-checked after deploy; a content stamp is archived for operators.
       - name: Deploy edge functions
         run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Verify edge function presence (no pending/orphan slugs)
+        run: node scripts/check-edge-function-drift.mjs
+
+      - name: Stamp deployed function content digests
+        run: node scripts/stamp-edge-function-deploy.mjs edge-function-deploy-stamp.json
+
+      - name: Upload edge function deploy stamp
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-function-deploy-stamp
+          path: edge-function-deploy-stamp.json
