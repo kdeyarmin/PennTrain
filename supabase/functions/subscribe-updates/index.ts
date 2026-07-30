@@ -8,6 +8,7 @@ import {
 } from "../_shared/marketingEmails.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Public, unauthenticated newsletter/regulatory-update signup (requires verify_jwt:false for
 // [functions.subscribe-updates] in supabase/config.toml, the same registration as request-demo).
@@ -16,11 +17,6 @@ import { clientIp } from "../_shared/clientIp.ts";
 // because there is no caller session -- a Cloudflare Turnstile proof plus a hashed-IP submission
 // cap, both enforced before the service-role write into public.newsletter_subscribers. Clients
 // never write the table directly (it has no anon/authenticated INSERT policy or grant).
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ALLOWED_TOPICS = new Set(["regulatory_updates", "product_news"]);
@@ -34,10 +30,10 @@ class HttpError extends Error {
   }
 }
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -168,8 +164,8 @@ async function welcomeSendCeilingReached(adminClient: ReturnType<typeof createCl
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   let body: {
     name?: string;
@@ -182,8 +178,8 @@ Deno.serve(async (req: Request) => {
   try {
     body = await readJsonBody(req);
   } catch (error) {
-    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
-    return json({ error: "Invalid JSON body" }, 400);
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
 
   const name = body.name?.trim() || null;
@@ -191,18 +187,18 @@ Deno.serve(async (req: Request) => {
   const organization = body.organization?.trim() || null;
   const sourcePathRaw = body.source_path?.trim() ?? "";
 
-  if (!email) return json({ error: "email is required" }, 400);
+  if (!email) return json(req, { error: "email is required" }, 400);
   if (email.length < 3 || email.length > 320 || !EMAIL_RE.test(email)) {
-    return json({ error: "Enter a valid email address" }, 400);
+    return json(req, { error: "Enter a valid email address" }, 400);
   }
   if (name && name.length > 200) {
-    return json({ error: "name must be 200 characters or fewer" }, 400);
+    return json(req, { error: "name must be 200 characters or fewer" }, 400);
   }
   if (organization && organization.length > 200) {
-    return json({ error: "organization must be 200 characters or fewer" }, 400);
+    return json(req, { error: "organization must be 200 characters or fewer" }, 400);
   }
   if (sourcePathRaw.length > 300) {
-    return json({ error: "source_path must be 300 characters or fewer" }, 400);
+    return json(req, { error: "source_path must be 300 characters or fewer" }, 400);
   }
   // Only same-site paths are worth recording; full URLs or junk are dropped, not rejected.
   const sourcePath = sourcePathRaw.startsWith("/") ? sourcePathRaw : null;
@@ -292,7 +288,7 @@ Deno.serve(async (req: Request) => {
     // Deliberately identical response whether this email was new, already subscribed, or
     // reactivated -- an anonymous caller must not be able to use this endpoint as an oracle
     // for whether an address is on the list.
-    return json({ ok: true });
+    return json(req, { ok: true });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     const isHttpError = error instanceof HttpError;
@@ -301,6 +297,6 @@ Deno.serve(async (req: Request) => {
     if (!isHttpError || status >= 500 || internalDetail) {
       console.error(isHttpError ? "Subscribe HttpError:" : "Unexpected subscribe error:", error, internalDetail ?? "");
     }
-    return json({ ok: false, error: message }, status);
+    return json(req, { ok: false, error: message }, status);
   }
 });

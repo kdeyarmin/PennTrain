@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import {
   parsePhase2ApiCredential,
   phase2CommandContract,
@@ -17,14 +18,8 @@ const FHIR_BUNDLE_CONTRACT = phase2CommandContract("fhir.bundle.import");
 // source. Mirrors integration-api's credential auth, rate limiting, and command envelope.
 
 const MAX_BODY_BYTES = 512 * 1024;
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, content-type, idempotency-key, x-correlation-id, x-request-id, x-fhir-source-id",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
 function response(
+  req: Request,
   body: unknown,
   status: number,
   correlationId: string,
@@ -32,26 +27,29 @@ function response(
 ): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, ...phase2IntegrationHeaders(correlationId, rate) },
+    headers: {
+      ...corsHeadersForRequest(req, { headers: "authorization, content-type, idempotency-key, x-correlation-id, x-request-id, x-fhir-source-id", methods: "POST, OPTIONS" }),
+      ...phase2IntegrationHeaders(correlationId, rate),
+    },
   });
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: "authorization, content-type, idempotency-key, x-correlation-id, x-request-id, x-fhir-source-id", methods: "POST, OPTIONS" });
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const url = new URL(req.url);
   if (!url.pathname.endsWith("/v1/fhir/bundle") || req.method !== "POST") {
-    return response({ error: { code: "route_not_found" }, meta: { correlationId } }, 404, correlationId);
+    return response(req, { error: { code: "route_not_found" }, meta: { correlationId } }, 404, correlationId);
   }
 
   const plaintextKey = parsePhase2ApiCredential(req.headers.get("authorization"));
   if (!plaintextKey) {
-    return response({ error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
+    return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
   }
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
-    return response({ error: { code: "service_not_configured" }, meta: { correlationId } }, 503, correlationId);
+    return response(req, { error: { code: "service_not_configured" }, meta: { correlationId } }, 503, correlationId);
   }
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: authRows, error: authError } = await admin.rpc("authenticate_integration_api_credential", {
@@ -61,7 +59,7 @@ Deno.serve(async (req: Request) => {
   });
   const credential = Array.isArray(authRows) ? authRows[0] : authRows;
   if (authError || !credential) {
-    return response({ error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
+    return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
   }
   const { data: rateRows, error: rateError } = await admin.rpc("consume_integration_rate_limit", {
     p_credential_id: credential.credential_id,
@@ -69,7 +67,7 @@ Deno.serve(async (req: Request) => {
   });
   const rateRow = Array.isArray(rateRows) ? rateRows[0] : rateRows;
   if (rateError || !rateRow) {
-    return response({ error: { code: "rate_limit_unavailable" }, meta: { correlationId } }, 503, correlationId);
+    return response(req, { error: { code: "rate_limit_unavailable" }, meta: { correlationId } }, 503, correlationId);
   }
   const rate = {
     limit: credential.rate_limit_per_minute as number,
@@ -77,34 +75,34 @@ Deno.serve(async (req: Request) => {
     resetAt: rateRow.reset_at as string,
   };
   if (!rateRow.allowed) {
-    return response({ error: { code: "rate_limit_exceeded" }, meta: { correlationId } }, 429, correlationId, rate);
+    return response(req, { error: { code: "rate_limit_exceeded" }, meta: { correlationId } }, 429, correlationId, rate);
   }
 
   const sourceId = req.headers.get("x-fhir-source-id") ?? url.searchParams.get("source_id") ?? "";
   if (!/^[0-9a-f-]{36}$/i.test(sourceId)) {
-    return response({ error: { code: "missing_source_id" }, meta: { correlationId } }, 400, correlationId, rate);
+    return response(req, { error: { code: "missing_source_id" }, meta: { correlationId } }, 400, correlationId, rate);
   }
   const idempotencyKey = req.headers.get("idempotency-key") ?? "";
   if (idempotencyKey.length < 8 || idempotencyKey.length > 200) {
-    return response({ error: { code: "invalid_idempotency_key" }, meta: { correlationId } }, 400, correlationId, rate);
+    return response(req, { error: { code: "invalid_idempotency_key" }, meta: { correlationId } }, 400, correlationId, rate);
   }
 
   const declaredLength = Number(req.headers.get("content-length") ?? "0");
   if (declaredLength > MAX_BODY_BYTES) {
-    return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
+    return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
   }
   const rawBody = await req.text();
   if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-    return response({ error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
+    return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
   }
   let bundle: Record<string, unknown>;
   try {
     bundle = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
-    return response({ error: { code: "invalid_json" }, meta: { correlationId } }, 400, correlationId, rate);
+    return response(req, { error: { code: "invalid_json" }, meta: { correlationId } }, 400, correlationId, rate);
   }
   if (typeof bundle.resourceType !== "string") {
-    return response({ error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
+    return response(req, { error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
   }
 
   const mapped = mapFhirBundle(bundle, new Date().toISOString());
@@ -112,7 +110,7 @@ Deno.serve(async (req: Request) => {
     mapped.allergies.length + mapped.conditions.length + mapped.serviceRequests.length +
     mapped.documentReferences.length;
   if (supportedCount === 0) {
-    return response({
+    return response(req, {
       error: { code: "no_supported_resources" },
       meta: { correlationId, unsupported: mapped.unsupported },
     }, 422, correlationId, rate);
@@ -141,13 +139,13 @@ Deno.serve(async (req: Request) => {
   });
   if (commandError) {
     const conflict = commandError.code === "23505";
-    return response({
+    return response(req, {
       error: { code: conflict ? "idempotency_conflict" : "command_rejected" },
       meta: { schemaVersion: FHIR_BUNDLE_CONTRACT.schemaVersion, correlationId },
     }, conflict ? 409 : 422, correlationId, rate);
   }
   const command = Array.isArray(commandRows) ? commandRows[0] : commandRows;
-  return response({
+  return response(req, {
     data: {
       commandId: command.command_id,
       status: command.command_status,

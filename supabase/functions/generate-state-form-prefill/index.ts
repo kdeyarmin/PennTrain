@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFName } from "npm:pdf-lib@1.17.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import {
   fetchDhsTemplate,
   setFirstMatchingTextField,
@@ -14,16 +15,10 @@ import {
 // can never satisfy complete_resident_compliance_item()'s state-form requirement. The signed
 // paper form staff upload later is the only completion evidence, no exception.
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -65,11 +60,11 @@ const DHS_PREFILL_TEMPLATES: Record<
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS")
-    return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+    return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -84,7 +79,7 @@ Deno.serve(async (req: Request) => {
     error: callerAuthError,
   } = await callerClient.auth.getUser();
   if (callerAuthError || !callerUser)
-    return json({ error: "Invalid or expired session" }, 401);
+    return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -92,17 +87,17 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
   let body: { complianceItemId?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const { complianceItemId } = body;
-  if (!complianceItemId) return json({ error: "complianceItemId is required" }, 400);
+  if (!complianceItemId) return json(req, { error: "complianceItemId is required" }, 400);
 
   // RLS-scoped read on the caller's own client -- the select policy includes auditor, who must
   // not be able to trigger a service-role write, so an explicit write-role check (mirroring
@@ -116,12 +111,12 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", complianceItemId)
     .maybeSingle();
-  if (itemError) return json({ error: itemError.message }, 500);
-  if (!item) return json({ error: "Compliance item not found" }, 404);
+  if (itemError) return json(req, { error: itemError.message }, 500);
+  if (!item) return json(req, { error: "Compliance item not found" }, 404);
 
   const templatesForType = DHS_PREFILL_TEMPLATES[item.item_type];
   if (!templatesForType) {
-    return json(
+    return json(req, 
       { error: "Prefill is only available for preadmission screening and medical evaluation items" },
       400,
     );
@@ -133,7 +128,7 @@ Deno.serve(async (req: Request) => {
   } | null;
   const template = facility ? templatesForType[facility.facility_type] : undefined;
   if (!template) {
-    return json(
+    return json(req, 
       { error: "No PA DHS form is configured for this facility type" },
       400,
     );
@@ -158,7 +153,7 @@ Deno.serve(async (req: Request) => {
     hasWriteAccess = !!assignment;
   }
   if (!hasWriteAccess) {
-    return json({ error: "Not authorized to generate this document" }, 403);
+    return json(req, { error: "Not authorized to generate this document" }, 403);
   }
 
   const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
@@ -178,9 +173,9 @@ Deno.serve(async (req: Request) => {
     // A real error, not a silent success-without-url: the document row exists but its file can't
     // be served right now, and the caller needs something actionable to surface.
     if (signedError || !signed) {
-      return json({ error: signedError?.message ?? "failed to create signed url" }, 500);
+      return json(req, { error: signedError?.message ?? "failed to create signed url" }, 500);
     }
-    return json({
+    return json(req, {
       success: true,
       existing: true,
       documentId: existing.id,
@@ -202,7 +197,7 @@ Deno.serve(async (req: Request) => {
     date_of_birth: string | null;
     admission_date: string | null;
   } | null;
-  if (!resident) return json({ error: "Resident not found" }, 404);
+  if (!resident) return json(req, { error: "Resident not found" }, 404);
 
   const templateBytes = await fetchDhsTemplate(template);
   const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
@@ -256,7 +251,7 @@ Deno.serve(async (req: Request) => {
   const { error: uploadError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
     .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
-  if (uploadError) return json({ error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   // is_state_form is explicitly false (matches the column default, but stated here so it can
   // never be mistaken for an oversight): a CareMetric-prefilled download is not the signed
@@ -285,17 +280,17 @@ Deno.serve(async (req: Request) => {
       const raced = await existingResponse();
       if (raced) return raced;
     }
-    return json({ error: docError.message }, 500);
+    return json(req, { error: docError.message }, 500);
   }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
-  return json({
+  return json(req, {
     success: true,
     documentId: insertedDoc.id,
     url: signedUrlData.signedUrl,

@@ -7,6 +7,7 @@ import {
 } from "../_shared/authEmail.ts";
 import { parseFromAddress } from "../_shared/notificationDelivery.ts";
 import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Supabase Auth "Send Email" hook (Authentication -> Hooks in the dashboard): when enabled,
 // Supabase Auth calls this function instead of using SMTP/its default mailer for every
@@ -16,18 +17,12 @@ import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 // this endpoint is reachable over the public internet and verify_jwt can't apply -- Supabase's
 // own infra calls it, not a user with a JWT.
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-function errorResponse(status: number, message: string): Response {
+function errorResponse(req: Request, status: number, message: string): Response {
   return new Response(
     JSON.stringify({ error: { http_code: status, message } }),
     {
       status,
-      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+      headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
     },
   );
 }
@@ -74,16 +69,16 @@ async function sendViaSendGrid(message: AuthEmailMessage): Promise<void> {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return corsPreflightResponse(req);
   }
-  if (req.method !== "POST") return errorResponse(405, "method not allowed");
+  if (req.method !== "POST") return errorResponse(req, 405, "method not allowed");
 
   const hookSecret = (Deno.env.get("SEND_EMAIL_HOOK_SECRET") ?? "").replace(
     "v1,whsec_",
     "",
   );
   if (!hookSecret) {
-    return errorResponse(500, "SEND_EMAIL_HOOK_SECRET is not set");
+    return errorResponse(req, 500, "SEND_EMAIL_HOOK_SECRET is not set");
   }
 
   let payload: string;
@@ -92,8 +87,8 @@ Deno.serve(async (req: Request) => {
     // for long email_action_links.
     payload = await readTextBody(req, 65_536);
   } catch (error) {
-    if (error instanceof RequestBodyError) return errorResponse(error.status, error.message);
-    return errorResponse(400, "invalid body");
+    if (error instanceof RequestBodyError) return errorResponse(req, error.status, error.message);
+    return errorResponse(req, 400, "invalid body");
   }
   const headers = Object.fromEntries(req.headers);
 
@@ -108,15 +103,15 @@ Deno.serve(async (req: Request) => {
     emailData = verified.email_data;
   } catch (error) {
     console.error("send-auth-email webhook verification failed", error);
-    return errorResponse(401, "invalid webhook signature");
+    return errorResponse(req, 401, "invalid webhook signature");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  if (!supabaseUrl) return errorResponse(500, "SUPABASE_URL is not set");
+  if (!supabaseUrl) return errorResponse(req, 500, "SUPABASE_URL is not set");
 
   const messages = buildAuthEmailMessages(user, emailData, supabaseUrl);
   if (messages.length === 0) {
-    return errorResponse(
+    return errorResponse(req, 
       400,
       "No auth email messages could be built for this payload",
     );
@@ -126,11 +121,11 @@ Deno.serve(async (req: Request) => {
     for (const message of messages) await sendViaSendGrid(message);
   } catch (error) {
     console.error("send-auth-email delivery failed", error);
-    return errorResponse(500, "auth email delivery failed");
+    return errorResponse(req, 500, "auth email delivery failed");
   }
 
   return new Response(JSON.stringify({}), {
     status: 200,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 });

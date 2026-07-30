@@ -2,16 +2,12 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import QRCode from "npm:qrcode@1.5.4";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -77,11 +73,11 @@ class PdfWriter {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -92,16 +88,16 @@ Deno.serve(async (req: Request) => {
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   let body: { classId?: string; baseUrl?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const { classId, baseUrl } = body;
-  if (!classId) return json({ error: "classId is required" }, 400);
+  if (!classId) return json(req, { error: "classId is required" }, 400);
 
   // RLS-scoped read: training_classes_select already gates who can see this class. If the caller
   // isn't allowed to see it, this returns no row -- no separate authorization check needed here.
@@ -113,8 +109,8 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", classId)
     .maybeSingle();
-  if (clsError) return json({ error: clsError.message }, 500);
-  if (!cls) return json({ error: "Training class not found" }, 404);
+  if (clsError) return json(req, { error: clsError.message }, 500);
+  if (!cls) return json(req, { error: "Training class not found" }, 404);
 
   // generate_class_checkin_token() enforces its own authorization (trainer-owns-class or
   // org_admin/facility_manager) -- if the caller isn't allowed to run check-in for this class,
@@ -123,7 +119,7 @@ Deno.serve(async (req: Request) => {
     p_class_id: classId,
     p_long_lived: true,
   });
-  if (tokenError) return json({ error: tokenError.message }, 500);
+  if (tokenError) return json(req, { error: tokenError.message }, 500);
 
   const requestedOrigin = baseUrl?.replace(/\/$/, "");
   const origin = requestedOrigin && ALLOWED_APP_ORIGINS.has(requestedOrigin) ? requestedOrigin : DEFAULT_APP_ORIGIN;
@@ -199,12 +195,12 @@ Deno.serve(async (req: Request) => {
     contentType: "application/pdf",
     upsert: true,
   });
-  if (uploadError) return json({ error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(NOTICES_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
-  if (signedUrlError || !signedUrlData) return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+  if (signedUrlError || !signedUrlData) return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
 
-  return json({ success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
+  return json(req, { success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
 });
