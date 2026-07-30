@@ -1,18 +1,4 @@
-import { useListOrganizations } from "@/hooks/useOrganizations";
-import { useGetPlatformHealth } from "@/hooks/usePlatformHealth";
-import { useListSupportTickets } from "@/hooks/useSupportTickets";
-import { useListFacilities } from "@/hooks/useFacilities";
-import { useListEmployees } from "@/hooks/useEmployees";
-import { useListProfiles } from "@/hooks/useProfiles";
-import { useListInspectionItems } from "@/hooks/useInspectionItems";
-import { useListIncidents } from "@/hooks/useIncidents";
-import { useListViolations } from "@/hooks/useViolations";
-import { useListAlerts } from "@/hooks/useAlerts";
-import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
-import { useListCourses } from "@/hooks/useCourses";
-import { useListCourseAssignments } from "@/hooks/useCourseAssignments";
-import { useListTrainingPlans } from "@/hooks/useTrainingPlans";
-import { todayIso } from "@/lib/scheduleDates";
+import { useGetPlatformAdminDashboardPage, useGetPlatformHealth } from "@/hooks/usePlatformHealth";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,57 +35,58 @@ import {
 import { Link } from "wouter";
 
 export default function AdminDashboard() {
-  const { data: orgs, isLoading } = useListOrganizations();
   const { data: health, isLoading: healthLoading } = useGetPlatformHealth();
-  const { data: openTickets } = useListSupportTickets({ status: "open" });
-  const { data: facilities } = useListFacilities();
-  // Active employees only -- tenant health scores still need the live roster per org.
-  const { data: employees } = useListEmployees({ status: "active" });
-  const { data: profiles } = useListProfiles();
-  // Row-level fetches retained only for inspection readiness + compliance timeline + assignment hotspots.
-  const { data: inspectionItems } = useListInspectionItems({ isActive: true });
-  const { data: incidents } = useListIncidents();
-  const { data: violations } = useListViolations();
-  const { data: alerts } = useListAlerts({ status: "open" });
-  const { data: correctiveActions } = useListCorrectiveActions();
-  const { data: courses } = useListCourses();
-  const { data: courseAssignments } = useListCourseAssignments();
-  const { data: trainingPlans } = useListTrainingPlans();
+  const { data: dashboardPage, isLoading: dashboardLoading } = useGetPlatformAdminDashboardPage();
 
-  const totalOrgs = orgs?.length ?? 0;
-  const activeOrgs = orgs?.filter(o => o.subscription_status === "active").length ?? 0;
-  const trialOrgs = orgs?.filter(o => o.subscription_status === "trial").length ?? 0;
-  const pastDueOrgs = orgs?.filter(o => o.subscription_status === "past_due").length ?? 0;
-  const suspendedOrgs = health?.orgsByStatus?.suspended ?? orgs?.filter(o => o.subscription_status === "suspended").length ?? 0;
+  const orgsByStatus = health?.orgsByStatus ?? {};
+  const totalOrgs = Object.values(orgsByStatus).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  const activeOrgs = Number(orgsByStatus.active ?? 0);
+  const trialOrgs = Number(orgsByStatus.trial ?? 0);
+  const pastDueOrgs = Number(orgsByStatus.past_due ?? 0);
+  const suspendedOrgs = Number(orgsByStatus.suspended ?? 0);
+  const openSupportTickets = dashboardPage?.openSupportTickets ?? 0;
   const urgentWorkItems =
     (health?.notificationDeliveriesFailed ?? 0)
     + (health?.aiGenerationsFailed ?? 0)
     + (health?.systemJobsFailed ?? 0)
     + (health?.systemJobsStale ?? 0)
-    + (openTickets?.length ?? 0)
+    + openSupportTickets
     + pastDueOrgs;
-  const atRiskOrganizations = orgs?.filter((org) => ["past_due", "suspended", "trial"].includes(org.subscription_status ?? "")).slice(0, 4) ?? [];
-  const missingOrgContacts = orgs?.filter((org) => !org.contact_email || !org.contact_name).length ?? 0;
-  const facilitiesMissingLicense = facilities?.filter((facility) => !facility.license_number).length ?? 0;
-  const facilitiesMissingAddress = facilities?.filter((facility) => !facility.address || !facility.city || !facility.state || !facility.zip).length ?? 0;
-  // Prefer RPC aggregates when present; fall back to client counts during migration rollout.
-  const employeesMissingEmail = health?.employeesMissingEmail ?? employees?.filter((employee) => !employee.email).length ?? 0;
-  const employeesMissingFacility = health?.employeesMissingFacility ?? employees?.filter((employee) => !employee.facility_id).length ?? 0;
-  const organizationsWithoutAdmin = orgs?.filter((org) => !profiles?.some((profile) => profile.organization_id === org.id && profile.role === "org_admin" && profile.is_active)).length ?? 0;
-  const today = todayIso();
+  const atRiskOrganizations = (dashboardPage?.atRiskOrganizations ?? []).slice(0, 4);
+  const organizationsPage = dashboardPage?.organizationsPage ?? [];
+  const tenantHealthScores = (dashboardPage?.tenantHealthScores ?? []).slice(0, 5);
+  const inspectionReadinessScores = (dashboardPage?.inspectionReadinessScores ?? []).slice(0, 5);
+  const coursesNeedingAttention = (dashboardPage?.coursesNeedingAttention ?? []).slice(0, 5);
+  const missingOrgContacts = dashboardPage?.missingOrgContacts ?? 0;
+  const facilitiesMissingLicense = dashboardPage?.facilitiesMissingLicense ?? 0;
+  const facilitiesMissingAddress = dashboardPage?.facilitiesMissingAddress ?? 0;
+  const organizationsWithoutAdmin = dashboardPage?.organizationsWithoutAdmin ?? 0;
+  const employeesMissingEmail = health?.employeesMissingEmail ?? 0;
+  const employeesMissingFacility = health?.employeesMissingFacility ?? 0;
   const expiredCredentials = health?.expiredCredentials ?? 0;
   const expiringCredentials = health?.expiringCredentialsWithin30Days ?? 0;
-  const openIncidents = health?.openIncidents ?? incidents?.filter((incident) => incident.status !== "closed").length ?? 0;
-  const openViolations = health?.openViolations ?? violations?.filter((violation) => violation.status !== "verified").length ?? 0;
-  const openCorrectiveActions = health?.openCorrectiveActions ?? correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled").length ?? 0;
-  const overdueCorrectiveActions = health?.overdueCorrectiveActions ?? correctiveActions?.filter((action) => action.status !== "completed" && action.status !== "cancelled" && action.due_date && action.due_date < today).length ?? 0;
-  const publishedCourses = health?.publishedCourses ?? courses?.filter((course) => course.status === "published").length ?? 0;
-  const draftCourses = health?.draftCourses ?? courses?.filter((course) => course.status !== "published").length ?? 0;
-  const incompleteAssignments = health?.incompleteCourseAssignments ?? courseAssignments?.filter((assignment) => assignment.status !== "completed").length ?? 0;
-  const overdueAssignments = health?.overdueCourseAssignments ?? courseAssignments?.filter((assignment) => assignment.status !== "completed" && assignment.due_date && assignment.due_date < today).length ?? 0;
+  const openIncidents = health?.openIncidents ?? 0;
+  const openViolations = health?.openViolations ?? 0;
+  const openCorrectiveActions = health?.openCorrectiveActions ?? 0;
+  const overdueCorrectiveActions = health?.overdueCorrectiveActions ?? 0;
+  const publishedCourses = health?.publishedCourses ?? 0;
+  const draftCourses = health?.draftCourses ?? 0;
+  const incompleteAssignments = health?.incompleteCourseAssignments ?? 0;
+  const overdueAssignments = health?.overdueCourseAssignments ?? 0;
   const overdueTrainingRecords = health?.overdueTrainingRecords ?? 0;
   const pendingAttestations = health?.pendingPolicyAttestations ?? 0;
   const overdueAttestations = health?.overduePolicyAttestations ?? 0;
+
+  const complianceTimelineIconByKey = {
+    incident: AlertCircle,
+    violation: Gavel,
+    alert: ShieldAlert,
+    corrective_action: ClipboardCheck,
+  } as const;
+  const complianceTimelineItems = (dashboardPage?.complianceTimelineItems ?? []).slice(0, 6).map((item) => ({
+    ...item,
+    Icon: complianceTimelineIconByKey[item.icon] ?? AlertCircle,
+  }));
 
   const launchActions = [
     {
@@ -168,26 +155,6 @@ export default function AdminDashboard() {
     },
   ];
 
-  const tenantHealthScores = (orgs ?? [])
-    .map((org) => {
-      const facilityCount = facilities?.filter((facility) => facility.organization_id === org.id).length ?? 0;
-      const employeeCount = employees?.filter((employee) => employee.organization_id === org.id).length ?? 0;
-      const adminCount = profiles?.filter((profile) => profile.organization_id === org.id && profile.role === "org_admin" && profile.is_active).length ?? 0;
-      const riskDeductions = [
-        org.subscription_status === "past_due" ? 25 : 0,
-        org.subscription_status === "suspended" ? 45 : 0,
-        org.subscription_status === "trial" ? 5 : 0,
-        facilityCount === 0 ? 20 : 0,
-        employeeCount === 0 ? 15 : 0,
-        adminCount === 0 ? 20 : 0,
-        !org.contact_email ? 10 : 0,
-      ];
-      const score = Math.max(0, 100 - riskDeductions.reduce((sum, value) => sum + value, 0));
-      return { org, score, facilityCount, employeeCount, adminCount };
-    })
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 5);
-
   const dataQualityChecks = [
     {
       label: "Organizations missing contact owner",
@@ -236,56 +203,6 @@ export default function AdminDashboard() {
     { label: "Overdue corrective actions", count: overdueCorrectiveActions, href: "/admin/alerts", severity: "high" },
   ];
 
-  const inspectionReadinessScores = (facilities ?? [])
-    .map((facility) => {
-      const facilityInspectionItems = inspectionItems?.filter((item) => item.facility_id === facility.id) ?? [];
-      const outstandingItems = facilityInspectionItems.filter((item) => ["expired", "due_soon", "missing"].includes(item.status ?? "")).length;
-      const facilityIncidents = incidents?.filter((incident) => incident.facility_id === facility.id && incident.status !== "closed").length ?? 0;
-      const facilityViolations = violations?.filter((violation) => violation.facility_id === facility.id && violation.status !== "verified").length ?? 0;
-      const facilityOverdueActions = correctiveActions?.filter((action) => action.facility_id === facility.id && action.status !== "completed" && action.due_date && action.due_date < today).length ?? 0;
-      const score = Math.max(0, 100 - (outstandingItems * 10) - (facilityIncidents * 8) - (facilityViolations * 15) - (facilityOverdueActions * 12));
-      return { facility, score, outstandingItems, facilityIncidents, facilityViolations, facilityOverdueActions };
-    })
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 5);
-
-  const complianceTimelineItems = [
-    ...(incidents ?? []).slice(0, 8).map((incident) => ({
-      id: `incident-${incident.id}`,
-      label: incident.incident_type ? `Incident: ${incident.incident_type}` : "Incident opened",
-      date: incident.occurred_at ?? incident.created_at,
-      href: `/admin/incidents/${incident.id}`,
-      status: incident.status,
-      Icon: AlertCircle,
-    })),
-    ...(violations ?? []).slice(0, 8).map((violation) => ({
-      id: `violation-${violation.id}`,
-      label: violation.citation_ref ? `Violation: ${violation.citation_ref}` : "Violation / POC",
-      date: violation.inspection_date ?? violation.created_at,
-      href: `/admin/facilities/${violation.facility_id}`,
-      status: violation.status,
-      Icon: Gavel,
-    })),
-    ...(alerts ?? []).slice(0, 8).map((alert) => ({
-      id: `alert-${alert.id}`,
-      label: alert.title,
-      date: alert.created_at,
-      href: "/admin/alerts",
-      status: alert.severity,
-      Icon: ShieldAlert,
-    })),
-    ...(correctiveActions ?? []).slice(0, 8).map((action) => ({
-      id: `action-${action.id}`,
-      label: action.description ?? "Corrective action",
-      date: action.due_date ?? action.created_at,
-      href: action.facility_id ? `/admin/facilities/${action.facility_id}` : "/admin/alerts",
-      status: action.status,
-      Icon: ClipboardCheck,
-    })),
-  ]
-    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""))
-    .slice(0, 6);
-
   const trainingOptimizationItems = [
     { label: "Published courses", count: publishedCourses, href: "/admin/courses", severity: "good" },
     { label: "Draft / unpublished courses", count: draftCourses, href: "/admin/courses", severity: "medium" },
@@ -294,18 +211,8 @@ export default function AdminDashboard() {
     { label: "Overdue training records", count: overdueTrainingRecords, href: "/admin/employees", severity: "high" },
     { label: "Pending attestations", count: pendingAttestations, href: "/admin/help-content", severity: "medium" },
     { label: "Overdue attestations", count: overdueAttestations, href: "/admin/help-content", severity: "high" },
-    { label: "Training path templates", count: trainingPlans?.length ?? 0, href: "/admin/courses", severity: "good" },
+    { label: "Training path templates", count: dashboardPage?.trainingPlansCount ?? 0, href: "/admin/courses", severity: "good" },
   ];
-
-  const courseAssignmentCounts = new Map<string, number>();
-  (courseAssignments ?? [])
-    .filter((assignment) => assignment.status !== "completed")
-    .forEach((assignment) => courseAssignmentCounts.set(assignment.course_id, (courseAssignmentCounts.get(assignment.course_id) ?? 0) + 1));
-  const courseTitlesById = new Map((courses ?? []).map((course) => [course.id, course.title]));
-  const coursesNeedingAttention = Array.from(courseAssignmentCounts.entries())
-    .map(([courseId, count]) => ({ courseId, count, title: courseTitlesById.get(courseId) ?? "Untitled course" }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
 
   const employeeTaskBacklog = [
     { label: "Training assignments overdue", count: overdueAssignments, href: "/admin/courses", guidance: "Use this to prioritize reminders or reassignments." },
@@ -365,7 +272,7 @@ export default function AdminDashboard() {
     {
       title: "Communications & Support",
       Icon: LifeBuoy,
-      status: `${openTickets?.length ?? 0} open tickets`,
+      status: `${openSupportTickets} open tickets`,
       finding: "Support and failed notification delivery directly affect employee completion.",
       enhancement: "Clear failed deliveries and open tickets from the same operating surface.",
       links: [
@@ -547,11 +454,11 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {tenantHealthScores.map(({ org, score, facilityCount, employeeCount, adminCount }) => (
-                <Link key={org.id} href={`/admin/organizations/${org.id}`} className="block rounded-lg border p-3 hover:bg-muted/50">
+              {tenantHealthScores.map(({ id, name, score, facilityCount, employeeCount, adminCount }) => (
+                <Link key={id} href={`/admin/organizations/${id}`} className="block rounded-lg border p-3 hover:bg-muted/50">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">{org.name}</p>
+                      <p className="text-sm font-medium">{name}</p>
                       <p className="text-xs text-muted-foreground">{facilityCount} facilities · {employeeCount} active employees · {adminCount} admins</p>
                     </div>
                     <Badge variant={score < 60 ? "destructive" : score < 85 ? "secondary" : "default"}>{score}/100</Badge>
@@ -607,10 +514,10 @@ export default function AdminDashboard() {
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Inspection readiness scoring</div>
                 <div className="mt-3 space-y-2">
-                  {inspectionReadinessScores.map(({ facility, score, outstandingItems, facilityIncidents, facilityViolations, facilityOverdueActions }) => (
-                    <Link key={facility.id} href={`/admin/facilities/${facility.id}`} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
+                  {inspectionReadinessScores.map(({ id, name, score, outstandingItems, facilityIncidents, facilityViolations, facilityOverdueActions }) => (
+                    <Link key={id} href={`/admin/facilities/${id}`} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
                       <div>
-                        <p className="text-sm font-medium">{facility.name}</p>
+                        <p className="text-sm font-medium">{name}</p>
                         <p className="text-xs text-muted-foreground">{outstandingItems} inspection gaps · {facilityIncidents} incidents · {facilityViolations} violations · {facilityOverdueActions} overdue actions</p>
                       </div>
                       <Badge variant={score < 70 ? "destructive" : score < 90 ? "secondary" : "default"}>{score}/100</Badge>
@@ -814,7 +721,7 @@ export default function AdminDashboard() {
                   <LifeBuoy className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-lg font-bold leading-tight">{openTickets?.length ?? 0}</p>
+                  <p className="text-lg font-bold leading-tight">{openSupportTickets}</p>
                   <p className="text-xs text-muted-foreground">Open Support Tickets</p>
                 </div>
               </Link>
@@ -833,7 +740,7 @@ export default function AdminDashboard() {
           </Link>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {dashboardLoading ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />
@@ -841,7 +748,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="space-y-2">
-              {orgs?.map(org => (
+              {organizationsPage.map(org => (
                 <Link key={org.id} href={`/admin/organizations/${org.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer border">
                     <div className="flex items-center gap-3">
@@ -860,7 +767,7 @@ export default function AdminDashboard() {
                   </div>
                 </Link>
               ))}
-              {(!orgs || orgs.length === 0) && (
+              {organizationsPage.length === 0 && (
                 <p className="text-muted-foreground text-sm text-center py-4">No organizations found.</p>
               )}
             </div>

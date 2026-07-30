@@ -34,6 +34,71 @@ export interface PlatformHealth {
   openAlerts?: number;
 }
 
+export interface PlatformDashboardAtRiskOrganization {
+  id: string;
+  name: string;
+  plan_name: string | null;
+  subscription_status: string | null;
+}
+
+export interface PlatformDashboardOrganizationRow {
+  id: string;
+  name: string;
+  plan_name: string | null;
+  subscription_status: string | null;
+}
+
+export interface PlatformDashboardTenantHealthRow {
+  id: string;
+  name: string;
+  score: number;
+  facilityCount: number;
+  employeeCount: number;
+  adminCount: number;
+}
+
+export interface PlatformDashboardInspectionReadinessRow {
+  id: string;
+  name: string;
+  score: number;
+  outstandingItems: number;
+  facilityIncidents: number;
+  facilityViolations: number;
+  facilityOverdueActions: number;
+}
+
+export type PlatformDashboardTimelineIcon = "incident" | "violation" | "alert" | "corrective_action";
+
+export interface PlatformDashboardTimelineRow {
+  id: string;
+  label: string;
+  date: string | null;
+  href: string;
+  status: string | null;
+  icon: PlatformDashboardTimelineIcon;
+}
+
+export interface PlatformDashboardCourseHotspotRow {
+  courseId: string;
+  title: string;
+  count: number;
+}
+
+export interface PlatformDashboardPage {
+  openSupportTickets: number;
+  missingOrgContacts: number;
+  facilitiesMissingLicense: number;
+  facilitiesMissingAddress: number;
+  organizationsWithoutAdmin: number;
+  trainingPlansCount: number;
+  atRiskOrganizations: PlatformDashboardAtRiskOrganization[];
+  organizationsPage: PlatformDashboardOrganizationRow[];
+  tenantHealthScores: PlatformDashboardTenantHealthRow[];
+  inspectionReadinessScores: PlatformDashboardInspectionReadinessRow[];
+  complianceTimelineItems: PlatformDashboardTimelineRow[];
+  coursesNeedingAttention: PlatformDashboardCourseHotspotRow[];
+}
+
 export function useGetPlatformHealth() {
   return useQuery({
     queryKey: ["platform-health"],
@@ -41,6 +106,31 @@ export function useGetPlatformHealth() {
       const { data, error } = await supabase.rpc("get_platform_health");
       if (error) throw error;
       return data as unknown as PlatformHealth;
+    },
+    refetchInterval: 60000,
+  });
+}
+
+export function useGetPlatformAdminDashboardPage(
+  params: { limit?: number; offset?: number; organizationsLimit?: number; organizationsOffset?: number } = {},
+) {
+  const {
+    limit = 6,
+    offset = 0,
+    organizationsLimit = 20,
+    organizationsOffset = 0,
+  } = params;
+  return useQuery({
+    queryKey: ["platform-admin-dashboard-page", limit, offset, organizationsLimit, organizationsOffset],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_platform_admin_dashboard_page" as never, {
+        p_limit: limit,
+        p_offset: offset,
+        p_organizations_limit: organizationsLimit,
+        p_organizations_offset: organizationsOffset,
+      } as never);
+      if (error) throw error;
+      return (data ?? {}) as PlatformDashboardPage;
     },
     refetchInterval: 60000,
   });
