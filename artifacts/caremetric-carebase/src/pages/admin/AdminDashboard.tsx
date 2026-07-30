@@ -57,7 +57,8 @@ export default function AdminDashboard() {
   const { data: health, isLoading: healthLoading } = useGetPlatformHealth();
   const { data: openTickets } = useListSupportTickets({ status: "open" });
   const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees();
+  // Active employees only -- data-quality counts and tenant health scores only care about the live roster.
+  const { data: employees } = useListEmployees({ status: "active" });
   const { data: profiles } = useListProfiles();
   const { data: credentials } = useListEmployeeCredentials();
   const { data: inspectionItems } = useListInspectionItems({ isActive: true });
@@ -68,7 +69,8 @@ export default function AdminDashboard() {
   const { data: courses } = useListCourses();
   const { data: courseAssignments } = useListCourseAssignments();
   const { data: trainingRecords } = useListTrainingRecords();
-  const { data: policyAttestations } = useListPolicyAttestations();
+  // Pending attestations only -- pending/overdue KPIs never need completed rows.
+  const { data: policyAttestations } = useListPolicyAttestations({ status: "pending" });
   const { data: trainingPlans } = useListTrainingPlans();
 
   const totalOrgs = orgs?.length ?? 0;
@@ -87,8 +89,9 @@ export default function AdminDashboard() {
   const missingOrgContacts = orgs?.filter((org) => !org.contact_email || !org.contact_name).length ?? 0;
   const facilitiesMissingLicense = facilities?.filter((facility) => !facility.license_number).length ?? 0;
   const facilitiesMissingAddress = facilities?.filter((facility) => !facility.address || !facility.city || !facility.state || !facility.zip).length ?? 0;
-  const employeesMissingEmail = employees?.filter((employee) => employee.status === "active" && !employee.email).length ?? 0;
-  const employeesMissingFacility = employees?.filter((employee) => employee.status === "active" && !employee.facility_id).length ?? 0;
+  // Already restricted to status=active at the query level.
+  const employeesMissingEmail = employees?.filter((employee) => !employee.email).length ?? 0;
+  const employeesMissingFacility = employees?.filter((employee) => !employee.facility_id).length ?? 0;
   const organizationsWithoutAdmin = orgs?.filter((org) => !profiles?.some((profile) => profile.organization_id === org.id && profile.role === "org_admin" && profile.is_active)).length ?? 0;
   const today = todayIso();
   const soon = new Date();
@@ -109,8 +112,9 @@ export default function AdminDashboard() {
   const overdueTrainingRecords = selectCurrentTrainingRecords(trainingRecords ?? [])
     .filter((record) => (record.status === "expired" || record.status === "due_soon") && record.due_date && record.due_date < today)
     .length;
-  const pendingAttestations = policyAttestations?.filter((attestation) => attestation.status === "pending").length ?? 0;
-  const overdueAttestations = policyAttestations?.filter((attestation) => attestation.status === "pending" && attestation.due_date && attestation.due_date < today).length ?? 0;
+  // Already restricted to status=pending at the query level.
+  const pendingAttestations = policyAttestations?.length ?? 0;
+  const overdueAttestations = policyAttestations?.filter((attestation) => attestation.due_date && attestation.due_date < today).length ?? 0;
 
   const launchActions = [
     {
@@ -182,7 +186,7 @@ export default function AdminDashboard() {
   const tenantHealthScores = (orgs ?? [])
     .map((org) => {
       const facilityCount = facilities?.filter((facility) => facility.organization_id === org.id).length ?? 0;
-      const employeeCount = employees?.filter((employee) => employee.organization_id === org.id && employee.status === "active").length ?? 0;
+      const employeeCount = employees?.filter((employee) => employee.organization_id === org.id).length ?? 0;
       const adminCount = profiles?.filter((profile) => profile.organization_id === org.id && profile.role === "org_admin" && profile.is_active).length ?? 0;
       const riskDeductions = [
         org.subscription_status === "past_due" ? 25 : 0,
