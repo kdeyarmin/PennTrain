@@ -74,11 +74,15 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
   }
 }
 
+type QueryClient = {
+  from: (...args: any[]) => any;
+};
+
 // Same lightweight approach as request-demo: cap flooding by counting recent rows from one hashed
 // IP rather than a dedicated ledger.
-// Structural typing (not ReturnType<typeof createClient>) avoids supabase-js generic mismatch
-// under Deno check once @ts-nocheck is removed.
-async function enforceIpRateLimit(adminClient: { from: (table: string) => any }, ipHash: string): Promise<void> {
+// Keep the client contract loose here: Supabase's `from(...)` signature is schema-aware and can
+// become narrower than `string`, which breaks Deno assignability for a purely read/write helper.
+async function enforceIpRateLimit(adminClient: QueryClient, ipHash: string): Promise<void> {
   const maxPerHour = parsePositiveInteger(Deno.env.get("NEWSLETTER_MAX_IP_REQUESTS_PER_HOUR"), 5);
   const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await adminClient
@@ -147,7 +151,7 @@ async function sendWelcomeEmail(params: {
 // turn a per-IP cap into unbounded sends. Rows touched in the last hour over-count sends
 // slightly (duplicate re-subscribes bump updated_at without sending), which errs on the safe
 // side. Fails closed on the send only: subscriptions still succeed past the ceiling.
-async function welcomeSendCeilingReached(adminClient: { from: (table: string) => any }): Promise<boolean> {
+async function welcomeSendCeilingReached(adminClient: QueryClient): Promise<boolean> {
   const globalMaxPerHour = parsePositiveInteger(Deno.env.get("NEWSLETTER_GLOBAL_MAX_WELCOME_SENDS_PER_HOUR"), 50);
   const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await adminClient
