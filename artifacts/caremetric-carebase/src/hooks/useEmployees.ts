@@ -42,6 +42,30 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
   });
 }
 
+// Targeted lookup by primary key for pages that only need labels / rows for a known, small set of
+// employee ids (kiosk cross-facility attendees, exclusion-match labels, audit-entity resolution).
+// Prefer this over useListEmployees({}) whenever the caller already has the ids -- it keeps the
+// payload proportional to the work on screen instead of the whole tenant roster.
+export function useListEmployeesByIds(ids: string[]) {
+  // Sort for a stable query key so reordering the same set does not refetch.
+  const sortedIds = [...ids].filter(Boolean).sort();
+  return useQuery({
+    queryKey: ["employees", "by-ids", sortedIds],
+    queryFn: async () => {
+      if (sortedIds.length === 0) return [] as Employee[];
+      // PostgREST .in() is fine for the small batches these call sites produce (typically <50).
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .in("id", sortedIds)
+        .order("last_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: sortedIds.length > 0,
+  });
+}
+
 export type EmployeeSortField = "lastName" | "status" | "jobTitle" | "hireDate";
 
 const SORT_COLUMNS: Record<EmployeeSortField, string> = {
