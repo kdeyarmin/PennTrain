@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployeesByIds } from "@/hooks/useEmployees";
 import {
   useListExclusionScreeningMatches, useListExclusionSourceHealth, useReviewExclusionScreeningMatch,
   useRescanOrgExclusionMatches, type ExclusionScreeningMatch, type ExclusionSourceHealth,
@@ -61,7 +61,12 @@ export default function ExclusionScreening() {
     status: statusFilter === "all" ? undefined : (statusFilter as ExclusionScreeningMatch["status"]),
   });
   const { data: sourceHealth, isLoading: healthLoading, error: healthError } = useListExclusionSourceHealth();
-  const { data: employees } = useListEmployees();
+  // Only the employees referenced by the current match page -- not the whole roster.
+  const matchEmployeeIds = useMemo(
+    () => [...new Set((matches ?? []).map((m) => m.employee_id))],
+    [matches],
+  );
+  const { data: employees } = useListEmployeesByIds(matchEmployeeIds);
   const { mutateAsync: review, isPending: reviewingPending } = useReviewExclusionScreeningMatch();
   const { mutateAsync: rescan, isPending: rescanning } = useRescanOrgExclusionMatches();
 
