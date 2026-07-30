@@ -75,6 +75,20 @@ insert into public.employees(
   'c2500000-0000-4000-8000-000000000101', 'c2500000-0000-4000-8000-000000000001',
   'c2500000-0000-4000-8000-000000000011', 'Future', 'Risk', 'Caregiver', 'active', true
 );
+insert into public.training_types(
+  id, organization_id, code, name, category, state, applies_to_facility_type, is_active
+) values (
+  'c2500000-0000-4000-8000-000000000301', 'c2500000-0000-4000-8000-000000000001',
+  'FORECAST-TRAINING', 'Forecast training', 'annual', 'PA', 'BOTH', true
+);
+
+-- Employee/training triggers auto-create baseline "missing" rows, and inserting the training type
+-- above re-runs the requirement auto-assignment engine for this employee. Clean up only after every
+-- trigger has fired so the forecast assertions are driven solely by explicit fixture data.
+delete from public.employee_credentials
+where employee_id = 'c2500000-0000-4000-8000-000000000101';
+delete from public.employee_training_records
+where employee_id = 'c2500000-0000-4000-8000-000000000101';
 insert into public.employee_credentials(
   id, organization_id, facility_id, employee_id, credential_type, credential_label,
   status, expiration_date
@@ -82,12 +96,6 @@ insert into public.employee_credentials(
   'c2500000-0000-4000-8000-000000000201', 'c2500000-0000-4000-8000-000000000001',
   'c2500000-0000-4000-8000-000000000011', 'c2500000-0000-4000-8000-000000000101',
   'other', 'First aid', 'compliant', public.pa_today() + 20
-);
-insert into public.training_types(
-  id, organization_id, code, name, category, state, applies_to_facility_type, is_active
-) values (
-  'c2500000-0000-4000-8000-000000000301', 'c2500000-0000-4000-8000-000000000001',
-  'FORECAST-TRAINING', 'Forecast training', 'annual', 'PA', 'BOTH', true
 );
 insert into public.employee_training_records(
   id, organization_id, facility_id, employee_id, training_type_id, status,
@@ -97,17 +105,6 @@ insert into public.employee_training_records(
   'c2500000-0000-4000-8000-000000000011', 'c2500000-0000-4000-8000-000000000101',
   'c2500000-0000-4000-8000-000000000301', 'compliant', public.pa_today() - 300, public.pa_today() + 40
 );
-
--- The employee insert trigger (instantiate_requirements) creates missing credential shells
--- (act34_criminal_history, tb_screening) and missing training records for every applicable
--- system training type. Remove those auto-created rows so the forecast tests see only the
--- specific credential and training record that this test deliberately inserted.
-delete from public.employee_credentials
-  where employee_id = 'c2500000-0000-4000-8000-000000000101'
-    and credential_type in ('act34_criminal_history', 'tb_screening');
-delete from public.employee_training_records
-  where employee_id = 'c2500000-0000-4000-8000-000000000101'
-    and id != 'c2500000-0000-4000-8000-000000000401';
 
 set local role service_role;
 select is(
@@ -147,14 +144,14 @@ select lives_ok(
 select is(
   (select count(*)::int from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   1,
   'one expiring credential becomes one deduplicated work item'
 );
 select is(
   (select priority from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   'high',
   'a future 30-day readiness risk is high priority rather than a current urgent blocker'
 );
@@ -168,7 +165,7 @@ select public.run_workforce_readiness_forecast_maintenance();
 select is(
   (select state from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   'closed',
   'the forecast work item closes when the source record no longer presents a 30-day risk'
 );
