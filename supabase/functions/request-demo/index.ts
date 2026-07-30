@@ -65,7 +65,7 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
 // Lighter sibling of signup-organization's reserve/finalize attempt ledger: demo requests only
 // write a row on success, so counting recent rows by hashed IP is enough to cap table flooding
 // without a dedicated RPC pair.
-async function enforceIpRateLimit(adminClient: ReturnType<typeof createClient>, ipHash: string): Promise<void> {
+async function enforceIpRateLimit(adminClient: { from: (table: string) => any }, ipHash: string): Promise<void> {
   const maxPerHour = parsePositiveInteger(Deno.env.get("DEMO_MAX_IP_REQUESTS_PER_HOUR"), 5);
   const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await adminClient
