@@ -215,3 +215,8 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 - **PennFit migration**: PennFit keeps its own embedded voice stack for
   now; migrating it onto this gateway as the second registered app is a
   deliberate future project.
+
+
+## PHI / BAA
+
+CareMetric's OpenAI BAA covering voice Realtime is on file (2026-07-30). Browser sessions still require per-org `org_ai_allowed` and the platform `voice_assistant_enabled` switch. Do not speak resident or staff identifiers (enforced in session instructions).

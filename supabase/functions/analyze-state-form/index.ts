@@ -12,15 +12,15 @@
 // audit table: the durable job row already records requested_by, the serving model,
 // attempt counts, timestamps, and the failure reason for every extraction call.
 //
-// PHI BOUNDARY (audit residual): this path intentionally sends the raw scanned PDF to
-// Anthropic because the product is OCR/transcription of historical state forms. There is
-// no local OCR/redaction pipeline. Operators MUST:
-//   1. Keep platform_settings.ai_document_analyzer_enabled = false until an Anthropic BAA
-//      covering resident PHI is signed (seeded false).
-//   2. Set edge secret ANTHROPIC_BAA_CONFIRMED=true only after that BAA is on file.
+// PHI BOUNDARY: this path intentionally sends the raw scanned PDF to Anthropic because the
+// product is OCR/transcription of historical state forms. There is no local OCR/redaction
+// pipeline. CareMetric's Anthropic BAA covering resident PHI is on file (2026-07-30). Operators:
+//   1. Set edge secret ANTHROPIC_BAA_CONFIRMED=true in Supabase (required before any provider call).
+//   2. Flip platform_settings.ai_document_analyzer_enabled only when ready to process live forms
+//      (still seeded false — deliberate product enablement, not a legal hold).
 //   3. Never log PDF bytes, base64 payloads, resident names, or extraction notes.
-// The platform kill-switch, org BAA gate (orgAiAllowed), and ANTHROPIC_BAA_CONFIRMED
-// env gate all fail closed.
+// The platform kill-switch, org BAA gate (orgAiAllowed), and ANTHROPIC_BAA_CONFIRMED env gate
+// all fail closed.
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
@@ -38,8 +38,9 @@ const ANALYZER_JOB_KEY = "document-analyzer-extraction";
 const ANALYZER_SETTING_KEY = "ai_document_analyzer_enabled";
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 
-/** Belt-and-suspenders legal gate: even if the platform setting is flipped on,
- *  refuse provider calls until operators confirm an Anthropic BAA is on file. */
+/** Belt-and-suspenders ops gate: even if the platform setting is flipped on,
+ *  refuse provider calls until ANTHROPIC_BAA_CONFIRMED=true is set in secrets
+ *  (Anthropic BAA covering resident PHI is on file as of 2026-07-30). */
 function anthropicBaaConfirmed(): boolean {
   try {
     return Deno.env.get("ANTHROPIC_BAA_CONFIRMED") === "true";
@@ -213,7 +214,7 @@ async function processClaimedJob(
   if (!anthropicBaaConfirmed()) {
     throw new AnalyzerJobError(
       "anthropic_baa_required",
-      "Document analyzer is blocked until ANTHROPIC_BAA_CONFIRMED=true (Anthropic BAA covering resident PHI must be on file).",
+      "Document analyzer is blocked until the ANTHROPIC_BAA_CONFIRMED edge secret is true (set in Supabase after the Anthropic BAA is on file).",
     );
   }
   // Download PDF for provider transcription. Never log bytes, base64, or paths with PHI.
@@ -352,7 +353,7 @@ Deno.serve(async (req: Request) => {
   if (enabled === null) return json(req, { error: "Failed to read platform AI settings" }, 500);
   if (!enabled) {
     return json(req, {
-      error: "State form extraction is currently disabled by the platform administrator. Enable it in Platform Settings once the PHI/BAA review is complete.",
+      error: "State form extraction is currently disabled by the platform administrator. Enable “AI Document Analyzer” in Platform Settings when ready to process live forms (vendor BAAs are on file; ANTHROPIC_BAA_CONFIRMED must also be set).",
     }, 403);
   }
 

@@ -99,13 +99,9 @@ This pass also **fixed eight confirmed correctness/security defects** (see §Fix
 ## Recommended next actions
 
 1. Merge `fix/audit-2026-07-30-critical-bugs` after CI.  
-2. Legal/infra: Anthropic + OpenAI BAAs; default AI kill-switches off until signed.  
-3. Redact or re-architect `analyze-state-form`.  
-4. Vault-seed functions base URL for all crons (finish PT-069).  
-5. Functions content drift gate (finish PT-068).  
-6. Require `VOICE_STATE_DATABASE_URL` before publishing the shared number; pin single replica or share meters.  
-7. Add `p_organization_id` to incident list summary (or client-filter when platform admin).  
-8. SCIM rate limits + `report-client-error` rate limits.
+2. **Ops:** set `ANTHROPIC_BAA_CONFIRMED=true`, `VOICE_STATE_DATABASE_URL`, vault `supabase_functions_base_url`; flip AI kill-switches deliberately when ready (legal BAAs closed 2026-07-30).  
+3. Optional hardening: OCR/redact before `analyze-state-form` provider call (defense-in-depth; not a legal blocker).  
+4. Confirm Railway PHI scope matches traffic path (static SPA; PHI primarily Supabase + AI vendors).
 
 ## Method note
 
@@ -131,4 +127,10 @@ All residual items from §Open findings were addressed on `fix/audit-2026-07-30-
 | 11 | Incident form validation | Min narrative, high-sev notifications, occurred-at checks |
 | 12 | Demo password prod guard | `parseDemoAccounts` prod refuse + banned seeds + readiness check |
 
-**Remaining outside pure code (legal/ops):** signed Anthropic + OpenAI BAAs; set `ANTHROPIC_BAA_CONFIRMED=true` and `VOICE_STATE_DATABASE_URL` in production; seed `supabase_functions_base_url` vault for non-prod projects.
+**Legal (closed 2026-07-30):** Anthropic, OpenAI, Supabase, and Railway BAAs are signed.
+
+**Remaining ops (secrets / enablement only):**
+1. Set Supabase edge secret `ANTHROPIC_BAA_CONFIRMED=true` (analyzer fails closed without it).
+2. Set `VOICE_STATE_DATABASE_URL` on the voice gateway before multi-replica / public phone.
+3. Seed vault `supabase_functions_base_url` for non-prod projects.
+4. Flip platform AI kill-switches deliberately when ready for production traffic (still default off for document analyzer / wellness summary).

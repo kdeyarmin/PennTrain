@@ -83,9 +83,11 @@ Data model (delivered in M2 — FHIR medication lane):
 
 ## Open items to flag (product / legal / infra)
 
-- **BAA & infrastructure.** Production PHI requires a signed Supabase Business Associate Agreement,
-  confirmation that Railway is either in PHI scope or that PHI never transits it, and a documented
-  data-retention/lifecycle policy for clinical tables.
+- **BAA & infrastructure (updated 2026-07-30).** BAAs are signed for Supabase, Railway (as
+  applicable), Anthropic, and OpenAI. Keep HIPAA-eligible tiers enabled. Remaining infra hygiene:
+  document data-retention/lifecycle for clinical tables (partially delivered via
+  `data_lifecycle_policies`) and confirm Railway PHI scope matches the traffic path (static SPA
+  on Railway; PHI primarily via Supabase + AI vendors).
 - **Per-facility enablement (delivered, M6).** M0 gates clinical capability at the organization
   level (`clinical.ehr`); `facilities.clinical_enabled` (default `true`) now adds a per-facility
   switch, toggled by an org admin via `public.set_facility_clinical_enabled(facility, enabled)`.
