@@ -75,7 +75,6 @@ insert into public.employees(
   'c2500000-0000-4000-8000-000000000101', 'c2500000-0000-4000-8000-000000000001',
   'c2500000-0000-4000-8000-000000000011', 'Future', 'Risk', 'Caregiver', 'active', true
 );
-
 insert into public.training_types(
   id, organization_id, code, name, category, state, applies_to_facility_type, is_active
 ) values (
@@ -90,7 +89,6 @@ delete from public.employee_credentials
 where employee_id = 'c2500000-0000-4000-8000-000000000101';
 delete from public.employee_training_records
 where employee_id = 'c2500000-0000-4000-8000-000000000101';
-
 insert into public.employee_credentials(
   id, organization_id, facility_id, employee_id, credential_type, credential_label,
   status, expiration_date
@@ -146,14 +144,14 @@ select lives_ok(
 select is(
   (select count(*)::int from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   1,
   'one expiring credential becomes one deduplicated work item'
 );
 select is(
   (select priority from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   'high',
   'a future 30-day readiness risk is high priority rather than a current urgent blocker'
 );
@@ -162,11 +160,12 @@ reset role;
 update public.employee_credentials
 set expiration_date = public.pa_today() + 100
 where id = 'c2500000-0000-4000-8000-000000000201';
+set local role service_role;
 select public.run_workforce_readiness_forecast_maintenance();
 select is(
   (select state from public.work_items
    where organization_id = 'c2500000-0000-4000-8000-000000000001'
-     and deduplication_key = 'readiness-forecast:credential:c2500000-0000-4000-8000-000000000201'),
+     and deduplication_key = 'readiness-forecast:c2500000-0000-4000-8000-000000000011:credential:c2500000-0000-4000-8000-000000000201'),
   'closed',
   'the forecast work item closes when the source record no longer presents a 30-day risk'
 );
