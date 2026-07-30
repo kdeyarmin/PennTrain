@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const correlationId = req.headers.get("x-correlation-id") ||
     crypto.randomUUID();
   const { data: jobClaims, error: runError } = await adminClient.rpc(

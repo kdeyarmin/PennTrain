@@ -378,7 +378,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   let requestedCertificate: CertificateRecord | null = null;
 
   if (!isCronRequest) {
@@ -390,7 +390,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "certificateId is required" }, 400);
     }
 
-    const callerClient = createClient<any>(supabaseUrl, anonKey, {
+    const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user }, error: authError } = await callerClient.auth

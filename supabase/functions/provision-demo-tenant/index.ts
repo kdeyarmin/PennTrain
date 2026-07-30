@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Provisions the public demo sandbox: ensures the demo organization exists, creates (or refreshes)
 // the five synthetic public-demo login accounts via the Admin API, and seeds the demo data. This is
 // the hosted counterpart to supabase/seed.sql's local-only demo users (see DEPLOYMENT.md ->
@@ -12,15 +11,10 @@
 // public -- they ship in the bundle for the /demo one-click login), and this function returns a
 // ready-to-paste VITE_DEMO_ACCOUNTS_JSON so the two never drift.
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-demo-provision-secret",
-};
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
@@ -28,7 +22,7 @@ function json(body: unknown, status = 200) {
       // The success payload carries the demo password; keep every response out of shared/proxy
       // and client caches.
       "Cache-Control": "no-store",
-      ...CORS_HEADERS,
+      ...corsHeadersForRequest(req, { headers: "authorization, x-client-info, apikey, content-type, x-demo-provision-secret", methods: "POST, OPTIONS" }),
     },
   });
 }
@@ -98,29 +92,29 @@ const DEMO_ACCOUNTS = [
 ];
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: "authorization, x-client-info, apikey, content-type, x-demo-provision-secret", methods: "POST, OPTIONS" });
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const provisionSecret = Deno.env.get("DEMO_PROVISION_SECRET");
   const password = Deno.env.get("DEMO_ACCOUNT_PASSWORD");
   if (!provisionSecret || !password) {
-    return json(
+    return json(req, 
       { error: "Demo provisioning is not configured (set DEMO_PROVISION_SECRET and DEMO_ACCOUNT_PASSWORD)." },
       503,
     );
   }
   const provided = req.headers.get("x-demo-provision-secret") ?? "";
   if (!(await secretsMatch(provided, provisionSecret))) {
-    return json({ error: "Unauthorized" }, 401);
+    return json(req, { error: "Unauthorized" }, 401);
   }
   if (password.length < 8) {
-    return json({ error: "DEMO_ACCOUNT_PASSWORD must be at least 8 characters." }, 400);
+    return json(req, { error: "DEMO_ACCOUNT_PASSWORD must be at least 8 characters." }, 400);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const admin = createClient<any>(supabaseUrl, serviceRoleKey);
+  const admin = createClient(supabaseUrl, serviceRoleKey);
 
   // 1. Ensure the demo organization exists (idempotent on slug). The check constraint requires
   //    demo_seed_version > 0 whenever is_demo is true.
@@ -133,7 +127,7 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (orgError || !org) {
-    return json({ error: `Could not ensure demo organization: ${orgError?.message ?? "unknown error"}` }, 500);
+    return json(req, { error: `Could not ensure demo organization: ${orgError?.message ?? "unknown error"}` }, 500);
   }
   const organizationId = org.id as string;
 
@@ -200,7 +194,7 @@ Deno.serve(async (req: Request) => {
   let seed = "skipped";
   try {
     const orgAdmin = DEMO_ACCOUNTS.find((account) => account.role === "org_admin")!;
-    const userClient = createClient<any>(supabaseUrl, anonKey);
+    const userClient = createClient(supabaseUrl, anonKey);
     const { error: signInError } = await userClient.auth.signInWithPassword({
       email: orgAdmin.email,
       password,
@@ -310,7 +304,7 @@ Deno.serve(async (req: Request) => {
     })),
   );
 
-  return json({
+  return json(req, {
     success: true,
     organization_id: organizationId,
     accounts,

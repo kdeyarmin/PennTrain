@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Public, unauthenticated status-check endpoint by design (see verify_jwt:false in
 // supabase/config.toml) -- the signup page and a pre-auth maintenance banner need to know
@@ -8,27 +8,23 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 // table is platform_admin-only at the RLS layer -- see 20260706043635_create_platform_settings.sql)
 // but only ever surfaces the two curated fields below; it must never echo back the full table or
 // any other settings key, since anyone can call this without a JWT.
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
   // Accept both GET and POST -- supabase-js's functions.invoke() defaults to POST with no body,
   // and this endpoint takes no input either way, so there's no meaningful REST distinction here.
-  if (req.method !== "GET" && req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method !== "GET" && req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
   // Defensive fallbacks only -- these two rows are seeded by the platform_settings migration and
   // should always be present, but this endpoint must never throw just because a row is missing.
@@ -45,5 +41,5 @@ Deno.serve(async (req: Request) => {
     if (row.key === "signup_enabled") signupEnabled = Boolean(row.value);
   }
 
-  return json({ maintenanceMode, signupEnabled });
+  return json(req, { maintenanceMode, signupEnabled });
 });

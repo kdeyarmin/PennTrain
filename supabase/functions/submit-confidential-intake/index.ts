@@ -1,13 +1,10 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
-  headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  headers: { ...corsHeadersForRequest(req), "Content-Type": "application/json" },
 });
 const clientIp = (req: Request) => req.headers.get("cf-connecting-ip")
   ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -17,22 +14,22 @@ const sha256 = async (value: string) => Array.from(
 ).join("");
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "method_not_allowed" }, 405);
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
-  if (!url || !key || !secret) return json({ error: "intake_not_configured" }, 500);
+  if (!url || !key || !secret) return json(req, { error: "intake_not_configured" }, 500);
 
   const admin = createClient(url, key, { auth: { persistSession: false } });
   let body: Record<string, any>;
   try {
     body = await readJsonBody(req, 65_536);
   } catch (error) {
-    if (error instanceof RequestBodyError) return json({ error: error.message === "Invalid JSON body" ? "invalid_json" : "payload_too_large" }, error.status);
-    return json({ error: "invalid_json" }, 400);
+    if (error instanceof RequestBodyError) return json(req, { error: error.message === "Invalid JSON body" ? "invalid_json" : "payload_too_large" }, error.status);
+    return json(req, { error: "invalid_json" }, 400);
   }
-  if (!body?.turnstile_token) return json({ error: "verification_required" }, 400);
+  if (!body?.turnstile_token) return json(req, { error: "verification_required" }, 400);
   const ip = clientIp(req);
   const ipHash = await sha256(`${Deno.env.get("INTAKE_RATE_LIMIT_SALT") ?? secret}:${ip}`);
   const { data: reservationId, error: reservationError } = await admin.rpc(
@@ -40,9 +37,9 @@ Deno.serve(async (req) => {
     { p_ip_hash: ipHash, p_facility_id: body.facility_id ?? null, p_limit: 5 },
   );
   if (reservationError?.message.includes("confidential_intake_rate_limited")) {
-    return json({ error: "rate_limited" }, 429);
+    return json(req, { error: "rate_limited" }, 429);
   }
-  if (reservationError || reservationId == null) return json({ error: "intake_unavailable" }, 503);
+  if (reservationError || reservationId == null) return json(req, { error: "intake_unavailable" }, 503);
 
   const finalize = async (success: boolean, errorCode: string | null) => {
     const { error } = await admin.rpc("finalize_confidential_intake_attempt", {
@@ -62,7 +59,7 @@ Deno.serve(async (req) => {
   }).then((response) => response.json()).catch(() => null);
   if (!verified?.success) {
     await finalize(false, "turnstile_failed");
-    return json({ error: "verification_failed" }, 400);
+    return json(req, { error: "verification_failed" }, 400);
   }
 
   const resume = crypto.randomUUID() + crypto.randomUUID();
@@ -82,6 +79,6 @@ Deno.serve(async (req) => {
     p_confirmation_token: confirmation,
   });
   await finalize(!error, error ? "submission_failed" : null);
-  if (error) return json({ error: "submission_failed" }, 400);
-  return json({ data: { ...data, resumeSecret: resume } });
+  if (error) return json(req, { error: "submission_failed" }, 400);
+  return json(req, { data: { ...data, resumeSecret: resume } });
 });

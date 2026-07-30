@@ -1,17 +1,13 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Public, unauthenticated signup endpoint by design (see verify_jwt:false in
 // supabase/config.toml). Abuse controls live here because there is no caller session yet:
 // Cloudflare Turnstile proof, hashed IP/email rate limits, a daily org-creation cap, and an
 // invite email flow so the new org_admin proves mailbox control before setting a password.
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
@@ -29,10 +25,10 @@ class HttpError extends Error {
   }
 }
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -166,8 +162,8 @@ async function reserveAttempt(
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   let body: {
     email?: string;
@@ -183,8 +179,8 @@ Deno.serve(async (req: Request) => {
   try {
     body = await readJsonBody(req);
   } catch (error) {
-    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
-    return json({ error: "Invalid JSON body" }, 400);
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
 
   const email = body.email?.trim().toLowerCase();
@@ -196,23 +192,23 @@ Deno.serve(async (req: Request) => {
   const baaVersion = body.baa_version?.trim();
 
   if (!email || !firstName || !lastName || !organizationName) {
-    return json({ error: "email, first_name, last_name, and organization_name are required" }, 400);
+    return json(req, { error: "email, first_name, last_name, and organization_name are required" }, 400);
   }
   if (!legalAccepted) {
-    return json({ error: "legal_accepted must be true" }, 400);
+    return json(req, { error: "legal_accepted must be true" }, 400);
   }
   if (!serviceAgreementVersion || !baaVersion) {
-    return json({ error: "service_agreement_version and baa_version are required" }, 400);
+    return json(req, { error: "service_agreement_version and baa_version are required" }, 400);
   }
   if (serviceAgreementVersion !== REQUIRED_SERVICE_AGREEMENT_VERSION || baaVersion !== REQUIRED_BAA_VERSION) {
-    return json({ error: "Legal agreement versions must match the current signup terms" }, 400);
+    return json(req, { error: "Legal agreement versions must match the current signup terms" }, 400);
   }
-  if (!EMAIL_RE.test(email)) return json({ error: "Enter a valid email address" }, 400);
-  if (organizationName.length < 2) return json({ error: "organization_name is too short" }, 400);
+  if (!EMAIL_RE.test(email)) return json(req, { error: "Enter a valid email address" }, 400);
+  if (organizationName.length < 2) return json(req, { error: "organization_name is too short" }, 400);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const ip = clientIp(req);
   const hashPepper = Deno.env.get("SIGNUP_RATE_LIMIT_PEPPER") ?? serviceRoleKey;
   const emailHash = await sha256Hex(`email:${email}:${hashPepper}`);
@@ -293,7 +289,7 @@ Deno.serve(async (req: Request) => {
     if (rpcError) throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", rpcError.message);
 
     await finalizeAttempt(adminClient, attemptId, true, null);
-    return json({
+    return json(req, {
       success: true,
       requiresEmailVerification: true,
       user: { id: invited.user.id, email: invited.user.email },
@@ -318,6 +314,6 @@ const message = isHttpError ? (error as HttpError).message : "An unexpected erro
 const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
 if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ? "Signup HttpError:" : "Unexpected signup error:", error, internalDetail ?? "");
     if (attemptId) await finalizeAttempt(adminClient, attemptId, false, code);
-    return json({ success: false, error: message }, status);
+    return json(req, { success: false, error: message }, status);
   }
 });

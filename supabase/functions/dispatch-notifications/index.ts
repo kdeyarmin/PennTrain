@@ -246,7 +246,7 @@ async function sendSms(
 }
 
 async function sendWebPush(
-  adminClient: ReturnType<typeof createClient<any>>,
+  adminClient: ReturnType<typeof createClient>,
   subscriptionId: string,
   profileId: string,
   title: string,
@@ -345,7 +345,7 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
   const correlationId =
     (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);

@@ -1,38 +1,34 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
 const WRITER_ROLES = ["platform_admin"];
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "GET") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
-  if (!heygenApiKey) return json({ error: "HEYGEN_API_KEY is not configured" }, 500);
+  if (!heygenApiKey) return json(req, { error: "HEYGEN_API_KEY is not configured" }, 500);
 
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -40,10 +36,10 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
   if (!WRITER_ROLES.includes(callerProfile.role as string)) {
-    return json({ error: "not authorized to list HeyGen options" }, 403);
+    return json(req, { error: "not authorized to list HeyGen options" }, 403);
   }
 
   const [avatarsRes, voicesRes] = await Promise.all([
@@ -54,8 +50,8 @@ Deno.serve(async (req: Request) => {
     avatarsRes.json().catch(() => null),
     voicesRes.json().catch(() => null),
   ]);
-  if (!avatarsRes.ok) return json({ error: avatarsBody?.message ?? "failed to list HeyGen avatars" }, 502);
-  if (!voicesRes.ok) return json({ error: voicesBody?.message ?? "failed to list HeyGen voices" }, 502);
+  if (!avatarsRes.ok) return json(req, { error: avatarsBody?.message ?? "failed to list HeyGen avatars" }, 502);
+  if (!voicesRes.ok) return json(req, { error: voicesBody?.message ?? "failed to list HeyGen voices" }, 502);
 
   const avatars = (avatarsBody?.data ?? [])
     .map((a: Record<string, unknown>) => {
@@ -82,5 +78,5 @@ Deno.serve(async (req: Request) => {
     preview_audio_url: v.preview_audio_url,
   }));
 
-  return json({ success: true, avatars, voices });
+  return json(req, { success: true, avatars, voices });
 });

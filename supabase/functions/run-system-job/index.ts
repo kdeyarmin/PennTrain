@@ -1,10 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
 
 const EDGE_JOBS: Record<
   string,
@@ -38,10 +34,10 @@ const EDGE_JOBS: Record<
   },
 };
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -49,9 +45,9 @@ type QueuedRun = { run_id: string; correlation_id: string };
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return corsPreflightResponse(req);
   }
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -59,7 +55,7 @@ Deno.serve(async (req: Request) => {
   const cronSecret = Deno.env.get("CRON_SHARED_SECRET");
   const authorization = req.headers.get("Authorization");
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) {
-    return json({
+    return json(req, {
       error: "Service is not configured or authorization is missing",
     }, 503);
   }
@@ -68,11 +64,11 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const reason = body.reason?.trim() ?? "";
   if (!body.jobKey || reason.length < 8) {
-    return json({ error: "jobKey and a meaningful reason are required" }, 400);
+    return json(req, { error: "jobKey and a meaningful reason are required" }, 400);
   }
 
   const callerClient = createClient(supabaseUrl, anonKey, {
@@ -82,7 +78,7 @@ Deno.serve(async (req: Request) => {
   const { data: { user }, error: userError } = await callerClient.auth
     .getUser();
   if (userError || !user) {
-    return json({ error: "Invalid or expired session" }, 401);
+    return json(req, { error: "Invalid or expired session" }, 401);
   }
 
   const { data: profile, error: profileError } = await callerClient
@@ -93,7 +89,7 @@ Deno.serve(async (req: Request) => {
   if (
     profileError || !profile?.is_active || profile.role !== "platform_admin"
   ) {
-    return json(
+    return json(req, 
       { error: "Only platform administrators may run system jobs" },
       403,
     );
@@ -116,7 +112,7 @@ Deno.serve(async (req: Request) => {
     | QueuedRun
     | null;
   if (queueError || !queued?.run_id || !queued.correlation_id) {
-    return json(
+    return json(req, 
       { error: queueError?.message ?? "Unable to queue system job" },
       409,
     );
@@ -133,7 +129,7 @@ Deno.serve(async (req: Request) => {
       },
     );
     if (error) {
-      return json({
+      return json(req, {
         error:
           "The job failed; its durable run contains the operator-safe error",
         runId: queued.run_id,
@@ -143,14 +139,14 @@ Deno.serve(async (req: Request) => {
       data && typeof data === "object" &&
       (data as Record<string, unknown>).status === "failed"
     ) {
-      return json({
+      return json(req, {
         error:
           "The job failed; its durable run contains the operator-safe error",
         runId: queued.run_id,
         result: data,
       }, 500);
     }
-    return json({
+    return json(req, {
       success: true,
       runId: queued.run_id,
       correlationId: queued.correlation_id,
@@ -169,7 +165,7 @@ Deno.serve(async (req: Request) => {
       p_error_code: "cron_secret_missing",
       p_error_message: "Internal job authentication is not configured",
     });
-    return json({
+    return json(req, {
       error: "Internal job authentication is not configured",
       runId: queued.run_id,
     }, 503);
@@ -203,13 +199,13 @@ Deno.serve(async (req: Request) => {
         p_error_code: "manual_dispatch_failed",
         p_error_message: "The target worker rejected the manual dispatch",
       });
-      return json({
+      return json(req, {
         error: "Job worker failed",
         runId: queued.run_id,
         details: responseBody,
       }, 502);
     }
-    return json({
+    return json(req, {
       success: true,
       runId: queued.run_id,
       correlationId: queued.correlation_id,
@@ -226,7 +222,7 @@ Deno.serve(async (req: Request) => {
       p_error_code: "manual_dispatch_transport_error",
       p_error_message: "The target worker could not be reached",
     });
-    return json({
+    return json(req, {
       error: "Job worker could not be reached",
       runId: queued.run_id,
     }, 502);

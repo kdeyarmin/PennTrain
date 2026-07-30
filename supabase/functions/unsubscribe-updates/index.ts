@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsPreflightResponse } from "../_shared/cors.ts";
 
 // Public one-click unsubscribe for the marketing/newsletter list. Recipients have no Supabase
 // session -- the per-subscriber unsubscribe_token uuid (newsletter_subscribers.unsubscribe_token)
@@ -60,13 +60,7 @@ function htmlResponse(page: string, status = 200): Response {
 Deno.serve(async (req: Request) => {
   // OPTIONS for RFC 8058 POST preflights from providers that send one; GET/POST do the work.
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type",
-      },
-    });
+    return corsPreflightResponse(req, { methods: "GET, POST, OPTIONS", headers: "content-type" });
   }
   if (req.method !== "GET" && req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -103,7 +97,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const { error } = await adminClient
     .from("newsletter_subscribers")
     .update({ status: "unsubscribed" })

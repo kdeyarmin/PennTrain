@@ -1,17 +1,13 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -144,21 +140,21 @@ interface CourseBlockRow {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -166,10 +162,10 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
   if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
-    return json({ error: "not authorized to regenerate course content with AI" }, 403);
+    return json(req, { error: "not authorized to regenerate course content with AI" }, 403);
   }
 
   const { data: aiGenerationSetting } = await callerClient
@@ -179,23 +175,23 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   const aiCourseGenerationEnabled = aiGenerationSetting?.value !== false;
   if (!aiCourseGenerationEnabled) {
-    return json({ error: "AI course generation is currently disabled by the platform administrator." }, 403);
+    return json(req, { error: "AI course generation is currently disabled by the platform administrator." }, 403);
   }
 
   // Checked only after auth/role so an unconfigured secret never leaks ahead of a 401/403 to a
   // caller who wasn't going to be allowed to use this endpoint anyway.
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
+  if (!anthropicApiKey) return json(req, { error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   let body: RegenerateRequestBody;
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const { course_block_id, feedback } = body;
   if (!course_block_id || !feedback?.trim()) {
-    return json({ error: "course_block_id and feedback are required" }, 400);
+    return json(req, { error: "course_block_id and feedback are required" }, 400);
   }
 
   const { data: blockRaw, error: blockError } = await callerClient
@@ -203,21 +199,21 @@ Deno.serve(async (req: Request) => {
     .select("id, block_type, title, body, course_version_id, course_versions(status, ai_generated, course_id, courses(organization_id))")
     .eq("id", course_block_id)
     .single();
-  if (blockError || !blockRaw) return json({ error: "course block not found" }, 404);
+  if (blockError || !blockRaw) return json(req, { error: "course block not found" }, 404);
   const block = blockRaw as unknown as CourseBlockRow;
 
   if (block.course_versions?.status === "published") {
-    return json({ error: "cannot regenerate content on a published course version" }, 409);
+    return json(req, { error: "cannot regenerate content on a published course version" }, 409);
   }
   if (!["text", "video", "quiz"].includes(block.block_type)) {
-    return json({ error: `block_type '${block.block_type}' is not supported for AI regeneration` }, 400);
+    return json(req, { error: `block_type '${block.block_type}' is not supported for AI regeneration` }, 400);
   }
 
   // PT-019: per-organization BAA gate, on top of the platform switch above. The course's
   // organization_id (NULL = platform system catalog, which has no tenant in scope and is
   // gated only by the platform switch) is the org context for this block.
   if (!(await orgAiAllowed(callerClient, block.course_versions?.courses?.organization_id ?? null))) {
-    return json(orgAiDisabledBody(), 403);
+    return json(req, orgAiDisabledBody(), 403);
   }
 
   // Fetch existing quiz + questions/answers/explanations up front (before logging the audit
@@ -230,7 +226,7 @@ Deno.serve(async (req: Request) => {
       .select("id, title, passing_score_percent")
       .eq("course_block_id", course_block_id)
       .single();
-    if (quizError || !quiz) return json({ error: "quiz not found for this course block" }, 404);
+    if (quizError || !quiz) return json(req, { error: "quiz not found for this course block" }, 404);
     existingQuiz = quiz;
 
     const { data: questions, error: questionsError } = await callerClient
@@ -238,7 +234,7 @@ Deno.serve(async (req: Request) => {
       .select("id, question_text, question_type, points, sort_order")
       .eq("quiz_id", quiz.id)
       .order("sort_order", { ascending: true });
-    if (questionsError) return json({ error: questionsError.message }, 500);
+    if (questionsError) return json(req, { error: questionsError.message }, 500);
 
     for (const q of questions ?? []) {
       const { data: answers } = await callerClient
@@ -281,7 +277,7 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (generationInsertError || !generationRow) {
-    return json({ error: generationInsertError?.message ?? "failed to create audit record for this generation" }, 500);
+    return json(req, { error: generationInsertError?.message ?? "failed to create audit record for this generation" }, 500);
   }
   const generationId = generationRow.id as string;
 
@@ -332,11 +328,11 @@ Deno.serve(async (req: Request) => {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === "AbortError") {
       await markFailed(`Anthropic API request timed out after ${ANTHROPIC_TIMEOUT_MS / 1000}s`);
-      return json({ error: "AI regeneration timed out", generation_id: generationId }, 504);
+      return json(req, { error: "AI regeneration timed out", generation_id: generationId }, 504);
     }
     const message = e instanceof Error ? e.message : String(e);
     await markFailed(message);
-    return json({ error: message, generation_id: generationId }, 502);
+    return json(req, { error: message, generation_id: generationId }, 502);
   }
   clearTimeout(timeoutId);
 
@@ -347,20 +343,20 @@ Deno.serve(async (req: Request) => {
   if (!result.ok) {
     const message = (result.body as { error?: { message?: string } } | null)?.error?.message ?? `Anthropic API returned ${result.status}`;
     await markFailed(message);
-    return json({ error: message, generation_id: generationId }, 502);
+    return json(req, { error: message, generation_id: generationId }, 502);
   }
 
   const revision = extractToolInput(result.body, toolName);
   if (!revision) {
     await markFailed("AI response did not include a valid revision");
-    return json({ error: "AI response did not include a valid revision", generation_id: generationId }, 502);
+    return json(req, { error: "AI response did not include a valid revision", generation_id: generationId }, 502);
   }
 
   if (block.block_type === "text") {
     const content = revision.content;
     if (typeof content !== "string" || !content.trim()) {
       await markFailed("AI response did not include revised content");
-      return json({ error: "AI response did not include revised content", generation_id: generationId }, 502);
+      return json(req, { error: "AI response did not include revised content", generation_id: generationId }, 502);
     }
     const { error: updateError } = await callerClient
       .from("course_blocks")
@@ -368,13 +364,13 @@ Deno.serve(async (req: Request) => {
       .eq("id", course_block_id);
     if (updateError) {
       await markFailed(updateError.message);
-      return json({ error: updateError.message, generation_id: generationId }, 500);
+      return json(req, { error: updateError.message, generation_id: generationId }, 500);
     }
   } else if (block.block_type === "video") {
     const script = revision.script;
     if (typeof script !== "string" || !script.trim()) {
       await markFailed("AI response did not include a revised script");
-      return json({ error: "AI response did not include a revised script", generation_id: generationId }, 502);
+      return json(req, { error: "AI response did not include a revised script", generation_id: generationId }, 502);
     }
     // Clearing video_url/heygen job state: a previously generated video no longer matches the
     // just-revised script, mirroring generate-course-video's own video_url: null reset when a
@@ -385,13 +381,13 @@ Deno.serve(async (req: Request) => {
       .eq("id", course_block_id);
     if (updateError) {
       await markFailed(updateError.message);
-      return json({ error: updateError.message, generation_id: generationId }, 500);
+      return json(req, { error: updateError.message, generation_id: generationId }, 500);
     }
   } else {
     const questions = revision.questions;
     if (!Array.isArray(questions) || questions.length === 0) {
       await markFailed("AI response did not include a valid question set");
-      return json({ error: "AI response did not include a valid question set", generation_id: generationId }, 502);
+      return json(req, { error: "AI response did not include a valid question set", generation_id: generationId }, 502);
     }
     const { error: rpcError } = await callerClient.rpc("replace_quiz_questions", {
       p_quiz_id: existingQuiz!.id,
@@ -399,7 +395,7 @@ Deno.serve(async (req: Request) => {
     });
     if (rpcError) {
       await markFailed(rpcError.message);
-      return json({ error: rpcError.message, generation_id: generationId }, 500);
+      return json(req, { error: rpcError.message, generation_id: generationId }, 500);
     }
   }
 
@@ -419,5 +415,5 @@ Deno.serve(async (req: Request) => {
     .update({ ai_generated: true, ai_reviewed_at: null, ai_reviewed_by: null })
     .eq("id", block.course_version_id);
 
-  return json({ success: true, course_block_id, generation_id: generationId });
+  return json(req, { success: true, course_block_id, generation_id: generationId });
 });

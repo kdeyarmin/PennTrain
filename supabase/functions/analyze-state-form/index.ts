@@ -1,4 +1,3 @@
-// @ts-nocheck
 // State form document analyzer worker. Dual-mode like generate-compliance-binder:
 //  - Cron path (X-CareMetric-Cron-Secret): claims queued document_analyzer_jobs, sends
 //    each stored PDF to Anthropic for grounded extraction, and records results through
@@ -16,6 +15,7 @@ import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 import { ORG_AI_DISABLED_MESSAGE, orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
 import {
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
   CURRENT_STATE_FORM_TEMPLATES,
   decideExtractionStatus,
   EXTRACTION_TOOL_NAME,
@@ -27,15 +27,11 @@ const ANALYZER_JOB_KEY = "document-analyzer-extraction";
 const ANALYZER_SETTING_KEY = "ai_document_analyzer_enabled";
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -282,34 +278,34 @@ async function recordJobFailure(adminClient: any, claim: { job_id: string; run_i
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     console.error("Document analyzer worker is missing required Supabase environment variables");
-    return json({ error: "Service is not configured" }, 500);
+    return json(req, { error: "Service is not configured" }, 500);
   }
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
   // Cron worker path: sweep queued/stale jobs so processing survives closed tabs and
   // failed user-path kicks.
   if (req.headers.has(CRON_SECRET_HEADER)) {
-    const denied = requireCronRequest(req, CORS_HEADERS);
+    const denied = requireCronRequest(req, corsHeadersForRequest(req));
     if (denied) return denied;
     return await runWorkerBatch(req, adminClient);
   }
 
   // User path (platform_admin only): kick one job immediately after upload.
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -317,16 +313,16 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
   if (callerProfile.role !== "platform_admin") {
-    return json({ error: "not authorized to run the document analyzer" }, 403);
+    return json(req, { error: "not authorized to run the document analyzer" }, 403);
   }
 
   const enabled = await isAnalyzerEnabled(callerClient);
-  if (enabled === null) return json({ error: "Failed to read platform AI settings" }, 500);
+  if (enabled === null) return json(req, { error: "Failed to read platform AI settings" }, 500);
   if (!enabled) {
-    return json({
+    return json(req, {
       error: "State form extraction is currently disabled by the platform administrator. Enable it in Platform Settings once the PHI/BAA review is complete.",
     }, 403);
   }
@@ -334,15 +330,15 @@ Deno.serve(async (req: Request) => {
   // Checked only after auth/role/setting so secret configuration does not leak ahead of
   // authorization.
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
+  if (!anthropicApiKey) return json(req, { error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   let body: { job_id?: string } = {};
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
-  if (!body.job_id) return json({ error: "job_id is required" }, 400);
+  if (!body.job_id) return json(req, { error: "job_id is required" }, 400);
 
   // The caller-scoped read proves visibility (platform_admin RLS) before any
   // service-role work happens on the row.
@@ -351,13 +347,13 @@ Deno.serve(async (req: Request) => {
     .select("id, status, requested_by")
     .eq("id", body.job_id)
     .maybeSingle();
-  if (jobError) return json({ error: jobError.message }, 500);
-  if (!job) return json({ error: "document analyzer job not found" }, 404);
+  if (jobError) return json(req, { error: jobError.message }, 500);
+  if (!job) return json(req, { error: "document analyzer job not found" }, 404);
 
   // PT-019: surface a coded 403 before claiming so a denied kick does not burn one of
   // the job's limited extraction attempts. processClaimedJob re-checks the same gate.
   if (!(await analyzerJobOrgGate(adminClient, job.id, job.requested_by))) {
-    return json(orgAiDisabledBody(), 403);
+    return json(req, orgAiDisabledBody(), 403);
   }
 
   const workerId = crypto.randomUUID();
@@ -366,23 +362,23 @@ Deno.serve(async (req: Request) => {
     p_job_id: body.job_id,
     p_limit: 1,
   });
-  if (claimError) return json({ error: claimError.message }, 500);
+  if (claimError) return json(req, { error: claimError.message }, 500);
   const claim = claims?.[0];
   if (!claim) {
     // Already processing under a fresh lease, already extracted, or attempts exhausted --
     // report the row's current state and let the page's polling take over.
-    return json({ success: true, status: job.status, claimed: false }, 202);
+    return json(req, { success: true, status: job.status, claimed: false }, 202);
   }
 
   const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
   try {
     const status = await processClaimedJob(adminClient, claim, anthropicApiKey, modelCandidates);
-    return json({ success: true, status, claimed: true });
+    return json(req, { success: true, status, claimed: true });
   } catch (jobError) {
     await recordJobFailure(adminClient, claim, jobError);
     // The queue owns retries/backoff; surface a sanitized outcome, not a hard error, so
     // the page keeps polling the row like every other job.
-    return json({ success: true, status: "queued_or_failed", claimed: true }, 200);
+    return json(req, { success: true, status: "queued_or_failed", claimed: true }, 200);
   }
 });
 
@@ -391,10 +387,10 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
   if (!enabled) {
     // Disabled (or unreadable) kill switch: leave queued jobs untouched -- they resume on
     // the first sweep after a platform admin re-enables extraction.
-    return json({ success: true, skipped: true, reason: "analyzer_disabled" });
+    return json(req, { success: true, skipped: true, reason: "analyzer_disabled" });
   }
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
+  if (!anthropicApiKey) return json(req, { error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   let batchSize = 2;
   try {
@@ -412,10 +408,10 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
     p_trigger_type: "scheduled",
     p_provider_request_id: null,
   });
-  if (claimError) return json({ error: claimError.message }, 500);
+  if (claimError) return json(req, { error: claimError.message }, 500);
   const run = Array.isArray(claimRows) ? claimRows[0] : claimRows;
   if (!run?.should_execute) {
-    return json({ success: true, skipped: true, status: run?.existing_status ?? "skipped" });
+    return json(req, { success: true, skipped: true, status: run?.existing_status ?? "skipped" });
   }
 
   const runId = run.run_id;
@@ -474,5 +470,5 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
     });
   }
 
-  return json({ success: !batchError, attempted, succeeded, failed });
+  return json(req, { success: !batchError, attempted, succeeded, failed });
 }

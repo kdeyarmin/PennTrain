@@ -1,7 +1,4 @@
-export const CAPTURE_PRODUCT_EVENT_CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 const EVENTS = new Set([
   "route_viewed", "course_assigned", "course_started", "course_completed",
@@ -22,10 +19,10 @@ interface CaptureProductEventDependencies {
   now?: () => Date;
 }
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CAPTURE_PRODUCT_EVENT_CORS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -56,36 +53,36 @@ export function createCaptureProductEventHandler({
   now = () => new Date(),
 }: CaptureProductEventDependencies) {
   return async (req: Request): Promise<Response> => {
-    if (req.method === "OPTIONS") return new Response("ok", { headers: CAPTURE_PRODUCT_EVENT_CORS });
-    if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+    if (req.method === "OPTIONS") return corsPreflightResponse(req);
+    if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
     const auth = req.headers.get("Authorization");
-    if (!auth) return json({ error: "Authentication required" }, 401);
+    if (!auth) return json(req, { error: "Authentication required" }, 401);
 
     const url = getEnv("SUPABASE_URL");
     const anon = getEnv("SUPABASE_ANON_KEY");
     const service = getEnv("SUPABASE_SERVICE_ROLE_KEY");
-    if (!url || !anon || !service) return json({ error: "Telemetry is not configured" }, 500);
+    if (!url || !anon || !service) return json(req, { error: "Telemetry is not configured" }, 500);
 
     const caller = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     const { data: { user }, error: userError } = await caller.auth.getUser();
-    if (userError || !user) return json({ error: "Invalid or expired session" }, 401);
+    if (userError || !user) return json(req, { error: "Invalid or expired session" }, 401);
 
     const { data: profile } = await caller
       .from("profiles")
       .select("organization_id,role,is_active")
       .eq("id", user.id)
       .single();
-    if (!profile?.is_active) return json({ error: "Active profile required" }, 403);
+    if (!profile?.is_active) return json(req, { error: "Active profile required" }, 403);
 
     let body: { eventName?: unknown; route?: unknown; properties?: unknown; sessionId?: unknown; occurredAt?: unknown };
     try {
       body = await req.json();
     } catch {
-      return json({ error: "Invalid JSON body" }, 400);
+      return json(req, { error: "Invalid JSON body" }, 400);
     }
     if (typeof body.eventName !== "string" || !EVENTS.has(body.eventName)) {
-      return json({ error: "Event is not allowlisted" }, 400);
+      return json(req, { error: "Event is not allowlisted" }, 400);
     }
 
     const route = normalizeProductRoute(body.route);
@@ -94,11 +91,11 @@ export function createCaptureProductEventHandler({
       : {};
     const properties: Record<string, string | number | boolean> = {};
     for (const [key, value] of Object.entries(rawProperties)) {
-      if (!PROPERTY_KEYS.has(key)) return json({ error: `Property is not allowlisted: ${key}` }, 400);
+      if (!PROPERTY_KEYS.has(key)) return json(req, { error: `Property is not allowlisted: ${key}` }, 400);
       if (typeof value === "string") properties[key] = value.slice(0, 80);
       else if (typeof value === "number" && Number.isFinite(value)) properties[key] = value;
       else if (typeof value === "boolean") properties[key] = value;
-      else return json({ error: `Property must be a scalar: ${key}` }, 400);
+      else return json(req, { error: `Property must be a scalar: ${key}` }, 400);
     }
 
     const requestTime = now();
@@ -122,7 +119,7 @@ export function createCaptureProductEventHandler({
       occurred_at: occurredAt,
     });
     return error
-      ? json({ error: "Event could not be recorded" }, 500)
-      : new Response(null, { status: 204, headers: CAPTURE_PRODUCT_EVENT_CORS });
+      ? json(req, { error: "Event could not be recorded" }, 500)
+      : new Response(null, { status: 204, headers: corsHeadersForRequest(req) });
   };
 }
