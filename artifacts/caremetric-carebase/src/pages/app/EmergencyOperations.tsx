@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 
 const human = (value: string) =>
   value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -336,11 +337,22 @@ export default function EmergencyOperations() {
               ))}
             </SelectContent>
           </Select>
+          {facilities.isError && (
+            <QueryError what="facilities" error={facilities.error} onRetry={() => void facilities.refetch()} className="mt-4" />
+          )}
         </CardContent>
       </Card>
 
       {facilityId && (
         <>
+          {(readiness.isError || events.isError) ? (
+            <QueryError
+              what="emergency operations"
+              error={readiness.isError ? readiness.error : events.error}
+              onRetry={() => { void readiness.refetch(); void events.refetch(); }}
+            />
+          ) : (
+          <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {[
               [Siren, activeEvents.length, "Active events"],
@@ -464,6 +476,8 @@ export default function EmergencyOperations() {
               </div>
             </TabsContent>
           </Tabs>
+          </>
+          )}
         </>
       )}
 

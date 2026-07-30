@@ -31,6 +31,7 @@ import { buildBestAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { supabase } from "@/lib/supabase";
+import { QueryError } from "@/components/QueryState";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
@@ -65,7 +66,7 @@ export default function InspectionReadiness() {
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
 
-  const { data: breakdown, isLoading: breakdownLoading } = useFacilityReadinessBreakdown(activeFacilityId || undefined);
+  const { data: breakdown, isLoading: breakdownLoading, isError: breakdownError, error: breakdownErrorDetail, refetch: refetchBreakdown } = useFacilityReadinessBreakdown(activeFacilityId || undefined);
   // The readiness RPC returns the citation reference but not whether anyone ever verified it.
   // Joined here rather than widening the RPC's return signature: the topics list is already a
   // cached org-wide read, and the qualifier must never be dropped on the way to the screen.
@@ -311,6 +312,10 @@ export default function InspectionReadiness() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {breakdownError ? (
+            <QueryError what="facility readiness score" error={breakdownErrorDetail} onRetry={() => void refetchBreakdown()} />
+          ) : (
+            <>
           {breakdownLoading ? (
             <div className="h-16 bg-muted animate-pulse rounded-lg" />
           ) : overall === null ? (
@@ -382,6 +387,8 @@ export default function InspectionReadiness() {
               </tbody>
             </table>
           </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
