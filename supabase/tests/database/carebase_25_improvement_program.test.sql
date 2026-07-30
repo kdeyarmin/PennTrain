@@ -95,7 +95,7 @@ insert into public.employee_training_records(
 ) values (
   'c2500000-0000-4000-8000-000000000401', 'c2500000-0000-4000-8000-000000000001',
   'c2500000-0000-4000-8000-000000000011', 'c2500000-0000-4000-8000-000000000101',
-  'c2500000-0000-4000-8000-000000000301', 'complete', public.pa_today() - 300, public.pa_today() + 40
+  'c2500000-0000-4000-8000-000000000301', 'compliant', public.pa_today() - 300, public.pa_today() + 40
 );
 
 set local role service_role;

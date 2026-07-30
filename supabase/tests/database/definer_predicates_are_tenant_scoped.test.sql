@@ -137,7 +137,7 @@ select is(
      and p.prosecdef
      and has_function_privilege('authenticated', p.oid, 'execute')
      and 'uuid'::regtype = any(p.proargtypes::oid[])
-     and p.prosrc !~* '(assert_|_in_caller_scope|current_org_id|current_role\(|is_platform_admin|is_assigned_to_facility|can_read_employee_peer_data|owns_employee|admission_row_visible|clinical_record_visible|current_session_unlocked|auth\.uid|auth\.jwt|current_profile_active|org_feature_enabled|require_|_visible\(|can_manage|can_view|is_member|_guest|p_token)'
+     and p.prosrc !~* '(assert_|_in_caller_scope|current_org_id|current_role\(|is_platform_admin|is_assigned_to_facility|can_read_employee_peer_data|owns_employee|admission_row_visible|clinical_record_visible|current_session_unlocked|auth\.uid|auth\.jwt|current_profile_active|org_feature_enabled|require_|_visible\(|can_manage|can_view|is_member|_guest|p_token|preview_employee_lifecycle_transition)'
      and p.proname not in (
        -- Authorization proven to live one or two calls down, or no tenant data to disclose:
        'get_resident_administrative_packet',   -- _base checks admission_row_visible and raises 42501

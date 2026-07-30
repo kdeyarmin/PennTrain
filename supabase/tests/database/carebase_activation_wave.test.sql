@@ -49,14 +49,6 @@ insert into public.organizations(id, name, slug, subscription_status) values
   ('ca000000-0000-4000-8000-000000000001', 'Activation Org', 'activation-org', 'active');
 insert into public.facilities(id, organization_id, name, facility_type) values
   ('ca000000-0000-4000-8000-000000000011', 'ca000000-0000-4000-8000-000000000001', 'Activation Facility', 'PCH');
-insert into public.employees(
-  id, organization_id, facility_id, first_name, last_name, job_title, email, status
-) values (
-  'ca000000-0000-4000-8000-000000000101', 'ca000000-0000-4000-8000-000000000001',
-  'ca000000-0000-4000-8000-000000000011', 'Imported', 'Employee', 'Caregiver',
-  'imported@example.com', 'active'
-);
-
 set local role service_role;
 
 select lives_ok(
@@ -105,6 +97,13 @@ select is(
    where organization_id = 'ca000000-0000-4000-8000-000000000001'
      and original_file_sha256 = repeat('a',64)),
   'repeating the same unfinished file resumes the existing job'
+);
+insert into public.employees(
+  id, organization_id, facility_id, first_name, last_name, job_title, email, status
+) values (
+  'ca000000-0000-4000-8000-000000000101', 'ca000000-0000-4000-8000-000000000001',
+  'ca000000-0000-4000-8000-000000000011', 'Imported', 'Employee', 'Caregiver',
+  'imported@example.com', 'active'
 );
 
 select public.record_data_import_chunk(

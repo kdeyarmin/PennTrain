@@ -371,6 +371,7 @@ declare
   v_row record;
   v_reverted integer := 0;
   v_blocked integer := 0;
+  v_cutoff timestamptz;
 begin
   select * into v_job from public.data_import_jobs where id = p_job_id for update;
   if v_job.domain <> 'employees' then raise exception 'This rollback supports employee imports only' using errcode = '22023'; end if;
@@ -387,12 +388,60 @@ begin
     order by r.row_number desc
   loop
     begin
+      v_cutoff := v_row.applied_at + interval '1 second';
+      delete from public.employment_lifecycle_events
+      where employee_id = v_row.target_id
+        and evidence ->> 'source' = 'employee_insert'
+        and created_at <= v_cutoff;
+      delete from public.employment_episodes
+      where employee_id = v_row.target_id
+        and source = 'api'
+        and created_at <= v_cutoff;
+      delete from public.workforce_employee_links
+      where employee_id = v_row.target_id
+        and source = 'api'
+        and created_at <= v_cutoff;
+      delete from public.employee_compliance_profile_assignments
+      where employee_id = v_row.target_id
+        and source = 'api'
+        and reason = 'Mandatory baseline assigned at employee creation'
+        and created_at <= v_cutoff;
+      delete from public.workforce_backfill_exceptions
+      where employee_id = v_row.target_id
+        and exception_code = 'missing_hire_date'
+        and created_at <= v_cutoff;
+      delete from public.employee_onboarding_items
+      where employee_id = v_row.target_id
+        and status = 'pending'
+        and created_at <= v_cutoff;
+      delete from public.employee_training_records
+      where employee_id = v_row.target_id
+        and status = 'missing'
+        and created_at <= v_cutoff;
+      delete from public.practicums
+      where employee_id = v_row.target_id
+        and status = 'missing'
+        and created_at <= v_cutoff;
+      delete from public.employee_credentials
+      where employee_id = v_row.target_id
+        and status = 'missing'
+        and created_at <= v_cutoff;
+      delete from public.employee_facility_assignments
+      where employee_id = v_row.target_id
+        and created_at <= v_cutoff;
       delete from public.employees e
       where e.id = v_row.target_id
         and e.organization_id = v_org
         and e.profile_id is null
-        and e.updated_at <= v_row.applied_at + interval '1 second';
+        and e.created_at >= v_job.created_at
+        and e.updated_at <= v_cutoff;
       if found then
+        delete from public.workforce_people p
+        where p.external_ref = concat('employee:', v_row.target_id::text)
+          and not exists (
+            select 1 from public.workforce_employee_links l
+            where l.person_id = p.id
+          );
         update public.data_import_rows set status = 'reverted', reverted_at = now(), updated_at = now()
         where id = v_row.import_row_id;
         v_reverted := v_reverted + 1;
