@@ -44,13 +44,6 @@ export default function MedAdminRoster() {
     facilityId: facilityId !== "all" ? facilityId : undefined,
   });
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
-  const { data: trainingRecords } = useListTrainingRecords({});
-  const { data: practicums } = useListPracticums({ year: currentYear });
-  const incidentFacilityId = facilityId !== "all" ? facilityId : undefined;
-  const { data: incidents } = useListIncidents({ facilityId: incidentFacilityId });
-  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: incidentFacilityId });
-
-  const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
   const medInitTypeId = useMemo(() => trainingTypes?.find(t => t.code === "MED-INIT")?.id, [trainingTypes]);
   const medRenewTypeId = useMemo(() => trainingTypes?.find(t => t.code === "MED-RENEW")?.id, [trainingTypes]);
@@ -64,6 +57,30 @@ export default function MedAdminRoster() {
         .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
     [employeesAll],
   );
+
+  const medAdminEmployeeIds = useMemo(() => medAdminEmployees.map(e => e.id), [medAdminEmployees]);
+  const medTrainingTypeIds = useMemo(
+    () => [medInitTypeId, medRenewTypeId, diabetesEduTypeId].filter((id): id is string => Boolean(id)),
+    [medInitTypeId, medRenewTypeId, diabetesEduTypeId],
+  );
+
+  // Only the three med-relevant training types for the (already facility-scoped) med-admin staff.
+  // Avoids the previous full-tenant training_records download on every visit to this page.
+  const { data: trainingRecords } = useListTrainingRecords(
+    {
+      employeeIds: medAdminEmployeeIds,
+      trainingTypeIds: medTrainingTypeIds,
+    },
+    {
+      enabled: medAdminEmployeeIds.length > 0 && medTrainingTypeIds.length > 0,
+    },
+  );
+  const { data: practicums } = useListPracticums({ year: currentYear });
+  const incidentFacilityId = facilityId !== "all" ? facilityId : undefined;
+  const { data: incidents } = useListIncidents({ facilityId: incidentFacilityId });
+  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: incidentFacilityId });
+
+  const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
   const rows = useMemo(() => {
     const records = trainingRecords ?? [];
