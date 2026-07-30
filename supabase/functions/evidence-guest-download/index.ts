@@ -1,6 +1,7 @@
-// @ts-nocheck
+// @ts-nocheck -- guest token download path; CORS hardened
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Public evidence-room guest download. Guests have no Supabase session -- their whole
 // identity is the grant token, so authorization happens in the database:
@@ -11,16 +12,15 @@ import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+const CORS_OPTIONS = {
+  headers: "authorization, x-client-info, apikey, content-type",
+  methods: "POST, OPTIONS",
 };
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req, CORS_OPTIONS) },
   });
 }
 
@@ -34,28 +34,28 @@ const sha256Hex = async (value: string) =>
   ).join("");
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, CORS_OPTIONS);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
     console.error("Evidence guest download is missing required Supabase environment variables");
-    return json({ error: "Service is not configured" }, 500);
+    return json(req, { error: "Service is not configured" }, 500);
   }
 
   let body: { token?: string; artifactId?: string } = {};
   try {
     body = await readJsonBody(req);
   } catch (error) {
-    if (error instanceof RequestBodyError) return json({ error: error.message }, error.status);
-    return json({ error: "Invalid JSON body" }, 400);
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   if (typeof body.token !== "string" || body.token.length < 16 || typeof body.artifactId !== "string") {
-    return json({ error: "token and artifactId are required" }, 400);
+    return json(req, { error: "token and artifactId are required" }, 400);
   }
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const fingerprint = await sha256Hex(`${requestIp(req)}|${req.headers.get("user-agent") ?? ""}`);
 
   const { data: decision, error: authorizeError } = await adminClient.rpc("authorize_evidence_guest_artifact", {
@@ -66,10 +66,10 @@ Deno.serve(async (req: Request) => {
   });
   if (authorizeError) {
     console.error("evidence guest authorization failed", authorizeError.message);
-    return json({ error: "Authorization failed" }, 500);
+    return json(req, { error: "Authorization failed" }, 500);
   }
   if (!decision?.authorized) {
-    return json({ authorized: false, reason: "access_denied" }, 403);
+    return json(req, { authorized: false, reason: "access_denied" }, 403);
   }
 
   // The RPC only authorizes; the storage location comes from the immutable snapshot
@@ -79,24 +79,24 @@ Deno.serve(async (req: Request) => {
     .select("id, display_name, snapshot_artifact_id")
     .eq("id", body.artifactId)
     .maybeSingle();
-  if (artifactError || !artifact) return json({ error: "Artifact not found" }, 404);
+  if (artifactError || !artifact) return json(req, { error: "Artifact not found" }, 404);
 
   const { data: snapshotArtifact, error: snapshotError } = await adminClient
     .from("report_snapshot_artifacts")
     .select("storage_bucket, storage_path")
     .eq("id", artifact.snapshot_artifact_id)
     .maybeSingle();
-  if (snapshotError || !snapshotArtifact) return json({ error: "Stored artifact not found" }, 404);
+  if (snapshotError || !snapshotArtifact) return json(req, { error: "Stored artifact not found" }, 404);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(snapshotArtifact.storage_bucket)
     .createSignedUrl(snapshotArtifact.storage_path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
     console.error("evidence guest signing failed", signedUrlError?.message);
-    return json({ error: "Failed to create download link" }, 500);
+    return json(req, { error: "Failed to create download link" }, 500);
   }
 
-  return json({
+  return json(req, {
     authorized: true,
     url: signedUrlData.signedUrl,
     displayName: artifact.display_name,

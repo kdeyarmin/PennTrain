@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 // Public one-click unsubscribe for the marketing/newsletter list. Recipients have no Supabase
 // session -- the per-subscriber unsubscribe_token uuid (newsletter_subscribers.unsubscribe_token)
@@ -14,6 +15,10 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEFAULT_SITE_URL = "https://cmcarebase.com";
+const CORS_OPTIONS = {
+  headers: "content-type",
+  methods: "GET, POST, OPTIONS",
+};
 
 function htmlPage(options: { title: string; heading: string; body: string; siteUrl: string }): string {
   const { title, heading, body, siteUrl } = options;
@@ -44,7 +49,7 @@ function htmlPage(options: { title: string; heading: string; body: string; siteU
 </html>`;
 }
 
-function htmlResponse(page: string, status = 200): Response {
+function htmlResponse(req: Request, page: string, status = 200): Response {
   return new Response(page, {
     status,
     headers: {
@@ -53,23 +58,19 @@ function htmlResponse(page: string, status = 200): Response {
       "X-Content-Type-Options": "nosniff",
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
+      ...corsHeadersForRequest(req, CORS_OPTIONS),
     },
   });
 }
 
 Deno.serve(async (req: Request) => {
   // OPTIONS for RFC 8058 POST preflights from providers that send one; GET/POST do the work.
-  if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "content-type",
-      },
-    });
-  }
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, CORS_OPTIONS);
   if (req.method !== "GET" && req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: corsHeadersForRequest(req, CORS_OPTIONS),
+    });
   }
 
   const siteUrl = (Deno.env.get("SITE_URL") || DEFAULT_SITE_URL).replace(/\/$/, "");
@@ -77,6 +78,7 @@ Deno.serve(async (req: Request) => {
 
   if (!UUID_RE.test(token)) {
     return htmlResponse(
+      req,
       htmlPage({
         title: "Unsubscribe link invalid",
         heading: "This unsubscribe link isn't valid",
@@ -93,6 +95,7 @@ Deno.serve(async (req: Request) => {
   if (!supabaseUrl || !serviceRoleKey) {
     console.error("unsubscribe-updates is missing required Supabase environment variables");
     return htmlResponse(
+      req,
       htmlPage({
         title: "Unsubscribe unavailable",
         heading: "We couldn't process that right now",
@@ -103,7 +106,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const { error } = await adminClient
     .from("newsletter_subscribers")
     .update({ status: "unsubscribed" })
@@ -111,6 +114,7 @@ Deno.serve(async (req: Request) => {
   if (error) {
     console.error("unsubscribe-updates update failed", error.message);
     return htmlResponse(
+      req,
       htmlPage({
         title: "Unsubscribe unavailable",
         heading: "We couldn't process that right now",
@@ -123,6 +127,7 @@ Deno.serve(async (req: Request) => {
 
   // Same page whether the token matched or not -- see the oracle note in the header comment.
   return htmlResponse(
+    req,
     htmlPage({
       title: "You're unsubscribed",
       heading: "You're unsubscribed",
