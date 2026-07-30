@@ -2,16 +2,12 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { resolveAppRedirect } from "../_shared/appRedirect.ts";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import { isDemoOrganization } from "../_shared/demoTenant.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -45,25 +41,28 @@ function resolveRedirectTo(candidate: string | undefined): string {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return json(req, { error: "Service is not configured" }, 503);
+  }
 
   // Caller-scoped client: identifies who is actually calling and respects RLS. Never used to
   // perform the privileged invite -- only to resolve the caller's own role/org (same pattern as
   // create-user).
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -71,7 +70,7 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
   let body: {
@@ -86,7 +85,7 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : undefined;
@@ -97,22 +96,22 @@ Deno.serve(async (req: Request) => {
   const employee_id = typeof body.employee_id === "string" ? body.employee_id.trim() : undefined;
   const redirect_to = typeof body.redirect_to === "string" ? body.redirect_to.trim() : undefined;
   if (!email || !first_name || !last_name || !role) {
-    return json({ error: "email, first_name, last_name, and role are required" }, 400);
+    return json(req, { error: "email, first_name, last_name, and role are required" }, 400);
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: "Enter a valid email address" }, 400);
+    return json(req, { error: "Enter a valid email address" }, 400);
   }
   if (first_name.length > 100 || last_name.length > 100) {
-    return json({ error: "first_name and last_name must be 100 characters or fewer" }, 400);
+    return json(req, { error: "first_name and last_name must be 100 characters or fewer" }, 400);
   }
   if (!VALID_ROLES.includes(role)) {
-    return json({ error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
+    return json(req, { error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
   }
   if (organization_id && !UUID_PATTERN.test(organization_id)) {
-    return json({ error: "organization_id must be a valid UUID" }, 400);
+    return json(req, { error: "organization_id must be a valid UUID" }, 400);
   }
   if (employee_id && !UUID_PATTERN.test(employee_id)) {
-    return json({ error: "employee_id must be a valid UUID" }, 400);
+    return json(req, { error: "employee_id must be a valid UUID" }, 400);
   }
 
   const callerRole = callerProfile.role as string;
@@ -120,40 +119,40 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (await isDemoOrganization(callerClient, callerOrgId)) {
-      return json({ error: "Demo workspaces cannot invite or provision users" }, 403);
+      return json(req, { error: "Demo workspaces cannot invite or provision users" }, 403);
     }
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
+    return json(req, { error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
   }
 
   // Same authorization matrix as create-user, minus the password/org-required distinction --
   // an invite always targets the caller's own organization (or platform_admin's chosen one).
   if (callerRole === "platform_admin") {
     if (role !== "platform_admin" && !organization_id) {
-      return json({ error: "organization_id is required for non-platform_admin users" }, 400);
+      return json(req, { error: "organization_id is required for non-platform_admin users" }, 400);
     }
   } else if (callerRole === "org_admin") {
     if (role === "platform_admin") {
-      return json({ error: "org_admin cannot invite platform_admin users" }, 403);
+      return json(req, { error: "org_admin cannot invite platform_admin users" }, 403);
     }
     if (organization_id && organization_id !== callerOrgId) {
-      return json({ error: "org_admin can only invite users within their own organization" }, 403);
+      return json(req, { error: "org_admin can only invite users within their own organization" }, 403);
     }
   } else if (callerRole === "facility_manager") {
     if (!["trainer", "employee"].includes(role)) {
-      return json({ error: "facility_manager can only invite trainer or employee users" }, 403);
+      return json(req, { error: "facility_manager can only invite trainer or employee users" }, 403);
     }
     if (organization_id && organization_id !== callerOrgId) {
-      return json({ error: "facility_manager can only invite users within their own organization" }, 403);
+      return json(req, { error: "facility_manager can only invite users within their own organization" }, 403);
     }
   } else {
-    return json({ error: "not authorized to invite users" }, 403);
+    return json(req, { error: "not authorized to invite users" }, 403);
   }
 
   const effectiveOrgId = callerRole === "platform_admin" ? (organization_id ?? null) : callerOrgId;
 
   const assurance = await requireFreshAal2(callerClient, "identity_admin");
-  if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
+  if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
 
   // Employee self-service depends on employees.profile_id. Inviting an employee without linking
   // that row produces a valid login that can only show "No employee profile is linked" across
@@ -163,7 +162,7 @@ Deno.serve(async (req: Request) => {
   let employeeToLink: { id: string; profile_id: string | null; email: string | null } | null = null;
   if (role === "employee") {
     if (!effectiveOrgId) {
-      return json({ error: "organization_id is required for employee users" }, 400);
+      return json(req, { error: "organization_id is required for employee users" }, 400);
     }
 
     let employeeQuery = callerClient
@@ -183,41 +182,41 @@ Deno.serve(async (req: Request) => {
 
     const { data: employeeMatches, error: employeeLookupError } = await employeeQuery;
     if (employeeLookupError) {
-      return json({ error: "Unable to verify the employee record" }, 500);
+      return json(req, { error: "Unable to verify the employee record" }, 500);
     }
     if (!employeeMatches?.length) {
-      return json({
+      return json(req, {
         error: employee_id
           ? "Employee not found or you do not manage their facility"
           : "Create an employee record with this email before sending a portal invite",
       }, 400);
     }
     if (employeeMatches.length > 1) {
-      return json({ error: "Multiple employee records use this email; invite from the intended employee record" }, 409);
+      return json(req, { error: "Multiple employee records use this email; invite from the intended employee record" }, 409);
     }
 
     employeeToLink = employeeMatches[0];
     if (employeeToLink.profile_id) {
-      return json({ error: "This employee already has portal access" }, 409);
+      return json(req, { error: "This employee already has portal access" }, 409);
     }
     if ((employeeToLink.email ?? "").trim().toLowerCase() !== email) {
-      return json({ error: "The invite email must match the employee record email" }, 400);
+      return json(req, { error: "The invite email must match the employee record email" }, 400);
     }
   }
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   let redirectTo: string;
   try {
     redirectTo = resolveRedirectTo(redirect_to);
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Invalid invite redirect URL" }, 400);
+    return json(req, { error: error instanceof Error ? error.message : "Invalid invite redirect URL" }, 400);
   }
 
   const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: { first_name, last_name },
     redirectTo,
   });
-  if (inviteError) return json({ error: inviteError.message }, 400);
+  if (inviteError) return json(req, { error: inviteError.message }, 400);
 
   // handle_new_user() already inserted a profiles row from the invite's auth.users INSERT, but it
   // only ever defaults to role="employee"/organization_id=null there -- an invite has no
@@ -253,9 +252,9 @@ Deno.serve(async (req: Request) => {
         rpc_error: rpcError.message,
         cleanup_error: cleanupError.message,
       });
-      return json({ error: "Invite provisioning failed and requires administrator review" }, 500);
+      return json(req, { error: "Invite provisioning failed and requires administrator review" }, 500);
     }
-    return json({ error: "Invite provisioning failed; no account was created" }, 500);
+    return json(req, { error: "Invite provisioning failed; no account was created" }, 500);
   }
 
   // A successful auth invite is not operationally complete until it has a durable lifecycle receipt.
@@ -285,12 +284,12 @@ Deno.serve(async (req: Request) => {
         lifecycle_error: invitationError.message,
         cleanup_error: cleanupError.message,
       });
-      return json({ error: "Invitation was sent but its lifecycle receipt requires administrator review" }, 500);
+      return json(req, { error: "Invitation was sent but its lifecycle receipt requires administrator review" }, 500);
     }
-    return json({ error: "Invitation could not be recorded; no account was kept" }, 500);
+    return json(req, { error: "Invitation could not be recorded; no account was kept" }, 500);
   }
 
-  return json({
+  return json(req, {
     success: true,
     user: { id: invited.user.id, email: invited.user.email },
     profile: updatedProfile,
