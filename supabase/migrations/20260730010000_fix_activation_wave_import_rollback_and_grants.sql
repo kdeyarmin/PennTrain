@@ -5,7 +5,7 @@ begin;
 
 -- Service-role writes go through security-definer RPCs; direct table grants are not needed
 -- and violate the phase-1 access matrix contract.
-do $$
+do $do$
 begin
   if to_regclass('public.data_import_jobs') is null
     or to_regclass('public.data_import_rows') is null
@@ -15,10 +15,12 @@ begin
 
   execute 'revoke all on public.data_import_jobs, public.data_import_rows, public.data_import_events from service_role';
 end;
-$$;
+$do$;
 
 -- Keep workforce evidence append-only except for the narrowly scoped import rollback path.
-do $$
+-- Distinct dollar-quote tags are required: nested $$ would close the outer DO block early
+-- and produce "syntax error at or near begin" on supabase db reset.
+do $do$
 begin
   if to_regprocedure('app_private.prevent_immutable_workforce_evidence_mutation()') is null
     or to_regclass('public.employment_lifecycle_events') is null then
@@ -31,7 +33,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $body$
 begin
   if tg_op = 'DELETE'
      and tg_table_name = 'employment_lifecycle_events'
@@ -43,16 +45,16 @@ begin
   raise exception 'employment lifecycle evidence is append-only'
     using errcode = '55000';
 end;
-$$;
+$body$;
 $fn$;
 
   execute 'revoke all on function app_private.prevent_immutable_workforce_evidence_mutation() from public, anon, authenticated, service_role';
 end;
-$$;
+$do$;
 
 -- Reapply the rollback function so it enables the scoped bypass setting while cleaning up
 -- untouched employee-create imports.
-do $$
+do $do$
 begin
   if to_regprocedure('public.rollback_employee_import_job(uuid)') is null
     or to_regclass('public.data_import_jobs') is null then
@@ -65,7 +67,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $body$
 declare
   v_org uuid := app_private.assert_import_manager(p_job_id);
   v_job public.data_import_jobs%rowtype;
@@ -169,12 +171,12 @@ begin
   return jsonb_build_object('jobId', p_job_id, 'reverted', v_reverted, 'blocked', v_blocked,
     'status', case when v_blocked = 0 then 'rolled_back' else 'partially_blocked' end);
 end;
-$$;
+$body$;
 $fn$;
 
   execute 'revoke all on function public.rollback_employee_import_job(uuid) from public, anon';
   execute 'grant execute on function public.rollback_employee_import_job(uuid) to authenticated, service_role';
 end;
-$$;
+$do$;
 
 commit;
