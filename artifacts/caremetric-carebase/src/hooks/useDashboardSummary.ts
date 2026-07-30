@@ -54,3 +54,55 @@ export function useOrgDashboardSummary() {
     staleTime: 60_000,
   });
 }
+
+export interface TrainerDashboardSummary {
+  classes: {
+    totalCount: number;
+    draftCount: number;
+    todays: { id: string; className: string }[];
+    recent: {
+      id: string;
+      className: string;
+      classDate: string;
+      status: string;
+      attendeeCount: number;
+    }[];
+  };
+  staff: {
+    totalFacilities: number;
+    totalMedAdminStaff: number;
+    practicumsCompliant: number;
+    practicumsPending: number;
+  };
+  facilitiesNeedingAttention: {
+    facilityId: string;
+    facilityName: string;
+    facilityType: string;
+    totalMedAdminStaff: number;
+    compliantCount: number;
+    dueSoonCount: number;
+    expiredCount: number;
+    missingCount: number;
+    nextExpiryDate: string | null;
+    overallStatus: "compliant" | "due_soon" | "expired" | "critical" | "unknown";
+    isVisible: boolean;
+  }[];
+  generatedAt: string;
+}
+
+/**
+ * One SECURITY INVOKER round trip replacing TrainerDashboard's previous unbounded
+ * employees / facilities / classes / practicums downloads + client aggregation.
+ * Numbers and bounded lists match the retired client logic by construction (same RLS).
+ */
+export function useTrainerDashboardSummary() {
+  return useQuery({
+    queryKey: ["trainer_dashboard_summary"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_trainer_dashboard_summary");
+      if (error) throw error;
+      return data as unknown as TrainerDashboardSummary;
+    },
+    staleTime: 60_000,
+  });
+}
