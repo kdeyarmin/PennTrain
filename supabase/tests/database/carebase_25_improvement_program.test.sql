@@ -76,8 +76,16 @@ insert into public.employees(
   'c2500000-0000-4000-8000-000000000011', 'Future', 'Risk', 'Caregiver', 'active', true
 );
 
--- Employee/training triggers may auto-create baseline rows; remove only this test employee's generated
--- records so the forecast assertions are driven by explicit fixture data.
+insert into public.training_types(
+  id, organization_id, code, name, category, state, applies_to_facility_type, is_active
+) values (
+  'c2500000-0000-4000-8000-000000000301', 'c2500000-0000-4000-8000-000000000001',
+  'FORECAST-TRAINING', 'Forecast training', 'annual', 'PA', 'BOTH', true
+);
+
+-- Employee/training triggers auto-create baseline "missing" rows, and inserting the training type
+-- above re-runs the requirement auto-assignment engine for this employee. Clean up only after every
+-- trigger has fired so the forecast assertions are driven solely by explicit fixture data.
 delete from public.employee_credentials
 where employee_id = 'c2500000-0000-4000-8000-000000000101';
 delete from public.employee_training_records
@@ -90,12 +98,6 @@ insert into public.employee_credentials(
   'c2500000-0000-4000-8000-000000000201', 'c2500000-0000-4000-8000-000000000001',
   'c2500000-0000-4000-8000-000000000011', 'c2500000-0000-4000-8000-000000000101',
   'other', 'First aid', 'compliant', public.pa_today() + 20
-);
-insert into public.training_types(
-  id, organization_id, code, name, category, state, applies_to_facility_type, is_active
-) values (
-  'c2500000-0000-4000-8000-000000000301', 'c2500000-0000-4000-8000-000000000001',
-  'FORECAST-TRAINING', 'Forecast training', 'annual', 'PA', 'BOTH', true
 );
 insert into public.employee_training_records(
   id, organization_id, facility_id, employee_id, training_type_id, status,
