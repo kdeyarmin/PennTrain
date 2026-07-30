@@ -23,8 +23,12 @@ export interface ImplementationReadinessSummary {
 const SETTLED = new Set(["complete", "not_applicable"]);
 
 function localDate(value: Date): string {
-  const offset = value.getTimezoneOffset() * 60_000;
-  return new Date(value.getTime() - offset).toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
 }
 
 export function summarizeImplementationReadiness(

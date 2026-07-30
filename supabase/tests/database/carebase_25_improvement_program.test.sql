@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(19);
 
 select has_function('public', 'get_workforce_readiness_forecast', array['uuid'],
   'the 30/60/90-day workforce forecast RPC exists');
@@ -98,6 +98,17 @@ insert into public.employee_training_records(
   'c2500000-0000-4000-8000-000000000301', 'compliant', public.pa_today() - 300, public.pa_today() + 40
 );
 
+-- The employee insert trigger (instantiate_requirements) creates missing credential shells
+-- (act34_criminal_history, tb_screening) and missing training records for every applicable
+-- system training type. Remove those auto-created rows so the forecast tests see only the
+-- specific credential and training record that this test deliberately inserted.
+delete from public.employee_credentials
+  where employee_id = 'c2500000-0000-4000-8000-000000000101'
+    and credential_type in ('act34_criminal_history', 'tb_screening');
+delete from public.employee_training_records
+  where employee_id = 'c2500000-0000-4000-8000-000000000101'
+    and id != 'c2500000-0000-4000-8000-000000000401';
+
 set local role service_role;
 select is(
   (public.get_workforce_readiness_forecast('c2500000-0000-4000-8000-000000000011') ->> 'activeEmployees')::int,
@@ -148,9 +159,11 @@ select is(
   'a future 30-day readiness risk is high priority rather than a current urgent blocker'
 );
 
+reset role;
 update public.employee_credentials
 set expiration_date = public.pa_today() + 100
 where id = 'c2500000-0000-4000-8000-000000000201';
+set local role service_role;
 select public.run_workforce_readiness_forecast_maintenance();
 select is(
   (select state from public.work_items

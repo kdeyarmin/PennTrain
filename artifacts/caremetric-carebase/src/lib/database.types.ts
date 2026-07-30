@@ -32909,6 +32909,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "work_item_templates_source_type_fkey"
+            columns: ["source_type"]
+            isOneToOne: false
+            referencedRelation: "work_item_source_types"
+            referencedColumns: ["key"]
+          },
         ]
       }
       work_item_watchers: {
@@ -33326,6 +33333,68 @@ export type Database = {
             columns: ["verified_by_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_automation_rule_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          facility_id: string | null
+          id: string
+          organization_id: string
+          rule_id: string
+          snapshot: Json
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string | null
+          id?: string
+          organization_id: string
+          rule_id: string
+          snapshot: Json
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string | null
+          id?: string
+          organization_id?: string
+          rule_id?: string
+          snapshot?: Json
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_automation_rule_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_automation_rule_versions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_automation_rule_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_automation_rule_versions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_automation_rules"
             referencedColumns: ["id"]
           },
         ]
@@ -37022,6 +37091,10 @@ export type Database = {
         Returns: Json
       }
       get_workforce_compliance_control_plane: { Args: never; Returns: Json }
+      get_workforce_readiness_forecast: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_workforce_retention_metrics: {
         Args: { p_facility_id?: string }
         Returns: Json
@@ -38845,6 +38918,10 @@ export type Database = {
         }
         Returns: Json
       }
+      run_workforce_readiness_forecast_maintenance: {
+        Args: never
+        Returns: Json
+      }
       save_care_plan_goal: {
         Args: {
           p_addresses_condition_ref?: string
@@ -39599,6 +39676,10 @@ export type Database = {
           p_token: string
         }
         Returns: boolean
+      }
+      simulate_workflow_automation_rule: {
+        Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }
+        Returns: Json
       }
       stage_hris_import_row: {
         Args: {

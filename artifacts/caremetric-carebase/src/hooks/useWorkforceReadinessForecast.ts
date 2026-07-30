@@ -45,9 +45,9 @@ export function useWorkforceReadinessForecast(facilityId?: string) {
     queryKey: ["workforce-readiness-forecast", facilityId],
     enabled: Boolean(facilityId),
     queryFn: async (): Promise<WorkforceReadinessForecast> => {
-      const { data, error } = await (supabase as any).rpc("get_workforce_readiness_forecast", {
+      const { data, error } = await supabase.rpc("get_workforce_readiness_forecast" as never, {
         p_facility_id: facilityId,
-      });
+      } as never);
       if (error) throw error;
       return data as WorkforceReadinessForecast;
     },
