@@ -37217,6 +37217,15 @@ export type Database = {
           work_date: string
         }[]
       }
+      get_platform_admin_dashboard_page: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_organizations_limit?: number
+          p_organizations_offset?: number
+        }
+        Returns: Json
+      }
       get_platform_health: { Args: never; Returns: Json }
       get_portfolio_operations_command_center: { Args: never; Returns: Json }
       get_product_changelog: { Args: { p_limit?: number }; Returns: Json }
