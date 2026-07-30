@@ -23,7 +23,11 @@ import type { PhoneTarget } from "../phone/targets.js";
 import { PhoneVoiceSession } from "../phone/phone-session.js";
 import type { RealtimeClientOptions } from "../core/realtime-client.js";
 import type { ActiveSessionTracker } from "../session/voice-session.js";
-import type { SessionSpan, UsageLimits } from "../session/usage-limits.js";
+import {
+  logUsageMeterError,
+  type SessionSpan,
+  type UsageLimits,
+} from "../session/usage-limits.js";
 
 /**
  * Cap on concurrent /phone/stream sockets that have connected WITHOUT a
@@ -159,8 +163,17 @@ function attachPhoneCall(
     if (trackerKey && !trackerFinished) {
       trackerFinished = true;
       deps.tracker.finish(trackerKey, "phone");
-      if (callerSpan) void deps.usage.phoneCallers.sessionEnded(meteredFrom, callerSpan);
-      if (budgetSpan) void deps.usage.dailyBudget.sessionEnded(budgetSpan);
+      // Metering is best-effort and the store may be Postgres: a rejected
+      // write here must be logged, not left to crash the process as an
+      // unhandled rejection.
+      if (callerSpan) {
+        void deps.usage.phoneCallers
+          .sessionEnded(meteredFrom, callerSpan)
+          .catch(logUsageMeterError);
+      }
+      if (budgetSpan) {
+        void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
+      }
     }
   };
 

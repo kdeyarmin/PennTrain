@@ -150,6 +150,11 @@ class PostgresState {
   private sweepTimer: NodeJS.Timeout | null = null;
   private closed = false;
 
+  /** Once the pool is ended, best-effort metering writes are skipped. */
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
   constructor(databaseUrl: string, opts: PostgresPhoneStoreOptions) {
     this.ttls = { ...DEFAULT_PHONE_STORE_TTLS, ...opts.ttls };
     this.pool = new Pool({
@@ -207,13 +212,24 @@ class PostgresState {
     }
   }
 
+  // One statement per query on purpose: a parameterised query goes over the
+  // extended protocol, which accepts exactly one command, so batching these
+  // into a single semicolon-separated string fails with 42601 and the sweep
+  // never runs. The deletes are independent TTL prunes; they need no shared
+  // transaction.
   async sweep(): Promise<void> {
     await this.ready;
     await this.pool.query(
-      `DELETE FROM voice_gateway.pending_sessions WHERE expires_at < now() - interval '1 hour';
-       DELETE FROM voice_gateway.phone_call_starts WHERE started_at < now() - interval '25 hours';
-       DELETE FROM voice_gateway.session_spans WHERE coalesce(ended_at, started_at) < now() - interval '25 hours';
-       DELETE FROM voice_gateway.pending_calls
+      `DELETE FROM voice_gateway.pending_sessions WHERE expires_at < now() - interval '1 hour'`,
+    );
+    await this.pool.query(
+      `DELETE FROM voice_gateway.phone_call_starts WHERE started_at < now() - interval '25 hours'`,
+    );
+    await this.pool.query(
+      `DELETE FROM voice_gateway.session_spans WHERE coalesce(ended_at, started_at) < now() - interval '25 hours'`,
+    );
+    await this.pool.query(
+      `DELETE FROM voice_gateway.pending_calls
         WHERE (claimed_at IS NULL AND expires_at <= now())
            OR (claimed_at IS NOT NULL
                AND claimed_at + ($1::double precision * interval '1 millisecond') <= now())`,
@@ -455,6 +471,7 @@ class PostgresPhoneCallerLimiter {
   }
 
   async sessionEnded(from: string, span: SessionSpan): Promise<void> {
+    if (this.state.isClosed) return;
     await this.state.ready;
     if (span.id) {
       await this.state.pool.query(
@@ -504,6 +521,7 @@ class PostgresDailyMinutesBudget {
   }
 
   async sessionEnded(span: SessionSpan): Promise<void> {
+    if (this.state.isClosed) return;
     await this.state.ready;
     if (span.id) {
       await this.state.pool.query(

@@ -58,11 +58,23 @@ export function resetClientErrorMemoryLimiter(): void {
   memoryHits.clear();
 }
 
+// Deno.env.get throws NotCapable when the process was started without
+// --allow-env, which is how `deno test` runs these handlers in CI. Treating a
+// denied read as "unset" routes the request down the in-memory fallback below,
+// exactly as a missing service-role key would.
+function readEnv(name: string): string | undefined {
+  try {
+    return Deno.env.get(name);
+  } catch {
+    return undefined;
+  }
+}
+
 async function reserveRateLimit(ip: string): Promise<"allow" | "deny" | "unavailable"> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const pepper = Deno.env.get("CLIENT_ERROR_RATE_LIMIT_SALT")
-    ?? Deno.env.get("CRON_SHARED_SECRET")
+  const supabaseUrl = readEnv("SUPABASE_URL");
+  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const pepper = readEnv("CLIENT_ERROR_RATE_LIMIT_SALT")
+    ?? readEnv("CRON_SHARED_SECRET")
     ?? "client-error-rate-limit";
   const ipHash = await sha256Hex(`${pepper}:${ip}`);
 

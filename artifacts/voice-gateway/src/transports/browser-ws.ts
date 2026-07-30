@@ -20,7 +20,10 @@ import {
   VoiceSession,
   type ActiveSessionTracker,
 } from "../session/voice-session.js";
-import type { UsageLimits } from "../session/usage-limits.js";
+import {
+  logUsageMeterError,
+  type UsageLimits,
+} from "../session/usage-limits.js";
 
 export interface BrowserTransportDeps {
   config: GatewayConfig;
@@ -143,7 +146,7 @@ async function attachSession(
       if (finished) return;
       finished = true;
       deps.tracker.finish(pending.userId);
-      void deps.usage.dailyBudget.sessionEnded(budgetSpan);
+      void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
       sendJson({ type: "closed", reason });
       ws.close(1000, reason);
     },

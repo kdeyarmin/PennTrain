@@ -26,6 +26,21 @@ export interface SessionSpan {
   id?: string;
 }
 
+/**
+ * Transports close a span fire-and-forget: the call is already over, so a
+ * failed meter write is worth a log line and nothing more. The in-memory
+ * meters never reject, but the Postgres-backed ones can, and an unhandled
+ * rejection would take the gateway down mid-call.
+ */
+export function logUsageMeterError(err: unknown): void {
+  console.error(
+    JSON.stringify({
+      evt: "voice.gateway.usage.session_end_error",
+      message: err instanceof Error ? err.message : String(err),
+    }),
+  );
+}
+
 interface CallerHistory {
   /** Timestamps of answered calls (minted tickets — webhook replays that
    *  reuse a ticket do not count again). */

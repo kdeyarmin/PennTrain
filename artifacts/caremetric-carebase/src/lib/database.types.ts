@@ -35924,6 +35924,14 @@ export type Database = {
           reset_at: string
         }[]
       }
+      consume_scim_rate_limit: {
+        Args: { p_connection_id: string; p_cost?: number }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          reset_at: string
+        }[]
+      }
       convert_shift_report_entry: {
         Args: { p_destination: string; p_entry_id: string; p_reason: string }
         Returns: Json
@@ -37143,12 +37151,12 @@ export type Database = {
       get_incident_list_summary: {
         Args: {
           p_facility_id?: string
+          p_organization_id?: string
           p_resident_id?: string
           p_search?: string
           p_severity?: string
           p_status?: string
           p_today?: string
-          p_organization_id?: string
         }
         Returns: Json
       }
@@ -39111,6 +39119,10 @@ export type Database = {
       reserve_bed_for_prospect: {
         Args: { p_bed_id: string; p_prospect_id: string }
         Returns: boolean
+      }
+      reserve_client_error_report: {
+        Args: { p_ip_hash: string; p_limit?: number }
+        Returns: undefined
       }
       reserve_confidential_intake_attempt: {
         Args: { p_facility_id: string; p_ip_hash: string; p_limit?: number }
