@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { QueryError } from "@/components/QueryState";
 import { ShieldQuestion } from "lucide-react";
 
 const SUITABILITY_LABELS: Record<string, string> = {
@@ -67,7 +68,13 @@ export default function BackgroundChecks() {
   const [form, setForm] = useState<ProfileFormData | null>(null);
 
   const { data: facilities } = useListFacilities();
-  const { data: employees, isLoading: employeesLoading } = useListEmployees({ status: "active" });
+  const {
+    data: employees,
+    isLoading: employeesLoading,
+    isError: employeesError,
+    error: employeesErrorDetail,
+    refetch: refetchEmployees,
+  } = useListEmployees({ status: "active" });
   const { data: profiles } = useListBackgroundCheckProfiles({ organizationId: user?.organizationId ?? undefined });
   const { data: orgSettings } = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const { mutateAsync: upsertProfile, isPending: saving } = useUpsertBackgroundCheckProfile();
@@ -165,7 +172,9 @@ export default function BackgroundChecks() {
           </div>
         </CardHeader>
         <CardContent>
-          {employeesLoading ? (
+          {employeesError ? (
+            <QueryError what="the employee roster" error={employeesErrorDetail} onRetry={() => refetchEmployees()} />
+          ) : employeesLoading ? (
             <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}</div>
           ) : (
             <div className="space-y-2">
