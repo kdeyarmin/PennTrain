@@ -11,6 +11,8 @@ export interface ListEmployeesFilters {
   facilityId?: string;
   status?: string;
   organizationId?: string;
+  /** When set, restrict to staff who do / do not administer medications. */
+  administersMedications?: boolean;
 }
 
 // Unbounded by design -- used for dropdowns/rosters/matrices elsewhere in the app that need the
@@ -34,6 +36,9 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+      if (filters.administersMedications !== undefined) {
+        query = query.eq("administers_medications", filters.administersMedications);
+      }
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -94,6 +99,9 @@ export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+      if (filters.administersMedications !== undefined) {
+        query = query.eq("administers_medications", filters.administersMedications);
+      }
       const search = filters.search?.trim();
       if (search) {
         const like = containsFilterValue(search);
