@@ -28,7 +28,7 @@ declare
   v_refreshed integer := 0;
   v_closed integer := 0;
 begin
-  if current_user not in ('postgres', 'service_role', 'supabase_admin') then
+  if session_user not in ('postgres', 'service_role', 'supabase_admin') then
     raise exception 'service role required' using errcode = '42501';
   end if;
 
