@@ -142,6 +142,9 @@ async function collectDenoImports(functionsDir) {
   };
 }
 
+const ADVISORY_REQUEST_TIMEOUT_MS = 60_000;
+const ADVISORY_REQUEST_ATTEMPTS = 3;
+
 function postJson(hostname, urlPath, body) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
@@ -182,12 +185,37 @@ function postJson(hostname, urlPath, body) {
       },
     );
     req.on("error", reject);
-    req.setTimeout(30_000, () => {
-      req.destroy(new Error("Advisory request timed out after 30s"));
+    req.setTimeout(ADVISORY_REQUEST_TIMEOUT_MS, () => {
+      req.destroy(
+        new Error(
+          `Advisory request timed out after ${ADVISORY_REQUEST_TIMEOUT_MS / 1_000}s`,
+        ),
+      );
     });
     req.write(data);
     req.end();
   });
+}
+
+async function fetchAdvisories(hostname, urlPath, body) {
+  let lastError;
+  for (let attempt = 1; attempt <= ADVISORY_REQUEST_ATTEMPTS; attempt++) {
+    try {
+      return await postJson(hostname, urlPath, body);
+    } catch (error) {
+      lastError = error;
+      if (attempt === ADVISORY_REQUEST_ATTEMPTS) break;
+
+      const delayMs = 1_000 * 2 ** (attempt - 1);
+      console.warn(
+        `Advisory request attempt ${attempt}/${ADVISORY_REQUEST_ATTEMPTS} failed: ${error.message}. ` +
+          `Retrying in ${delayMs / 1_000}s…`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw lastError;
 }
 
 const lockfilePath = path.resolve(process.cwd(), "pnpm-lock.yaml");
@@ -234,7 +262,7 @@ const requestPayload = Object.fromEntries(
 
 let advisories;
 try {
-  advisories = await postJson(
+  advisories = await fetchAdvisories(
     "registry.npmjs.org",
     "/-/npm/v1/security/advisories/bulk",
     requestPayload,
