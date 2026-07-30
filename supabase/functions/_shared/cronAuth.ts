@@ -1,7 +1,13 @@
 export const CRON_SECRET_HEADER = "x-caremetric-cron-secret";
 
+/**
+ * Enrich Allow-Headers with the cron secret header for server-to-server callers.
+ * Strips Access-Control-Allow-Origin if present — cron/webhook endpoints are not
+ * browser-invoked and must not advertise wildcard (or any) CORS origin.
+ */
 export function withCronCorsHeader(headers: Record<string, string>): Record<string, string> {
-  const existing = headers["Access-Control-Allow-Headers"] ?? "";
+  const { ["Access-Control-Allow-Origin"]: _omitOrigin, ...rest } = headers;
+  const existing = rest["Access-Control-Allow-Headers"] ?? "";
   const parts = new Set(
     existing
       .split(",")
@@ -9,7 +15,7 @@ export function withCronCorsHeader(headers: Record<string, string>): Record<stri
       .filter(Boolean),
   );
   parts.add(CRON_SECRET_HEADER);
-  return { ...headers, "Access-Control-Allow-Headers": Array.from(parts).join(", ") };
+  return { ...rest, "Access-Control-Allow-Headers": Array.from(parts).join(", ") };
 }
 
 function constantTimeEqual(left: string, right: string): boolean {

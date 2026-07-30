@@ -3,27 +3,50 @@
  *
  * Reflects Access-Control-Allow-Origin only when the request Origin is on the
  * allow-list. Non-browser callers (no Origin header) get the standard headers
- * without a wildcard origin.
+ * without a reflected origin.
  *
- * Configure with:
+ * Configure with (origins only — scheme + host + optional port, no path):
  *   PUBLIC_APP_URL                 e.g. https://cmcarebase.com
  *   ALLOWED_CORS_ORIGINS           comma-separated origins (preferred)
- *   SIGNUP_REDIRECT_ORIGINS        comma-separated origins (reused if ALLOWED_CORS_ORIGINS unset)
- *   ALLOW_LOCALHOST_CORS=true      adds http://localhost:5173 and 127.0.0.1:5173
+ *   SIGNUP_REDIRECT_ORIGINS        comma-separated origins (fallback if ALLOWED_CORS_ORIGINS unset)
+ *   ALLOW_LOCALHOST_CORS=true      adds http://localhost:5173|3000 and 127.0.0.1 equivalents
+ *
+ * Cron / webhook-only functions should not use this helper. Prefer omitting
+ * Access-Control-Allow-Origin entirely (withCronCorsHeader strips it).
  */
 
 const DEFAULT_ALLOWED_ORIGINS = new Set([
   "https://cmcarebase.com",
 ]);
 
+const DEFAULT_ALLOW_HEADERS =
+  "authorization, x-client-info, apikey, content-type";
+
+/** Default methods for browser Edge Functions (override per endpoint as needed). */
+const DEFAULT_ALLOW_METHODS = "GET, POST, OPTIONS";
+
+/** Cache preflight for 24h; origin is still validated on every actual request. */
+const DEFAULT_MAX_AGE = "86400";
+
+export type EnvReader = (name: string) => string | undefined;
+
+function readEnv(name: string): string | undefined {
+  try {
+    return Deno.env.get(name);
+  } catch {
+    // deno test without --allow-env: fail closed (defaults only)
+    return undefined;
+  }
+}
+
 function normalizeOrigin(value: string): string {
   return value.trim().replace(/\/+$/, "");
 }
 
-export function allowedCorsOrigins(): Set<string> {
+export function allowedCorsOrigins(getEnv: EnvReader = readEnv): Set<string> {
   const fromEnv = (
-    Deno.env.get("ALLOWED_CORS_ORIGINS") ??
-    Deno.env.get("SIGNUP_REDIRECT_ORIGINS") ??
+    getEnv("ALLOWED_CORS_ORIGINS") ??
+    getEnv("SIGNUP_REDIRECT_ORIGINS") ??
     ""
   )
     .split(",")
@@ -32,7 +55,7 @@ export function allowedCorsOrigins(): Set<string> {
 
   const origins = new Set<string>([...DEFAULT_ALLOWED_ORIGINS, ...fromEnv]);
 
-  const publicApp = normalizeOrigin(Deno.env.get("PUBLIC_APP_URL") ?? "");
+  const publicApp = normalizeOrigin(getEnv("PUBLIC_APP_URL") ?? "");
   if (publicApp) {
     try {
       origins.add(new URL(publicApp).origin);
@@ -41,7 +64,7 @@ export function allowedCorsOrigins(): Set<string> {
     }
   }
 
-  if (Deno.env.get("ALLOW_LOCALHOST_CORS") === "true") {
+  if (getEnv("ALLOW_LOCALHOST_CORS") === "true") {
     origins.add("http://localhost:5173");
     origins.add("http://127.0.0.1:5173");
     origins.add("http://localhost:3000");
@@ -54,10 +77,10 @@ export function allowedCorsOrigins(): Set<string> {
 export type CorsOptions = {
   headers?: string;
   methods?: string;
+  maxAge?: string;
+  /** Injectable env reader for tests. */
+  getEnv?: EnvReader;
 };
-
-const DEFAULT_ALLOW_HEADERS =
-  "authorization, x-client-info, apikey, content-type";
 
 /**
  * Build CORS response headers for a given request.
@@ -67,16 +90,16 @@ export function corsHeadersForRequest(
   req: Request,
   options: CorsOptions = {},
 ): Record<string, string> {
+  const getEnv = options.getEnv ?? readEnv;
   const headers: Record<string, string> = {
     "Access-Control-Allow-Headers": options.headers ?? DEFAULT_ALLOW_HEADERS,
+    "Access-Control-Allow-Methods": options.methods ?? DEFAULT_ALLOW_METHODS,
+    "Access-Control-Max-Age": options.maxAge ?? DEFAULT_MAX_AGE,
     Vary: "Origin",
   };
-  if (options.methods) {
-    headers["Access-Control-Allow-Methods"] = options.methods;
-  }
 
   const origin = req.headers.get("Origin");
-  if (origin && allowedCorsOrigins().has(normalizeOrigin(origin))) {
+  if (origin && allowedCorsOrigins(getEnv).has(normalizeOrigin(origin))) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
 
