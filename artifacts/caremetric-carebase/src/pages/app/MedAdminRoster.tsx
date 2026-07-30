@@ -37,7 +37,12 @@ export default function MedAdminRoster() {
   const currentYear = new Date().getFullYear();
 
   const { data: facilities } = useListFacilities();
-  const { data: employeesAll } = useListEmployees({ status: "active" });
+  // Push the facility filter into the query so selecting a site does not download the whole
+  // active roster first and then slice client-side.
+  const { data: employeesAll } = useListEmployees({
+    status: "active",
+    facilityId: facilityId !== "all" ? facilityId : undefined,
+  });
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   const { data: trainingRecords } = useListTrainingRecords({});
   const { data: practicums } = useListPracticums({ year: currentYear });
@@ -55,10 +60,9 @@ export default function MedAdminRoster() {
     () =>
       (employeesAll ?? [])
         .filter(e => e.administers_medications)
-        .filter(e => facilityId === "all" || e.facility_id === facilityId)
         .slice()
         .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
-    [employeesAll, facilityId],
+    [employeesAll],
   );
 
   const rows = useMemo(() => {
