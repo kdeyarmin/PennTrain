@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(29);
 
 select has_table('public', 'user_invitation_lifecycle', 'invitation lifecycle ledger exists');
 select has_table('public', 'data_import_jobs', 'import jobs table exists');
@@ -43,6 +43,27 @@ select is(
      and audit_mode = 'row_trigger'),
   3,
   'every import control-plane table has row-level audit evidence'
+);
+
+-- Privilege contract for the import control plane:
+-- service_role may read job/row/event state, but mutations stay on SECURITY DEFINER RPCs.
+select ok(
+  has_table_privilege('service_role', 'public.data_import_jobs', 'SELECT')
+  and has_table_privilege('service_role', 'public.data_import_rows', 'SELECT')
+  and has_table_privilege('service_role', 'public.data_import_events', 'SELECT'),
+  'service_role can read import control-plane state'
+);
+select ok(
+  not has_table_privilege('service_role', 'public.data_import_jobs', 'INSERT')
+  and not has_table_privilege('service_role', 'public.data_import_jobs', 'UPDATE')
+  and not has_table_privilege('service_role', 'public.data_import_jobs', 'DELETE')
+  and not has_table_privilege('service_role', 'public.data_import_rows', 'INSERT')
+  and not has_table_privilege('service_role', 'public.data_import_rows', 'UPDATE')
+  and not has_table_privilege('service_role', 'public.data_import_rows', 'DELETE')
+  and not has_table_privilege('service_role', 'public.data_import_events', 'INSERT')
+  and not has_table_privilege('service_role', 'public.data_import_events', 'UPDATE')
+  and not has_table_privilege('service_role', 'public.data_import_events', 'DELETE'),
+  'service_role has no direct mutation grants on import control-plane tables'
 );
 
 insert into public.organizations(id, name, slug, subscription_status) values
