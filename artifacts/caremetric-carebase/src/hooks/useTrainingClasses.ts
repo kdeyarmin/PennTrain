@@ -69,6 +69,12 @@ export function useClassAttendeeCounts() {
   });
 }
 
+function invalidateTrainerDashboard(queryClient: ReturnType<typeof useQueryClient>) {
+  // Class create/update/complete and attendee changes alter the trainer dashboard summary
+  // (total/draft counts, today's list, recent list + attendee counts).
+  void queryClient.invalidateQueries({ queryKey: ["trainer_dashboard_summary"] });
+}
+
 export function useCreateTrainingClass() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -77,7 +83,10 @@ export function useCreateTrainingClass() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["training_classes"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["training_classes"] });
+      invalidateTrainerDashboard(queryClient);
+    },
   });
 }
 
@@ -89,7 +98,10 @@ export function useUpdateTrainingClass() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["training_classes"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["training_classes"] });
+      invalidateTrainerDashboard(queryClient);
+    },
   });
 }
 
@@ -104,6 +116,7 @@ export function useAddClassAttendee() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", variables.class_id] });
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+      invalidateTrainerDashboard(queryClient);
     },
   });
 }
@@ -119,6 +132,7 @@ export function useUpdateClassAttendee() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", data.classId] });
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+      invalidateTrainerDashboard(queryClient);
     },
   });
 }
@@ -138,6 +152,7 @@ export function useCompleteTrainingClass() {
       // recalculate_compliance_core, so hour buckets and alerts change too.
       queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      invalidateTrainerDashboard(queryClient);
     },
   });
 }
@@ -175,6 +190,7 @@ export function useCheckinViaToken() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", data.class_id] });
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+      invalidateTrainerDashboard(queryClient);
     },
   });
 }
@@ -192,6 +208,7 @@ export function useCheckinViaKioskPin() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", data.class_id] });
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
+      invalidateTrainerDashboard(queryClient);
     },
   });
 }

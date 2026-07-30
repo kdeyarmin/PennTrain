@@ -94,12 +94,17 @@ export interface TrainerDashboardSummary {
  * One SECURITY INVOKER round trip replacing TrainerDashboard's previous unbounded
  * employees / facilities / classes / practicums downloads + client aggregation.
  * Numbers and bounded lists match the retired client logic by construction (same RLS).
+ *
+ * The rpc name is cast until database.types.ts is regenerated to include
+ * get_trainer_dashboard_summary: { Args: never; Returns: Json }.
  */
 export function useTrainerDashboardSummary() {
   return useQuery({
     queryKey: ["trainer_dashboard_summary"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_trainer_dashboard_summary");
+      const { data, error } = await supabase.rpc(
+        "get_trainer_dashboard_summary" as "get_org_dashboard_summary",
+      );
       if (error) throw error;
       return data as unknown as TrainerDashboardSummary;
     },
