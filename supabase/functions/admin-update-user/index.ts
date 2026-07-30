@@ -1,39 +1,37 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import { isDemoOrganization } from "../_shared/demoTenant.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
 const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return json(req, { error: "Service is not configured" }, 503);
+  }
 
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -41,7 +39,7 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
   let body: {
@@ -57,36 +55,36 @@ Deno.serve(async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
 
   const { user_id, role, organization_id, is_active, email, first_name, last_name, password } = body;
-  if (!user_id) return json({ error: "user_id is required" }, 400);
+  if (!user_id) return json(req, { error: "user_id is required" }, 400);
   if (role !== undefined && !VALID_ROLES.includes(role)) {
-    return json({ error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
+    return json(req, { error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
   }
   if (password !== undefined && password.length < 8) {
-    return json({ error: "password must be at least 8 characters" }, 400);
+    return json(req, { error: "password must be at least 8 characters" }, 400);
   }
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
   const { data: targetProfile, error: targetError } = await adminClient
     .from("profiles")
     .select("id, role, organization_id")
     .eq("id", user_id)
     .single();
-  if (targetError || !targetProfile) return json({ error: "target user not found" }, 404);
+  if (targetError || !targetProfile) return json(req, { error: "target user not found" }, 404);
 
   const callerRole = callerProfile.role as string;
   const callerOrgId = callerProfile.organization_id as string | null;
 
   try {
     if (await isDemoOrganization(callerClient, callerOrgId)) {
-      return json({ error: "Demo workspaces cannot modify user identities" }, 403);
+      return json(req, { error: "Demo workspaces cannot modify user identities" }, 403);
     }
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
+    return json(req, { error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
   }
 
   // Only platform_admin and org_admin may call this function at all -- identity-level changes
@@ -96,23 +94,23 @@ Deno.serve(async (req: Request) => {
     // no additional restriction
   } else if (callerRole === "org_admin") {
     if (targetProfile.organization_id !== callerOrgId) {
-      return json({ error: "org_admin can only manage users within their own organization" }, 403);
+      return json(req, { error: "org_admin can only manage users within their own organization" }, 403);
     }
     if (targetProfile.role === "platform_admin" || role === "platform_admin") {
-      return json({ error: "org_admin cannot manage or grant platform_admin" }, 403);
+      return json(req, { error: "org_admin cannot manage or grant platform_admin" }, 403);
     }
     if (organization_id !== undefined && organization_id !== callerOrgId) {
-      return json({ error: "org_admin cannot move a user to a different organization" }, 403);
+      return json(req, { error: "org_admin cannot move a user to a different organization" }, 403);
     }
     if (user_id === callerUser.id && is_active === false) {
-      return json({ error: "cannot deactivate your own account" }, 403);
+      return json(req, { error: "cannot deactivate your own account" }, 403);
     }
   } else {
-    return json({ error: "not authorized to manage users" }, 403);
+    return json(req, { error: "not authorized to manage users" }, 403);
   }
 
   const assurance = await requireFreshAal2(callerClient, "identity_admin");
-  if (!assurance.ok) return json({ error: assurance.error }, assurance.status);
+  if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
 
   // auth.users-level changes (email/password) via the Admin API. When changing the email,
   // capture the previous value first so a subsequent profile-RPC failure can be compensated --
@@ -122,7 +120,7 @@ Deno.serve(async (req: Request) => {
   if (email !== undefined) {
     const { data: targetAuthUser, error: targetAuthError } = await adminClient.auth.admin.getUserById(user_id);
     if (targetAuthError || !targetAuthUser?.user) {
-      return json({ error: targetAuthError?.message ?? "target auth user not found" }, 400);
+      return json(req, { error: targetAuthError?.message ?? "target auth user not found" }, 400);
     }
     previousEmail = targetAuthUser.user.email ?? null;
   }
@@ -131,7 +129,7 @@ Deno.serve(async (req: Request) => {
       ...(email !== undefined ? { email, email_confirm: true } : {}),
       ...(password !== undefined ? { password } : {}),
     });
-    if (authUpdateError) return json({ error: authUpdateError.message }, 400);
+    if (authUpdateError) return json(req, { error: authUpdateError.message }, 400);
   }
 
   // profiles-level changes (role/organization_id/is_active/email sync/names) via the trusted RPC --
@@ -155,13 +153,13 @@ Deno.serve(async (req: Request) => {
         email_confirm: true,
       });
       if (revertError) {
-        return json({
+        return json(req, {
           error: `${rpcError.message} (additionally, reverting the login email failed: ${revertError.message} -- the login email is now ${email} while the profile still shows ${previousEmail})`,
         }, 500);
       }
     }
-    return json({ error: rpcError.message }, 400);
+    return json(req, { error: rpcError.message }, 400);
   }
 
-  return json({ success: true, profile: updatedProfile });
+  return json(req, { success: true, profile: updatedProfile });
 });

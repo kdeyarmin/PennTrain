@@ -1,9 +1,5 @@
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 const ALLOWED_SOURCES = new Set([
   "react-boundary",
@@ -13,10 +9,10 @@ const ALLOWED_SOURCES = new Set([
   "query-error",
 ]);
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -33,23 +29,23 @@ export function sanitizeClientReportValue(value: unknown, maxLength: number): st
 }
 
 export async function handleReportClientErrorRequest(req: Request): Promise<Response> {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   let payload: Record<string, unknown>;
   try {
     payload = await readJsonBody(req, 8_192);
   } catch (error) {
     if (error instanceof RequestBodyError) {
-      return json({ error: error.status === 413 ? "Payload too large" : "Invalid JSON" }, error.status);
+      return json(req, { error: error.status === 413 ? "Payload too large" : "Invalid JSON" }, error.status);
     }
-    return json({ error: "Invalid JSON" }, 400);
+    return json(req, { error: "Invalid JSON" }, 400);
   }
 
   const source = sanitizeClientReportValue(payload.source, 40);
   const route = sanitizeClientReportValue(payload.route, 200);
   if (!ALLOWED_SOURCES.has(source) || !route.startsWith("/") || route.includes("?")) {
-    return json({ error: "Invalid report" }, 400);
+    return json(req, { error: "Invalid report" }, 400);
   }
 
   const event = {
@@ -70,5 +66,5 @@ export async function handleReportClientErrorRequest(req: Request): Promise<Resp
   // Structured, PHI-scrubbed telemetry remains in the existing Supabase logging boundary.
   // Operators can alert on event=client_application_error without introducing a new processor.
   console.error(JSON.stringify(event));
-  return json({ accepted: true }, 202);
+  return json(req, { accepted: true }, 202);
 }

@@ -3,11 +3,11 @@ import {
   buildDisabledPushSubscriptionPatch,
   buildPushSubscriptionRow,
 } from "../_shared/webPush.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+const CORS_OPTIONS = {
+  headers: "authorization, x-client-info, apikey, content-type",
+  methods: "GET, POST, DELETE, OPTIONS",
 };
 
 interface SubscriptionBody {
@@ -19,8 +19,11 @@ interface SubscriptionBody {
   endpoint?: string;
 }
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...CORS_HEADERS } });
+function json(req: Request, body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req, CORS_OPTIONS) },
+  });
 }
 
 async function sha256(value: string) {
@@ -34,34 +37,34 @@ function validEndpoint(value: unknown): value is string {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (!["GET", "POST", "DELETE"].includes(req.method)) return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, CORS_OPTIONS);
+  if (!["GET", "POST", "DELETE"].includes(req.method)) return json(req, { error: "Method not allowed" }, 405);
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !anonKey || !serviceKey) return json({ error: "Push service is not configured" }, 500);
+  if (!supabaseUrl || !anonKey || !serviceKey) return json(req, { error: "Push service is not configured" }, 500);
   const caller = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
   const { data: { user }, error: userError } = await caller.auth.getUser();
-  if (userError || !user) return json({ error: "Invalid or expired session" }, 401);
+  if (userError || !user) return json(req, { error: "Invalid or expired session" }, 401);
   const { data: profile, error: profileError } = await caller.from("profiles")
     .select("id,organization_id,is_active").eq("id", user.id).single();
-  if (profileError || !profile?.is_active || !profile.organization_id) return json({ error: "Active organization profile required" }, 403);
+  if (profileError || !profile?.is_active || !profile.organization_id) return json(req, { error: "Active organization profile required" }, 403);
 
   if (req.method === "GET") {
     const publicKey = Deno.env.get("WEB_PUSH_VAPID_PUBLIC_KEY");
-    return publicKey ? json({ publicKey }) : json({ error: "Web push is not configured" }, 503);
+    return publicKey ? json(req, { publicKey }) : json(req, { error: "Web push is not configured" }, 503);
   }
   let body: SubscriptionBody;
-  try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
+  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
   const admin = createClient(supabaseUrl, serviceKey);
   if (req.method === "DELETE") {
-    if (!validEndpoint(body.endpoint)) return json({ error: "A valid HTTPS endpoint is required" }, 400);
+    if (!validEndpoint(body.endpoint)) return json(req, { error: "A valid HTTPS endpoint is required" }, 400);
     const { error } = await admin.from("push_subscriptions")
       .update(buildDisabledPushSubscriptionPatch("user_unsubscribed"))
       .eq("profile_id", user.id).eq("endpoint_hash", await sha256(body.endpoint));
-    return error ? json({ error: "Failed to disable push subscription" }, 500) : json({ disabled: true });
+    return error ? json(req, { error: "Failed to disable push subscription" }, 500) : json(req, { disabled: true });
   }
 
   const subscription = body.subscription;
@@ -70,7 +73,7 @@ Deno.serve(async (req: Request) => {
       || subscription.keys.p256dh.length < 40
       || typeof subscription.keys.auth !== "string"
       || subscription.keys.auth.length < 8) {
-    return json({ error: "A valid browser PushSubscription is required" }, 400);
+    return json(req, { error: "A valid browser PushSubscription is required" }, 400);
   }
   const expiration = typeof subscription.expirationTime === "number"
     ? new Date(subscription.expirationTime).toISOString() : null;
@@ -89,5 +92,5 @@ Deno.serve(async (req: Request) => {
     }),
     { onConflict: "endpoint_hash" },
   );
-  return error ? json({ error: "Failed to save push subscription" }, 500) : json({ active: true }, 201);
+  return error ? json(req, { error: "Failed to save push subscription" }, 500) : json(req, { active: true }, 201);
 });

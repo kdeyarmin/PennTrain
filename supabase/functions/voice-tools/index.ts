@@ -30,11 +30,8 @@ import {
   type TrainingDueRow,
 } from "../_shared/voiceTools.ts";
 import { paToday } from "../_shared/paDay.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 // Timeout cascade: the copilot's own Anthropic call times out at 60s and
 // returns a voiceable 504 error, so this abort sits ABOVE it (65s) and the
@@ -43,16 +40,16 @@ const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "audit
 // away as a generic failure.
 const COPILOT_TIMEOUT_MS = 65_000;
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
 /** Voiceable domain failure — 200 on purpose (see header comment). */
-function toolError(error: string, message: string) {
-  return json({ ok: false, error, message });
+function toolError(req: Request, error: string, message: string) {
+  return json(req, { ok: false, error, message });
 }
 
 function addDays(date: string, days: number) {
@@ -62,22 +59,23 @@ function addDays(date: string, days: number) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) return json(req, { error: "Service is not configured" }, 503);
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user }, error: authError } = await callerClient.auth.getUser();
-  if (authError || !user) return json({ error: "Invalid or expired session" }, 401);
+  if (authError || !user) return json(req, { error: "Invalid or expired session" }, 401);
   const { data: profile, error: profileError } = await callerClient
     .from("profiles").select("role,is_active").eq("id", user.id).single();
   if (profileError || !profile?.is_active || !ALLOWED_ROLES.includes(profile.role)) {
-    return json({ error: "Not authorized to use the voice assistant" }, 403);
+    return json(req, { error: "Not authorized to use the voice assistant" }, 403);
   }
 
   // Platform kill-switch, checked PER CALL (same pattern as the copilot's
@@ -90,13 +88,14 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   let assistantEnabled = false;
   if (serviceRoleKey) {
-    const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { data: setting, error: settingError } = await adminClient
       .from("platform_settings").select("value").eq("key", "voice_assistant_enabled").maybeSingle();
     assistantEnabled = !settingError && setting?.value === true;
   }
   if (!assistantEnabled) {
     return toolError(
+      req,
       "assistant_disabled",
       "The voice assistant is currently disabled by the platform administrator. Apologize and suggest using the app directly.",
     );
@@ -106,10 +105,10 @@ Deno.serve(async (req: Request) => {
   try {
     rawBody = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const parsed = parseVoiceToolRequest(rawBody);
-  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  if (!parsed.ok) return json(req, { error: parsed.error }, 400);
   const { tool, args, facilityId } = parsed.request;
 
   // Facility re-validated THROUGH the caller's client: RLS proves the user
@@ -118,12 +117,14 @@ Deno.serve(async (req: Request) => {
     .from("facilities").select("id,name,facility_type").eq("id", facilityId).single();
   if (facilityError || !facility) {
     return toolError(
+      req,
       "facility_not_found",
       "That facility isn't available to this account. Suggest picking a facility in the app.",
     );
   }
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
     return toolError(
+      req,
       "facility_type_unsupported",
       "Voice compliance tools cover Personal Care Homes and Assisted Living Facilities (ALFs) only.",
     );
@@ -139,6 +140,7 @@ Deno.serve(async (req: Request) => {
       .rpc("is_assigned_to_facility", { target_facility_id: facilityId });
     if (assignedError || assigned !== true) {
       return toolError(
+        req,
         "facility_not_accessible",
         "That facility isn't in this account's assigned scope, so its compliance data can't be read aloud. Suggest picking one of the caller's assigned facilities in the app.",
       );
@@ -168,6 +170,7 @@ Deno.serve(async (req: Request) => {
         } catch (error) {
           if (error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError")) {
             return toolError(
+              req,
               "copilot_timeout",
               "The compliance lookup is taking longer than expected. Offer to try again in a moment.",
             );
@@ -181,20 +184,20 @@ Deno.serve(async (req: Request) => {
           const message = typeof (copilotBody as { error?: unknown })?.error === "string"
             ? (copilotBody as { error: string }).error
             : "The compliance copilot could not answer right now.";
-          return toolError("copilot_unavailable", message);
+          return toolError(req, "copilot_unavailable", message);
         }
         const compressed = compressCopilotForVoice(copilotBody);
         if (!compressed) {
-          return toolError("copilot_unavailable", "The compliance copilot returned an unusable answer.");
+          return toolError(req, "copilot_unavailable", "The compliance copilot returned an unusable answer.");
         }
-        return json({ ok: true, result: compressed });
+        return json(req, { ok: true, result: compressed });
       }
 
       case "get_facility_readiness": {
         const { data, error } = await callerClient
           .rpc("get_facility_readiness_breakdown", { p_facility_id: facilityId });
         if (error) throw new Error(`readiness breakdown: ${error.message}`);
-        return json({ ok: true, result: summarizeReadiness((data ?? []) as ReadinessRow[]) });
+        return json(req, { ok: true, result: summarizeReadiness((data ?? []) as ReadinessRow[]) });
       }
 
       case "get_upcoming_deadlines": {
@@ -233,7 +236,7 @@ Deno.serve(async (req: Request) => {
         for (const result of [training, credentials, residentItems, trainingCount, credentialsCount, residentItemsCount]) {
           if (result.error) throw new Error(`deadline query: ${result.error.message}`);
         }
-        return json({
+        return json(req, {
           ok: true,
           result: summarizeDeadlines(
             days,
@@ -254,6 +257,6 @@ Deno.serve(async (req: Request) => {
       tool,
       message: error instanceof Error ? error.message : String(error),
     });
-    return toolError("query_failed", "The lookup failed. Suggest trying again in a moment.");
+    return toolError(req, "query_failed", "The lookup failed. Suggest trying again in a moment.");
   }
 });

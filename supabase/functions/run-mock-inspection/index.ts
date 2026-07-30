@@ -1,37 +1,42 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { paToday } from "../_shared/paDay.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const ROLES = new Set(["platform_admin","org_admin","facility_manager","trainer","auditor"]);
 
-function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...CORS } }); }
+function json(req: Request, body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
+  });
+}
 async function sha256(value: unknown) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
   return Array.from(new Uint8Array(digest), (part) => part.toString(16).padStart(2, "0")).join("");
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
   const auth = req.headers.get("Authorization");
-  if (!auth) return json({ error: "Authentication required" }, 401);
+  if (!auth) return json(req, { error: "Authentication required" }, 401);
   const url = Deno.env.get("SUPABASE_URL"); const anon = Deno.env.get("SUPABASE_ANON_KEY"); const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !anon || !service) return json({ error: "Mock inspection service is not configured" }, 500);
+  if (!url || !anon || !service) return json(req, { error: "Mock inspection service is not configured" }, 500);
   const caller = createClient(url, anon, { global: { headers: { Authorization: auth } } });
   const { data: { user } } = await caller.auth.getUser();
-  if (!user) return json({ error: "Invalid or expired session" }, 401);
+  if (!user) return json(req, { error: "Invalid or expired session" }, 401);
   const { data: profile } = await caller.from("profiles").select("role,is_active").eq("id", user.id).single();
-  if (!profile?.is_active || !ROLES.has(profile.role)) return json({ error: "Not authorized" }, 403);
+  if (!profile?.is_active || !ROLES.has(profile.role)) return json(req, { error: "Not authorized" }, 403);
   let body: { facilityId?: string; asOfDate?: string };
-  try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
-  if (!body.facilityId) return json({ error: "facilityId is required" }, 400);
+  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  if (!body.facilityId) return json(req, { error: "facilityId is required" }, 400);
   const { data: facility } = await caller.from("facilities").select("id,name,facility_type,state").eq("id", body.facilityId).single();
-  if (!facility) return json({ error: "Facility not found or outside scope" }, 404);
+  if (!facility) return json(req, { error: "Facility not found or outside scope" }, 404);
   const { data: items, error: itemError } = await caller.from("entrance_conference_items")
     .select("id,category,prompt,data_source,sort_order,item_types")
     .eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${(await caller.from("profiles").select("organization_id").eq("id", user.id).single()).data?.organization_id}`)
     .order("sort_order").limit(40);
-  if (itemError || !items?.length) return json({ error: "No visible entrance-conference checklist exists" }, 422);
+  if (itemError || !items?.length) return json(req, { error: "No visible entrance-conference checklist exists" }, 422);
   const asOfDate = /^\d{4}-\d{2}-\d{2}$/.test(body.asOfDate || "") ? body.asOfDate! : paToday();
 
   const inspectItem = async (item: typeof items[number]) => {
@@ -71,8 +76,8 @@ Deno.serve(async (req: Request) => {
     p_evidence_snapshot: evidenceSnapshot, p_findings: findings,
     p_model: [...new Set(findings.map((finding) => finding.model).filter(Boolean))].join(",") || null,
   });
-  return recordError ? json({ error: "Mock inspection receipt could not be recorded" }, 500)
-    : json({ runId, asOfDate, passed: findings.filter((f) => f.determination === "pass").length,
+  return recordError ? json(req, { error: "Mock inspection receipt could not be recorded" }, 500)
+    : json(req, { runId, asOfDate, passed: findings.filter((f) => f.determination === "pass").length,
       attention: findings.filter((f) => f.determination === "attention").length,
       indeterminate: findings.filter((f) => f.determination === "indeterminate").length, findings });
 });

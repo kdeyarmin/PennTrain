@@ -6,19 +6,20 @@ import {
   verificationRecordName,
 } from "../_shared/phase2DomainVerification.ts";
 import { sha256Hex } from "../_shared/phase2IdentitySecurity.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-request-id, x-correlation-id",
+const IDENTITY_CORS = {
+  headers:
+    "authorization, x-client-info, apikey, content-type, x-request-id, x-correlation-id",
 };
 
-function json(body: unknown, status = 200, requestId?: string): Response {
+function json(req: Request, body: unknown, status = 200, requestId?: string): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
-      ...CORS_HEADERS,
+      ...corsHeadersForRequest(req, IDENTITY_CORS),
       ...(requestId ? { "X-Request-Id": requestId } : {}),
     },
   });
@@ -36,8 +37,8 @@ function jwtAssuranceLevel(token: string): string | null {
 }
 
 Deno.serve(async (request: Request) => {
-  if (request.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (request.method === "OPTIONS") return corsPreflightResponse(request, IDENTITY_CORS);
+  if (request.method !== "POST") return json(request, { error: "Method not allowed" }, 405);
 
   const requestId = request.headers.get("X-Request-Id")?.trim() || crypto.randomUUID();
   const authorization = request.headers.get("Authorization") ?? "";
@@ -46,18 +47,18 @@ Deno.serve(async (request: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-    return json({ error: "Identity verification service is not configured" }, 503, requestId);
+    return json(request, { error: "Identity verification service is not configured" }, 503, requestId);
   }
-  if (!accessToken) return json({ error: "Authentication required" }, 401, requestId);
+  if (!accessToken) return json(request, { error: "Authentication required" }, 401, requestId);
 
   let body: { domainId?: string };
   try {
     body = await request.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400, requestId);
+    return json(request, { error: "Invalid JSON body" }, 400, requestId);
   }
   if (!body.domainId || !/^[0-9a-f-]{36}$/i.test(body.domainId)) {
-    return json({ error: "domainId must be a UUID" }, 400, requestId);
+    return json(request, { error: "domainId must be a UUID" }, 400, requestId);
   }
 
   const caller = createClient(supabaseUrl, anonKey, {
@@ -65,16 +66,16 @@ Deno.serve(async (request: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data: { user }, error: userError } = await caller.auth.getUser(accessToken);
-  if (userError || !user) return json({ error: "Invalid or expired session" }, 401, requestId);
+  if (userError || !user) return json(request, { error: "Invalid or expired session" }, 401, requestId);
   if (jwtAssuranceLevel(accessToken) !== "aal2") {
-    return json({ error: "AAL2 verification is required" }, 403, requestId);
+    return json(request, { error: "AAL2 verification is required" }, 403, requestId);
   }
   const { data: assuranceCurrent, error: assuranceError } = await caller.rpc(
     "identity_assurance_is_current",
     { p_operation: "identity_admin" },
   );
   if (assuranceError || assuranceCurrent !== true) {
-    return json({ error: "A fresh AAL2 administrator session is required" }, 403, requestId);
+    return json(request, { error: "A fresh AAL2 administrator session is required" }, 403, requestId);
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -87,17 +88,17 @@ Deno.serve(async (request: Request) => {
       .eq("id", body.domainId)
       .single(),
   ]);
-  if (profileError || !profile?.is_active) return json({ error: "Active administrator profile required" }, 403, requestId);
-  if (domainError || !domainRow) return json({ error: "Identity domain not found" }, 404, requestId);
+  if (profileError || !profile?.is_active) return json(request, { error: "Active administrator profile required" }, 403, requestId);
+  if (domainError || !domainRow) return json(request, { error: "Identity domain not found" }, 404, requestId);
   const authorized = profile.role === "platform_admin" ||
     (profile.role === "org_admin" && profile.organization_id === domainRow.organization_id);
-  if (!authorized) return json({ error: "Identity administrator access required" }, 403, requestId);
+  if (!authorized) return json(request, { error: "Identity administrator access required" }, 403, requestId);
   if (domainRow.verification_status === "verified") {
-    return json({ verified: true, domainId: domainRow.id, domain: domainRow.domain, alreadyVerified: true }, 200, requestId);
+    return json(request, { verified: true, domainId: domainRow.id, domain: domainRow.domain, alreadyVerified: true }, 200, requestId);
   }
 
   const domain = normalizeDomain(domainRow.domain);
-  if (!domain) return json({ error: "Stored identity domain is invalid" }, 409, requestId);
+  if (!domain) return json(request, { error: "Stored identity domain is invalid" }, 409, requestId);
   const recordName = verificationRecordName(domain);
   const dnsUrl = new URL("https://cloudflare-dns.com/dns-query");
   dnsUrl.searchParams.set("name", recordName);
@@ -113,7 +114,7 @@ Deno.serve(async (request: Request) => {
     dnsPayload = await dnsResponse.json();
   } catch (error) {
     console.error("Identity-domain DNS lookup failed", { requestId, domainId: body.domainId, error: String(error) });
-    return json({ error: "DNS verification is temporarily unavailable" }, 503, requestId);
+    return json(request, { error: "DNS verification is temporarily unavailable" }, 503, requestId);
   }
 
   const matchingValue = await findMatchingVerificationValue(
@@ -121,7 +122,7 @@ Deno.serve(async (request: Request) => {
     domainRow.verification_challenge_sha256,
   );
   if (!matchingValue) {
-    return json({
+    return json(request, {
       verified: false,
       domainId: domainRow.id,
       domain,
@@ -137,7 +138,7 @@ Deno.serve(async (request: Request) => {
   });
   if (verifyError || verified !== true) {
     console.error("Trusted identity-domain verification RPC failed", { requestId, domainId: body.domainId, code: verifyError?.code });
-    return json({ error: "Domain proof could not be recorded" }, 409, requestId);
+    return json(request, { error: "Domain proof could not be recorded" }, 409, requestId);
   }
-  return json({ verified: true, domainId: domainRow.id, domain, recordName }, 200, requestId);
+  return json(request, { verified: true, domainId: domainRow.id, domain, recordName }, 200, requestId);
 });
