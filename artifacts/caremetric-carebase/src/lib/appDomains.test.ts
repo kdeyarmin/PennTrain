@@ -267,7 +267,7 @@ describe("role-based page visibility", () => {
 
   it("surfaces role-aware command actions for Phase 1 workflow shortcuts", () => {
     expect(searchCommandActions("add employee", "org_admin").map((action) => action.path)).toContain("/app/employees?action=add");
-    expect(searchCommandActions("bulk import", "facility_manager").map((action) => action.path)).toContain("/app/employees?action=bulk-import");
+    expect(searchCommandActions("bulk import", "facility_manager").map((action) => action.path)).toContain("/app/data-imports");
     expect(searchCommandActions("ai training", "platform_admin").map((action) => action.path)).toContain("/admin/courses/new-ai");
     expect(searchCommandActions("ai training", "org_admin")).toEqual([]);
     expect(searchCommandActions("bulk import", "employee")).toEqual([]);

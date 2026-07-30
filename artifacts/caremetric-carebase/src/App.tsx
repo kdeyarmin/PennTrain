@@ -64,6 +64,7 @@ const ValueCenter = lazy(() => import("@/pages/app/ValueCenter"));
 const Facilities = lazy(() => import("@/pages/app/Facilities"));
 const FacilityDetail = lazy(() => import("@/pages/app/FacilityDetail"));
 const Employees = lazy(() => import("@/pages/app/Employees"));
+const DataImportCenter = lazy(() => import("@/pages/app/DataImportCenter"));
 const EmployeeDetail = lazy(() => import("@/pages/app/EmployeeDetail"));
 const TrainingMatrix = lazy(() => import("@/pages/app/TrainingMatrix"));
 const TrainingTypes = lazy(() => import("@/pages/app/TrainingTypes"));
@@ -598,6 +599,9 @@ function Router() {
       </Route>
       <Route path="/app/employees">
         {() => <ProtectedRoute component={Employees} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/data-imports">
+        {() => <ProtectedRoute component={DataImportCenter} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/employees/:id">
         {() => <ProtectedRoute component={EmployeeDetail} allowedRoles={ORG_ROLES} />}

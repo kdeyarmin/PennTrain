@@ -78,6 +78,7 @@ import {
   Gauge,
   ScrollText,
   Printer,
+  FileUp,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -171,6 +172,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Guided Workflows",
         items: [
           { href: "/app/employees?action=add", label: "Onboard Employee", icon: Users },
+          { href: "/app/data-imports", label: "Import & Migration", icon: FileUp },
           ...(showPchAlrModules
             ? [{ href: "/app/inspection-readiness", label: "Prepare for Inspection", icon: Radar }]
             : []),

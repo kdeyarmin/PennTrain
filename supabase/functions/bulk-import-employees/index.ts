@@ -135,6 +135,25 @@ Deno.serve(async (req: Request) => {
     });
     if (error) return json(req, { error: `Unable to start import job: ${error.message}` }, 400);
     jobId = data as string;
+  } else {
+    // A job receipt is also the authorization and idempotency boundary. Never allow a caller to
+    // reuse a valid in-scope job id with different bytes or duplicate semantics: row numbers and
+    // before-snapshots would otherwise describe a different source than the immutable checksum.
+    const { data: existingJob, error: jobError } = await callerClient
+      .from("data_import_jobs")
+      .select("domain,status,original_file_sha256,duplicate_strategy")
+      .eq("id", jobId)
+      .single();
+    if (jobError || !existingJob) return json(req, { error: "Import job was not found in your scope" }, 404);
+    if (existingJob.domain !== "employees") return json(req, { error: "Import job domain does not match this processor" }, 409);
+    if (existingJob.original_file_sha256 !== fileSha256) return json(req, { error: "CSV checksum does not match the original import receipt" }, 409);
+    if (existingJob.duplicate_strategy !== duplicateStrategy) return json(req, { error: "Duplicate strategy cannot change after the import job is created" }, 409);
+    const allowedStatuses = mode === "validate"
+      ? ["uploaded", "mapping", "validated", "ready", "failed"]
+      : ["ready", "applying", "failed"];
+    if (!allowedStatuses.includes(existingJob.status)) {
+      return json(req, { error: `Import job in ${existingJob.status} state cannot be ${mode === "validate" ? "previewed" : "applied"}` }, 409);
+    }
   }
 
   // Resolved once up front rather than per-row. Queried as the caller (not a service-role client),
