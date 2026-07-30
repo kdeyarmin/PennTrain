@@ -1,16 +1,13 @@
-// @ts-nocheck
+// @ts-nocheck -- retained: npm pdf-lib/canvas modules cause widespread type errors
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -159,22 +156,22 @@ async function buildPocPdf(input: {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -182,17 +179,17 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
   let body: { violationId?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   const { violationId } = body;
-  if (!violationId) return json({ error: "violationId is required" }, 400);
+  if (!violationId) return json(req, { error: "violationId is required" }, 400);
 
   // RLS-scoped read on the caller's own client: dhs_violations_select already gates who can see
   // this violation (platform_admin, org_admin/auditor org-wide, facility_manager assigned to its
@@ -205,8 +202,8 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", violationId)
     .maybeSingle();
-  if (violationError) return json({ error: violationError.message }, 500);
-  if (!violation) return json({ error: "Violation not found" }, 404);
+  if (violationError) return json(req, { error: violationError.message }, 500);
+  if (!violation) return json(req, { error: "Violation not found" }, 404);
 
   const { data: correctiveActions, error: correctiveActionsError } = await callerClient
     .from("corrective_actions")
@@ -214,7 +211,7 @@ Deno.serve(async (req: Request) => {
     .eq("violation_id", violationId);
   // A POC without its corrective tasks reads as an empty remediation plan -- fail the
   // request instead of rendering an incomplete document on a transient query error.
-  if (correctiveActionsError) return json({ error: correctiveActionsError.message }, 500);
+  if (correctiveActionsError) return json(req, { error: correctiveActionsError.message }, 500);
 
   const organizationName = (violation.organizations as unknown as { name: string } | null)?.name ?? "";
   const facilityName = (violation.facilities as unknown as { name: string } | null)?.name ?? "";
@@ -234,7 +231,7 @@ Deno.serve(async (req: Request) => {
     correctiveActions: (correctiveActions ?? []) as unknown as CorrectiveActionRow[],
   });
 
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   // Path shape (org/facility/...) matches the "violation-documents" bucket's RLS policies, which
   // read the facility id out of the second folder segment -- see
   // supabase/migrations/..._violation_documents_storage_bucket.sql.
@@ -247,7 +244,7 @@ Deno.serve(async (req: Request) => {
     contentType: "application/pdf",
     upsert: true,
   });
-  if (uploadError) return json({ error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   // Keep exactly one 'poc' document row per violation (the generated PDF supersedes any prior
   // draft) -- delete-then-insert rather than upsert since there's no natural conflict key besides
@@ -255,7 +252,7 @@ Deno.serve(async (req: Request) => {
   // error is checked: a silently failed delete followed by a successful insert would leave
   // duplicate 'poc' rows for the violation.
   const { error: deleteError } = await adminClient.from("violation_documents").delete().eq("violation_id", violationId).eq("document_type", "poc");
-  if (deleteError) return json({ error: deleteError.message }, 500);
+  if (deleteError) return json(req, { error: deleteError.message }, 500);
   const { error: docError } = await adminClient.from("violation_documents").insert({
     organization_id: violation.organization_id,
     facility_id: violation.facility_id,
@@ -267,14 +264,14 @@ Deno.serve(async (req: Request) => {
     document_type: "poc",
     uploaded_by_profile_id: callerUser.id,
   });
-  if (docError) return json({ error: docError.message }, 500);
+  if (docError) return json(req, { error: docError.message }, 500);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json({ error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
   }
 
-  return json({ success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
+  return json(req, { success: true, url: signedUrlData.signedUrl, path, expiresIn: SIGNED_URL_TTL_SECONDS });
 });

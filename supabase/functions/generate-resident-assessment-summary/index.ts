@@ -1,18 +1,14 @@
-// @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
 import { AliasDirectory, redactAssessmentContent } from "../_shared/aiRedaction.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -223,21 +219,21 @@ function anthropicErrorMessage(result: AnthropicCallResult) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const callerClient = createClient<any>(supabaseUrl, anonKey, {
+  const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
-  if (callerAuthError || !callerUser) return json({ error: "Invalid or expired session" }, 401);
+  if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -245,13 +241,13 @@ Deno.serve(async (req: Request) => {
     .eq("id", callerUser.id)
     .single();
   if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json({ error: "Caller profile not found or inactive" }, 403);
+    return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
   if (!ALLOWED_ROLES.includes(callerProfile.role as string)) {
-    return json({ error: "not authorized to generate resident assessment wellness summaries" }, 403);
+    return json(req, { error: "not authorized to generate resident assessment wellness summaries" }, 403);
   }
-  if (!serviceRoleKey) return json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
-  const privilegedClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  if (!serviceRoleKey) return json(req, { error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
+  const privilegedClient = createClient(supabaseUrl, serviceRoleKey);
 
   // get_platform_setting() was dropped by 20260706043940; read the settings row directly
   // with the privileged client, the same pattern compliance-copilot uses. Fail closed.
@@ -261,40 +257,40 @@ Deno.serve(async (req: Request) => {
     .eq("key", "ai_wellness_summary_generation_enabled")
     .maybeSingle();
   if (aiGenerationSettingError) {
-    return json({ error: "Failed to read platform AI settings" }, 500);
+    return json(req, { error: "Failed to read platform AI settings" }, 500);
   }
   if (aiGenerationSetting?.value !== true) {
-    return json({ error: "AI wellness summary generation is currently disabled by the platform administrator." }, 403);
+    return json(req, { error: "AI wellness summary generation is currently disabled by the platform administrator." }, 403);
   }
 
   // Checked only after auth/role so secret configuration does not leak ahead of authorization.
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json({ error: "ANTHROPIC_API_KEY is not configured" }, 500);
+  if (!anthropicApiKey) return json(req, { error: "ANTHROPIC_API_KEY is not configured" }, 500);
 
   let body: GenerateSummaryRequestBody;
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
-  if (!body.formId) return json({ error: "formId is required" }, 400);
+  if (!body.formId) return json(req, { error: "formId is required" }, 400);
 
   const { data: formRaw, error: formError } = await callerClient
     .from("resident_assessment_forms")
     .select("id, organization_id, facility_id, resident_id, status, content, form_type, reason")
     .eq("id", body.formId)
     .single();
-  if (formError || !formRaw) return json({ error: "resident assessment form not found" }, 404);
+  if (formError || !formRaw) return json(req, { error: "resident assessment form not found" }, 404);
 
   const form = formRaw as ResidentAssessmentFormRow;
-  if (form.status !== "draft") return json({ error: "AI summaries can only be generated for draft forms" }, 409);
+  if (form.status !== "draft") return json(req, { error: "AI summaries can only be generated for draft forms" }, 409);
 
   // PT-019: per-organization BAA gate, on top of the platform switch above. The
   // assessment form's organization_id is the org derivation this function already
   // uses for its audit rows -- and the assessment content is PHI, so this endpoint
   // must never reach the provider without a recorded BAA (or a demo org).
   if (!(await orgAiAllowed(callerClient, form.organization_id))) {
-    return json(orgAiDisabledBody(), 403);
+    return json(req, orgAiDisabledBody(), 403);
   }
 
   // PT-026: unconditional pseudonymization / direct-identifier minimization --
@@ -324,7 +320,7 @@ Deno.serve(async (req: Request) => {
     ]);
     const directoryError = residentResult.error ?? supportsResult.error ?? staffResult.error;
     if (directoryError) {
-      return json({ error: "Failed to prepare the privacy pseudonymization layer" }, 500);
+      return json(req, { error: "Failed to prepare the privacy pseudonymization layer" }, 500);
     }
     const resident = residentResult.data;
     if (resident) {
@@ -373,7 +369,7 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (generationInsertError || !generationRow) {
-    return json({ error: generationInsertError?.message ?? "failed to create audit record for this generation" }, 500);
+    return json(req, { error: generationInsertError?.message ?? "failed to create audit record for this generation" }, 500);
   }
   const generationId = generationRow.id as string;
 
@@ -400,11 +396,11 @@ Deno.serve(async (req: Request) => {
     clearTimeout(timeoutId);
     if (e instanceof Error && e.name === "AbortError") {
       await markFailed(`Anthropic API request timed out after ${ANTHROPIC_TIMEOUT_MS / 1000}s`);
-      return json({ error: "AI wellness summary generation timed out", generation_id: generationId }, 504);
+      return json(req, { error: "AI wellness summary generation timed out", generation_id: generationId }, 504);
     }
     const message = e instanceof Error ? e.message : String(e);
     await markFailed(message);
-    return json({ error: "AI wellness summary generation failed", generation_id: generationId }, 502);
+    return json(req, { error: "AI wellness summary generation failed", generation_id: generationId }, 502);
   }
   clearTimeout(timeoutId);
 
@@ -418,17 +414,17 @@ Deno.serve(async (req: Request) => {
   if (!result.ok) {
     const message = anthropicErrorMessage(result);
     await markFailed(message);
-    return json({ error: "AI wellness summary generation failed", generation_id: generationId }, 502);
+    return json(req, { error: "AI wellness summary generation failed", generation_id: generationId }, 502);
   }
 
   const toolInput = extractToolInput(result.body);
   if (!toolInput) {
     await markFailed("AI response did not include a valid wellness summary and grounding checklist");
-    return json({ error: "AI response did not include a valid wellness summary", generation_id: generationId }, 502);
+    return json(req, { error: "AI response did not include a valid wellness summary", generation_id: generationId }, 502);
   }
   if (!groundingChecklistPassed(toolInput.grounding_checklist)) {
     await markFailed("AI response failed the grounding checklist");
-    return json({ error: "AI response could not verify that the summary was fully grounded in the assessment", generation_id: generationId }, 502);
+    return json(req, { error: "AI response could not verify that the summary was fully grounded in the assessment", generation_id: generationId }, 502);
   }
 
   // PT-026: re-substitute real names for the aliases in the model's output so
@@ -451,7 +447,7 @@ Deno.serve(async (req: Request) => {
     })
     .eq("id", generationId);
 
-  return json({
+  return json(req, {
     summary,
     suggested_additions: suggestedAdditions,
     follow_up_questions: followUpQuestions,

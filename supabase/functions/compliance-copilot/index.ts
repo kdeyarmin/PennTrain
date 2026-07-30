@@ -21,11 +21,8 @@ import {
   type CopilotRuleSource,
 } from "../_shared/complianceCopilot.ts";
 import { paToday } from "../_shared/paDay.ts";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -45,10 +42,10 @@ interface CopilotRequest {
 
 type QueryRow = Record<string, any>;
 
-function json(body: unknown, status = 200) {
+function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -454,42 +451,42 @@ async function callAnthropic(apiKey: string, prompt: string, candidates: string[
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return corsPreflightResponse(req);
+  if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return json({ error: "Missing Authorization header" }, 401);
+  if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const callerClient = createClient<any>(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
+  const callerClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
   const { data: { user }, error: authError } = await callerClient.auth.getUser();
-  if (authError || !user) return json({ error: "Invalid or expired session" }, 401);
+  if (authError || !user) return json(req, { error: "Invalid or expired session" }, 401);
   const { data: profile, error: profileError } = await callerClient.from("profiles").select("role,is_active").eq("id", user.id).single();
-  if (profileError || !profile?.is_active || !ALLOWED_ROLES.includes(profile.role)) return json({ error: "Not authorized to use the compliance copilot" }, 403);
-  if (!serviceRoleKey) return json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
-  const adminClient = createClient<any>(supabaseUrl, serviceRoleKey);
+  if (profileError || !profile?.is_active || !ALLOWED_ROLES.includes(profile.role)) return json(req, { error: "Not authorized to use the compliance copilot" }, 403);
+  if (!serviceRoleKey) return json(req, { error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, 500);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const { data: setting, error: settingError } = await adminClient.from("platform_settings").select("value").eq("key", "ai_compliance_copilot_enabled").maybeSingle();
-  if (settingError) return json({ error: "Failed to read platform AI settings" }, 500);
-  if (setting?.value !== true) return json({ error: "The compliance copilot is disabled by the platform administrator." }, 403);
+  if (settingError) return json(req, { error: "Failed to read platform AI settings" }, 500);
+  if (setting?.value !== true) return json(req, { error: "The compliance copilot is disabled by the platform administrator." }, 403);
 
   let body: CopilotRequest;
-  try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
-  if (!body.facilityId || !isCopilotIntent(body.intent)) return json({ error: "facilityId and a supported intent are required" }, 400);
+  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  if (!body.facilityId || !isCopilotIntent(body.intent)) return json(req, { error: "facilityId and a supported intent are required" }, 400);
   const question = body.question?.trim();
-  if (!question || question.length < 3 || question.length > 2000) return json({ error: "question must be between 3 and 2000 characters" }, 400);
+  if (!question || question.length < 3 || question.length > 2000) return json(req, { error: "question must be between 3 and 2000 characters" }, 400);
   const asOf = isoDate(body.asOfDate) ?? paToday();
 
   const { data: facility, error: facilityError } = await callerClient.from("facilities").select("id,organization_id,name,facility_type,state").eq("id", body.facilityId).single();
-  if (facilityError || !facility) return json({ error: "Facility not found or outside caller scope" }, 404);
+  if (facilityError || !facility) return json(req, { error: "Facility not found or outside caller scope" }, 404);
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
-    return json({ error: "The compliance copilot is limited to PCH and ALF facilities." }, 400);
+    return json(req, { error: "The compliance copilot is limited to PCH and ALF facilities." }, 400);
   }
   // PT-019: per-organization BAA gate, on top of the platform switch above. The
   // facility row (caller-scoped RLS read) is the org derivation this function
   // already uses for its audit rows.
   if (!(await orgAiAllowed(callerClient, facility.organization_id))) {
-    return json(orgAiDisabledBody(), 403);
+    return json(req, orgAiDisabledBody(), 403);
   }
   const authorizedUser = user;
   const scopedFacility = facility;
@@ -498,7 +495,7 @@ Deno.serve(async (req: Request) => {
   const subjectType = intent === "employee_blocked" ? "employee" : intent === "draft_plan_of_correction" ? "violation" : intent === "citation_evidence" ? "citation" : null;
   const subjectReference = subjectType === "employee" ? body.employeeId : subjectType === "violation" ? body.violationId : subjectType === "citation" ? body.citationQuery?.trim() : null;
   if ((subjectType && !subjectReference) || (!subjectType && subjectReference)) {
-    return json({ error: "The selected question requires its corresponding employee, violation, or citation context." }, 400);
+    return json(req, { error: "The selected question requires its corresponding employee, violation, or citation context." }, 400);
   }
 
   let sources: CopilotRuleSource[] = [];
@@ -545,7 +542,7 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await recordFailure(`Grounding failed: ${message}`);
-    return json({ error: "Failed to collect a complete facility-scoped grounding packet" }, 500);
+    return json(req, { error: "Failed to collect a complete facility-scoped grounding packet" }, 500);
   }
   if (!facility.state) missingInformation.push("The facility state is blank; Pennsylvania is assumed from the PCH/ALF product scope.");
   if (sources.length === 0) missingInformation.push("No active governed rule version matched this question, jurisdiction, facility type, and as-of date.");
@@ -555,7 +552,7 @@ Deno.serve(async (req: Request) => {
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!anthropicKey) {
     await recordFailure("ANTHROPIC_API_KEY is not configured");
-    return json({ error: "The compliance copilot model provider is not configured." }, 503);
+    return json(req, { error: "The compliance copilot model provider is not configured." }, 503);
   }
   const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
 
@@ -592,7 +589,7 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await recordFailure(`Data minimization failed: ${message}`);
-    return json({ error: "Failed to prepare the privacy pseudonymization layer" }, 500);
+    return json(req, { error: "Failed to prepare the privacy pseudonymization layer" }, 500);
   }
 
   const prompt = [
@@ -617,19 +614,19 @@ Deno.serve(async (req: Request) => {
     clearTimeout(timeout);
     const timedOut = error instanceof Error && error.name === "AbortError";
     await recordFailure(timedOut ? "Anthropic request timed out" : `Anthropic request failed: ${error instanceof Error ? error.message : String(error)}`, modelCandidates[0]);
-    return json({ error: timedOut ? "Compliance copilot generation timed out" : "Compliance copilot generation failed" }, timedOut ? 504 : 502);
+    return json(req, { error: timedOut ? "Compliance copilot generation timed out" : "Compliance copilot generation failed" }, timedOut ? 504 : 502);
   }
   clearTimeout(timeout);
   if (!providerResult?.ok) {
     const providerMessage = providerResult?.body?.error?.message ?? `Anthropic API returned ${providerResult?.status ?? "an unknown status"}`;
     await recordFailure(providerMessage, providerResult?.model ?? modelCandidates[0]);
-    return json({ error: "Compliance copilot generation failed" }, 502);
+    return json(req, { error: "Compliance copilot generation failed" }, 502);
   }
 
   const aliasedResponse = extractCopilotToolInput(providerResult.body);
   if (!aliasedResponse) {
     await recordFailure("AI response did not include the required structured tool output", providerResult.model);
-    return json({ error: "Compliance copilot returned an invalid structured response" }, 502);
+    return json(req, { error: "Compliance copilot returned an invalid structured response" }, 502);
   }
   // PT-026: re-substitute real names into the model's prose before validation,
   // storage, and display, so users and the receipt read real names while the
@@ -640,7 +637,7 @@ Deno.serve(async (req: Request) => {
   const groundingError = validateGroundedResponse(response, sources, systemEvidence);
   if (groundingError) {
     await recordFailure(groundingError, providerResult.model);
-    return json({ error: "Compliance copilot response failed citation or documentation validation" }, 502);
+    return json(req, { error: "Compliance copilot response failed citation or documentation validation" }, 502);
   }
   const citedSourceIds = new Set(response.source_ids);
   const citedEvidenceIds = new Set(response.evidence_ids);
@@ -674,9 +671,9 @@ Deno.serve(async (req: Request) => {
     // left the tenant boundary and lets an audit reconstruct both readings.
     redaction: redactionReceipt,
   }).select("id,created_at").single();
-  if (insertError || !run) return json({ error: "Failed to record the immutable compliance copilot receipt" }, 500);
+  if (insertError || !run) return json(req, { error: "Failed to record the immutable compliance copilot receipt" }, 500);
 
-  return json({
+  return json(req, {
     runId: run.id,
     createdAt: run.created_at,
     intent,
