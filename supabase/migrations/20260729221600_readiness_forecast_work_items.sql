@@ -60,7 +60,14 @@ begin
           else 'staffing'
         end;
         v_source_id := (v_reason ->> 'sourceId')::uuid;
-        v_key := concat('readiness-forecast:', v_reason ->> 'type', ':', v_source_id);
+        v_key := concat(
+          'readiness-forecast:',
+          v_facility.id,
+          ':',
+          v_reason ->> 'type',
+          ':',
+          v_source_id
+        );
         v_seen_keys := array_append(v_seen_keys, v_key);
         v_due_at := case
           when coalesce((v_reason ->> 'currentBlocker')::boolean, false) or v_risk_date is null
