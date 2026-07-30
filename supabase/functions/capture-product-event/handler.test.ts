@@ -1,6 +1,36 @@
 import { assertEquals, assertMatch } from "jsr:@std/assert@1.0.14";
 import { createCaptureProductEventHandler, normalizeProductRoute } from "./handler.ts";
 
+type CreateClient = Parameters<typeof createCaptureProductEventHandler>[0]["createClient"];
+type MockClient = Awaited<ReturnType<CreateClient>>;
+type Profile = { organization_id: string; role: string; is_active: boolean };
+
+function createMockClient({
+  profile,
+  userId = "user-1",
+  onInsert,
+}: {
+  profile: Profile;
+  userId?: string;
+  onInsert?: (table: string, value: Record<string, unknown>) => void;
+}): MockClient {
+  return {
+    auth: { getUser: async () => ({ data: { user: { id: userId } }, error: null }) },
+    from: (table: string) => {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        single: async () => ({ data: profile }),
+        insert: async (value: Record<string, unknown>) => {
+          onInsert?.(table, value);
+          return { error: null };
+        },
+      };
+      return query;
+    },
+  };
+}
+
 Deno.test("capture-product-event rejects unsupported and unauthenticated requests", async () => {
   const handler = createCaptureProductEventHandler({
     createClient: () => { throw new Error("client should not be created"); },
@@ -20,15 +50,9 @@ Deno.test("capture-product-event normalizes identifiers out of route templates",
 });
 
 Deno.test("capture-product-event validates the telemetry allowlists", async () => {
-  const profileQuery: any = {
-    select: () => profileQuery,
-    eq: () => profileQuery,
-    single: async () => ({ data: { organization_id: "org-1", role: "org_admin", is_active: true } }),
-  };
   const handler = createCaptureProductEventHandler({
-    createClient: () => ({
-      auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
-      from: () => profileQuery,
+    createClient: () => createMockClient({
+      profile: { organization_id: "org-1", role: "org_admin", is_active: true },
     }),
     getEnv: (name) => ({
       SUPABASE_URL: "https://project.test",
@@ -48,31 +72,22 @@ Deno.test("capture-product-event validates the telemetry allowlists", async () =
 
 Deno.test("capture-product-event records a sanitized event through the real handler", async () => {
   const inserted: { value?: Record<string, unknown> } = {};
-  const profileQuery: any = {
-    select: () => profileQuery,
-    eq: () => profileQuery,
-    single: async () => ({ data: { organization_id: "org-1", role: "auditor", is_active: true } }),
-  };
-  const admin = {
-    from: (table: string) => ({
-      insert: async (value: Record<string, unknown>) => {
-        assertEquals(table, "product_events");
-        inserted.value = value;
-        return { error: null };
-      },
-    }),
-  };
   let callCount = 0;
   const handler = createCaptureProductEventHandler({
     createClient: () => {
       callCount += 1;
       if (callCount === 1) {
-        return {
-          auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
-          from: () => profileQuery,
-        };
+        return createMockClient({
+          profile: { organization_id: "org-1", role: "auditor", is_active: true },
+        });
       }
-      return admin;
+      return createMockClient({
+        profile: { organization_id: "org-1", role: "auditor", is_active: true },
+        onInsert: (table, value) => {
+          assertEquals(table, "product_events");
+          inserted.value = value;
+        },
+      });
     },
     getEnv: (name) => ({
       SUPABASE_URL: "https://project.test",
