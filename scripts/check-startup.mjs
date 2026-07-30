@@ -104,6 +104,8 @@ async function checkService(service) {
   const [railway, packageJson] = await Promise.all([
     readJson(service.configPath),
     readJson(service.packagePath),
+  ]);
+  await Promise.all([
     access(resolve(root, service.entryPath)),
     access(resolve(root, service.builtEntryPath)),
   ]);
