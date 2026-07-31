@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabase";
 import { containsFilterValue } from "@/lib/utils";
 import type { Tables } from "@/lib/database.types";
 import type { BulkInviteRow } from "@/lib/invitationLifecycle";
-
 export type UserInvitation = Tables<"user_invitation_lifecycle">;
 
 export interface InvitationListFilters {
