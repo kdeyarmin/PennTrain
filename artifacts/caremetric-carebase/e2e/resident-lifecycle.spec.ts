@@ -1013,7 +1013,7 @@ test.describe("resident lifecycle journey", () => {
 
     await signIn(page);
     await page.goto(`/app/incidents/${incidentId}`);
-    await expect(page.getByText("Follow-through")).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText("Close-loop checklist")).toBeVisible({ timeout: 20000 });
 
     // Closure is refused BEFORE the evidence exists. Attempted as the user, against the table the
     // trigger guards, so this proves the record is protected rather than the screen.
