@@ -10,11 +10,13 @@ export type ShiftAssignmentUpdate = TablesUpdate<"shift_assignments">;
 // so the schedule creator and the employee "my schedule" view don't issue one lookup per cell.
 export interface ShiftAssignmentWithDetails extends ShiftAssignment {
   employees: { first_name: string; last_name: string } | null;
+  facilities: { name: string } | null;
   facility_units: { name: string } | null;
   shift_definitions: { name: string; color: string | null } | null;
 }
 
-const WITH_DETAILS_SELECT = "*, employees(first_name, last_name), facility_units(name), shift_definitions(name, color)";
+const WITH_DETAILS_SELECT =
+  "*, employees(first_name, last_name), facilities(name), facility_units(name), shift_definitions(name, color)";
 
 export interface ListShiftAssignmentsFilters {
   scheduleId?: string;

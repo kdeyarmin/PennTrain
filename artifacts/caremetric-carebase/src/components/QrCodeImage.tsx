@@ -38,10 +38,15 @@ export function QrCodeImage({ value, alt, size = 160, className }: QrCodeImagePr
     };
   }, [value, size]);
 
+  // The placeholder branches keep the caller's className -- it carries layout, so dropping it
+  // reflows the panel while the code renders -- and stay announced, since a reader otherwise gets
+  // silence where the image alt would be.
   if (failed) {
     return (
       <div
-        className="flex items-center justify-center rounded border bg-muted p-2 text-center text-xs text-muted-foreground"
+        role="img"
+        aria-label={`${alt} unavailable`}
+        className={`flex items-center justify-center bg-muted p-2 text-center text-xs text-muted-foreground ${className ?? ""}`}
         style={{ width: size, height: size }}
       >
         QR code unavailable — use the link below.
@@ -50,7 +55,15 @@ export function QrCodeImage({ value, alt, size = 160, className }: QrCodeImagePr
   }
 
   if (!dataUrl) {
-    return <div className="animate-pulse rounded border bg-muted" style={{ width: size, height: size }} />;
+    return (
+      <div
+        role="img"
+        aria-label={`${alt} loading`}
+        aria-busy="true"
+        className={`animate-pulse bg-muted ${className ?? ""}`}
+        style={{ width: size, height: size }}
+      />
+    );
   }
 
   return <img src={dataUrl} alt={alt} width={size} height={size} className={className} />;

@@ -70,7 +70,23 @@ export default function MySchedule() {
     { enabled: !!employee?.id },
   );
 
-  const upcoming = useMemo(() => (shifts ?? []) as unknown as UpcomingShiftRow[], [shifts]);
+  // This query joins its names as nested relations; the card below reads the flat shape the
+  // workspace payload used. Map rather than cast -- a cast compiles and then renders every row
+  // with no shift name and no location.
+  const upcoming = useMemo<UpcomingShiftRow[]>(
+    () =>
+      (shifts ?? []).map((shift) => ({
+        id: shift.id,
+        shift_date: shift.shift_date,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        status: shift.status,
+        facility_name: shift.facilities?.name ?? null,
+        unit_name: shift.facility_units?.name ?? null,
+        shift_name: shift.shift_definitions?.name ?? null,
+      })),
+    [shifts],
+  );
   const facilityId = workspace.data?.currentOrNextShift?.facility_id
     ?? workspace.data?.employee?.facility_id
     ?? (employee as { facility_id?: string | null } | undefined)?.facility_id
