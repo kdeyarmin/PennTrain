@@ -64,6 +64,13 @@
   }
 
   function onHostMessage(event) {
+    // Only the host frame may open or re-key a session. The envelope alone is not proof of
+    // anything: it is public, so any window able to reach this one -- a third-party frame the
+    // package embeds, a popup it opened -- could otherwise forge an init, replace the nonce, and
+    // make every real message fail the host's check. The host applies the mirror image of this
+    // rule to inbound messages, and the whole model depends on both halves enforcing it.
+    if (event.source !== window.parent) return;
+
     var data = event && event.data;
     if (!data || typeof data !== "object") return;
     if (data.source !== HOST_SOURCE || data.type !== "init") return;

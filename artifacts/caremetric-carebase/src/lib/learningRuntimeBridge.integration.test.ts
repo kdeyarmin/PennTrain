@@ -42,13 +42,17 @@ interface BridgeApi {
 /** Load the shipped adapter into a stub frame and capture everything it posts upward. */
 function loadBridge() {
   const posted: unknown[] = [];
-  const listeners: Array<(event: { data: unknown }) => void> = [];
+  const listeners: Array<(event: { data: unknown; source: unknown }) => void> = [];
 
+  // `parent` is modelled as a real object so tests can pass it (or something else) as
+  // MessageEvent.source. Without that the suite could not exercise the adapter's sender check,
+  // which is half of the bridge's security model.
+  const parent = { postMessage: (message: unknown) => posted.push(message) };
   const win = {
-    addEventListener: (type: string, handler: (event: { data: unknown }) => void) => {
+    addEventListener: (type: string, handler: (event: { data: unknown; source: unknown }) => void) => {
       if (type === "message") listeners.push(handler);
     },
-    parent: { postMessage: (message: unknown) => posted.push(message) },
+    parent,
     CareBaseLearningRuntime: undefined as BridgeApi | undefined,
   };
 
@@ -57,9 +61,11 @@ function loadBridge() {
 
   return {
     posted,
+    parent,
     api: () => win.CareBaseLearningRuntime as BridgeApi,
     /** Deliver a host message to the adapter, as the frame's message listener would. */
-    deliver: (data: unknown) => listeners.forEach((handler) => handler({ data })),
+    deliver: (data: unknown, source: unknown = parent) =>
+      listeners.forEach((handler) => handler({ data, source })),
   };
 }
 
@@ -177,5 +183,26 @@ describe("package/host runtime bridge contract", () => {
 
     expect(bridge.api().getSession()).toBeNull();
     expect(bridge.posted).toHaveLength(1); // never got past the hello
+  });
+
+  it("rejects a perfectly valid init that did not come from the host frame", () => {
+    // The envelope is public, so shape proves nothing. A frame the package embeds or a popup it
+    // opened can reach this window; if it could seat its own nonce, every genuine message would
+    // then fail the host's check and the session would be dead.
+    bridge.deliver(buildRuntimeInitMessage(launch), { notTheParent: true });
+
+    expect(bridge.api().getSession()).toBeNull();
+    expect(bridge.posted).toHaveLength(1);
+  });
+
+  it("keeps the real session when an impostor tries to re-key it mid-run", () => {
+    bridge.deliver(buildRuntimeInitMessage(launch));
+    bridge.deliver(buildRuntimeInitMessage({ ...launch, launchNonce: "attacker-nonce" }), { notTheParent: true });
+
+    bridge.api().commit({ progress: 0.5 });
+    const latest = bridge.posted[bridge.posted.length - 1];
+
+    expect(parseRuntimeBridgeMessage(latest, launch.launchNonce)?.type).toBe("commit");
+    expect(parseRuntimeBridgeMessage(latest, "attacker-nonce")).toBeNull();
   });
 });

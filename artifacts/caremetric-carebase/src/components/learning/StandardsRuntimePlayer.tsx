@@ -62,6 +62,16 @@ export function StandardsRuntimePlayer({
   const [status, setStatus] = useState<string>("Ready to launch");
   const sequenceRef = useRef(1);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // Commits must reach the server one at a time. commit_learning_runtime_state requires
+  // max(sequence_number) + 1, and sequenceRef only advances once a commit succeeds, so two
+  // commits started concurrently both claim the same number and the server rejects the loser
+  // with a sequence conflict. A package that reports progress and completion in one burst would
+  // otherwise lose the completion.
+  const commitQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // Idempotency keys must be unique per intent. Deriving them from sequenceRef and a timestamp
+  // collided for exactly the burst above: same pending sequence, same millisecond, so the server
+  // deduplicated a distinct commit as a replay of the previous one.
+  const commitCounterRef = useRef(0);
 
   const hasPackage = (packages.data?.length ?? 0) > 0;
 
@@ -113,6 +123,20 @@ export function StandardsRuntimePlayer({
       });
     }
   }, [commitState, onCompleted, pushXapi, toast]);
+
+  /**
+   * Serialize a commit behind any still in flight, so each one sees the sequence number the
+   * previous one produced. Failures are swallowed here because applyCommit already surfaces them
+   * to the learner -- the queue's job is only to keep the chain alive for the next commit.
+   */
+  const enqueueCommit = useCallback((session: LaunchSession, raw: Record<string, unknown>, label: string) => {
+    commitCounterRef.current += 1;
+    const idempotencyKey = `${label}-${commitCounterRef.current}`;
+    commitQueueRef.current = commitQueueRef.current
+      .catch(() => undefined)
+      .then(() => applyCommit(session, raw, idempotencyKey));
+    return commitQueueRef.current;
+  }, [applyCommit]);
 
   const handleLaunch = async () => {
     setStatus("Starting session…");
@@ -178,7 +202,7 @@ export function StandardsRuntimePlayer({
         return;
       }
       if (parsed.type === "commit") {
-        void applyCommit(launch, parsed.payload, `bridge-${sequenceRef.current}-${Date.now()}`);
+        void enqueueCommit(launch, parsed.payload, "bridge");
       }
       if (parsed.type === "xapi" && typeof parsed.payload.verb === "string" && typeof parsed.payload.object === "string") {
         void ingestXapi.mutateAsync({
@@ -194,7 +218,7 @@ export function StandardsRuntimePlayer({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [applyCommit, ingestXapi, launch, sendRuntimeInit]);
+  }, [enqueueCommit, ingestXapi, launch, sendRuntimeInit]);
 
   if (packages.isLoading) {
     return (
@@ -267,14 +291,14 @@ export function StandardsRuntimePlayer({
               size="sm"
               variant="secondary"
               disabled={commitState.isPending || completed}
-              onClick={() => void applyCommit(launch, { progress: Math.min(1, (progress + 25) / 100), completionStatus: "incomplete" }, `manual-progress-${sequenceRef.current}`)}
+              onClick={() => void enqueueCommit(launch, { progress: Math.min(1, (progress + 25) / 100), completionStatus: "incomplete" }, "manual-progress")}
             >
               Save progress
             </Button>
             <Button
               size="sm"
               disabled={commitState.isPending || completed}
-              onClick={() => void applyCommit(launch, { progress: 1, completionStatus: "completed", successStatus: "passed" }, `manual-complete-${sequenceRef.current}`)}
+              onClick={() => void enqueueCommit(launch, { progress: 1, completionStatus: "completed", successStatus: "passed" }, "manual-complete")}
             >
               {completed ? (
                 <><CheckCircle2 className="mr-2 h-4 w-4" /> Completed</>

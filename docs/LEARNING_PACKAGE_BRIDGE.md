@@ -2,9 +2,12 @@
 
 How an uploaded SCORM/xAPI package talks to CareBase while a learner is taking it.
 
-Host side: `artifacts/caremetric-carebase/src/components/learning/StandardsRuntimePlayer.tsx` and
-`src/lib/learningRuntime.ts`. Package side: `public/learning-runtime-bridge.js`, served at
-`/learning-runtime-bridge.js`.
+All paths below are from the repo root.
+
+- Host: `artifacts/caremetric-carebase/src/components/learning/StandardsRuntimePlayer.tsx`,
+  `artifacts/caremetric-carebase/src/lib/learningRuntime.ts`
+- Package adapter: `artifacts/caremetric-carebase/public/learning-runtime-bridge.js`, served at
+  `/learning-runtime-bridge.js` (see the base-path note below)
 
 ## Why there is a handshake at all
 
@@ -18,6 +21,10 @@ unavailable. Identity is established two other ways instead:
 - **The host trusts a message only if `event.source` is the frame it created.** Not origin, and not
   the nonce alone — a nonce that leaked would otherwise let any window commit progress for the
   learner.
+- **The package trusts an `init` only if `event.source` is `window.parent`.** The mirror of the
+  same rule, and just as load-bearing: the envelope is public, so a frame the package embeds or a
+  popup it opened could otherwise forge an `init`, seat its own nonce, and leave every genuine
+  message failing the host's check.
 - **The package proves itself with a per-launch nonce.** `start_learning_runtime_session` mints it
   server-side and stores only its SHA-256; the plaintext goes to the browser once, per launch.
 
@@ -48,7 +55,14 @@ it; messages carrying the previous nonce are rejected from that point.
 
 ## Using the reference adapter
 
+The adapter is served from the app's own routing space, so the URL must include the deployment's
+`BASE_PATH` when one is set (`DEPLOYMENT.md`; e.g. `/train/`). Deployed at a subpath, a bare
+`/learning-runtime-bridge.js` is outside the app's routing space and 404s — the script then never
+defines `CareBaseLearningRuntime`, and the handshake silently never begins. Served from the root,
+the path below is correct as written.
+
 ```html
+<!-- root deployment; with BASE_PATH=/train/ use https://<host>/train/learning-runtime-bridge.js -->
 <script src="https://<your-carebase-host>/learning-runtime-bridge.js"></script>
 <script>
   CareBaseLearningRuntime.onReady(function (session) {
@@ -66,7 +80,8 @@ it; messages carrying the previous nonce are rejected from that point.
 names as well as the normalized ones.
 
 Calls made before `init` arrives are **buffered and flushed** once the nonce is known, so content
-that reports progress the instant it loads does not lose those commits.
+that reports progress the instant it loads does not lose those commits. The host serializes the
+resulting burst through a commit queue — see below for why that is required rather than tidy.
 
 ## Commit sequencing
 
@@ -78,11 +93,20 @@ Because a session is unique per (package, assignment) and survives relaunch with
 intact, the launch payload reports `nextSequenceNumber` (migration `20260731190000`) so the host
 resumes numbering rather than restarting at 1.
 
+The host also sends commits **one at a time**. The counter only advances once a commit succeeds, so
+two started concurrently would both claim the same number and the server would reject the loser —
+a package reporting progress and completion in one burst would lose the completion. Idempotency
+keys come from a monotonic counter for the same reason: deriving them from the pending sequence
+number and a timestamp collided within a single burst, and the server then discarded a distinct
+commit as a replay.
+
 ## Test coverage, and what is still unverified
 
-- `src/lib/learningRuntime.test.ts` — message parsing, init construction, sandbox flags.
-- `src/lib/learningRuntimeBridge.integration.test.ts` — the full exchange with **real code on both
-  sides**: it loads the shipped `public/learning-runtime-bridge.js` from disk and drives it against
+- `artifacts/caremetric-carebase/src/lib/learningRuntime.test.ts` — message parsing, init
+  construction, sandbox flags.
+- `artifacts/caremetric-carebase/src/lib/learningRuntimeBridge.integration.test.ts` — the full
+  exchange with **real code on both sides**: it loads the shipped
+  `artifacts/caremetric-carebase/public/learning-runtime-bridge.js` from disk and drives it against
   the host helpers. Covers handshake, ready, commit, pre-init buffering, relaunch re-signing, and
   rejection of malformed `init`s. This is what catches the two halves drifting apart.
 
