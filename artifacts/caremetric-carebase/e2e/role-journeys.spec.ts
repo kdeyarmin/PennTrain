@@ -9,6 +9,7 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   expectNoHorizontalOverflow,
+  gotoAppRoute,
   hasLiveSupabaseEnv,
   requireLiveSupabaseEnv,
   signInAs,
@@ -186,8 +187,24 @@ test.describe("authenticated role journeys", () => {
       }
 
       for (const step of JOURNEYS[role]) {
-        await page.goto(step.path);
-        await expect(page.locator("h1").first()).toBeVisible({ timeout: 20_000 });
+        await gotoAppRoute(page, step.path);
+
+        // MfaPolicyGate renders its children while the policy query is still unresolved
+        // (`mustVerify` is falsy until `policy.data` arrives), so on a privileged route the page
+        // content paints first and the MFA screen replaces it a moment later. Checking the gate
+        // once before this loop is therefore not enough, and checking it immediately after
+        // navigation only narrows the window rather than closing it.
+        //
+        // Waiting for *either* outcome closes it: the route's h1, or the gate's own level-1
+        // heading. Whichever settles is the real state of the page.
+        const routeHeading = page.locator("h1").first();
+        await expect(routeHeading.or(mfaGate)).toBeVisible({ timeout: 20_000 });
+        if (await mfaGate.isVisible().catch(() => false)) {
+          await expect(mfaGate).toBeVisible();
+          return;
+        }
+
+        await expect(routeHeading).toBeVisible({ timeout: 20_000 });
         if (step.heading) {
           await expect(page.locator("body")).toContainText(step.heading);
         }
