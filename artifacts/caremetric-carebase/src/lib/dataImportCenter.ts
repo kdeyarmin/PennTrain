@@ -14,13 +14,16 @@ export interface ImportDomainDefinition {
   description: string;
 }
 
+/** Domains with a live dry-run/apply processor in production. */
+const ACTIVE_IMPORT_DOMAINS: readonly ImportDomain[] = ["employees", "training_records"];
+
 /**
  * This is the product contract, not a statement that a CSV template has a
  * processor. A domain must not become active until its preview, apply,
  * matching, receipt, authorization, and journey coverage are complete.
  */
 export const IMPORT_DOMAIN_DEFINITIONS: readonly ImportDomainDefinition[] = IMPORT_DOMAINS.map((domain) => {
-  const availability: ImportDomainAvailability = domain === "employees" ? "active" : "template_only";
+  const availability: ImportDomainAvailability = ACTIVE_IMPORT_DOMAINS.includes(domain) ? "active" : "template_only";
   return {
     domain,
     availability,
@@ -33,6 +36,16 @@ export const IMPORT_DOMAIN_DEFINITIONS: readonly ImportDomainDefinition[] = IMPO
 
 export function canUploadImportDomain(domain: ImportDomain): boolean {
   return IMPORT_DOMAIN_DEFINITIONS.find((definition) => definition.domain === domain)?.availability === "active";
+}
+
+export function importProcessorFunction(domain: ImportDomain): string | null {
+  if (domain === "employees") return "bulk-import-employees";
+  if (domain === "training_records") return "bulk-import-training-records";
+  return null;
+}
+
+export function canRollbackImportDomain(domain: string): boolean {
+  return domain === "employees" || domain === "training_records";
 }
 
 const columns: Record<ImportDomain, readonly string[]> = {

@@ -37983,15 +37983,15 @@ export type Database = {
       list_audit_legal_holds: {
         Args: never
         Returns: {
-          id: string
-          organization_id: string | null
-          facility_id: string | null
-          reason: string
-          starts_at: string
-          ends_at: string | null
-          released_at: string | null
-          created_by: string
           created_at: string
+          created_by: string
+          ends_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string
+          released_at: string
+          starts_at: string
         }[]
       }
       list_expired_organization_exports: {
@@ -39615,6 +39615,7 @@ export type Database = {
         Args: { p_invitation_id: string; p_reason: string }
         Returns: Json
       }
+      rollback_data_import_job: { Args: { p_job_id: string }; Returns: Json }
       rollback_employee_import_job: {
         Args: { p_job_id: string }
         Returns: Json

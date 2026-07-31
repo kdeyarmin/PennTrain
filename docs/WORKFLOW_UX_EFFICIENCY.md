@@ -105,3 +105,13 @@ pnpm --filter @workspace/caremetric-carebase typecheck
 | Inspections list | Bulk log inspection on selected equipment/procedural items |
 
 Migration: `20260731210000_pilot_cohort_console.sql` (`unassign_organization_release_cohort`, `list_audit_legal_holds`).
+
+
+## Follow-on: training records import + binder CSV appendix
+
+| Surface | Purpose |
+|---|---|
+| Import Center | **training_records** domain is active (`bulk-import-training-records`); domain-aware upload + `rollback_data_import_job` |
+| Compliance Binder | Full untruncated **CSV appendix** (manifest + per-section CSVs) stored with each PDF export |
+
+Migration: `20260731220000_training_records_import_rollback.sql`.
