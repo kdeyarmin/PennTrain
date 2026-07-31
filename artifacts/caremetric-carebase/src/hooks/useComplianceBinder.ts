@@ -73,12 +73,24 @@ export function useListBinderExports(filters: { organizationId?: string } = {}) 
   });
 }
 
+export interface BinderAppendixSection {
+  key: string;
+  title: string;
+  included: number;
+  total: number;
+  csvUrl?: string;
+}
+
 export interface BinderDownloadResult {
   status: string;
   url?: string;
   path?: string;
   expiresIn?: number;
   error?: string;
+  appendix?: {
+    manifestUrl?: string;
+    sections: BinderAppendixSection[];
+  } | null;
 }
 
 export function useBinderDownloadUrl() {
