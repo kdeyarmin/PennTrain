@@ -121,6 +121,17 @@ export function isCompletedCommit(state: RuntimeCommitState): boolean {
   return state.completionStatus === "completed" || state.successStatus === "passed";
 }
 
+/**
+ * Sandbox flags for the package frame.
+ *
+ * `allow-same-origin` is deliberately absent, and the bridge's security rests on that: without it
+ * the frame gets an opaque origin, so it cannot reach into this page, read its storage, or use its
+ * session. Adding it would give uploaded third-party course content same-origin access to the
+ * whole app. It also means neither side can name the other's origin, which is why the bridge
+ * authenticates with a nonce plus an event.source identity check rather than an origin comparison.
+ */
+export const RUNTIME_FRAME_SANDBOX = "allow-scripts allow-forms allow-popups";
+
 /** Envelope marker on messages sent by a package frame. */
 export const RUNTIME_BRIDGE_SOURCE = "carebase-learning-runtime";
 /** Envelope marker on messages sent by the host player down to a package frame. */
