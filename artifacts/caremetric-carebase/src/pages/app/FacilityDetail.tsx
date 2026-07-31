@@ -587,8 +587,7 @@ export default function FacilityDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {canViewIncidents && (
-          <div id="facility-safety" className="scroll-mt-28" />
-      <Card>
+          <Card id="facility-safety" className="scroll-mt-28">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" /> Open Incidents
