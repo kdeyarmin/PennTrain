@@ -1,18 +1,22 @@
 -- Workflow UX backlog remediation (2026-07-31)
 --
--- 1) Enable pilot release flags for demo/pilot organizations (cohort mode).
+-- 1) Pre-enroll demo/pilot orgs in a pilot release cohort (flags stay default-off).
+--    Operators enable flags later via set_release_flag (AAL2) with rollout_mode=cohort;
+--    enrolled demo orgs then receive the features without further assignment.
 -- 2) Opaque safety-report facility tokens (no public directory).
 -- 3) Facility-manager confidential intake escalation → work item + ledger event.
 
 -- ---------------------------------------------------------------------------
 -- 1. Pilot release cohort for deskless notifications + on-hire screening
+--    Flags remain (rollout_mode=off, is_enabled=false) per product default-off contract.
+--    Only cohort membership is prepared for demo tenants.
 -- ---------------------------------------------------------------------------
 
 insert into public.release_cohorts (cohort_key, name, description, is_active)
 values (
   'carebase-pilot-2026',
   'CareBase pilot 2026',
-  'Pilot tenants receive expanded notification delivery, critical multichannel fan-out, and on-hire exclusion screening.',
+  'Pilot tenants receive expanded notification delivery, critical multichannel fan-out, and on-hire exclusion screening when those flags are enabled in cohort mode.',
   true
 )
 on conflict (cohort_key) do update
@@ -21,16 +25,9 @@ set is_active = true,
     description = excluded.description,
     updated_at = now();
 
-update public.release_flags
-set is_enabled = true,
-    rollout_mode = 'cohort',
-    change_reason = 'Enable for CareBase pilot cohort (demo tenants); operators may assign additional orgs via assign_organization_release_cohort',
-    updated_at = now()
-where feature_key in (
-  'notifications.expanded_delivery_types',
-  'notifications.critical_multichannel',
-  'screening.on_hire_exclusion'
-);
+-- Intentionally do NOT flip release_flags is_enabled / rollout_mode here.
+-- pgTAP contracts (critical_multichannel_delivery, expanded_notification_delivery_types,
+-- on_hire_exclusion_screening) require seeded default-off. Pre-enroll demo orgs only.
 
 insert into public.organization_release_cohorts (
   organization_id, cohort_id, feature_key, assigned_by, reason

@@ -81,10 +81,11 @@ Most of `END_USER_REVIEW.md` Part 2 is **already shipped** (often behind default
 - **EntityHistoryDrawer** on Incident, Complaint, Resident, and Policy detail pages (entity-scoped `audit_logs`).
 
 ### Release flags (pilot)
-- Migration enrolls demo orgs in `carebase-pilot-2026` cohort and enables:
+- Migration creates `carebase-pilot-2026` cohort and pre-enrolls demo orgs for:
   - `notifications.expanded_delivery_types`
   - `notifications.critical_multichannel`
   - `screening.on_hire_exclusion`
+- Flags stay **default-off** (`rollout_mode=off`, `is_enabled=false`). Operators enable via AAL2 `set_release_flag` with `rollout_mode=cohort` when ready for pilot.
 
 ### Copy alignment
 - Employee Role Quick Start CTAs: “Open My Work” / “Open My Training”.
