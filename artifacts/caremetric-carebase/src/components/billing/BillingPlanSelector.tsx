@@ -139,7 +139,7 @@ export function BillingPlanSelector() {
       return price && !pkg.contact_sales ? [price] : [];
     });
     if (activePrimary.length === 0) return true;
-    return activePrimary.every(isFlatPrice);
+    return activePrimary.every(isFlatBillingPrice);
   }, [packages, pricesQuery.data, interval]);
 
   // Surface Stripe Checkout return status once, then scrub the query string.
