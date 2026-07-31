@@ -62,12 +62,18 @@ jobs:
       contents: read
       actions: read
       issues: write
+    outputs:
+      skipped: ${{ steps.gate.outputs.skip }}
+      reason: ${{ steps.gate.outputs.reason }}
+      deploy_sha: ${{ steps.gate.outputs.deploy_sha }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       # Prefer repository/environment variable; fall back to the known prod ref so first
       # deploys keep working before the variable is created.
-      SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID != '' && vars.SUPABASE_PROJECT_ID || 'xsqobvvreaovwibxwyvv' }}
+      SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || 'xsqobvvreaovwibxwyvv' }}
+      # Always the SHA we check out and deploy — NOT github.sha on workflow_run (which is the
+      # tip of main at dispatch time and can lag/lead the validated commit).
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     steps:
@@ -89,17 +95,42 @@ jobs:
           SHA="${DEPLOY_SHA}"
           RUN_ID="${{ github.run_id }}"
           REPO="${{ github.repository }}"
+          STAMP_PREFIX="edge-function-deploy-stamp-"
 
           echo "Deploy candidate SHA=${SHA} dry_run=${DRY_RUN}"
+          echo "deploy_sha=${SHA}" >> "$GITHUB_OUTPUT"
 
-          has_stamp() {
+          # Stamp artifact name embeds the *validated* DEPLOY_SHA so we never trust the
+          # workflow run's REST head_sha (on workflow_run that is tip-of-main at dispatch,
+          # which can disagree with the commit we actually checked out).
+          stamp_name_for() {
+            echo "${STAMP_PREFIX}$1"
+          }
+
+          has_stamp_for_sha() {
             local run_id="$1"
+            local want="$2"
+            local want_name
+            want_name=$(stamp_name_for "$want")
             local count
             count=$(
               gh api "repos/${REPO}/actions/runs/${run_id}/artifacts" \
-                --jq '[.artifacts[] | select(.name=="edge-function-deploy-stamp")] | length'
+                --jq "[.artifacts[] | select(.name==\"${want_name}\")] | length"
             )
             [ "${count}" -gt 0 ]
+          }
+
+          first_stamp_sha_from_run() {
+            local run_id="$1"
+            local name
+            name=$(
+              gh api "repos/${REPO}/actions/runs/${run_id}/artifacts" \
+                --jq "[.artifacts[] | select(.name | startswith(\"${STAMP_PREFIX}\")) | .name] | .[0] // empty"
+            )
+            if [ -z "${name}" ] || [ "${name}" = "null" ]; then
+              return 1
+            fi
+            echo "${name#"${STAMP_PREFIX}"}"
           }
 
           # Dry-run always proceeds (operators want drift verification on demand).
@@ -117,14 +148,16 @@ jobs:
             exit 0
           fi
 
-          # 1) Same-SHA already *really* deployed (uploaded stamp artifact) → no-op.
+          # 1) Same-SHA already *really* deployed (stamp artifact named with this SHA) → no-op.
           # Path-skip successes for this SHA do not count — they never touched production.
-          mapfile -t CANDIDATES < <(
+          # Scan recent successful deploy runs (do NOT filter by run head_sha — that is unreliable
+          # under workflow_run).
+          mapfile -t RECENT < <(
             gh api "repos/${REPO}/actions/workflows/deploy-migrations.yml/runs?status=completed&per_page=50" \
-              --jq ".workflow_runs[] | select(.conclusion==\"success\" and .head_sha==\"${SHA}\" and .id != ${RUN_ID}) | .id"
+              --jq ".workflow_runs[] | select(.conclusion==\"success\" and .id != ${RUN_ID}) | .id"
           )
-          for rid in "${CANDIDATES[@]+"${CANDIDATES[@]}"}"; do
-            if has_stamp "$rid"; then
+          for rid in "${RECENT[@]+"${RECENT[@]}"}"; do
+            if has_stamp_for_sha "$rid" "$SHA"; then
               echo "skip=true" >> "$GITHUB_OUTPUT"
               echo "reason=same-sha-already-deployed" >> "$GITHUB_OUTPUT"
               echo "SHA ${SHA} already deployed in run ${rid} (stamp artifact present)"
@@ -132,18 +165,14 @@ jobs:
             fi
           done
 
-          # 2) Path short-circuit vs last *real* deploy (run that uploaded a stamp).
+          # 2) Path short-circuit vs last *real* deploy (run that uploaded a stamp keyed by SHA).
           PREV_SHA=""
-          mapfile -t RECENT < <(
-            gh api "repos/${REPO}/actions/workflows/deploy-migrations.yml/runs?status=completed&per_page=30" \
-              --jq ".workflow_runs[] | select(.conclusion==\"success\" and .id != ${RUN_ID}) | .id"
-          )
           for rid in "${RECENT[@]+"${RECENT[@]}"}"; do
-            if has_stamp "$rid"; then
-              PREV_SHA=$(gh api "repos/${REPO}/actions/runs/${rid}" --jq .head_sha)
+            if PREV_SHA=$(first_stamp_sha_from_run "$rid"); then
               echo "Last real deploy: run ${rid} sha ${PREV_SHA}"
               break
             fi
+            PREV_SHA=""
           done
 
           if [ -n "${PREV_SHA}" ] && [ "${PREV_SHA}" != "${SHA}" ]; then
@@ -152,6 +181,7 @@ jobs:
                 supabase/migrations \
                 supabase/functions \
                 supabase/config.toml \
+                deno.lock \
                 scripts/check-migration-drift.mjs \
                 scripts/check-edge-function-drift.mjs \
                 scripts/stamp-edge-function-deploy.mjs \
@@ -225,32 +255,48 @@ jobs:
 
       - name: Stamp deployed function content digests
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        env:
+          # Stamp must record the validated deploy SHA, not workflow_run tip-of-main.
+          DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
         run: node scripts/stamp-edge-function-deploy.mjs edge-function-deploy-stamp.json
 
       - name: Upload edge function deploy stamp
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: edge-function-deploy-stamp
+          # Name embeds DEPLOY_SHA so the gate never confuses workflow_run tip-of-main
+          # with the commit that was actually deployed.
+          name: edge-function-deploy-stamp-${{ env.DEPLOY_SHA }}
           path: edge-function-deploy-stamp.json
 
+  # Survives job timeouts/cancellations of `deploy` (in-job `if: failure()` does not run
+  # when the job is cancelled by timeout-minutes).
+  notify-failure:
+    needs: deploy
+    if: always() && needs.deploy.result != 'success' && needs.deploy.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
       - name: Open issue on deploy failure
-        if: failure() && steps.gate.outputs.skip != 'true'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         env:
-          DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
+          DEPLOY_SHA: ${{ needs.deploy.outputs.deploy_sha || github.event.workflow_run.head_sha || github.sha }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
         with:
           script: |
-            const short = process.env.DEPLOY_SHA.slice(0, 7);
+            const short = (process.env.DEPLOY_SHA || 'unknown').slice(0, 7);
+            const result = process.env.DEPLOY_RESULT || 'unknown';
             const title = `[deploy] Production migration/function deploy failed (${short})`;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const body = [
-              `Deploy workflow failed for \`${process.env.DEPLOY_SHA}\`.`,
+              `Deploy workflow ended with \`${result}\` for \`${process.env.DEPLOY_SHA}\`.`,
               '',
               `- Run: ${runUrl}`,
               `- Event: ${context.eventName}`,
               '',
-              'Opened automatically by `deploy-migrations.yml`. Close after a successful re-run or a manual fix.',
+              'Opened automatically by `deploy-migrations.yml` (`notify-failure` job). Close after a successful re-run or a manual fix.',
             ].join('\n');
 
             const { data: open } = await github.rest.issues.listForRepo({
@@ -259,13 +305,13 @@ jobs:
               state: 'open',
               per_page: 30,
             });
-            const existing = open.find((i) => i.title === title || i.title.includes(short) && i.title.startsWith('[deploy]'));
+            const existing = open.find((i) => i.title === title || (i.title.includes(short) && i.title.startsWith('[deploy]')));
             if (existing) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: existing.number,
-                body: `Another failure for this SHA:\n${runUrl}`,
+                body: `Another non-success for this SHA (result=${result}):\n${runUrl}`,
               });
               return;
             }

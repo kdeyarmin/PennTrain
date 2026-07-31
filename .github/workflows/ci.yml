@@ -151,6 +151,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+      actions: read
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
       VITE_SUPABASE_ANON_KEY: test-anon-key
@@ -193,6 +194,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      actions: read
     env:
       VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:

@@ -16,7 +16,7 @@ import {
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const outPath = process.argv[2] || join(ROOT, "edge-function-deploy-stamp.json");
 
-const gitSha = process.env.GITHUB_SHA || process.env.GIT_SHA || "unknown";
+const gitSha = process.env.DEPLOY_SHA || process.env.GITHUB_SHA || process.env.GIT_SHA || "unknown";
 const stamp = {
   gitSha,
   stampedAt: new Date().toISOString(),
