@@ -157,18 +157,20 @@ const DOMAINS: Domain[] = [
     label: "Residents",
     title: "From first inquiry to move-out",
     intro:
-      "Resident compliance and the daily work around it — each item with its own due date.",
+      "Resident compliance, clinical charting, and the daily work around it — each item with its own due date.",
     tags: [
       "Admissions & census",
       "RASP / ASP assessments",
       "Support-plan triggers",
+      "Native clinical charting",
+      "FHIR meds · allergies · diagnoses",
       "Resident services & refusals",
       "Change-of-condition follow-up",
       "Dietary & food safety rounds",
       "Appointments & transport",
       "Resident finance subledger",
     ],
-    note: "Now includes a resident clinical record — native charting (vitals, care plans, assessments, progress notes) plus FHIR integration for medications, allergies, and diagnoses. Medication administration stays in your pharmacy eMAR; CareBase ingests those events read-only.",
+    note: "Resident clinical record included — native charting (vitals, care plans, assessments, progress notes) plus FHIR integration for medications, allergies, and diagnoses. Medication administration stays in your pharmacy eMAR; CareBase ingests those events read-only.",
     mockup: <ResidentMockup />,
   },
   {
@@ -196,6 +198,7 @@ const DOMAINS: Domain[] = [
       "Incidents, drills, repairs, complaints, and emergencies each leave their own survey-ready PDF trail.",
     tags: [
       "Incidents & notification clocks",
+      "Confidential & public safety reporting",
       "Violations & plans of correction",
       "Fire drills & life-safety logs",
       "Emergency operations",
@@ -203,7 +206,7 @@ const DOMAINS: Domain[] = [
       "Complaints & resident rights",
       "QAPI projects",
     ],
-    note: "Reportable incidents auto-schedule the required notifications — state hotline, law enforcement, licensing — each with its own due-by clock.",
+    note: "Reportable incidents auto-schedule the required notifications — state hotline, law enforcement, licensing — each with its own due-by clock. Confidential pathways cover sensitive events without widening access.",
     mockup: <FacilityMockup />,
   },
   {
@@ -217,10 +220,10 @@ const DOMAINS: Domain[] = [
       "Grounded compliance copilot",
       "Ch. 2600 / 2800 crosswalk",
       "Time-limited documentation rooms",
+      "Guest evidence portals",
       "Immutable audit trail",
-      "Report center",
     ],
-    note: "60+ printable survey-readiness forms included, adapted from a real PA survey readiness binder.",
+    note: "60+ printable survey-readiness forms included, adapted from a real PA survey readiness binder. Survey Day Mode pins the entrance conference, binder, on-shift roster, and documentation rooms on one screen.",
     mockup: <DocumentationMockup />,
   },
 ];
@@ -306,18 +309,16 @@ const NEW_FEATURES: NewFeature[] = [
     eyebrow: "Compliance Copilot",
     title: "Ask a plain question, get a cited answer from your own records",
     body: "\"Why is this aide blocked from the schedule?\" \"What's due in the next 30 days?\" \"Which residents are missing a current medical evaluation?\" The copilot answers from your facility's own recorded data and shows the exact documentation and regulation behind every answer. It's read-only and human confirmation stays mandatory — it can draft a Plan of Correction or a mock-survey request, but a draft is only a recommendation until a person approves it, and it never invents a citation or closes a finding on its own.",
-    // Anchor lands on the Features group that includes the grounded compliance
-    // copilot (alias of the AI / copilot / live-training capability group).
     href: "/features#compliance-copilot",
     link: "How it stays grounded →",
   },
   {
     icon: LayoutDashboard,
-    eyebrow: "Today",
-    title: "The one screen your team opens every morning",
-    body: "Today is the daily home for the whole operation — every task, assessment, drill, and expiring credential that's due, across one facility or your entire portfolio, with overdue work called out first. It counts the real backlog, not a capped preview, so \"what needs doing today\" stops living in one person's memory.",
-    href: "/how-it-works",
-    link: "See a week in the life →",
+    eyebrow: "Clinical record + FHIR",
+    title: "Chart in CareBase; keep meds in your pharmacy systems",
+    body: "Native charting covers vitals, progress notes, assessments, and care plans on the same resident record as assessments and support plans. FHIR integration syncs medications, allergies, and diagnoses from external clinical systems — while medication administration stays in your pharmacy eMAR and CareBase ingests those events read-only.",
+    href: "/features#clinical-record",
+    link: "See resident care capabilities →",
   },
 ];
 
@@ -342,8 +343,8 @@ const PLANS: Plan[] = [
     featured: true,
     features: [
       "Everything in CareMetric Train, plus:",
-      "Resident records, workforce, facility & incident management",
-      "Documentation rooms, binder exports, compliance alerts",
+      "Resident clinical record, assessments, workforce & facility ops",
+      "Survey Day Mode, copilot, documentation rooms & binder exports",
       `${MARKETING_OVERAGE_PRICE_LABEL}/month per additional active resident`,
     ],
     cta: `Start ${MARKETING_TRIAL_DAYS}-day free trial`,
@@ -378,7 +379,7 @@ const FAQS: Faq[] = [
   {
     question: "What is CareBase?",
     answer:
-      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and assisted living facilities — now with a built-in resident clinical record: native charting plus FHIR integration for externally-sourced medications, allergies, and diagnoses.",
+      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and assisted living facilities — with a built-in resident clinical record (native charting plus FHIR for medications, allergies, and diagnoses), Survey Day Mode, and a grounded compliance copilot.",
   },
   {
     question: "How much does it cost?",
@@ -393,17 +394,17 @@ const FAQS: Faq[] = [
   {
     question: "What does it replace — and not replace?",
     answer:
-      "It replaces training spreadsheets, paper binders, attendance-point trackers, and basic scheduling, and now keeps a resident clinical record of its own. It works alongside your pharmacy eMAR, payroll, HR system, and accounting, and integrates with your EHR via FHIR.",
+      "It replaces training spreadsheets, paper binders, attendance trackers, basic scheduling, and fragmented clinical notes. It works alongside your pharmacy eMAR, payroll, HR system, and accounting, and integrates with your EHR via FHIR.",
   },
   {
     question: "Can a surveyor or auditor get access?",
     answer:
-      "Yes — a read-only auditor role, plus time-limited documentation rooms scoped to exactly what was requested.",
+      "Yes — Survey Day Mode for the entrance conference, a read-only auditor role, and time-limited documentation rooms (or guest evidence portals) scoped to exactly what was requested.",
   },
   {
     question: "How fast can we start?",
     answer:
-      "Same day. Self-serve signup creates your organization; CSV import onboards a full roster in minutes.",
+      "Same day. Self-serve signup creates your organization; CSV import onboards a full roster in minutes. Prefer to click first? Open the live demo sandbox — no call required.",
   },
 ];
 
@@ -911,7 +912,7 @@ export default function Landing() {
           </Reveal>
           <Reveal className="flex flex-wrap gap-3">
             <Button asChild className="bg-white font-bold text-[#0d2742] hover:bg-[#dcebfa]"><Link href="/signup">Start free trial</Link></Button>
-            <Button asChild variant="outline" className="border-white/45 bg-transparent font-bold text-white hover:bg-white/15"><Link href="/features">See all 50+ capabilities</Link></Button>
+            <Button asChild variant="outline" className="border-white/45 bg-transparent font-bold text-white hover:bg-white/15"><Link href="/features">See all 60+ capabilities</Link></Button>
           </Reveal>
         </div>
       </section>

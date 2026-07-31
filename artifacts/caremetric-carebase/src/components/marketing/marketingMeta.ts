@@ -23,23 +23,23 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     title:
       "CareMetric CareBase — Survey-Ready Operations for PA Personal Care Homes & Assisted Living",
     description:
-      "Training compliance, resident assessments, incidents, scheduling, one-click survey binders, and a citation-backed compliance copilot for Pennsylvania PCH and ALF operators. Usage-based pricing, free trial.",
+      "Training compliance, resident clinical records, FHIR med sync, Survey Day Mode, a grounded compliance copilot, incidents, scheduling, and one-click survey binders for Pennsylvania PCH and ALF operators. Usage-based pricing, free trial.",
   },
   "/features": {
     title:
-      "CareBase Features — 50+ Capabilities for PCH & Assisted Living | CareMetric",
+      "CareBase Features — Full Capability Index for PCH & Assisted Living | CareMetric",
     description:
-      "Every CareBase capability: training compliance, AI course creation, a grounded compliance copilot, Survey Day Mode, resident assessments, incidents, scheduling, credentials, and survey documentation — all included in your plan.",
+      "Every CareBase capability: training compliance, AI course creation, compliance copilot, Survey Day Mode, clinical charting + FHIR, resident assessments, guest portals, incidents, scheduling, credentials, and survey documentation — all included.",
   },
   "/security": {
     title: "Security & Trust — CareBase for PA Senior Care Facilities",
     description:
-      "Row-level security, private documentation storage, immutable audit trails, and read-only auditor access — controls you can verify in a CareBase demo.",
+      "Row-level security, private documentation storage, immutable audit trails, and read-only auditor access — controls you can verify in a free trial or live demo.",
   },
   "/how-it-works": {
     title: "How CareBase Works — From Spreadsheet Chaos to Survey-Ready",
     description:
-      "The four moves every CareBase module follows, what switching from binders and spreadsheets actually takes, and what a week looks like once it runs your PA facility.",
+      "How Today, Survey Day Mode, the compliance copilot, and clinical charting fit the CareBase operating loop — and what a week looks like once it runs your PA facility.",
   },
   "/savings": {
     title: "Where the Money Comes From — CareBase Savings for PCH & ALF",
@@ -67,12 +67,12 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
   "/faq": {
     title: "CareBase FAQ — PA Personal Care Home & Assisted Living Software",
     description:
-      "Straight answers: what CareBase replaces, PA training-hour requirements, resident assessments, security, pricing, and how fast a facility can start.",
+      "Straight answers: pricing, clinical records + FHIR, Survey Day Mode, compliance copilot, PA training hours, resident assessments, security, and how fast you can start.",
   },
   "/about": {
     title: "About CareBase — Built in Pennsylvania with Real Operators",
     description:
-      "Why CareMetric is building CareBase, the principles behind it, the team, and the founding-partner program for PA PCH and ALF operators.",
+      "Why CareMetric is building CareBase, the principles behind it, founder Kevin Deyarmin, and the founding-partner program for PA PCH and ALF operators.",
   },
   "/privacy": {
     title: "Privacy Policy — CareMetric CareBase",

@@ -39,7 +39,8 @@ const INCLUDED_FEATURES = [
   "Course builder with graded quizzes & certificates",
   "AI course creation from your own policies — human-approved before publishing",
   "Live classes with QR sign-in — hours log themselves",
-  "Up to 6 on-the-job hours captured, the way §2600.65 allows",
+  "Resident clinical charting + FHIR med sync (CareBase)",
+  "Survey Day Mode, compliance copilot & one-click binders",
   "Unlimited staff — priced by active residents, not headcount",
 ] as const;
 

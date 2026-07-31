@@ -11,7 +11,7 @@ const RESIDENT_LIFECYCLE = [
     label: "01 — Inquiry & admission",
     title: "Inquiry & admission",
     description:
-      "Prospect tracking, preadmission RASP/ASP screening, room readiness, and the resident agreement — handled before move-in day.",
+      "Prospect tracking, preadmission RASP/ASP screening, room readiness, resident agreement e-sign, and the clinical chart opened before move-in day.",
   },
   {
     label: "02 — First 15 days",
@@ -23,7 +23,7 @@ const RESIDENT_LIFECYCLE = [
     label: "03 — Every day",
     title: "Every day",
     description:
-      "Services assigned and recorded — completed, refused, or escalated — plus dietary rounds, appointments, transportation, and routed medication events.",
+      "Services assigned and recorded — completed, refused, or escalated — plus dietary rounds, appointments, transportation, charted notes, and routed medication events.",
   },
   {
     label: "04 — When something changes",
@@ -41,7 +41,7 @@ const RESIDENT_LIFECYCLE = [
     label: "06 — Move-out",
     title: "Move-out",
     description:
-      "Discharge documentation, financial closeout, and a retained record that still answers a surveyor's question months later.",
+      "Discharge documentation, financial closeout, and a retained clinical and operational record that still answers a surveyor's question months later.",
   },
 ] as const;
 
@@ -66,6 +66,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "Interactive compliance matrix + CSV export",
       "Compliance reporting center",
       "Audit-ready document storage",
+      "Offline-capable employee training player",
     ],
   },
   {
@@ -78,6 +79,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "AI avatar video lessons",
       "Targeted block-level regeneration",
       "Grounded compliance copilot — cited, read-only answers",
+      "POC & mock-survey drafts with mandatory human review",
       "Live class scheduling & digital sign-in",
       "Rotating QR & kiosk PIN check-in",
       "Printable meeting notices with QR",
@@ -85,19 +87,22 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
   },
   {
     id: "resident-care",
-    anchorAliases: ["resident-operations"],
-    title: "Resident care & operations",
+    anchorAliases: ["resident-operations", "clinical-record"],
+    title: "Resident care, clinical & operations",
     items: [
       "Digital RASP/ASP assessment prep",
       "Automatic reassessment & support-plan triggers",
+      "Native clinical charting (vitals, notes, care plans)",
+      "FHIR sync for medications, allergies & diagnoses",
       "Facility-wide resident compliance dashboard",
       "Admissions, census & room readiness",
+      "Resident agreements & e-signature workflows",
       "Resident services & daily work",
       "Change-of-condition follow-up",
       "Dietary & food-safety operations",
       "Services calendar & transportation",
       "Resident financial subledger",
-      "Medication event integration",
+      "Medication event integration (read-only from eMAR)",
     ],
   },
   {
@@ -109,6 +114,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "Citation-weighted readiness score",
       "Survey Day Mode command workspace",
       "Incident & complaint tracking with notification clocks",
+      "Confidential incident pathways & public safety reporting",
       "Violations & plan-of-correction workflow",
       "Fire drills & life-safety records",
       "60+ template document library",
@@ -132,13 +138,15 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
       "Policy attestation campaigns (ESIGN/UETA documentation)",
       "Shift scheduling & auto-fill",
       "Cross-facility float staff",
+      "Time-off requests & coverage awareness",
     ],
   },
   {
     id: "access-onboarding",
-    title: "Access & onboarding",
+    title: "Access, portals & onboarding",
     items: [
       "Six database-enforced roles",
+      "Guest portals (move-in, agreements, designated person, evidence)",
       "Public certificate verification links",
       "Bulk CSV employee import",
       "Email, SMS & in-app alerts with escalation",
@@ -149,6 +157,11 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
   },
 ] as const;
 
+const CAPABILITY_COUNT = CAPABILITY_GROUPS.reduce(
+  (sum, group) => sum + group.items.length,
+  0,
+);
+
 const USER_ROLES = [
   {
     title: "Owner / executive",
@@ -158,12 +171,12 @@ const USER_ROLES = [
   },
   {
     title: "Org admin",
-    sees: "compliance across the whole organization, including resident assessments.",
+    sees: "compliance across the whole organization, including resident assessments and clinical records.",
     does: "configures rules, requirements, and access once for every facility.",
   },
   {
     title: "Facility manager",
-    sees: "assigned sites only — overdue staff, open work, shift coverage.",
+    sees: "assigned sites only — overdue staff, open work, shift coverage, Survey Day Mode.",
     does: "resolves gaps, approves work, validates outside training records.",
   },
   {
@@ -198,10 +211,10 @@ const RECENTLY_SHIPPED = [
       "Ask why an employee is blocked, what's due in 30 days, which residents lack a current medical evaluation, or for a drafted Plan of Correction. Every answer is read-only synthesis over governed rule versions and your facility's own documentation, carrying its source, effective date, and citation — and human confirmation stays mandatory, so a draft is never approved or submitted on its own.",
   },
   {
-    tag: "Today",
-    title: "The daily home for everything that's due",
+    tag: "Clinical record + FHIR",
+    title: "Chart in CareBase; sync meds from your systems",
     body:
-      "One screen shows the full count of work due across a single facility or the whole portfolio, with overdue items called out first — so the morning question of “what needs doing today” has one answer instead of six spreadsheets.",
+      "Native charting covers vitals, progress notes, assessments, and care plans. FHIR integration pulls medications, allergies, and diagnoses from external clinical systems so the resident record stays current — while medication administration stays in your pharmacy eMAR.",
   },
 ] as const;
 
@@ -229,8 +242,8 @@ export default function Features() {
           </h1>
           <p className="m-0 max-w-[56ch] text-pretty text-base text-white/85">
             The complete capability index and the six roles that use it.
-            CareBase includes every module — training, residents, workforce,
-            and facility ops — priced by active residents, not add-ons.
+            CareBase includes every module — training, clinical & residents,
+            workforce, and facility ops — priced by active residents, not add-ons.
           </p>
         </Reveal>
       </section>
@@ -291,8 +304,8 @@ export default function Features() {
             </h2>
             <p className="m-0 text-[15px] text-white/82">
               Staff compliance is half the job. The other half — assessments,
-              support plans, daily services — is where surveyors spend their
-              afternoon. Same record, same due dates.
+              support plans, clinical charting, daily services — is where
+              surveyors spend their afternoon. Same record, same due dates.
             </p>
           </Reveal>
           <div className="mt-8 grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
@@ -323,12 +336,12 @@ export default function Features() {
               Everything included
             </p>
             <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
-              50+ capabilities. CareBase includes every module.
+              {CAPABILITY_COUNT}+ capabilities. CareBase includes every module.
             </h2>
             <p className="m-0 text-[15px] text-[#44566b]">
               CareMetric CareBase ships everything below; CareMetric Train covers
-              the training and live-class capabilities on their own. This is the
-              full index.
+              the training, live-class, and compliance-tracking capabilities on
+              their own. This is the full index.
             </p>
           </Reveal>
 
@@ -406,7 +419,7 @@ export default function Features() {
           </h2>
           <p className="m-0 max-w-[52ch] text-[15px] text-white/82">
             Import your roster and see your own facility's compliance picture
-            this week.
+            this week — or open the live demo and click around as every role.
           </p>
           <div className="mt-1.5 flex flex-wrap justify-center gap-3">
             <Button
@@ -421,7 +434,7 @@ export default function Features() {
               variant="outline"
               className="rounded-[9px] border-white/30 bg-transparent px-5 py-3 text-[14.5px] font-bold text-white hover:bg-white/10 hover:text-white"
             >
-              <Link href="/faq">Questions? Read the FAQ</Link>
+              <Link href="/demo">Explore live demo</Link>
             </Button>
           </div>
         </Reveal>

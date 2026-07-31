@@ -82,8 +82,8 @@ const BOT_INTENTS: BotIntent[] = [
     answer:
       "Here's the short version: CareBase turns compliance from a last-minute documentation hunt into a live operating system. If your team is using spreadsheets, binders, email, and a separate LMS, CareBase gives you one place to run the facility, see risk, assign work, and prove readiness.",
     bullets: [
-      "It does more than training: resident assessments, incidents, credentials, policies, schedules, documentation rooms, and survey binders connect to the same compliance picture.",
-      "It helps managers act before risk becomes a citation by surfacing overdue work, missing proof, and facility-level readiness signals.",
+      "It does more than training: resident assessments, clinical charting, incidents, credentials, policies, schedules, documentation rooms, and survey binders connect to the same compliance picture.",
+      "Survey Day Mode, Today, and the compliance copilot help managers act before risk becomes a citation — overdue work, missing proof, and readiness signals in one place.",
       "AI tools draft training content from your own materials while review, approval, and documentation stay inside the workflow.",
     ],
     closer:
@@ -150,9 +150,9 @@ const BOT_INTENTS: BotIntent[] = [
     id: "lms",
     terms: ["lms", "spreadsheet", "different", "compare", "portal", "system", "software", "platform", "replace"],
     answer:
-      "A basic LMS helps prove a class happened. CareBase helps prove the operation is ready. That difference matters when leadership needs staff requirements, resident documentation, incidents, credentials, schedules, and survey documentation to agree.",
+      "A basic LMS helps prove a class happened. CareBase helps prove the operation is ready. That difference matters when leadership needs staff requirements, resident clinical and assessment documentation, incidents, credentials, schedules, and survey documentation to agree.",
     bullets: [
-      "Training is only one module; CareBase also connects resident assessment compliance, medication authorization, policies, complaints, incidents, fire drills, and service delivery.",
+      "Training is only one module; CareBase also connects resident clinical charting, assessment compliance, medication authorization, policies, complaints, incidents, fire drills, and service delivery.",
       "The platform turns gaps into operational work queues rather than leaving administrators to reconcile exports by hand.",
       "Role-scoped experiences keep executives, managers, trainers, employees, and auditors focused on the actions that move readiness forward.",
     ],
