@@ -8,7 +8,7 @@ Code baseline: `main` @ `78f7085` (+ this change set).
 1. Re-verified `END_USER_REVIEW.md`, `EFFICIENCY_REVIEW.md`, completion program, and improvement backlog against **current** source.
 2. Mapped every sidebar/route path per role (`Sidebar.tsx`, `App.tsx`).
 3. Static walkthrough of happy paths + dead ends on employee, trainer, manager, auditor, platform admin, and public guest surfaces.
-4. Implemented highest-impact, safe frontend fixes and re-ran `typecheck` + full unit suite (1040 tests).
+4. Implemented highest-impact fixes (frontend + targeted migrations) and re-ran `typecheck` + full unit suite.
 
 **Environment limits:** no Docker/local Supabase in this sandbox, so authenticated browser E2E against seed users was not possible. Findings below that need live data are marked **[needs live stack]**.
 
@@ -20,10 +20,10 @@ Most of `END_USER_REVIEW.md` Part 2 is **already shipped** (often behind default
 
 | ID | Status |
 |----|--------|
-| A1–A4 notifications / on-hire screening | Implemented; flags often default-off |
-| B1–B4 learner notes, video gate, attestation PDF, search | Implemented (video gate now **always enforced** in UI for open assignments) |
-| C1–C2 async binder / bulk import | Implemented |
-| D1–D4 confidential, reports, evidence, work/move-in | Implemented |
+| A1–A4 notifications / on-hire screening | Implemented; **pilot cohort enables flags for demo orgs** (this pass) |
+| B1–B4 learner notes, video gate, attestation PDF, search | Implemented (video gate always enforced in UI for open assignments) |
+| C1–C2 async binder / bulk import | Implemented; binder detail lists capped at **500** with truncation note |
+| D1–D4 confidential, reports, evidence, work/move-in | Implemented; FM escalation + guest access center added |
 | E1 dashboard summary RPCs | Implemented |
 | E2 QueryError adoption | Expanded further in this pass |
 
@@ -40,71 +40,67 @@ Most of `END_USER_REVIEW.md` Part 2 is **already shipped** (often behind default
 - Due-date urgency (`formatDueDistance` + amber/red) on course header, dashboard deadlines, training records, and attestations.
 - **OfflineCourse** resumes from saved percent instead of always restarting at step 0.
 - Empty-state recovery CTAs on My Courses, My Certificates, My Training Records.
+- **TakeCourse progress upserts coalesced** via `flushProgressCheckpoint` (debounce + immediate on nav/visibility).
 
 ### Employee navigation & shift
 - Sidebar: home labeled **My Work**; added **Floor**; section retitled; work queue label clarified.
 - Dashboard: training/practicum deadlines clickable; next shift links to schedule; Floor + My Shift quick links; deadline urgency.
 - **My Shift**: metric cards link to destinations; lists assigned work + notices; handoff anchor.
+- **MySchedule:** dropped the second `useListShiftAssignments` fetch; upcoming shifts from `get_my_shift_workspace().upcomingShifts`.
 
 ### Floor
 - Concern section includes safety/maintenance handoff path via My Shift.
 
 ### Manager / admin / shared lists
 - **QueryError** on AuditLog, ExclusionScreening, CompetencyRecords, Practicums, TrainingPlans, Organizations, NotificationDeliveries, AdminDashboard (key cards), Maintenance, InspectionItems, HelpCenter sections.
-- **FacilityDetail** residents: error state + cap 8 with “View all” link.
+- **FacilityDetail** residents + staff: error state + cap 8 with “View all” link.
 - **Users**: all role changes require confirmation (not only escalate-to-platform_admin).
+- **AdminDashboard:** top-of-page health/dashboard error banners; Tenant Watchlist / Health Scores / Data Quality honor loading/error.
+- **Maintenance:** QueryError + loading for preventive-maintenance schedules; metric tiles show "—" on load failure.
 
 ### Public safety report
-- Prefill `?facility=` / `?facility_id=` from QR/link.
-- UUID validation + clearer copy.
-- Better API error surfacing.
-- One-time confirmation values with **copy** buttons and save guidance.
+- Prefill `?facility=` / `?facility_id=` / `?facility_token=` from QR/link.
+- **Opaque `safety_report_token`** + `resolve_safety_report_facility` RPC (name resolve; UUID never shown as the facility identity in the walk-up form).
+- **FacilityDetail** safety poster card: QR + copy link + **rotate token** for org_admin / facility_manager.
+- Better API error surfacing; one-time confirmation values with **copy** buttons.
+
+### Confidential intakes
+- Facility managers escalate via `request_confidential_intake_escalation` → work item without unlocking protected narrative.
+
+### Guest access governance
+- **Guest Access Center** (`/app/guest-access`): unified list/revoke for evidence, move-in, agreement, and resident portal grants; sidebar + appDomains wired for reporting roles.
+
+### Employee pickers (bounded)
+- **EmployeeSearchSelect** (server-side search + page) used on Competency form/filter, CorrectiveAction assignee, WorkOrder/Maintenance assignment, EmployeeCredentials form; CourseAssignments assign dialog has type-to-filter.
+
+### Integrations & binder
+- **FHIR** source setup uses credential Select (no UUID paste) for `commands:write` credentials.
+- Binder export detail sections use **MAX_LISTED_ROWS = 500** with UI footnote.
+
+### History drawers
+- **EntityHistoryDrawer** on Incident, Complaint, Resident, and Policy detail pages (entity-scoped `audit_logs`).
+
+### Release flags (pilot)
+- Migration enrolls demo orgs in `carebase-pilot-2026` cohort and enables:
+  - `notifications.expanded_delivery_types`
+  - `notifications.critical_multichannel`
+  - `screening.on_hire_exclusion`
 
 ### Copy alignment
 - Employee Role Quick Start CTAs: “Open My Work” / “Open My Training”.
 
 ---
 
+## Remaining backlog (environment / product depth)
 
-
-### Follow-up pass (same day, continued)
-
-- **MySchedule:** dropped the second `useListShiftAssignments` fetch; upcoming shifts now come from `get_my_shift_workspace().upcomingShifts` already loaded for open offers / time-off.
-- **Maintenance:** QueryError + loading for preventive-maintenance schedules; metric tiles show "—" on load failure.
-- **FacilityDetail staff:** QueryError + cap 8 with "View all staff" (mirrors residents card).
-- **AdminDashboard:** top-of-page health/dashboard error banners; Tenant Watchlist, Tenant Health Scores, and Data Quality Center honor loading/error states instead of empty zeros.
-- **CompetencyRecords:** type-to-filter employee search on list filter + evaluation form (client-side; full server-side paginated RPC still open as #8).
-
-## Remaining prioritized backlog
-
-### P0 — product/ops (flags & live verification)
-| # | Item | Why | Effort |
-|---|------|-----|--------|
-| 1 | Enable `notifications.expanded_delivery_types` (and templates) for pilot tenants | Deskless reach is still flag-gated | S–M + ops |
-| 2 | Enable `notifications.critical_multichannel` for critical types | Critical alerts single-channel otherwise | S + ops |
-| 3 | Enable `screening.on_hire_exclusion` | Mid-month hires otherwise wait for monthly job | S + ops |
-| 4 | **[needs live stack]** Authenticated Playwright journeys per role (seed logins) | Code review ≠ runtime proof | M |
-
-### P1 — workflow UX still open
-| # | Item | Notes | Effort |
-|---|------|-------|--------|
-| 5 | Public facility **name** lookup / QR that never shows raw UUID | Prefill helps; walk-up without QR still hard | M (public RPC + FE) |
-| 6 | facility_manager confidential-detail escalation path | List OK; protected narrative is org_admin/auditor | M |
-| 7 | Guest-grant governance center (list/revoke all external tokens) | Evidence, move-in, agreement, resident portal | L |
-| 8 | Unbounded employee pickers → search/paginated RPC | Competency form/filter has client search; server-side paginated RPC still needed | M |
-| 9 | Mobile e2e: shift, course, service task, COC | Pilot readiness | M |
-| 10 | Remaining QueryError / empty-state polish on secondary widgets | **Shipped this pass** for Maintenance PM, AdminDashboard side panels, FacilityDetail staff | S ongoing |
-
-### P2 — efficiency & depth
-| # | Item | Effort |
+| # | Item | Status |
 |---|------|--------|
-| 11 | Binder section truncation beyond 200 rows (multi-part or higher cap with warning) | M |
-| 12 | MySchedule: drop double-fetch of shifts vs workspace if shapes align | **Shipped** — uses workspace `upcomingShifts` |
-| 13 | TakeCourse: coalesce progress upserts (video/notes/step) | S–M |
-| 14 | Metric contract: Dashboard / Today / PCH ops single definitions | L |
-| 15 | Integration credential wizard (no UUID paste) | L |
-| 16 | History drawers on incidents/complaints/residents/policies | L |
-| 17 | Full SCORM/xAPI runtime for learners (beyond governed metrics) | L |
+| 4 | Authenticated Playwright journeys per role | **[needs live stack]** |
+| 9 | Mobile e2e: shift, course, service task, COC | **[needs live stack]** |
+| 14 | Metric contract: Dashboard / Today / PCH ops single definitions | Deferred (product contract, multi-surface) |
+| 17 | Full SCORM/xAPI runtime for learners | Deferred (engine-scale) |
+
+Everything else from the original P0–P2 table is **shipped in this change set** (or superseded by the designs above). Secondary list widgets may still gain QueryError polish opportunistically.
 
 ---
 
@@ -112,28 +108,29 @@ Most of `END_USER_REVIEW.md` Part 2 is **already shipped** (often behind default
 
 | Role | Core happy path | Verdict after this pass |
 |------|-----------------|-------------------------|
-| **Employee** | My Work → deadlines → courses/attestations → shift/floor/services → certificates/credentials | Navigation loops fixed; video integrity enforced; shift/floor discoverable |
+| **Employee** | My Work → deadlines → courses/attestations → shift/floor/services → certificates/credentials | Navigation loops fixed; video integrity enforced; progress writes coalesced |
 | **Trainer** | Dashboard RPC → classes → kiosk → retraining → assignments/approvals | Solid; shared list error UX improved where reused |
-| **Facility manager / org admin** | Today → action plan → staff/training/incidents/residents → binder/evidence/reports | Strong surface; flags & confidential detail still product gaps |
-| **Auditor** | Today → matrix/credentials/incidents → binder/evidence/audit/reports | Read path coherent; same list UX improvements apply |
+| **Facility manager / org admin** | Today → action plan → staff/training/incidents/residents → binder/evidence/reports | Confidential escalation, guest access center, safety QR, pilot flags |
+| **Auditor** | Today → matrix/credentials/incidents → binder/evidence/audit/reports | Guest access read path; history drawers; same list UX improvements |
 | **Platform admin** | Orgs → packages → content → jobs/notifications/security | Error states on orgs/deliveries/dashboard improved |
-| **Public guest** | Token portals + safety report | Safety report walk-up UX improved; full facility directory still needed |
+| **Public guest** | Token portals + safety report | Opaque facility resolve + poster QR; no UUID walk-up |
 
 ---
 
 ## Validation
 
 ```bash
-pnpm --filter @workspace/caremetric-carebase run typecheck   # pass
-pnpm --filter @workspace/caremetric-carebase run test        # 114 files / 1040 tests pass
+pnpm --filter @workspace/caremetric-carebase run typecheck
+pnpm --filter @workspace/caremetric-carebase run test
 ```
 
-Not run: `pnpm run build` full monorepo, Playwright e2e, local Supabase/pgTAP (no Docker in this environment).
+Not run: Playwright e2e, local Supabase/pgTAP (no Docker in this environment). Apply migration `20260731120000_workflow_ux_backlog_remediation.sql` before relying on new RPCs/flags in a live environment.
 
 ---
 
 ## Constraints honored
 
-- No schema/RLS changes; frontend-only workflow UX + copy.
-- Existing architecture (SPA + Supabase, SECURITY DEFINER paths untouched).
+- SPA + Supabase; new RPCs are **SECURITY DEFINER** with role/facility scope checks.
+- Pilot flags use **cohort** rollout (demo orgs auto-enrolled; operators may assign more via `assign_organization_release_cohort`).
+- AAL2/release-flag ops surfaces unchanged for non-demo tenants until enrolled.
 - Did not re-implement closed EFFICIENCY_REVIEW / already-shipped END_USER backends.

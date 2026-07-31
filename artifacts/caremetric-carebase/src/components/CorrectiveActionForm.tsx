@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
 import { useCreateCorrectiveAction, useUpdateCorrectiveAction, type CorrectiveAction } from "@/hooks/useCorrectiveActions";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -157,15 +158,20 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
         placeholder="Corrective action description"
         className={`${inputCls} flex-1 min-w-[160px]`}
       />
-      <Select value={assigneeEmployeeId || UNASSIGNED} onValueChange={(v) => setAssigneeEmployeeId(v === UNASSIGNED ? "" : v)}>
-        <SelectTrigger className={`${inputCls} ${size === "sm" ? "w-32" : "w-44"} shrink-0`}>
-          <SelectValue placeholder="Assigned to (optional)" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-          {employees?.map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <div className={size === "sm" ? "w-40 shrink-0" : "w-56 shrink-0"}>
+        <EmployeeSearchSelect
+          label=""
+          value={assigneeEmployeeId}
+          onValueChange={setAssigneeEmployeeId}
+          facilityId={parent.facilityId}
+          allowEmpty
+          emptyLabel="Unassigned"
+          emptyValue={UNASSIGNED}
+          placeholder="Assigned to (optional)"
+          pageSize={40}
+          className="space-y-1"
+        />
+      </div>
       {isEdit && (
         <Select value={status} onValueChange={(v) => setStatus(v as CorrectiveActionStatusValue)}>
           <SelectTrigger className={`${inputCls} ${size === "sm" ? "w-28" : "w-36"} shrink-0`}><SelectValue /></SelectTrigger>

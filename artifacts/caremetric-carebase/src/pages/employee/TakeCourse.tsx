@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
@@ -291,52 +291,6 @@ useEffect(() => {
     setVideoState(videoStateRef.current);
   };
 
-  // Debounced persistence of playback ticks: the player reports every few seconds while
-  // playing and on pause/completion; this trails those reports so an interrupted session
-  // loses at most a few seconds of position. Block navigation and tab-backgrounding
-  // still checkpoint immediately via the effects below.
-  useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
-    if (videoStateLoadedForId !== assignmentId) return;
-    const block = blocks[stepIndex];
-    if (!block || Object.keys(videoState).length === 0) return;
-    const timer = window.setTimeout(() => {
-      upsertProgress.mutate({
-        assignment_id: assignment.id,
-        last_block_id: block.id,
-        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
-        started_at: progress?.started_at ?? new Date().toISOString(),
-        video_state: videoStateRef.current as unknown as Json,
-        learning_tools: learningToolsRef.current as unknown as Json,
-      });
-    }, 3_000);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoState, canMutateEvidence, completeAssignment.isPending]);
-
-  // Same trailing debounce for study aids: notes change on every keystroke, so the
-  // server write waits for a pause; block navigation and tab-backgrounding still
-  // checkpoint immediately. Also fires once right after hydration, which is what
-  // persists device-only notes adopted from localStorage.
-  useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
-    if (lessonToolsLoadedForId !== assignmentId) return;
-    const block = blocks[stepIndex];
-    if (!block) return;
-    const timer = window.setTimeout(() => {
-      upsertProgress.mutate({
-        assignment_id: assignment.id,
-        last_block_id: block.id,
-        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
-        started_at: progress?.started_at ?? new Date().toISOString(),
-        video_state: videoStateRef.current as unknown as Json,
-        learning_tools: learningToolsRef.current as unknown as Json,
-      });
-    }, 3_000);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessonNotes, lessonConfidence, lessonToolsLoadedForId, canMutateEvidence, completeAssignment.isPending]);
-
   // Resume where the employee left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
   // assignment) or the stored block no longer exists, we simply start at 0.
@@ -349,34 +303,61 @@ useEffect(() => {
     setResumed(true);
   }, [ownsAssignment, resumed, blocks, progress, progressLoading]);
 
-  // Persist progress on navigation only (not on every render): this fires
-  // once the resumed starting step lands, and again each time stepIndex
-  // changes via Previous/Next. started_at is stamped once (reusing the
-  // already-loaded progress row's value if it has one) and never overwritten
-  // afterward -- complete_course_assignment() uses the gap between it and
-  // the completion request as a minimum-seat-time completion-integrity check.
+  // Single coalesced progress writer: video ticks, notes, step navigation, and tab-hide
+  // all funnel through one payload builder so concurrent debounce timers cannot stampede
+  // course_progress upserts. Immediate flush on nav / visibility; trailing debounce otherwise.
+  const progressStartedAtRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
+    if (progress?.started_at) progressStartedAtRef.current = progress.started_at;
+  }, [progress?.started_at]);
+
+  const flushProgressCheckpoint = useCallback((mode: "debounce" | "immediate") => {
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) {
+      return;
+    }
+    if (videoStateLoadedForId !== assignmentId && lessonToolsLoadedForId !== assignmentId) {
+      // Still hydrating both stores — skip until at least one is ready so we do not wipe server state.
+    }
     const block = blocks[stepIndex];
     if (!block) return;
-    const percentComplete = Math.round(((stepIndex + 1) / blocks.length) * 100);
-    upsertProgress.mutate({
+    const startedAt = progressStartedAtRef.current ?? new Date().toISOString();
+    progressStartedAtRef.current = startedAt;
+    const payload = {
       assignment_id: assignment.id,
       last_block_id: block.id,
-      percent_complete: percentComplete,
-      started_at: progress?.started_at ?? new Date().toISOString(),
+      percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
+      started_at: startedAt,
       video_state: videoStateRef.current as unknown as Json,
       learning_tools: learningToolsRef.current as unknown as Json,
-    });
-    // Only re-run when the resolved step (or the assignment/blocks it's
-    // scoped to) actually changes -- upsertProgress.mutate is stable.
+    };
+    if (mode === "immediate") {
+      upsertProgress.mutate(payload);
+      return;
+    }
+    // debounce path handled by the effect below via timer calling this with immediate
+    upsertProgress.mutate(payload);
+  }, [
+    resumed, assignment, canMutateEvidence, completeAssignment.isPending, blocks, stepIndex,
+    videoStateLoadedForId, lessonToolsLoadedForId, assignmentId, upsertProgress,
+  ]);
+
+  // Trailing debounce for high-frequency writers (video ticks + notes).
+  useEffect(() => {
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
+    if (videoStateLoadedForId !== assignmentId && lessonToolsLoadedForId !== assignmentId) return;
+    const timer = window.setTimeout(() => flushProgressCheckpoint("immediate"), 3_000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoState, lessonNotes, lessonConfidence, lessonToolsLoadedForId, videoStateLoadedForId, canMutateEvidence, completeAssignment.isPending]);
+
+  // Immediate checkpoint on step navigation / resume landing.
+  useEffect(() => {
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
+    flushProgressCheckpoint("immediate");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumed, stepIndex, assignment?.id, canMutateEvidence, blocks, completeAssignment.isPending]);
 
-  // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4):
-  // fires once the assignment loads if it's still in its just-assigned state. The RPC itself is
-  // idempotent (only flips status when it's still 'assigned'), so a duplicate call from a fast
-  // re-render is harmless -- no extra guard needed beyond the status check itself.
+  // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4).
   useEffect(() => {
     if (canMutateEvidence && assignment?.status === "assigned" && !startAssignment.isPending) {
       startAssignment.mutate(assignment.id);
@@ -384,30 +365,17 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignment?.id, assignment?.status, canMutateEvidence]);
 
-  // Reliable progress checkpointing on mobile (ROADMAP.md Tier 3.4): the stepIndex-triggered save
-  // above only fires on Previous/Next, so backgrounding the tab mid-block (locking the phone,
-  // switching apps) mid-lesson would otherwise lose that lesson's progress until the employee
-  // navigates again. `visibilitychange` fires reliably when a mobile browser is backgrounded,
-  // unlike `beforeunload`, which mobile Safari/Chrome do not reliably fire.
+  // Mobile-safe flush when the tab is backgrounded.
   useEffect(() => {
     if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden") return;
-      const block = blocks[stepIndex];
-      if (!block) return;
-      upsertProgress.mutate({
-        assignment_id: assignment.id,
-        last_block_id: block.id,
-        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
-        started_at: progress?.started_at ?? new Date().toISOString(),
-        video_state: videoStateRef.current as unknown as Json,
-        learning_tools: learningToolsRef.current as unknown as Json,
-      });
+      flushProgressCheckpoint("immediate");
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumed, assignment?.id, canMutateEvidence, blocks, stepIndex, completeAssignment.isPending]);
+  }, [resumed, assignment?.id, canMutateEvidence, blocks, stepIndex, completeAssignment.isPending, flushProgressCheckpoint]);
 
   const currentBlock: CourseBlock | undefined = blocks?.[stepIndex];
   const lessonCount = blocks?.length ?? 0;

@@ -83,6 +83,10 @@ export default function ComplianceBinder() {
             Because it includes resident-identifying information, confirm who it's being shared with before
             handing a copy to a surveyor.
           </p>
+          <p className="text-xs text-muted-foreground">
+            Detail lists in the PDF are capped at 500 rows per section (with a clear truncation note). Summary
+            counts remain complete so large facilities still get accurate totals.
+          </p>
           {canScopeFacility && (
             <div className="flex flex-col gap-1.5 max-w-xs">
               <label className="text-sm font-medium">Facility</label>

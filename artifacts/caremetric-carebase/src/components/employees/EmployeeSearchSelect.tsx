@@ -1,0 +1,117 @@
+import { useEffect, useMemo, useState } from "react";
+import { useListEmployeesPaginated, type Employee } from "@/hooks/useEmployees";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface EmployeeSearchSelectProps {
+  value: string;
+  onValueChange: (employeeId: string) => void;
+  /** Optional full row callback when selection changes (null when cleared). */
+  onEmployeeChange?: (employee: Employee | null) => void;
+  facilityId?: string;
+  organizationId?: string;
+  status?: string;
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
+  className?: string;
+  allowEmpty?: boolean;
+  emptyLabel?: string;
+  emptyValue?: string;
+  pageSize?: number;
+}
+
+/**
+ * Bounded employee picker: server-side search + page (default 50). Prefer this over
+ * useListEmployees for assignment dialogs so large tenants never load the full roster.
+ */
+export function EmployeeSearchSelect({
+  value,
+  onValueChange,
+  onEmployeeChange,
+  facilityId,
+  organizationId,
+  status = "active",
+  label = "Employee",
+  placeholder = "Select employee",
+  required,
+  className,
+  allowEmpty = false,
+  emptyLabel = "None",
+  emptyValue = "none",
+  pageSize = 50,
+}: EmployeeSearchSelectProps) {
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(search.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  const query = useListEmployeesPaginated({
+    facilityId,
+    organizationId,
+    status,
+    search: debounced || undefined,
+    page: 1,
+    pageSize,
+    sortField: "lastName",
+    sortDir: "asc",
+  });
+
+  const rows = query.data?.rows ?? [];
+  const selectedMissing = useMemo(
+    () => Boolean(value && value !== emptyValue && !rows.some((e) => e.id === value)),
+    [rows, value, emptyValue],
+  );
+
+  const emit = (nextId: string) => {
+    onValueChange(nextId);
+    if (onEmployeeChange) {
+      if (!nextId || nextId === emptyValue) onEmployeeChange(null);
+      else onEmployeeChange(rows.find((e) => e.id === nextId) ?? null);
+    }
+  };
+
+  return (
+    <div className={className ?? "space-y-1.5"}>
+      {label ? <Label className="text-[13px]">{label}{required ? " *" : ""}</Label> : null}
+      <Input
+        className="h-9"
+        placeholder="Type to search employees"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        autoComplete="off"
+      />
+      <Select value={value || (allowEmpty ? emptyValue : "")} onValueChange={(v) => emit(v === emptyValue ? "" : v)}>
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder={query.isLoading ? "Loading…" : placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {allowEmpty && <SelectItem value={emptyValue}>{emptyLabel}</SelectItem>}
+          {selectedMissing && value && (
+            <SelectItem value={value}>Selected employee (not in current page)</SelectItem>
+          )}
+          {rows.map((e) => (
+            <SelectItem key={e.id} value={e.id}>
+              {e.last_name}, {e.first_name}
+              {e.job_title ? ` · ${e.job_title}` : ""}
+            </SelectItem>
+          ))}
+          {!query.isLoading && rows.length === 0 && (
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">No employees match.</div>
+          )}
+        </SelectContent>
+      </Select>
+      {query.isError ? (
+        <p className="text-xs text-destructive">Could not load employees. Try again.</p>
+      ) : (query.data?.count ?? 0) > pageSize ? (
+        <p className="text-xs text-muted-foreground">
+          Showing {rows.length} of {query.data?.count} — refine search to narrow results.
+        </p>
+      ) : null}
+    </div>
+  );
+}

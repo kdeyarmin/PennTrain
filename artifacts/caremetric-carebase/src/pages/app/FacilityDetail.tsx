@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight, QrCode, Copy, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
@@ -36,6 +36,8 @@ import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { facilityToday } from "@/lib/dateUtils";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLicensingWorkspace";
+import { supabase } from "@/lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface FacilityFormData {
   name: string;
@@ -66,6 +68,8 @@ export default function FacilityDetail() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [rotatingSafetyToken, setRotatingSafetyToken] = useState(false);
 
   // This page is mounted under /admin, /app, and /trainer prefixes -- every internal
   // link/redirect must match whichever role-specific directory surface the viewer is under,
@@ -335,6 +339,89 @@ export default function FacilityDetail() {
         facilityType={facility.facility_type}
         canManage={["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "")}
       />
+
+      {/* Public safety-report poster QR — opaque token, never show facility UUID */}
+      {["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <QrCode className="h-4 w-4 text-muted-foreground" /> Safety report poster
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Print this link or QR for walk-up anonymous safety reporting. The code is an opaque facility token — not the facility UUID.
+            </p>
+            {(() => {
+              const token = facility.safety_report_token;
+              if (!token) {
+                return (
+                  <p className="text-sm text-amber-700">
+                    No poster token yet. Apply the latest database migration, then refresh. Use Rotate to issue one.
+                  </p>
+                );
+              }
+              const reportUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/report-safety?facility_token=${encodeURIComponent(token)}`;
+              const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(reportUrl)}`;
+              return (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <img src={qrSrc} alt="Safety report QR code" width={160} height={160} className="rounded border bg-white p-2" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="break-all font-mono text-xs">{reportUrl}</p>
+                    <p className="text-xs text-muted-foreground">Token: <span className="font-mono">{token.slice(0, 8)}…{token.slice(-4)}</span></p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(reportUrl).then(
+                            () => toast({ title: "Poster link copied" }),
+                            () => toast({ title: "Could not copy", variant: "destructive" }),
+                          );
+                        }}
+                      >
+                        <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy link
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={rotatingSafetyToken}
+                        onClick={() => {
+                          setRotatingSafetyToken(true);
+                          void (async () => {
+                            try {
+                              const { data, error } = await (supabase as any).rpc("rotate_facility_safety_report_token", {
+                                p_facility_id: facility.id,
+                              });
+                              if (error) throw error;
+                              await queryClient.invalidateQueries({ queryKey: ["facilities", facility.id] });
+                              toast({ title: "Safety poster token rotated", description: "Update printed posters with the new QR link." });
+                              void data;
+                            } catch (err) {
+                              toast({
+                                title: "Could not rotate token",
+                                description: err instanceof Error ? err.message : String(err),
+                                variant: "destructive",
+                              });
+                            } finally {
+                              setRotatingSafetyToken(false);
+                            }
+                          })();
+                        }}
+                      >
+                        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${rotatingSafetyToken ? "animate-spin" : ""}`} />
+                        {rotatingSafetyToken ? "Rotating…" : "Rotate token"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType) && (

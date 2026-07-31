@@ -15,10 +15,16 @@ type SubmissionResult = {
   resumeSecret?: unknown;
 };
 
-function facilityIdFromLocation(): string {
+type ResolvedFacility = {
+  facilityId: string;
+  facilityName: string;
+  token: string;
+};
+
+function tokenFromLocation(): string {
   try {
     const params = new URLSearchParams(window.location.search);
-    return (params.get("facility") ?? params.get("facility_id") ?? "").trim();
+    return (params.get("facility_token") ?? params.get("facility") ?? params.get("facility_id") ?? "").trim();
   } catch {
     return "";
   }
@@ -30,8 +36,11 @@ function looksLikeUuid(value: string): boolean {
 
 export default function SafetyReport() {
   const { toast } = useToast();
-  const prefilledFacility = useMemo(() => facilityIdFromLocation(), []);
-  const [facility, setFacility] = useState(prefilledFacility);
+  const prefilledToken = useMemo(() => tokenFromLocation(), []);
+  const [facilityToken, setFacilityToken] = useState(prefilledToken);
+  const [resolved, setResolved] = useState<ResolvedFacility | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
   const [summary, setSummary] = useState("");
   const [narrative, setNarrative] = useState("");
   const [urgent, setUrgent] = useState(false);
@@ -42,7 +51,7 @@ export default function SafetyReport() {
   const container = useRef<HTMLDivElement | null>(null);
   const widget = useRef<string | null>(null);
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
-  const facilityLooksValid = looksLikeUuid(facility);
+  const canSubmit = Boolean(resolved?.facilityId);
 
   useEffect(() => {
     if (!siteKey) return;
@@ -80,19 +89,54 @@ export default function SafetyReport() {
         document.head.appendChild(script);
       }
       script.addEventListener("load", render);
-      const handleScriptError = () => setTurnstileError("Verification could not load. Check your connection and refresh the page.");
-      script.addEventListener("error", handleScriptError);
-      return () => {
-        canceled = true;
-        script?.removeEventListener("load", render);
-        script?.removeEventListener("error", handleScriptError);
-      };
     }
 
     return () => {
       canceled = true;
     };
   }, [siteKey]);
+
+  useEffect(() => {
+    const value = facilityToken.trim();
+    if (value.length < 8) {
+      setResolved(null);
+      setResolveError(null);
+      return;
+    }
+    let canceled = false;
+    setResolving(true);
+    setResolveError(null);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const { data, error } = await (supabase as any).rpc("resolve_safety_report_facility", { p_token: value });
+          if (canceled) return;
+          if (error) throw error;
+          if (!data || !data.facilityId) {
+            setResolved(null);
+            setResolveError("That facility code is not recognized. Scan the poster QR code or ask your employer for a valid link.");
+            return;
+          }
+          setResolved({
+            facilityId: String(data.facilityId),
+            facilityName: String(data.facilityName ?? "Facility"),
+            token: String(data.token ?? value),
+          });
+          setResolveError(null);
+        } catch (err) {
+          if (canceled) return;
+          setResolved(null);
+          setResolveError(err instanceof Error ? err.message : "Could not verify this facility code.");
+        } finally {
+          if (!canceled) setResolving(false);
+        }
+      })();
+    }, 300);
+    return () => {
+      canceled = true;
+      window.clearTimeout(timer);
+    };
+  }, [facilityToken]);
 
   const copyValue = async (label: string, value: string) => {
     try {
@@ -104,11 +148,11 @@ export default function SafetyReport() {
   };
 
   const submit = async () => {
-    if (!facilityLooksValid) {
+    if (!resolved?.facilityId) {
       toast({
         variant: "destructive",
-        title: "Facility code required",
-        description: "Scan the facility poster QR code or enter the facility ID provided by your employer.",
+        title: "Facility required",
+        description: "Scan the facility poster QR code or enter the code provided by your employer.",
       });
       return;
     }
@@ -117,7 +161,7 @@ export default function SafetyReport() {
       const { data, error } = await supabase.functions.invoke("submit-confidential-intake", {
         body: {
           turnstile_token: token,
-          facility_id: facility.trim(),
+          facility_id: resolved.facilityId,
           report_type: "safety_concern",
           occurred_at: new Date().toISOString(),
           immediate_danger: urgent,
@@ -208,24 +252,38 @@ export default function SafetyReport() {
           ) : (
             <>
               <div className="space-y-1.5">
-                <Label htmlFor="facility">Facility code</Label>
-                <Input
-                  id="facility"
-                  value={facility}
-                  onChange={(e) => setFacility(e.target.value)}
-                  placeholder="Paste facility ID from the posted QR code"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {prefilledFacility
-                    ? "Facility code was filled from the link or QR code you opened. Change it only if this is the wrong location."
-                    : "Use the QR code or link posted at your facility. Do not guess this value — reports without a valid facility code cannot be routed."}
-                </p>
-                {facility.trim() && !facilityLooksValid && (
-                  <p role="alert" className="text-xs text-destructive">
-                    Enter the full facility ID from the poster (it looks like a long code with hyphens).
-                  </p>
+                <Label htmlFor="facility">Facility</Label>
+                {resolved ? (
+                  <div className="rounded-lg border bg-muted/40 px-3 py-2">
+                    <p className="text-sm font-medium">{resolved.facilityName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {prefilledToken ? "Matched from the poster QR / link you opened." : "Facility verified."}
+                      {looksLikeUuid(facilityToken) ? " (legacy facility link)" : ""}
+                    </p>
+                    {!prefilledToken && (
+                      <Button type="button" variant="link" className="h-auto px-0 text-xs" onClick={() => { setFacilityToken(""); setResolved(null); }}>
+                        Use a different facility code
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      id="facility"
+                      value={facilityToken}
+                      onChange={(e) => setFacilityToken(e.target.value)}
+                      placeholder="Paste facility code from the posted QR"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use the QR code or link posted at your facility. Do not guess this value — reports without a valid facility code cannot be routed.
+                    </p>
+                  </>
+                )}
+                {resolving && <p className="text-xs text-muted-foreground">Checking facility code…</p>}
+                {resolveError && (
+                  <p role="alert" className="text-xs text-destructive">{resolveError}</p>
                 )}
               </div>
               <div>
@@ -254,7 +312,7 @@ export default function SafetyReport() {
               <Button
                 className="w-full"
                 onClick={() => void submit()}
-                disabled={!siteKey || !token || !facilityLooksValid || summary.trim().length < 5 || narrative.trim().length < 10 || pending}
+                disabled={!siteKey || !token || !canSubmit || summary.trim().length < 5 || narrative.trim().length < 10 || pending}
               >
                 {pending ? "Submitting…" : "Submit confidential report"}
               </Button>

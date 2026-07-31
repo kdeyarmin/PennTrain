@@ -263,6 +263,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/regulatory-copilot", label: "Citation-backed regulatory copilot", domain: "compliance", roles: REPORTING_ROLES, keywords: ["ai", "copilot", "citation", "regulation", "evidence", "readiness", "plan of correction", "mock survey", "effectiveness review"] },
   { path: "/app/compliance-binder", label: "Compliance binder", domain: "documents", roles: REPORTING_ROLES, keywords: ["evidence", "packet"] },
   { path: "/app/evidence", label: "Documentation room", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "auditor", "guest access", "surveyor", "artifacts", "binder", "share", "evidence", "documentation room"] },
+  { path: "/app/guest-access", label: "Guest access center", domain: "compliance", roles: REPORTING_ROLES, keywords: ["guest", "token", "external access", "revoke", "portal", "move-in", "agreement", "evidence grant", "surveyor access"] },
   { path: "/app/policy-documents", label: "Policies & procedures", domain: "documents", roles: REPORTING_ROLES, keywords: ["attestation", "campaigns"] },
   { path: "/app/template-documents", label: "Template documents", domain: "documents", roles: REPORTING_ROLES, keywords: ["forms", "reference"] },
   { path: "/app/dhs-forms", label: "DHS forms library", domain: "documents", roles: REPORTING_ROLES, keywords: ["state forms", "official forms", "pch", "alf", "alr", "rasp", "asp", "dme", "reportable incident", "download", "pa.gov"] },

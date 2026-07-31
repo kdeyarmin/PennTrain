@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { usePageTitle } from "@/lib/pageTitle";
 import { IncidentQapiEscalation } from "@/components/IncidentQapiEscalation";
+import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 
@@ -235,8 +236,10 @@ export default function IncidentDetail() {
             <p className="text-muted-foreground">{facilityName} · {new Date(incident.occurred_at).toLocaleString()}</p>
           </div>
         </div>
-        {canManage && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <EntityHistoryDrawer entityType="incidents" entityId={incident.id} title="Incident history" />
+          {canManage && (
+            <>
             {hasPchAlr && <IncidentQapiEscalation incident={incident} />}
             <Select value={incident.status} onValueChange={(v) => updateIncident({ id: incident.id, status: v as typeof incident.status })}>
               <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
@@ -244,8 +247,9 @@ export default function IncidentDetail() {
                 {["reported", "investigating", "closed"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
               </SelectContent>
             </Select>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>

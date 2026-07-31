@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
+import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 
 function fmtDate(iso: string | null | undefined): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -448,6 +449,7 @@ export default function PolicyDocumentDetail() {
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-2xl font-bold tracking-tight">{document.title}</h1>
           {document.category && <Badge variant="outline">{document.category}</Badge>}
+          <EntityHistoryDrawer entityType="policy_documents" entityId={document.id} title="Policy history" />
         </div>
         {document.description && <p className="text-muted-foreground mt-1">{document.description}</p>}
       </div>

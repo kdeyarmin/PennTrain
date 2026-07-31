@@ -10766,6 +10766,7 @@ export type Database = {
           phone: string | null
           sandbox_reset_at: string | null
           sandbox_seed_version: number | null
+          safety_report_token: string
           state: string | null
           updated_at: string
           zip: string | null
@@ -10789,6 +10790,7 @@ export type Database = {
           phone?: string | null
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
+          safety_report_token?: string
           state?: string | null
           updated_at?: string
           zip?: string | null
@@ -10812,6 +10814,7 @@ export type Database = {
           phone?: string | null
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
+          safety_report_token?: string
           state?: string | null
           updated_at?: string
           zip?: string | null
@@ -39320,6 +39323,25 @@ export type Database = {
       revoke_class_checkin_tokens: {
         Args: { p_class_id: string; p_reason: string }
         Returns: number
+      }
+      resolve_safety_report_facility: {
+        Args: {
+          p_token: string
+        }
+        Returns: Json
+      }
+      rotate_facility_safety_report_token: {
+        Args: {
+          p_facility_id: string
+        }
+        Returns: string
+      }
+      request_confidential_intake_escalation: {
+        Args: {
+          p_intake_id: string
+          p_reason: string
+        }
+        Returns: Json
       }
       revoke_evidence_guest_grant: {
         Args: { p_grant_id: string; p_reason: string }
