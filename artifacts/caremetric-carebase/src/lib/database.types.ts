@@ -10764,9 +10764,9 @@ export type Database = {
           name: string
           organization_id: string
           phone: string | null
+          safety_report_token: string
           sandbox_reset_at: string | null
           sandbox_seed_version: number | null
-          safety_report_token: string
           state: string | null
           updated_at: string
           zip: string | null
@@ -10788,9 +10788,9 @@ export type Database = {
           name: string
           organization_id: string
           phone?: string | null
+          safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
-          safety_report_token?: string
           state?: string | null
           updated_at?: string
           zip?: string | null
@@ -10812,9 +10812,9 @@ export type Database = {
           name?: string
           organization_id?: string
           phone?: string | null
+          safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
-          safety_report_token?: string
           state?: string | null
           updated_at?: string
           zip?: string | null
@@ -35803,13 +35803,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      start_learning_runtime_session: {
-        Args: {
-          p_assignment_id: string
-          p_package_id?: string | null
-        }
-        Returns: Json
-      }
       commit_learning_runtime_state: {
         Args: {
           p_idempotency_key: string
@@ -39056,6 +39049,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      request_confidential_intake_escalation: {
+        Args: { p_intake_id: string; p_reason: string }
+        Returns: Json
+      }
       request_organization_export: {
         Args: never
         Returns: {
@@ -39170,6 +39167,10 @@ export type Database = {
           p_resolution_status: string
         }
         Returns: undefined
+      }
+      resolve_safety_report_facility: {
+        Args: { p_token: string }
+        Returns: Json
       }
       resolve_service_task_alert: {
         Args: { p_alert_id: string; p_status: string }
@@ -39331,25 +39332,6 @@ export type Database = {
         Args: { p_class_id: string; p_reason: string }
         Returns: number
       }
-      resolve_safety_report_facility: {
-        Args: {
-          p_token: string
-        }
-        Returns: Json
-      }
-      rotate_facility_safety_report_token: {
-        Args: {
-          p_facility_id: string
-        }
-        Returns: string
-      }
-      request_confidential_intake_escalation: {
-        Args: {
-          p_intake_id: string
-          p_reason: string
-        }
-        Returns: Json
-      }
       revoke_evidence_guest_grant: {
         Args: { p_grant_id: string; p_reason: string }
         Returns: {
@@ -39422,6 +39404,10 @@ export type Database = {
       rollback_employee_import_job: {
         Args: { p_job_id: string }
         Returns: Json
+      }
+      rotate_facility_safety_report_token: {
+        Args: { p_facility_id: string }
+        Returns: string
       }
       rotate_integration_api_credential: {
         Args: { p_credential_id: string; p_expires_at?: string }
@@ -40317,6 +40303,10 @@ export type Database = {
           p_transport_method: string
         }
         Returns: string
+      }
+      start_learning_runtime_session: {
+        Args: { p_assignment_id: string; p_package_id?: string | null }
+        Returns: Json
       }
       start_move_in_workspace: {
         Args: { p_prospect_id: string }
