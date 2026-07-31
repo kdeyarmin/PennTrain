@@ -10,7 +10,7 @@ import { usePageMeta } from "@/lib/usePageMeta";
 
 const STORY = [
   "Most personal care homes don't fail surveys because staff never learned the material. They struggle because the proof lives in paper sign-in sheets, old PDFs, email attachments, and a spreadsheet only one person understands. When the surveyor arrives, the work was done — but the documentation can't be found.",
-  "CareBase is our answer: one operating record where training, credentials, resident assessments, incidents, drills, maintenance, and scheduling all attach their own proof as the work happens. Your binder becomes something you export, not a project you dread.",
+  "CareBase is our answer: one operating record where training, credentials, resident assessments, clinical charting, incidents, drills, maintenance, and scheduling all attach their own proof as the work happens. Your binder becomes something you export, not a project you dread.",
   "We build it against the actual regulations — 55 Pa. Code Chapters 2600 and 2800 first — and we prove it in real Pennsylvania facilities every day. CareBase is part of the CareMetric family of care-operations products.",
 ] as const;
 
@@ -47,7 +47,7 @@ const FOUNDER_CREDENTIALS = [
 const PARTNER_NOTES = [
   {
     lead: "You get:",
-    text: "guided setup against your roster, a direct line to the builders, your workflow prioritized on the roadmap, and founding-partner pricing locked for as long as you subscribe.",
+    text: "guided setup against your roster, a direct line to the founder, your workflow prioritized on the roadmap, and founding-partner pricing locked for as long as you subscribe.",
   },
   {
     lead: "We ask:",
@@ -162,7 +162,7 @@ export default function About() {
               Founding-partner pricing for early Pennsylvania operators
             </h2>
             <p className="text-[15px] leading-7 text-white/85">
-              A limited group of early PCH and ALF operators get founding-partner terms: direct access to the team, priority on their highest-risk workflow, and founding-partner pricing we honor for the life of your subscription. We ask for real usage and honest feedback. To be enrolled, email hello@caremetric.ai.
+              A limited group of early PCH and ALF operators get founding-partner terms: direct access to the founder, priority on their highest-risk workflow, and founding-partner pricing we honor for the life of your subscription (on top of the published self-serve list prices). We ask for real usage and honest feedback. To be enrolled, email hello@caremetric.ai — or start a free trial anytime without waiting.
             </p>
             <Button asChild variant="secondary" className="mt-1.5 self-start bg-white px-5 py-3 text-[14.5px] font-bold text-[#0d2742] hover:bg-[#dcebfa]">
               <a href="mailto:hello@caremetric.ai?subject=Founding%20partner%20enrollment">Email hello@caremetric.ai to enroll</a>

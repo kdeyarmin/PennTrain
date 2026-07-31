@@ -11,7 +11,7 @@
  *
  * The header is deliberately condensed into two dropdowns plus one direct
  * link: ten top-level links overflowed the bar and collided with the logo.
- *  - MARKETING_PRODUCT_NAV   -> the "Product" dropdown (overview pages).
+ *  - MARKETING_PRODUCT_NAV   -> the "Product" dropdown (overview pages + Security).
  *  - MARKETING_NAV           -> inline links that stand on their own (Pricing;
  *                               high-intent, kept one click away).
  *  - MARKETING_RESOURCES_NAV -> the "Resources" dropdown (PA regulatory
@@ -23,6 +23,9 @@ export const MARKETING_PRODUCT_NAV = [
   { href: "/features", label: "Features" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/savings", label: "Savings" },
+  // Trust surface: B2B buyers look for Security in the product nav, not only
+  // the footer. Keep this listed here so desktop + mobile menus both expose it.
+  { href: "/security", label: "Security" },
 ] as const;
 
 /** Inline (non-grouped) header links. */
@@ -47,7 +50,6 @@ export const MARKETING_RESOURCES_NAV = [
  * but must still be reachable while signed out.
  */
 export const MARKETING_EXTRA_PATHS = [
-  "/security",
   "/privacy",
   "/terms",
   // Retired page from the previous marketing site; kept public so old

@@ -25,7 +25,7 @@ const EDGE_JOBS: Record<
   },
   "billing-quantity-sync": {
     functionName: "sync-billing-quantities",
-    body: { batchSize: 250 },
+    body: { batchSize: 50, maxRuntimeMs: 110000 },
   },
   "regulatory-digest-send": {
     functionName: "send-regulatory-digest",

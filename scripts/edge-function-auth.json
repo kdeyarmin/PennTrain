@@ -122,7 +122,7 @@
   },
   "sync-billing-quantities": {
     "gates": ["cron-secret"],
-    "rationale": "Internal cron worker pushing seat counts to Stripe; its Stripe client is an outbound credential."
+    "rationale": "Internal cron worker enforcing flat qty=1 and syncing metered quantities to Stripe; its Stripe client is an outbound credential."
   },
   "twilio-notification-webhook": {
     "gates": ["webhook-signature"],

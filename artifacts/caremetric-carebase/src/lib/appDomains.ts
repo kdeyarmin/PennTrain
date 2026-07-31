@@ -269,6 +269,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/documents", label: "Documents", domain: "documents", roles: ORG_ROLES, keywords: ["files", "uploads"] },
   { path: "/app/users", label: "Users", domain: "tenant", roles: ORG_MANAGERS, keywords: ["roles", "invites"] },
   { path: "/app/settings", label: "Settings", domain: "tenant", roles: ORG_MANAGERS, keywords: ["configuration", "organization"] },
+  { path: "/app/billing", label: "Billing & plans", domain: "tenant", roles: ORG_ADMINS, keywords: ["subscription", "checkout", "stripe", "plans", "pricing", "invoice"] },
   { path: "/app/enterprise", label: "Enterprise foundation", domain: "tenant", roles: ORG_ADMINS, keywords: ["workforce", "compliance profiles", "sso", "scim", "entitlements", "integrations"] },
   { path: "/app/workforce-operations", label: "Workforce operations", domain: "credentialing", roles: ORG_MANAGERS, keywords: ["hris", "qualification", "credential renewal", "eligibility", "shift swap", "waitlist"] },
   { path: "/app/governed-learning", label: "Governed content", domain: "training", roles: ORG_MANAGERS, keywords: ["content review", "policy lifecycle", "scorm", "xapi", "adaptive", "offline"] },

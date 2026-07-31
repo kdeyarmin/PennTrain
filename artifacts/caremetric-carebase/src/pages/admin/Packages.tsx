@@ -38,6 +38,11 @@ import {
   type ProductModuleId,
   type PurchasableProductModuleId,
 } from "@/lib/productModules";
+import {
+  billingPriceSummary,
+  isFlatBillingPrice,
+  selectPrimaryBillingPrice,
+} from "@/lib/billingCatalog";
 
 // Expand a package's explicitly enabled modules so the all-inclusive CareBase bundle implies its
 // bundled operational pillars, mirroring withModuleDependencies used by the runtime access layer.
@@ -91,7 +96,7 @@ const EMPTY_PACKAGE_FORM: PackageFormData = {
   isActive: true,
   isRecommended: false,
   contactSales: false,
-  pricingStrategy: "hybrid",
+  pricingStrategy: "flat_rate",
   trialDays: "30",
   annualDiscountPercent: "16.67",
   sortOrder: "0",
@@ -106,13 +111,13 @@ const EMPTY_PRICE_FORM: PriceFormData = {
   packageId: "",
   displayName: "Monthly subscription",
   recurringInterval: "month",
-  billingMetric: "active_learner",
-  pricingModel: "flat_plus_overage",
+  billingMetric: "flat",
+  pricingModel: "flat",
   baseAmount: "",
   unitAmount: "",
   includedQuantity: "0",
   minimumQuantity: "1",
-  maximumQuantity: "",
+  maximumQuantity: "1",
   stripePriceId: "",
   currency: "usd",
   isPrimary: true,
@@ -129,8 +134,8 @@ const BILLING_METRICS: Array<{ value: BillingMetric; label: string; unit: string
 ];
 
 const PRICING_MODELS: Array<{ value: PricingModel; label: string }> = [
-  { value: "flat_plus_overage", label: "Base + included units + overage" },
   { value: "flat", label: "Flat rate" },
+  { value: "flat_plus_overage", label: "Base + included units + overage (legacy)" },
   { value: "per_unit", label: "Per unit" },
   { value: "graduated", label: "Graduated tiers" },
   { value: "volume", label: "Volume tiers" },
@@ -196,18 +201,7 @@ function strategyLabel(strategy: string): string {
 function pricingSummary(pkg: Package, price?: PackageBillingPrice): string {
   if (pkg.contact_sales || pkg.pricing_strategy === "custom") return "Custom annual contract";
   if (!price) return pkg.price_monthly_cents === null ? "Price not configured" : `${money(pkg.price_monthly_cents)}/month`;
-  const metric = metricDefinition(price.billing_metric);
-  if (price.billing_metric === "flat" || price.pricing_model === "flat") {
-    return `${money(price.base_amount_cents, price.currency)}/${price.recurring_interval}`;
-  }
-  const base = `${money(price.base_amount_cents, price.currency)}/${price.recurring_interval}`;
-  const included = price.included_quantity > 0
-    ? ` includes ${price.included_quantity} ${pluralize(metric.unit, price.included_quantity)}`
-    : "";
-  const overage = price.unit_amount_cents === null
-    ? ""
-    : `, then ${money(price.unit_amount_cents, price.currency)}/${metric.unit}`;
-  return `${base}${included}${overage}`;
+  return billingPriceSummary(price);
 }
 
 function metricIcon(metric: string) {
@@ -372,6 +366,15 @@ export default function Packages() {
       toast({ title: "Stripe Price ID must begin with price_", variant: "destructive" });
       return;
     }
+    const baseCents = dollarsToCents(priceForm.baseAmount);
+    if (!Number.isFinite(baseCents) || baseCents < 0) {
+      toast({ title: "Base amount must be a valid non-negative dollar amount", variant: "destructive" });
+      return;
+    }
+    if (priceForm.billingMetric === "flat" && baseCents <= 0) {
+      toast({ title: "Flat prices need a positive base amount", variant: "destructive" });
+      return;
+    }
 
     const flat = priceForm.billingMetric === "flat";
     const payload = {
@@ -380,7 +383,7 @@ export default function Packages() {
       recurring_interval: priceForm.recurringInterval,
       billing_metric: priceForm.billingMetric,
       pricing_model: flat ? "flat" : priceForm.pricingModel,
-      base_amount_cents: dollarsToCents(priceForm.baseAmount),
+      base_amount_cents: baseCents,
       unit_amount_cents: flat || !priceForm.unitAmount.trim() ? null : dollarsToCents(priceForm.unitAmount),
       included_quantity: flat ? 0 : Number.parseInt(priceForm.includedQuantity || "0", 10),
       minimum_quantity: flat ? 1 : Number.parseInt(priceForm.minimumQuantity || "1", 10),
@@ -410,7 +413,7 @@ export default function Packages() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Packages & billing</h1>
-          <p className="text-muted-foreground">Control product access, value metrics, pricing, trials, and Stripe checkout mappings.</p>
+          <p className="text-muted-foreground">Control product access, flat list prices, trials, and Stripe checkout mappings. Self-serve Train and CareBase are flat monthly fees — not per-person overages.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => openCreatePrice()}>
@@ -430,16 +433,16 @@ export default function Packages() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="rounded-lg border bg-background/80 p-4">
-            <div className="mb-2 flex items-center gap-2 font-medium"><DollarSign className="h-4 w-4 text-primary" /> Predictable base</div>
-            <p className="text-sm text-muted-foreground">Every self-serve package starts with a base fee that includes meaningful usage, protecting revenue and customer budgets.</p>
+            <div className="mb-2 flex items-center gap-2 font-medium"><DollarSign className="h-4 w-4 text-primary" /> Flat self-serve fees</div>
+            <p className="text-sm text-muted-foreground">Train is $239/month and CareBase is $499/month — one flat subscription each, unlimited learners/residents/staff. No per-person overages.</p>
           </div>
           <div className="rounded-lg border bg-background/80 p-4">
-            <div className="mb-2 flex items-center gap-2 font-medium"><GraduationCap className="h-4 w-4 text-primary" /> Value-aligned growth</div>
-            <p className="text-sm text-muted-foreground">Train scales by active learner. CareBase scales by active resident, so administrators and staff are not penalized for collaborating.</p>
+            <div className="mb-2 flex items-center gap-2 font-medium"><GraduationCap className="h-4 w-4 text-primary" /> Product modules, not seats</div>
+            <p className="text-sm text-muted-foreground">Packages differ by which modules ship (Train vs full CareBase), not by charging for each active learner or resident.</p>
           </div>
           <div className="rounded-lg border bg-background/80 p-4">
             <div className="mb-2 flex items-center gap-2 font-medium"><Building2 className="h-4 w-4 text-primary" /> Contract flexibility</div>
-            <p className="text-sm text-muted-foreground">Annual terms get an editable discount; multi-facility portfolios use negotiated pricing and tailored rollout terms.</p>
+            <p className="text-sm text-muted-foreground">Annual terms keep an editable discount; multi-facility portfolios use negotiated pricing. Map a flat Stripe Price before enabling checkout.</p>
           </div>
         </CardContent>
       </Card>
@@ -464,13 +467,7 @@ export default function Packages() {
               </TableRow></TableHeader>
               <TableBody>
                 {packages.map((pkg) => {
-                  const packagePrices = (prices ?? []).filter((price) => price.package_id === pkg.id);
-                  const now = Date.now();
-                  const monthlyPrice = packagePrices
-                    .filter((price) => price.recurring_interval === "month" && price.is_active && price.is_primary
-                      && Date.parse(price.effective_from) <= now
-                      && (!price.effective_to || Date.parse(price.effective_to) > now))
-                    .sort((left, right) => Date.parse(right.effective_from) - Date.parse(left.effective_from))[0];
+                  const monthlyPrice = selectPrimaryBillingPrice(prices ?? [], pkg.id, "month");
                   const checkoutReady = Boolean(monthlyPrice?.stripe_price_id) || pkg.contact_sales;
                   return (
                     <TableRow key={pkg.id}>
@@ -526,7 +523,7 @@ export default function Packages() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Package / cadence</TableHead><TableHead>Value metric</TableHead><TableHead>Commercial model</TableHead>
-                <TableHead>Base</TableHead><TableHead>Included / overage</TableHead><TableHead>Stripe mapping</TableHead>
+                <TableHead>Base</TableHead><TableHead>Quantity model</TableHead><TableHead>Stripe mapping</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>{prices.map((price) => {
@@ -539,8 +536,17 @@ export default function Packages() {
                     <TableCell><Badge variant="secondary">{PRICING_MODELS.find((model) => model.value === price.pricing_model)?.label ?? price.pricing_model}</Badge></TableCell>
                     <TableCell>{money(price.base_amount_cents, price.currency)}</TableCell>
                     <TableCell className="text-sm">
-                      <div>{price.included_quantity} {pluralize(metric.unit, price.included_quantity)} included</div>
-                      <div className="text-xs text-muted-foreground">{price.unit_amount_cents === null ? "No unit overage" : `${money(price.unit_amount_cents, price.currency)}/${metric.unit}`}</div>
+                      {isFlatBillingPrice(price) ? (
+                        <>
+                          <div>Flat fee · quantity 1</div>
+                          <div className="text-xs text-muted-foreground">Unlimited seats — not charged per person</div>
+                        </>
+                      ) : (
+                        <>
+                          <div>{price.included_quantity} {pluralize(metric.unit, price.included_quantity)} included</div>
+                          <div className="text-xs text-muted-foreground">{price.unit_amount_cents === null ? "No unit overage" : `${money(price.unit_amount_cents, price.currency)}/${metric.unit}`}</div>
+                        </>
+                      )}
                     </TableCell>
                     <TableCell>
                       {price.stripe_price_id ? <code className="rounded bg-muted px-1.5 py-1 text-xs">{price.stripe_price_id}</code> : <Badge variant="secondary">Draft - ID required</Badge>}
@@ -572,7 +578,7 @@ export default function Packages() {
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
             <div className="col-span-full space-y-1.5"><Label>Package name *</Label><Input value={packageForm.name} onChange={(event) => packageField("name", event.target.value)} placeholder="CareMetric Train" /></div>
             <div className="col-span-full space-y-1.5"><Label>Customer-facing description</Label><Textarea value={packageForm.description} onChange={(event) => packageField("description", event.target.value)} placeholder="Describe the outcome and included product experience." className="min-h-20" /></div>
-            <div className="space-y-1.5"><Label>Pricing strategy</Label><Select value={packageForm.pricingStrategy} onValueChange={(value) => packageField("pricingStrategy", value as PricingStrategy)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="hybrid">Base + usage</SelectItem><SelectItem value="flat_rate">Flat rate</SelectItem><SelectItem value="per_unit">Per unit</SelectItem><SelectItem value="custom">Custom contract</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1.5"><Label>Pricing strategy</Label><Select value={packageForm.pricingStrategy} onValueChange={(value) => packageField("pricingStrategy", value as PricingStrategy)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="flat_rate">Flat rate</SelectItem><SelectItem value="hybrid">Base + usage (legacy)</SelectItem><SelectItem value="per_unit">Per unit</SelectItem><SelectItem value="custom">Custom contract</SelectItem></SelectContent></Select></div>
             <div className="space-y-1.5"><Label>Starting monthly price ($)</Label><Input type="number" step="0.01" min="0" value={packageForm.priceMonthly} onChange={(event) => packageField("priceMonthly", event.target.value)} placeholder="239.00" /></div>
             <div className="space-y-1.5"><Label>Trial days</Label><Input type="number" min="0" max="90" value={packageForm.trialDays} onChange={(event) => packageField("trialDays", event.target.value)} /></div>
             <div className="space-y-1.5"><Label>Annual discount (%)</Label><Input type="number" step="0.01" min="0" max="50" value={packageForm.annualDiscountPercent} onChange={(event) => packageField("annualDiscountPercent", event.target.value)} /></div>
@@ -600,7 +606,7 @@ export default function Packages() {
           <DialogHeader><DialogTitle>{editPriceId ? "Edit billing configuration" : "Add billing configuration"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
             <div className="space-y-1.5"><Label>Package *</Label><Select value={priceForm.packageId} onValueChange={(value) => priceField("packageId", value)}><SelectTrigger><SelectValue placeholder="Choose a package" /></SelectTrigger><SelectContent>{packages?.map((pkg) => <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Configuration name *</Label><Input value={priceForm.displayName} onChange={(event) => priceField("displayName", event.target.value)} placeholder="Monthly active learners" /></div>
+            <div className="space-y-1.5"><Label>Configuration name *</Label><Input value={priceForm.displayName} onChange={(event) => priceField("displayName", event.target.value)} placeholder="Monthly subscription" /></div>
             <div className="space-y-1.5"><Label>Billing cadence</Label><Select value={priceForm.recurringInterval} onValueChange={(value) => priceField("recurringInterval", value as "month" | "year")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="month">Monthly</SelectItem><SelectItem value="year">Annual</SelectItem></SelectContent></Select></div>
             <div className="space-y-1.5"><Label>Value metric</Label><Select value={priceForm.billingMetric} onValueChange={(value) => priceField("billingMetric", value as BillingMetric)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{BILLING_METRICS.map((metric) => <SelectItem key={metric.value} value={metric.value}>{metric.label}</SelectItem>)}</SelectContent></Select></div>
             <div className="col-span-full space-y-1.5"><Label>Pricing model</Label><Select value={priceForm.billingMetric === "flat" ? "flat" : priceForm.pricingModel} disabled={priceForm.billingMetric === "flat"} onValueChange={(value) => priceField("pricingModel", value as PricingModel)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRICING_MODELS.map((model) => <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>)}</SelectContent></Select></div>
@@ -610,7 +616,7 @@ export default function Packages() {
             <div className="space-y-1.5"><Label>Minimum quantity</Label><Input type="number" min="1" disabled={priceForm.billingMetric === "flat"} value={priceForm.minimumQuantity} onChange={(event) => priceField("minimumQuantity", event.target.value)} /></div>
             <div className="space-y-1.5"><Label>Maximum quantity</Label><Input type="number" min="1" disabled={priceForm.billingMetric === "flat"} value={priceForm.maximumQuantity} onChange={(event) => priceField("maximumQuantity", event.target.value)} placeholder="Unlimited" /></div>
             <div className="space-y-1.5"><Label>Currency</Label><Input value={priceForm.currency} maxLength={3} onChange={(event) => priceField("currency", event.target.value)} /></div>
-            <div className="col-span-full space-y-1.5"><Label>Stripe Price ID</Label><Input value={priceForm.stripePriceId} onChange={(event) => priceField("stripePriceId", event.target.value)} placeholder="price_... (optional while drafting)" /><p className="text-xs text-muted-foreground">Create an immutable recurring Price in Stripe with the same cadence and tiers, then paste its ID here to enable checkout.</p></div>
+            <div className="col-span-full space-y-1.5"><Label>Stripe Price ID</Label><Input value={priceForm.stripePriceId} onChange={(event) => priceField("stripePriceId", event.target.value)} placeholder="price_... (optional while drafting)" /><p className="text-xs text-muted-foreground">Create an immutable flat recurring Stripe Price at the same monthly/annual amount (not graduated overage tiers), then paste its ID here to enable checkout.</p></div>
             <div className="space-y-1.5"><Label>Sort order</Label><Input type="number" value={priceForm.sortOrder} onChange={(event) => priceField("sortOrder", event.target.value)} /></div>
             <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Active primary price</p><p className="text-xs text-muted-foreground">Eligible for checkout</p></div><div className="flex gap-3"><Switch checked={priceForm.isPrimary} onCheckedChange={(value) => priceField("isPrimary", value)} aria-label="Primary price" /><Switch checked={priceForm.isActive} onCheckedChange={(value) => priceField("isActive", value)} aria-label="Active price" /></div></div>
           </div>

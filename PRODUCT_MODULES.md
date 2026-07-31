@@ -29,21 +29,21 @@ Platform administrators configure product access in **Admin → Packages**. The 
 
 The customer-facing catalog is a **tier ladder** — the pillar modules are the entitlement building blocks, and each seeded tier bundles a fixed set:
 
-| Tier | `train` | `compliance` | `workforce` | `billing` | `carebase` | Value metric |
+| Tier | `train` | `compliance` | `workforce` | `billing` | `carebase` | Billing |
 |---|:-:|:-:|:-:|:-:|:-:|---|
-| **CareMetric Train** | ✓ | | | | | active learner |
-| **CareMetric Essentials** | ✓ | ✓ | | | | active resident |
-| **CareMetric Professional** | ✓ | ✓ | ✓ | ✓ | | active resident |
-| **CareMetric CareBase** | ✓ | ✓ | ✓ | ✓ | ✓ | active resident |
-| **CareMetric Portfolio** | ✓ | ✓ | ✓ | ✓ | ✓ | negotiated |
+| **CareMetric Train** | ✓ | | | | | Flat $239/mo (unlimited) |
+| **CareMetric Essentials** | ✓ | ✓ | | | | Flat $299/mo (inactive) |
+| **CareMetric Professional** | ✓ | ✓ | ✓ | ✓ | | Flat $399/mo (inactive) |
+| **CareMetric CareBase** | ✓ | ✓ | ✓ | ✓ | ✓ | Flat $499/mo (unlimited) |
+| **CareMetric Portfolio** | ✓ | ✓ | ✓ | ✓ | ✓ | Custom contract |
 
 A platform administrator can still compose any custom pillar combination (for example, Billing-only) with the module toggles; the tiers are the default retail catalog.
 
-See [`BILLING_MODEL.md`](BILLING_MODEL.md) for the launch price hypotheses, market signals, Stripe mapping, and repricing guardrails. Platform administrators can revise package positioning and effective-dated monthly/annual billing configurations in **Admin → Packages & billing** without a deploy.
+See [`BILLING_MODEL.md`](BILLING_MODEL.md) for launch list prices, market signals, Stripe mapping, and repricing guardrails. Self-serve Train and CareBase are **flat monthly fees** (not per-person overages). Platform administrators can revise package positioning and effective-dated monthly/annual billing configurations in **Admin → Packages & billing** without a deploy.
 
 The three new pillar definitions default to `false`, so a Train-only facility never silently gains a pillar. Existing packages keep full access because `modules.carebase` (and the legacy `true` defaults for Train/CareBase) still resolve to every pillar through the dependency above, preventing a rollout from removing current customer access.
 
-Organization administrators compare the active configurations under **Enterprise foundation > Billing & plans**. The plan view measures the configured value metric automatically and uses hosted Stripe Checkout for a new subscription or the Stripe Customer Portal for an existing one. The Checkout server repeats the database measurement so client input cannot under-report the billable quantity.
+Organization administrators compare the active configurations under **Enterprise foundation > Billing & plans**. The plan view shows the flat list price and uses hosted Stripe Checkout for a new subscription or the Stripe Customer Portal for an existing one. Flat plans always check out at quantity 1.
 
 ## Independent deployments
 

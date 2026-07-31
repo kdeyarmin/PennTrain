@@ -1253,7 +1253,22 @@ export default function EnterpriseFoundation() {
             </Card>
           </TabsContent>
           <TabsContent value="billing" className="space-y-4">
-            <BillingPlanSelector />
+            {user?.role === "org_admin" ? (
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                  <div>
+                    <CardTitle className="text-base">Self-serve plans</CardTitle>
+                    <CardDescription>
+                      Choose a plan, start checkout, or open the Stripe portal on the dedicated Billing page.
+                    </CardDescription>
+                  </div>
+                  <Button asChild>
+                    <Link href="/app/billing">Open Billing & plans</Link>
+                  </Button>
+                </CardHeader>
+              </Card>
+            ) : null}
+            {user?.role === "platform_admin" ? <BillingPlanSelector /> : null}
             <ControlPlanePanel title="Billing and typed entitlements" description="Stripe source-of-truth state, contractual grants, limits, rollout controls, and reconciliation variance." data={data.billing} />
             {user?.role === "platform_admin" ? <><EntitlementCommand /><BillingOverrideCommand /></> : null}
           </TabsContent>

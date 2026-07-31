@@ -50,6 +50,52 @@ const BILLING_SESSION_ERROR_COPY: Record<string, BillingSessionErrorCopy> = {
     description:
       "This plan has no active checkout price configured yet. Choose another plan or contact CareMetric.",
   },
+  billing_not_configured: {
+    title: "Billing is not available",
+    description:
+      "Checkout is temporarily unavailable. Try again later or contact CareMetric support.",
+  },
+  billing_customer_missing: {
+    title: "Billing portal unavailable",
+    description:
+      "No Stripe customer is linked to this organization yet. Start checkout on a plan first, or contact CareMetric.",
+  },
+  billing_usage_unavailable: {
+    title: "Usage could not be measured",
+    description:
+      "We could not measure billable usage for this organization. Refresh and try again, or contact CareMetric.",
+  },
+  billing_state_unavailable: {
+    title: "Billing state unavailable",
+    description:
+      "We could not load this organization's subscription state. Refresh and try again.",
+  },
+  invalid_return_url: {
+    title: "Return URL not allowed",
+    description:
+      "Checkout could not start because the return address is not on the approved list. Contact CareMetric if this continues.",
+  },
+  stripe_request_failed: {
+    title: "Stripe request failed",
+    description:
+      "The payment provider did not accept this request. Try again in a moment or contact CareMetric.",
+  },
+  package_required: {
+    title: "Choose a plan",
+    description: "Select a package before starting checkout.",
+  },
+  invalid_organization: {
+    title: "Organization not found",
+    description: "This organization is not available for billing. Refresh and try again.",
+  },
+  invalid_billing_interval: {
+    title: "Invalid billing interval",
+    description: "Choose monthly or annual billing, then try again.",
+  },
+  forbidden: {
+    title: "Permission required",
+    description: "You need organization administrator access to change billing.",
+  },
 };
 
 export function billingSessionErrorCopy(code: string | null | undefined): BillingSessionErrorCopy | null {

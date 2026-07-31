@@ -17,6 +17,22 @@ export interface DisplayBillingPrice {
   unit_amount_cents: number | null;
 }
 
+/** Minimal shape shared by admin Packages rows and the org plan picker. */
+export interface SelectableBillingPrice {
+  package_id: string;
+  recurring_interval: string;
+  is_active: boolean;
+  is_primary: boolean;
+  effective_from: string;
+  effective_to: string | null;
+  billing_metric: string;
+  pricing_model: string;
+  base_amount_cents: number;
+  currency: string;
+  included_quantity: number;
+  unit_amount_cents: number | null;
+}
+
 export const BILLING_METRIC_DEFINITIONS: ReadonlyArray<{
   value: BillingMetric;
   label: string;
@@ -32,6 +48,33 @@ export const BILLING_METRIC_DEFINITIONS: ReadonlyArray<{
 export function billingMetricDefinition(metric: string) {
   return BILLING_METRIC_DEFINITIONS.find((definition) => definition.value === metric)
     ?? BILLING_METRIC_DEFINITIONS[0];
+}
+
+export function isFlatBillingPrice(
+  price: Pick<DisplayBillingPrice, "billing_metric" | "pricing_model"> | null | undefined,
+): boolean {
+  if (!price) return false;
+  return price.billing_metric === "flat" || price.pricing_model === "flat";
+}
+
+/**
+ * Active primary price for a package cadence at a point in time.
+ * Shared by Admin → Packages and the org plan picker so filters cannot drift.
+ */
+export function selectPrimaryBillingPrice<T extends SelectableBillingPrice>(
+  prices: readonly T[],
+  packageId: string,
+  interval: "month" | "year",
+  nowMs = Date.now(),
+): T | undefined {
+  return prices
+    .filter((price) => price.package_id === packageId
+      && price.recurring_interval === interval
+      && price.is_active
+      && price.is_primary
+      && Date.parse(price.effective_from) <= nowMs
+      && (!price.effective_to || Date.parse(price.effective_to) > nowMs))
+    .sort((left, right) => Date.parse(right.effective_from) - Date.parse(left.effective_from))[0];
 }
 
 export function measuredBillingQuantity(metric: string, usage: OrganizationBillingUsage): number {
@@ -68,7 +111,7 @@ export function billingPriceSummary(price: DisplayBillingPrice): string {
   const metric = billingMetricDefinition(price.billing_metric);
   const cadence = price.recurring_interval === "year" ? "year" : "month";
   const base = `${formatBillingMoney(price.base_amount_cents, price.currency)}/${cadence}`;
-  if (price.billing_metric === "flat" || price.pricing_model === "flat") return base;
+  if (isFlatBillingPrice(price)) return base;
   const included = price.included_quantity > 0
     ? ` includes ${price.included_quantity} ${pluralize(metric.unit, price.included_quantity)}`
     : "";
@@ -80,7 +123,7 @@ export function billingPriceSummary(price: DisplayBillingPrice): string {
 
 export function estimatedBillingAmountCents(price: DisplayBillingPrice, quantity: number): number | null {
   if (price.pricing_model === "custom") return null;
-  if (price.billing_metric === "flat" || price.pricing_model === "flat") return price.base_amount_cents;
+  if (isFlatBillingPrice(price)) return price.base_amount_cents;
   if (price.pricing_model === "flat_plus_overage") {
     if (price.unit_amount_cents === null) return price.base_amount_cents;
     return price.base_amount_cents

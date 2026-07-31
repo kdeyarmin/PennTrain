@@ -10,28 +10,28 @@ const WORKFLOW_STEPS = [
   {
     title: "Configure the operation",
     description:
-      "Add facilities, roles, residents, and employees. Import your roster by CSV. Set the training, credential, and alert rules that apply.",
+      "Add facilities, roles, residents, and employees. Import your roster by CSV. Set the training, credential, clinical, and alert rules that apply.",
     example:
       "A PCH direct care worker automatically gets the 12-hour §2600.65 bucket.",
   },
   {
     title: "Route the work",
     description:
-      "Training, resident services, schedules, incident follow-up, and approvals go to the person responsible — each with an owner and a deadline.",
+      "Today shows everything due. Training, resident services, clinical follow-up, schedules, incident tasks, and approvals go to the person responsible — each with an owner and a deadline.",
     example:
       "A hospital return opens notification, reassessment, and plan-review tasks.",
   },
   {
     title: "Capture proof as it happens",
     description:
-      "Completions, signatures, uploads, sign-ins, and audit events attach to the right employee, resident, requirement, and date.",
+      "Completions, chart notes, signatures, uploads, sign-ins, and audit events attach to the right employee, resident, requirement, and date.",
     example: "A QR class check-in becomes logged in-service hours instantly.",
   },
   {
     title: "See risk, share documentation",
     description:
-      "Dashboards and escalating alerts surface gaps early. Binders and documentation rooms answer leadership, auditors, and surveyors.",
-    example: "The binder PDF rebuilds from live records in one click.",
+      "Dashboards, the compliance copilot, and escalating alerts surface gaps early. Survey Day Mode, binders, and documentation rooms answer leadership, auditors, and surveyors.",
+    example: "Survey Day Mode pins binder, roster, and rooms the moment they walk in.",
   },
 ] as const;
 
@@ -57,11 +57,11 @@ const SWITCHING_POINTS = [
 const WEEK_EVENTS = [
   {
     day: "Monday",
-    text: "A new aide is hired. Her 12-hour §2600.65 plan, orientation checklist, Act 34 countdown, and TB screen are assigned before lunch — nobody built a spreadsheet row.",
+    text: "Open Today: the full backlog, overdue first. A new aide is hired — her 12-hour §2600.65 plan, orientation checklist, Act 34 countdown, and TB screen are assigned before lunch.",
   },
   {
     day: "Tuesday",
-    text: "Mr. Alvarez returns from the hospital. Provider notification, reassessment, and support-plan review open automatically, each with an owner and a clock.",
+    text: "Mr. Alvarez returns from the hospital. Provider notification, reassessment, support-plan review, and a chart note open automatically, each with an owner and a clock.",
   },
   {
     day: "Wednesday",
@@ -73,7 +73,7 @@ const WEEK_EVENTS = [
   },
   {
     day: "Friday",
-    text: "Corporate asks how the facility looks. You export the binder PDF from live records and go home on time. That's the product.",
+    text: "A licensing surveyor arrives. You switch on Survey Day Mode, hand over a read-only room or binder from live records, and go home on time. That's the product.",
   },
 ] as const;
 
@@ -143,9 +143,10 @@ export default function HowItWorks() {
             From spreadsheet chaos to survey-ready
           </h1>
           <p className="m-0 max-w-[56ch] text-pretty text-[16.5px] text-white/85">
-            The four moves every module follows, what switching actually takes,
-            and what a normal week looks like once CareBase is running your
-            facility.
+            The four moves every module follows — including Today, clinical
+            charting, Survey Day Mode, and the compliance copilot — what switching
+            actually takes, and what a normal week looks like once CareBase is
+            running your facility.
           </p>
         </Reveal>
       </section>

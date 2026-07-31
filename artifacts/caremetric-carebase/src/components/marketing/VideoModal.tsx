@@ -12,6 +12,7 @@ import {
 import { LogoMark } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
 import type { MarketingVideo } from "./marketingVideos";
+import { marketingPlansFromLabel } from "./marketingPricing";
 
 /**
  * Branded modal player for a marketing video. Wrap any trigger element as
@@ -42,7 +43,7 @@ export function VideoModal({ video, children }: { video: MarketingVideo; childre
         </video>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-white/[0.04] px-5 py-3.5">
           <p className="text-[13px] text-white/70">
-            Plans from $239/month · 30-day free trial.
+            {marketingPlansFromLabel()}
           </p>
           <DialogClose asChild>
             <Link

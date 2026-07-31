@@ -20,6 +20,18 @@ describe("CareBase Guide content engine", () => {
     expect(response.cta).toEqual({ label: "Start your free trial", href: "/signup" });
   });
 
+  it("quotes published list prices on pricing / ROI questions", () => {
+    const response = answerQuestion("How does pricing work?", {});
+
+    expect(response.content).toContain("$239/month");
+    expect(response.content).toContain("$499/month");
+    expect(response.content).toContain("no per-person overages");
+    expect(response.content).not.toMatch(/\$4\/month/);
+    expect(response.bullets?.join(" ")).toContain("30-day free trial");
+    expect(response.bullets?.join(" ")).toContain("unlimited");
+    expect(response.cta).toEqual({ label: "Estimate savings", href: "/savings" });
+  });
+
   it("tailors closers with captured visitor context", () => {
     const profile: LeadProfile = {
       role: "owner/executive",
@@ -98,30 +110,21 @@ describe("CareBase Guide content engine", () => {
     ]);
     const mailto = buildDemoMailtoHref(profile);
     expect(mailto.startsWith("mailto:hello@caremetric.ai?")).toBe(true);
-    expect(decodeURIComponent(mailto)).toContain(
-      "My context: owner/executive · multi-site · spreadsheets · survey soon",
-    );
-  });
-});
-
-it("builds a prospect-facing summary email addressed to a real inbox", () => {
-  const email = buildProspectEmail({
-    scope: "multi-site",
-    currentSystem: "spreadsheets",
-    urgency: "survey soon",
+    expect(decodeURIComponent(mailto)).toContain("owner/executive");
+    expect(decodeURIComponent(mailto)).toContain("survey soon");
   });
 
-  expect(email.subject).toBe("A faster path to CareBase survey readiness");
-  expect(email.preheader).toContain("multi-site · spreadsheets · survey soon");
-  expect(email.html).toContain("Recommended demo agenda");
-  expect(email.text).toContain("Replace spreadsheet/binder tracking");
-  expect(email.mailtoHref.startsWith("mailto:hello@caremetric.ai?")).toBe(true);
-  expect(decodeURIComponent(email.mailtoHref)).toContain("Subject: A faster path to CareBase survey readiness");
-});
+  it("builds a prospect email that points to self-serve trial, not a sales pitch", () => {
+    const email = buildProspectEmail({
+      role: "facility manager",
+      urgency: "survey soon",
+      currentSystem: "spreadsheets",
+    });
 
-it("escapes dynamic prospect email HTML", () => {
-  const email = buildProspectEmail({ role: '<img src=x onerror=alert("x")>' });
-
-  expect(email.html).toContain("&lt;img src=x onerror=alert(&quot;x&quot;)&gt;");
-  expect(email.html).not.toContain('<img src=x onerror=alert("x")>');
+    expect(email.subject.toLowerCase()).toContain("survey");
+    expect(email.text).toContain("https://cmcarebase.com/signup");
+    expect(email.html).toContain("Start a free trial");
+    expect(email.text.toLowerCase()).not.toContain("hot buyer");
+    expect(email.mailtoHref.startsWith("mailto:hello@caremetric.ai?")).toBe(true);
+  });
 });

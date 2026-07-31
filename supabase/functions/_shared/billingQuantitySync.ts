@@ -90,3 +90,30 @@ export function resolveBillingOperationConflict(
   }
   return { action: "verify_provider" };
 }
+
+
+/** Decide the Stripe subscription-item quantity for a catalog price + optional usage. */
+export function resolveSyncTargetQuantity(
+  price: {
+    billing_metric: string;
+    pricing_model?: string;
+    minimum_quantity: number;
+    maximum_quantity: number | null;
+  },
+  measured: number | null,
+): { quantity: number } | { error: "usage_required" | "out_of_range" } {
+  if (price.billing_metric === "flat" || price.pricing_model === "flat") {
+    return { quantity: 1 };
+  }
+  if (measured === null || !Number.isSafeInteger(measured) || measured < 0) {
+    return { error: "usage_required" };
+  }
+  const requested = Math.max(measured, price.minimum_quantity);
+  if (!Number.isSafeInteger(requested) || requested < price.minimum_quantity) {
+    return { error: "out_of_range" };
+  }
+  if (price.maximum_quantity !== null && requested > price.maximum_quantity) {
+    return { error: "out_of_range" };
+  }
+  return { quantity: requested };
+}

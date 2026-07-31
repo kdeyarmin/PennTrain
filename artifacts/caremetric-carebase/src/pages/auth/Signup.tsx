@@ -12,6 +12,7 @@ import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { BAA_VERSION, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { MARKETING_TRIAL_DAYS } from "@/components/marketing/marketingPricing";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 interface SignupForm {
@@ -174,7 +175,7 @@ export default function Signup() {
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
-            <p className="text-sm text-muted-foreground">Operations &amp; Compliance Platform</p>
+            <p className="text-sm text-muted-foreground">Operations & Compliance Platform</p>
           </div>
         </div>
 
@@ -299,7 +300,7 @@ export default function Signup() {
             {!submittedEmail && (
               <div>
                 <p className="mt-4 text-center text-[13px] text-muted-foreground">
-                  Creating your organization starts a 30-day free trial.
+                  Creating your organization starts a {MARKETING_TRIAL_DAYS}-day free trial.
                 </p>
                 <p className="mt-2 text-center text-[13px] text-muted-foreground">
                   Already have an account?{" "}
@@ -313,7 +314,7 @@ export default function Signup() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          55 Pa. Code Chapters 2600 &amp; 2800 Compliance Platform
+          55 Pa. Code Chapters 2600 & 2800 Compliance Platform
         </p>
       </div>
     </div>
