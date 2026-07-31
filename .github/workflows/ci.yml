@@ -33,7 +33,7 @@ jobs:
       database: ${{ steps.filter.outputs.database }}
       migrations: ${{ steps.filter.outputs.migrations }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           # Need base..head history for an accurate PR diff.
           fetch-depth: 0
@@ -157,7 +157,7 @@ jobs:
       VITE_SUPABASE_ANON_KEY: test-anon-key
       VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -198,7 +198,7 @@ jobs:
     env:
       VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -319,7 +319,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           # The check diffs merge-base(base, HEAD)..HEAD, so it needs history and the
           # base branch, not just the PR merge commit.
@@ -338,7 +338,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           fetch-depth: 0
 

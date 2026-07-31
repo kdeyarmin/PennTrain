@@ -77,7 +77,7 @@ jobs:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           # Deploy exactly the commit CI validated; for a manual dispatch, main's tip. Never a
           # caller-selected feature ref, so unmerged migrations cannot reach production.
