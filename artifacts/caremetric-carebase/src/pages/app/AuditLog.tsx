@@ -198,7 +198,7 @@ export default function AuditLog() {
           <CardTitle>Recent Activity</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={entityTypeFilter} onValueChange={(v) => setFilters({ entityType: v, page: "1" })}>
-              <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Entity Types" /></SelectTrigger>
+              <SelectTrigger className="w-44 h-9" aria-label="Filter by entity type"><SelectValue placeholder="All Entity Types" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ENTITY_TYPE_ALL}>All Entity Types</SelectItem>
                 {(entityTypeOptions ?? []).map((t) => (
@@ -208,7 +208,7 @@ export default function AuditLog() {
             </Select>
             {isPlatformAdmin && (
               <Select value={orgFilter} onValueChange={(v) => setFilters({ org: v, page: "1" })}>
-                <SelectTrigger className="w-48 h-9"><SelectValue placeholder="All Organizations" /></SelectTrigger>
+                <SelectTrigger className="w-48 h-9" aria-label="Filter by organization"><SelectValue placeholder="All Organizations" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ORG_ALL}>All Organizations</SelectItem>
                   {organizations?.map((o) => (

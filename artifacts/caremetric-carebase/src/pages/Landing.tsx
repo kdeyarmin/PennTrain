@@ -452,7 +452,7 @@ function ResidentMockup() {
         <span className="text-sm font-bold">Resident compliance — Maple Grove</span>
         <span className={`font-mono text-[11px] ${aaMutedText}`}>Census 42 / 48 · 3 move-ins this month</span>
       </div>
-      <div className="min-w-0 max-w-full overflow-x-auto">
+      <div className="min-w-0 max-w-full overflow-x-auto" tabIndex={0} role="region" aria-label="Example resident compliance table">
         <div className="grid min-w-[520px] grid-cols-[1.2fr_0.5fr_1.1fr_1.1fr] text-[13px]">
           {["Resident", "Room", "RASP status", "Support plan"].map((heading) => (
             <div key={heading} className={`border-b border-[#eef2f6] px-3 py-2.5 font-mono text-[10.5px] uppercase tracking-[0.08em] ${aaMutedText}`}>
@@ -505,7 +505,7 @@ function WorkforceMockup() {
         <span className="text-sm font-bold">Compliance matrix — direct care staff</span>
         <span className={`font-mono text-[11px] ${aaMutedText}`}>Click any cell to edit the record</span>
       </div>
-      <div className="min-w-0 max-w-full overflow-x-auto p-4">
+      <div className="min-w-0 max-w-full overflow-x-auto p-4" tabIndex={0} role="region" aria-label="Example compliance matrix">
         <div className="grid min-w-[520px] grid-cols-[110px_repeat(5,1fr)] items-center gap-1.5 text-[11px]">
           <div />
           {["In-service", "Dementia", "Practicum", "Act 34", "TB screen"].map((label) => (
