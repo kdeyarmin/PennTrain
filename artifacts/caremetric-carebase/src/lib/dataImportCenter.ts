@@ -19,14 +19,17 @@ export interface ImportDomainDefinition {
  * processor. A domain must not become active until its preview, apply,
  * matching, receipt, authorization, and journey coverage are complete.
  */
-export const IMPORT_DOMAIN_DEFINITIONS: readonly ImportDomainDefinition[] = IMPORT_DOMAINS.map((domain) => ({
-  domain,
-  availability: domain === "employees" ? "active" : "template_only",
-  availabilityLabel: domain === "employees" ? "Active" : "Template only",
-  description: domain === "employees"
-    ? "Dry-run and apply processor available"
-    : "Canonical template for migration planning; upload is not yet available",
-}));
+export const IMPORT_DOMAIN_DEFINITIONS: readonly ImportDomainDefinition[] = IMPORT_DOMAINS.map((domain) => {
+  const availability: ImportDomainAvailability = domain === "employees" ? "active" : "template_only";
+  return {
+    domain,
+    availability,
+    availabilityLabel: availability === "active" ? "Active" : "Template only",
+    description: availability === "active"
+      ? "Dry-run and apply processor available"
+      : "Canonical template for migration planning; upload is not yet available",
+  };
+});
 
 export function canUploadImportDomain(domain: ImportDomain): boolean {
   return IMPORT_DOMAIN_DEFINITIONS.find((definition) => definition.domain === domain)?.availability === "active";
