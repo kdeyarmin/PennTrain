@@ -1,7 +1,7 @@
 # Handoff: CareBase Marketing Site Redesign
 
 ## Overview
-A complete redesign of the CareMetric CareBase marketing site (currently in `artifacts/caremetric-carebase/src/pages/Landing.tsx` and `src/pages/marketing/`) for the PennTrain repo. Eight pages targeting Pennsylvania personal care home (PCH) and assisted living residence (ALR) owners: an owner-outcome-focused landing page, a Features index, Security, FAQ, a PA training-requirements SEO guide, About/pilot program, and Privacy/Terms drafts.
+A complete redesign of the CareMetric CareBase marketing site (currently in `artifacts/caremetric-carebase/src/pages/Landing.tsx` and `src/pages/marketing/`) for the PennTrain repo. Eight pages targeting Pennsylvania personal care home (PCH) and assisted living residence (ALR) owners: an owner-outcome-focused landing page, a Features index, Security, FAQ, a PA training-requirements SEO guide, About/pilot program, and Privacy/Terms.
 
 ## About the Design Files
 The files in `designs/` are **design references created in HTML** — prototypes showing intended look, copy, and behavior. They are NOT production code to copy directly. The task is to **recreate these designs in the existing React + Vite + Tailwind codebase** (`artifacts/caremetric-carebase/`), using its established patterns: `MarketingLayout`, `PageHero`, the `marketing/primitives` components, React Router routes in `publicPaths.ts`, and the shared `content.ts` single-source-of-content pattern.
@@ -33,8 +33,8 @@ This package reflects the latest revision. Key changes since the first handoff:
 | `FAQ.dc.html` | `/faq` | 25+ Q&As in 6 groups; includes FAQPage JSON-LD (in `<helmet>`) |
 | `PA Training Requirements.dc.html` | `/resources/pa-training-requirements` | SEO lead-magnet guide with citation tables + email-capture band |
 | `About CareBase.dc.html` | `/about` | Story, principles, founder video (no stock team photos), founding-partner program |
-| `Privacy Policy.dc.html` | `/privacy` | DRAFT — counsel review required before publishing |
-| `Terms of Service.dc.html` | `/terms` | DRAFT — counsel review required before publishing |
+| `Privacy Policy.dc.html` | `/privacy` | Privacy Policy (approved) |
+| `Terms of Service.dc.html` | `/terms` | Terms of Service (approved) |
 
 ## Key Interactions & Behavior
 - **Platform domain tabs (landing):** 4 pill tabs (Residents / Workforce / Facility & safety / Survey evidence) toggle which product mock + chip list renders. State: single `domain` index.
@@ -59,7 +59,7 @@ This package reflects the latest revision. Key changes since the first handoff:
 ## Content Notes
 - All regulatory citations (§2600.65, §2800.65/.69, §6400.52, 42 CFR 483.95/484.80/418.76) came from the repo's `PA_DHS_ANNUAL_TRAINING_MATRIX.md` — keep them in sync with it.
 - **Published self-serve pricing** (single source: `marketingPricing.ts`): CareMetric Train **$239**/mo (25 active learners), CareMetric CareBase **$499**/mo (25 active residents), **$4**/person overage, **30**-day free trial. Landing, FAQ, Savings, VideoModal, Signup, and the CareBase Guide bot must all read from those constants. Design HTML $349/$299 facility pricing is obsolete.
-- Privacy/Terms are drafts flagged for counsel review (banner on both pages); effective date is centralized as `MARKETING_LEGAL_EFFECTIVE_DATE`.
+- Privacy/Terms are approved; effective date is centralized as `MARKETING_LEGAL_EFFECTIVE_DATE`.
 - Every page needs its `<title>` + `meta description` (already written in each file's `<helmet>`), and FAQ page keeps its JSON-LD.
 
 ## Files

@@ -62,5 +62,5 @@ export function marketingPlansFromLabel(): string {
   return `Plans from ${MARKETING_TRAIN_PRICE_LABEL}/month · ${MARKETING_TRIAL_DAYS}-day free trial.`;
 }
 
-/** Effective date shown on public Privacy / Terms drafts. */
+/** Effective date shown on public Privacy Policy and Terms of Service. */
 export const MARKETING_LEGAL_EFFECTIVE_DATE = "July 23, 2026";

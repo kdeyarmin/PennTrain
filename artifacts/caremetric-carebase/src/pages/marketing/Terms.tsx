@@ -91,12 +91,6 @@ export default function Terms() {
             <h1 className="font-serif text-4xl font-bold tracking-tight text-[#0d2742]">
               Terms of Service
             </h1>
-            <div
-              role="status"
-              className="mt-4 rounded-[10px] border border-[#f0d9a8] bg-[#fdf7ea] px-4 py-3 text-[13px] font-semibold text-[#6d5312]"
-            >
-              DRAFT — have counsel review and finalize before publishing.
-            </div>
             <p className="mt-3 font-mono text-xs text-[#5d7084]">
               Effective date: {MARKETING_LEGAL_EFFECTIVE_DATE} · Applies to CareMetric CareBase
               (cmcarebase.com)
