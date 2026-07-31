@@ -148,6 +148,6 @@ Without those secrets, public smoke still runs; authenticated / mobile employee 
 ### Apply migrations
 
 - `20260731120000_workflow_ux_backlog_remediation.sql` (flags, safety tokens, confidential escalation)
-- `20260731140000_learning_runtime_launch.sql` (learner SCORM/xAPI session launch)
+- `20260731150000_learning_runtime_launch.sql` (learner SCORM/xAPI session launch)
 
 No remaining P0–P2 workflow UX backlog items that can ship without a live pilot environment exercise.
