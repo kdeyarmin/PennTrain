@@ -140,3 +140,87 @@ export async function createPackageContentSignedUrl(
   if (error || !data?.signedUrl) return null;
   return data.signedUrl;
 }
+
+export function useAdminLearningPackages(courseVersionId?: string | null) {
+  return useQuery({
+    queryKey: ["learning_packages", "admin", courseVersionId ?? "all"],
+    queryFn: async () => {
+      const { data, error } = await rpc().rpc("list_learning_packages_admin", {
+        p_course_version_id: courseVersionId ?? null,
+      });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Array<{
+        id: string;
+        course_version_id: string;
+        standard_type: string;
+        validation_status: string;
+        entry_point: string | null;
+        storage_path: string;
+        content_sha256: string;
+        created_at: string;
+      }>;
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useRegisterLearningPackage() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      courseVersionId: string;
+      standardType?: string;
+      storagePath: string;
+      contentSha256: string;
+      compressedBytes: number;
+      entryPoint?: string;
+    }) => {
+      const { data, error } = await rpc().rpc("register_learning_package", {
+        p_course_version_id: input.courseVersionId,
+        p_standard_type: input.standardType ?? "scorm_1_2",
+        p_storage_path: input.storagePath,
+        p_content_sha256: input.contentSha256,
+        p_compressed_bytes: input.compressedBytes,
+        p_entry_point: input.entryPoint ?? "index.html",
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["learning_packages"] });
+    },
+  });
+}
+
+export function useAcceptLearningPackage() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { packageId: string; entryPoint?: string; reason: string }) => {
+      const { error } = await rpc().rpc("accept_learning_package", {
+        p_package_id: input.packageId,
+        p_entry_point: input.entryPoint ?? null,
+        p_reason: input.reason,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["learning_packages"] });
+    },
+  });
+}
+
+export function useQuarantineLearningPackage() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { packageId: string; reason: string }) => {
+      const { error } = await rpc().rpc("quarantine_learning_package", {
+        p_package_id: input.packageId,
+        p_reason: input.reason,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["learning_packages"] });
+    },
+  });
+}

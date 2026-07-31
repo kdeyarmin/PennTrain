@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useListEmployeesByIds } from "@/hooks/useEmployees";
 import {
   extractedFieldString,
+  renewalSlaLabel,
+  useCredentialRenewalQueueSummary,
   useCredentialRenewalSubmissions,
   useReviewCredentialRenewal,
   type CredentialRenewalSubmission,
@@ -57,6 +59,7 @@ export function CredentialRenewalInbox({
   const { toast } = useToast();
   const [status, setStatus] = useState("needs_review");
   const submissions = useCredentialRenewalSubmissions({ status, pageSize: 50 });
+  const queue = useCredentialRenewalQueueSummary();
   const review = useReviewCredentialRenewal();
   const [selected, setSelected] = useState<CredentialRenewalSubmission | null>(null);
   const [decision, setDecision] = useState<"approve" | "reject">("approve");
@@ -147,6 +150,31 @@ export function CredentialRenewalInbox({
         </div>
       )}
 
+      {queue.data && (
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border p-3">
+            <p className="text-xs text-muted-foreground">Needs review</p>
+            <p className="text-2xl font-semibold">{queue.data.needsReview}</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs text-muted-foreground">In OCR pipeline</p>
+            <p className="text-2xl font-semibold">{queue.data.uploaded}</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs text-muted-foreground">Over 24h</p>
+            <p className={`text-2xl font-semibold ${queue.data.overdue24h ? "text-amber-700" : ""}`}>
+              {queue.data.overdue24h}
+            </p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs text-muted-foreground">Over 72h</p>
+            <p className={`text-2xl font-semibold ${queue.data.overdue72h ? "text-destructive" : ""}`}>
+              {queue.data.overdue72h}
+            </p>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div>
@@ -185,6 +213,7 @@ export function CredentialRenewalInbox({
             submissions.data?.rows.map((row) => {
               const isSelf = Boolean(user?.id && row.submitted_by && user.id === row.submitted_by);
               const canReview = row.status === "needs_review" && row.scan_status === "clean" && !isSelf;
+              const sla = renewalSlaLabel(row.created_at);
               return (
                 <div key={row.id} className="rounded-lg border p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -192,6 +221,12 @@ export function CredentialRenewalInbox({
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium">{employeeName(row.employee_id)}</p>
                         <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                        <Badge
+                          variant={sla.level === "critical" ? "destructive" : sla.level === "warn" ? "secondary" : "outline"}
+                          title="Queue age"
+                        >
+                          {sla.label}
+                        </Badge>
                         <Badge variant="outline">{row.credential_type.replaceAll("_", " ")}</Badge>
                         <Badge variant="outline">scan {row.scan_status}</Badge>
                       </div>

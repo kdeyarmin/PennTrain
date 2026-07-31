@@ -15,7 +15,15 @@ export interface ImportDomainDefinition {
 }
 
 /** Domains with a live dry-run/apply processor in production. */
-const ACTIVE_IMPORT_DOMAINS: readonly ImportDomain[] = ["employees", "training_records"];
+const ACTIVE_IMPORT_DOMAINS: readonly ImportDomain[] = [
+  "employees",
+  "training_records",
+  "credentials",
+  "rooms",
+  "residents",
+  "resident_contacts",
+  "incidents",
+];
 
 /**
  * This is the product contract, not a statement that a CSV template has a
@@ -38,14 +46,29 @@ export function canUploadImportDomain(domain: ImportDomain): boolean {
   return IMPORT_DOMAIN_DEFINITIONS.find((definition) => definition.domain === domain)?.availability === "active";
 }
 
+const PROCESSOR_BY_DOMAIN: Partial<Record<ImportDomain, string>> = {
+  employees: "bulk-import-employees",
+  training_records: "bulk-import-training-records",
+  credentials: "bulk-import-credentials",
+  rooms: "bulk-import-rooms",
+  residents: "bulk-import-residents",
+  resident_contacts: "bulk-import-resident-contacts",
+  incidents: "bulk-import-incidents",
+};
+
 export function importProcessorFunction(domain: ImportDomain): string | null {
-  if (domain === "employees") return "bulk-import-employees";
-  if (domain === "training_records") return "bulk-import-training-records";
-  return null;
+  return PROCESSOR_BY_DOMAIN[domain] ?? null;
 }
 
 export function canRollbackImportDomain(domain: string): boolean {
-  return domain === "employees" || domain === "training_records";
+  return (
+    domain === "employees"
+    || domain === "training_records"
+    || domain === "credentials"
+    || domain === "rooms"
+    || domain === "residents"
+    || domain === "resident_contacts"
+  );
 }
 
 const columns: Record<ImportDomain, readonly string[]> = {

@@ -115,3 +115,15 @@ Migration: `20260731210000_pilot_cohort_console.sql` (`unassign_organization_rel
 | Compliance Binder | Full untruncated **CSV appendix** (manifest + per-section CSVs) stored with each PDF export |
 
 Migration: `20260731220000_training_records_import_rollback.sql`.
+
+
+## Residual product gaps wave 2 (same day)
+
+| Gap | What shipped |
+|---|---|
+| **Multi-domain import** | Active processors: credentials, rooms, residents, resident_contacts, incidents (plus prior employees/training_records). Assessments remain template-only. |
+| **Credential OCR + SLA** | `process-credential-renewals` edge worker + queue summary RPC; renewal inbox shows age SLA badges (>24h/>72h). |
+| **SCORM authoring control plane** | `register_learning_package` / `accept_learning_package` / `quarantine_learning_package` + Governed Learning Standards package list. |
+| **Survey evidence packet selection** | Packet item ledger + assemble manifest on Survey Day binder section. |
+
+Migrations: `20260731230000_residual_product_gaps_wave2.sql`.

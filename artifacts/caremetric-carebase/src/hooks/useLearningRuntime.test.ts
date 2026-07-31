@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Hook module imports Supabase at module scope; pure helpers under test do not need a real client.
+vi.mock("@/lib/supabase", () => ({ supabase: {} }));
+
 import { asLaunchSession } from "./useLearningRuntime";
 
 describe("asLaunchSession", () => {

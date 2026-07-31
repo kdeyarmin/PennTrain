@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Json, Tables } from "@/lib/database.types";
-export { extractedFieldString } from "@/lib/credentialRenewals";
+export { extractedFieldString, renewalSlaLabel } from "@/lib/credentialRenewals";
 
 export type CredentialRenewalSubmission = Tables<"credential_renewal_submissions">;
 
@@ -92,6 +92,34 @@ export function useCreateCredentialRenewalSubmission() {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["credential-renewal-submissions"] });
     },
+  });
+}
+
+
+export interface CredentialRenewalQueueSummary {
+  needsReview: number;
+  uploaded: number;
+  overdue24h: number;
+  overdue72h: number;
+  generatedAt: string;
+}
+
+export function useCredentialRenewalQueueSummary() {
+  return useQuery({
+    queryKey: ["credential-renewal-queue-summary"],
+    queryFn: async (): Promise<CredentialRenewalQueueSummary> => {
+      const { data, error } = await supabase.rpc("get_credential_renewal_queue_summary");
+      if (error) throw error;
+      const raw = (data ?? {}) as Record<string, unknown>;
+      return {
+        needsReview: Number(raw.needsReview ?? 0),
+        uploaded: Number(raw.uploaded ?? 0),
+        overdue24h: Number(raw.overdue24h ?? 0),
+        overdue72h: Number(raw.overdue72h ?? 0),
+        generatedAt: String(raw.generatedAt ?? new Date().toISOString()),
+      };
+    },
+    staleTime: 30_000,
   });
 }
 

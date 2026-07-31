@@ -7,6 +7,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { surveyEvidencePacketManifest } from "@/lib/surveyEvidencePacket";
+import {
+  useAddSurveyEvidencePacketItem,
+  useAssembleSurveyEvidencePacket,
+  useRemoveSurveyEvidencePacketItem,
+  useSurveyEvidencePacketItems,
+} from "@/hooks/useSurveyEvidencePacket";
 import { facilityTypeLabel } from "@/lib/facilityTypes";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -384,6 +390,15 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
   const queryClient = useQueryClient();
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
+  const packetItems = useSurveyEvidencePacketItems({
+    surveyDaySessionId: sessionId,
+    binderExportJobId: pinnedBinderJobId,
+  });
+  const addPacketItem = useAddSurveyEvidencePacketItem();
+  const removePacketItem = useRemoveSurveyEvidencePacketItem();
+  const assemblePacket = useAssembleSurveyEvidencePacket();
+  const [packetNote, setPacketNote] = useState("");
+  const [assembledManifest, setAssembledManifest] = useState<Record<string, unknown> | null>(null);
   const packetManifest = pinned ? surveyEvidencePacketManifest(pinned) : null;
 
   return (
@@ -429,6 +444,105 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
                 {packetManifest.errorDetail && <p className="mt-2 text-xs text-destructive">{packetManifest.errorDetail}</p>}
                 <p className="mt-3 text-xs text-muted-foreground">{packetManifest.accessControlNote}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{packetManifest.auditTrailNote}</p>
+
+                <div className="mt-4 space-y-3 border-t pt-3">
+                  <p className="text-sm font-medium">Selected evidence for this survey packet</p>
+                  <p className="text-xs text-muted-foreground">
+                    Add binder export, notes, or other evidence. Assemble records an immutable selection
+                    manifest (guest access still goes through Evidence Room grants).
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!pinnedBinderJobId || addPacketItem.isPending}
+                      onClick={() => {
+                        if (!pinnedBinderJobId) return;
+                        void addPacketItem.mutateAsync({
+                          sourceType: "binder_export",
+                          label: "Pinned compliance binder",
+                          sourceId: pinnedBinderJobId,
+                          facilityId,
+                          surveyDaySessionId: sessionId,
+                          binderExportJobId: pinnedBinderJobId,
+                        }).catch((e: Error) => {
+                          toast({ title: "Could not add binder", description: e.message, variant: "destructive" });
+                        });
+                      }}
+                    >
+                      Include binder
+                    </Button>
+                    <Input
+                      className="max-w-xs"
+                      placeholder="Optional note label"
+                      value={packetNote}
+                      onChange={(e) => setPacketNote(e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={packetNote.trim().length < 2 || addPacketItem.isPending}
+                      onClick={() => {
+                        void addPacketItem.mutateAsync({
+                          sourceType: "note",
+                          label: packetNote.trim(),
+                          facilityId,
+                          surveyDaySessionId: sessionId,
+                          binderExportJobId: pinnedBinderJobId,
+                        }).then(() => setPacketNote("")).catch((e: Error) => {
+                          toast({ title: "Could not add note", description: e.message, variant: "destructive" });
+                        });
+                      }}
+                    >
+                      Add note
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={assemblePacket.isPending || (packetItems.data?.length ?? 0) === 0}
+                      onClick={() => {
+                        void assemblePacket.mutateAsync({
+                          surveyDaySessionId: sessionId,
+                          binderExportJobId: pinnedBinderJobId,
+                        }).then((manifest) => {
+                          setAssembledManifest(manifest);
+                          toast({ title: "Packet manifest assembled" });
+                        }).catch((e: Error) => {
+                          toast({ title: "Assemble failed", description: e.message, variant: "destructive" });
+                        });
+                      }}
+                    >
+                      Assemble packet manifest
+                    </Button>
+                  </div>
+                  <ul className="space-y-1 text-sm">
+                    {(packetItems.data ?? []).map((item) => (
+                      <li key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
+                        <span>
+                          <span className="text-muted-foreground">{item.source_type}</span>
+                          {" · "}
+                          {item.label}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={removePacketItem.isPending}
+                          onClick={() => {
+                            void removePacketItem.mutateAsync(item.id).catch((e: Error) => {
+                              toast({ title: "Remove failed", description: e.message, variant: "destructive" });
+                            });
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                  {assembledManifest && (
+                    <pre className="max-h-40 overflow-auto rounded bg-muted/40 p-2 text-xs">
+                      {JSON.stringify(assembledManifest, null, 2)}
+                    </pre>
+                  )}
+                </div>
               </div>
             )}
             {pinned.status === "succeeded" && (
