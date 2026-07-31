@@ -17,6 +17,7 @@ import {
   isRuntimeHandshakeRequest,
   normalizeRuntimeCommitState,
   parseRuntimeBridgeMessage,
+  RUNTIME_FRAME_SANDBOX,
   XAPI_VERBS,
   type LaunchSession,
   type RuntimeCommitState,
@@ -254,8 +255,7 @@ export function StandardsRuntimePlayer({
               title="Learning package"
               src={contentUrl}
               className="h-[min(70vh,520px)] w-full rounded-md border bg-background"
-              sandbox="allow-scripts allow-forms allow-popups"
-              // Intentionally omit allow-same-origin per Phase 4: bridge only, no cookie jar.
+              sandbox={RUNTIME_FRAME_SANDBOX}
               // Push the launch credentials as soon as the document is up. A package that registers
               // its listener later can still ask for them with a `hello` message.
               onLoad={() => sendRuntimeInit(launch)}

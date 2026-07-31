@@ -7,6 +7,7 @@ import {
   normalizeRuntimeCommitState,
   parseRuntimeBridgeMessage,
   runtimeCommitToJson,
+  RUNTIME_FRAME_SANDBOX,
   XAPI_VERBS,
 } from "./learningRuntime";
 
@@ -120,6 +121,14 @@ describe("bridge handshake", () => {
 
   it("sends nothing when the session has no nonce", () => {
     expect(buildRuntimeInitMessage({ ...launch, launchNonce: undefined })).toBeNull();
+  });
+
+  it("keeps the package frame cross-origin", () => {
+    // The bridge posts with targetOrigin "*" and authenticates by nonce + event.source precisely
+    // because the frame has an opaque origin. Granting allow-same-origin would hand uploaded
+    // third-party course content same-origin access to the app, and quietly invalidate that model.
+    expect(RUNTIME_FRAME_SANDBOX).not.toContain("allow-same-origin");
+    expect(RUNTIME_FRAME_SANDBOX).toContain("allow-scripts");
   });
 });
 
