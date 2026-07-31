@@ -295,6 +295,8 @@ describe("store selection (memory fallback vs postgres)", () => {
     const stores = createPhoneStateStores(undefined);
     expect(stores.mode).toBe("memory");
     expect(stores.pendingStore).toBeInstanceOf(InMemoryPhonePendingStore);
+    expect(stores.browserPendingStore).toBeDefined();
+    expect(stores.usage).toBeDefined();
     expect(stores.transferStore).toBeInstanceOf(InMemoryTransferActionStore);
     await stores.close();
   });

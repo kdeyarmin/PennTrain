@@ -76,68 +76,68 @@ function fakeClock(startAt = Date.parse("2026-07-24T12:00:00Z")) {
 // ---- Meter units ----------------------------------------------------------
 
 describe("PhoneCallerLimiter", () => {
-  it("caps calls per rolling hour per From and releases as the window slides", () => {
+  it("caps calls per rolling hour per From and releases as the window slides", async () => {
     const clock = fakeClock();
     const limiter = new PhoneCallerLimiter(clock.now);
     const config = { ...BASE_CONFIG, phoneCallsPerHour: 2 };
 
-    expect(limiter.check("+15551230001", config)).toBe("ok");
-    limiter.recordCall("+15551230001");
-    expect(limiter.check("+15551230001", config)).toBe("ok");
-    limiter.recordCall("+15551230001");
-    expect(limiter.check("+15551230001", config)).toBe("call_cap");
+    expect(await limiter.check("+15551230001", config)).toBe("ok");
+    await limiter.recordCall("+15551230001");
+    expect(await limiter.check("+15551230001", config)).toBe("ok");
+    await limiter.recordCall("+15551230001");
+    expect(await limiter.check("+15551230001", config)).toBe("call_cap");
     // Another caller is unaffected.
-    expect(limiter.check("+15551230002", config)).toBe("ok");
+    expect(await limiter.check("+15551230002", config)).toBe("ok");
     // 61 minutes later the window has slid past both calls.
     clock.advanceMinutes(61);
-    expect(limiter.check("+15551230001", config)).toBe("ok");
+    expect(await limiter.check("+15551230001", config)).toBe("ok");
   });
 
-  it("caps cumulative session minutes per rolling hour, counting live sessions", () => {
+  it("caps cumulative session minutes per rolling hour, counting live sessions", async () => {
     const clock = fakeClock();
     const limiter = new PhoneCallerLimiter(clock.now);
     const config = { ...BASE_CONFIG, phoneCallsPerHour: 100, phoneMinutesPerHour: 10 };
     const from = "+15551230003";
 
     // A finished 6-minute call…
-    const first = limiter.sessionStarted(from);
+    const first = await await limiter.sessionStarted(from);
     clock.advanceMinutes(6);
-    limiter.sessionEnded(from, first);
-    expect(limiter.check(from, config)).toBe("ok");
+    await limiter.sessionEnded(from, first);
+    expect(await limiter.check(from, config)).toBe("ok");
 
     // …plus a LIVE call that has been running 4 minutes = 10 → capped.
-    limiter.sessionStarted(from);
+    await limiter.sessionStarted(from);
     clock.advanceMinutes(4);
-    expect(limiter.check(from, config)).toBe("minutes_cap");
+    expect(await limiter.check(from, config)).toBe("minutes_cap");
 
     // The finished call's minutes age out of the rolling window.
     clock.advanceMinutes(70);
     // Live call still accruing: 74 minutes total but only the last 60
     // count — still over the 10-minute cap.
-    expect(limiter.check(from, config)).toBe("minutes_cap");
+    expect(await limiter.check(from, config)).toBe("minutes_cap");
   });
 });
 
 describe("DailyMinutesBudget", () => {
-  it("exhausts on cumulative minutes including live sessions and resets at UTC midnight", () => {
+  it("exhausts on cumulative minutes including live sessions and resets at UTC midnight", async () => {
     const clock = fakeClock(Date.parse("2026-07-24T23:30:00Z"));
     const budget = new DailyMinutesBudget(clock.now);
     const config = { ...BASE_CONFIG, dailyMinutesBudget: 20 };
 
-    const finished = budget.sessionStarted();
+    const finished = await await budget.sessionStarted();
     clock.advanceMinutes(15);
-    budget.sessionEnded(finished);
-    expect(budget.isExhausted(config)).toBe(false);
+    await budget.sessionEnded(finished);
+    expect(await budget.isExhausted(config)).toBe(false);
 
-    budget.sessionStarted(); // live, never ended
+    await budget.sessionStarted(); // live, never ended
     clock.advanceMinutes(5); // 15 finished + 5 live = 20 → exhausted
-    expect(budget.isExhausted(config)).toBe(true);
+    expect(await budget.isExhausted(config)).toBe(true);
 
     // Cross UTC midnight: finished usage resets; the live session bills
     // only its post-midnight portion (10 min elapsed of the new day at
     // 00:10, under the 20-minute budget).
     clock.advanceMinutes(20);
-    expect(budget.isExhausted(config)).toBe(false);
+    expect(await budget.isExhausted(config)).toBe(false);
   });
 });
 

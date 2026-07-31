@@ -1,5 +1,7 @@
+import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { clientIp } from "../_shared/clientIp.ts";
 
 const ALLOWED_SOURCES = new Set([
   "react-boundary",
@@ -8,6 +10,8 @@ const ALLOWED_SOURCES = new Set([
   "deployment-asset",
   "query-error",
 ]);
+
+const HOURLY_LIMIT = 30;
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -28,9 +32,84 @@ export function sanitizeClientReportValue(value: unknown, maxLength: number): st
     .slice(0, maxLength);
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// In-memory fallback when service role is unavailable (local tests / misconfig).
+// Edge isolates are single-process; durable limit is the RPC path.
+const memoryHits = new Map<string, number[]>();
+
+export function memoryAllowClientError(ip: string, limit = HOURLY_LIMIT, now = Date.now()): boolean {
+  const windowMs = 3_600_000;
+  const prior = (memoryHits.get(ip) ?? []).filter((t) => now - t < windowMs);
+  if (prior.length >= limit) {
+    memoryHits.set(ip, prior);
+    return false;
+  }
+  prior.push(now);
+  memoryHits.set(ip, prior);
+  return true;
+}
+
+export function resetClientErrorMemoryLimiter(): void {
+  memoryHits.clear();
+}
+
+// Deno.env.get throws NotCapable when the process was started without
+// --allow-env, which is how `deno test` runs these handlers in CI. Treating a
+// denied read as "unset" routes the request down the in-memory fallback below,
+// exactly as a missing service-role key would.
+function readEnv(name: string): string | undefined {
+  try {
+    return Deno.env.get(name);
+  } catch {
+    return undefined;
+  }
+}
+
+async function reserveRateLimit(ip: string): Promise<"allow" | "deny" | "unavailable"> {
+  const supabaseUrl = readEnv("SUPABASE_URL");
+  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const pepper = readEnv("CLIENT_ERROR_RATE_LIMIT_SALT")
+    ?? readEnv("CRON_SHARED_SECRET")
+    ?? "client-error-rate-limit";
+  const ipHash = await sha256Hex(`${pepper}:${ip}`);
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return memoryAllowClientError(ip) ? "allow" : "deny";
+  }
+
+  try {
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { error } = await admin.rpc("reserve_client_error_report", {
+      p_ip_hash: ipHash,
+      p_limit: HOURLY_LIMIT,
+    });
+    if (!error) return "allow";
+    if (error.message?.includes("client_error_rate_limited")) return "deny";
+    console.error("client_error_rate_limit_unavailable", error.message);
+    // Fail open to memory so telemetry is not dropped on transient DB issues.
+    return memoryAllowClientError(ip) ? "allow" : "deny";
+  } catch (e) {
+    console.error("client_error_rate_limit_exception", e instanceof Error ? e.message : String(e));
+    return memoryAllowClientError(ip) ? "allow" : "deny";
+  }
+}
+
 export async function handleReportClientErrorRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return corsPreflightResponse(req);
   if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
+
+  const ip = clientIp(req);
+  const rate = await reserveRateLimit(ip);
+  if (rate === "deny") {
+    return json(req, { error: "rate_limited" }, 429);
+  }
 
   let payload: Record<string, unknown>;
   try {

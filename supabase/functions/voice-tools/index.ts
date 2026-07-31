@@ -16,6 +16,7 @@
 // to voice questions automatically.
 
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { ORG_AI_DISABLED_MESSAGE, orgAiAllowed } from "../_shared/orgAiGate.ts";
 import {
   compressCopilotForVoice,
   copilotIntentForTopic,
@@ -114,13 +115,18 @@ Deno.serve(async (req: Request) => {
   // Facility re-validated THROUGH the caller's client: RLS proves the user
   // can see this facility, independent of what the gateway claims.
   const { data: facility, error: facilityError } = await callerClient
-    .from("facilities").select("id,name,facility_type").eq("id", facilityId).single();
+    .from("facilities").select("id,name,facility_type,organization_id").eq("id", facilityId).single();
   if (facilityError || !facility) {
     return toolError(
       req,
       "facility_not_found",
       "That facility isn't available to this account. Suggest picking a facility in the app.",
     );
+  }
+  // BAA gate on the facility's tenant — belt-and-suspenders with the gateway
+  // session-create check so tool callbacks never run for non-BAA orgs.
+  if (!(await orgAiAllowed(callerClient, facility.organization_id))) {
+    return toolError(req, "org_ai_disabled", ORG_AI_DISABLED_MESSAGE);
   }
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
     return toolError(

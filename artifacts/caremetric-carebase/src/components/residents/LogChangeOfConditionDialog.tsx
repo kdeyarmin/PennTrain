@@ -58,6 +58,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
     if (!o) {
       setSelectedResidentId("");
       setCategory("other_significant_change");
+      setIdentifiedAt(toDateTimeLocal());
       setObservations("");
       setImmediateAction("");
       setProviderStatus("pending");
@@ -66,7 +67,12 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
       setDestination("");
       setMonitoringInstructions("");
       setMonitoringFrequency("");
+      setMonitoringHours("24");
+      setAssignedProfileId(user?.id ?? "");
+      setFollowUpDueAt(toDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
       setIncidentDecision("pending");
+      setReassessmentRequired(true);
+      setSupportPlanRevisionRequired(true);
     }
   };
 
@@ -102,7 +108,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
               : "Owned monitoring and follow-up were created.",
             action: (
               <Button asChild size="sm" variant="outline">
-                <a href={`/app/change-of-condition/${eventId}`}>Open event</a>
+                <a href={`${user?.role === "employee" ? "/me/change-of-condition" : "/app/change-of-condition"}/${eventId}`}>Open event</a>
               </Button>
             ),
           });

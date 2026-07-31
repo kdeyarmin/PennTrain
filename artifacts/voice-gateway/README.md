@@ -72,7 +72,7 @@ Security posture (inherited from PennFit's ADR):
 | `VOICE_PLAYBACK_GRACE_MS` | no | How long the browser sink waits for delivered audio to finish playing before a graceful close (default 1500). The browser transport has no playback acknowledgement channel, so this fixed grace keeps a goodbye from being clipped. |
 | `TWILIO_AUTH_TOKEN` | phone | Validates `X-Twilio-Signature` on phone webhooks. Absent → phone channel dark (503), browser voice unaffected. |
 | `VOICE_PUBLIC_BASE_URL` | phone | Public https origin of this gateway (e.g. `https://voice-gateway.up.railway.app`) — used for signature validation and the TwiML stream/action URLs. |
-| `VOICE_STATE_DATABASE_URL` | phone go-live | Postgres URL (any Postgres — the Railway Postgres plugin in practice) for the DURABLE phone handoff stores: pending-call tickets and parked transfer numbers survive deploys, and claim-once holds across instances. Schema (`voice_gateway.*`) is auto-created on boot; a boot log line names the mode (`memory` vs `postgres`). Unset → in-memory fallback (fine for local dev and the single-instance pilot) plus a boot warning when the Twilio vars are set. This is a plain state database, NOT Supabase — the gateway still holds no service keys. |
+| `VOICE_STATE_DATABASE_URL` | multi-instance / phone go-live | Postgres URL for durable voice state: phone handoff tickets, transfer actions, **browser pending sessions**, and **shared usage meters** (per-caller caps + daily minutes). Schema (`voice_gateway.*`) is auto-created on boot. Unset → in-memory (single-instance only). Not Supabase — no service keys. |
 | `PENNFIT_TRANSFER_NUMBER` | no | PennFit's existing Twilio number (E.164). Present → the triage agent offers PennFit and warm-transfers callers to it. |
 
 ## Deploying on Railway (one-time UI steps)
@@ -201,7 +201,7 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
   purpose: a deploy in its 60s window costs one click to retry, not a live
   call. The usage-limit stores (per-caller rolling-hour meters, daily
   minutes budget, concurrency trackers) are also in-memory on purpose —
-  they are per-instance counters and the deployment is single-instance;
+  with `VOICE_STATE_DATABASE_URL` set they are shared in Postgres; without it they are per-instance (single-instance only);
   scaling the gateway OUT (multiple instances) would need those budgets
   rethought (shared or divided), not just persisted.
 - **Phone brains are knowledge-only**: anonymous callers get no app tools.
@@ -215,3 +215,8 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 - **PennFit migration**: PennFit keeps its own embedded voice stack for
   now; migrating it onto this gateway as the second registered app is a
   deliberate future project.
+
+
+## PHI / BAA
+
+CareMetric's OpenAI BAA covering voice Realtime is on file (2026-07-30). Browser sessions still require per-org `org_ai_allowed` and the platform `voice_assistant_enabled` switch. Do not speak resident or staff identifiers (enforced in session instructions).

@@ -23,7 +23,11 @@ import type { PhoneTarget } from "../phone/targets.js";
 import { PhoneVoiceSession } from "../phone/phone-session.js";
 import type { RealtimeClientOptions } from "../core/realtime-client.js";
 import type { ActiveSessionTracker } from "../session/voice-session.js";
-import type { SessionSpan, UsageLimits } from "../session/usage-limits.js";
+import {
+  logUsageMeterError,
+  type SessionSpan,
+  type UsageLimits,
+} from "../session/usage-limits.js";
 
 /**
  * Cap on concurrent /phone/stream sockets that have connected WITHOUT a
@@ -159,12 +163,21 @@ function attachPhoneCall(
     if (trackerKey && !trackerFinished) {
       trackerFinished = true;
       deps.tracker.finish(trackerKey, "phone");
-      if (callerSpan) deps.usage.phoneCallers.sessionEnded(meteredFrom, callerSpan);
-      if (budgetSpan) deps.usage.dailyBudget.sessionEnded(budgetSpan);
+      // Metering is best-effort and the store may be Postgres: a rejected
+      // write here must be logged, not left to crash the process as an
+      // unhandled rejection.
+      if (callerSpan) {
+        void deps.usage.phoneCallers
+          .sessionEnded(meteredFrom, callerSpan)
+          .catch(logUsageMeterError);
+      }
+      if (budgetSpan) {
+        void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
+      }
     }
   };
 
-  const startSession = (pending: PendingCall): void => {
+  const startSession = async (pending: PendingCall): Promise<void> => {
     // Re-check capacity here: /phone/inbound checked before answering,
     // but calls race between the webhook and the stream connecting.
     trackerKey = `phone:${pending.callSid}`;
@@ -175,8 +188,8 @@ function attachPhoneCall(
     }
     deps.tracker.start(trackerKey, "phone");
     meteredFrom = pending.from;
-    callerSpan = deps.usage.phoneCallers.sessionStarted(meteredFrom);
-    budgetSpan = deps.usage.dailyBudget.sessionStarted();
+    callerSpan = await deps.usage.phoneCallers.sessionStarted(meteredFrom);
+    budgetSpan = await deps.usage.dailyBudget.sessionStarted();
     session = new PhoneVoiceSession({
       config: deps.config,
       registry: deps.registry,
@@ -235,7 +248,7 @@ function attachPhoneCall(
     },
   };
 
-  if (claimed) startSession(claimed);
+  if (claimed) void startSession(claimed);
 
   ws.on("message", (data) => {
     let envelope: Record<string, unknown>;
@@ -279,7 +292,7 @@ function attachPhoneCall(
               return;
             }
             if (ws.readyState !== ws.OPEN) return;
-            startSession(pending);
+            void startSession(pending);
             clearTimeout(startDeadline);
           })
           .catch((err: unknown) => {

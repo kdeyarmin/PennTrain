@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
 
 const PAGE_SIZE = 15;
@@ -95,7 +96,11 @@ const INCIDENTS_URL_DEFAULTS = { search: "", facility: "all", resident: "all", s
 
 export default function Incidents() {
   const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
+  // Platform admins bypass org RLS; the "Viewing as org" selector is the only
+  // client-side tenant filter. Match Alerts/Employees so incidents stay scoped.
+  const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
 
   const [urlState, setUrlState] = useUrlState(INCIDENTS_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
@@ -111,8 +116,8 @@ export default function Incidents() {
   // employee's own record.
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
 
-  const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: facilities } = useListFacilities({ organizationId });
+  const { data: employees } = useListEmployees({ status: "active", organizationId });
   // Scoped to whichever facility is currently selected in the create form (not the page's own
   // facility filter above) -- powers the Resident picker on that form only.
   const { data: formFacilityResidents } = useListResidents(form.facilityId ? { facilityId: form.facilityId } : {});
@@ -120,6 +125,7 @@ export default function Incidents() {
   // preserves a searchable fallback for legacy free-text snapshots.
   const { data: allResidents } = useListResidents();
   const incidentQuery = usePaginatedDomainList<Incident>("incidents", {
+    organizationId,
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     residentId: urlState.resident !== "all" ? urlState.resident : undefined,
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
@@ -129,6 +135,7 @@ export default function Incidents() {
     pageSize: PAGE_SIZE,
   });
   const incidentSummaryQuery = useIncidentListSummary({
+    organizationId,
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     residentId: urlState.resident !== "all" ? urlState.resident : undefined,
     severity: urlState.severity !== "all" ? urlState.severity : undefined,
@@ -194,8 +201,36 @@ export default function Incidents() {
   };
 
   const handleSubmit = () => {
-    if (!form.facilityId || !form.narrative.trim()) {
+    const narrative = form.narrative.trim();
+    if (!form.facilityId || !narrative) {
       toast({ title: "Facility and narrative are required", variant: "destructive" });
+      return;
+    }
+    if (narrative.length < 20) {
+      toast({
+        title: "Narrative too short",
+        description: "Describe what happened in at least 20 characters so the record is usable for investigation.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!form.occurredAt || Number.isNaN(new Date(form.occurredAt).getTime())) {
+      toast({ title: "A valid occurred-at time is required", variant: "destructive" });
+      return;
+    }
+    if (new Date(form.occurredAt).getTime() > Date.now() + 5 * 60_000) {
+      toast({ title: "Occurred-at cannot be in the future", variant: "destructive" });
+      return;
+    }
+    if (
+      (form.severity === "major" || form.severity === "critical")
+      && notificationRows.length === 0
+    ) {
+      toast({
+        title: "Notifications required for major/critical incidents",
+        description: "Add at least one external notification (or the auto state-hotline entry) before filing a high-severity incident.",
+        variant: "destructive",
+      });
       return;
     }
     const facility = facilityById.get(form.facilityId);

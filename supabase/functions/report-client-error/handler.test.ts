@@ -1,7 +1,12 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1.0.14";
-import { handleReportClientErrorRequest } from "./handler.ts";
+import {
+  handleReportClientErrorRequest,
+  memoryAllowClientError,
+  resetClientErrorMemoryLimiter,
+} from "./handler.ts";
 
 Deno.test("report-client-error rejects unsupported methods and oversized requests", async () => {
+  resetClientErrorMemoryLimiter();
   assertEquals((await handleReportClientErrorRequest(new Request("https://example.test", { method: "GET" }))).status, 405);
   assertEquals((await handleReportClientErrorRequest(new Request("https://example.test", {
     method: "POST",
@@ -11,12 +16,14 @@ Deno.test("report-client-error rejects unsupported methods and oversized request
 });
 
 Deno.test("report-client-error accepts and redacts a bounded telemetry event", async () => {
+  resetClientErrorMemoryLimiter();
   const messages: string[] = [];
   const previousConsoleError = console.error;
   console.error = (...args: unknown[]) => messages.push(args.map(String).join(" "));
   try {
     const response = await handleReportClientErrorRequest(new Request("https://example.test", {
       method: "POST",
+      headers: { "x-forwarded-for": "203.0.113.10" },
       body: JSON.stringify({
         source: "window-error",
         route: "/app/dashboard",
@@ -40,4 +47,14 @@ Deno.test("report-client-error accepts and redacts a bounded telemetry event", a
   assertStringIncludes(messages[0], "[redacted-number]");
   assertStringIncludes(messages[0], "https://example.test/path");
   assertEquals(messages[0].includes("secret=1"), false);
+});
+
+Deno.test("memory client-error limiter enforces hourly cap", () => {
+  resetClientErrorMemoryLimiter();
+  const now = 1_700_000_000_000;
+  for (let i = 0; i < 30; i++) {
+    assertEquals(memoryAllowClientError("1.2.3.4", 30, now + i), true);
+  }
+  assertEquals(memoryAllowClientError("1.2.3.4", 30, now + 31), false);
+  assertEquals(memoryAllowClientError("9.9.9.9", 30, now + 31), true);
 });

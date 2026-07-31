@@ -27,6 +27,20 @@ import {
   type PhoneStoreTtls,
   type TransferActionStore,
 } from "./pending-calls.js";
+import {
+  InMemoryPendingSessionStore,
+  type PendingSession,
+  type PendingSessionStore,
+} from "../session/pending-sessions.js";
+import {
+  createUsageLimits,
+  DailyMinutesBudget,
+  PhoneCallerLimiter,
+  type PhoneCallerVerdict,
+  type SessionSpan,
+  type UsageLimits,
+} from "../session/usage-limits.js";
+import type { GatewayConfig } from "../config.js";
 
 const { Pool } = pg;
 
@@ -50,6 +64,40 @@ CREATE TABLE IF NOT EXISTS voice_gateway.transfer_actions (
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL
 );
+CREATE TABLE IF NOT EXISTS voice_gateway.pending_sessions (
+  session_id text PRIMARY KEY,
+  app_id text NOT NULL,
+  user_id text NOT NULL,
+  role text NOT NULL,
+  facility_id text,
+  jwt text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  claimed_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS pending_sessions_expires_idx
+  ON voice_gateway.pending_sessions (expires_at)
+  WHERE claimed_at IS NULL;
+CREATE TABLE IF NOT EXISTS voice_gateway.phone_call_starts (
+  id bigserial PRIMARY KEY,
+  from_key text NOT NULL,
+  started_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS phone_call_starts_from_time_idx
+  ON voice_gateway.phone_call_starts (from_key, started_at);
+CREATE TABLE IF NOT EXISTS voice_gateway.session_spans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel text NOT NULL CHECK (channel IN ('browser', 'phone')),
+  from_key text,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  ended_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS session_spans_live_idx
+  ON voice_gateway.session_spans (started_at)
+  WHERE ended_at IS NULL;
+CREATE INDEX IF NOT EXISTS session_spans_phone_from_idx
+  ON voice_gateway.session_spans (from_key, started_at)
+  WHERE from_key IS NOT NULL;
 `;
 
 const SWEEP_INTERVAL_MS = 60_000;
@@ -60,11 +108,13 @@ export interface PostgresPhoneStoreOptions {
   sweepIntervalMs?: number;
 }
 
-/** One handle owning the pool, the sweep timer, and both stores. */
+/** One handle owning the pool, the sweep timer, and voice state stores. */
 export interface PhoneStateStores {
   mode: "memory" | "postgres";
   pendingStore: PhonePendingStore;
   transferStore: TransferActionStore;
+  browserPendingStore: PendingSessionStore;
+  usage: UsageLimits;
   /** Resolves once the schema bootstrap has completed (postgres mode). */
   ready: Promise<void>;
   /** Stops the sweep timer and closes the pool. */
@@ -99,6 +149,11 @@ class PostgresState {
   readonly ready: Promise<void>;
   private sweepTimer: NodeJS.Timeout | null = null;
   private closed = false;
+
+  /** Once the pool is ended, best-effort metering writes are skipped. */
+  get isClosed(): boolean {
+    return this.closed;
+  }
 
   constructor(databaseUrl: string, opts: PostgresPhoneStoreOptions) {
     this.ttls = { ...DEFAULT_PHONE_STORE_TTLS, ...opts.ttls };
@@ -157,8 +212,22 @@ class PostgresState {
     }
   }
 
+  // One statement per query on purpose: a parameterised query goes over the
+  // extended protocol, which accepts exactly one command, so batching these
+  // into a single semicolon-separated string fails with 42601 and the sweep
+  // never runs. The deletes are independent TTL prunes; they need no shared
+  // transaction.
   async sweep(): Promise<void> {
     await this.ready;
+    await this.pool.query(
+      `DELETE FROM voice_gateway.pending_sessions WHERE expires_at < now() - interval '1 hour'`,
+    );
+    await this.pool.query(
+      `DELETE FROM voice_gateway.phone_call_starts WHERE started_at < now() - interval '25 hours'`,
+    );
+    await this.pool.query(
+      `DELETE FROM voice_gateway.session_spans WHERE coalesce(ended_at, started_at) < now() - interval '25 hours'`,
+    );
     await this.pool.query(
       `DELETE FROM voice_gateway.pending_calls
         WHERE (claimed_at IS NULL AND expires_at <= now())
@@ -291,6 +360,180 @@ class PostgresTransferActionStore implements TransferActionStore {
   }
 }
 
+class PostgresBrowserPendingStore implements PendingSessionStore {
+  constructor(private readonly state: PostgresState) {}
+
+  async register(entry: PendingSession): Promise<void> {
+    await this.state.ready;
+    await this.state.pool.query(
+      `INSERT INTO voice_gateway.pending_sessions
+         (session_id, app_id, user_id, role, facility_id, jwt, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7 / 1000.0))
+       ON CONFLICT (session_id) DO NOTHING`,
+      [
+        entry.sessionId,
+        entry.appId,
+        entry.userId,
+        entry.role,
+        entry.facilityId,
+        entry.jwt,
+        entry.expiresAt,
+      ],
+    );
+  }
+
+  async claim(sessionId: string): Promise<PendingSession | null> {
+    await this.state.ready;
+    const result = await this.state.pool.query<{
+      session_id: string;
+      app_id: string;
+      user_id: string;
+      role: string;
+      facility_id: string | null;
+      jwt: string;
+      expires_at: Date;
+    }>(
+      `UPDATE voice_gateway.pending_sessions
+          SET claimed_at = now()
+        WHERE session_id = $1
+          AND claimed_at IS NULL
+          AND expires_at > now()
+        RETURNING session_id, app_id, user_id, role, facility_id, jwt, expires_at`,
+      [sessionId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      sessionId: row.session_id,
+      appId: row.app_id,
+      userId: row.user_id,
+      role: row.role,
+      facilityId: row.facility_id,
+      jwt: row.jwt,
+      expiresAt: row.expires_at.getTime(),
+    };
+  }
+}
+
+class PostgresPhoneCallerLimiter {
+  constructor(private readonly state: PostgresState) {}
+
+  async check(from: string, config: GatewayConfig): Promise<PhoneCallerVerdict> {
+    await this.state.ready;
+    const key = from || "unknown";
+    const calls = await this.state.pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+         FROM voice_gateway.phone_call_starts
+        WHERE from_key = $1
+          AND started_at > now() - interval '1 hour'`,
+      [key],
+    );
+    if (Number(calls.rows[0]?.count ?? 0) >= config.phoneCallsPerHour) {
+      return "call_cap";
+    }
+    const minutes = await this.state.pool.query<{ used_ms: string }>(
+      `SELECT coalesce(sum(
+          extract(epoch from (
+            least(coalesce(ended_at, now()), now())
+            - greatest(started_at, now() - interval '1 hour')
+          )) * 1000
+        ), 0)::text AS used_ms
+         FROM voice_gateway.session_spans
+        WHERE from_key = $1
+          AND channel = 'phone'
+          AND (ended_at IS NULL OR ended_at > now() - interval '1 hour')`,
+      [key],
+    );
+    if (Number(minutes.rows[0]?.used_ms ?? 0) >= config.phoneMinutesPerHour * 60_000) {
+      return "minutes_cap";
+    }
+    return "ok";
+  }
+
+  async recordCall(from: string): Promise<void> {
+    await this.state.ready;
+    await this.state.pool.query(
+      `INSERT INTO voice_gateway.phone_call_starts (from_key) VALUES ($1)`,
+      [from || "unknown"],
+    );
+  }
+
+  async sessionStarted(from: string): Promise<SessionSpan> {
+    await this.state.ready;
+    const result = await this.state.pool.query<{ id: string; started_at: Date }>(
+      `INSERT INTO voice_gateway.session_spans (channel, from_key)
+       VALUES ('phone', $1)
+       RETURNING id, started_at`,
+      [from || "unknown"],
+    );
+    const row = result.rows[0]!;
+    return { startedAt: row.started_at.getTime(), id: row.id };
+  }
+
+  async sessionEnded(from: string, span: SessionSpan): Promise<void> {
+    if (this.state.isClosed) return;
+    await this.state.ready;
+    if (span.id) {
+      await this.state.pool.query(
+        `UPDATE voice_gateway.session_spans
+            SET ended_at = now()
+          WHERE id = $1 AND ended_at IS NULL`,
+        [span.id],
+      );
+    }
+  }
+}
+
+class PostgresDailyMinutesBudget {
+  constructor(private readonly state: PostgresState) {}
+
+  async isExhausted(config: GatewayConfig): Promise<boolean> {
+    await this.state.ready;
+    const result = await this.state.pool.query<{ used_ms: string }>(
+      `SELECT coalesce(sum(
+          extract(epoch from (
+            least(coalesce(ended_at, now()), now())
+            - greatest(
+                started_at,
+                date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+              )
+          )) * 1000
+        ), 0)::text AS used_ms
+         FROM voice_gateway.session_spans
+        WHERE started_at < now()
+          AND (
+            ended_at IS NULL
+            OR ended_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+          )`,
+    );
+    return Number(result.rows[0]?.used_ms ?? 0) >= config.dailyMinutesBudget * 60_000;
+  }
+
+  async sessionStarted(): Promise<SessionSpan> {
+    await this.state.ready;
+    const result = await this.state.pool.query<{ id: string; started_at: Date }>(
+      `INSERT INTO voice_gateway.session_spans (channel)
+       VALUES ('browser')
+       RETURNING id, started_at`,
+    );
+    const row = result.rows[0]!;
+    return { startedAt: row.started_at.getTime(), id: row.id };
+  }
+
+  async sessionEnded(span: SessionSpan): Promise<void> {
+    if (this.state.isClosed) return;
+    await this.state.ready;
+    if (span.id) {
+      await this.state.pool.query(
+        `UPDATE voice_gateway.session_spans
+            SET ended_at = now()
+          WHERE id = $1 AND ended_at IS NULL`,
+        [span.id],
+      );
+    }
+  }
+}
+
 export function createPostgresPhoneStores(
   databaseUrl: string,
   opts: PostgresPhoneStoreOptions = {},
@@ -300,6 +543,11 @@ export function createPostgresPhoneStores(
     mode: "postgres",
     pendingStore: new PostgresPhonePendingStore(state),
     transferStore: new PostgresTransferActionStore(state),
+    browserPendingStore: new PostgresBrowserPendingStore(state),
+    usage: {
+      phoneCallers: new PostgresPhoneCallerLimiter(state) as unknown as PhoneCallerLimiter,
+      dailyBudget: new PostgresDailyMinutesBudget(state) as unknown as DailyMinutesBudget,
+    },
     ready: state.ready,
     close: () => state.close(),
     sweepNow: () => state.sweep(),
@@ -320,6 +568,8 @@ export function createPhoneStateStores(
     mode: "memory",
     pendingStore: new InMemoryPhonePendingStore(opts.ttls),
     transferStore: new InMemoryTransferActionStore(opts.ttls),
+    browserPendingStore: new InMemoryPendingSessionStore(),
+    usage: createUsageLimits(),
     ready: Promise.resolve(),
     close: async () => undefined,
     sweepNow: async () => undefined, // The in-memory stores sweep inline.

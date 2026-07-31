@@ -20,7 +20,10 @@ import {
   VoiceSession,
   type ActiveSessionTracker,
 } from "../session/voice-session.js";
-import type { UsageLimits } from "../session/usage-limits.js";
+import {
+  logUsageMeterError,
+  type UsageLimits,
+} from "../session/usage-limits.js";
 
 export interface BrowserTransportDeps {
   config: GatewayConfig;
@@ -45,14 +48,14 @@ function rejectUpgrade(socket: Duplex, status: number, reason: string): void {
  * ticket check BEFORE accepting the WebSocket, pennfit-style: an invalid
  * or reused sid never gets a socket at all.
  */
-export function handleBrowserUpgrade(
+export async function handleBrowserUpgrade(
   deps: BrowserTransportDeps,
   wss: WebSocketServer,
   req: IncomingMessage,
   socket: Duplex,
   head: Buffer,
   appId: string,
-): void {
+): Promise<void> {
   const app = deps.registry.get(appId);
   if (!app) {
     rejectUpgrade(socket, 404, "Unknown app");
@@ -64,7 +67,7 @@ export function handleBrowserUpgrade(
   }
   const url = new URL(req.url ?? "/", "http://gateway.internal");
   const sid = url.searchParams.get("sid") ?? "";
-  const pending = sid ? deps.pendingStore.claim(sid) : null;
+  const pending = sid ? await deps.pendingStore.claim(sid) : null;
   if (!pending || pending.appId !== app.id) {
     rejectUpgrade(socket, 401, "Invalid session");
     return;
@@ -74,7 +77,7 @@ export function handleBrowserUpgrade(
     return;
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
-    attachSession(deps, app, pending, ws);
+    void attachSession(deps, app, pending, ws);
   });
 }
 
@@ -84,14 +87,14 @@ export function handleBrowserUpgrade(
 // balloon gateway RSS.
 const MAX_CLIENT_BUFFER_BYTES = 256 * 1024;
 
-function attachSession(
+async function attachSession(
   deps: BrowserTransportDeps,
   app: AppDefinition,
   pending: PendingSession,
   ws: WebSocket,
-): void {
+): Promise<void> {
   deps.tracker.start(pending.userId);
-  const budgetSpan = deps.usage.dailyBudget.sessionStarted();
+  const budgetSpan = await deps.usage.dailyBudget.sessionStarted();
   let finished = false;
   let lastBackpressureWarnAt = 0;
 
@@ -143,7 +146,7 @@ function attachSession(
       if (finished) return;
       finished = true;
       deps.tracker.finish(pending.userId);
-      deps.usage.dailyBudget.sessionEnded(budgetSpan);
+      void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
       sendJson({ type: "closed", reason });
       ws.close(1000, reason);
     },

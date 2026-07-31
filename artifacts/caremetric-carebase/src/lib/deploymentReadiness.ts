@@ -11,6 +11,9 @@ export interface DeploymentReadinessEnv {
   viteSupabaseUrl?: string;
   viteSupabaseAnonKey?: string;
   viteTurnstileSiteKey?: string;
+  viteDemoAccountsJson?: string;
+  viteEnablePublicDemo?: string;
+  isProd?: boolean;
   systemJobsStale?: number;
   systemJobsFailed?: number;
 }
@@ -22,6 +25,22 @@ function present(value: string | undefined): boolean {
 export function deploymentReadinessChecks(env: DeploymentReadinessEnv): DeploymentReadinessCheck[] {
   const stale = env.systemJobsStale ?? 0;
   const failed = env.systemJobsFailed ?? 0;
+  const isProd = env.isProd ?? false;
+  const demoConfigured = present(env.viteDemoAccountsJson);
+  const publicDemoEnabled = env.viteEnablePublicDemo === "true";
+  let demoStatus: ReadinessStatus = "pass";
+  let demoDetail = "No demo account credentials are bundled into the client.";
+  if (demoConfigured && isProd && !publicDemoEnabled) {
+    demoStatus = "fail";
+    demoDetail = "VITE_DEMO_ACCOUNTS_JSON is set in a production build without VITE_ENABLE_PUBLIC_DEMO=true. Remove it from production builds to avoid shipping passwords in the client bundle.";
+  } else if (demoConfigured && isProd && publicDemoEnabled) {
+    demoStatus = "warning";
+    demoDetail = "Public demo credentials are intentionally enabled for this production demo host. Use unique passwords and a dedicated demo organization only.";
+  } else if (demoConfigured) {
+    demoStatus = "warning";
+    demoDetail = "Demo account JSON is present in this non-production build.";
+  }
+
   return [
     {
       id: "vite-supabase-url",
@@ -42,10 +61,16 @@ export function deploymentReadinessChecks(env: DeploymentReadinessEnv): Deployme
       detail: present(env.viteTurnstileSiteKey) ? "Signup/safety-report challenges can render." : "Missing VITE_TURNSTILE_SITE_KEY; public abuse-prevention flows need configuration.",
     },
     {
+      id: "vite-demo-accounts",
+      label: "Demo account credentials",
+      status: demoStatus,
+      detail: demoDetail,
+    },
+    {
       id: "server-secrets",
       label: "Server-side secrets",
       status: "manual",
-      detail: "Verify Supabase Edge Function secrets for SendGrid, Twilio, Stripe, VAPID, Turnstile secret, and CRON_SHARED_SECRET in the Supabase dashboard or deployment runbook; secret values are intentionally never exposed to the browser.",
+      detail: "Verify Supabase Edge Function secrets for SendGrid, Twilio, Stripe, VAPID, Turnstile secret, CRON_SHARED_SECRET, and ANTHROPIC_BAA_CONFIRMED in the Supabase dashboard or deployment runbook; secret values are intentionally never exposed to the browser.",
     },
     {
       id: "system-job-health",

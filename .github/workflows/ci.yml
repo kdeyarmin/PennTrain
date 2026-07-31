@@ -257,6 +257,11 @@ jobs:
           e2e_password="phase1-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-only"
           echo "E2E_ACCOUNT_PASSWORD=$e2e_password" >> "$GITHUB_ENV"
           echo "VITE_DEMO_ACCOUNTS_JSON=[{\"label\":\"Guest auditor\",\"email\":\"phase1-guest@test.local\",\"password\":\"$e2e_password\",\"role\":\"auditor\",\"description\":\"Review seeded compliance data and reports.\"}]" >> "$GITHUB_ENV"
+          # parseDemoAccounts() drops every account from a production bundle unless
+          # this is set, and the e2e suite builds with `vite build`. The demo-page
+          # journey needs the accounts to render, and this bundle is a throwaway:
+          # the password above is scoped to one workflow run and never deployed.
+          echo "VITE_ENABLE_PUBLIC_DEMO=true" >> "$GITHUB_ENV"
 
       - name: Build browser-test application
         run: pnpm --filter @workspace/caremetric-carebase run build

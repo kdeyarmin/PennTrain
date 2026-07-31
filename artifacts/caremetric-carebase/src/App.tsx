@@ -238,6 +238,27 @@ function ProtectedRoute({
     return <FullPageLoading />;
   }
 
+  // Entitlement RPC failed: keep last-good modules when available, but surface a
+  // retry so operators are not silently locked to core-only after a blip.
+  if (moduleAccess.isError && isAuthenticated) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-lg font-medium">Could not load your plan entitlements</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          A temporary error prevented CareBase from confirming which modules your organization can use.
+          Retry to restore full access.
+        </p>
+        <button
+          type="button"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          onClick={() => moduleAccess.refetch()}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     const loginPath = loginPathWithNext(window.location.pathname, window.location.search, window.location.hash);
     return <Redirect to={loginPath} />;

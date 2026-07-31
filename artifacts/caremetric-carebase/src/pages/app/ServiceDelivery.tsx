@@ -31,6 +31,7 @@ import {
   type ServiceExceptionRule,
   type ServiceTaskAlertWithRelations,
 } from "@/hooks/useResidentServiceTasks";
+import { facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
 import { QueryError } from "@/components/QueryState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -76,16 +77,11 @@ const STATUS_CLASS: Record<string, string> = {
   superseded: "bg-muted text-muted-foreground",
 };
 
-function localDateString(date = new Date()): string {
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
-}
-
+// Facility (America/New_York) day helpers — browser-local midnight would shift
+// the service-task window for non-PA staff / UTC CI and miss or double-count
+// tasks near day boundaries.
 function dayBounds(dateString: string): { from: string; through: string } {
-  const from = new Date(`${dateString}T00:00:00`);
-  const through = new Date(from);
-  through.setDate(through.getDate() + 1);
-  return { from: from.toISOString(), through: through.toISOString() };
+  return facilityDayBounds(dateString);
 }
 
 function formatTaskTime(value: string): string {
@@ -243,7 +239,7 @@ export default function ServiceDelivery() {
   const isManager = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const isAuditor = user?.role === "auditor";
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
-  const [date, setDate] = useState(localDateString());
+  const [date, setDate] = useState(facilityToday());
   const [facilityId, setFacilityId] = useState("all");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
