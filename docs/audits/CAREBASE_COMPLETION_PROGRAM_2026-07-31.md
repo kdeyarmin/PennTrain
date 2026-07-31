@@ -21,16 +21,17 @@ has not yet been demonstrated end to end.
 
 | Wave | Feature | Verified state | Primary current surface / system of record | Remaining acceptance criteria |
 | --- | --- | --- | --- | --- |
-| 1 | Import and data migration center | Partial; employee processor active, seven canonical templates have no processor | `/app/data-imports`; `data_import_jobs`, `data_import_rows`; `bulk-import-employees` | Durable stored-file worker, mapping definitions, pagination/filtering, reasoned finalize/rollback previews, and processors/tests for seven domains |
-| 1 | Invitation lifecycle dashboard | Backend exists but management UI is missing | `user_invitation_lifecycle` | Paginated dashboard, repair actions, bulk invite, role/RLS and browser journeys |
-| 1 | Employee lifecycle case console | Backend exists but management UI is missing | `employee_lifecycle_cases` and preview/apply RPCs | List, wizard, dependency resolution, locked re-preview UX, report and journeys |
-| 1 | Readiness action planner | Strong but missing last-mile functionality | Existing readiness forecast pages/RPCs | Direct governed remediation actions and workforce-impact projections |
-| 2 | Credential renewal inbox | Partial | Existing employee credentials and document workflows | Separate governed renewal states, reviewer inbox, independent approval, reminders and history |
-| 2 | Assessor/supervisor qualification enforcement | Partial | Competency/practicum/observation database paths | Common server-enforced qualification rules, delegation/exception evidence and denial tests |
-| 2 | Retraining-to-class loop | Partial | Existing retraining, course, class and waitlist records | Unified governed case through effectiveness review and closure |
-| 2 | Interval scheduling | Strong but missing last-mile functionality | Existing schedule overlap protections | Split/overnight shifts, travel/rest/hours warnings, overrides and concurrent pgTAP coverage |
+| 1 | Import and data migration center | Partial; employee processor active, seven canonical templates have no processor; history now paginated/filterable with finalize/rollback previews | `/app/data-imports`; `data_import_jobs`, `data_import_rows`; `bulk-import-employees` | Durable stored-file worker, mapping definitions, and processors/tests for seven domains |
+| 1 | Invitation lifecycle dashboard | Strong; management UI + revoke RPC + resend edge function + bulk invite | `/app/invitations`; `user_invitation_lifecycle`; `revoke_user_invitation`; `resend-invitation` | Role/browser journeys against seeded tenants; optional ban/delete of unconfirmed auth users on revoke |
+| 1 | Employee lifecycle case console | Strong; list/wizard/preview-lock/apply/cancel/report UI on existing RPCs | `/app/employee-lifecycle`; `employee_lifecycle_cases` and preview/apply RPCs | Authenticated browser journeys and multi-facility transfer matrix coverage |
+| 1 | Readiness action planner | Strong; workforce-impact projections + on-demand remediation routing | Forecast panel; `route_workforce_readiness_remediation`; work queue | Journey coverage that proves routed work items reopen/close with forecast maintenance |
+| 2 | Credential renewal inbox | Strong; reviewer inbox + independent approve/reject on existing RPCs | `/app/workforce-operations` Renewals tab; `credential_renewal_submissions`; `review_credential_renewal_submission` | Reminder/SLA queue UI; OCR edge worker; superseding credential history chain |
+| 2 | Assessor/supervisor qualification enforcement | Stronger; practicum observation/verification now duty-gated | `duty_eligibility_rules.practicum_observer`; practicum trigger; certification assessor path | Shared delegation/exception matrix UI across duty keys |
+| 2 | Retraining-to-class loop | Partial; cohort enroll shipped | `/trainer/retraining` enroll dialog; `register_for_training_session` | Effectiveness review gate and durable case closure still open |
+| 2 | Interval scheduling | Stronger; same-day split shifts allowed under overlap trigger | `shift_assignments` without one-per-day unique; interval overlap authority | Travel warnings and concurrent pgTAP race coverage |
+
 | 3 | Request-specific survey evidence packets | Partial | Survey Day, evidence/binder and response-room features | Request ledger, immutable versioned manifest/package and packet-only guest access |
-| 3 | Survey rehearsal/random sampling | Missing | No `survey_rehearsal` system of record found | Complete rehearsal workflow and report |
+| 3 | Survey rehearsal/random sampling | Partial; SoR + UI shipped | `/app/survey-rehearsals`; `survey_rehearsals` / items + create/sample/record/complete RPCs | Guest packet export and deeper domain coverage still open |
 | 3 | Plan of correction lifecycle | Partial | Existing plan-of-correction records | Full immutable submitted-version lifecycle, approvals, effectiveness gate and packet |
 | 3 | QAPI meetings/outcomes | Partial | Existing QAPI projects and quality surfaces | Meeting governance, carry-forward commitments and print packet |
 | 3 | Policy campaign center | Partial | Existing policy/acknowledgment capabilities | Version-pinned campaign lifecycle, targeting, escalation, knowledge checks and evidence packet |
@@ -44,28 +45,50 @@ has not yet been demonstrated end to end.
 | 4 | Governed configuration releases | Missing | Configuration remains distributed across current settings/rules | Shared release envelope, simulation, approval, activation and rollback receipts |
 | 4 | Care-level/rate-agreement review | Partial | Existing assessment, finance and rate-agreement records | Governed review/approval/signature/implementation/verification lifecycle |
 
-## Implemented slice: honest import-domain availability
+## Implemented slice: Wave 1 management surfaces (2026-07-31)
 
-The import center now has a single typed availability contract. Employees are
-the only active upload processor; training records, credentials, residents,
-resident contacts, rooms, assessments, and incidents are explicitly labelled
-**Template only**. Template downloads remain available for planning, but the UI
-does not imply that downloading a schema activates preview or apply behavior.
-The employee card also discloses that its present batching is browser
-coordinated, avoiding an unsupported durability claim.
+### Invitation lifecycle dashboard
 
-### Objects, security, and operational configuration
+- New `/app/invitations` console: paginated list, status/role/search filters, resend, revoke, bulk CSV invite.
+- `revoke_user_invitation(uuid, text)` for org managers (facility managers limited to trainer/employee invites).
+- `record_user_invitation_resent(uuid)` (service role) plus `resend-invitation` Edge Function that regenerates an invite link, sends via SendGrid, and updates the durable receipt.
+- Navigation entry, command palette action, and Users-page deep link.
 
-- No migration, RPC, Edge Function, route, grant, or RLS policy was added in
-  this slice.
-- Existing caller-scoped employee import authorization remains unchanged.
-- No external configuration is required.
-- Commit/PR: recorded by the delivery system for this branch.
+### Employee lifecycle case console
 
-### Tests and next acceptance slice
+- New `/app/employee-lifecycle` console on existing case RPCs: create wizard, dependency preview, re-preview lock before apply, cancel with reason, CSV report export.
 
-- Unit coverage asserts that all eight templates exist while only employees are
-  upload-enabled.
-- Next: store the original source once, introduce immutable mapping/checksum job
-  inputs, and move processing to a resumable server-side worker before enabling
-  any additional domain.
+### Import center last-mile UX
+
+- Job history pagination, domain/status/file filters, finalize/rollback confirmation with reasoned action previews. Domain processors remain employees-only.
+
+### Readiness remediation last-mile
+
+- Workforce coverage-impact projections (current / 30 / 90 day).
+- Per-risk governed action copy.
+- `route_workforce_readiness_remediation(facility_id)` routes the 30-day forecast into the universal work queue on demand.
+
+### Tests
+
+- Unit: invitation lifecycle helpers, employee lifecycle helpers, workforce impact helpers.
+- pgTAP: `invitation_and_readiness_management.test.sql` for function presence, grants, and resend receipt behavior.
+
+### Next acceptance slices
+
+1. Durable import worker + mapping for remaining seven domains.
+2. Authenticated Playwright journeys for invite repair, lifecycle apply, and readiness routing.
+3. Wave 2 credential renewal inbox and assessor qualification enforcement.
+
+
+## Implemented slice: retraining cohort enroll (2026-07-31 follow-on)
+
+- Retraining Monitor lists staff needing practicum action per facility and supports
+  one-action cohort enrollment into a scheduled/in-progress class via
+  `register_for_training_session` (capacity → waitlist preserved).
+- Unit coverage for candidate ordering and enrollment result summaries.
+
+## Implemented slice: survey rehearsal (2026-07-31 follow-on)
+
+- New regulated tables `survey_rehearsals` and `survey_rehearsal_items` with manager RPCs
+  for create, random/high-risk sample, item results, complete report, and cancel.
+- UI at `/app/survey-rehearsals` for the full draft → sample → score → complete loop.

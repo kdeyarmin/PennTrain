@@ -11,6 +11,8 @@ export type TrainingClassAttendeeInsert = TablesInsert<"training_class_attendees
 export interface ListTrainingClassesFilters {
   facilityId?: string;
   trainerProfileId?: string;
+  /** When true, only scheduled/in_progress classes (enrollable). */
+  enrollableOnly?: boolean;
 }
 
 export function useListTrainingClasses(filters: ListTrainingClassesFilters = {}) {
@@ -20,6 +22,7 @@ export function useListTrainingClasses(filters: ListTrainingClassesFilters = {})
       let query = supabase.from("training_classes").select("*").order("class_date", { ascending: false });
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.trainerProfileId) query = query.eq("trainer_profile_id", filters.trainerProfileId);
+      if (filters.enrollableOnly) query = query.in("status", ["scheduled", "in_progress"]);
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -249,6 +252,104 @@ export function useGenerateClassNoticePdf() {
         throw new Error(data?.error ?? "Failed to generate meeting notice PDF");
       }
       return { url: data.url, path: data.path, expiresIn: data.expiresIn };
+    },
+  });
+}
+
+export interface SessionRegistrationResult {
+  employeeId: string;
+  success: boolean;
+  registrationId?: string;
+  status?: string;
+  waitlistPosition?: number | null;
+  error?: string;
+}
+
+/**
+ * Enroll one employee into a capacity-aware training session. Re-running for an
+ * already-registered employee returns the existing registration (idempotent).
+ */
+export function useRegisterForTrainingSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { classId: string; employeeId: string }) => {
+      const { data, error } = await supabase.rpc("register_for_training_session", {
+        p_class_id: input.classId,
+        p_employee_id: input.employeeId,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row || typeof row !== "object") {
+        throw new Error("Registration did not return a receipt.");
+      }
+      const record = row as {
+        registration_id?: string;
+        registration_status?: string;
+        waitlist_position?: number | null;
+      };
+      return {
+        employeeId: input.employeeId,
+        success: true as const,
+        registrationId: record.registration_id,
+        status: record.registration_status,
+        waitlistPosition: record.waitlist_position ?? null,
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["training_classes"] });
+      queryClient.invalidateQueries({ queryKey: ["training_session_registrations"] });
+      invalidateTrainerDashboard(queryClient);
+    },
+  });
+}
+
+/**
+ * Batch enroll a retraining cohort. Each employee is registered independently so one
+ * capacity/permission failure does not roll back the rest; capacity/waitlist rules still
+ * apply per call under the server advisory lock.
+ */
+export function useEnrollRetrainingCohort() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      classId: string;
+      employeeIds: string[];
+    }): Promise<SessionRegistrationResult[]> => {
+      const results: SessionRegistrationResult[] = [];
+      for (const employeeId of input.employeeIds) {
+        try {
+          const { data, error } = await supabase.rpc("register_for_training_session", {
+            p_class_id: input.classId,
+            p_employee_id: employeeId,
+          });
+          if (error) throw error;
+          const row = Array.isArray(data) ? data[0] : data;
+          const record = (row ?? {}) as {
+            registration_id?: string;
+            registration_status?: string;
+            waitlist_position?: number | null;
+          };
+          results.push({
+            employeeId,
+            success: true,
+            registrationId: record.registration_id,
+            status: record.registration_status,
+            waitlistPosition: record.waitlist_position ?? null,
+          });
+        } catch (error) {
+          results.push({
+            employeeId,
+            success: false,
+            error: error instanceof Error ? error.message : "Enrollment failed",
+          });
+        }
+      }
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["training_classes"] });
+      queryClient.invalidateQueries({ queryKey: ["training_session_registrations"] });
+      invalidateTrainerDashboard(queryClient);
     },
   });
 }

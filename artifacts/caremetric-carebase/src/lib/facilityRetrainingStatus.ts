@@ -18,6 +18,18 @@ export const ORG_WIDE_VISIBILITY_ROLES: ReadonlySet<Role> = new Set([
 
 export type FacilityOverallStatus = "compliant" | "due_soon" | "expired" | "critical" | "unknown";
 
+export type RetrainingNeedReason = "missing" | "due_soon" | "expired";
+
+export interface RetrainingCandidate {
+  employeeId: string;
+  facilityId: string;
+  firstName: string;
+  lastName: string;
+  jobTitle: string | null;
+  reason: RetrainingNeedReason;
+  dueDate: string | null;
+}
+
 export interface FacilityRetrainingStatus {
   facilityId: string;
   facilityName: string;
@@ -37,6 +49,8 @@ export interface FacilityRetrainingStatus {
    * (they reflect zero *visible* rows, not zero actual rows).
    */
   isVisible: boolean;
+  /** Active med-admin staff who need practicum/retraining action. Empty when not visible. */
+  candidates: RetrainingCandidate[];
 }
 
 export interface FacilityVisibilityContext {
@@ -47,6 +61,73 @@ export interface FacilityVisibilityContext {
    * Only consulted for roles outside ORG_WIDE_VISIBILITY_ROLES.
    */
   assignedFacilityIds?: ReadonlySet<string>;
+}
+
+function candidateNameParts(employee: Employee): { firstName: string; lastName: string } {
+  return {
+    firstName: employee.first_name ?? "",
+    lastName: employee.last_name ?? "",
+  };
+}
+
+/**
+ * Active med-admin staff who are not currently practicum-compliant (missing row,
+ * missing status, due soon, or expired). Used by the Retraining Monitor enroll flow.
+ */
+export function listRetrainingCandidates(
+  facilityId: string,
+  employees: Employee[],
+  practicums: Practicum[],
+): RetrainingCandidate[] {
+  const activeStaff = employees.filter(
+    (e) => e.facility_id === facilityId && e.status === "active" && e.administers_medications,
+  );
+  const practicumByEmployee = new Map(
+    practicums
+      .filter((p) => p.facility_id === facilityId)
+      .map((p) => [p.employee_id, p] as const),
+  );
+
+  const candidates: RetrainingCandidate[] = [];
+  for (const employee of activeStaff) {
+    const practicum = practicumByEmployee.get(employee.id);
+    const { firstName, lastName } = candidateNameParts(employee);
+    if (!practicum) {
+      candidates.push({
+        employeeId: employee.id,
+        facilityId,
+        firstName,
+        lastName,
+        jobTitle: employee.job_title ?? null,
+        reason: "missing",
+        dueDate: null,
+      });
+      continue;
+    }
+    if (practicum.status === "compliant") continue;
+    const reason: RetrainingNeedReason =
+      practicum.status === "expired"
+        ? "expired"
+        : practicum.status === "due_soon"
+          ? "due_soon"
+          : "missing";
+    candidates.push({
+      employeeId: employee.id,
+      facilityId,
+      firstName,
+      lastName,
+      jobTitle: employee.job_title ?? null,
+      reason,
+      dueDate: practicum.due_date ?? null,
+    });
+  }
+
+  const order: Record<RetrainingNeedReason, number> = { expired: 0, missing: 1, due_soon: 2 };
+  return candidates.sort((a, b) => {
+    const byReason = order[a.reason] - order[b.reason];
+    if (byReason !== 0) return byReason;
+    return `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`);
+  });
 }
 
 // There is no server-side facility retraining aggregate (the old Express endpoint
@@ -62,7 +143,7 @@ export function buildFacilityRetrainingStatus(
   facilities: Facility[],
   employees: Employee[],
   practicums: Practicum[],
-  visibility?: FacilityVisibilityContext
+  visibility?: FacilityVisibilityContext,
 ): FacilityRetrainingStatus[] {
   const hasOrgWideVisibility =
     !visibility || !visibility.role || ORG_WIDE_VISIBILITY_ROLES.has(visibility.role);
@@ -75,7 +156,7 @@ export function buildFacilityRetrainingStatus(
     const activeStaffIds = new Set(
       employees
         .filter((e) => e.facility_id === facility.id && e.status === "active" && e.administers_medications)
-        .map((e) => e.id)
+        .map((e) => e.id),
     );
     const staffCount = activeStaffIds.size;
     // Practicum status is recomputed nightly purely from due_date, with no server-side
@@ -83,7 +164,7 @@ export function buildFacilityRetrainingStatus(
     // stays "expired" forever. Exclude those rows here so the facility's compliance
     // picture reflects only currently-active staff.
     const facilityPracticums = practicums.filter(
-      (p) => p.facility_id === facility.id && activeStaffIds.has(p.employee_id)
+      (p) => p.facility_id === facility.id && activeStaffIds.has(p.employee_id),
     );
 
     const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
@@ -124,6 +205,26 @@ export function buildFacilityRetrainingStatus(
       nextExpiryDate,
       overallStatus,
       isVisible,
+      candidates: isVisible ? listRetrainingCandidates(facility.id, employees, practicums) : [],
     };
   });
+}
+
+export function summarizeEnrollmentResults(
+  results: Array<{ employeeId: string; success: boolean; status?: string; waitlistPosition?: number | null; error?: string }>,
+): { registered: number; waitlisted: number; failed: number; alreadyEnrolled: number } {
+  let registered = 0;
+  let waitlisted = 0;
+  let failed = 0;
+  let alreadyEnrolled = 0;
+  for (const result of results) {
+    if (!result.success) {
+      failed += 1;
+      continue;
+    }
+    if (result.status === "waitlisted") waitlisted += 1;
+    else if (result.status === "registered" || result.status === "attended") registered += 1;
+    else alreadyEnrolled += 1;
+  }
+  return { registered, waitlisted, failed, alreadyEnrolled };
 }

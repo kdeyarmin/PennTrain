@@ -65,6 +65,8 @@ const Facilities = lazy(() => import("@/pages/app/Facilities"));
 const FacilityDetail = lazy(() => import("@/pages/app/FacilityDetail"));
 const Employees = lazy(() => import("@/pages/app/Employees"));
 const DataImportCenter = lazy(() => import("@/pages/app/DataImportCenter"));
+const InvitationLifecycle = lazy(() => import("@/pages/app/InvitationLifecycle"));
+const EmployeeLifecycleCases = lazy(() => import("@/pages/app/EmployeeLifecycleCases"));
 const EmployeeDetail = lazy(() => import("@/pages/app/EmployeeDetail"));
 const TrainingMatrix = lazy(() => import("@/pages/app/TrainingMatrix"));
 const TrainingTypes = lazy(() => import("@/pages/app/TrainingTypes"));
@@ -138,6 +140,7 @@ const ComplianceBinder = lazy(() => import("@/pages/app/ComplianceBinder"));
 const ComplianceCommandCenter = lazy(() => import("@/pages/app/ComplianceCommandCenter"));
 const InspectionReadiness = lazy(() => import("@/pages/app/InspectionReadiness"));
 const SurveyDay = lazy(() => import("@/pages/app/SurveyDay"));
+const SurveyRehearsals = lazy(() => import("@/pages/app/SurveyRehearsals"));
 const PchAlrOperations = lazy(() => import("@/pages/app/PchAlrOperations"));
 const ShiftHandoffInbox = lazy(() => import("@/pages/app/ShiftHandoffInbox"));
 const RegulatoryCrosswalk = lazy(() => import("@/pages/app/RegulatoryCrosswalk"));
@@ -625,6 +628,12 @@ function Router() {
       <Route path="/app/data-imports">
         {() => <ProtectedRoute component={DataImportCenter} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
+      <Route path="/app/invitations">
+        {() => <ProtectedRoute component={InvitationLifecycle} allowedRoles={["org_admin", "facility_manager", "auditor"]} />}
+      </Route>
+      <Route path="/app/employee-lifecycle">
+        {() => <ProtectedRoute component={EmployeeLifecycleCases} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
       <Route path="/app/employees/:id">
         {() => <ProtectedRoute component={EmployeeDetail} allowedRoles={ORG_ROLES} />}
       </Route>
@@ -663,6 +672,9 @@ function Router() {
       </Route>
       <Route path="/app/survey-day">
         {() => <ProtectedRoute component={SurveyDay} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
+      </Route>
+      <Route path="/app/survey-rehearsals">
+        {() => <ProtectedRoute component={SurveyRehearsals} allowedRoles={REPORTS_VIEW_ROLES} />}
       </Route>
       <Route path="/app/pch-alr-operations">
         {() => <ProtectedRoute component={PchAlrOperations} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}

@@ -1,11 +1,16 @@
 import { Link } from "wouter";
-import { AlertTriangle, CalendarClock, CheckCircle2, ShieldAlert, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, ListTodo, ShieldAlert, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { formatDateForDisplay } from "@/lib/dateUtils";
-import { useWorkforceReadinessForecast } from "@/hooks/useWorkforceReadinessForecast";
+import {
+  useRouteWorkforceReadinessRemediation,
+  useWorkforceReadinessForecast,
+} from "@/hooks/useWorkforceReadinessForecast";
+import { projectWorkforceImpact, remediationActionForReason } from "@/lib/workforceReadinessActions";
+import { useToast } from "@/hooks/use-toast";
 
 function human(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/gu, letter => letter.toUpperCase());
@@ -13,6 +18,8 @@ function human(value: string): string {
 
 export function ReadinessForecastPanel({ facilityId }: { facilityId?: string }) {
   const forecast = useWorkforceReadinessForecast(facilityId);
+  const routeRemediation = useRouteWorkforceReadinessRemediation();
+  const { toast } = useToast();
 
   if (!facilityId) {
     return (
@@ -32,6 +39,28 @@ export function ReadinessForecastPanel({ facilityId }: { facilityId?: string }) 
   const data = forecast.data;
   if (!data) return null;
 
+  const impact = projectWorkforceImpact({
+    activeEmployees: data.activeEmployees,
+    currentBlockers: data.currentBlockers,
+    horizons: data.horizons,
+  });
+
+  const routeActions = async () => {
+    try {
+      const result = await routeRemediation.mutateAsync(facilityId);
+      toast({
+        title: "Readiness remediation routed",
+        description: `${result.workItemsCreated} created · ${result.workItemsRefreshed} refreshed · ~${result.eligibleCoverageImpactPct}% coverage impact`,
+      });
+    } catch (error) {
+      toast({
+        title: "Could not route remediation",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -45,9 +74,19 @@ export function ReadinessForecastPanel({ facilityId }: { facilityId?: string }) 
               names the exact record causing the risk. As of {formatDateForDisplay(data.asOf)}.
             </CardDescription>
           </div>
-          <Badge variant={data.currentBlockers > 0 ? "destructive" : "outline"}>
-            {data.currentBlockers} current blocker{data.currentBlockers === 1 ? "" : "s"}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={data.currentBlockers > 0 ? "destructive" : "outline"}>
+              {data.currentBlockers} current blocker{data.currentBlockers === 1 ? "" : "s"}
+            </Badge>
+            <Button
+              size="sm"
+              disabled={data.risks.length === 0 || routeRemediation.isPending}
+              onClick={() => void routeActions()}
+            >
+              <ListTodo className="mr-2 h-4 w-4" />
+              {routeRemediation.isPending ? "Routing…" : "Route remediation work"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -74,17 +113,46 @@ export function ReadinessForecastPanel({ facilityId }: { facilityId?: string }) 
           ))}
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-md border border-dashed p-3">
+            <p className="text-xs text-muted-foreground">Current coverage impact</p>
+            <p className="mt-1 text-2xl font-bold">{impact.currentCoverageImpactPct}%</p>
+            <p className="text-xs text-muted-foreground">
+              {impact.currentBlockers} of {impact.activeEmployees} staff currently blocked
+            </p>
+          </div>
+          <div className="rounded-md border border-dashed p-3">
+            <p className="text-xs text-muted-foreground">30-day workforce impact</p>
+            <p className="mt-1 text-2xl font-bold">{impact.nearTermCoverageImpactPct}%</p>
+            <p className="text-xs text-muted-foreground">
+              {impact.employeesAtRisk30} employees with risks inside 30 days
+            </p>
+          </div>
+          <div className="rounded-md border border-dashed p-3">
+            <p className="text-xs text-muted-foreground">90-day workforce impact</p>
+            <p className="mt-1 text-2xl font-bold">{impact.quarterCoverageImpactPct}%</p>
+            <p className="text-xs text-muted-foreground">
+              {impact.employeesAtRisk90} employees with risks inside 90 days
+            </p>
+          </div>
+        </div>
+
         {data.risks.length === 0 ? (
           <div className="flex items-center gap-2 rounded-md border border-dashed p-5 text-sm text-emerald-700">
             <CheckCircle2 className="h-4 w-4" /> No record-based readiness risks are due within 90 days.
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold">Employees needing action</h3>
-              <Button asChild size="sm" variant="outline">
-                <Link href="/app/training-matrix">Open compliance matrix</Link>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/app/work">Open work queue</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/app/training-matrix">Open compliance matrix</Link>
+                </Button>
+              </div>
             </div>
             {data.risks.slice(0, 12).map(risk => (
               <div key={risk.employeeId} className="rounded-md border p-3">
@@ -103,26 +171,32 @@ export function ReadinessForecastPanel({ facilityId }: { facilityId?: string }) 
                   </Button>
                 </div>
                 <div className="mt-3 grid gap-2 lg:grid-cols-2">
-                  {risk.reasons.map(reason => (
-                    <div key={`${reason.type}:${reason.sourceId}`} className="flex items-start gap-2 rounded bg-muted/40 p-2 text-sm">
-                      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium">{reason.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {human(reason.reason)}{reason.riskDate ? ` · ${formatDateForDisplay(reason.riskDate)}` : ""}
-                        </p>
+                  {risk.reasons.map(reason => {
+                    const action = remediationActionForReason(reason.type);
+                    return (
+                      <div key={`${reason.type}:${reason.sourceId}`} className="flex items-start gap-2 rounded bg-muted/40 p-2 text-sm">
+                        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium">{reason.label}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {human(reason.reason)}{reason.riskDate ? ` · ${formatDateForDisplay(reason.riskDate)}` : ""}
+                          </p>
+                          <p className="mt-1 text-xs">
+                            <span className="font-medium">{action.label}:</span> {action.description}
+                          </p>
+                        </div>
+                        <Button asChild size="sm" variant="link" className="h-auto p-0">
+                          <Link href={reason.href}>Act</Link>
+                        </Button>
                       </div>
-                      <Button asChild size="sm" variant="link" className="h-auto p-0">
-                        <Link href={reason.href}>Review</Link>
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
             {data.risks.length > 12 && (
               <p className="text-xs text-muted-foreground">
-                Showing 12 of {data.risks.length} employees. Use the compliance matrix and credential center for the complete worklist.
+                Showing 12 of {data.risks.length} employees. Route remediation work to open governed queue items for the full 30-day set.
               </p>
             )}
           </div>

@@ -21,7 +21,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Shield, RefreshCw, LogIn } from "lucide-react";
+import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Shield, RefreshCw, LogIn, Mail } from "lucide-react";
+
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -401,11 +402,16 @@ export default function Users() {
           <h1>Users</h1>
           <p>Manage user accounts and access levels.</p>
         </div>
-        {!isDemoOrganization && (
-          <Button onClick={openCreate} className="shadow-sm">
-            <UserPlus className="mr-2 h-4 w-4" /> Add User
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => navigate("/app/invitations")}>
+            <Mail className="mr-2 h-4 w-4" /> Invitation lifecycle
           </Button>
-        )}
+          {!isDemoOrganization && (
+            <Button onClick={openCreate} className="shadow-sm">
+              <UserPlus className="mr-2 h-4 w-4" /> Add User
+            </Button>
+          )}
+        </div>
       </div>
 
       {isDemoOrganization && (
