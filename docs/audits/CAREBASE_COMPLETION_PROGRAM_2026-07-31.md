@@ -27,11 +27,11 @@ has not yet been demonstrated end to end.
 | 1 | Readiness action planner | Strong; workforce-impact projections + on-demand remediation routing | Forecast panel; `route_workforce_readiness_remediation`; work queue | Journey coverage that proves routed work items reopen/close with forecast maintenance |
 | 2 | Credential renewal inbox | Strong; reviewer inbox + independent approve/reject on existing RPCs | `/app/workforce-operations` Renewals tab; `credential_renewal_submissions`; `review_credential_renewal_submission` | Reminder/SLA queue UI; OCR edge worker; superseding credential history chain |
 | 2 | Assessor/supervisor qualification enforcement | Stronger; practicum observation/verification now duty-gated | `duty_eligibility_rules.practicum_observer`; practicum trigger; certification assessor path | Shared delegation/exception matrix UI across duty keys |
-| 2 | Retraining-to-class loop | Partial | Existing retraining, course, class and waitlist records | Unified governed case through effectiveness review and closure |
+| 2 | Retraining-to-class loop | Partial; cohort enroll shipped | `/trainer/retraining` enroll dialog; `register_for_training_session` | Effectiveness review gate and durable case closure still open |
 | 2 | Interval scheduling | Stronger; same-day split shifts allowed under overlap trigger | `shift_assignments` without one-per-day unique; interval overlap authority | Travel warnings and concurrent pgTAP race coverage |
 
 | 3 | Request-specific survey evidence packets | Partial | Survey Day, evidence/binder and response-room features | Request ledger, immutable versioned manifest/package and packet-only guest access |
-| 3 | Survey rehearsal/random sampling | Missing | No `survey_rehearsal` system of record found | Complete rehearsal workflow and report |
+| 3 | Survey rehearsal/random sampling | Partial; SoR + UI shipped | `/app/survey-rehearsals`; `survey_rehearsals` / items + create/sample/record/complete RPCs | Guest packet export and deeper domain coverage still open |
 | 3 | Plan of correction lifecycle | Partial | Existing plan-of-correction records | Full immutable submitted-version lifecycle, approvals, effectiveness gate and packet |
 | 3 | QAPI meetings/outcomes | Partial | Existing QAPI projects and quality surfaces | Meeting governance, carry-forward commitments and print packet |
 | 3 | Policy campaign center | Partial | Existing policy/acknowledgment capabilities | Version-pinned campaign lifecycle, targeting, escalation, knowledge checks and evidence packet |
@@ -78,3 +78,17 @@ has not yet been demonstrated end to end.
 1. Durable import worker + mapping for remaining seven domains.
 2. Authenticated Playwright journeys for invite repair, lifecycle apply, and readiness routing.
 3. Wave 2 credential renewal inbox and assessor qualification enforcement.
+
+
+## Implemented slice: retraining cohort enroll (2026-07-31 follow-on)
+
+- Retraining Monitor lists staff needing practicum action per facility and supports
+  one-action cohort enrollment into a scheduled/in-progress class via
+  `register_for_training_session` (capacity → waitlist preserved).
+- Unit coverage for candidate ordering and enrollment result summaries.
+
+## Implemented slice: survey rehearsal (2026-07-31 follow-on)
+
+- New regulated tables `survey_rehearsals` and `survey_rehearsal_items` with manager RPCs
+  for create, random/high-risk sample, item results, complete report, and cancel.
+- UI at `/app/survey-rehearsals` for the full draft → sample → score → complete loop.
