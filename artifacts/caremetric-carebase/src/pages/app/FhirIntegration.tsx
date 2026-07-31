@@ -26,6 +26,7 @@ import {
 } from "@/hooks/useFhirIntegration";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 
 function human(value: string) {
   return value.replace(/_/gu, " ").replace(/\b\w/gu, (letter) => letter.toUpperCase());
@@ -39,17 +40,28 @@ function sourceFreshness(source: FhirSource) {
 
 export default function FhirIntegration() {
   const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
-  const credentials = useOrganizationIntegrationCredentials(user?.organizationId ?? undefined);
+  // A platform admin has no organizationId of their own, so keying off it alone left both the
+  // facility list and the credential list permanently empty -- and with the free-form credential-id
+  // input gone, that meant the only source they could create was an unbound `setup_required` one.
+  const scopeOrgId = viewingOrgId ?? user?.organizationId ?? undefined;
+  const unboundCredentialValue = "__unbound__";
+  const facilities = useListFacilities({ organizationId: scopeOrgId });
+  const residentContext = useResidentNavigationContext();
+  const [selectedFacilityId, setSelectedFacilityId] = useState("");
+  const facilityId = selectedFacilityId || residentContext.facilityId || facilities.data?.[0]?.id || "";
+  // Credentials belong to whichever organization owns the facility being configured, which for a
+  // platform admin is not necessarily the viewing org.
+  const selectedFacilityOrgId = useMemo(
+    () => (facilities.data ?? []).find((facility) => facility.id === facilityId)?.organization_id ?? null,
+    [facilities.data, facilityId],
+  );
+  const credentials = useOrganizationIntegrationCredentials(selectedFacilityOrgId ?? scopeOrgId);
   const commandCredentials = useMemo(
     () => (credentials.data ?? []).filter((c) => (c.scopes.includes("commands:write") || c.scopes.includes("fhir:write")) && !credentialIsExpired(c)),
     [credentials.data],
   );
-  const unboundCredentialValue = "__unbound__";
-  const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
-  const residentContext = useResidentNavigationContext();
-  const [selectedFacilityId, setSelectedFacilityId] = useState("");
-  const facilityId = selectedFacilityId || residentContext.facilityId || facilities.data?.[0]?.id || "";
   const workspace = useFhirIntegration(facilityId || undefined);
   const residents = useListResidents({ facilityId: facilityId || undefined });
   const residentNames = useMemo(

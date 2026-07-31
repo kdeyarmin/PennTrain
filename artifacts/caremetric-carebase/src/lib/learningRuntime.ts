@@ -37,6 +37,8 @@ export interface LaunchSession {
   registrationKey: string;
   launchNonce?: string;
   expiresAt: string;
+  /** Sequence number the next commit must use; > 1 when a session is resumed with prior commits. */
+  nextSequenceNumber: number;
   reused: boolean;
 }
 
@@ -119,6 +121,45 @@ export function isCompletedCommit(state: RuntimeCommitState): boolean {
   return state.completionStatus === "completed" || state.successStatus === "passed";
 }
 
+/** Envelope marker on messages sent by a package frame. */
+export const RUNTIME_BRIDGE_SOURCE = "carebase-learning-runtime";
+/** Envelope marker on messages sent by the host player down to a package frame. */
+export const RUNTIME_HOST_SOURCE = "carebase-learning-runtime-host";
+
+/**
+ * A package asking the host for its launch credentials.
+ *
+ * Every other bridge message must carry the launch nonce, which the package cannot know until the
+ * host tells it -- so the handshake request is the one message that is necessarily unauthenticated.
+ * That is safe only because the caller pairs this with an `event.source` identity check against the
+ * frame it created: the reply goes to that frame and nowhere else.
+ */
+export function isRuntimeHandshakeRequest(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const msg = data as Record<string, unknown>;
+  return msg.source === RUNTIME_BRIDGE_SOURCE && msg.type === "hello";
+}
+
+/**
+ * The credentials a package frame needs before it can talk to the host: the nonce every subsequent
+ * message must echo, plus the identifiers SCORM/xAPI content expects at launch.
+ */
+export function buildRuntimeInitMessage(launch: LaunchSession): Record<string, unknown> | null {
+  if (!launch.launchNonce) return null;
+  return {
+    source: RUNTIME_HOST_SOURCE,
+    type: "init",
+    nonce: launch.launchNonce,
+    payload: {
+      sessionId: launch.sessionId,
+      registrationKey: launch.registrationKey,
+      standard: launch.standard,
+      entryPoint: launch.entryPoint,
+      expiresAt: launch.expiresAt,
+    },
+  };
+}
+
 /** Validate a postMessage payload from the package iframe bridge. */
 export function parseRuntimeBridgeMessage(
   data: unknown,
@@ -126,7 +167,7 @@ export function parseRuntimeBridgeMessage(
 ): { type: "commit" | "xapi" | "ready" | "error"; payload: Record<string, unknown> } | null {
   if (!data || typeof data !== "object") return null;
   const msg = data as Record<string, unknown>;
-  if (msg.source !== "carebase-learning-runtime") return null;
+  if (msg.source !== RUNTIME_BRIDGE_SOURCE) return null;
   if (expectedNonce && msg.nonce !== expectedNonce) return null;
   const type = msg.type;
   if (type !== "commit" && type !== "xapi" && type !== "ready" && type !== "error") return null;

@@ -68,6 +68,14 @@ describe("work item queue", () => {
       source_id: "i1",
       deduplication_key: "confidential-intake:i1",
     }))).toBe("/app/confidential-incidents/i1");
+    // A manager escalation is a separate work item from the intake, so it cannot reuse the
+    // intake's deduplication key -- but it must still reach the confidential record, never the
+    // ordinary incident page (which would show a missing incident).
+    expect(sourceRouteForWorkItem(item({
+      source_type: "incident",
+      source_id: "i2",
+      deduplication_key: "confidential-escalation:i2",
+    }))).toBe("/app/confidential-incidents/i2");
     expect(sourceRouteForWorkItem(item({ source_type: "complaint", source_id: "c1" })))
       .toBe("/app/complaints/c1");
     expect(sourceRouteForWorkItem(item({ source_type: "maintenance", source_id: "m1" })))

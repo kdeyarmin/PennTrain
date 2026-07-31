@@ -108,6 +108,17 @@ function legacyRuleExceptionRoute(item: WorkItem): string | null {
 }
 
 /**
+ * Deduplication-key prefixes that mark an `incident`-typed work item as a confidential intake.
+ * Confidential work is deliberately spread across more than one prefix -- the intake itself and a
+ * manager escalation must be separate work items, so they cannot share a key -- and every prefix
+ * has to route to the confidential detail page, not the ordinary incident page.
+ */
+export const CONFIDENTIAL_INTAKE_DEDUPE_PREFIXES = [
+  "confidential-intake:",
+  "confidential-escalation:",
+] as const;
+
+/**
  * Returns the closest safe operational destination for every registered work-item source type.
  * Some source tables have a dedicated detail route; others intentionally land on the filtered
  * operating workspace because their source record is not itself a routable page. Returning a broad,
@@ -169,7 +180,11 @@ export function sourceRouteForWorkItem(item: WorkItem): string | null {
       return "/app/emergency";
     case "incident":
     case "near_miss":
-      return item.deduplication_key.startsWith("confidential-intake:")
+      // Confidential intakes are stored as source_type 'incident' with the intake id, so the
+      // deduplication key is the only thing distinguishing them. Escalations get their own key
+      // prefix rather than reusing 'confidential-intake:', which would collide with the intake's
+      // own work item and silently suppress the escalation row -- so both prefixes route here.
+      return CONFIDENTIAL_INTAKE_DEDUPE_PREFIXES.some((prefix) => item.deduplication_key.startsWith(prefix))
         ? `/app/confidential-incidents/${item.source_id}`
         : `/app/incidents/${item.source_id}`;
     case "complaint":

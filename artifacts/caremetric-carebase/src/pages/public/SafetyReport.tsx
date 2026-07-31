@@ -77,10 +77,20 @@ export default function SafetyReport() {
       }
     };
 
+    // The widget's own error-callback only fires once the API is running, so a script that never
+    // loads at all (egress filtering, outage, blocked domain) would otherwise leave the reporter
+    // with an empty token, a permanently disabled submit button, and no explanation.
+    const onScriptError = () => {
+      if (canceled) return;
+      setToken("");
+      setTurnstileError("Verification could not load. Check your connection, refresh the page, or contact support.");
+    };
+
+    let script: HTMLScriptElement | null = null;
     if (window.turnstile) {
       render();
     } else {
-      let script = document.getElementById("cloudflare-turnstile-api") as HTMLScriptElement | null;
+      script = document.getElementById("cloudflare-turnstile-api") as HTMLScriptElement | null;
       if (!script) {
         script = document.createElement("script");
         script.id = "cloudflare-turnstile-api";
@@ -89,10 +99,15 @@ export default function SafetyReport() {
         document.head.appendChild(script);
       }
       script.addEventListener("load", render);
+      script.addEventListener("error", onScriptError);
     }
 
     return () => {
       canceled = true;
+      if (script) {
+        script.removeEventListener("load", render);
+        script.removeEventListener("error", onScriptError);
+      }
     };
   }, [siteKey]);
 
@@ -101,6 +116,10 @@ export default function SafetyReport() {
     if (value.length < 8) {
       setResolved(null);
       setResolveError(null);
+      // A resolve already in flight has its cleanup set canceled, so its `finally` will not
+      // clear this. Without the reset here the form stays stuck on "Checking facility code…"
+      // as soon as the reporter deletes a character.
+      setResolving(false);
       return;
     }
     let canceled = false;
