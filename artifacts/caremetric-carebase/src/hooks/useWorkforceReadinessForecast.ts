@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 
 export interface WorkforceReadinessForecastReason {
@@ -52,5 +52,33 @@ export function useWorkforceReadinessForecast(facilityId?: string) {
       return data as WorkforceReadinessForecast;
     },
     staleTime: 60_000,
+  });
+}
+
+export interface ReadinessRemediationResult {
+  facilityId: string;
+  activeEmployees: number;
+  employeesAtRisk: number;
+  currentBlockers: number;
+  workItemsCreated: number;
+  workItemsRefreshed: number;
+  eligibleCoverageImpactPct: number;
+  routedAt: string;
+}
+
+export function useRouteWorkforceReadinessRemediation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (facilityId: string): Promise<ReadinessRemediationResult> => {
+      const { data, error } = await supabase.rpc("route_workforce_readiness_remediation" as never, {
+        p_facility_id: facilityId,
+      } as never);
+      if (error) throw error;
+      return data as ReadinessRemediationResult;
+    },
+    onSuccess: (_data, facilityId) => {
+      client.invalidateQueries({ queryKey: ["workforce-readiness-forecast", facilityId] });
+      client.invalidateQueries({ queryKey: ["work-items"] });
+    },
   });
 }

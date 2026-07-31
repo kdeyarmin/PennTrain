@@ -38342,6 +38342,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_user_invitation_resent: {
+        Args: { p_invitation_id: string }
+        Returns: Json
+      }
       reconcile_user_invitation_lifecycle: { Args: never; Returns: Json }
       record_admission_activity: {
         Args: {
@@ -39390,6 +39394,10 @@ export type Database = {
         Args: { p_grant_id: string; p_reason: string }
         Returns: undefined
       }
+      revoke_user_invitation: {
+        Args: { p_invitation_id: string; p_reason: string }
+        Returns: Json
+      }
       rollback_employee_import_job: {
         Args: { p_job_id: string }
         Returns: Json
@@ -39449,6 +39457,10 @@ export type Database = {
           p_subject_id: string
           p_subject_type: string
         }
+        Returns: Json
+      }
+      route_workforce_readiness_remediation: {
+        Args: { p_facility_id: string }
         Returns: Json
       }
       run_workforce_readiness_forecast_maintenance: {

@@ -76,9 +76,9 @@ verify_jwt = true
 [functions.invite-user]
 verify_jwt = true
 
-# Internal cron-only endpoint invoked by pg_net from a pg_cron schedule. pg_net has no user JWT,
-# so verify_jwt stays false, but the function rejects requests without X-CareMetric-Cron-Secret
-# matching the CRON_SHARED_SECRET Edge Function secret.
+[functions.resend-invitation]
+verify_jwt = true
+
 [functions.dispatch-notifications]
 verify_jwt = false
 

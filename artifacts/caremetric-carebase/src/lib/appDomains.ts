@@ -38,6 +38,8 @@ const ORG_ADMINS: Role[] = ["org_admin"];
 const ORG_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_HOME_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const ORG_MANAGERS: Role[] = ["org_admin", "facility_manager"];
+const INVITATION_VIEW_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
+
 const REPORTING_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const CREDENTIAL_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const INSPECTION_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
@@ -77,6 +79,24 @@ const APP_COMMAND_ACTIONS: AppCommandAction[] = [
     domain: "directory",
     roles: ["org_admin", "facility_manager"],
     keywords: ["bulk import", "csv", "roster", "upload staff", "import staff", "migration", "rollback"],
+  },
+  {
+    id: "invitation-lifecycle",
+    label: "Open invitation lifecycle",
+    description: "Review pending invites, resend, revoke, and bulk invite.",
+    path: "/app/invitations",
+    domain: "tenant",
+    roles: INVITATION_VIEW_ROLES,
+    keywords: ["invite", "resend", "revoke", "portal access"],
+  },
+  {
+    id: "employee-lifecycle-cases",
+    label: "Open employee lifecycle cases",
+    description: "Create guided transfer, leave, terminate, and access cases with dependency preview.",
+    path: "/app/employee-lifecycle",
+    domain: "directory",
+    roles: ORG_MANAGERS,
+    keywords: ["lifecycle", "transfer", "leave", "terminate", "rehire"],
   },
   {
     id: "platform-bulk-import-employees",
@@ -215,6 +235,9 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/facilities", label: "Facilities", domain: "directory", roles: ORG_HOME_ROLES, keywords: ["locations", "sites"] },
   { path: "/app/employees", label: "Employees", domain: "directory", roles: ORG_HOME_ROLES, keywords: ["staff", "workforce"] },
   { path: "/app/data-imports", label: "Import and data migration center", domain: "directory", roles: ORG_MANAGERS, keywords: ["csv", "migration", "mapping", "dry run", "rollback", "import history"] },
+  { path: "/app/invitations", label: "Invitation lifecycle", domain: "tenant", roles: INVITATION_VIEW_ROLES, keywords: ["invite", "resend", "revoke", "pending access", "portal invite"] },
+
+  { path: "/app/employee-lifecycle", label: "Employee lifecycle cases", domain: "directory", roles: ORG_MANAGERS, keywords: ["transfer", "leave", "terminate", "rehire", "suspend access", "workforce transition"] },
   { path: "/app/training-matrix", label: "Training matrix", domain: "training", roles: ORG_ROLES, keywords: ["compliance", "due soon"] },
   { path: "/app/training-types", label: "Training types", domain: "training", roles: ORG_MANAGERS, keywords: ["requirements", "categories"] },
   { path: "/app/courses", label: "Training content", domain: "training", roles: ORG_ROLES, keywords: ["catalog", "lessons"] },

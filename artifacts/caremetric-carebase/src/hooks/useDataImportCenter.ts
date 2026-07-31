@@ -1,13 +1,37 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 
-export function useDataImportJobs() {
+export interface DataImportJobFilters {
+  domain?: string;
+  status?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function useDataImportJobs(filters: DataImportJobFilters = {}) {
+  const page = filters.page ?? 0;
+  const pageSize = filters.pageSize ?? 25;
+  const from = page * pageSize;
+  const to = from + pageSize - 1;
+
   return useQuery({
-    queryKey: ["data-import-jobs"],
+    queryKey: ["data-import-jobs", filters],
     queryFn: async () => {
-      const { data, error } = await supabase.from("data_import_jobs").select("*").order("created_at", { ascending: false }).limit(100);
+      let query = supabase
+        .from("data_import_jobs")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to);
+      if (filters.domain && filters.domain !== "all") query = query.eq("domain", filters.domain);
+      if (filters.status && filters.status !== "all") query = query.eq("status", filters.status);
+      if (filters.search?.trim()) {
+        const term = filters.search.trim().replaceAll(",", " ");
+        query = query.ilike("original_file_name", `%${term}%`);
+      }
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data;
+      return { rows: data, total: count ?? 0 };
     },
   });
 }

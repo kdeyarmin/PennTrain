@@ -65,6 +65,8 @@ const Facilities = lazy(() => import("@/pages/app/Facilities"));
 const FacilityDetail = lazy(() => import("@/pages/app/FacilityDetail"));
 const Employees = lazy(() => import("@/pages/app/Employees"));
 const DataImportCenter = lazy(() => import("@/pages/app/DataImportCenter"));
+const InvitationLifecycle = lazy(() => import("@/pages/app/InvitationLifecycle"));
+const EmployeeLifecycleCases = lazy(() => import("@/pages/app/EmployeeLifecycleCases"));
 const EmployeeDetail = lazy(() => import("@/pages/app/EmployeeDetail"));
 const TrainingMatrix = lazy(() => import("@/pages/app/TrainingMatrix"));
 const TrainingTypes = lazy(() => import("@/pages/app/TrainingTypes"));
@@ -623,6 +625,12 @@ function Router() {
       </Route>
       <Route path="/app/data-imports">
         {() => <ProtectedRoute component={DataImportCenter} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/invitations">
+        {() => <ProtectedRoute component={InvitationLifecycle} allowedRoles={["org_admin", "facility_manager", "auditor"]} />}
+      </Route>
+      <Route path="/app/employee-lifecycle">
+        {() => <ProtectedRoute component={EmployeeLifecycleCases} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
       <Route path="/app/employees/:id">
         {() => <ProtectedRoute component={EmployeeDetail} allowedRoles={ORG_ROLES} />}
