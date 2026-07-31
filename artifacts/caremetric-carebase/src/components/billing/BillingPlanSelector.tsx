@@ -392,13 +392,24 @@ export function BillingPlanSelector() {
 
                   {price && !pkg.contact_sales ? (
                     <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                      <p className="font-medium">Automatic quantity: {quantity} {quantity === 1 ? metric.unit : `${metric.unit}s`}</p>
-                      <p className="mt-1 text-muted-foreground">
-                        {measuredQuantity} active now{quantity !== measuredQuantity ? `; ${price.minimum_quantity} minimum` : ""}.
-                        {price.included_quantity > 0
-                          ? ` ${price.included_quantity} included; ${Math.max(0, quantity - price.included_quantity)} overage.`
-                          : ""}
-                      </p>
+                      {price.billing_metric === "flat" || price.pricing_model === "flat" ? (
+                        <>
+                          <p className="font-medium">Flat subscription</p>
+                          <p className="mt-1 text-muted-foreground">
+                            One monthly (or annual) fee for the package — not charged per learner, resident, or staff user.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium">Automatic quantity: {quantity} {quantity === 1 ? metric.unit : `${metric.unit}s`}</p>
+                          <p className="mt-1 text-muted-foreground">
+                            {measuredQuantity} active now{quantity !== measuredQuantity ? `; ${price.minimum_quantity} minimum` : ""}.
+                            {price.included_quantity > 0
+                              ? ` ${price.included_quantity} included; ${Math.max(0, quantity - price.included_quantity)} overage.`
+                              : ""}
+                          </p>
+                        </>
+                      )}
                       {estimatedAmount !== null ? (
                         <p className="mt-2 font-medium">
                           Estimated recurring charge: {formatBillingMoney(estimatedAmount, price.currency)}

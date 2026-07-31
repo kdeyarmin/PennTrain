@@ -28,7 +28,32 @@ describe("billing catalog", () => {
     expect(resolvedBillingQuantity("flat", usage, 20)).toBe(1);
   });
 
-  it("describes and estimates a base-plus-overage price", () => {
+  it("describes and estimates a flat self-serve subscription", () => {
+    const train = {
+      base_amount_cents: 23_900,
+      billing_metric: "flat",
+      currency: "usd",
+      included_quantity: 0,
+      pricing_model: "flat",
+      recurring_interval: "month",
+      unit_amount_cents: null,
+    };
+    const carebase = {
+      base_amount_cents: 49_900,
+      billing_metric: "flat",
+      currency: "usd",
+      included_quantity: 0,
+      pricing_model: "flat",
+      recurring_interval: "month",
+      unit_amount_cents: null,
+    };
+    expect(billingPriceSummary(train)).toBe("$239/month");
+    expect(billingPriceSummary(carebase)).toBe("$499/month");
+    expect(estimatedBillingAmountCents(train, 31)).toBe(23_900);
+    expect(estimatedBillingAmountCents(carebase, 200)).toBe(49_900);
+  });
+
+  it("still estimates legacy base-plus-overage prices when configured", () => {
     const price = {
       base_amount_cents: 23_900,
       billing_metric: "active_learner",

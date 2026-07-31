@@ -1,5 +1,5 @@
 begin;
-select plan(53);
+select plan(56);
 
 select results_eq(
   $$ select feature_key from public.feature_definitions where feature_key like 'modules.%' order by feature_key $$,
@@ -28,13 +28,13 @@ select results_eq(
 );
 select is(
   (select pricing_strategy from public.packages where name = 'CareMetric Train'),
-  'hybrid',
-  'Train uses a base fee plus active-learner overage strategy'
+  'flat_rate',
+  'Train uses a flat monthly subscription strategy'
 );
 select is(
   (select pricing_strategy from public.packages where name = 'CareMetric CareBase'),
-  'hybrid',
-  'CareBase uses a base fee plus active-resident overage strategy'
+  'flat_rate',
+  'CareBase uses a flat monthly subscription strategy'
 );
 select is(
   (select contact_sales from public.packages where name = 'CareMetric Portfolio'),
@@ -53,33 +53,51 @@ select is(
 );
 select is(
   (select billing_metric from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
-   where p.name = 'CareMetric Train' and bp.recurring_interval = 'month'),
-  'active_learner',
-  'Train prices scale by active learner'
+   where p.name = 'CareMetric Train' and bp.recurring_interval = 'month' and bp.is_active and bp.is_primary),
+  'flat',
+  'Train monthly self-serve price is a flat subscription'
 );
 select is(
   (select billing_metric from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
-   where p.name = 'CareMetric CareBase' and bp.recurring_interval = 'month'),
-  'active_resident',
-  'CareBase prices scale by active resident rather than staff user'
+   where p.name = 'CareMetric CareBase' and bp.recurring_interval = 'month' and bp.is_active and bp.is_primary),
+  'flat',
+  'CareBase monthly self-serve price is a flat subscription'
 );
 select is(
   (select included_quantity from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
-   where p.name = 'CareMetric Train' and bp.recurring_interval = 'month'),
-  25,
-  'Train includes the first 25 active learners'
+   where p.name = 'CareMetric Train' and bp.recurring_interval = 'month' and bp.is_active and bp.is_primary),
+  0,
+  'Train has no included-quantity overage allotment'
+);
+select is(
+  (select pricing_model from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
+   where p.name = 'CareMetric CareBase' and bp.recurring_interval = 'month' and bp.is_active and bp.is_primary),
+  'flat',
+  'CareBase pricing model is flat (no per-person overage)'
 );
 select is(
   (select base_amount_cents from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
-   where p.name = 'CareMetric CareBase' and bp.recurring_interval = 'month'),
+   where p.name = 'CareMetric CareBase' and bp.recurring_interval = 'month' and bp.is_active and bp.is_primary),
   49900,
-  'CareBase has a transparent monthly base fee'
+  'CareBase has a transparent monthly flat fee'
 );
 select is(
+  (select base_amount_cents from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
+   where p.name = 'CareMetric Train' and bp.recurring_interval = 'month' and bp.is_active and bp.is_primary),
+  23900,
+  'Train has a transparent monthly flat fee'
+);
+select is(
+  (select unit_amount_cents from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
+   where p.name = 'CareMetric CareBase' and bp.recurring_interval = 'month' and bp.is_active and bp.is_primary),
+  null,
+  'CareBase has no per-unit overage amount'
+);
+select ok(
   (select count(*)::integer from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
-   where p.name in ('CareMetric Train', 'CareMetric CareBase') and bp.stripe_price_id is null),
-  4,
-  'draft prices require explicit Stripe Price mapping before checkout'
+   where p.name in ('CareMetric Train', 'CareMetric CareBase')
+     and bp.is_active and bp.is_primary and bp.stripe_price_id is null) >= 2,
+  'active primary Train/CareBase prices require explicit Stripe Price mapping before checkout'
 );
 select ok(
   exists (select 1 from pg_indexes where schemaname = 'public'
@@ -89,7 +107,7 @@ select ok(
 select lives_ok(
   $$ update public.package_billing_prices bp set base_amount_cents = 24000
      from public.packages p where p.id = bp.package_id and p.name = 'CareMetric Train'
-       and bp.recurring_interval = 'month' and bp.is_primary $$,
+       and bp.recurring_interval = 'month' and bp.is_primary and bp.is_active $$,
   'platform price edits synchronize the package starting price'
 );
 select is(
