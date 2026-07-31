@@ -37,6 +37,9 @@ const KIND_LABEL: Record<GrantKind, string> = {
   portal: "Resident portal",
 };
 
+/** Per-table row cap. Each source is fetched separately, so a full page means "there may be more". */
+const GRANT_PAGE_SIZE = 200;
+
 function isActive(grant: UnifiedGrant) {
   if (grant.revokedAt) return false;
   if (grant.expiresAt && new Date(grant.expiresAt).getTime() <= Date.now()) return false;
@@ -58,34 +61,57 @@ export default function GuestAccessCenter() {
   const orgId = viewingOrgId ?? user?.organizationId ?? undefined;
 
   const grantsQuery = useQuery({
-    queryKey: ["guest-access-center", orgId],
+    queryKey: ["guest-access-center", orgId, statusFilter],
     enabled: !!orgId,
-    queryFn: async (): Promise<UnifiedGrant[]> => {
+    queryFn: async (): Promise<{ rows: UnifiedGrant[]; truncated: boolean }> => {
+      // Status has to be decided on the server. Each table is capped at GRANT_PAGE_SIZE newest
+      // rows, so filtering to Active only after the fetch means a long-lived grant that happens to
+      // be older than a page full of revoked ones never appears -- and a grant nobody can see is a
+      // grant nobody can revoke, which is the whole purpose of this page.
+      const nowIso = new Date().toISOString();
+      const scopeStatus = <T extends { is: any; or: any }>(query: T): T => {
+        if (statusFilter === "active") {
+          return query.is("revoked_at", null).or(`expires_at.is.null,expires_at.gt.${nowIso}`) as T;
+        }
+        if (statusFilter === "inactive") {
+          return query.or(`revoked_at.not.is.null,expires_at.lte.${nowIso}`) as T;
+        }
+        return query;
+      };
+
       const [evidence, moveIn, agreements, portals] = await Promise.all([
-        supabase
-          .from("evidence_guest_grants")
-          .select("id, guest_label, expires_at, revoked_at, created_at, collection_id, organization_id")
-          .eq("organization_id", orgId!)
+        scopeStatus(
+          supabase
+            .from("evidence_guest_grants")
+            .select("id, guest_label, expires_at, revoked_at, created_at, collection_id, organization_id")
+            .eq("organization_id", orgId!),
+        )
           .order("created_at", { ascending: false })
-          .limit(200),
-        supabase
-          .from("move_in_guest_grants")
-          .select("id, guest_label, expires_at, revoked_at, created_at, workspace_id, organization_id")
-          .eq("organization_id", orgId!)
+          .limit(GRANT_PAGE_SIZE),
+        scopeStatus(
+          supabase
+            .from("move_in_guest_grants")
+            .select("id, guest_label, expires_at, revoked_at, created_at, workspace_id, organization_id")
+            .eq("organization_id", orgId!),
+        )
           .order("created_at", { ascending: false })
-          .limit(200),
-        supabase
-          .from("resident_agreement_guest_grants")
-          .select("id, guest_label, expires_at, revoked_at, created_at, resident_id, organization_id")
-          .eq("organization_id", orgId!)
+          .limit(GRANT_PAGE_SIZE),
+        scopeStatus(
+          supabase
+            .from("resident_agreement_guest_grants")
+            .select("id, guest_label, expires_at, revoked_at, created_at, resident_id, organization_id")
+            .eq("organization_id", orgId!),
+        )
           .order("created_at", { ascending: false })
-          .limit(200),
-        supabase
-          .from("resident_portal_grants")
-          .select("id, designated_person_name, relationship_label, expires_at, revoked_at, created_at, resident_id, organization_id")
-          .eq("organization_id", orgId!)
+          .limit(GRANT_PAGE_SIZE),
+        scopeStatus(
+          supabase
+            .from("resident_portal_grants")
+            .select("id, designated_person_name, relationship_label, expires_at, revoked_at, created_at, resident_id, organization_id")
+            .eq("organization_id", orgId!),
+        )
           .order("created_at", { ascending: false })
-          .limit(200),
+          .limit(GRANT_PAGE_SIZE),
       ]);
 
       const firstError = evidence.error ?? moveIn.error ?? agreements.error ?? portals.error;
@@ -136,19 +162,30 @@ export default function GuestAccessCenter() {
         })),
       ];
 
-      return rows.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
+      // A source that came back exactly full may have more behind it. Say so rather than let the
+      // list read as complete.
+      const truncated = [evidence, moveIn, agreements, portals].some(
+        (result) => (result.data ?? []).length >= GRANT_PAGE_SIZE,
+      );
+
+      return {
+        rows: rows.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))),
+        truncated,
+      };
     },
   });
 
   const filtered = useMemo(() => {
-    let rows = grantsQuery.data ?? [];
+    let rows = grantsQuery.data?.rows ?? [];
     if (kindFilter !== "all") rows = rows.filter((r) => r.kind === kindFilter);
+    // Status is already scoped server-side; re-applying it here only trims rows that crossed their
+    // expiry between the query and this render.
     if (statusFilter === "active") rows = rows.filter(isActive);
     if (statusFilter === "inactive") rows = rows.filter((r) => !isActive(r));
     return rows;
   }, [grantsQuery.data, kindFilter, statusFilter]);
 
-  const activeCount = (grantsQuery.data ?? []).filter(isActive).length;
+  const activeCount = (grantsQuery.data?.rows ?? []).filter(isActive).length;
 
   const revoke = async () => {
     if (!revokeTarget || reason.trim().length < 5) return;
@@ -192,10 +229,17 @@ export default function GuestAccessCenter() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.data?.length ?? "—"}</p><p className="text-sm text-muted-foreground">Grants in view</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading ? "—" : activeCount}</p><p className="text-sm text-muted-foreground">Currently active</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.data?.rows.length ?? "—"}</p><p className="text-sm text-muted-foreground">Grants in view</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading ? "—" : activeCount}</p><p className="text-sm text-muted-foreground">Active in view</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{canManage ? "Revoke" : "View"}</p><p className="text-sm text-muted-foreground">{canManage ? "Managers may revoke with reason" : "Read-only for auditors"}</p></CardContent></Card>
       </div>
+
+      {grantsQuery.data?.truncated ? (
+        <p className="text-sm text-amber-700">
+          At least one grant type returned a full page of {GRANT_PAGE_SIZE} rows, so older grants may not be
+          listed. Narrow by grant type to see the rest.
+        </p>
+      ) : null}
 
       <div className="filter-bar premium-card flex flex-wrap gap-2">
         <Select value={kindFilter} onValueChange={setKindFilter}>

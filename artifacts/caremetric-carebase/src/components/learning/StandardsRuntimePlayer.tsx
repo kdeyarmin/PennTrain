@@ -11,8 +11,10 @@ import {
   useStartLearningRuntimeSession,
 } from "@/hooks/useLearningRuntime";
 import {
+  buildRuntimeInitMessage,
   courseObjectIri,
   isCompletedCommit,
+  isRuntimeHandshakeRequest,
   normalizeRuntimeCommitState,
   parseRuntimeBridgeMessage,
   XAPI_VERBS,
@@ -139,9 +141,31 @@ export function StandardsRuntimePlayer({
     }
   };
 
+  // The frame is sandboxed without allow-same-origin, so its origin is opaque and it cannot read
+  // anything from this page. The nonce therefore has to be handed to it explicitly, or no package
+  // can ever produce a message parseRuntimeBridgeMessage accepts and the bridge is inert. targetOrigin
+  // has to be "*" because an opaque origin cannot be named -- the message still goes only to this
+  // one frame's window, and `postToFrame` is never called with anything but our own iframe.
+  const sendRuntimeInit = useCallback((session: LaunchSession) => {
+    const frame = iframeRef.current?.contentWindow;
+    const message = buildRuntimeInitMessage(session);
+    if (!frame || !message) return;
+    frame.postMessage(message, "*");
+  }, []);
+
   useEffect(() => {
     if (!launch?.launchNonce) return;
     const onMessage = (event: MessageEvent) => {
+      // Only the frame we launched may drive this session. Without this, any window holding the
+      // nonce could commit progress on the learner's behalf.
+      if (!iframeRef.current?.contentWindow || event.source !== iframeRef.current.contentWindow) return;
+
+      // The one message a package can send before it has been given the nonce.
+      if (isRuntimeHandshakeRequest(event.data)) {
+        sendRuntimeInit(launch);
+        return;
+      }
+
       const parsed = parseRuntimeBridgeMessage(event.data, launch.launchNonce);
       if (!parsed) return;
       if (parsed.type === "ready") {
@@ -169,7 +193,7 @@ export function StandardsRuntimePlayer({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [applyCommit, ingestXapi, launch]);
+  }, [applyCommit, ingestXapi, launch, sendRuntimeInit]);
 
   if (packages.isLoading) {
     return (
@@ -232,6 +256,9 @@ export function StandardsRuntimePlayer({
               className="h-[min(70vh,520px)] w-full rounded-md border bg-background"
               sandbox="allow-scripts allow-forms allow-popups"
               // Intentionally omit allow-same-origin per Phase 4: bridge only, no cookie jar.
+              // Push the launch credentials as soon as the document is up. A package that registers
+              // its listener later can still ask for them with a `hello` message.
+              onLoad={() => sendRuntimeInit(launch)}
             />
           )}
 
