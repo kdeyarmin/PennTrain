@@ -13,16 +13,34 @@ name: Deploy migrations
 # advisors). Instead this runs only after the "CI" workflow finishes successfully on main, and
 # checks out exactly the SHA CI validated, so production is never changed ahead of validation.
 #
-# Required repository secrets (Settings -> Secrets and variables -> Actions):
+# Required repository secrets (Settings -> Secrets and variables -> Actions), preferably on
+# the `production` Environment:
 #   SUPABASE_ACCESS_TOKEN  -- a Supabase personal access token (https://supabase.com/dashboard/account/tokens)
 #   SUPABASE_DB_PASSWORD   -- the project's database password (Project Settings -> Database)
+#
+# Required repository variable (Settings -> Secrets and variables -> Actions -> Variables):
+#   SUPABASE_PROJECT_ID    -- project ref (fallback hardcoded below if unset, for first migrate)
 
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Drift checks only — do not push migrations or deploy functions
+        type: boolean
+        default: false
+      force:
+        description: Force deploy even if this SHA was already deployed or paths are unchanged
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
 
 # Never let two deploys run against the database at once; queue them instead of cancelling,
 # since cancelling a half-applied `db push` is worse than waiting.
@@ -33,77 +51,286 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # Gate on a *successful* CI run on main, or a manual dispatch that is itself on main. This
     # keeps production changes behind CI validation and prevents deploying an arbitrary ref.
     if: >-
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    environment: production
     permissions:
       contents: read
+      actions: read
+      issues: write
+    outputs:
+      skipped: ${{ steps.gate.outputs.skip }}
+      reason: ${{ steps.gate.outputs.reason }}
+      deploy_sha: ${{ steps.gate.outputs.deploy_sha }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_ID: xsqobvvreaovwibxwyvv
+      # Prefer repository/environment variable; fall back to the known prod ref so first
+      # deploys keep working before the variable is created.
+      SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || 'xsqobvvreaovwibxwyvv' }}
+      # Always the SHA we check out and deploy — NOT github.sha on workflow_run (which is the
+      # tip of main at dispatch time and can lag/lead the validated commit).
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           # Deploy exactly the commit CI validated; for a manual dispatch, main's tip. Never a
           # caller-selected feature ref, so unmerged migrations cannot reach production.
+          # fetch-depth 0 so the path short-circuit can diff against the prior deploy SHA.
           ref: ${{ github.event.workflow_run.head_sha || 'refs/heads/main' }}
+          fetch-depth: 0
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .node-version
-
-      # The drift check below (scripts/check-migration-drift.mjs) imports libpg-query from
-      # node_modules, so dependencies must be installed the same way CI installs them.
-      - name: Enable pnpm
+      - name: Decide whether deploy is needed
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          corepack enable
-          corepack prepare pnpm@11.13.0 --activate
+          set -euo pipefail
+          SHA="${DEPLOY_SHA}"
+          RUN_ID="${{ github.run_id }}"
+          REPO="${{ github.repository }}"
+          STAMP_PREFIX="edge-function-deploy-stamp-"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          echo "Deploy candidate SHA=${SHA} dry_run=${DRY_RUN}"
+          echo "deploy_sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+          # Stamp artifact name embeds the *validated* DEPLOY_SHA so we never trust the
+          # workflow run's REST head_sha (on workflow_run that is tip-of-main at dispatch,
+          # which can disagree with the commit we actually checked out).
+          stamp_name_for() {
+            echo "${STAMP_PREFIX}$1"
+          }
+
+          has_stamp_for_sha() {
+            local run_id="$1"
+            local want="$2"
+            local want_name
+            want_name=$(stamp_name_for "$want")
+            local count
+            count=$(
+              gh api "repos/${REPO}/actions/runs/${run_id}/artifacts" \
+                --jq "[.artifacts[] | select(.name==\"${want_name}\")] | length"
+            )
+            [ "${count}" -gt 0 ]
+          }
+
+          first_stamp_sha_from_run() {
+            local run_id="$1"
+            local name
+            name=$(
+              gh api "repos/${REPO}/actions/runs/${run_id}/artifacts" \
+                --jq "[.artifacts[] | select(.name | startswith(\"${STAMP_PREFIX}\")) | .name] | .[0] // empty"
+            )
+            if [ -z "${name}" ] || [ "${name}" = "null" ]; then
+              return 1
+            fi
+            echo "${name#"${STAMP_PREFIX}"}"
+          }
+
+          # Dry-run always proceeds (operators want drift verification on demand).
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "reason=dry-run" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Manual force bypasses same-SHA and path short-circuits.
+          if [ "${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force == 'true' }}" = "true" ]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "reason=force" >> "$GITHUB_OUTPUT"
+            echo "Force deploy requested"
+            exit 0
+          fi
+
+          # 1) Same-SHA already *really* deployed (stamp artifact named with this SHA) → no-op.
+          # Path-skip successes for this SHA do not count — they never touched production.
+          # Scan recent successful deploy runs (do NOT filter by run head_sha — that is unreliable
+          # under workflow_run).
+          mapfile -t RECENT < <(
+            gh api "repos/${REPO}/actions/workflows/deploy-migrations.yml/runs?status=completed&per_page=50" \
+              --jq ".workflow_runs[] | select(.conclusion==\"success\" and .id != ${RUN_ID}) | .id"
+          )
+          for rid in "${RECENT[@]+"${RECENT[@]}"}"; do
+            if has_stamp_for_sha "$rid" "$SHA"; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "reason=same-sha-already-deployed" >> "$GITHUB_OUTPUT"
+              echo "SHA ${SHA} already deployed in run ${rid} (stamp artifact present)"
+              exit 0
+            fi
+          done
+
+          # 2) Path short-circuit vs last *real* deploy (run that uploaded a stamp keyed by SHA).
+          PREV_SHA=""
+          for rid in "${RECENT[@]+"${RECENT[@]}"}"; do
+            if PREV_SHA=$(first_stamp_sha_from_run "$rid"); then
+              echo "Last real deploy: run ${rid} sha ${PREV_SHA}"
+              break
+            fi
+            PREV_SHA=""
+          done
+
+          if [ -n "${PREV_SHA}" ] && [ "${PREV_SHA}" != "${SHA}" ]; then
+            CHANGED=$(
+              git diff --name-only "${PREV_SHA}" "${SHA}" -- \
+                supabase/migrations \
+                supabase/functions \
+                supabase/config.toml \
+                deno.lock \
+                scripts/check-migration-drift.mjs \
+                scripts/check-edge-function-drift.mjs \
+                scripts/stamp-edge-function-deploy.mjs \
+                .github/workflows/deploy-migrations.yml \
+                || true
+            )
+            if [ -z "${CHANGED}" ]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "reason=no-supabase-changes" >> "$GITHUB_OUTPUT"
+              echo "No migration/function/config changes since ${PREV_SHA}"
+              exit 0
+            fi
+            echo "Supabase-related changes since ${PREV_SHA}:"
+            # shellcheck disable=SC2086
+            printf '  %s\n' ${CHANGED}
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "reason=deploy" >> "$GITHUB_OUTPUT"
+
+      - name: Skip remaining steps when not needed
+        if: steps.gate.outputs.skip == 'true'
+        run: echo "Skipping deploy (${{ steps.gate.outputs.reason }})"
+
+      - uses: ./.github/actions/setup-node-pnpm
+        if: steps.gate.outputs.skip != 'true'
 
       # Pin both the setup action and the CLI version to match the CI database job, so
       # push behavior reproduces what CI validated.
-      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
-        with:
-          version: 2.109.1
+      - uses: ./.github/actions/setup-supabase-cli
+        if: steps.gate.outputs.skip != 'true'
 
       - name: Verify deploy secrets are configured
+        if: steps.gate.outputs.skip != 'true'
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD repository secrets must be set before this workflow can deploy. See MIGRATION_DEPLOYMENT_AUDIT.md."
+            echo "::error::SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD repository/environment secrets must be set before this workflow can deploy. See MIGRATION_DEPLOYMENT_AUDIT.md."
             exit 1
           fi
+          if [ -z "$SUPABASE_PROJECT_ID" ]; then
+            echo "::error::SUPABASE_PROJECT_ID variable is empty."
+            exit 1
+          fi
+          echo "Project ref: $SUPABASE_PROJECT_ID"
 
       - name: Link Supabase project
+        if: steps.gate.outputs.skip != 'true'
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       # --include-all backfills any pending migration whose version sorts before one already
       # applied on the remote (the out-of-order situation this project hit); a plain `db push`
       # would refuse it and leave drift, which the verify step below would then flag.
       - name: Push pending migrations
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
         run: supabase db push --include-all
 
       - name: Verify no migration drift remains
+        if: steps.gate.outputs.skip != 'true'
         run: node scripts/check-migration-drift.mjs
 
       # Deploy every edge function with its supabase/config.toml settings (verify_jwt et al.)
       # after the database is migrated, so functions never run ahead of the schema they need.
       # Presence drift is re-checked after deploy; a content stamp is archived for operators.
       - name: Deploy edge functions
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
         run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Verify edge function presence (no pending/orphan slugs)
+        if: steps.gate.outputs.skip != 'true'
         run: node scripts/check-edge-function-drift.mjs
 
       - name: Stamp deployed function content digests
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        env:
+          # Stamp must record the validated deploy SHA, not workflow_run tip-of-main.
+          DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
         run: node scripts/stamp-edge-function-deploy.mjs edge-function-deploy-stamp.json
 
       - name: Upload edge function deploy stamp
-        uses: actions/upload-artifact@v4
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: edge-function-deploy-stamp
+          # Name embeds DEPLOY_SHA so the gate never confuses workflow_run tip-of-main
+          # with the commit that was actually deployed.
+          name: edge-function-deploy-stamp-${{ env.DEPLOY_SHA }}
           path: edge-function-deploy-stamp.json
+
+  # Survives job timeouts/cancellations of `deploy` (in-job `if: failure()` does not run
+  # when the job is cancelled by timeout-minutes).
+  notify-failure:
+    needs: deploy
+    if: always() && needs.deploy.result != 'success' && needs.deploy.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open issue on deploy failure
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          DEPLOY_SHA: ${{ needs.deploy.outputs.deploy_sha || github.event.workflow_run.head_sha || github.sha }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+        with:
+          script: |
+            const short = (process.env.DEPLOY_SHA || 'unknown').slice(0, 7);
+            const result = process.env.DEPLOY_RESULT || 'unknown';
+            const title = `[deploy] Production migration/function deploy failed (${short})`;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Deploy workflow ended with \`${result}\` for \`${process.env.DEPLOY_SHA}\`.`,
+              '',
+              `- Run: ${runUrl}`,
+              `- Event: ${context.eventName}`,
+              '',
+              'Opened automatically by `deploy-migrations.yml` (`notify-failure` job). Close after a successful re-run or a manual fix.',
+            ].join('\n');
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 30,
+            });
+            const existing = open.find((i) => i.title === title || (i.title.includes(short) && i.title.startsWith('[deploy]')));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Another non-success for this SHA (result=${result}):\n${runUrl}`,
+              });
+              return;
+            }
+
+            try {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['deploy-failure'],
+              });
+            } catch (err) {
+              // Label may not exist yet — create without labels.
+              core.warning(`Create with label failed (${err.message}); retrying without labels`);
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }

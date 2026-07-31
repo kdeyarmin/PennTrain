@@ -5,15 +5,85 @@ on:
     - cron: "17 13 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   official-source-health:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
+      issues: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
+
       - name: Verify official PA DHS links and human-review freshness
+        id: check
         run: node scripts/check-dhs-sources.mjs
+
+      - name: Upload source-check summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dhs-source-check-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/caremetric-carebase/src/lib/dhsFormsLibrary.ts
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Open or update issue on failure
+        if: failure()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const title = '[dhs] Official PA DHS source freshness check failed';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              'The weekly DHS source freshness job failed.',
+              '',
+              `- Run: ${runUrl}`,
+              '- Script: `scripts/check-dhs-sources.mjs`',
+              '- Typical causes: PA.gov link dead, content-type change, or `DHS_FORMS_LAST_VERIFIED` older than 45 days.',
+              '',
+              'Opened automatically by `dhs-source-freshness.yml`. Close after sources are re-verified and the workflow is green.',
+            ].join('\n');
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 50,
+            });
+            const existing = open.find((i) => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Still failing:\n${runUrl}`,
+              });
+              return;
+            }
+
+            try {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['dhs-source-stale'],
+              });
+            } catch (err) {
+              core.warning(`Create with label failed (${err.message}); retrying without labels`);
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }
