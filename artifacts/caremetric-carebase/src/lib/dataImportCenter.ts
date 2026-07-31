@@ -5,6 +5,36 @@ export const IMPORT_DOMAINS = [
 
 export type ImportDomain = typeof IMPORT_DOMAINS[number];
 
+export type ImportDomainAvailability = "active" | "template_only";
+
+export interface ImportDomainDefinition {
+  domain: ImportDomain;
+  availability: ImportDomainAvailability;
+  availabilityLabel: "Active" | "Template only";
+  description: string;
+}
+
+/**
+ * This is the product contract, not a statement that a CSV template has a
+ * processor. A domain must not become active until its preview, apply,
+ * matching, receipt, authorization, and journey coverage are complete.
+ */
+export const IMPORT_DOMAIN_DEFINITIONS: readonly ImportDomainDefinition[] = IMPORT_DOMAINS.map((domain) => {
+  const availability: ImportDomainAvailability = domain === "employees" ? "active" : "template_only";
+  return {
+    domain,
+    availability,
+    availabilityLabel: availability === "active" ? "Active" : "Template only",
+    description: availability === "active"
+      ? "Dry-run and apply processor available"
+      : "Canonical template for migration planning; upload is not yet available",
+  };
+});
+
+export function canUploadImportDomain(domain: ImportDomain): boolean {
+  return IMPORT_DOMAIN_DEFINITIONS.find((definition) => definition.domain === domain)?.availability === "active";
+}
+
 const columns: Record<ImportDomain, readonly string[]> = {
   employees: ["employee_number", "first_name", "last_name", "email", "facility_name", "job_title", "hire_date", "department", "phone", "status", "trainer_status", "administers_medications"],
   training_records: ["employee_number", "course_code", "completion_date", "expiration_date", "source"],
