@@ -35803,6 +35803,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      start_learning_runtime_session: {
+        Args: {
+          p_assignment_id: string
+          p_package_id?: string | null
+        }
+        Returns: Json
+      }
       commit_learning_runtime_state: {
         Args: {
           p_idempotency_key: string

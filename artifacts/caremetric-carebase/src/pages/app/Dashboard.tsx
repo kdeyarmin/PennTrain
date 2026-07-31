@@ -21,6 +21,7 @@ import { Donut, RangeBar } from "@/components/charts";
 import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCircle, ChevronRight, TrendingUp, Shield, Activity, UserPlus, FileText, LayoutGrid, Bell, GraduationCap, Upload, Download, HelpCircle, Info, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { supabase } from "@/lib/supabase";
+import { dashboardMetricDefinition, DASHBOARD_SCOPE_LABEL } from "@/lib/metricContract";
 
 interface RecentUpload {
   id: string;
@@ -84,7 +85,7 @@ function buildActionPlan({
   if (criticalAlertsCount > 0) actions.push({
     id: "critical-alerts",
     title: `${criticalAlertsCount} critical alert${criticalAlertsCount === 1 ? "" : "s"} open`,
-    description: "Review critical alerts before they become survey findings.",
+    description: dashboardMetricDefinition("critical_alerts")?.definition ?? "Review critical alerts before they become survey findings.",
     href: "/app/alerts",
     label: "Review alerts",
     priority: "Critical",
@@ -397,7 +398,7 @@ export default function OrgDashboard() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-red-900">
-              {criticalAlertsCount} Critical Alert{criticalAlertsCount > 1 ? "s" : ""} Require Attention
+              {criticalAlertsCount} {dashboardMetricDefinition("critical_alerts")?.label ?? "Critical alerts"} require attention
             </p>
             <p className="text-sm text-red-700/80 mt-0.5">{firstCriticalTitle}</p>
           </div>
@@ -457,8 +458,8 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-                  label="Compliant Requirements"
-                  tooltip="Training and practicum requirements (across all facilities) that currently meet Pennsylvania Chapter 2800 compliance status."
+                  label={dashboardMetricDefinition("compliant_requirements")?.label ?? "Compliant Requirements"}
+                  tooltip={`${dashboardMetricDefinition("compliant_requirements")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}
                 />
                 <p className="stat-value text-emerald-600">{summary.compliantCount}</p>
               </div>
@@ -476,8 +477,8 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-                  label="Due Within 30 Days"
-                  tooltip="Training and practicum requirements with a due date in the next 30 days."
+                  label={dashboardMetricDefinition("due_within_30_days")?.label ?? "Due Within 30 Days"}
+                  tooltip={`${dashboardMetricDefinition("due_within_30_days")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}
                 />
                 <p className="stat-value text-amber-600">{summary.dueSoon30Count}</p>
               </div>
@@ -495,8 +496,8 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-                  label="Due Within 90 Days"
-                  tooltip="Training and practicum requirements with a due date in the next 90 days -- this includes the items already counted in Due Within 30 Days."
+                  label={dashboardMetricDefinition("due_within_90_days")?.label ?? "Due Within 90 Days"}
+                  tooltip={`${dashboardMetricDefinition("due_within_90_days")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}
                 />
                 <p className="stat-value text-orange-600">{summary.dueSoon90Count}</p>
               </div>
@@ -514,8 +515,8 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-                  label="Expired Requirements"
-                  tooltip="Training and practicum requirements that are past their due date and have not been renewed."
+                  label={dashboardMetricDefinition("expired_requirements")?.label ?? "Expired Requirements"}
+                  tooltip={`${dashboardMetricDefinition("expired_requirements")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}
                 />
                 <p className="stat-value text-red-600">{summary.expiredCount}</p>
               </div>
@@ -533,8 +534,8 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-                  label="Trainers Needing Recertification"
-                  tooltip="Active staff marked as trainers who have at least one training requirement that is due soon or expired, and must recertify to keep training others."
+                  label={dashboardMetricDefinition("trainers_needing_recert")?.label ?? "Trainers Needing Recertification"}
+                  tooltip={`${dashboardMetricDefinition("trainers_needing_recert")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}
                 />
                 <p className="stat-value text-purple-600">{summary.trainersDueForRecert}</p>
               </div>
@@ -552,8 +553,8 @@ export default function OrgDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <StatLabel
-                  label="Recent Uploads"
-                  tooltip="Training documents (certificates, rosters, and other supporting files) uploaded to the system in the last 14 days."
+                  label={dashboardMetricDefinition("recent_uploads")?.label ?? "Recent Uploads"}
+                  tooltip={`${dashboardMetricDefinition("recent_uploads")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}
                 />
                 <p className="stat-value text-blue-600">{summary.recentUploadsCount}</p>
               </div>
@@ -695,10 +696,10 @@ export default function OrgDashboard() {
                 </div>
                 <p className="text-xl font-bold">{summary.totalEmployees}</p>
               </Link>
-              <Link href="/app/alerts?status=open" className="rounded-lg bg-muted/50 p-3.5 block transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              <Link href={dashboardMetricDefinition("open_alerts")?.href ?? "/app/alerts"} className="rounded-lg bg-muted/50 p-3.5 block transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background" title={`${dashboardMetricDefinition("open_alerts")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}>
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <AlertTriangle className="h-4 w-4" />
-                  <span className="text-xs font-medium">Open Alerts</span>
+                  <span className="text-xs font-medium">{dashboardMetricDefinition("open_alerts")?.label ?? "Open alerts"}</span>
                 </div>
                 <p className="text-xl font-bold">{summary.openAlertsCount}</p>
               </Link>

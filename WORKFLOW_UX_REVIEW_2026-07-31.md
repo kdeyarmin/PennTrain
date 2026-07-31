@@ -134,3 +134,31 @@ Not run: Playwright e2e, local Supabase/pgTAP (no Docker in this environment). A
 - Pilot flags use **cohort** rollout (demo orgs auto-enrolled; operators may assign more via `assign_organization_release_cohort`).
 - AAL2/release-flag ops surfaces unchanged for non-demo tenants until enrolled.
 - Did not re-implement closed EFFICIENCY_REVIEW / already-shipped END_USER backends.
+
+
+## Follow-up pass — e2e, metrics, SCORM/xAPI (same day)
+
+| # | Item | Status |
+|---|------|--------|
+| 4 | Authenticated Playwright journeys per role | **Shipped** — `e2e/role-journeys.spec.ts` (+ existing `role-routing.spec.ts`); skips without live Supabase env |
+| 9 | Mobile e2e (shift, course, service, COC) | **Shipped** — `e2e/mobile-workflows.spec.ts` + Playwright `mobile-chrome` (Pixel 5) project |
+| 14 | Metric contract across Dashboard / Today | **Shipped** — `metricContract.ts` unifies Home + Dashboard definitions; Dashboard cards render shared labels/tooltips |
+| 17 | Full SCORM/xAPI learner runtime | **Shipped** — `start_learning_runtime_session` RPC, `StandardsRuntimePlayer`, commit + xAPI ingest bridge in TakeCourse |
+
+### How to run live e2e
+
+```bash
+# Requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_ANON_KEY, E2E_ACCOUNT_PASSWORD
+pnpm --filter @workspace/caremetric-carebase run test:e2e
+# Mobile project only:
+pnpm --filter @workspace/caremetric-carebase exec playwright test --project=mobile-chrome
+```
+
+Without those secrets, public smoke still runs; authenticated / mobile employee suites skip cleanly.
+
+### Apply migrations
+
+- `20260731120000_workflow_ux_backlog_remediation.sql` (flags, safety tokens, confidential escalation)
+- `20260731140000_learning_runtime_launch.sql` (learner SCORM/xAPI session launch)
+
+No remaining P0–P2 workflow UX backlog items that can ship without a live pilot environment exercise.

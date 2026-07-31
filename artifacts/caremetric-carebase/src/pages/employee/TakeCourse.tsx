@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
+import { StandardsRuntimePlayer } from "@/components/learning/StandardsRuntimePlayer";
 import type { Json } from "@/lib/database.types";
 import { Link, useLocation, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -871,8 +872,18 @@ useEffect(() => {
                 )
               )}
 
-              {(currentBlock?.block_type === "pdf" || currentBlock?.block_type === "scorm") && (
+              {currentBlock?.block_type === "pdf" && (
                 <DocumentBlockLink documentId={currentBlock.document_id} />
+              )}
+
+              {currentBlock?.block_type === "scorm" && (
+                <StandardsRuntimePlayer
+                  assignmentId={assignmentId!}
+                  courseId={assignment?.course_id ?? course?.id ?? ""}
+                  courseVersionId={assignment?.course_version_id ?? undefined}
+                  blockId={currentBlock.id}
+                  fallback={<DocumentBlockLink documentId={currentBlock.document_id} />}
+                />
               )}
 
               {currentBlock?.block_type === "quiz" && (

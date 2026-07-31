@@ -18,6 +18,12 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // Mobile viewport journeys (shift, course, services, COC, public smoke).
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 5"] },
+      testMatch: /mobile-workflows|public-smoke|role-journeys/,
+    },
   ],
   webServer: {
     command: "pnpm run serve",
