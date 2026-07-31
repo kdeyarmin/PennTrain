@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QueryError, QueryLoading } from "@/components/QueryState";
-import { IMPORT_DOMAINS, downloadCsv, importTemplate, rowsToErrorCsv } from "@/lib/dataImportCenter";
+import { IMPORT_DOMAIN_DEFINITIONS, downloadCsv, importTemplate, rowsToErrorCsv } from "@/lib/dataImportCenter";
 import { useDataImportJobs, useImportJobAction, useImportJobRows, useRunEmployeeImport } from "@/hooks/useDataImportCenter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,14 +46,17 @@ export default function DataImportCenter() {
     </header>
 
     <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" /> Download templates</CardTitle><CardDescription>Start from the current column contract. Mapping and duplicate handling are recorded with the import job.</CardDescription></CardHeader>
-      <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {IMPORT_DOMAINS.map((domain) => <Button key={domain} variant="outline" className="justify-between" onClick={() => downloadCsv(`${domain}-import-template.csv`, importTemplate(domain))}>{label(domain)} <Download className="h-4 w-4" /></Button>)}
+      <CardHeader><CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" /> Domain availability and templates</CardTitle><CardDescription>A downloadable template is a planning contract, not an active importer. Only domains with a tested processor are marked Active.</CardDescription></CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {IMPORT_DOMAIN_DEFINITIONS.map(({ domain, availability, availabilityLabel, description }) => <div key={domain} className="flex min-h-32 flex-col justify-between gap-3 rounded-lg border p-3">
+          <div className="space-y-1"><div className="flex items-start justify-between gap-2"><p className="font-medium">{label(domain)}</p><Badge variant={availability === "active" ? "default" : "secondary"}>{availabilityLabel}</Badge></div><p className="text-xs text-muted-foreground">{description}</p></div>
+          <Button size="sm" variant="outline" className="w-full justify-between" onClick={() => downloadCsv(`${domain}-import-template.csv`, importTemplate(domain))}>Download template <Download className="h-4 w-4" /></Button>
+        </div>)}
       </CardContent>
     </Card>
 
     <Card>
-      <CardHeader><CardTitle>Start employee roster import</CardTitle><CardDescription>Upload the canonical employee template, choose duplicate behavior, and complete a no-write dry run before applying. Processing uses resumable 200-row batches.</CardDescription></CardHeader>
+      <CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Start employee roster import</CardTitle><Badge>Active processor</Badge></div><CardDescription>Employee imports are the only active domain. Upload the canonical employee template, choose duplicate behavior, and complete a no-write dry run before applying. Processing currently uses browser-coordinated 200-row batches; keep this page open until the operation finishes.</CardDescription></CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
           <div className="space-y-2"><Label htmlFor="import-file">Employee CSV</Label><Input id="import-file" type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null); }} /></div>
