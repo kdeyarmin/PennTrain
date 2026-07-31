@@ -70,7 +70,8 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
   },
   {
     id: "ai-course-creation",
-    anchorAliases: ["live-classes"],
+    // compliance-copilot: landing "What's new" deep-link target for the grounded copilot card
+    anchorAliases: ["live-classes", "compliance-copilot"],
     title: "AI, copilot & live training",
     items: [
       "AI curriculum generation from your documents",

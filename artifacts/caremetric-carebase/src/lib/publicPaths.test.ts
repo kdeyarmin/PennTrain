@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isPublicPath } from "./publicPaths";
+import {
+  MARKETING_PRODUCT_NAV,
+  MARKETING_RESOURCES_NAV,
+  isPublicPath,
+} from "./publicPaths";
 
 describe("isPublicPath", () => {
   it("allows every public marketing route", () => {
@@ -14,6 +18,11 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/terms")).toBe(true);
     // Retired route kept public so old bookmarks redirect instead of bouncing to login.
     expect(isPublicPath("/who-its-for")).toBe(true);
+  });
+
+  it("exposes Security in the Product nav (not only Resources/footer)", () => {
+    expect(MARKETING_PRODUCT_NAV.map((item) => item.href)).toContain("/security");
+    expect(MARKETING_RESOURCES_NAV.map((item) => item.href)).not.toContain("/security");
   });
 
   it("allows the public safety reporting route", () => {

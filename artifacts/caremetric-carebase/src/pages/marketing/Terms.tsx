@@ -1,5 +1,9 @@
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import {
+  MARKETING_LEGAL_EFFECTIVE_DATE,
+  MARKETING_TRIAL_DAYS,
+} from "@/components/marketing/marketingPricing";
 import { Reveal } from "@/components/marketing/primitives";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { Link } from "wouter";
@@ -17,8 +21,7 @@ const TERMS_SECTIONS = [
   },
   {
     title: "3. Subscriptions and billing",
-    body:
-      "Plans are priced monthly or annually based on active learners or residents, with a set number included and a per-person rate beyond that, and include a free trial period. Subscriptions renew until canceled; cancellation takes effect at the end of the current billing term. Pilot-program terms, when offered, are set in the pilot agreement.",
+    body: `Plans are priced monthly or annually based on active learners or residents, with a set number included and a per-person rate beyond that, and include a ${MARKETING_TRIAL_DAYS}-day free trial period. Subscriptions renew until canceled; cancellation takes effect at the end of the current billing term. Pilot-program terms, when offered, are set in the pilot agreement.`,
   },
   {
     title: "4. Your data",
@@ -88,8 +91,14 @@ export default function Terms() {
             <h1 className="font-serif text-4xl font-bold tracking-tight text-[#0d2742]">
               Terms of Service
             </h1>
+            <div
+              role="status"
+              className="mt-4 rounded-[10px] border border-[#f0d9a8] bg-[#fdf7ea] px-4 py-3 text-[13px] font-semibold text-[#6d5312]"
+            >
+              DRAFT — have counsel review and finalize before publishing.
+            </div>
             <p className="mt-3 font-mono text-xs text-[#5d7084]">
-              Effective date: July 23, 2026 · Applies to CareMetric CareBase
+              Effective date: {MARKETING_LEGAL_EFFECTIVE_DATE} · Applies to CareMetric CareBase
               (cmcarebase.com)
             </p>
           </Reveal>

@@ -18,6 +18,13 @@ import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { ProductTour } from "@/components/marketing/ProductTour";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import {
+  MARKETING_CAREBASE_PRICE_LABEL,
+  MARKETING_INCLUDED_QUANTITY,
+  MARKETING_OVERAGE_PRICE_LABEL,
+  MARKETING_TRAIN_PRICE_LABEL,
+  MARKETING_TRIAL_DAYS,
+} from "@/components/marketing/marketingPricing";
 import { MARKETING_VIDEOS } from "@/components/marketing/marketingVideos";
 import { usePageMeta } from "@/lib/usePageMeta";
 
@@ -76,10 +83,6 @@ type Plan = {
   href: string;
 };
 type Faq = { question: string; answer: ReactNode };
-
-const TRIAL_DAYS = 30;
-const TRAIN_PRICE = "$239";
-const CAREBASE_PRICE = "$499";
 
 const HERO_ROWS = [
   { label: "Annual in-service hours", status: "On track", value: 92 },
@@ -303,7 +306,9 @@ const NEW_FEATURES: NewFeature[] = [
     eyebrow: "Compliance Copilot",
     title: "Ask a plain question, get a cited answer from your own records",
     body: "\"Why is this aide blocked from the schedule?\" \"What's due in the next 30 days?\" \"Which residents are missing a current medical evaluation?\" The copilot answers from your facility's own recorded data and shows the exact documentation and regulation behind every answer. It's read-only and human confirmation stays mandatory — it can draft a Plan of Correction or a mock-survey request, but a draft is only a recommendation until a person approves it, and it never invents a citation or closes a finding on its own.",
-    href: "/features#ai-course-creation",
+    // Anchor lands on the Features group that includes the grounded compliance
+    // copilot (alias of the AI / copilot / live-training capability group).
+    href: "/features#compliance-copilot",
     link: "How it stays grounded →",
   },
   {
@@ -319,29 +324,29 @@ const NEW_FEATURES: NewFeature[] = [
 const PLANS: Plan[] = [
   {
     name: "CareMetric Train",
-    price: TRAIN_PRICE,
-    suffix: " /month · 25 active learners included",
+    price: MARKETING_TRAIN_PRICE_LABEL,
+    suffix: ` /month · ${MARKETING_INCLUDED_QUANTITY} active learners included`,
     features: [
       "Course builder, AI-generated courses, live QR-code classes",
       "Training records, certificates, compliance mapping",
-      "$4/month per additional active learner",
+      `${MARKETING_OVERAGE_PRICE_LABEL}/month per additional active learner`,
       "Self-serve setup, CSV roster import",
     ],
-    cta: `Start ${TRIAL_DAYS}-day free trial`,
+    cta: `Start ${MARKETING_TRIAL_DAYS}-day free trial`,
     href: "/signup",
   },
   {
     name: "CareMetric CareBase",
-    price: CAREBASE_PRICE,
-    suffix: " /month · 25 active residents included",
+    price: MARKETING_CAREBASE_PRICE_LABEL,
+    suffix: ` /month · ${MARKETING_INCLUDED_QUANTITY} active residents included`,
     featured: true,
     features: [
       "Everything in CareMetric Train, plus:",
       "Resident records, workforce, facility & incident management",
       "Documentation rooms, binder exports, compliance alerts",
-      "$4/month per additional active resident",
+      `${MARKETING_OVERAGE_PRICE_LABEL}/month per additional active resident`,
     ],
-    cta: `Start ${TRIAL_DAYS}-day free trial`,
+    cta: `Start ${MARKETING_TRIAL_DAYS}-day free trial`,
     href: "/signup",
   },
   {
@@ -379,8 +384,8 @@ const FAQS: Faq[] = [
     question: "How much does it cost?",
     answer: (
       <>
-        {TRAIN_PRICE}/month for CareMetric Train (25 active learners included) or {CAREBASE_PRICE}/month for CareMetric
-        CareBase (25 active residents included) — then $4/month per additional person on either plan.{" "}
+        {MARKETING_TRAIN_PRICE_LABEL}/month for CareMetric Train ({MARKETING_INCLUDED_QUANTITY} active learners included) or {MARKETING_CAREBASE_PRICE_LABEL}/month for CareMetric
+        CareBase ({MARKETING_INCLUDED_QUANTITY} active residents included) — then {MARKETING_OVERAGE_PRICE_LABEL}/month per additional person on either plan.{" "}
         <a href="#pricing">See pricing.</a>
       </>
     ),
@@ -680,7 +685,7 @@ export default function Landing() {
               <HeroOverviewVideo />
             </Suspense>
             <Reveal delay={0.18}>
-              <p className="text-[13px] text-white/75">Fully self-service — log into a sandbox or start your own {TRIAL_DAYS}-day trial, no phone call. <Link href="/how-it-works" className="font-semibold text-[#b9e4ff] hover:text-white hover:underline">See how it works →</Link></p>
+              <p className="text-[13px] text-white/75">Fully self-service — log into a sandbox or start your own {MARKETING_TRIAL_DAYS}-day trial, no phone call. <Link href="/how-it-works" className="font-semibold text-[#b9e4ff] hover:text-white hover:underline">See how it works →</Link></p>
             </Reveal>
           </div>
 
@@ -916,7 +921,7 @@ export default function Landing() {
           <Reveal className="mx-auto max-w-[560px] text-center">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Pricing</p>
             <h2 className="mt-2.5 text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Simple, usage-based pricing.</h2>
-            <p className="mt-2 text-[15px] text-[#44566b]">Every plan includes 25 active learners or residents, then $4/month for each additional person. No facility-count math.</p>
+            <p className="mt-2 text-[15px] text-[#44566b]">Every plan includes {MARKETING_INCLUDED_QUANTITY} active learners or residents, then {MARKETING_OVERAGE_PRICE_LABEL}/month for each additional person. No facility-count math.</p>
           </Reveal>
           <div className="mt-9 grid gap-4 lg:grid-cols-3">
             {PLANS.map((plan, i) => (
@@ -966,9 +971,9 @@ export default function Landing() {
               <CheckLine>A work email for the admin account</CheckLine>
               <CheckLine>Optional: a roster CSV for bulk import</CheckLine>
             </div>
-            <Button asChild size="lg" className="bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]"><Link href="/signup">Create your organization — free for {TRIAL_DAYS} days</Link></Button>
+            <Button asChild size="lg" className="bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]"><Link href="/signup">Create your organization — free for {MARKETING_TRIAL_DAYS} days</Link></Button>
             <Link href="/demo" className="text-center text-[13px] font-semibold text-[#1b6fc2] hover:underline" data-testid="link-start-demo">Prefer to look around first? Explore the live demo — no signup needed →</Link>
-            <div className={`text-center text-xs ${aaMutedText}`}>25 active people included on every plan · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
+            <div className={`text-center text-xs ${aaMutedText}`}>{MARKETING_INCLUDED_QUANTITY} active people included on every plan · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
           </Reveal>
         </div>
       </section>

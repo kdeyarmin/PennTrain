@@ -1,5 +1,6 @@
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { MARKETING_LEGAL_EFFECTIVE_DATE } from "@/components/marketing/marketingPricing";
 import { Reveal } from "@/components/marketing/primitives";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { Link } from "wouter";
@@ -9,7 +10,7 @@ const PRIVACY_SECTIONS = [
     title: "1. Who we are",
     body: (
       <>
-        CareMetric CareBase (&quot;CareBase,&quot; &quot;we&quot;) provides operations,
+        CareMetric CareBase ("CareBase," "we") provides operations,
         workforce-compliance, and survey-readiness software for personal care
         homes, Assisted Living Facilities, and related providers. This policy
         describes how we handle information when you use the service or visit
@@ -29,7 +30,7 @@ const PRIVACY_SECTIONS = [
         data:</strong> log data, device and browser information, and audit events
         (including the signer metadata captured for policy attestations).{" "}
         <strong>Communications:</strong> messages you send us, and delivery logs
-        for alerts we send on your organization&apos;s behalf.
+        for alerts we send on your organization's behalf.
       </>
     ),
   },
@@ -37,11 +38,13 @@ const PRIVACY_SECTIONS = [
     title: "3. Marketing site",
     body: (
       <>
-        If you use this site&apos;s public forms, we keep what you submit:
-        demo requests (name, work email, organization, facility count, and your
-        message), savings-worksheet emails (your email and the numbers you
+        If you use this site's public forms, we keep what you submit:
+        trial signup details (name, work email, and organization),
+        savings-worksheet emails (your email and the numbers you
         entered), and regulatory-update newsletter subscriptions (email and
-        optional name/organization). We use these only to respond, deliver
+        optional name/organization). Optional product questions you email us
+        (for example via hello@caremetric.ai) are handled as ordinary business
+        correspondence. We use these only to respond, deliver
         what you asked for, and send the updates you subscribed to — every
         newsletter email includes an unsubscribe link. Your IP address is not
         stored with these submissions; we keep only a peppered one-way hash of
@@ -120,8 +123,14 @@ export default function Privacy() {
             <h1 className="font-serif text-4xl font-bold tracking-tight text-[#0d2742]">
               Privacy Policy
             </h1>
+            <div
+              role="status"
+              className="mt-4 rounded-[10px] border border-[#f0d9a8] bg-[#fdf7ea] px-4 py-3 text-[13px] font-semibold text-[#6d5312]"
+            >
+              DRAFT — have counsel review and finalize before publishing.
+            </div>
             <p className="mt-3 font-mono text-xs text-[#5d7084]">
-              Effective date: July 23, 2026 · Applies to CareMetric CareBase
+              Effective date: {MARKETING_LEGAL_EFFECTIVE_DATE} · Applies to CareMetric CareBase
               (cmcarebase.com)
             </p>
           </Reveal>

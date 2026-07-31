@@ -7,6 +7,8 @@
  * runtime. App code should keep importing FAQS from "./content", which
  * re-exports this module.
  */
+import { marketingPricingFaqAnswer } from "./marketingPricing";
+
 export const FAQ_CATEGORIES = [
   "Product & replacement",
   "Compliance boundaries",
@@ -47,8 +49,7 @@ export const FAQS: MarketingFaq[] = [
   {
     category: "Product & replacement",
     question: "How much does it cost?",
-    answer:
-      "CareMetric Train starts at $239/month (25 active learners included); CareMetric CareBase starts at $499/month (25 active residents included). Each additional person is $4/month. See pricing and model your savings.",
+    answer: marketingPricingFaqAnswer(),
     links: [
       { label: "See pricing", href: "/#pricing" },
       { label: "model your savings", href: "/savings" },

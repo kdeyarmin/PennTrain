@@ -3,6 +3,15 @@
 // context ("Your context" chips) only tailors suggested prompts and the optional email
 // summaries -- it is never scored, staged, or shown back as a qualification of the visitor.
 
+import {
+  MARKETING_CAREBASE_PRICE_LABEL,
+  MARKETING_INCLUDED_QUANTITY,
+  MARKETING_OVERAGE_PRICE_LABEL,
+  MARKETING_TRAIN_PRICE_LABEL,
+  MARKETING_TRIAL_DAYS,
+  marketingPricingFaqAnswer,
+} from "@/components/marketing/marketingPricing";
+
 export type LeadProfile = {
   urgency?: string;
   currentSystem?: string;
@@ -168,12 +177,12 @@ const BOT_INTENTS: BotIntent[] = [
   {
     id: "roi",
     terms: ["price", "pricing", "cost", "roi", "save", "savings", "budget", "money", "return", "worth"],
-    answer:
-      "The value case is simple: CareBase pays for itself when it reduces manual compliance administration, prevents avoidable gaps, and lets managers fix risk earlier. The more facilities, employees, training requirements, and documentation workflows you manage, the stronger it becomes.",
+    // Prices come from marketingPricing so bot answers can't drift from Landing / FAQ.
+    answer: marketingPricingFaqAnswer(),
     bullets: [
-      "Reduce time spent chasing certificates, sign-in sheets, expiring credentials, policy signatures, incident proof, and binder updates.",
-      "Lower operational risk by making overdue work visible before it becomes a survey-day scramble.",
-      "Give leadership a live readiness picture instead of waiting for periodic manual reports.",
+      `CareMetric Train starts at ${MARKETING_TRAIN_PRICE_LABEL}/month with ${MARKETING_INCLUDED_QUANTITY} active learners included; CareMetric CareBase starts at ${MARKETING_CAREBASE_PRICE_LABEL}/month with ${MARKETING_INCLUDED_QUANTITY} active residents included.`,
+      `Each additional person is ${MARKETING_OVERAGE_PRICE_LABEL}/month. Every plan includes a ${MARKETING_TRIAL_DAYS}-day free trial — start self-serve, no sales call.`,
+      "The value case is admin hours you stop spending, tools you can retire, and risk you catch earlier — model it with your own numbers on the savings worksheet.",
     ],
     closer:
       "Bring your facility count, employee count, and current admin process to the savings worksheet and model the likely value with your own numbers.",
@@ -217,8 +226,7 @@ const BOT_INTENTS: BotIntent[] = [
       "Bring your decision lens: cost savings, survey readiness, multi-facility visibility, AI course production, or manager accountability.",
       "Leave with a recommended rollout path and a clear picture of what changes for your team.",
     ],
-    closer:
-      "When you're ready, start a free trial — or email hello@caremetric.ai and we'll set up a demo around your workflow.",
+    closer: `When you're ready, start a free ${MARKETING_TRIAL_DAYS}-day trial — or email hello@caremetric.ai and we'll set up a demo around your workflow.`,
     cta: { label: "Start your free trial", href: "/signup" },
   },
 ];
@@ -230,8 +238,6 @@ export type Message = {
   closer?: string;
   cta?: BotIntent["cta"];
 };
-
-
 
 export const buildDemoAgenda = (profile: LeadProfile) => {
   const agenda = [
@@ -263,7 +269,6 @@ export const buildDemoMailtoHref = (profile: LeadProfile) => {
   return `mailto:hello@caremetric.ai?subject=${encodeURIComponent("CareBase demo request")}&body=${encodeURIComponent(body)}`;
 };
 
-
 export type ProspectEmail = {
   subject: string;
   preheader: string;
@@ -272,21 +277,15 @@ export type ProspectEmail = {
   mailtoHref: string;
 };
 
+const HTML_ESCAPE: Record<string, string> = {
+  "&": "\u0026amp;",
+  "<": "\u0026lt;",
+  ">": "\u0026gt;",
+  '"': "\u0026quot;",
+};
+
 const escapeHtml = (value: string) =>
-  value.replace(/[&<>"]/g, (character) => {
-    switch (character) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return character;
-    }
-  });
+  value.replace(/[&<>"]/g, (character) => HTML_ESCAPE[character] ?? character);
 
 export const buildProspectEmail = (profile: LeadProfile): ProspectEmail => {
   const context = leadProfileSummary(profile) || "your care operation";
@@ -318,7 +317,7 @@ export const buildProspectEmail = (profile: LeadProfile): ProspectEmail => {
     "• AI-assisted course creation from your own source material, with review before publication.",
     "• Role-scoped views for leaders, managers, trainers, employees, and auditors.",
     "",
-    "Ready to see it with your workflow? Start a free trial — no call required:",
+    `Ready to see it with your workflow? Start a free ${MARKETING_TRIAL_DAYS}-day trial — no call required:`,
     "https://cmcarebase.com/signup",
   ].join("\n");
   const html = `
