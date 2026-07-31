@@ -451,12 +451,12 @@ function ResidentMockup() {
     ["E. Werner", "09", "Current", "Updated Jun 10", "success"],
   ];
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[#dfe6ee] bg-white shadow-[0_10px_30px_rgba(13,39,66,0.07)]">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[14px] border border-[#dfe6ee] bg-white shadow-[0_10px_30px_rgba(13,39,66,0.07)]">
       <div className="flex flex-col gap-1 border-b border-[#e5eaf0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm font-bold">Resident compliance — Maple Grove</span>
         <span className={`font-mono text-[11px] ${aaMutedText}`}>Census 42 / 48 · 3 move-ins this month</span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="min-w-0 max-w-full overflow-x-auto" tabIndex={0} role="region" aria-label="Example resident compliance table">
         <div className="grid min-w-[520px] grid-cols-[1.2fr_0.5fr_1.1fr_1.1fr] text-[13px]">
           {["Resident", "Room", "RASP status", "Support plan"].map((heading) => (
             <div key={heading} className={`border-b border-[#eef2f6] px-3 py-2.5 font-mono text-[10.5px] uppercase tracking-[0.08em] ${aaMutedText}`}>
@@ -504,12 +504,12 @@ function WorkforceMockup() {
     ["warn", "ok", "ok", "ok", "ok"],
   ];
   return (
-    <div className="overflow-hidden rounded-[14px] border border-[#dfe6ee] bg-white shadow-[0_10px_30px_rgba(13,39,66,0.07)]">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-[14px] border border-[#dfe6ee] bg-white shadow-[0_10px_30px_rgba(13,39,66,0.07)]">
       <div className="flex flex-col gap-1 border-b border-[#e5eaf0] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm font-bold">Compliance matrix — direct care staff</span>
         <span className={`font-mono text-[11px] ${aaMutedText}`}>Click any cell to edit the record</span>
       </div>
-      <div className="overflow-x-auto p-4">
+      <div className="min-w-0 max-w-full overflow-x-auto p-4" tabIndex={0} role="region" aria-label="Example compliance matrix">
         <div className="grid min-w-[520px] grid-cols-[110px_repeat(5,1fr)] items-center gap-1.5 text-[11px]">
           <div />
           {["In-service", "Dementia", "Practicum", "Act 34", "TB screen"].map((label) => (
@@ -796,8 +796,8 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="platform" className="scroll-mt-[72px] border-b border-[#e5eaf0] bg-[#f6f8fa]">
-        <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
+      <section id="platform" className="scroll-mt-[72px] overflow-x-hidden border-b border-[#e5eaf0] bg-[#f6f8fa]">
+        <div className="mx-auto max-w-[1160px] min-w-0 px-6 py-[72px]">
           <Reveal className="max-w-[640px]">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">The whole facility, one record</p>
             <h2 className="mt-3 text-balance text-[34px] font-bold leading-tight tracking-[-0.015em] text-[#0d2742]">Stop being the person who remembers everything</h2>
@@ -825,7 +825,7 @@ export default function Landing() {
               </button>
             ))}
           </Reveal>
-          <Reveal key={activeDomain.label} className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.9fr)]">
+          <Reveal key={activeDomain.label} className="mt-5 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.9fr)]">
             {activeDomain.mockup}
             <div className="flex flex-col gap-2.5">
               <h3 className="text-lg font-extrabold text-[#0d2742]">{activeDomain.title}</h3>

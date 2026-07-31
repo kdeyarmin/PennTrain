@@ -78,6 +78,9 @@ export default function ConfidentialIncidentDetail() {
   const [statusReason, setStatusReason] = useState("");
   const [identityPurpose, setIdentityPurpose] = useState("");
   const [identity, setIdentity] = useState<RevealedReporterIdentity | null>(null);
+  const [escalationReason, setEscalationReason] = useState("");
+  const [escalating, setEscalating] = useState(false);
+  const [escalationWorkItemId, setEscalationWorkItemId] = useState<string | null>(null);
 
   const facilityName = useMemo(
     () => new Map((facilities ?? []).map(f => [f.id, f.name])).get(intake?.facility_id ?? "") ?? "—",
@@ -90,6 +93,34 @@ export default function ConfidentialIncidentDetail() {
 
   const canReviewDetails = ["platform_admin", "org_admin", "auditor"].includes(user?.role ?? "");
   const canAct = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  const canEscalate = ["facility_manager", "org_admin", "auditor", "platform_admin"].includes(user?.role ?? "");
+
+  const handleEscalate = async () => {
+    if (!id || escalationReason.trim().length < 5) return;
+    setEscalating(true);
+    try {
+      const { data, error } = await (await import("@/lib/supabase")).supabase.rpc(
+        "request_confidential_intake_escalation" as never,
+        { p_intake_id: id, p_reason: escalationReason.trim() } as never,
+      );
+      if (error) throw error;
+      const workItemId = (data as { workItemId?: string } | null)?.workItemId ?? null;
+      setEscalationWorkItemId(workItemId);
+      toast({
+        title: "Escalation sent",
+        description: "Org admins can open the protected narrative and complete investigation.",
+      });
+      setEscalationReason("");
+    } catch (e) {
+      toast({
+        title: "Could not escalate",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setEscalating(false);
+    }
+  };
 
   const handleOpenDetails = () => {
     if (!id) return;
@@ -197,6 +228,41 @@ export default function ConfidentialIncidentDetail() {
           <p className="text-sm whitespace-pre-wrap">{intake.public_summary}</p>
         </CardContent>
       </Card>
+
+      {!canReviewDetails && canEscalate && (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader>
+            <CardTitle className="text-base">Request org-admin investigation</CardTitle>
+            <CardDescription>
+              Facility managers see the triage summary only. Protected narrative and reporter identity stay locked to org admins and auditors. Escalate when you need a full investigation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {intake.triage_work_item_id || escalationWorkItemId ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm text-muted-foreground">Investigation work is already queued.</p>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/app/work/${escalationWorkItemId ?? intake.triage_work_item_id}`}>Open work item</Link>
+                </Button>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1.5 grow max-w-md">
+                <Label className="text-[13px]">Why escalate *</Label>
+                <Input
+                  value={escalationReason}
+                  onChange={(e) => setEscalationReason(e.target.value)}
+                  placeholder="e.g. Need protected narrative for unit follow-up"
+                  className="h-9"
+                />
+              </div>
+              <Button onClick={() => void handleEscalate()} disabled={escalating || escalationReason.trim().length < 5}>
+                {escalating ? "Sending…" : "Escalate to org admin"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {canReviewDetails && (
         <Card>

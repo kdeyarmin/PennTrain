@@ -10764,6 +10764,7 @@ export type Database = {
           name: string
           organization_id: string
           phone: string | null
+          safety_report_token: string
           sandbox_reset_at: string | null
           sandbox_seed_version: number | null
           state: string | null
@@ -10787,6 +10788,7 @@ export type Database = {
           name: string
           organization_id: string
           phone?: string | null
+          safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
           state?: string | null
@@ -10810,6 +10812,7 @@ export type Database = {
           name?: string
           organization_id?: string
           phone?: string | null
+          safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
           state?: string | null
@@ -39050,6 +39053,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      request_confidential_intake_escalation: {
+        Args: { p_intake_id: string; p_reason: string }
+        Returns: Json
+      }
       request_organization_export: {
         Args: never
         Returns: {
@@ -39164,6 +39171,10 @@ export type Database = {
           p_resolution_status: string
         }
         Returns: undefined
+      }
+      resolve_safety_report_facility: {
+        Args: { p_token: string }
+        Returns: Json
       }
       resolve_service_task_alert: {
         Args: { p_alert_id: string; p_status: string }
@@ -39401,6 +39412,10 @@ export type Database = {
       rollback_employee_import_job: {
         Args: { p_job_id: string }
         Returns: Json
+      }
+      rotate_facility_safety_report_token: {
+        Args: { p_facility_id: string }
+        Returns: string
       }
       rotate_integration_api_credential: {
         Args: { p_credential_id: string; p_expires_at?: string }
@@ -40300,6 +40315,10 @@ export type Database = {
           p_transport_method: string
         }
         Returns: string
+      }
+      start_learning_runtime_session: {
+        Args: { p_assignment_id: string; p_package_id?: string }
+        Returns: Json
       }
       start_move_in_workspace: {
         Args: { p_prospect_id: string }

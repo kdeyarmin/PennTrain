@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Flame, ChevronLeft, ChevronRight, Plus, Pencil, Search, Trash2 } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -95,7 +96,7 @@ export default function InspectionItems() {
   const canDelete = user?.role === "org_admin";
 
   const { data: facilities } = useListFacilities();
-  const { data: itemsPage, isLoading } = usePaginatedDomainList<InspectionItem>("inspection_items", {
+  const { data: itemsPage, isLoading, isError, error, refetch } = usePaginatedDomainList<InspectionItem>("inspection_items", {
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     itemKind: urlState.kind !== "all" ? urlState.kind : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
@@ -254,7 +255,11 @@ export default function InspectionItems() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="inspection items" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

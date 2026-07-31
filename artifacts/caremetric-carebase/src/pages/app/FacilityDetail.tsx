@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight, QrCode, Copy, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
@@ -36,6 +36,8 @@ import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { facilityToday } from "@/lib/dateUtils";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLicensingWorkspace";
+import { supabase } from "@/lib/supabase";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface FacilityFormData {
   name: string;
@@ -66,6 +68,8 @@ export default function FacilityDetail() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [rotatingSafetyToken, setRotatingSafetyToken] = useState(false);
 
   // This page is mounted under /admin, /app, and /trainer prefixes -- every internal
   // link/redirect must match whichever role-specific directory surface the viewer is under,
@@ -94,8 +98,20 @@ export default function FacilityDetail() {
   const canLinkToOrgLists = user?.role !== "platform_admin";
 
   const { data: facility, isLoading: facLoading, isError: facError, error: facErr, refetch: refetchFacility } = useGetFacility(id);
-  const { data: employees, isLoading: empLoading } = useListEmployees({ facilityId: id });
-  const { data: residents, isLoading: residentsLoading } = useListResidents({ facilityId: id });
+  const {
+    data: employees,
+    isLoading: empLoading,
+    isError: empError,
+    error: empErrorDetail,
+    refetch: refetchEmployees,
+  } = useListEmployees({ facilityId: id });
+  const {
+    data: residents,
+    isLoading: residentsLoading,
+    isError: residentsError,
+    error: residentsErrorDetail,
+    refetch: refetchResidents,
+  } = useListResidents({ facilityId: id });
   const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ facilityId: id });
   const { data: trainingTypes } = useListTrainingTypes();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ facilityId: id });
@@ -323,6 +339,89 @@ export default function FacilityDetail() {
         facilityType={facility.facility_type}
         canManage={["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "")}
       />
+
+      {/* Public safety-report poster QR — opaque token, never show facility UUID */}
+      {["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <QrCode className="h-4 w-4 text-muted-foreground" /> Safety report poster
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Print this link or QR for walk-up anonymous safety reporting. The code is an opaque facility token — not the facility UUID.
+            </p>
+            {(() => {
+              const token = facility.safety_report_token;
+              if (!token) {
+                return (
+                  <p className="text-sm text-amber-700">
+                    No poster token yet. Apply the latest database migration, then refresh. Use Rotate to issue one.
+                  </p>
+                );
+              }
+              const reportUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/report-safety?facility_token=${encodeURIComponent(token)}`;
+              const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(reportUrl)}`;
+              return (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <img src={qrSrc} alt="Safety report QR code" width={160} height={160} className="rounded border bg-white p-2" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="break-all font-mono text-xs">{reportUrl}</p>
+                    <p className="text-xs text-muted-foreground">Token: <span className="font-mono">{token.slice(0, 8)}…{token.slice(-4)}</span></p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(reportUrl).then(
+                            () => toast({ title: "Poster link copied" }),
+                            () => toast({ title: "Could not copy", variant: "destructive" }),
+                          );
+                        }}
+                      >
+                        <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy link
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={rotatingSafetyToken}
+                        onClick={() => {
+                          setRotatingSafetyToken(true);
+                          void (async () => {
+                            try {
+                              const { data, error } = await (supabase as any).rpc("rotate_facility_safety_report_token", {
+                                p_facility_id: facility.id,
+                              });
+                              if (error) throw error;
+                              await queryClient.invalidateQueries({ queryKey: ["facilities", facility.id] });
+                              toast({ title: "Safety poster token rotated", description: "Update printed posters with the new QR link." });
+                              void data;
+                            } catch (err) {
+                              toast({
+                                title: "Could not rotate token",
+                                description: err instanceof Error ? err.message : String(err),
+                                variant: "destructive",
+                              });
+                            } finally {
+                              setRotatingSafetyToken(false);
+                            }
+                          })();
+                        }}
+                      >
+                        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${rotatingSafetyToken ? "animate-spin" : ""}`} />
+                        {rotatingSafetyToken ? "Rotating…" : "Rotate token"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType) && (
@@ -558,11 +657,13 @@ export default function FacilityDetail() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" /> Staff ({employees?.length ?? "..."})
+            <Users className="h-5 w-5" /> Staff ({empError ? "—" : employees?.length ?? "..."})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {empLoading ? (
+          {empError ? (
+            <QueryError what="staff" error={empErrorDetail} onRetry={() => void refetchEmployees()} />
+          ) : empLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}
             </div>
@@ -570,7 +671,7 @@ export default function FacilityDetail() {
             <p className="text-sm text-muted-foreground">No staff on record.</p>
           ) : (
             <div className="space-y-2">
-              {employees.map(emp => (
+              {employees.slice(0, 8).map(emp => (
                 <Link key={emp.id} href={`${employeeBasePath}/${emp.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
                     <div>
@@ -585,6 +686,13 @@ export default function FacilityDetail() {
                   </div>
                 </Link>
               ))}
+              {employees.length > 8 && (
+                <Link href={canLinkToOrgLists ? `/app/employees?facility=${id}` : `/admin/employees?facility=${id}`} className="block pt-1">
+                  <p className="text-center text-sm text-primary hover:underline">
+                    View all staff ({employees.length})
+                  </p>
+                </Link>
+              )}
             </div>
           )}
         </CardContent>
@@ -594,11 +702,13 @@ export default function FacilityDetail() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BedDouble className="h-5 w-5" /> Residents ({residents?.length ?? "..."})
+              <BedDouble className="h-5 w-5" /> Residents ({residentsError ? "—" : residents?.length ?? "..."})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {residentsLoading ? (
+            {residentsError ? (
+              <QueryError what="residents" error={residentsErrorDetail} onRetry={() => void refetchResidents()} />
+            ) : residentsLoading ? (
               <div className="space-y-2">
                 {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}
               </div>
@@ -606,7 +716,7 @@ export default function FacilityDetail() {
               <p className="text-sm text-muted-foreground">No residents on record.</p>
             ) : (
               <div className="space-y-2">
-                {residents.map(r => (
+                {residents.slice(0, 8).map(r => (
                   <Link key={r.id} href={`/app/residents/${r.id}`}>
                     <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
                       <div>
@@ -621,6 +731,13 @@ export default function FacilityDetail() {
                     </div>
                   </Link>
                 ))}
+                {residents.length > 8 && (
+                  <Link href={`/app/residents?facility=${id}`} className="block pt-1">
+                    <p className="text-center text-sm text-primary hover:underline">
+                      View all residents ({residents.length})
+                    </p>
+                  </Link>
+                )}
               </div>
             )}
           </CardContent>

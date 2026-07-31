@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListPracticums } from "@/hooks/usePracticums";
@@ -167,6 +167,7 @@ export default function EmployeeDashboard() {
       label: trainingTypeName(r),
       dueDate: r.due_date as string,
       status: r.status,
+      href: "/me/trainings",
     }));
   const practicumDeadlines: DeadlineItem[] =
     myPracticum && myPracticum.due_date && myPracticum.status !== "compliant"
@@ -176,6 +177,7 @@ export default function EmployeeDashboard() {
           label: "Medication Administration Practicum",
           dueDate: myPracticum.due_date,
           status: myPracticum.status,
+          href: "/me/trainings",
         }]
       : [];
   const attestationDeadlines: DeadlineItem[] = pendingAttestations
@@ -331,29 +333,39 @@ export default function EmployeeDashboard() {
                 {employeeLoading || shiftsLoading ? (
                   <div className="h-16 bg-muted animate-pulse rounded" />
                 ) : nextShift ? (
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg border">
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm">
-                        {formatDateLabel(nextShift.shift_date, { weekday: "long", month: "short", day: "numeric" })}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5 shrink-0" />
-                        {nextShift.shift_definitions?.name ? `${nextShift.shift_definitions.name} · ` : ""}
-                        {formatTimeLabel(nextShift.start_time)}–{formatTimeLabel(nextShift.end_time)}
-                      </p>
-                      {nextShift.facility_units?.name && (
-                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" />
-                          {nextShift.facility_units.name}
+                  <Link href="/me/schedule" className="block rounded-lg border p-3 hover:bg-muted/40 transition-colors">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">
+                          {formatDateLabel(nextShift.shift_date, { weekday: "long", month: "short", day: "numeric" })}
                         </p>
-                      )}
+                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5 shrink-0" />
+                          {nextShift.shift_definitions?.name ? `${nextShift.shift_definitions.name} · ` : ""}
+                          {formatTimeLabel(nextShift.start_time)}–{formatTimeLabel(nextShift.end_time)}
+                        </p>
+                        {nextShift.facility_units?.name && (
+                          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5 shrink-0" />
+                            {nextShift.facility_units.name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={nextShift.status} />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
-                    <StatusBadge status={nextShift.status} className="shrink-0" />
-                  </div>
+                  </Link>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No upcoming shifts published yet. Check back once your manager publishes the schedule.
-                  </p>
+                  <div className="space-y-3 text-center py-4">
+                    <p className="text-sm text-muted-foreground">
+                      No upcoming shifts published yet. Check back once your manager publishes the schedule.
+                    </p>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href="/me/schedule">Open schedule</Link>
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -367,6 +379,14 @@ export default function EmployeeDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              <Link href="/me/floor" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
+                <span className="font-medium text-sm">Floor documentation</span>
+                <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+              </Link>
+              <Link href="/me/shift" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
+                <span className="font-medium text-sm">My Shift</span>
+                <CalendarClock className="h-4 w-4 text-muted-foreground" />
+              </Link>
               <Link href="/me/trainings" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
                 <span className="font-medium text-sm">Training Records</span>
                 <GraduationCap className="h-4 w-4 text-muted-foreground" />
@@ -460,6 +480,14 @@ export default function EmployeeDashboard() {
                   {upcomingDeadlines.map((d) => {
                     const meta = DEADLINE_KIND_META[d.kind];
                     const Icon = meta.icon;
+                    const dueDistance = formatDueDistance(d.dueDate);
+                    const daysLeft = daysUntil(d.dueDate);
+                    const dueTone =
+                      daysLeft !== null && daysLeft < 0
+                        ? "text-destructive font-medium"
+                        : daysLeft !== null && daysLeft <= 7
+                          ? "text-amber-600 font-medium"
+                          : "text-muted-foreground";
                     const row = (
                       <div className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
                         <span className="flex items-center gap-2 min-w-0">
@@ -468,10 +496,12 @@ export default function EmployeeDashboard() {
                           <Badge variant="outline" className="text-[10px] shrink-0">{meta.label}</Badge>
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-muted-foreground text-xs">
+                          <span className={`text-xs ${dueTone}`}>
                             Due {formatDateForDisplay(d.dueDate)}
+                            {dueDistance ? ` · ${dueDistance}` : ""}
                           </span>
                           <StatusBadge status={d.status} />
+                          {d.href ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : null}
                         </div>
                       </div>
                     );

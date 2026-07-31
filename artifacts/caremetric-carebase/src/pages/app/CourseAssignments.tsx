@@ -121,6 +121,7 @@ export default function CourseAssignments() {
   const [showAssignForm, setShowAssignForm] = useState(false);
   const [assignForm, setAssignForm] = useState<AssignFormData>(EMPTY_ASSIGN_FORM);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
+  const [assignEmployeeSearch, setAssignEmployeeSearch] = useState("");
   const [assignFacilityFilter, setAssignFacilityFilter] = useState<string>("all");
   const [assigning, setAssigning] = useState(false);
   const [progressAssignmentId, setProgressAssignmentId] = useState<string | null>(null);
@@ -300,10 +301,14 @@ export default function CourseAssignments() {
 
   // Employees offered in the assign dialog's multi-select, narrowed by that dialog's own facility
   // filter (assignFacilityFilter) -- independent of the page-level facilityId filter above.
-  const filteredAssignEmployees = useMemo(
-    () => activeEmployees.filter(e => assignFacilityFilter === "all" || e.facility_id === assignFacilityFilter),
-    [activeEmployees, assignFacilityFilter],
-  );
+  const filteredAssignEmployees = useMemo(() => {
+    const needle = assignEmployeeSearch.trim().toLowerCase();
+    return activeEmployees.filter((e) => {
+      if (assignFacilityFilter !== "all" && e.facility_id !== assignFacilityFilter) return false;
+      if (!needle) return true;
+      return `${e.last_name} ${e.first_name} ${e.job_title ?? ""}`.toLowerCase().includes(needle);
+    });
+  }, [activeEmployees, assignFacilityFilter, assignEmployeeSearch]);
   const allFilteredSelected = filteredAssignEmployees.length > 0 && filteredAssignEmployees.every(e => selectedEmployeeIds.has(e.id));
   const someFilteredSelected = filteredAssignEmployees.some(e => selectedEmployeeIds.has(e.id));
 
@@ -333,6 +338,7 @@ export default function CourseAssignments() {
   const openAssign = () => {
     setAssignForm(EMPTY_ASSIGN_FORM);
     setSelectedEmployeeIds(new Set());
+    setAssignEmployeeSearch("");
     setAssignFacilityFilter("all");
     setShowAssignForm(true);
   };
@@ -764,6 +770,12 @@ export default function CourseAssignments() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Input
+                  className="h-8 w-full max-w-xs text-xs"
+                  placeholder="Search employees to assign"
+                  value={assignEmployeeSearch}
+                  onChange={(e) => setAssignEmployeeSearch(e.target.value)}
+                />
               </div>
               <div className="border rounded-md overflow-hidden">
                 <label className="flex items-center gap-2 px-2.5 py-1.5 text-xs border-b bg-muted/40 cursor-pointer">

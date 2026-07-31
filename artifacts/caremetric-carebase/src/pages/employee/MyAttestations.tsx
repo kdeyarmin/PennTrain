@@ -15,7 +15,7 @@ import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileCheck2, ExternalLink, Loader2 } from "lucide-react";
-import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay, formatDueDistance, daysUntil } from "@/lib/dateUtils";
 
 function fmtDate(iso: string | null): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -127,12 +127,23 @@ export default function MyAttestations() {
             <p className="text-muted-foreground text-sm text-center py-8">No policies are awaiting your attestation.</p>
           ) : (
             <div className="space-y-2">
-              {sorted.map((a) => (
+              {sorted.map((a) => {
+                const dueDistance = a.status === "pending" ? formatDueDistance(a.due_date) : null;
+                const daysLeft = a.status === "pending" ? daysUntil(a.due_date) : null;
+                const dueTone =
+                  daysLeft !== null && daysLeft < 0
+                    ? "text-destructive font-medium"
+                    : daysLeft !== null && daysLeft <= 7
+                      ? "text-amber-600 font-medium"
+                      : "";
+                return (
                 <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">{titleFor(a)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {a.status === "attested" ? `Attested ${fmtDate(a.attested_at?.slice(0, 10) ?? null)}` : `Due ${fmtDate(a.due_date)}`}
+                    <p className={`text-xs ${dueTone || "text-muted-foreground"}`}>
+                      {a.status === "attested"
+                        ? `Attested ${fmtDate(a.attested_at?.slice(0, 10) ?? null)}`
+                        : `Due ${fmtDate(a.due_date)}${dueDistance ? ` · ${dueDistance}` : ""}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -142,7 +153,8 @@ export default function MyAttestations() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

@@ -16,6 +16,7 @@ import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO } from "@/lib/complianceDates";
 import { FileCheck, Plus, CheckCircle, XCircle, Pencil } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 
 // Matches practicums_insert/practicums_update RLS (supabase/migrations/
 // 20260704053527_group_b_rls_policies.sql): org_admin/facility_manager/trainer, each additionally
@@ -123,7 +124,7 @@ export default function Practicums() {
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [facilityId, status]);
-  const { data: practicumsPage, isLoading } = usePaginatedPracticums({
+  const { data: practicumsPage, isLoading, isError, error, refetch } = usePaginatedPracticums({
     facilityId: facilityId && facilityId !== "all" ? facilityId : undefined,
     year: currentYear,
     status: status && status !== "all" ? status : undefined,
@@ -316,7 +317,9 @@ export default function Practicums() {
           <CardTitle>{currentYear} Practicum Status</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="practicum records" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-md" />)}
             </div>

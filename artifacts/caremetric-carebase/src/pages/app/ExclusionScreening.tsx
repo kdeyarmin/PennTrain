@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Database, ShieldAlert, RefreshCw } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 
 const SOURCE_LABELS: Record<string, string> = { oig_leie: "OIG LEIE", sam_exclusions: "SAM.gov" };
 
@@ -56,11 +57,17 @@ export default function ExclusionScreening() {
   const [reviewing, setReviewing] = useState<{ match: ExclusionScreeningMatch; decision: "confirmed_exclusion" | "false_positive" } | null>(null);
   const [notes, setNotes] = useState("");
 
-  const { data: matches, isLoading } = useListExclusionScreeningMatches({
+  const { data: matches, isLoading, isError, error, refetch } = useListExclusionScreeningMatches({
     organizationId: user?.organizationId ?? undefined,
     status: statusFilter === "all" ? undefined : (statusFilter as ExclusionScreeningMatch["status"]),
   });
-  const { data: sourceHealth, isLoading: healthLoading, error: healthError } = useListExclusionSourceHealth();
+  const {
+    data: sourceHealth,
+    isLoading: healthLoading,
+    isError: healthIsError,
+    error: healthError,
+    refetch: refetchHealth,
+  } = useListExclusionSourceHealth();
   // Only the employees referenced by the current match page -- not the whole roster.
   const matchEmployeeIds = useMemo(
     () => [...new Set((matches ?? []).map((m) => m.employee_id))],
@@ -127,8 +134,8 @@ export default function ExclusionScreening() {
             <div className="grid gap-3 md:grid-cols-2">
               {[0, 1].map((key) => <div key={key} className="h-28 rounded border bg-muted animate-pulse" />)}
             </div>
-          ) : healthError ? (
-            <p className="text-sm text-destructive">Could not load exclusion-source freshness: {healthError.message}</p>
+          ) : healthIsError ? (
+            <QueryError what="exclusion source freshness" error={healthError} onRetry={() => refetchHealth()} />
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {(sourceHealth ?? []).map((health) => (
@@ -173,7 +180,9 @@ export default function ExclusionScreening() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="exclusion screening matches" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}</div>
           ) : !sorted.length ? (
             <p className="text-sm text-muted-foreground text-center py-8">No matches in this queue. The roster is re-scanned monthly by an automated job.</p>

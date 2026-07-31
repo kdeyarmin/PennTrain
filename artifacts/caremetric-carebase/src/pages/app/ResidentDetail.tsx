@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
+import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { ArrowLeft, HeartPulse, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
@@ -219,6 +220,7 @@ export default function ResidentDetail() {
           canManage={canManage}
           actions={
             <>
+              <EntityHistoryDrawer entityType="residents" entityId={resident.id} title="Resident history" />
               {!isPlatformRoute && (
                 <Button asChild variant="outline" size="sm">
                   <Link href={`/app/residents/${id}/chart`}><HeartPulse className="mr-2 h-3.5 w-3.5" /> Clinical chart</Link>

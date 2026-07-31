@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { auditActionDescription, auditEntityLabel, auditEntityRoute } from "@/lib/auditEntityResolver";
 import { facilityToday } from "@/lib/dateUtils";
 
@@ -89,7 +90,7 @@ export default function AuditLog() {
   const page = Math.max(1, Number(filters.page) || 1);
   const hasActiveFilters = entityTypeFilter !== ENTITY_TYPE_ALL || orgFilter !== ORG_ALL || !!dateFrom || !!dateTo;
 
-  const { data: logsPage, isLoading } = useListAuditLogsPaginated({
+  const { data: logsPage, isLoading, isError, error, refetch } = useListAuditLogsPaginated({
     entityType: entityTypeFilter !== ENTITY_TYPE_ALL ? entityTypeFilter : undefined,
     organizationId: isPlatformAdmin && orgFilter !== ORG_ALL ? orgFilter : undefined,
     dateFrom: dateFrom || undefined,
@@ -197,7 +198,7 @@ export default function AuditLog() {
           <CardTitle>Recent Activity</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={entityTypeFilter} onValueChange={(v) => setFilters({ entityType: v, page: "1" })}>
-              <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Entity Types" /></SelectTrigger>
+              <SelectTrigger className="w-44 h-9" aria-label="Filter by entity type"><SelectValue placeholder="All Entity Types" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ENTITY_TYPE_ALL}>All Entity Types</SelectItem>
                 {(entityTypeOptions ?? []).map((t) => (
@@ -207,7 +208,7 @@ export default function AuditLog() {
             </Select>
             {isPlatformAdmin && (
               <Select value={orgFilter} onValueChange={(v) => setFilters({ org: v, page: "1" })}>
-                <SelectTrigger className="w-48 h-9"><SelectValue placeholder="All Organizations" /></SelectTrigger>
+                <SelectTrigger className="w-48 h-9" aria-label="Filter by organization"><SelectValue placeholder="All Organizations" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ORG_ALL}>All Organizations</SelectItem>
                   {organizations?.map((o) => (
@@ -239,7 +240,9 @@ export default function AuditLog() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="audit log entries" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
             </div>
@@ -311,8 +314,9 @@ export default function AuditLog() {
                   className="h-8"
                   onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })}
                   disabled={page === 1}
+                  aria-label="Previous page"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
                 <Button
@@ -321,8 +325,9 @@ export default function AuditLog() {
                   className="h-8"
                   onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })}
                   disabled={page === totalPages}
+                  aria-label="Next page"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" aria-hidden />
                 </Button>
               </div>
             </div>

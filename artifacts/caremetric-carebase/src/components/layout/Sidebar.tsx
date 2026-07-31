@@ -68,6 +68,7 @@ import {
   Network,
   UserRoundCheck,
   FolderLock,
+  KeyRound,
   ScanText,
   FileSearch,
   MessageSquareWarning,
@@ -266,6 +267,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/compliance-command-center", label: "Compliance Command Center", icon: ShieldCheck },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/evidence", label: "Documentation Room", icon: FolderLock },
+          { href: "/app/guest-access", label: "Guest Access Center", icon: KeyRound },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
@@ -376,6 +378,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/compliance-command-center", label: "Compliance Command Center", icon: ShieldCheck },
           { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
           { href: "/app/evidence", label: "Documentation Room", icon: FolderLock },
+          { href: "/app/guest-access", label: "Guest Access Center", icon: KeyRound },
           { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
           { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
           { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
@@ -449,19 +452,20 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     return [
       {
         items: [
-          { href: "/me", label: "My Training", icon: LayoutDashboard },
+          { href: "/me", label: "My Work", icon: LayoutDashboard },
         ]
       },
       {
-        title: "Schedule & Courses",
+        title: "Schedule & Floor",
         items: [
           { href: "/me/shift", label: "My Shift", icon: ClipboardList },
+          { href: "/me/floor", label: "Floor", icon: HeartPulse },
           { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
           { href: "/me/services", label: "My Services", icon: ClipboardCheck },
           { href: "/me/change-of-condition", label: "Change Follow-Up", icon: Activity },
           ...(showPchAlrModules ? [{ href: "/me/dietary-operations", label: "Dietary & Food Safety", icon: Utensils }] : []),
           ...(showPchAlrModules ? [{ href: "/me/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays }] : []),
-          { href: "/me/work", label: "My Work", icon: ClipboardList },
+          { href: "/me/work", label: "My Work Queue", icon: ClipboardList },
           { href: "/me/courses", label: "My Training", icon: BookOpen },
         ]
       },

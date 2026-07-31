@@ -29,8 +29,8 @@ const ROLE_QUICK_START_ITEMS: Partial<Record<Role, RoleQuickStartItem[]>> = {
     { title: "Close retraining gaps", description: "Use the matrix and retraining monitor to focus on expiring or expired requirements.", href: "/trainer/retraining", cta: "Open monitor" },
   ],
   employee: [
-    { title: "Complete what is overdue", description: "Start with overdue courses, attestations, credentials, and training records before due-soon items.", href: "/me", cta: "Open my training" },
-    { title: "Resume assigned courses", description: "Continue online courses and quizzes, including offline-ready material when available.", href: "/me/courses", cta: "Open courses" },
+    { title: "See today's priorities", description: "Start with overdue courses, attestations, credentials, and training records before due-soon items.", href: "/me", cta: "Open My Work" },
+    { title: "Resume assigned courses", description: "Continue online courses and quizzes, including offline-ready material when available.", href: "/me/courses", cta: "Open My Training" },
     { title: "Keep proof current", description: "Upload or review credentials, certificates, and policy acknowledgements so managers can verify compliance.", href: "/me/credentials", cta: "Review credentials" },
   ],
   auditor: [

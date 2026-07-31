@@ -205,6 +205,9 @@ export default function Floor() {
             <Link href="/me/change-of-condition" className="inline-flex h-12 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">
               Change in a resident
             </Link>
+            <Link href="/me/shift" className="inline-flex h-12 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">
+              Safety / maintenance handoff
+            </Link>
             <Link href="/me/work" className="inline-flex h-12 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">
               My open work
             </Link>
