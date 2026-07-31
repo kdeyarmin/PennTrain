@@ -17,7 +17,11 @@ import { useFacilityReadinessBreakdown, useListCitationTopics } from "@/hooks/us
 import { citationDisplay } from "@/lib/citationGovernance";
 import { useListEntranceConferenceItems, type EntranceConferenceItem } from "@/hooks/useEntranceConferenceItems";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
+import { SurveyPrepChecklist } from "@/components/checklists/SurveyPrepChecklist";
+import { SurfacePurpose } from "@/components/SurfacePurpose";
 import { buildInspectionReadinessActions, type ReadinessActionChecklistItem } from "@/lib/inspectionReadiness";
+import { useListBinderExports } from "@/hooks/useComplianceBinder";
+import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
 import { buildRemediationPlanDraft, remediationPlanToText } from "@/lib/remediationPlan";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
@@ -73,6 +77,8 @@ export default function InspectionReadiness() {
     error: breakdownErrorDetail,
     refetch: refetchBreakdown,
   } = useFacilityReadinessBreakdown(activeFacilityId || undefined);
+  const { data: binderExports } = useListBinderExports({ organizationId: user?.organizationId ?? undefined });
+  const { data: evidenceCollections } = useListEvidenceCollections({ organizationId: user?.organizationId ?? undefined });
   // The readiness RPC returns the citation reference but not whether anyone ever verified it.
   // Joined here rather than widening the RPC's return signature: the topics list is already a
   // cached org-wide read, and the qualifier must never be dropped on the way to the screen.
@@ -303,6 +309,21 @@ export default function InspectionReadiness() {
           {mockInspectionRunId ? <Button variant="outline" onClick={() => void handleDownloadMockInspection()}><Download className="mr-2 h-4 w-4" /> Gap report PDF</Button> : null}
         </div>
       </div>
+
+      <SurfacePurpose purpose="Survey path: clear readiness gaps → binder → documentation room → Survey Day when they arrive. This page owns prep; Survey Day owns the live visit." />
+
+      <SurveyPrepChecklist
+        facilityId={activeFacilityId}
+        readinessScore={overall}
+        hasBinder={(binderExports ?? []).some((job) =>
+          job.status === "succeeded"
+          && (!activeFacilityId || (job.facility_ids ?? []).length === 0 || job.facility_ids.includes(activeFacilityId)),
+        )}
+        hasEvidenceCollection={(evidenceCollections ?? []).some((collection) =>
+          collection.status === "published"
+          && (!activeFacilityId || collection.facility_id === activeFacilityId),
+        )}
+      />
 
       {mockInspectionSummary ? (
         <div className="rounded-lg border bg-muted/30 p-3 text-sm">

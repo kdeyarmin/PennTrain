@@ -179,7 +179,10 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/data-imports", label: "Import & migration", icon: FileUp },
           { href: "/app/alerts", label: "Resolve risks", icon: ShieldAlert },
           ...(showPchAlrModules
-            ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }]
+            ? [
+                { href: "/app/inspection-readiness", label: "Survey path", icon: Radar },
+                { href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck },
+              ]
             : []),
         ],
       },
@@ -249,8 +252,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & equipment", icon: Flame }] : []),
           ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance", icon: Wrench }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Survey path", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -351,8 +354,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/work", label: "Work queue", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Survey path", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },

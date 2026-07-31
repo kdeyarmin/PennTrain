@@ -230,10 +230,19 @@ export default function EmployeeDashboard() {
             Do these next
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Sorted by due date across courses, training records, practicums, and policy signatures.
+            Your simple inbox — courses, training, practicums, and policy signatures by due date.
           </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-dashed bg-background/80 px-3 py-2.5 text-sm">
+            <p className="font-medium">Get reminders on your phone</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Add your mobile number and turn on text messages so due training and credentials reach you without opening a computer.
+            </p>
+            <Button asChild size="sm" variant="outline" className="mt-2 h-8">
+              <Link href="/account/notifications">Notification settings</Link>
+            </Button>
+          </div>
           {employeeLoading ? (
             <div className="h-16 bg-muted animate-pulse rounded" />
           ) : deadlineSourcesError ? (
