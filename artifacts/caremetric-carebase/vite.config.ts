@@ -61,6 +61,37 @@ export default defineConfig(({ command, mode }) => {
           "without them ships a broken app even if the vars are added to the runtime later.",
       );
     }
+
+    // A Railway variable whose value is a `${{...}}` reference to something the builder cannot
+    // resolve -- RAILWAY_GIT_COMMIT_SHA is only populated for git-connected deploys -- expands to
+    // an empty string rather than failing. That is indistinguishable from the variable being
+    // absent by the time it reaches the bundle: clientErrorReporting.ts reads
+    // `VITE_RELEASE_ID || "unknown"`, and minification constant-folds `"" || "unknown"` down to
+    // the same bytes either way, so even the chunk hash is unchanged. Observed in production: the
+    // variable was set, the deploy succeeded, and every client error report still said "unknown"
+    // with nothing anywhere to say why.
+    //
+    // These are optional, so this warns rather than throwing -- but it warns on the *set to
+    // nothing useful* case specifically, because that is the one that looks like it worked.
+    //
+    // Empty and whitespace-only are both misconfigurations and both worth surfacing, but they
+    // fail differently and the message has to say which. Only "" is falsy, so only "" takes the
+    // `|| "unknown"` fallback; a whitespace-only value is truthy and ships as itself. Measured,
+    // not assumed -- building with VITE_RELEASE_ID=" " emits `release:" "`, so calling that
+    // "built as if it were never set" would have been wrong (thanks to the review that caught it).
+    const blankOptional = ["VITE_RELEASE_ID", "VITE_DEMO_ACCOUNTS_JSON", "VITE_CAREMETRIC_MODULES"]
+      .filter((key) => key in env && env[key].trim() === "");
+    for (const key of blankOptional) {
+      console.warn(
+        env[key] === ""
+          ? `[env] ${key} is set but empty, so the bundle is built as if it were never set. ` +
+            "If the value is a Railway ${{...}} reference, the builder could not resolve it -- " +
+            "use a literal, or a variable that exists for this deploy type."
+          : `[env] ${key} is set to whitespace only. That is truthy, so the whitespace itself is ` +
+            "baked into the bundle as the value -- it does not fall back the way an unset var " +
+            "would. Set a real value or remove the variable.",
+      );
+    }
   }
 
   return {
