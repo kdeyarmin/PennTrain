@@ -71,15 +71,25 @@ export default defineConfig(({ command, mode }) => {
     // variable was set, the deploy succeeded, and every client error report still said "unknown"
     // with nothing anywhere to say why.
     //
-    // These are optional, so this warns rather than throwing -- but it warns on the *set but
-    // empty* case specifically, because that is the one that looks like it worked.
-    const emptyOptional = ["VITE_RELEASE_ID", "VITE_DEMO_ACCOUNTS_JSON", "VITE_CAREMETRIC_MODULES"]
+    // These are optional, so this warns rather than throwing -- but it warns on the *set to
+    // nothing useful* case specifically, because that is the one that looks like it worked.
+    //
+    // Empty and whitespace-only are both misconfigurations and both worth surfacing, but they
+    // fail differently and the message has to say which. Only "" is falsy, so only "" takes the
+    // `|| "unknown"` fallback; a whitespace-only value is truthy and ships as itself. Measured,
+    // not assumed -- building with VITE_RELEASE_ID=" " emits `release:" "`, so calling that
+    // "built as if it were never set" would have been wrong (thanks to the review that caught it).
+    const blankOptional = ["VITE_RELEASE_ID", "VITE_DEMO_ACCOUNTS_JSON", "VITE_CAREMETRIC_MODULES"]
       .filter((key) => key in env && env[key].trim() === "");
-    for (const key of emptyOptional) {
+    for (const key of blankOptional) {
       console.warn(
-        `[env] ${key} is set but empty, so the bundle is built as if it were never set. ` +
-          "If the value is a Railway ${{...}} reference, the builder could not resolve it -- " +
-          "use a literal, or a variable that exists for this deploy type.",
+        env[key] === ""
+          ? `[env] ${key} is set but empty, so the bundle is built as if it were never set. ` +
+            "If the value is a Railway ${{...}} reference, the builder could not resolve it -- " +
+            "use a literal, or a variable that exists for this deploy type."
+          : `[env] ${key} is set to whitespace only. That is truthy, so the whitespace itself is ` +
+            "baked into the bundle as the value -- it does not fall back the way an unset var " +
+            "would. Set a real value or remove the variable.",
       );
     }
   }
