@@ -16383,20 +16383,6 @@ export type Database = {
           },
         ]
       }
-      list_audit_legal_holds: {
-        Args: never
-        Returns: {
-          id: string
-          organization_id: string | null
-          facility_id: string | null
-          reason: string
-          starts_at: string
-          ends_at: string | null
-          released_at: string | null
-          created_by: string
-          created_at: string
-        }[]
-      }
       lti_launch_receipts: {
         Row: {
           assignment_id: string | null
@@ -32936,15 +32922,6 @@ export type Database = {
           },
         ]
       }
-      unassign_organization_release_cohort: {
-        Args: {
-          p_cohort_id: string
-          p_feature_key: string
-          p_organization_id: string
-          p_reason: string
-        }
-        Returns: boolean
-      }
       user_invitation_lifecycle: {
         Row: {
           accepted_at: string | null
@@ -38003,6 +37980,20 @@ export type Database = {
         }
         Returns: string
       }
+      list_audit_legal_holds: {
+        Args: never
+        Returns: {
+          id: string
+          organization_id: string | null
+          facility_id: string | null
+          reason: string
+          starts_at: string
+          ends_at: string | null
+          released_at: string | null
+          created_by: string
+          created_at: string
+        }[]
+      }
       list_expired_organization_exports: {
         Args: { p_limit?: number }
         Returns: {
@@ -40833,6 +40824,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      unassign_organization_release_cohort: {
+        Args: {
+          p_cohort_id: string
+          p_feature_key: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       unpublish_course: {
         Args: { p_course_id: string; p_reason: string }
