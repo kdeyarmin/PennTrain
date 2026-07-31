@@ -31943,6 +31943,80 @@ export type Database = {
           },
         ]
       }
+      survey_evidence_packet_items: {
+        Row: {
+          binder_export_job_id: string | null
+          created_at: string
+          created_by: string | null
+          facility_id: string | null
+          id: string
+          label: string
+          notes: string | null
+          organization_id: string
+          sort_order: number
+          source_id: string | null
+          source_type: string
+          survey_day_session_id: string | null
+        }
+        Insert: {
+          binder_export_job_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string | null
+          id?: string
+          label: string
+          notes?: string | null
+          organization_id: string
+          sort_order?: number
+          source_id?: string | null
+          source_type: string
+          survey_day_session_id?: string | null
+        }
+        Update: {
+          binder_export_job_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string | null
+          id?: string
+          label?: string
+          notes?: string | null
+          organization_id?: string
+          sort_order?: number
+          source_id?: string | null
+          source_type?: string
+          survey_day_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_evidence_packet_items_binder_export_job_id_fkey"
+            columns: ["binder_export_job_id"]
+            isOneToOne: false
+            referencedRelation: "binder_export_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_evidence_packet_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_evidence_packet_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_evidence_packet_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       survey_rehearsal_items: {
         Row: {
           created_at: string
@@ -34971,6 +35045,14 @@ export type Database = {
           was_duplicate: boolean
         }[]
       }
+      accept_learning_package: {
+        Args: {
+          p_entry_point?: string
+          p_package_id: string
+          p_reason?: string
+        }
+        Returns: boolean
+      }
       accept_move_in_guest_terms: {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: boolean
@@ -35225,6 +35307,19 @@ export type Database = {
         }
         Returns: string
       }
+      add_survey_evidence_packet_item: {
+        Args: {
+          p_binder_export_job_id?: string
+          p_facility_id?: string
+          p_label: string
+          p_notes?: string
+          p_sort_order?: number
+          p_source_id?: string
+          p_source_type: string
+          p_survey_day_session_id?: string
+        }
+        Returns: string
+      }
       add_work_item_comment: {
         Args: { p_body: string; p_work_item_id: string }
         Returns: string
@@ -35464,6 +35559,13 @@ export type Database = {
       approve_work_item: {
         Args: { p_reason: string; p_work_item_id: string }
         Returns: boolean
+      }
+      assemble_survey_evidence_packet_manifest: {
+        Args: {
+          p_binder_export_job_id?: string
+          p_survey_day_session_id?: string
+        }
+        Returns: Json
       }
       assert_course_version_publish_ready: {
         Args: { p_version_id: string }
@@ -35800,6 +35902,14 @@ export type Database = {
           correlation_id: string
           job_id: string
           run_id: string
+        }[]
+      }
+      claim_credential_renewal_submissions: {
+        Args: { p_limit?: number }
+        Returns: {
+          credential_document_id: string
+          id: string
+          organization_id: string
         }[]
       }
       claim_document_analyzer_jobs: {
@@ -37250,6 +37360,7 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: string[]
       }
+      get_credential_renewal_queue_summary: { Args: never; Returns: Json }
       get_current_idle_session_lock: { Args: never; Returns: string }
       get_customer_value_dashboard: { Args: never; Returns: Json }
       get_daily_operations_command_center: {
@@ -38036,6 +38147,32 @@ export type Database = {
           sequence_number: number
         }[]
       }
+      list_learning_packages_admin: {
+        Args: { p_course_version_id?: string }
+        Returns: {
+          capabilities: string[]
+          compressed_bytes: number
+          connectivity_mode: string
+          content_sha256: string
+          course_version_id: string
+          created_at: string
+          created_by: string | null
+          entry_point: string | null
+          expanded_bytes: number | null
+          id: string
+          immutable_at: string | null
+          manifest: Json
+          organization_id: string | null
+          scanner_name: string | null
+          scanner_version: string | null
+          standard_type: string
+          storage_bucket: string
+          storage_path: string
+          validated_at: string | null
+          validation_results: Json
+          validation_status: string
+        }[]
+      }
       list_regulatory_updates: {
         Args: {
           p_category?: string
@@ -38069,6 +38206,26 @@ export type Database = {
           shift_date: string
           start_time: string
           unit_name: string
+        }[]
+      }
+      list_survey_evidence_packet_items: {
+        Args: {
+          p_binder_export_job_id?: string
+          p_survey_day_session_id?: string
+        }
+        Returns: {
+          binder_export_job_id: string | null
+          created_at: string
+          created_by: string | null
+          facility_id: string | null
+          id: string
+          label: string
+          notes: string | null
+          organization_id: string
+          sort_order: number
+          source_id: string | null
+          source_type: string
+          survey_day_session_id: string | null
         }[]
       }
       log_clinical_access: {
@@ -38489,6 +38646,10 @@ export type Database = {
       purge_expired_organization_exports: {
         Args: { p_job_ids: string[] }
         Returns: number
+      }
+      quarantine_learning_package: {
+        Args: { p_package_id: string; p_reason: string }
+        Returns: boolean
       }
       queue_clinical_observation_writeback: {
         Args: { p_observation_id: string }
@@ -39157,6 +39318,18 @@ export type Database = {
         }
         Returns: string
       }
+      register_learning_package: {
+        Args: {
+          p_compressed_bytes: number
+          p_content_sha256: string
+          p_course_version_id: string
+          p_entry_point?: string
+          p_organization_id?: string
+          p_standard_type: string
+          p_storage_path: string
+        }
+        Returns: string
+      }
       register_offline_learning_device: {
         Args: {
           p_device_fingerprint_sha256: string
@@ -39188,6 +39361,10 @@ export type Database = {
       }
       remove_compliance_evidence: {
         Args: { p_document_id: string }
+        Returns: boolean
+      }
+      remove_survey_evidence_packet_item: {
+        Args: { p_item_id: string }
         Returns: boolean
       }
       remove_work_item_dependency: {

@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  IMPORT_DOMAIN_DEFINITIONS,
-  IMPORT_DOMAINS,
-  canRollbackImportDomain,
-  canUploadImportDomain,
-  importProcessorFunction,
-  importTemplate,
-  rowsToErrorCsv,
-} from "./dataImportCenter";
+import { IMPORT_DOMAIN_DEFINITIONS, IMPORT_DOMAINS, canUploadImportDomain, importProcessorFunction, canRollbackImportDomain, importTemplate, rowsToErrorCsv } from "./dataImportCenter";
 
 describe("data import center", () => {
   it("offers a versionable CSV template for every supported domain", () => {
@@ -15,25 +7,31 @@ describe("data import center", () => {
     for (const domain of IMPORT_DOMAINS) expect(importTemplate(domain)).toMatch(/.+,.+\n$/);
   });
 
-  it("activates only domains with a tested processor", () => {
+  it("activates processors for migration domains except assessments", () => {
     expect(IMPORT_DOMAIN_DEFINITIONS).toHaveLength(IMPORT_DOMAINS.length);
-    expect(
-      IMPORT_DOMAIN_DEFINITIONS.filter(({ availability }) => availability === "active").map(({ domain }) => domain),
-    ).toEqual(["employees", "training_records"]);
+    // Order follows IMPORT_DOMAINS (assessments stays template-only).
+    const active = IMPORT_DOMAIN_DEFINITIONS.filter(({ availability }) => availability === "active").map(({ domain }) => domain);
+    expect(active).toEqual([
+      "employees",
+      "training_records",
+      "credentials",
+      "residents",
+      "resident_contacts",
+      "rooms",
+      "incidents",
+    ]);
     expect(canUploadImportDomain("employees")).toBe(true);
-    expect(canUploadImportDomain("training_records")).toBe(true);
-    expect(canUploadImportDomain("incidents")).toBe(false);
-    expect(importProcessorFunction("employees")).toBe("bulk-import-employees");
-    expect(importProcessorFunction("training_records")).toBe("bulk-import-training-records");
-    expect(importProcessorFunction("credentials")).toBeNull();
-    expect(canRollbackImportDomain("employees")).toBe(true);
-    expect(canRollbackImportDomain("training_records")).toBe(true);
+    expect(canUploadImportDomain("credentials")).toBe(true);
+    expect(canUploadImportDomain("assessments")).toBe(false);
+    expect(importProcessorFunction("credentials")).toBe("bulk-import-credentials");
+    expect(importProcessorFunction("assessments")).toBeNull();
+    expect(canRollbackImportDomain("credentials")).toBe(true);
     expect(canRollbackImportDomain("incidents")).toBe(false);
   });
 
   it("exports row diagnostics without allowing commas or quotes to corrupt the CSV", () => {
     const csv = rowsToErrorCsv([
-      { row_number: 2, source_row: { name: "Doe, Jane" }, errors: ["missing \"id\""], warnings: [] },
+      { row_number: 2, source_row: { name: "Doe, Jane" }, errors: ['missing "id"'], warnings: [] },
       { row_number: 3, source_row: { name: "Clean row" }, errors: [], warnings: [] },
     ]);
     expect(csv).toContain('"{\"\"name\"\":\"\"Doe, Jane\"\"}"');

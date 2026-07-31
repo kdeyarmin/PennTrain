@@ -17,6 +17,24 @@ verify_jwt = true
 # enforced inside the function for user requests (Authorization header + getUser), and cron
 # requests are gated by the shared X-CareMetric-Cron-Secret constant-time check -- the same
 # split as generate-certificate-pdf.
+[functions.process-credential-renewals]
+verify_jwt = false
+
+[functions.bulk-import-incidents]
+verify_jwt = true
+
+[functions.bulk-import-resident-contacts]
+verify_jwt = true
+
+[functions.bulk-import-residents]
+verify_jwt = true
+
+[functions.bulk-import-rooms]
+verify_jwt = true
+
+[functions.bulk-import-credentials]
+verify_jwt = true
+
 [functions.generate-compliance-binder]
 verify_jwt = false
 
