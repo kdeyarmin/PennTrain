@@ -216,9 +216,15 @@ export default function SafetyReport() {
                   <dd className="flex items-start justify-between gap-2">
                     <span className="break-all">{String(result.intakeNumber ?? "")}</span>
                     {result.intakeNumber != null && (
-                      <Button type="button" size="sm" variant="outline" onClick={() => void copyValue("Confirmation number", String(result.intakeNumber))}>
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
+<Button
+  type="button"
+  size="sm"
+  variant="outline"
+  aria-label="Copy confirmation number"
+  onClick={() => void copyValue("Confirmation number", String(result.intakeNumber))}
+>
+  <Copy className="h-3.5 w-3.5" />
+</Button>
                     )}
                   </dd>
                 </div>
