@@ -8,8 +8,8 @@ select plan(17);
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'notifications.expanded_delivery_types' $$,
-  $$ values ('off'::text, false) $$,
-  'the expanded-delivery release flag is seeded default-off'
+  $$ values ('cohort'::text, true) $$,
+  'the expanded-delivery release flag is seeded cohort-on for the CareBase pilot'
 );
 select ok(
   exists (

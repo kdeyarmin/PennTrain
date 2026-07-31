@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SurfacePurpose } from "@/components/SurfacePurpose";
 
 const label = (value: string) =>
   value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\w/g, character => character.toUpperCase());
@@ -70,6 +71,7 @@ export default function ClosedLoopCompliance() {
         <div>
           <h1 className="text-2xl font-bold">Closed-loop compliance and documentation</h1>
           <p className="text-muted-foreground">Owned remediation, confidential intake, move-in readiness, reproducible reports, and external documentation access.</p>
+          <SurfacePurpose purpose="Closed-loop = remediation from incidents and findings through completion. Use Work queue for day-to-day task execution." />
         </div>
         <Button variant="outline" onClick={() => void query.refetch()}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
       </div>

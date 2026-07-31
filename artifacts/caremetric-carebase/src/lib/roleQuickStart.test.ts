@@ -8,12 +8,16 @@ describe("roleQuickStartItems", () => {
     expect(roleQuickStartItems("auditor")[0]?.href).toBe("/app/today");
   });
 
+  it("points trainers at the gaps hub", () => {
+    expect(roleQuickStartItems("trainer").some((item) => item.href === "/trainer/gaps")).toBe(true);
+  });
+
   it("keeps employee quick starts inside self-service", () => {
     expect(roleQuickStartItems("employee").every((item) => item.href.startsWith("/me"))).toBe(true);
   });
 
   it("returns no checklist for unknown roles", () => {
     expect(roleQuickStartItems(undefined)).toEqual([]);
-    expect(roleQuickStartItems("guest")).toEqual([]);
+    expect(roleQuickStartItems("guest" as never)).toEqual([]);
   });
 });

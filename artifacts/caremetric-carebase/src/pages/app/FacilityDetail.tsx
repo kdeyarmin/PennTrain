@@ -334,6 +334,27 @@ export default function FacilityDetail() {
         )}
       </div>
 
+
+      <div className="sticky top-[68px] z-[5] -mx-1 flex flex-wrap gap-2 border-b bg-background/95 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        {[
+          { id: "facility-overview", label: "Overview" },
+          { id: "facility-licensing", label: "Licensing" },
+          { id: "facility-people", label: "People" },
+          { id: "facility-safety", label: "Safety" },
+        ].map((section) => (
+          <button
+            key={section.id}
+            type="button"
+            className="rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
+            onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+      <div id="facility-overview" className="scroll-mt-28" />
+
+      <div id="facility-licensing" className="scroll-mt-28" />
       <FacilityLicensingWorkspace
         facilityId={facility.id}
         facilityType={facility.facility_type}
@@ -566,7 +587,7 @@ export default function FacilityDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {canViewIncidents && (
-          <Card>
+          <Card id="facility-safety" className="scroll-mt-28">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" /> Open Incidents
@@ -654,6 +675,7 @@ export default function FacilityDetail() {
         </Card>
       </div>
 
+      <div id="facility-people" className="scroll-mt-28" />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

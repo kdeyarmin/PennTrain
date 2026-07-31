@@ -68,6 +68,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { SurfacePurpose } from "@/components/SurfacePurpose";
 import {
   useAddWarRoomRequest,
   useAdmissionsIntelligence,
@@ -433,6 +434,7 @@ export default function ValueCenter() {
             solutions, and disconnected follow-up—then measure the time and software cost returned to
             the facility.
           </p>
+          <SurfacePurpose purpose="Value Center measures product adoption and automation ROI — not daily operational risk." />
         </div>
         <div className="flex gap-2 print:hidden">
           <Select value={facilityId} onValueChange={setSelectedFacilityId}>

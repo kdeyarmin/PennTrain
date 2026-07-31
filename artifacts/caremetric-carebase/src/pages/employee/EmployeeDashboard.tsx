@@ -211,9 +211,9 @@ export default function EmployeeDashboard() {
           <Badge variant="secondary">Start here</Badge>
           <span className="text-xs text-muted-foreground">Your next due items are sorted by date.</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">My Work</h1>
+        <h1 className="text-2xl font-bold tracking-tight">My day</h1>
         <p className="text-muted-foreground">
-          Welcome, {user?.firstName}. Start with your training, assigned work, policy signatures, credentials, and next shift.
+          Welcome, {user?.firstName}. Finish overdue items first, then due-soon work, then keep credentials and signatures current.
         </p>
       </div>
 
@@ -222,6 +222,70 @@ export default function EmployeeDashboard() {
         title="My quick start"
         description="A short checklist for finishing the work managers need to verify."
       />
+
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="h-4 w-4 text-primary" />
+            Do these next
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Your simple inbox — courses, training, practicums, and policy signatures by due date.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-dashed bg-background/80 px-3 py-2.5 text-sm">
+            <p className="font-medium">Get reminders on your phone</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Add your mobile number and turn on text messages so due training and credentials reach you without opening a computer.
+            </p>
+            <Button asChild size="sm" variant="outline" className="mt-2 h-8">
+              <Link href="/account/notifications">Notification settings</Link>
+            </Button>
+          </div>
+          {employeeLoading ? (
+            <div className="h-16 bg-muted animate-pulse rounded" />
+          ) : deadlineSourcesError ? (
+            <QueryError what="your due items" onRetry={retryDeadlineSources} />
+          ) : upcomingDeadlines.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              Nothing overdue or due soon. You're caught up — check your shift and credentials when you can.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingDeadlines.map((item) => {
+                const Meta = DEADLINE_KIND_META[item.kind];
+                const Icon = Meta.icon;
+                const days = daysUntil(item.dueDate);
+                const urgent = days !== null && days <= 7;
+                const overdue = days !== null && days < 0;
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href ?? "/me"}
+                    className={`flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5 transition hover:bg-muted/40 ${overdue ? "border-destructive/40" : urgent ? "border-amber-300" : ""}`}
+                  >
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${overdue ? "text-destructive" : urgent ? "text-amber-600" : "text-muted-foreground"}`} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {Meta.label} · Due {formatDateForDisplay(item.dueDate)}
+                          {formatDueDistance(item.dueDate) ? ` · ${formatDueDistance(item.dueDate)}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusBadge status={item.status} />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -454,65 +518,6 @@ export default function EmployeeDashboard() {
                       </Badge>
                     </div>
                   ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarClock className="h-5 w-5" />
-                Upcoming Deadlines
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {deadlineSourcesError ? (
-                <QueryError what="your upcoming deadlines" onRetry={retryDeadlineSources} />
-              ) : assignmentsLoading || practicumsLoading || attestationsLoading ? (
-                <div className="space-y-2">
-                  {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
-                </div>
-              ) : upcomingDeadlines.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Nothing due right now -- you're all caught up.</p>
-              ) : (
-                <div className="space-y-2">
-                  {upcomingDeadlines.map((d) => {
-                    const meta = DEADLINE_KIND_META[d.kind];
-                    const Icon = meta.icon;
-                    const dueDistance = formatDueDistance(d.dueDate);
-                    const daysLeft = daysUntil(d.dueDate);
-                    const dueTone =
-                      daysLeft !== null && daysLeft < 0
-                        ? "text-destructive font-medium"
-                        : daysLeft !== null && daysLeft <= 7
-                          ? "text-amber-600 font-medium"
-                          : "text-muted-foreground";
-                    const row = (
-                      <div className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
-                        <span className="flex items-center gap-2 min-w-0">
-                          <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="font-medium truncate">{d.label}</span>
-                          <Badge variant="outline" className="text-[10px] shrink-0">{meta.label}</Badge>
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-xs ${dueTone}`}>
-                            Due {formatDateForDisplay(d.dueDate)}
-                            {dueDistance ? ` · ${dueDistance}` : ""}
-                          </span>
-                          <StatusBadge status={d.status} />
-                          {d.href ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : null}
-                        </div>
-                      </div>
-                    );
-                    return d.href ? (
-                      <Link key={d.id} href={d.href} className="block hover:bg-muted/30 -mx-2 px-2 rounded">
-                        {row}
-                      </Link>
-                    ) : (
-                      <div key={d.id}>{row}</div>
-                    );
-                  })}
                 </div>
               )}
             </CardContent>

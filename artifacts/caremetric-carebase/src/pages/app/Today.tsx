@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
-  Activity, Bot, CalendarDays, Clock3, HelpCircle, Info, RefreshCw, ShieldCheck,
+  Activity, Bot, CalendarDays, Clock3, HelpCircle, Info, LayoutDashboard, RefreshCw, ShieldCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { RoleQuickStart } from "@/components/RoleQuickStart";
+import { SurfacePurpose } from "@/components/SurfacePurpose";
 import { useAuth } from "@/lib/auth";
 import { getTodayDestinations } from "@/lib/todayWorkspace";
 import { buildHomeMetrics, firstCall, highlightMetrics } from "@/lib/homeMetrics";
@@ -169,6 +170,12 @@ export default function Today() {
             {facilityList.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
           </SelectContent>
         </Select>}
+        <Button asChild variant="outline">
+          <Link href="/app">
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            Compliance scorecard
+          </Link>
+        </Button>
         <Button
           type="button"
           variant="outline"
@@ -180,6 +187,8 @@ export default function Today() {
         <Button asChild variant="outline"><Link href={destinations.primary.href}><PrimaryIcon className="mr-2 h-4 w-4" />{destinations.primary.label}</Link></Button>
       </div>
     </div>
+
+    <SurfacePurpose purpose="Today = do the work. Compliance scorecard = scores and trends. Survey Day = surveyor is here." />
 
     <RoleQuickStart
       role={user?.role}

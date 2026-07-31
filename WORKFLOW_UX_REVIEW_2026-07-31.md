@@ -85,7 +85,8 @@ Most of `END_USER_REVIEW.md` Part 2 is **already shipped** (often behind default
   - `notifications.expanded_delivery_types`
   - `notifications.critical_multichannel`
   - `screening.on_hire_exclusion`
-- Flags stay **default-off** (`rollout_mode=off`, `is_enabled=false`). Operators enable via AAL2 `set_release_flag` with `rollout_mode=cohort` when ready for pilot.
+  - `learning.video_watch_gate`
+- Flags are **enabled in cohort mode** (`rollout_mode=cohort`, `is_enabled=true`) on migration apply — operator equivalent of AAL2 `set_release_flag`. Non-demo orgs remain off until assigned to the cohort.
 
 ### Copy alignment
 - Employee Role Quick Start CTAs: “Open My Work” / “Open My Training”.

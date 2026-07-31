@@ -296,10 +296,10 @@ export default function IncidentFollowThroughSection({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <ClipboardCheck className="h-5 w-5" /> Follow-through
+                <ClipboardCheck className="h-5 w-5" /> Close-loop checklist
               </CardTitle>
               <CardDescription>
-                {state.completedCount} of {state.applicableCount} stages complete
+                One job from report through close: {state.completedCount} of {state.applicableCount} stages done
                 {state.nextAction ? ` · next: ${state.nextAction.label}` : " · nothing outstanding"}
               </CardDescription>
             </div>
@@ -322,6 +322,12 @@ export default function IncidentFollowThroughSection({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${state.applicableCount ? Math.round((state.completedCount / state.applicableCount) * 100) : 0}%` }}
+            />
+          </div>
           <ul className="space-y-1.5">
             {state.stages.map((stage) => {
               const action = canManage ? stageAction(stage) : null;

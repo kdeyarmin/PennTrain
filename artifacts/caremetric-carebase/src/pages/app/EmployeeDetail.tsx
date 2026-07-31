@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { computeEmployeeReadiness } from "@/lib/employeeReadiness";
+import { JobChecklist, type JobChecklistStep } from "@/components/checklists/JobChecklist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
-  Download, ShieldCheck, Plus, KeyRound, ClipboardList, Check, MessageCircle, Mail,
+  Download, ShieldCheck, Plus, KeyRound, ClipboardList, MessageCircle, Mail,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
@@ -416,6 +417,24 @@ export default function EmployeeDetail() {
         )}
       </div>
 
+      {readiness && readiness.status !== "ready" && (
+        <div className="sticky top-[68px] z-[5] rounded-lg border border-amber-200 bg-amber-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-amber-50/90">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-950">Not survey-ready — {readiness.label}</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-amber-900/90">
+                {readiness.reasons.slice(0, 4).map((reason, i) => (
+                  <li key={i}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+            <p className="text-xs text-amber-900/80 max-w-xs">
+              Use the Onboarding checklist, Training, and Credentials tabs below to close each gap.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
@@ -518,56 +537,62 @@ export default function EmployeeDetail() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New-Hire Onboarding Checklist</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {onboardingLoading ? (
+          {onboardingLoading ? (
+            <Card>
+              <CardContent className="py-6">
                 <Skeleton className="h-10" />
-              ) : !onboardingItems?.length ? (
+              </CardContent>
+            </Card>
+          ) : !onboardingItems?.length ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New-Hire Onboarding Checklist</CardTitle>
+              </CardHeader>
+              <CardContent>
                 <p className="text-sm text-muted-foreground">No onboarding checklist instantiated for this hire.</p>
-              ) : (
-                <div className="space-y-2">
-                  {onboardingItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          {item.label}
-                          {item.is_blocking && <Badge variant="outline" className="text-[10px]">Blocking</Badge>}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {item.category}{item.due_date ? ` · Due ${item.due_date}` : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge
-                          className={
-                            item.status === "completed" ? "bg-success text-success-foreground hover:bg-success/80"
-                            : item.status === "not_applicable" ? "bg-muted text-muted-foreground"
-                            : "bg-warning text-warning-foreground hover:bg-warning/80"
-                          }
-                          variant="outline"
-                        >
-                          {item.status.replace(/_/g, " ")}
-                        </Badge>
-                        {canManage && item.status === "pending" && (
-                          <Button
-                            variant="ghost" size="icon" className="h-7 w-7"
-                            onClick={() => updateOnboardingItem({
-                              id: item.id, status: "completed", completed_at: new Date().toISOString(), completed_by_profile_id: user?.id ?? null,
-                            })}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ) : (
+            (() => {
+              const ordered = [...onboardingItems].sort((a, b) => {
+                const aDone = a.status === "completed" || a.status === "not_applicable" ? 1 : 0;
+                const bDone = b.status === "completed" || b.status === "not_applicable" ? 1 : 0;
+                return aDone - bDone;
+              });
+              let sawCurrent = false;
+              const steps: JobChecklistStep[] = ordered.map((item) => {
+                const done = item.status === "completed" || item.status === "not_applicable";
+                let status: JobChecklistStep["status"] = done ? "complete" : "upcoming";
+                if (!done && !sawCurrent) {
+                  status = "current";
+                  sawCurrent = true;
+                }
+                return {
+                  id: item.id,
+                  label: item.label,
+                  detail: `${item.category}${item.is_blocking ? " · blocking" : ""}${item.due_date ? ` · due ${item.due_date}` : ""}`,
+                  status,
+                  cta: canManage && item.status === "pending" ? "Mark done" : undefined,
+                  onAction: canManage && item.status === "pending"
+                    ? () => updateOnboardingItem({
+                        id: item.id,
+                        status: "completed",
+                        completed_at: new Date().toISOString(),
+                        completed_by_profile_id: user?.id ?? null,
+                      })
+                    : undefined,
+                };
+              });
+              return (
+                <JobChecklist
+                  title="Onboard this hire"
+                  description="One job: finish each step until the employee is survey-ready. Blocking items prevent unsupervised duty."
+                  icon={ClipboardList}
+                  steps={steps}
+                />
+              );
+            })()
+          )}
 
           <Card>
             <CardHeader>
