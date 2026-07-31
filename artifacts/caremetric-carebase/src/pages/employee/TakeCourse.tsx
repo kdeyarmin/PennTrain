@@ -427,10 +427,9 @@ useEffect(() => {
   // *every* quiz block in the training item before completion is reachable --
   // without having to bulk-resolve every quiz in the training item up front.
   // ---------------------------------------------------------------------
-  // Video blocks always gate advance for open assignments: a learner cannot skip past an
-  // unwatched mandated video. Completed assignments stay unlocked for review. The release flag
-  // still controls whether the player enforces no-skip scrubbing; advance is always gated once
-  // watch state is available.
+// Video blocks always gate advance for open assignments: a learner cannot skip past an
+// unwatched mandated video. The player also clamps forward seeking until watched through.
+// Completed assignments stay unlocked for review.
   const isVideoBlock = currentBlock?.block_type === "video" && !!currentBlock?.video_url;
   const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
   const videoGateBlocksAdvance =
