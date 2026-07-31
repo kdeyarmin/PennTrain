@@ -23,7 +23,7 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     title:
       "CareMetric CareBase — Survey-Ready Operations for PA Personal Care Homes & Assisted Living",
     description:
-      "Training compliance, resident clinical records, FHIR med sync, Survey Day Mode, a grounded compliance copilot, incidents, scheduling, and one-click survey binders for Pennsylvania PCH and ALF operators. Usage-based pricing, free trial.",
+      "Training compliance, resident clinical records, FHIR med sync, Survey Day Mode, a grounded compliance copilot, incidents, scheduling, and one-click survey binders for Pennsylvania PCH and ALF operators. Flat monthly pricing, free trial.",
   },
   "/features": {
     title:
