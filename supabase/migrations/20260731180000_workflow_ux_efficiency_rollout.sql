@@ -2,11 +2,13 @@
 --
 -- Complements the frontend IA / Report Event / Trainer Gaps / purpose-label work by:
 -- 1) Expanding the pilot cohort feature set with learning.video_watch_gate
--- 2) Documenting operator enablement for deskless notification reach
+-- 2) Enabling deskless notification reach + related pilot flags for enrolled orgs
 --
--- Flags stay default-off (global). Demo orgs already enrolled in carebase-pilot-2026
--- receive cohort membership so operators can flip rollout_mode=cohort + is_enabled
--- without per-tenant assignment for these capabilities.
+-- Operator equivalent of set_release_flag(..., 'cohort', true, ...) for each flag.
+-- Migrations cannot call set_release_flag (AAL2 platform-admin only); this upsert
+-- matches the same release_flags columns the RPC writes.
+-- Demo orgs enrolled in carebase-pilot-2026 receive cohort membership so
+-- is_feature_release_active returns true only for those tenants.
 
 insert into public.release_cohorts (cohort_key, name, description, is_active)
 values (
@@ -74,11 +76,43 @@ insert into public.feature_definitions (
   )
 on conflict (feature_key) do nothing;
 
+-- Enable for pilot cohort only (not global). Same effect as:
+--   select public.set_release_flag(key, 'cohort', true, owner, reason, null);
+-- for each key, when called by an AAL2 platform admin.
 insert into public.release_flags (
   feature_key, rollout_mode, is_enabled, owner, change_reason
 ) values
-  ('notifications.expanded_delivery_types', 'off', false, 'notifications', 'Workflow UX efficiency rollout registration'),
-  ('notifications.critical_multichannel', 'off', false, 'notifications', 'Workflow UX efficiency rollout registration'),
-  ('screening.on_hire_exclusion', 'off', false, 'screening', 'Workflow UX efficiency rollout registration'),
-  ('learning.video_watch_gate', 'off', false, 'learning', 'Workflow UX efficiency rollout registration')
-on conflict (feature_key) do nothing;
+  (
+    'notifications.expanded_delivery_types',
+    'cohort',
+    true,
+    'notifications',
+    'Enable CareBase pilot 2026 cohort: expanded deskless notification delivery'
+  ),
+  (
+    'notifications.critical_multichannel',
+    'cohort',
+    true,
+    'notifications',
+    'Enable CareBase pilot 2026 cohort: critical multi-channel (email+SMS) delivery'
+  ),
+  (
+    'screening.on_hire_exclusion',
+    'cohort',
+    true,
+    'screening',
+    'Enable CareBase pilot 2026 cohort: on-hire exclusion screening'
+  ),
+  (
+    'learning.video_watch_gate',
+    'cohort',
+    true,
+    'learning',
+    'Enable CareBase pilot 2026 cohort: video minimum-watch gate'
+  )
+on conflict (feature_key) do update set
+  rollout_mode = excluded.rollout_mode,
+  is_enabled = excluded.is_enabled,
+  owner = excluded.owner,
+  change_reason = excluded.change_reason,
+  updated_at = now();
