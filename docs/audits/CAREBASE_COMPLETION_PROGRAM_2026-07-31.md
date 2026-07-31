@@ -25,10 +25,11 @@ has not yet been demonstrated end to end.
 | 1 | Invitation lifecycle dashboard | Strong; management UI + revoke RPC + resend edge function + bulk invite | `/app/invitations`; `user_invitation_lifecycle`; `revoke_user_invitation`; `resend-invitation` | Role/browser journeys against seeded tenants; optional ban/delete of unconfirmed auth users on revoke |
 | 1 | Employee lifecycle case console | Strong; list/wizard/preview-lock/apply/cancel/report UI on existing RPCs | `/app/employee-lifecycle`; `employee_lifecycle_cases` and preview/apply RPCs | Authenticated browser journeys and multi-facility transfer matrix coverage |
 | 1 | Readiness action planner | Strong; workforce-impact projections + on-demand remediation routing | Forecast panel; `route_workforce_readiness_remediation`; work queue | Journey coverage that proves routed work items reopen/close with forecast maintenance |
-| 2 | Credential renewal inbox | Partial | Existing employee credentials and document workflows | Separate governed renewal states, reviewer inbox, independent approval, reminders and history |
-| 2 | Assessor/supervisor qualification enforcement | Partial | Competency/practicum/observation database paths | Common server-enforced qualification rules, delegation/exception evidence and denial tests |
+| 2 | Credential renewal inbox | Strong; reviewer inbox + independent approve/reject on existing RPCs | `/app/workforce-operations` Renewals tab; `credential_renewal_submissions`; `review_credential_renewal_submission` | Reminder/SLA queue UI; OCR edge worker; superseding credential history chain |
+| 2 | Assessor/supervisor qualification enforcement | Stronger; practicum observation/verification now duty-gated | `duty_eligibility_rules.practicum_observer`; practicum trigger; certification assessor path | Shared delegation/exception matrix UI across duty keys |
 | 2 | Retraining-to-class loop | Partial | Existing retraining, course, class and waitlist records | Unified governed case through effectiveness review and closure |
-| 2 | Interval scheduling | Strong but missing last-mile functionality | Existing schedule overlap protections | Split/overnight shifts, travel/rest/hours warnings, overrides and concurrent pgTAP coverage |
+| 2 | Interval scheduling | Stronger; same-day split shifts allowed under overlap trigger | `shift_assignments` without one-per-day unique; interval overlap authority | Travel warnings and concurrent pgTAP race coverage |
+
 | 3 | Request-specific survey evidence packets | Partial | Survey Day, evidence/binder and response-room features | Request ledger, immutable versioned manifest/package and packet-only guest access |
 | 3 | Survey rehearsal/random sampling | Missing | No `survey_rehearsal` system of record found | Complete rehearsal workflow and report |
 | 3 | Plan of correction lifecycle | Partial | Existing plan-of-correction records | Full immutable submitted-version lifecycle, approvals, effectiveness gate and packet |

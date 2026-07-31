@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CredentialRenewalInbox } from "@/components/employees/CredentialRenewalInbox";
+
 
 function labelFor(value: string) {
   return value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -263,7 +265,7 @@ export default function QualifiedWorkforce() {
         </TabsList>
         <TabsContent value="imports" className="mt-4"><HrisCommands /></TabsContent>
         <TabsContent value="qualifications" className="mt-4"><QualificationCommand /></TabsContent>
-        <TabsContent value="renewals" className="mt-4"><MetricPanel title="Credential renewal queue" description="Extraction never updates compliance until an independent human approves it." values={data.credentialRenewals} /></TabsContent>
+        <TabsContent value="renewals" className="mt-4"><CredentialRenewalInbox metrics={data.credentialRenewals} /></TabsContent>
         <TabsContent value="training" className="mt-4"><MetricPanel title="Instructor-led operations" description="Qualified trainers, capacity, waitlist, signed attendance, and exactly-once completion." values={data.instructorLedTraining} /></TabsContent>
         <TabsContent value="eligibility" className="mt-4 space-y-4"><EligibilityCommand /><Card><CardHeader><CardTitle className="text-base">Recent decisions</CardTitle></CardHeader><CardContent><RecentEligibilityDecisions decisions={data.recentEligibilityDecisions} /></CardContent></Card></TabsContent>
         <TabsContent value="self-service" className="mt-4"><WorkforceSelfServiceQueue /></TabsContent>
