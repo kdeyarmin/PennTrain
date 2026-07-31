@@ -25,8 +25,10 @@ describe("CareBase Guide content engine", () => {
 
     expect(response.content).toContain("$239/month");
     expect(response.content).toContain("$499/month");
-    expect(response.content).toContain("$4/month");
+    expect(response.content).toContain("no per-person overages");
+    expect(response.content).not.toMatch(/\$4\/month/);
     expect(response.bullets?.join(" ")).toContain("30-day free trial");
+    expect(response.bullets?.join(" ")).toContain("unlimited");
     expect(response.cta).toEqual({ label: "Estimate savings", href: "/savings" });
   });
 
@@ -108,13 +110,21 @@ describe("CareBase Guide content engine", () => {
     ]);
     const mailto = buildDemoMailtoHref(profile);
     expect(mailto.startsWith("mailto:hello@caremetric.ai?")).toBe(true);
-    expect(decodeURIComponent(mailto)).toContain("CareBase demo request");
+    expect(decodeURIComponent(mailto)).toContain("owner/executive");
+    expect(decodeURIComponent(mailto)).toContain("survey soon");
   });
 
-  it("builds a prospect email that points at self-serve trial signup", () => {
-    const email = buildProspectEmail({ urgency: "survey soon", role: "owner/executive" });
+  it("builds a prospect email that points to self-serve trial, not a sales pitch", () => {
+    const email = buildProspectEmail({
+      role: "facility manager",
+      urgency: "survey soon",
+      currentSystem: "spreadsheets",
+    });
+
     expect(email.subject.toLowerCase()).toContain("survey");
-    expect(email.text).toContain("cmcarebase.com/signup");
+    expect(email.text).toContain("https://cmcarebase.com/signup");
     expect(email.html).toContain("Start a free trial");
+    expect(email.text.toLowerCase()).not.toContain("hot buyer");
+    expect(email.mailtoHref.startsWith("mailto:hello@caremetric.ai?")).toBe(true);
   });
 });

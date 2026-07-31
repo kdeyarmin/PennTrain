@@ -20,8 +20,6 @@ import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import {
   MARKETING_CAREBASE_PRICE_LABEL,
-  MARKETING_INCLUDED_QUANTITY,
-  MARKETING_OVERAGE_PRICE_LABEL,
   MARKETING_TRAIN_PRICE_LABEL,
   MARKETING_TRIAL_DAYS,
 } from "@/components/marketing/marketingPricing";
@@ -326,11 +324,11 @@ const PLANS: Plan[] = [
   {
     name: "CareMetric Train",
     price: MARKETING_TRAIN_PRICE_LABEL,
-    suffix: ` /month · ${MARKETING_INCLUDED_QUANTITY} active learners included`,
+    suffix: " /month · unlimited active learners",
     features: [
       "Course builder, AI-generated courses, live QR-code classes",
       "Training records, certificates, compliance mapping",
-      `${MARKETING_OVERAGE_PRICE_LABEL}/month per additional active learner`,
+      "Flat monthly price — no per-person overages",
       "Self-serve setup, CSV roster import",
     ],
     cta: `Start ${MARKETING_TRIAL_DAYS}-day free trial`,
@@ -339,13 +337,13 @@ const PLANS: Plan[] = [
   {
     name: "CareMetric CareBase",
     price: MARKETING_CAREBASE_PRICE_LABEL,
-    suffix: ` /month · ${MARKETING_INCLUDED_QUANTITY} active residents included`,
+    suffix: " /month · unlimited residents & staff",
     featured: true,
     features: [
       "Everything in CareMetric Train, plus:",
       "Resident clinical record, assessments, workforce & facility ops",
       "Survey Day Mode, copilot, documentation rooms & binder exports",
-      `${MARKETING_OVERAGE_PRICE_LABEL}/month per additional active resident`,
+      "Flat monthly price — no per-person overages",
     ],
     cta: `Start ${MARKETING_TRIAL_DAYS}-day free trial`,
     href: "/signup",
@@ -385,8 +383,8 @@ const FAQS: Faq[] = [
     question: "How much does it cost?",
     answer: (
       <>
-        {MARKETING_TRAIN_PRICE_LABEL}/month for CareMetric Train ({MARKETING_INCLUDED_QUANTITY} active learners included) or {MARKETING_CAREBASE_PRICE_LABEL}/month for CareMetric
-        CareBase ({MARKETING_INCLUDED_QUANTITY} active residents included) — then {MARKETING_OVERAGE_PRICE_LABEL}/month per additional person on either plan.{" "}
+        {MARKETING_TRAIN_PRICE_LABEL}/month for CareMetric Train (unlimited learners) or {MARKETING_CAREBASE_PRICE_LABEL}/month for CareMetric
+        CareBase (unlimited residents & staff) — flat monthly pricing, no per-person overages.{" "}
         <a href="#pricing">See pricing.</a>
       </>
     ),
@@ -921,8 +919,8 @@ export default function Landing() {
         <div className="mx-auto max-w-[1160px] px-6 py-[72px]">
           <Reveal className="mx-auto max-w-[560px] text-center">
             <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#1b6fc2]">Pricing</p>
-            <h2 className="mt-2.5 text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Simple, usage-based pricing.</h2>
-            <p className="mt-2 text-[15px] text-[#44566b]">Every plan includes {MARKETING_INCLUDED_QUANTITY} active learners or residents, then {MARKETING_OVERAGE_PRICE_LABEL}/month for each additional person. No facility-count math.</p>
+            <h2 className="mt-2.5 text-[30px] font-extrabold leading-tight tracking-[-0.02em] text-[#0d2742]">Simple, flat monthly pricing.</h2>
+            <p className="mt-2 text-[15px] text-[#44566b]">One price per plan. Unlimited learners on Train; unlimited residents and staff on CareBase. No per-person overages, no facility-count math.</p>
           </Reveal>
           <div className="mt-9 grid gap-4 lg:grid-cols-3">
             {PLANS.map((plan, i) => (
@@ -974,7 +972,7 @@ export default function Landing() {
             </div>
             <Button asChild size="lg" className="bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]"><Link href="/signup">Create your organization — free for {MARKETING_TRIAL_DAYS} days</Link></Button>
             <Link href="/demo" className="text-center text-[13px] font-semibold text-[#1b6fc2] hover:underline" data-testid="link-start-demo">Prefer to look around first? Explore the live demo — no signup needed →</Link>
-            <div className={`text-center text-xs ${aaMutedText}`}>{MARKETING_INCLUDED_QUANTITY} active people included on every plan · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
+            <div className={`text-center text-xs ${aaMutedText}`}>Flat monthly pricing · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
           </Reveal>
         </div>
       </section>

@@ -21,7 +21,7 @@ const TERMS_SECTIONS = [
   },
   {
     title: "3. Subscriptions and billing",
-    body: `Plans are priced monthly or annually based on active learners or residents, with a set number included and a per-person rate beyond that, and include a ${MARKETING_TRIAL_DAYS}-day free trial period. Subscriptions renew until canceled; cancellation takes effect at the end of the current billing term. Pilot-program terms, when offered, are set in the pilot agreement.`,
+    body: `Plans are priced as a flat monthly or annual subscription fee (not by headcount or per-person overage) and include a ${MARKETING_TRIAL_DAYS}-day free trial period. Subscriptions renew until canceled; cancellation takes effect at the end of the current billing term. Pilot-program terms, when offered, are set in the pilot agreement.`,
   },
   {
     title: "4. Your data",

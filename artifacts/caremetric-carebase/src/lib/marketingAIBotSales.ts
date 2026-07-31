@@ -5,8 +5,6 @@
 
 import {
   MARKETING_CAREBASE_PRICE_LABEL,
-  MARKETING_INCLUDED_QUANTITY,
-  MARKETING_OVERAGE_PRICE_LABEL,
   MARKETING_TRAIN_PRICE_LABEL,
   MARKETING_TRIAL_DAYS,
   marketingPricingFaqAnswer,
@@ -180,8 +178,8 @@ const BOT_INTENTS: BotIntent[] = [
     // Prices come from marketingPricing so bot answers can't drift from Landing / FAQ.
     answer: marketingPricingFaqAnswer(),
     bullets: [
-      `CareMetric Train starts at ${MARKETING_TRAIN_PRICE_LABEL}/month with ${MARKETING_INCLUDED_QUANTITY} active learners included; CareMetric CareBase starts at ${MARKETING_CAREBASE_PRICE_LABEL}/month with ${MARKETING_INCLUDED_QUANTITY} active residents included.`,
-      `Each additional person is ${MARKETING_OVERAGE_PRICE_LABEL}/month. Every plan includes a ${MARKETING_TRIAL_DAYS}-day free trial — start self-serve, no sales call.`,
+      `CareMetric Train is ${MARKETING_TRAIN_PRICE_LABEL}/month (unlimited learners); CareMetric CareBase is ${MARKETING_CAREBASE_PRICE_LABEL}/month (unlimited residents and staff).`,
+      `Flat monthly pricing — no per-person overages. Every plan includes a ${MARKETING_TRIAL_DAYS}-day free trial — start self-serve, no sales call.`,
       "The value case is admin hours you stop spending, tools you can retire, and risk you catch earlier — model it with your own numbers on the savings worksheet.",
     ],
     closer:

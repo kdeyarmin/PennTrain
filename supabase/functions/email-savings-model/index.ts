@@ -20,13 +20,10 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Base CareBase list price, included active-resident allotment, and per-resident overage rate
-// shown on /savings (Savings.tsx CAREBASE_BASE_MONTHLY / CAREBASE_INCLUDED_RESIDENTS /
-// CAREBASE_OVERAGE_MONTHLY). Kept in sync with the marketing page so the emailed numbers match
-// exactly what the visitor saw. These are compile-time marketing constants, not DB-driven.
+// Flat CareBase list price shown on /savings and Landing. Kept in sync with
+// artifacts/caremetric-carebase/src/components/marketing/marketingPricing.ts so the emailed
+// numbers match exactly what the visitor saw. Flat monthly — no per-resident overage.
 const CAREBASE_BASE_MONTHLY = 499;
-const CAREBASE_INCLUDED_RESIDENTS = 25;
-const CAREBASE_OVERAGE_MONTHLY = 4;
 
 const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://cmcarebase.com";
 
@@ -125,8 +122,8 @@ function computeModel(raw: { hours?: unknown; rate?: unknown; tools?: unknown; c
   const laborPerYear = hours * 52 * rate;
   const toolSpendPerYear = tools * 12;
   const grossPerYear = (laborPerYear * cut) / 100 + toolSpendPerYear;
-  const monthlyPrice =
-    CAREBASE_BASE_MONTHLY + Math.max(0, residents - CAREBASE_INCLUDED_RESIDENTS) * CAREBASE_OVERAGE_MONTHLY;
+  // Flat monthly CareBase list price — resident count is worksheet context only.
+  const monthlyPrice = CAREBASE_BASE_MONTHLY;
   const carebasePerYear = monthlyPrice * 12;
   const netPerYear = grossPerYear - carebasePerYear;
   const paybackMonths = grossPerYear > 0 ? Math.round((carebasePerYear / (grossPerYear / 12)) * 10) / 10 : null;
@@ -157,13 +154,13 @@ function buildEmail(model: SavingsModel): { subject: string; text: string; html:
     ["Loaded hourly labor cost", `$${model.rate}/hr`],
     ["Monthly spend on tools you could retire", `$${model.tools}/mo`],
     ["Expected reduction in coordination time", `${model.cut}%`],
-    ["Active residents", String(model.residents)],
+    ["Active residents (context only — does not change price)", String(model.residents)],
   ] as const;
 
   const results = [
     ["Current coordination labor", `${money(model.laborPerYear)} / yr`],
     ["Replaceable tool spend", `${money(model.toolSpendPerYear)} / yr`],
-    [`CareBase at your size (${money(model.monthlyPrice)}/mo)`, `${money(model.carebasePerYear)} / yr`],
+    [`CareBase plan (${money(model.monthlyPrice)}/mo flat)`, `${money(model.carebasePerYear)} / yr`],
     ["Gross opportunity before CareBase", `${money(model.grossPerYear)} / yr`],
     ["Net after CareBase", netLine],
     ["Modeled payback", payback],

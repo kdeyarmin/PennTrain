@@ -243,7 +243,7 @@ export default function Features() {
           <p className="m-0 max-w-[56ch] text-pretty text-base text-white/85">
             The complete capability index and the six roles that use it.
             CareBase includes every module — training, clinical & residents,
-            workforce, and facility ops — priced by active residents, not add-ons.
+            workforce, and facility ops — one flat monthly price, not add-ons.
           </p>
         </Reveal>
       </section>

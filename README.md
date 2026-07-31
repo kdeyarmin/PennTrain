@@ -58,7 +58,7 @@ This package reflects the latest revision. Key changes since the first handoff:
 
 ## Content Notes
 - All regulatory citations (§2600.65, §2800.65/.69, §6400.52, 42 CFR 483.95/484.80/418.76) came from the repo's `PA_DHS_ANNUAL_TRAINING_MATRIX.md` — keep them in sync with it.
-- **Published self-serve pricing** (single source: `marketingPricing.ts`): CareMetric Train **$239**/mo (25 active learners), CareMetric CareBase **$499**/mo (25 active residents), **$4**/person overage, **30**-day free trial. Landing, FAQ, Savings, VideoModal, Signup, and the CareBase Guide bot must all read from those constants. Design HTML $349/$299 facility pricing is obsolete.
+- **Published self-serve pricing** (single source: `marketingPricing.ts`): CareMetric Train **$239**/mo (unlimited learners); CareMetric CareBase **$499**/mo (unlimited residents & staff); flat monthly — no per-person overages; **30**-day free trial. Savings worksheet + FAQ must import the same constants (not obsolete $349/$299 facility figures or older base+$4 overage models in design HTML).
 - Privacy/Terms are approved; effective date is centralized as `MARKETING_LEGAL_EFFECTIVE_DATE`.
 - Every page needs its `<title>` + `meta description` (already written in each file's `<helmet>`), and FAQ page keeps its JSON-LD.
 

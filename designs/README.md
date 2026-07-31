@@ -13,12 +13,12 @@ Several prototypes still use an **obsolete facility-count pricing model**:
 **Current published self-serve pricing** (source of truth in code:
 `artifacts/caremetric-carebase/src/components/marketing/marketingPricing.ts`):
 
-| Plan | Monthly base | Included | Overage |
-|---|---|---|---|
-| CareMetric Train | **$239** | 25 active learners | **$4**/learner |
-| CareMetric CareBase | **$499** | 25 active residents | **$4**/resident |
-| CareMetric Portfolio | Custom | — | — |
-| Free trial | **30** days | — | — |
+| Plan | Monthly | Notes |
+|---|---|---|
+| CareMetric Train | **$239** | Flat — unlimited active learners |
+| CareMetric CareBase | **$499** | Flat — unlimited residents & staff |
+| CareMetric Portfolio | Custom | Multi-facility / enterprise |
+| Free trial | **30** days | — |
 
 When opening a design HTML file, **ignore** the embedded `$349` / `$299` calculator
 defaults and pricing cards. Use the React app (and `marketingPricing.ts`) for any

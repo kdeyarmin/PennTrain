@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import {
   MARKETING_CAREBASE_MONTHLY,
-  MARKETING_INCLUDED_QUANTITY,
-  MARKETING_OVERAGE_MONTHLY,
-  MARKETING_OVERAGE_PRICE_LABEL,
+  MARKETING_CAREBASE_PRICE_LABEL,
   MARKETING_TRIAL_DAYS,
   carebaseMonthlyPrice,
 } from "@/components/marketing/marketingPricing";
@@ -41,7 +39,7 @@ const INCLUDED_FEATURES = [
   "Live classes with QR sign-in — hours log themselves",
   "Resident clinical charting + FHIR med sync (CareBase)",
   "Survey Day Mode, compliance copilot & one-click binders",
-  "Unlimited staff — priced by active residents, not headcount",
+  "Unlimited staff and residents — one flat monthly price",
 ] as const;
 
 const COMPARISON_ROWS = [
@@ -139,7 +137,7 @@ const SLIDERS = [
     max: 200,
     step: 5,
     valueLabel: (value: number) => String(value),
-    help: `The first ${MARKETING_INCLUDED_QUANTITY} are included in the base price; each one after that is ${MARKETING_OVERAGE_PRICE_LABEL}/month.`,
+    help: "Facility size for your worksheet context only — CareBase is a flat monthly price, not charged per resident.",
   },
 ] as const;
 
@@ -180,7 +178,7 @@ export default function Savings() {
   const gross = (labor * calculator.cut) / 100 + toolSpend;
   // Keep the local formula aligned with marketingPricing so the worksheet never
   // drifts from Landing / FAQ / billing catalog list prices.
-  const monthlyPrice = carebaseMonthlyPrice(calculator.residents);
+  const monthlyPrice = carebaseMonthlyPrice();
   const annualPrice = monthlyPrice * 12;
   const net = gross - annualPrice;
   const payback = gross > 0 ? annualPrice / (gross / 12) : null;
@@ -370,10 +368,8 @@ export default function Savings() {
                 ))}
               </div>
               <p className="m-0 text-[12.5px] text-[#5d7084]">
-                Base {`$${MARKETING_CAREBASE_MONTHLY}`}/month includes{" "}
-                {MARKETING_INCLUDED_QUANTITY} active residents; overage{" "}
-                {MARKETING_OVERAGE_PRICE_LABEL}/month ({`$${MARKETING_OVERAGE_MONTHLY}`}{" "}
-                per additional resident).
+                CareBase is {MARKETING_CAREBASE_PRICE_LABEL}/month flat — unlimited
+                residents and staff, no per-person overages.
               </p>
               <a
                 href="#savings"
@@ -528,7 +524,7 @@ export default function Savings() {
               ["Tool costs you could drop", `${money(toolSpend)} /yr`],
               [
                 <>
-                  CareBase at your size{" "}
+                  CareBase plan{" "}
                   <span className="text-white/60">({money(monthlyPrice)}/mo)</span>
                 </>,
                 `${money(annualPrice)} /yr`,
