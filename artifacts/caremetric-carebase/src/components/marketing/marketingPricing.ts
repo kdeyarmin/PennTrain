@@ -20,6 +20,10 @@ export const MARKETING_TRAIN_MONTHLY = 239;
 /** CareMetric CareBase list price (monthly), dollars — flat, unlimited residents & staff. */
 export const MARKETING_CAREBASE_MONTHLY = 499;
 
+/** Annual flat list prices (≈ two months free vs monthly × 12). */
+export const MARKETING_TRAIN_ANNUAL = 2390;
+export const MARKETING_CAREBASE_ANNUAL = 4990;
+
 export const MARKETING_TRAIN_PRICE_LABEL = `$${MARKETING_TRAIN_MONTHLY}`;
 export const MARKETING_CAREBASE_PRICE_LABEL = `$${MARKETING_CAREBASE_MONTHLY}`;
 
@@ -34,7 +38,11 @@ export function carebaseMonthlyPrice(_activeResidents?: number): number {
 }
 
 export function carebaseAnnualPrice(_activeResidents?: number): number {
-  return MARKETING_CAREBASE_MONTHLY * 12;
+  return MARKETING_CAREBASE_ANNUAL;
+}
+
+export function trainAnnualPrice(): number {
+  return MARKETING_TRAIN_ANNUAL;
 }
 
 /** FAQ / bot answer for "how much does it cost?" — keep Landing FAQ teaser in sync. */

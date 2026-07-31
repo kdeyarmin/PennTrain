@@ -165,8 +165,7 @@ export interface BillingSessionRequest {
   action: "checkout" | "portal";
   packageId?: string;
   billingInterval?: "month" | "year";
-  quantity?: number;
-  seatQuantity?: number;
+  /** Server resolves quantity from the price metric; clients must not send it. */
   successUrl?: string;
   cancelUrl?: string;
   returnUrl?: string;

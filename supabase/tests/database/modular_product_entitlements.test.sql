@@ -1,5 +1,5 @@
 begin;
-select plan(56);
+select plan(57);
 
 select results_eq(
   $$ select feature_key from public.feature_definitions where feature_key like 'modules.%' order by feature_key $$,
@@ -233,9 +233,21 @@ select is(
 );
 select is(
   (select billing_metric from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
-   where p.name = 'CareMetric Professional' and bp.recurring_interval = 'month'),
-  'active_resident',
-  'Professional prices scale by active resident'
+   where p.name = 'CareMetric Professional' and bp.recurring_interval = 'month'
+     and bp.is_primary
+   order by bp.is_active desc, bp.effective_from desc
+   limit 1),
+  'flat',
+  'Professional primary price is flat (inactive mid-tier stays aligned for reactivation)'
+);
+select is(
+  (select pricing_model from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
+   where p.name = 'CareMetric Essentials' and bp.recurring_interval = 'month'
+     and bp.is_primary
+   order by bp.is_active desc, bp.effective_from desc
+   limit 1),
+  'flat',
+  'Essentials primary price is flat (inactive mid-tier stays aligned for reactivation)'
 );
 select is(
   (select module_key from app_private.product_module_storage_buckets where bucket_id = 'course-documents'),

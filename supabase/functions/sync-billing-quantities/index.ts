@@ -240,28 +240,30 @@ Deno.serve(async (req: Request) => {
         setOutcome(item.subscription_id, "unmapped", "stripe_price_unmapped");
         return;
       }
-      if (price.billing_metric === "flat") {
-        skipped++;
-        setOutcome(item.subscription_id, "synced", null);
-        return;
-      }
-      const usage = await getUsage(item.organization_id);
-      const measured = usage ? phase2MeasuredBillingQuantity(price.billing_metric, usage) : null;
-      const quantity = measured === null ? null : resolvePhase2BillingQuantity(
-        price.billing_metric,
-        Math.max(measured, price.minimum_quantity),
-        price.minimum_quantity,
-        price.maximum_quantity,
-      );
-      if (measured === null) {
-        failed++;
-        setOutcome(item.subscription_id, "failed", "billing_usage_unavailable");
-        return;
-      }
-      if (quantity === null) {
-        outOfRange++;
-        setOutcome(item.subscription_id, "out_of_range", "quantity_outside_self_service_range");
-        return;
+      // Flat plans bill a fixed fee: Stripe multiplies unit amount by quantity, so
+      // any qty ≠ 1 is a charge bug. Enforce 1 instead of skipping.
+      let quantity: number | null;
+      if (price.billing_metric === "flat" || price.pricing_model === "flat") {
+        quantity = 1;
+      } else {
+        const usage = await getUsage(item.organization_id);
+        const measured = usage ? phase2MeasuredBillingQuantity(price.billing_metric, usage) : null;
+        quantity = measured === null ? null : resolvePhase2BillingQuantity(
+          price.billing_metric,
+          Math.max(measured, price.minimum_quantity),
+          price.minimum_quantity,
+          price.maximum_quantity,
+        );
+        if (measured === null) {
+          failed++;
+          setOutcome(item.subscription_id, "failed", "billing_usage_unavailable");
+          return;
+        }
+        if (quantity === null) {
+          outOfRange++;
+          setOutcome(item.subscription_id, "out_of_range", "quantity_outside_self_service_range");
+          return;
+        }
       }
       if (quantity === item.quantity) {
         unchanged++;

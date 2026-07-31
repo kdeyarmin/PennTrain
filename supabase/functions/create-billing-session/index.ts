@@ -164,31 +164,39 @@ Deno.serve(async (req: Request) => {
       .or(`effective_to.is.null,effective_to.gt.${new Date().toISOString()}`)
       .order("effective_from", { ascending: false }).limit(1).maybeSingle();
     if (priceError || !price) return json(req, { error: { code: "active_price_missing" } }, 409);
-    const { data: usageRows, error: usageError } = await admin.rpc(
-      "get_organization_billing_usage",
-      { p_organization_id: organizationId },
-    );
-    const usage = Array.isArray(usageRows) ? usageRows[0] : null;
-    if (usageError || !usage) {
-      return json(req, { error: { code: "billing_usage_unavailable" } }, 503);
-    }
-    const measuredQuantity = phase2MeasuredBillingQuantity(price.billing_metric, {
-      active_learners: Number(usage.active_learners),
-      active_users: Number(usage.active_users),
-      active_residents: Number(usage.active_residents),
-      facilities: Number(usage.facilities),
-    });
-    if (measuredQuantity === null) {
-      return json(req, { error: { code: "invalid_billing_usage" } }, 503);
-    }
-    const quantity = resolvePhase2BillingQuantity(
-      price.billing_metric,
-      Math.max(measuredQuantity, price.minimum_quantity),
-      price.minimum_quantity,
-      price.maximum_quantity,
-    );
-    if (quantity === null) {
-      return json(req, { error: { code: "billing_quantity_outside_self_service_range" } }, 409);
+    // Flat self-serve plans always check out at quantity 1. Usage measurement is
+    // only required for metered metrics; a broken usage RPC must not block flat checkout.
+    let quantity: number;
+    if (price.billing_metric === "flat" || price.pricing_model === "flat") {
+      quantity = 1;
+    } else {
+      const { data: usageRows, error: usageError } = await admin.rpc(
+        "get_organization_billing_usage",
+        { p_organization_id: organizationId },
+      );
+      const usage = Array.isArray(usageRows) ? usageRows[0] : null;
+      if (usageError || !usage) {
+        return json(req, { error: { code: "billing_usage_unavailable" } }, 503);
+      }
+      const measuredQuantity = phase2MeasuredBillingQuantity(price.billing_metric, {
+        active_learners: Number(usage.active_learners),
+        active_users: Number(usage.active_users),
+        active_residents: Number(usage.active_residents),
+        facilities: Number(usage.facilities),
+      });
+      if (measuredQuantity === null) {
+        return json(req, { error: { code: "invalid_billing_usage" } }, 503);
+      }
+      const resolved = resolvePhase2BillingQuantity(
+        price.billing_metric,
+        Math.max(measuredQuantity, price.minimum_quantity),
+        price.minimum_quantity,
+        price.maximum_quantity,
+      );
+      if (resolved === null) {
+        return json(req, { error: { code: "billing_quantity_outside_self_service_range" } }, 409);
+      }
+      quantity = resolved;
     }
     if (!body.successUrl || !body.cancelUrl ||
       !validatePhase2BillingReturnUrl(body.successUrl, configuredOrigins) ||

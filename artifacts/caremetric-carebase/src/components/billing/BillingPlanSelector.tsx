@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   AlertTriangle,
@@ -77,6 +77,11 @@ function effectivePrice(
     .sort((left, right) => Date.parse(right.effective_from) - Date.parse(left.effective_from))[0];
 }
 
+function isFlatPrice(price: PackageBillingPrice | undefined): boolean {
+  if (!price) return false;
+  return price.billing_metric === "flat" || price.pricing_model === "flat";
+}
+
 function subscriptionStateLabel(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
@@ -143,6 +148,41 @@ export function BillingPlanSelector() {
   const isCatalogLoading = packagesQuery.isLoading || pricesQuery.isLoading || organizationQuery.isLoading || billingAccountQuery.isLoading;
   const busy = session.isPending;
 
+  // Catalog is flat-first when every active primary price for the selected
+  // cadence is flat (or there are no metered prices). Metered-era UX stays for
+  // custom contracts if any active price still uses a usage metric.
+  const catalogIsFlat = useMemo(() => {
+    const prices = pricesQuery.data ?? [];
+    const activePrimary = packages.flatMap((pkg) => {
+      const price = effectivePrice(prices, pkg.id, interval);
+      return price && !pkg.contact_sales ? [price] : [];
+    });
+    if (activePrimary.length === 0) return true;
+    return activePrimary.every(isFlatPrice);
+  }, [packages, pricesQuery.data, interval]);
+
+  // Surface Stripe Checkout return status once, then scrub the query string.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const billing = params.get("billing");
+    if (billing !== "success" && billing !== "cancelled") return;
+    if (billing === "success") {
+      toast({
+        title: "Checkout complete",
+        description: "Stripe accepted the session. Subscription status will update when the webhook lands.",
+      });
+    } else {
+      toast({
+        title: "Checkout cancelled",
+        description: "No charge was made. You can start checkout again when you are ready.",
+      });
+    }
+    params.delete("billing");
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", next);
+  }, [toast]);
+
   const openPortal = async () => {
     if (!organizationId) return;
     try {
@@ -164,9 +204,20 @@ export function BillingPlanSelector() {
   };
 
   const startCheckout = async (pkg: Package, price: PackageBillingPrice) => {
-    if (!organizationId || !usage) return;
-    const quantity = resolvedBillingQuantity(price.billing_metric, usage, price.minimum_quantity);
-    if (price.maximum_quantity !== null && quantity > price.maximum_quantity) {
+    if (!organizationId) return;
+    const flat = isFlatPrice(price);
+    if (!flat && !usage) {
+      toast({
+        title: "Usage could not be measured",
+        description: "Refresh and try again before starting checkout on a usage-based plan.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const quantity = flat
+      ? 1
+      : resolvedBillingQuantity(price.billing_metric, usage!, price.minimum_quantity);
+    if (!flat && price.maximum_quantity !== null && quantity > price.maximum_quantity) {
       toast({
         title: "This organization needs contract pricing",
         description: `The measured quantity of ${quantity} exceeds this plan's self-service maximum.`,
@@ -181,7 +232,6 @@ export function BillingPlanSelector() {
         action: "checkout",
         packageId: pkg.id,
         billingInterval: interval,
-        quantity,
         successUrl: `${window.location.origin}${returnPath}?billing=success`,
         cancelUrl: `${window.location.origin}${returnPath}?billing=cancelled`,
         idempotencyKey: crypto.randomUUID(),
@@ -197,6 +247,8 @@ export function BillingPlanSelector() {
     }
   };
 
+  const showPlanCards = Boolean(organizationId && !catalogError && !isCatalogLoading);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -204,7 +256,9 @@ export function BillingPlanSelector() {
           <div>
             <CardTitle>Plans and subscription</CardTitle>
             <CardDescription className="mt-1">
-              Pricing automatically uses the organization's current active records. Staff users are not charged on CareBase.
+              {catalogIsFlat
+                ? "Self-serve plans are a flat monthly or annual fee. Roster size does not change the invoice."
+                : "Usage-based plans measure the organization's current active records. Flat plans bill a fixed fee."}
             </CardDescription>
           </div>
           {hasCustomerPortal ? (
@@ -233,7 +287,7 @@ export function BillingPlanSelector() {
             <Alert>
               <ShieldCheck className="h-4 w-4" />
               <AlertTitle>Select an organization</AlertTitle>
-              <AlertDescription>Choose the tenant whose usage and subscription you want to review.</AlertDescription>
+              <AlertDescription>Choose the tenant whose subscription you want to review.</AlertDescription>
             </Alert>
           ) : (
             <>
@@ -246,14 +300,19 @@ export function BillingPlanSelector() {
                     </Badge>
                   ) : null}
                   {currentSubscription?.cancel_at_period_end ? <Badge variant="destructive">Cancels at period end</Badge> : null}
-                  {currentSubscription?.quantity_sync_status === "synced" ? <Badge variant="outline">Quantity synchronized</Badge> : null}
+                  {currentSubscription?.quantity_sync_status === "synced" && !catalogIsFlat ? (
+                    <Badge variant="outline">Quantity synchronized</Badge>
+                  ) : null}
+                  {currentSubscription?.quantity_sync_status === "synced" && catalogIsFlat ? (
+                    <Badge variant="outline">Billing healthy</Badge>
+                  ) : null}
                 </div>
                 <Tabs value={interval} onValueChange={(value) => setInterval(value as "month" | "year")}>
                   <TabsList>
                     <TabsTrigger value="month">Monthly</TabsTrigger>
                     <TabsTrigger value="year" className="gap-2">
                       Annual
-                      <Badge variant="secondary" className="hidden sm:inline-flex">Annual discount</Badge>
+                      <Badge variant="secondary" className="hidden sm:inline-flex">~2 months free</Badge>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -291,6 +350,13 @@ export function BillingPlanSelector() {
                   <AlertTitle>{catalogErrorLabel}</AlertTitle>
                   <AlertDescription>{catalogError.message}</AlertDescription>
                 </Alert>
+              ) : catalogIsFlat ? (
+                <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">Flat self-serve pricing</p>
+                  <p className="mt-1">
+                    Train and CareBase bill a fixed fee. Adding learners, residents, or staff does not change the subscription price.
+                  </p>
+                </div>
               ) : usageQuery.isLoading ? (
                 <div className="flex items-center gap-2 rounded-lg border p-4 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Measuring current billable usage…
@@ -335,20 +401,27 @@ export function BillingPlanSelector() {
         </CardContent>
       </Card>
 
-      {organizationId && usage && !catalogError ? (
+      {showPlanCards ? (
         <div className="grid gap-4 xl:grid-cols-3">
           {packages.map((pkg) => {
             const price = effectivePrice(pricesQuery.data ?? [], pkg.id, interval);
             const modules = enabledModuleNames(pkg.features);
             const metric = billingMetricDefinition(price?.billing_metric ?? "flat");
-            const measuredQuantity = price ? measuredBillingQuantity(price.billing_metric, usage) : 1;
+            const flat = isFlatPrice(price);
+            const measuredQuantity = price && usage && !flat
+              ? measuredBillingQuantity(price.billing_metric, usage)
+              : 1;
             const quantity = price
-              ? resolvedBillingQuantity(price.billing_metric, usage, price.minimum_quantity)
+              ? flat
+                ? 1
+                : usage
+                ? resolvedBillingQuantity(price.billing_metric, usage, price.minimum_quantity)
+                : price.minimum_quantity
               : 1;
             const estimatedAmount = price ? estimatedBillingAmountCents(price, quantity) : null;
-            const overMaximum = !!price?.maximum_quantity && quantity > price.maximum_quantity;
+            const overMaximum = !flat && !!price?.maximum_quantity && quantity > price.maximum_quantity;
             const isCurrent = currentPackageId === pkg.id;
-            const checkoutReady = !!price?.stripe_price_id && !overMaximum;
+            const checkoutReady = !!price?.stripe_price_id && !overMaximum && (flat || !!usage);
             const cadenceDiscount = interval === "year" && pkg.annual_discount_percent > 0;
 
             return (
@@ -367,7 +440,9 @@ export function BillingPlanSelector() {
                       {pkg.contact_sales ? "Custom pricing" : price ? billingPriceSummary(price).split(" includes")[0] : "Not configured"}
                     </p>
                     {price && !pkg.contact_sales ? (
-                      <p className="mt-1 text-sm text-muted-foreground">{billingPriceSummary(price)}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {flat ? `${billingPriceSummary(price)} · unlimited seats` : billingPriceSummary(price)}
+                      </p>
                     ) : null}
                     {cadenceDiscount ? (
                       <Badge variant="secondary" className="mt-2">Save {pkg.annual_discount_percent}% annually</Badge>
@@ -392,7 +467,7 @@ export function BillingPlanSelector() {
 
                   {price && !pkg.contact_sales ? (
                     <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                      {price.billing_metric === "flat" || price.pricing_model === "flat" ? (
+                      {flat ? (
                         <>
                           <p className="font-medium">Flat subscription</p>
                           <p className="mt-1 text-muted-foreground">
@@ -460,9 +535,11 @@ export function BillingPlanSelector() {
       {organizationId ? (
         <Alert>
           <RefreshCw className="h-4 w-4" />
-          <AlertTitle>How quantities stay current</AlertTitle>
+          <AlertTitle>{catalogIsFlat ? "How flat billing works" : "How quantities stay current"}</AlertTitle>
           <AlertDescription>
-            Checkout measures the organization's database again on the server. Synthetic demo records and sandbox facilities are excluded, and a browser-supplied quantity cannot reduce the billable count.
+            {catalogIsFlat
+              ? "Checkout always bills quantity 1 for flat plans. The subscription amount is the package fee; roster size does not change the invoice. Stripe webhooks keep subscription status in sync."
+              : "Checkout measures the organization's database again on the server. Synthetic demo records and sandbox facilities are excluded, and a browser-supplied quantity cannot reduce the billable count."}
           </AlertDescription>
         </Alert>
       ) : null}

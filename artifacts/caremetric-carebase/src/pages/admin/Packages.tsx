@@ -372,6 +372,15 @@ export default function Packages() {
       toast({ title: "Stripe Price ID must begin with price_", variant: "destructive" });
       return;
     }
+    const baseCents = dollarsToCents(priceForm.baseAmount);
+    if (!Number.isFinite(baseCents) || baseCents < 0) {
+      toast({ title: "Base amount must be a valid non-negative dollar amount", variant: "destructive" });
+      return;
+    }
+    if (priceForm.billingMetric === "flat" && baseCents <= 0) {
+      toast({ title: "Flat prices need a positive base amount", variant: "destructive" });
+      return;
+    }
 
     const flat = priceForm.billingMetric === "flat";
     const payload = {
@@ -380,7 +389,7 @@ export default function Packages() {
       recurring_interval: priceForm.recurringInterval,
       billing_metric: priceForm.billingMetric,
       pricing_model: flat ? "flat" : priceForm.pricingModel,
-      base_amount_cents: dollarsToCents(priceForm.baseAmount),
+      base_amount_cents: baseCents,
       unit_amount_cents: flat || !priceForm.unitAmount.trim() ? null : dollarsToCents(priceForm.unitAmount),
       included_quantity: flat ? 0 : Number.parseInt(priceForm.includedQuantity || "0", 10),
       minimum_quantity: flat ? 1 : Number.parseInt(priceForm.minimumQuantity || "1", 10),
@@ -526,7 +535,7 @@ export default function Packages() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Package / cadence</TableHead><TableHead>Value metric</TableHead><TableHead>Commercial model</TableHead>
-                <TableHead>Base</TableHead><TableHead>Included / overage</TableHead><TableHead>Stripe mapping</TableHead>
+                <TableHead>Base</TableHead><TableHead>Quantity model</TableHead><TableHead>Stripe mapping</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>{prices.map((price) => {
@@ -539,8 +548,17 @@ export default function Packages() {
                     <TableCell><Badge variant="secondary">{PRICING_MODELS.find((model) => model.value === price.pricing_model)?.label ?? price.pricing_model}</Badge></TableCell>
                     <TableCell>{money(price.base_amount_cents, price.currency)}</TableCell>
                     <TableCell className="text-sm">
-                      <div>{price.included_quantity} {pluralize(metric.unit, price.included_quantity)} included</div>
-                      <div className="text-xs text-muted-foreground">{price.unit_amount_cents === null ? "No unit overage" : `${money(price.unit_amount_cents, price.currency)}/${metric.unit}`}</div>
+                      {price.billing_metric === "flat" || price.pricing_model === "flat" ? (
+                        <>
+                          <div>Flat fee · quantity 1</div>
+                          <div className="text-xs text-muted-foreground">Unlimited seats — not charged per person</div>
+                        </>
+                      ) : (
+                        <>
+                          <div>{price.included_quantity} {pluralize(metric.unit, price.included_quantity)} included</div>
+                          <div className="text-xs text-muted-foreground">{price.unit_amount_cents === null ? "No unit overage" : `${money(price.unit_amount_cents, price.currency)}/${metric.unit}`}</div>
+                        </>
+                      )}
                     </TableCell>
                     <TableCell>
                       {price.stripe_price_id ? <code className="rounded bg-muted px-1.5 py-1 text-xs">{price.stripe_price_id}</code> : <Badge variant="secondary">Draft - ID required</Badge>}

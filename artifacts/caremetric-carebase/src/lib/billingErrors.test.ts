@@ -21,6 +21,16 @@ describe("billingSessionErrorCopy", () => {
       "existing_subscription_requires_portal",
       "billing_quantity_outside_self_service_range",
       "active_price_missing",
+      "billing_not_configured",
+      "billing_customer_missing",
+      "billing_usage_unavailable",
+      "billing_state_unavailable",
+      "invalid_return_url",
+      "stripe_request_failed",
+      "package_required",
+      "invalid_organization",
+      "invalid_billing_interval",
+      "forbidden",
     ]) {
       const copy = billingSessionErrorCopy(code);
       expect(copy, code).not.toBeNull();

@@ -21,8 +21,8 @@ describe("marketingPricing", () => {
     expect(carebaseMonthlyPrice(25)).toBe(499);
     expect(carebaseMonthlyPrice(40)).toBe(499);
     expect(carebaseMonthlyPrice(0)).toBe(499);
-    expect(carebaseAnnualPrice(40)).toBe(499 * 12);
-    expect(carebaseAnnualPrice()).toBe(499 * 12);
+    expect(carebaseAnnualPrice(40)).toBe(4990);
+    expect(carebaseAnnualPrice()).toBe(4990);
   });
 
   it("builds FAQ and chrome copy from the same numbers", () => {
