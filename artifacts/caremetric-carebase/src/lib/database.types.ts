@@ -40305,7 +40305,7 @@ export type Database = {
         Returns: string
       }
       start_learning_runtime_session: {
-        Args: { p_assignment_id: string; p_package_id?: string | null }
+        Args: { p_assignment_id: string; p_package_id?: string }
         Returns: Json
       }
       start_move_in_workspace: {
