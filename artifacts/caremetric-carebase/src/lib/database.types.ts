@@ -35575,6 +35575,30 @@ export type Database = {
         }
         Returns: string
       }
+      unassign_organization_release_cohort: {
+        Args: {
+          p_cohort_id: string
+          p_feature_key: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: boolean
+      }
+      list_audit_legal_holds: {
+        Args: never
+        Returns: {
+          id: string
+          organization_id: string | null
+          facility_id: string | null
+          reason: string
+          starts_at: string
+          ends_at: string | null
+          released_at: string | null
+          created_by: string
+          created_at: string
+        }[]
+      }
+
       assign_resident_service_task: {
         Args: { p_employee_id: string; p_task_id: string }
         Returns: boolean

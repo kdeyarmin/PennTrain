@@ -94,3 +94,14 @@ pnpm --filter @workspace/caremetric-carebase test -- roleQuickStart
 pnpm --filter @workspace/caremetric-carebase typecheck
 # After db push: demo org should see feature_release_active true for the four keys
 ```
+
+## Follow-on: residual ops console (same day)
+
+| Surface | Purpose |
+|---|---|
+| `/admin/pilot-cohorts` | Enroll/unenroll orgs in `carebase-pilot-2026`, set release flags, kill switches (AAL2) |
+| Security & Governance | Data lifecycle status, place/release audit legal holds, run lifecycle policies |
+| My Credentials | Employee **Submit renewal** (upload PDF/JPEG/PNG → create renewal submission) |
+| Inspections list | Bulk log inspection on selected equipment/procedural items |
+
+Migration: `20260731210000_pilot_cohort_console.sql` (`unassign_organization_release_cohort`, `list_audit_legal_holds`).

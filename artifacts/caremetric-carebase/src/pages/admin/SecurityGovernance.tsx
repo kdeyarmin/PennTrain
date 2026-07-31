@@ -12,6 +12,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Eye, Building2, Sliders, ShieldAlert, ShieldCheck, Archive, Scale, type LucideIcon } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
+import { DataLifecyclePanel } from "@/components/admin/DataLifecyclePanel";
 
 type SecurityAuditRow = Tables<"audit_logs">;
 
@@ -99,7 +101,7 @@ function describeRow(log: SecurityAuditRow, profileNames: Record<string, string>
 export default function SecurityGovernance() {
   const [tab, setTab] = useState<TabValue>("all");
 
-  const { data: logsData, isLoading } = useListSecurityAuditLog({
+  const { data: logsData, isLoading, isError: logsError, error: logsErrorDetail, refetch: refetchLogs } = useListSecurityAuditLog({
     entityType: tab === "all" ? undefined : tab,
   });
   const { data: profileNameMap } = useProfileNameMap();
@@ -159,6 +161,11 @@ export default function SecurityGovernance() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Data lifecycle & legal holds</h2>
+        <DataLifecyclePanel />
       </div>
 
       <Card>
@@ -225,7 +232,9 @@ export default function SecurityGovernance() {
           </Tabs>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {logsError ? (
+            <QueryError what="security activity" error={logsErrorDetail as Error} onRetry={() => void refetchLogs()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
             </div>
