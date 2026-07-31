@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, FileArchive, History, Loader2 } from "lucide-react";
+import { Download, FileArchive, FileSpreadsheet, History, Loader2 } from "lucide-react";
 
 const FACILITY_ALL = "all";
 
@@ -37,10 +37,32 @@ export default function ComplianceBinder() {
   const { data: exports, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
   const { mutate: fetchDownload, isPending: downloading, variables: downloadingJobId } = useBinderDownloadUrl();
 
-  const handleDownloadExisting = (jobId: string) => {
+  const handleDownloadExisting = (jobId: string, mode: "pdf" | "appendix" = "pdf") => {
     fetchDownload(jobId, {
       onSuccess: (result) => {
-        if (result.url) window.open(result.url, "_blank", "noopener,noreferrer");
+        if (mode === "pdf") {
+          if (result.url) window.open(result.url, "_blank", "noopener,noreferrer");
+          return;
+        }
+        const sections = result.appendix?.sections ?? [];
+        if (sections.length === 0) {
+          toast({
+            title: "CSV appendix not available",
+            description: "This export was generated before the appendix format shipped, or the appendix failed to store. Re-export to get full CSVs.",
+          });
+          return;
+        }
+        // Open manifest first when present, then each section CSV.
+        if (result.appendix?.manifestUrl) {
+          window.open(result.appendix.manifestUrl, "_blank", "noopener,noreferrer");
+        }
+        for (const section of sections) {
+          if (section.csvUrl) window.open(section.csvUrl, "_blank", "noopener,noreferrer");
+        }
+        toast({
+          title: "CSV appendix opened",
+          description: `${sections.length} section file(s) · inclusion counts in each CSV header row set.`,
+        });
       },
       onError: (e: Error) =>
         toast({ title: "Couldn't download binder", description: e.message, variant: "destructive" }),
@@ -75,7 +97,7 @@ export default function ComplianceBinder() {
             a citation-weighted DHS readiness summary, the facility roster and resident census (including resident
             names and other PII), staff requirements and practicum compliance with overdue detail, certificates
             issued, open alerts, policy attestation status with a signed ESIGN/UETA audit trail (who signed what,
-            when, and from where), employee credentials &amp; clearances, a reportable incidents log, inspection
+            when, and from where), employee credentials & clearances, a reportable incidents log, inspection
             items/equipment with open corrective actions, and resident RASP compliance. Exports prepare in the
             background -- large organizations no longer risk a timeout, and you can leave the page while it runs.
           </p>
@@ -85,7 +107,8 @@ export default function ComplianceBinder() {
           </p>
           <p className="text-xs text-muted-foreground">
             Detail lists in the PDF are capped at 500 rows per section (with a clear truncation note). Summary
-            counts remain complete so large facilities still get accurate totals.
+            counts remain complete. Use <strong>CSV appendix</strong> on a finished export for the full,
+            untruncated machine-readable section lists and inclusion counts.
           </p>
           {canScopeFacility && (
             <div className="flex flex-col gap-1.5 max-w-xs">
@@ -148,16 +171,28 @@ export default function ComplianceBinder() {
                       {job.status}
                     </Badge>
                     {job.status === "succeeded" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={downloading && downloadingJobId === job.id}
-                        onClick={() => handleDownloadExisting(job.id)}
-                      >
-                        {downloading && downloadingJobId === job.id
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : <Download className="h-3.5 w-3.5" />}
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Download PDF"
+                          disabled={downloading && downloadingJobId === job.id}
+                          onClick={() => handleDownloadExisting(job.id, "pdf")}
+                        >
+                          {downloading && downloadingJobId === job.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Download className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Download CSV appendix"
+                          disabled={downloading && downloadingJobId === job.id}
+                          onClick={() => handleDownloadExisting(job.id, "appendix")}
+                        >
+                          <FileSpreadsheet className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

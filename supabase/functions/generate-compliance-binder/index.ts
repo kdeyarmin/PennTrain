@@ -207,7 +207,7 @@ Deno.serve(async (req: Request) => {
     // before the service-role client signs the stored object.
     const { data: job, error: jobError } = await callerClient
       .from("binder_export_jobs")
-      .select("id, status, storage_bucket, storage_path, last_error_message")
+      .select("id, status, storage_bucket, storage_path, last_error_message, organization_id")
       .eq("id", body.job_id)
       .maybeSingle();
     if (jobError) return json(req, { error: jobError.message }, 500);
@@ -218,18 +218,56 @@ Deno.serve(async (req: Request) => {
     if (job.status !== "succeeded" || !job.storage_path) {
       return json(req, { success: true, status: job.status }, 202);
     }
+    const bucket = job.storage_bucket ?? BINDER_BUCKET;
     const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-      .from(job.storage_bucket ?? BINDER_BUCKET)
+      .from(bucket)
       .createSignedUrl(job.storage_path, SIGNED_URL_TTL_SECONDS);
     if (signedUrlError || !signedUrlData) {
       return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
     }
+
+    const appendixPrefix = `${job.organization_id}/${job.id}-appendix`;
+    let appendix: {
+      manifestUrl?: string;
+      sections: Array<{ key: string; title: string; included: number; total: number; csvUrl?: string }>;
+    } | null = null;
+    try {
+      const { data: manifestBlob, error: manifestError } = await adminClient.storage
+        .from(bucket)
+        .download(`${appendixPrefix}/manifest.json`);
+      if (!manifestError && manifestBlob) {
+        const manifest = JSON.parse(await manifestBlob.text()) as {
+          sections?: Array<{ key: string; title: string; included: number; total: number; csvPath: string }>;
+        };
+        const sections = [];
+        for (const section of manifest.sections ?? []) {
+          const { data: signedCsv } = await adminClient.storage
+            .from(bucket)
+            .createSignedUrl(section.csvPath, SIGNED_URL_TTL_SECONDS);
+          sections.push({
+            key: section.key,
+            title: section.title,
+            included: section.included,
+            total: section.total,
+            csvUrl: signedCsv?.signedUrl,
+          });
+        }
+        const { data: signedManifest } = await adminClient.storage
+          .from(bucket)
+          .createSignedUrl(`${appendixPrefix}/manifest.json`, SIGNED_URL_TTL_SECONDS);
+        appendix = { manifestUrl: signedManifest?.signedUrl, sections };
+      }
+    } catch {
+      appendix = null;
+    }
+
     return json(req, {
       success: true,
       status: "succeeded",
       url: signedUrlData.signedUrl,
       path: job.storage_path,
       expiresIn: SIGNED_URL_TTL_SECONDS,
+      appendix,
     });
   }
 
@@ -313,7 +351,7 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
         const requestedByLabel = requester
           ? `${requester.first_name} ${requester.last_name} (${requester.role})`
           : "CareMetric CareBase";
-        const pdfBytes = await buildBinderPdf(adminClient, job.organization_id, scope, requestedByLabel);
+        const { pdfBytes, appendixSections } = await buildBinderPdf(adminClient, job.organization_id, scope, requestedByLabel);
         // The recorded checksum is what lets a finished export become an immutable
         // evidence-room artifact (report_snapshot_artifacts requires content_sha256).
         const contentSha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", pdfBytes)))
@@ -325,6 +363,39 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
           .from(BINDER_BUCKET)
           .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
         if (uploadError) throw new Error(uploadError.message);
+
+        const appendixPrefix = `${job.organization_id}/${job.job_id}-appendix`;
+        const appendixManifest = {
+          jobId: job.job_id,
+          generatedAt: new Date().toISOString(),
+          pdfPath: path,
+          sections: appendixSections.map((s) => ({
+            key: s.key,
+            title: s.title,
+            included: s.included,
+            total: s.total,
+            csvPath: `${appendixPrefix}/${s.key}.csv`,
+          })),
+        };
+        const { error: manifestError } = await adminClient.storage
+          .from(BINDER_BUCKET)
+          .upload(
+            `${appendixPrefix}/manifest.json`,
+            new TextEncoder().encode(JSON.stringify(appendixManifest, null, 2)),
+            { contentType: "application/json", upsert: true },
+          );
+        if (manifestError) throw new Error(manifestError.message);
+        for (const section of appendixSections) {
+          const csv = rowsToCsv(section.headers, section.rows);
+          const { error: csvError } = await adminClient.storage
+            .from(BINDER_BUCKET)
+            .upload(
+              `${appendixPrefix}/${section.key}.csv`,
+              new TextEncoder().encode(csv),
+              { contentType: "text/csv;charset=utf-8", upsert: true },
+            );
+          if (csvError) throw new Error(csvError.message);
+        }
 
         const { data: finished, error: finishError } = await adminClient.rpc("finish_binder_export_job", {
           p_job_id: job.job_id,
@@ -344,7 +415,12 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
           actor_profile_id: job.requested_by,
           entity_type: "compliance_binder",
           action: "generated",
-          new_values: { storage_path: path, binder_export_job_id: job.job_id },
+          new_values: {
+            storage_path: path,
+            binder_export_job_id: job.job_id,
+            appendix_prefix: appendixPrefix,
+            appendix_sections: appendixManifest.sections.length,
+          },
         });
         succeeded += 1;
       } catch (jobError) {
@@ -450,12 +526,38 @@ function selectCurrentPracticums(practicums: any[]): any[] {
 // facilities -- the scope is resolved and validated at enqueue time). Runs on the
 // service-role client; throws on any data error so the worker records a retryable
 // failure on the job.
+interface BinderAppendixSection {
+  key: string;
+  title: string;
+  included: number;
+  total: number;
+  headers: string[];
+  rows: string[][];
+}
+
+interface BinderBuildResult {
+  pdfBytes: Uint8Array;
+  appendixSections: BinderAppendixSection[];
+}
+
+function csvEscape(value: string): string {
+  const s = String(value ?? "");
+  return `"${s.replaceAll('"', '""')}"`;
+}
+
+function rowsToCsv(headers: string[], rows: string[][]): string {
+  return [
+    headers.map(csvEscape).join(","),
+    ...rows.map((row) => row.map(csvEscape).join(",")),
+  ].join("\n");
+}
+
 async function buildBinderPdf(
   adminClient: any,
   orgId: string,
   facilityScope: string[] | null,
   requestedByLabel: string,
-): Promise<Uint8Array> {
+): Promise<BinderBuildResult> {
   const { data: org, error: orgError } = await adminClient
     .from("organizations")
     .select("id, name")
@@ -957,5 +1059,169 @@ async function buildBinderPdf(
     }
   }
 
-  return await pdf.save();
+  const appendixSections: BinderAppendixSection[] = [
+    {
+      key: "training_gaps",
+      title: "Overdue / Due Soon Training Records",
+      included: nonCompliantRecords.length,
+      total: nonCompliantRecords.length,
+      headers: ["Employee", "Facility", "Training Type", "Due Date", "Status"],
+      rows: nonCompliantRecords.map((r) => {
+        const e = employeeMap.get(r.employee_id);
+        const f = facilityMap.get(r.facility_id);
+        const trainingType = (r.training_types as unknown as { name: string } | null)?.name;
+        return [
+          e ? `${e.first_name} ${e.last_name}` : "—",
+          f?.name ?? "—",
+          trainingType ?? "—",
+          r.due_date ?? "—",
+          STATUS_LABELS[r.status] ?? r.status,
+        ];
+      }),
+    },
+    {
+      key: "practicum_gaps",
+      title: "Overdue / Due Soon Practicums",
+      included: nonCompliantPracticums.length,
+      total: nonCompliantPracticums.length,
+      headers: ["Employee", "Facility", "Year", "Due Date", "Status"],
+      rows: nonCompliantPracticums.map((p) => {
+        const e = employeeMap.get(p.employee_id);
+        const f = facilityMap.get(p.facility_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : "—",
+          f?.name ?? "—",
+          String(p.practicum_year ?? "—"),
+          p.due_date ?? "—",
+          STATUS_LABELS[p.status] ?? p.status,
+        ];
+      }),
+    },
+    {
+      key: "open_alerts",
+      title: "Open Alerts",
+      included: alerts.length,
+      total: alerts.length,
+      headers: ["Severity", "Title", "Created At"],
+      rows: alerts.map((a) => [a.severity, a.title, a.created_at ?? "—"]),
+    },
+    {
+      key: "outstanding_attestations",
+      title: "Outstanding Policy Attestations",
+      included: overdueAttestations.length + pendingAttestations.length,
+      total: overdueAttestations.length + pendingAttestations.length,
+      headers: ["Employee", "Policy", "Due Date", "Status"],
+      rows: [...overdueAttestations, ...pendingAttestations].map((a) => {
+        const e = employeeMap.get(a.employee_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : "—",
+          policyTitle(a),
+          a.due_date ?? "—",
+          a.status,
+        ];
+      }),
+    },
+    {
+      key: "credential_gaps",
+      title: "Credential Gaps",
+      included: nonCompliantCredentials.length,
+      total: nonCompliantCredentials.length,
+      headers: ["Employee", "Facility", "Credential", "Expiration", "Status"],
+      rows: nonCompliantCredentials.map((c) => {
+        const e = employeeMap.get(c.employee_id);
+        const f = facilityMap.get(c.facility_id);
+        return [
+          e ? `${e.first_name} ${e.last_name}` : "—",
+          f?.name ?? "—",
+          c.credential_type ?? "—",
+          c.expiration_date ?? "—",
+          STATUS_LABELS[c.status] ?? c.status,
+        ];
+      }),
+    },
+    {
+      key: "incidents",
+      title: "Incidents",
+      included: incidents.length,
+      total: incidents.length,
+      headers: ["Type", "Severity", "Status", "Occurred At", "Facility"],
+      rows: incidents.map((i) => {
+        const f = facilityMap.get(i.facility_id);
+        return [
+          i.incident_type ?? "—",
+          i.severity ?? "—",
+          i.status ?? "—",
+          i.occurred_at ?? "—",
+          f?.name ?? "—",
+        ];
+      }),
+    },
+    {
+      key: "inspection_gaps",
+      title: "Inspection Gaps",
+      included: nonCompliantInspectionItems.length,
+      total: nonCompliantInspectionItems.length,
+      headers: ["Label", "Type", "Facility", "Next Due", "Status"],
+      rows: nonCompliantInspectionItems.map((i) => {
+        const f = facilityMap.get(i.facility_id);
+        return [
+          i.label ?? "—",
+          i.item_type ?? "—",
+          f?.name ?? "—",
+          i.next_due_date ?? "—",
+          STATUS_LABELS[i.status] ?? i.status,
+        ];
+      }),
+    },
+    {
+      key: "corrective_actions",
+      title: "Open Corrective Actions",
+      included: openCorrectiveActions.length,
+      total: openCorrectiveActions.length,
+      headers: ["Description", "Facility", "Due Date", "Status"],
+      rows: openCorrectiveActions.map((a) => {
+        const f = facilityMap.get(a.facility_id);
+        return [
+          a.description ?? "—",
+          f?.name ?? "—",
+          a.due_date ?? "—",
+          a.status ?? "—",
+        ];
+      }),
+    },
+    {
+      key: "resident_compliance_gaps",
+      title: "Outstanding Resident Compliance Items",
+      included: nonCompliantResidentItems.length,
+      total: nonCompliantResidentItems.length,
+      headers: ["Resident", "Facility", "Item", "Due Date", "Status"],
+      rows: nonCompliantResidentItems.map((rci) => {
+        const r = residentById.get(rci.resident_id);
+        const f = facilityMap.get(rci.facility_id);
+        return [
+          r ? `${r.first_name} ${r.last_name}` : "—",
+          f?.name ?? "—",
+          String(rci.item_type ?? "").replace(/_/g, " "),
+          rci.due_date ?? "—",
+          STATUS_LABELS[rci.status] ?? rci.status,
+        ];
+      }),
+    },
+  ];
+
+  // Cover note: PDF lists are capped; CSV appendix is complete for each section.
+  pdf.heading("Machine-readable appendix");
+  pdf.text(
+    "Full section lists (not truncated) are stored as CSV files next to this PDF under the same export job id. " +
+      "Use Download CSV appendix in CareBase for complete inclusion counts and rows.",
+    { size: 9, gap: 8 },
+  );
+  pdf.table(
+    ["Section", "Rows in appendix"],
+    appendixSections.map((s) => [s.title, String(s.total)]),
+    [360, 100],
+  );
+
+  const pdfBytes = await pdf.save();
+  return { pdfBytes, appendixSections };
 }

@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { QueryError } from "@/components/QueryState";
 import {
   Activity,
   AlertTriangle,
@@ -169,7 +170,7 @@ function FailedBillingEventsCard() {
 }
 
 export default function SystemJobs() {
-  const { data: jobs = [], isLoading, isFetching, refetch } = useSystemJobs();
+  const { data: jobs = [], isLoading, isError, error, isFetching, refetch } = useSystemJobs();
   const { data: recoveryRows = [] } = useSystemJobRecoveryState();
   const runJob = useRunSystemJob();
   const cancelJob = useCancelSystemJob();
@@ -298,7 +299,9 @@ export default function SystemJobs() {
           <CardTitle>Registered jobs</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="system jobs" error={error as Error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(8)].map((_, index) => (
                 <div key={index} className="h-14 animate-pulse rounded-md bg-muted" />

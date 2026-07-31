@@ -9,6 +9,9 @@ verify_jwt = true
 [functions.bulk-import-employees]
 verify_jwt = true
 
+[functions.bulk-import-training-records]
+verify_jwt = true
+
 # Serves both authenticated user downloads/enqueues and the internal binder-export cron
 # worker. pg_net sends no user JWT, so the gateway must not require one; JWT verification is
 # enforced inside the function for user requests (Authorization header + getUser), and cron

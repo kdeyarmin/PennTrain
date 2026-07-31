@@ -4,6 +4,7 @@ import {
   useCreateInspectionItem, useUpdateInspectionItem, useDeleteInspectionItem,
   type InspectionItem,
 } from "@/hooks/useInspectionItems";
+import { useCreateInspectionEvent } from "@/hooks/useInspectionEvents";
 import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -18,10 +19,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Flame, ChevronLeft, ChevronRight, Plus, Pencil, Search, Trash2 } from "lucide-react";
+import { Flame, ChevronLeft, ChevronRight, Plus, Pencil, Search, Trash2, ClipboardCheck } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { facilityToday } from "@/lib/dateUtils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const PAGE_SIZE = 15;
 
@@ -87,6 +90,12 @@ export default function InspectionItems() {
   const [editing, setEditing] = useState<InspectionItem | null>(null);
   const [form, setForm] = useState<ItemFormData>(EMPTY_FORM);
   const [deleteTarget, setDeleteTarget] = useState<InspectionItem | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLogOpen, setBulkLogOpen] = useState(false);
+  const [bulkResult, setBulkResult] = useState<"pass" | "fail" | "deficiency_noted">("pass");
+  const [bulkNotes, setBulkNotes] = useState("");
+  const [bulkLogging, setBulkLogging] = useState(false);
+  const createEvent = useCreateInspectionEvent();
 
   // Matches inspection_items insert/update RLS -- trainer included (unlike credentials/incidents),
   // since physical-plant compliance is the least sensitive of the three new modules.
@@ -206,6 +215,49 @@ export default function InspectionItems() {
     });
   };
 
+  const toggleSelected = (id: string, on: boolean) => {
+    setSelectedIds((prev) => (on ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id)));
+  };
+
+  const selectedItems = items.filter((i) => selectedIds.includes(i.id));
+  // Fire drills need shift/route fields — send operators to the detail page instead of bulk-logging them.
+  const bulkEligible = selectedItems.filter((i) => i.item_type !== "fire_drill_program");
+
+  const handleBulkLog = async () => {
+    if (!user || !bulkEligible.length) return;
+    const performedBy = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.email || "Staff";
+    setBulkLogging(true);
+    let ok = 0;
+    let failed = 0;
+    for (const item of bulkEligible) {
+      try {
+        await createEvent.mutateAsync({
+          organization_id: item.organization_id,
+          facility_id: item.facility_id,
+          inspection_item_id: item.id,
+          performed_date: facilityToday(),
+          performed_by: performedBy,
+          performed_by_profile_id: user.id,
+          result: bulkResult,
+          notes: bulkNotes.trim() || null,
+          follow_up_required: bulkResult !== "pass",
+        });
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setBulkLogging(false);
+    setBulkLogOpen(false);
+    setSelectedIds([]);
+    setBulkNotes("");
+    toast({
+      title: "Bulk inspection logged",
+      description: `${ok} succeeded${failed ? `, ${failed} failed` : ""}${selectedItems.length > bulkEligible.length ? " (fire drills skipped — open each item)" : ""}.`,
+      variant: failed ? "destructive" : "default",
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
@@ -255,6 +307,15 @@ export default function InspectionItems() {
           </Select>
         </div>
 
+        {canManage && selectedIds.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3 bg-muted/30">
+            <p className="text-sm">{selectedIds.length} selected</p>
+            <Button size="sm" onClick={() => setBulkLogOpen(true)}>
+              <ClipboardCheck className="mr-2 h-4 w-4" /> Log inspection on selected
+            </Button>
+          </div>
+        )}
+
         {isError ? (
           <div className="p-6">
             <QueryError what="inspection items" error={error} onRetry={() => refetch()} />
@@ -277,6 +338,7 @@ export default function InspectionItems() {
               <table className="data-table min-w-[720px]">
                 <thead>
                   <tr>
+                    {canManage ? <th className="w-10" /> : null}
                     <th>Facility</th>
                     <th>Item</th>
                     <th>Type</th>
@@ -288,6 +350,15 @@ export default function InspectionItems() {
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.id}>
+                      {canManage ? (
+                        <td>
+                          <Checkbox
+                            checked={selectedIds.includes(item.id)}
+                            onCheckedChange={(v) => toggleSelected(item.id, v === true)}
+                            aria-label={`Select ${item.label}`}
+                          />
+                        </td>
+                      ) : null}
                       <td className="text-muted-foreground">{facilityById.get(item.facility_id)?.name ?? "—"}</td>
                       <td>
                         <Link href={`/app/inspections/${item.id}`} className="font-medium text-primary hover:underline">{item.label}</Link>
@@ -400,6 +471,40 @@ export default function InspectionItems() {
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={creating || updating} className="shadow-sm">
               {creating || updating ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkLogOpen} onOpenChange={(o) => { if (!o) setBulkLogOpen(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk log inspection</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Logs the same result for {bulkEligible.length} item(s). Fire-drill programs are skipped (they need shift/route details on the item page).
+            </p>
+            <div className="space-y-1.5">
+              <Label>Result</Label>
+              <Select value={bulkResult} onValueChange={(v) => setBulkResult(v as typeof bulkResult)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pass">Pass</SelectItem>
+                  <SelectItem value="fail">Fail</SelectItem>
+                  <SelectItem value="deficiency_noted">Deficiency noted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes (optional)</Label>
+              <Textarea value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkLogOpen(false)}>Cancel</Button>
+            <Button onClick={() => void handleBulkLog()} disabled={bulkLogging || !bulkEligible.length}>
+              {bulkLogging ? "Logging…" : `Log ${bulkEligible.length} item(s)`}
             </Button>
           </DialogFooter>
         </DialogContent>
