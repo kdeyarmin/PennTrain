@@ -9,8 +9,8 @@ select plan(12);
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'notifications.critical_multichannel' $$,
-  $$ values ('off'::text, false) $$,
-  'the critical-multichannel release flag is seeded default-off'
+  $$ values ('cohort'::text, true) $$,
+  'the critical-multichannel release flag is seeded cohort-on for the CareBase pilot'
 );
 select ok(
   exists (select 1 from public.feature_definitions

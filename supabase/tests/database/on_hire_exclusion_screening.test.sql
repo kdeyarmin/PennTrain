@@ -2,15 +2,15 @@ begin;
 select plan(8);
 
 -- On-hire exclusion screening: a newly inserted active employee is matched against the
--- active local exclusion snapshots at insert time, behind the default-off
+-- active local exclusion snapshots at insert time, behind the pilot cohort-on
 -- 'screening.on_hire_exclusion' release flag. Matches land in the same pending_review
--- queue and critical alert as the monthly run.
+-- queue and critical alert as the monthly run. Non-cohort orgs still need explicit enable.
 
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'screening.on_hire_exclusion' $$,
-  $$ values ('off'::text, false) $$,
-  'the on-hire screening flag is seeded default-off'
+  $$ values ('cohort'::text, true) $$,
+  'the on-hire screening flag is seeded cohort-on for the CareBase pilot'
 );
 
 insert into public.organizations(id,name,slug,subscription_status) values

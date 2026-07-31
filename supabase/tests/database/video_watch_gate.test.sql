@@ -10,8 +10,8 @@ select has_column('public','course_progress','learning_tools','course progress c
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'learning.video_watch_gate' $$,
-  $$ values ('off'::text, false) $$,
-  'the watch-gate flag is seeded default-off'
+  $$ values ('cohort'::text, true) $$,
+  'the watch-gate flag is seeded cohort-on for the CareBase pilot'
 );
 
 insert into public.organizations(id,name,slug,subscription_status) values
@@ -35,7 +35,7 @@ select pg_temp.act_as('16000000-0000-4000-8000-000000000022');
 select results_eq(
   $$ select public.feature_release_active('learning.video_watch_gate') $$,
   array[false],
-  'the gate reads false for an organization member while the flag is off'
+  'the gate reads false for an organization not enrolled in the pilot cohort'
 );
 select results_eq(
   $$ select public.feature_release_active('no.such.feature') $$,
