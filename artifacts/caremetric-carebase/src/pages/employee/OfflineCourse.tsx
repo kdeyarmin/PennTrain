@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ export default function OfflineCourse() {
   const queueProgress = useQueueOfflineProgress();
   const syncProgress = useSyncOfflineProgress();
   const [stepIndex, setStepIndex] = useState(0);
+  const [resumedAssignmentId, setResumedAssignmentId] = useState<string | null>(null);
 
   const record = offlineBundle.data?.record;
   const bundle = offlineBundle.data?.bundle.data as OfflineBundle | undefined;
@@ -50,6 +51,20 @@ export default function OfflineCourse() {
   const current = blocks[stepIndex];
   const percentComplete = blocks.length ? Math.round(((stepIndex + 1) / blocks.length) * 100) : 0;
   const hasUnsyncedProgress = (progress.data?.percentComplete ?? 0) > (progress.data?.syncedPercent ?? 0);
+
+  // Resume at the furthest offline checkpoint instead of always restarting at lesson 1.
+  useEffect(() => {
+    if (!assignmentId || !blocks.length || resumedAssignmentId === assignmentId) return;
+    const savedPercent = progress.data?.percentComplete ?? 0;
+    if (savedPercent > 0) {
+      const approxIndex = Math.min(
+        blocks.length - 1,
+        Math.max(0, Math.round((savedPercent / 100) * blocks.length) - 1),
+      );
+      setStepIndex(approxIndex);
+    }
+    setResumedAssignmentId(assignmentId);
+  }, [assignmentId, blocks.length, progress.data?.percentComplete, resumedAssignmentId]);
 
   const recordProgress = async (nextIndex: number) => {
     if (!bundle || !blocks.length) return;

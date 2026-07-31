@@ -94,8 +94,20 @@ export default function FacilityDetail() {
   const canLinkToOrgLists = user?.role !== "platform_admin";
 
   const { data: facility, isLoading: facLoading, isError: facError, error: facErr, refetch: refetchFacility } = useGetFacility(id);
-  const { data: employees, isLoading: empLoading } = useListEmployees({ facilityId: id });
-  const { data: residents, isLoading: residentsLoading } = useListResidents({ facilityId: id });
+  const {
+    data: employees,
+    isLoading: empLoading,
+    isError: empError,
+    error: empErrorDetail,
+    refetch: refetchEmployees,
+  } = useListEmployees({ facilityId: id });
+  const {
+    data: residents,
+    isLoading: residentsLoading,
+    isError: residentsError,
+    error: residentsErrorDetail,
+    refetch: refetchResidents,
+  } = useListResidents({ facilityId: id });
   const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ facilityId: id });
   const { data: trainingTypes } = useListTrainingTypes();
   const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ facilityId: id });
@@ -558,11 +570,13 @@ export default function FacilityDetail() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" /> Staff ({employees?.length ?? "..."})
+            <Users className="h-5 w-5" /> Staff ({empError ? "—" : employees?.length ?? "..."})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {empLoading ? (
+          {empError ? (
+            <QueryError what="staff" error={empErrorDetail} onRetry={() => void refetchEmployees()} />
+          ) : empLoading ? (
             <div className="space-y-2">
               {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}
             </div>
@@ -570,7 +584,7 @@ export default function FacilityDetail() {
             <p className="text-sm text-muted-foreground">No staff on record.</p>
           ) : (
             <div className="space-y-2">
-              {employees.map(emp => (
+              {employees.slice(0, 8).map(emp => (
                 <Link key={emp.id} href={`${employeeBasePath}/${emp.id}`}>
                   <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
                     <div>
@@ -585,6 +599,13 @@ export default function FacilityDetail() {
                   </div>
                 </Link>
               ))}
+              {employees.length > 8 && (
+                <Link href={canLinkToOrgLists ? `/app/employees?facility=${id}` : `/admin/employees?facility=${id}`} className="block pt-1">
+                  <p className="text-center text-sm text-primary hover:underline">
+                    View all staff ({employees.length})
+                  </p>
+                </Link>
+              )}
             </div>
           )}
         </CardContent>
@@ -594,11 +615,13 @@ export default function FacilityDetail() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BedDouble className="h-5 w-5" /> Residents ({residents?.length ?? "..."})
+              <BedDouble className="h-5 w-5" /> Residents ({residentsError ? "—" : residents?.length ?? "..."})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {residentsLoading ? (
+            {residentsError ? (
+              <QueryError what="residents" error={residentsErrorDetail} onRetry={() => void refetchResidents()} />
+            ) : residentsLoading ? (
               <div className="space-y-2">
                 {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12" />)}
               </div>
@@ -606,7 +629,7 @@ export default function FacilityDetail() {
               <p className="text-sm text-muted-foreground">No residents on record.</p>
             ) : (
               <div className="space-y-2">
-                {residents.map(r => (
+                {residents.slice(0, 8).map(r => (
                   <Link key={r.id} href={`/app/residents/${r.id}`}>
                     <div className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/5 cursor-pointer">
                       <div>
@@ -621,6 +644,13 @@ export default function FacilityDetail() {
                     </div>
                   </Link>
                 ))}
+                {residents.length > 8 && (
+                  <Link href={`/app/residents?facility=${id}`} className="block pt-1">
+                    <p className="text-center text-sm text-primary hover:underline">
+                      View all residents ({residents.length})
+                    </p>
+                  </Link>
+                )}
               </div>
             )}
           </CardContent>

@@ -445,19 +445,20 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     return [
       {
         items: [
-          { href: "/me", label: "My Training", icon: LayoutDashboard },
+          { href: "/me", label: "My Work", icon: LayoutDashboard },
         ]
       },
       {
-        title: "Schedule & Courses",
+        title: "Schedule & Floor",
         items: [
           { href: "/me/shift", label: "My Shift", icon: ClipboardList },
+          { href: "/me/floor", label: "Floor", icon: HeartPulse },
           { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
           { href: "/me/services", label: "My Services", icon: ClipboardCheck },
           { href: "/me/change-of-condition", label: "Change Follow-Up", icon: Activity },
           ...(showPchAlrModules ? [{ href: "/me/dietary-operations", label: "Dietary & Food Safety", icon: Utensils }] : []),
           ...(showPchAlrModules ? [{ href: "/me/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays }] : []),
-          { href: "/me/work", label: "My Work", icon: ClipboardList },
+          { href: "/me/work", label: "My Work Queue", icon: ClipboardList },
           { href: "/me/courses", label: "My Training", icon: BookOpen },
         ]
       },

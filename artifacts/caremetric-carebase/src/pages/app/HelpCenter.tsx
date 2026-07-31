@@ -27,6 +27,7 @@ import {
   type HelpCopilotConfidence,
 } from "@/lib/helpCopilot";
 import { useToast } from "@/hooks/use-toast";
+import { QueryError } from "@/components/QueryState";
 import {
   AlertTriangle, Bot, Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink,
   Paperclip, Send, X, Sparkles,
@@ -182,11 +183,15 @@ function articleCategories(articles: HelpArticle[]): string[] {
 
 function FaqTab() {
   const [query, setQuery] = useState("");
-  const { data, isLoading } = useListHelpArticles("faq");
+  const { data, isLoading, isError, error, refetch } = useListHelpArticles("faq");
   const articles = useMemo(() => data ?? [], [data]);
   const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
   const categories = useMemo(() => articleCategories(articles), [articles]);
   const isSearching = query.trim().length > 0;
+
+  if (isError) {
+    return <QueryError what="FAQ articles" error={error} onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>;
@@ -295,7 +300,7 @@ function JobAideItem({ article }: { article: HelpArticle }) {
 function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
-  const { data, isLoading } = useListHelpArticles("job_aide");
+  const { data, isLoading, isError, error, refetch } = useListHelpArticles("job_aide");
   const articles = useMemo(() => filterHelpArticlesForRole(data ?? [], user?.role), [data, user?.role]);
   const filtered = useMemo(() => searchArticles(articles, query), [articles, query]);
   const categories = useMemo(() => articleCategories(articles), [articles]);
@@ -304,6 +309,10 @@ function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
     () => (pinnedArticleId ? articles.find((a) => a.id === pinnedArticleId) : undefined),
     [articles, pinnedArticleId]
   );
+
+  if (isError) {
+    return <QueryError what="job aides" error={error} onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>;
@@ -469,7 +478,7 @@ function SupportTab({ base }: { base: string }) {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: ticketsData, isLoading } = useListSupportTickets();
+  const { data: ticketsData, isLoading, isError, error, refetch } = useListSupportTickets();
   const { mutate: createTicket, isPending: creating } = useCreateSupportTicket();
 
   const tickets = ticketsData ?? [];
@@ -598,7 +607,9 @@ function SupportTab({ base }: { base: string }) {
       <Card>
         <CardHeader><CardTitle className="text-base">My Tickets</CardTitle></CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="support tickets" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
             </div>

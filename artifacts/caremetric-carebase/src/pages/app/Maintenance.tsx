@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 
 const OPEN_STATUSES = new Set(["open", "assigned", "in_progress", "on_hold", "pending_verification"]);
 
@@ -79,8 +80,14 @@ export default function Maintenance() {
   // applies its own facility filter below; otherwise choosing a different facility inside a
   // dialog after filtering the page would incorrectly show no locations for that facility.
   const { data: locations } = useListMaintenanceLocations();
-  const { data: schedules } = useListPreventiveMaintenanceSchedules(selectedFacility);
-  const { data: orders, isLoading } = useListWorkOrders({
+  const {
+    data: schedules,
+    isLoading: schedulesLoading,
+    isError: schedulesError,
+    error: schedulesErrorDetail,
+    refetch: refetchSchedules,
+  } = useListPreventiveMaintenanceSchedules(selectedFacility);
+  const { data: orders, isLoading, isError, error, refetch } = useListWorkOrders({
     facilityId: selectedFacility,
     status: status === "all" ? undefined : status,
   });
@@ -209,10 +216,10 @@ export default function Maintenance() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card><CardContent className="pt-5"><Wrench className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{openCount}</p><p className="text-sm text-muted-foreground">Open work orders</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><AlertTriangle className="h-5 w-5 text-destructive" /><p className="mt-2 text-2xl font-bold">{overdueCount}</p><p className="text-sm text-muted-foreground">Past target completion</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><ShieldAlert className="h-5 w-5 text-warning" /><p className="mt-2 text-2xl font-bold">{verificationCount}</p><p className="text-sm text-muted-foreground">Awaiting supervisor verification</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><CalendarClock className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{(schedules ?? []).filter((s) => s.is_active).length}</p><p className="text-sm text-muted-foreground">Active PM schedules</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><Wrench className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{isError ? "—" : openCount}</p><p className="text-sm text-muted-foreground">Open work orders</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><AlertTriangle className="h-5 w-5 text-destructive" /><p className="mt-2 text-2xl font-bold">{isError ? "—" : overdueCount}</p><p className="text-sm text-muted-foreground">Past target completion</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><ShieldAlert className="h-5 w-5 text-warning" /><p className="mt-2 text-2xl font-bold">{isError ? "—" : verificationCount}</p><p className="text-sm text-muted-foreground">Awaiting supervisor verification</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><CalendarClock className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{schedulesError ? "—" : (schedules ?? []).filter((s) => s.is_active).length}</p><p className="text-sm text-muted-foreground">Active PM schedules</p></CardContent></Card>
       </div>
 
       <Tabs defaultValue="orders" className="space-y-4">
@@ -224,7 +231,7 @@ export default function Maintenance() {
             <Select value={status} onValueChange={setStatus}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{["open","assigned","in_progress","on_hold","pending_verification","verified","canceled"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
           </div>
           <div className="premium-card overflow-x-auto">
-            {isLoading ? <div className="space-y-2 p-6">{[1,2,3].map((n) => <div key={n} className="h-12 animate-pulse rounded bg-muted" />)}</div> : filteredOrders.length === 0 ? <div className="py-16 text-center text-sm text-muted-foreground">No work orders match these filters.</div> : (
+            {isError ? <div className="p-6"><QueryError what="work orders" error={error} onRetry={() => refetch()} /></div> : isLoading ? <div className="space-y-2 p-6">{[1,2,3].map((n) => <div key={n} className="h-12 animate-pulse rounded bg-muted" />)}</div> : filteredOrders.length === 0 ? <div className="py-16 text-center text-sm text-muted-foreground">No work orders match these filters.</div> : (
               <table className="data-table min-w-[900px]"><thead><tr><th>Work order</th><th>Facility / location</th><th>Problem</th><th>Assignment</th><th>Target</th><th>Status</th></tr></thead><tbody>{filteredOrders.map((order) => {
                 const employee = order.assigned_employee_id ? employeeById.get(order.assigned_employee_id) : undefined;
                 const asset = order.inspection_item_id ? assetById.get(order.inspection_item_id) : undefined;
@@ -240,11 +247,17 @@ export default function Maintenance() {
             <p className="text-sm text-muted-foreground">Due schedules generate one open work order at a time and advance to their next recurring due date.</p>
             {canConfigure && <div className="flex gap-2"><Button variant="outline" onClick={() => generateDue.mutate(undefined, { onSuccess: (count) => toast({ title: `${count} due work order${count === 1 ? "" : "s"} generated` }), onError: (error: Error) => toast({ title: "Generation failed", description: error.message, variant: "destructive" }) })} disabled={generateDue.isPending}><RefreshCw className="mr-2 h-4 w-4" /> Generate due</Button><Button onClick={() => setShowSchedule(true)}><Plus className="mr-2 h-4 w-4" /> Add schedule</Button></div>}
           </div>
+          {schedulesError ? (
+            <div className="premium-card p-6"><QueryError what="preventive-maintenance schedules" error={schedulesErrorDetail} onRetry={() => void refetchSchedules()} /></div>
+          ) : schedulesLoading ? (
+            <div className="grid gap-3">{[1, 2, 3].map((n) => <div key={n} className="h-24 animate-pulse rounded-lg bg-muted" />)}</div>
+          ) : (
           <div className="grid gap-3">{(schedules ?? []).map((schedule) => {
             const asset = schedule.inspection_item_id ? assetById.get(schedule.inspection_item_id) : undefined;
             const location = schedule.maintenance_location_id ? locationById.get(schedule.maintenance_location_id) : undefined;
             return <Card key={schedule.id}><CardContent className="flex flex-wrap items-center justify-between gap-4 pt-5"><div><div className="flex items-center gap-2"><p className="font-semibold">{schedule.title}</p><Badge variant={schedule.is_active ? "outline" : "secondary"}>{schedule.is_active ? "Active" : "Paused"}</Badge></div><p className="text-sm text-muted-foreground">{asset?.label ?? location?.label ?? "Maintenance location"} · Every {schedule.frequency_interval} {schedule.frequency_unit}{schedule.frequency_interval === 1 ? "" : "s"}</p><p className="mt-1 text-sm">Next due {schedule.next_due_date}</p></div>{canConfigure && <Button variant="outline" size="sm" onClick={() => updateSchedule.mutate({ id: schedule.id, is_active: !schedule.is_active })}>{schedule.is_active ? "Pause" : "Resume"}</Button>}</CardContent></Card>;
           })}{!schedules?.length && <div className="premium-card py-16 text-center text-sm text-muted-foreground">No preventive-maintenance schedules yet.</div>}</div>
+          )}
         </TabsContent>
 
         <TabsContent value="locations" className="space-y-4">

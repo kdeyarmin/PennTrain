@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, ChevronLeft, ChevronRight, Plus, Eye } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
@@ -163,6 +164,7 @@ export default function CompetencyRecords() {
   const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const [form, setForm] = useState<RecordFormData>(EMPTY_RECORD_FORM);
   const [itemResults, setItemResults] = useState<Record<string, { result: ItemResult; notes: string }>>({});
   const [viewRecord, setViewRecord] = useState<CompetencyRecord | null>(null);
@@ -176,7 +178,7 @@ export default function CompetencyRecords() {
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees({ status: "active" });
   const { data: templates } = useListCompetencyTemplates();
-  const { data: records, isLoading } = useListCompetencyRecords({
+  const { data: records, isLoading, isError, error, refetch } = useListCompetencyRecords({
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
     employeeId: employeeFilter !== "all" ? employeeFilter : undefined,
     templateId: templateFilter !== "all" ? templateFilter : undefined,
@@ -195,6 +197,20 @@ export default function CompetencyRecords() {
         .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
     [employees],
   );
+  const employeeSearchNeedle = employeeSearch.trim().toLowerCase();
+  const filteredActiveEmployees = useMemo(() => {
+    if (!employeeSearchNeedle) return activeEmployees;
+    return activeEmployees.filter((e) =>
+      `${e.last_name} ${e.first_name} ${e.job_title ?? ""}`.toLowerCase().includes(employeeSearchNeedle),
+    );
+  }, [activeEmployees, employeeSearchNeedle]);
+  const filterEmployees = useMemo(() => {
+    const list = employees ?? [];
+    if (!employeeSearchNeedle) return list;
+    return list.filter((e) =>
+      `${e.last_name} ${e.first_name} ${e.job_title ?? ""}`.toLowerCase().includes(employeeSearchNeedle),
+    );
+  }, [employees, employeeSearchNeedle]);
 
   const allRecords = records ?? [];
   const sorted = [...allRecords].sort((a, b) => b.evaluation_date.localeCompare(a.evaluation_date));
@@ -221,6 +237,7 @@ export default function CompetencyRecords() {
 
   const openCreate = () => {
     setForm(EMPTY_RECORD_FORM);
+    setEmployeeSearch("");
     setShowForm(true);
   };
 
@@ -305,13 +322,19 @@ export default function CompetencyRecords() {
               ))}
             </SelectContent>
           </Select>
+          <Input
+            className="h-9 w-48 bg-card"
+            placeholder="Search employees"
+            value={employeeSearch}
+            onChange={(e) => setEmployeeSearch(e.target.value)}
+          />
           <Select value={employeeFilter} onValueChange={(v) => { setEmployeeFilter(v); setPage(1); }}>
             <SelectTrigger className="w-48 h-9 bg-card">
               <SelectValue placeholder="All Employees" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Employees</SelectItem>
-              {(employees ?? []).map((e) => (
+              {filterEmployees.map((e) => (
                 <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
               ))}
             </SelectContent>
@@ -329,7 +352,11 @@ export default function CompetencyRecords() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="competency records" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
@@ -413,12 +440,21 @@ export default function CompetencyRecords() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Employee *</Label>
+                <Input
+                  className="mb-1.5 h-9"
+                  placeholder="Type to filter employees"
+                  value={employeeSearch}
+                  onChange={(e) => setEmployeeSearch(e.target.value)}
+                />
                 <Select value={form.employeeId} onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
                   <SelectContent>
-                    {activeEmployees.map((e) => (
+                    {filteredActiveEmployees.map((e) => (
                       <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
                     ))}
+                    {filteredActiveEmployees.length === 0 && (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">No employees match that search.</div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

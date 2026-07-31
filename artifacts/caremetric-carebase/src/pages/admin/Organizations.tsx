@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Building2, Search, ChevronRight, Plus, Download } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { csvEscape } from "@/lib/csv";
@@ -79,7 +80,7 @@ export default function Organizations() {
   const [form, setForm] = useState<OrgFormData>(EMPTY_ORG);
 
   const { toast } = useToast();
-  const { data: orgs, isLoading } = useListOrganizations();
+  const { data: orgs, isLoading, isError, error, refetch } = useListOrganizations();
   const { data: packages } = useListPackages();
   const { mutate: createOrganization, isPending: creating } = useCreateOrganization();
 
@@ -224,7 +225,9 @@ export default function Organizations() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="organizations" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-md" />)}
             </div>

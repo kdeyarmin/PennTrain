@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
-import { useFeatureReleaseActive } from "@/hooks/useFeatureRelease";
 import type { Json } from "@/lib/database.types";
 import { Link, useLocation, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -139,13 +138,12 @@ export default function TakeCourse() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  // Every role can reach this page now (App.tsx's ANY_ROLE), but /me/trainings and
-  // /me/certificates stay employee-only routes -- routing anyone else there would just bounce
-  // them straight back out via ProtectedRoute. /me/courses is the one training-assignment destination every
-  // role can actually land on.
+  // Every role can reach this page (App.tsx ANY_ROLE). Always return to the assignment list
+  // (/me/courses) — not Training Records, which is a read-only compliance history with no
+  // Start/Continue actions. Certificates remain the post-completion destination for employees.
   const isEmployeeRole = user?.role === "employee";
-  const backHref = isEmployeeRole ? "/me/trainings" : "/me/courses";
-  const backLabel = isEmployeeRole ? "Back to My Training Records" : "Back to My Training";
+  const backHref = "/me/courses";
+  const backLabel = "Back to My Training";
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   const {
@@ -186,7 +184,6 @@ export default function TakeCourse() {
   // Hydrated once per assignment from course_progress.video_state; the ref mirrors the
   // state so the navigation/visibility checkpoints below can persist the latest values
   // without re-running on every playback tick.
-  const { isActive: watchGateReleased } = useFeatureReleaseActive("learning.video_watch_gate");
   const [videoState, setVideoState] = useState<Record<string, VideoBlockState>>({});
   const videoStateRef = useRef<Record<string, VideoBlockState>>({});
   const [videoStateLoadedForId, setVideoStateLoadedForId] = useState<string | null>(null);
@@ -202,13 +199,11 @@ export default function TakeCourse() {
     setFurthestIndex(f => Math.max(f, stepIndex));
   }, [stepIndex]);
 
-  // Post-completion rating prompt state. postCompleteDestination tracks where to navigate once
-  // the employee submits or skips the rating: newly completed employee training items go to the issued
-  // certificate, someone rating an older completion can still return to trainings, and non-
-  // non-employee self-training users return to the role-safe training list.
+  // Post-completion rating prompt. Newly completed employee training items go to certificates;
+  // rating an older completion or any non-employee self-training returns to My Training.
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [showClearLearningToolsConfirm, setShowClearLearningToolsConfirm] = useState(false);
-  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
+  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/courses">(
     isEmployeeRole ? "/me/certificates" : "/me/courses",
   );
   const [ratingValue, setRatingValue] = useState(0);
@@ -463,14 +458,14 @@ useEffect(() => {
   // *every* quiz block in the training item before completion is reachable --
   // without having to bulk-resolve every quiz in the training item up front.
   // ---------------------------------------------------------------------
-  // Video blocks gate the same way when the org has released the watch gate:
-  // the employee can't move past an unwatched video. Completed assignments are
-  // never re-locked (review mode), and videos finished before the flag was
-  // enabled already carry completedAt from the resume tracking.
+  // Video blocks always gate advance for open assignments: a learner cannot skip past an
+  // unwatched mandated video. Completed assignments stay unlocked for review. The release flag
+  // still controls whether the player enforces no-skip scrubbing; advance is always gated once
+  // watch state is available.
   const isVideoBlock = currentBlock?.block_type === "video" && !!currentBlock?.video_url;
   const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
   const videoGateBlocksAdvance =
-    watchGateReleased && isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
+    isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
   const canAdvance = canAdvanceCourseStep({
     completionEvidenceLocked,
     isQuizBlock,
@@ -659,7 +654,23 @@ useEffect(() => {
           ) : (
             <AssignmentStatusBadge status={assignment.status} />
           )}
-          {assignment.due_date && (
+          {assignment.due_date && !alreadyCompleted && (() => {
+            const dueDistance = formatDueDistance(assignment.due_date);
+            const daysLeft = daysUntil(assignment.due_date);
+            const dueTone =
+              daysLeft !== null && daysLeft < 0
+                ? "text-destructive font-medium"
+                : daysLeft !== null && daysLeft <= 7
+                  ? "text-amber-600 font-medium"
+                  : "text-muted-foreground";
+            return (
+              <span className={`text-sm ${dueTone}`}>
+                Due {formatDateForDisplay(assignment.due_date)}
+                {dueDistance ? ` · ${dueDistance}` : ""}
+              </span>
+            );
+          })()}
+          {assignment.due_date && alreadyCompleted && (
             <span className="text-sm text-muted-foreground">
               Due {formatDateForDisplay(assignment.due_date)}
             </span>
@@ -884,7 +895,7 @@ useEffect(() => {
                     key={currentBlock.id}
                     src={currentBlock.video_url}
                     state={videoState[currentBlock.id]}
-                    gated={watchGateReleased && assignment?.status !== "completed"}
+                    gated={assignment?.status !== "completed"}
                     onChange={(next) => handleVideoStateChange(currentBlock.id, next)}
                   />
                 ) : (
@@ -1030,7 +1041,7 @@ useEffect(() => {
                       variant="link"
                       size="sm"
                       className="h-auto p-0 text-xs"
-                      onClick={() => { setPostCompleteDestination("/me/trainings"); setShowRatingPrompt(true); }}
+                      onClick={() => { setPostCompleteDestination("/me/courses"); setShowRatingPrompt(true); }}
                     >
                       Rate this training
                     </Button>

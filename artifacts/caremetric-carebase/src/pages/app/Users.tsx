@@ -328,13 +328,11 @@ export default function Users() {
     );
   };
 
-  // Escalating a user TO platform_admin is the one role change with unrestricted-platform blast
-  // radius, so it routes through a confirm dialog first; every other role change (including
-  // between two non-platform_admin roles, or moving someone OFF platform_admin) still applies the
-  // instant the Select changes, unchanged from before.
+  // Any role change can expand or remove access, so confirm before applying — including
+  // demotions and peer-role swaps, not only escalation to platform_admin.
   const requestRoleChange = (p: Profile, role: string) => {
-    if (role === "platform_admin" && p.role !== "platform_admin") setConfirmRoleChange({ profile: p, role });
-    else handleRoleChange(p, role);
+    if (role === p.role) return;
+    setConfirmRoleChange({ profile: p, role });
   };
 
   const handleConfirmRoleChange = () => {
@@ -854,18 +852,32 @@ export default function Users() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Grant {confirmRoleChange?.profile.first_name} {confirmRoleChange?.profile.last_name} Platform Admin access?
+              {confirmRoleChange?.role === "platform_admin"
+                ? `Grant ${confirmRoleChange.profile.first_name} ${confirmRoleChange.profile.last_name} Platform Admin access?`
+                : `Change ${confirmRoleChange?.profile.first_name} ${confirmRoleChange?.profile.last_name}'s role?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Platform Admin is unrestricted -- {confirmRoleChange?.profile.first_name} will be able to view and
-              manage every organization on the platform, not just their own, including billing, every user, and
-              every customer's compliance data. Only grant this to a trusted member of your own internal team.
+              {confirmRoleChange?.role === "platform_admin" ? (
+                <>
+                  Platform Admin is unrestricted -- {confirmRoleChange.profile.first_name} will be able to view and
+                  manage every organization on the platform, not just their own, including billing, every user, and
+                  every customer's compliance data. Only grant this to a trusted member of your own internal team.
+                </>
+              ) : (
+                <>
+                  Change {confirmRoleChange?.profile.first_name} from{" "}
+                  <strong>{ROLE_LABELS[confirmRoleChange?.profile.role ?? ""] ?? confirmRoleChange?.profile.role}</strong>
+                  {" "}to{" "}
+                  <strong>{ROLE_LABELS[confirmRoleChange?.role ?? ""] ?? confirmRoleChange?.role}</strong>.
+                  Their navigation, permissions, and facility access will update immediately after this change.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmRoleChange} disabled={adminUpdating}>
-              Grant Platform Admin
+              {confirmRoleChange?.role === "platform_admin" ? "Grant Platform Admin" : "Confirm role change"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

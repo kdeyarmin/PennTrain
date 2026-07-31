@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
@@ -7,8 +7,10 @@ import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { QueryError } from "@/components/QueryState";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap } from "lucide-react";
+import { BookOpen, GraduationCap } from "lucide-react";
+import { Link } from "wouter";
 
 export default function MyTrainings() {
   const { user } = useAuth();
@@ -48,9 +50,14 @@ export default function MyTrainings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Training Records</h1>
-        <p className="text-muted-foreground">View all your training records and compliance history.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">My Training Records</h1>
+          <p className="text-muted-foreground">View your compliance history. To start or continue assigned learning, open My Training.</p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/me/courses"><BookOpen className="mr-2 h-4 w-4" />Go to My Training</Link>
+        </Button>
       </div>
 
       <Card>
@@ -81,22 +88,50 @@ export default function MyTrainings() {
               {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>
           ) : sorted.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-8">No training records found.</p>
+            <div className="space-y-3 py-8 text-center">
+              <p className="text-muted-foreground text-sm">No training records found.</p>
+              <Button asChild size="sm">
+                <Link href="/me/courses">Browse assigned training</Link>
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
-              {sorted.map(r => (
-                <div key={r.id} className="flex items-center justify-between gap-4 p-3 rounded-lg border">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{trainingTypeName(r)}</p>
-                    <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground mt-0.5">
-                      {r.completion_date && <span>Completed {formatDateForDisplay(r.completion_date)}</span>}
-                      {r.due_date && r.status !== "compliant" && <span>Due {formatDateForDisplay(r.due_date)}</span>}
-                      {!r.completion_date && !r.due_date && <span>No dates on file</span>}
+              {sorted.map(r => {
+                const needsAction = r.status === "due_soon" || r.status === "expired" || r.status === "missing";
+                const dueDistance = needsAction ? formatDueDistance(r.due_date) : null;
+                const daysLeft = daysUntil(r.due_date);
+                const dueTone =
+                  daysLeft !== null && daysLeft < 0
+                    ? "text-destructive font-medium"
+                    : daysLeft !== null && daysLeft <= 7
+                      ? "text-amber-600 font-medium"
+                      : "";
+                return (
+                  <div key={r.id} className="flex items-center justify-between gap-4 p-3 rounded-lg border">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{trainingTypeName(r)}</p>
+                      <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground mt-0.5">
+                        {r.completion_date && <span>Completed {formatDateForDisplay(r.completion_date)}</span>}
+                        {r.due_date && r.status !== "compliant" && (
+                          <span className={dueTone}>
+                            Due {formatDateForDisplay(r.due_date)}
+                            {dueDistance ? ` · ${dueDistance}` : ""}
+                          </span>
+                        )}
+                        {!r.completion_date && !r.due_date && <span>No dates on file</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusBadge status={r.status} />
+                      {needsAction && (
+                        <Button asChild size="sm" variant="outline">
+                          <Link href="/me/courses">Find training</Link>
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <StatusBadge status={r.status} className="shrink-0" />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

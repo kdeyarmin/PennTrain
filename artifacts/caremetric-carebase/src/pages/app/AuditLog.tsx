@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { auditActionDescription, auditEntityLabel, auditEntityRoute } from "@/lib/auditEntityResolver";
 import { facilityToday } from "@/lib/dateUtils";
 
@@ -89,7 +90,7 @@ export default function AuditLog() {
   const page = Math.max(1, Number(filters.page) || 1);
   const hasActiveFilters = entityTypeFilter !== ENTITY_TYPE_ALL || orgFilter !== ORG_ALL || !!dateFrom || !!dateTo;
 
-  const { data: logsPage, isLoading } = useListAuditLogsPaginated({
+  const { data: logsPage, isLoading, isError, error, refetch } = useListAuditLogsPaginated({
     entityType: entityTypeFilter !== ENTITY_TYPE_ALL ? entityTypeFilter : undefined,
     organizationId: isPlatformAdmin && orgFilter !== ORG_ALL ? orgFilter : undefined,
     dateFrom: dateFrom || undefined,
@@ -239,7 +240,9 @@ export default function AuditLog() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="audit log entries" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
             </div>
