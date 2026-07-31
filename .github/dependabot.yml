@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Keep third-party Actions SHAs/tags current. Pin bumps still land as PRs
+  # so review can re-verify commit SHAs before merge.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - github-actions

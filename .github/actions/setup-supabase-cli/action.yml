@@ -1,0 +1,17 @@
+name: Setup Supabase CLI
+description: >
+  Install a pinned Supabase CLI so CI and deploy use the same binary
+  (and thus the same service images for migration reproduction).
+
+inputs:
+  version:
+    description: Supabase CLI version
+    required: false
+    default: "2.109.1"
+
+runs:
+  using: composite
+  steps:
+    - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+      with:
+        version: ${{ inputs.version }}

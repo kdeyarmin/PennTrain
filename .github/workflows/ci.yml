@@ -14,9 +14,18 @@ on:
 # Branch protection: prefer requiring the aggregate `ci-result` job rather than
 # individual matrix jobs, so skipped path-filtered jobs do not block merge.
 
+permissions:
+  contents: read
+
+# Cancel superseded PR runs; keep main runs (deploy waits on the successful SHA).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
@@ -80,6 +89,7 @@ jobs:
           # check:date-only-parsing, which read the migration files directly. Without it a
           # migrations-only PR would skip exactly the static checks written to guard migrations.
           # deno.lock pins the Edge Function dependency graph that check:edge-functions resolves.
+          # `.github/*` covers workflow/composite/action changes so path-filter edits re-validate.
           APP_PATTERNS=(
             "artifacts/*"
             "scripts/*"
@@ -92,7 +102,7 @@ jobs:
             "supabase/migrations/*"
             "supabase/config.toml"
             "deno.lock"
-            ".github/workflows/ci.yml"
+            ".github/*"
           )
 
           # database → local Supabase stack, advisors, types drift, Playwright e2e
@@ -110,7 +120,7 @@ jobs:
             "scripts/check-migration*"
             "scripts/check-raise-arity*"
             "scripts/check-journey-coverage*"
-            ".github/workflows/ci.yml"
+            ".github/*"
           )
 
           # migration-immutability → only when migration files or its checker/allowlist change
@@ -138,6 +148,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.application == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
     env:
@@ -147,21 +158,19 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .node-version
+      - uses: ./.github/actions/setup-node-pnpm
 
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: v2.5.6
 
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.13.0 --activate
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Cache Deno module graph
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ hashFiles('deno.lock') }}
+          restore-keys: |
+            deno-${{ runner.os }}-
 
       - name: Dependency vulnerability gate
         run: pnpm run check:dependencies
@@ -181,6 +190,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.database == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
     env:
@@ -188,23 +198,11 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .node-version
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.13.0 --activate
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
 
       # Pin both the setup action and the CLI version. The CLI release pins the
       # service images that reproduce migration and type-generation behavior.
-      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
-        with:
-          version: 2.109.1
+      - uses: ./.github/actions/setup-supabase-cli
 
       - name: Stop any leftover Supabase stack from a previous run
         # Warm runner VMs can retain orphaned Docker containers or stale iptables
@@ -266,6 +264,14 @@ jobs:
       - name: Build browser-test application
         run: pnpm --filter @workspace/caremetric-carebase run build
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install Chromium
         run: pnpm --filter @workspace/caremetric-carebase exec playwright install --with-deps chromium
 
@@ -307,6 +313,7 @@ jobs:
     needs: changes
     if: github.event_name == 'pull_request' && needs.changes.outputs.migrations == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -325,6 +332,7 @@ jobs:
 
   secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -349,6 +357,7 @@ jobs:
       - migration-immutability
       - secret-scan
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
