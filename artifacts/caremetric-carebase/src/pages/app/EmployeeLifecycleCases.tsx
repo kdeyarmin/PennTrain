@@ -138,7 +138,7 @@ export default function EmployeeLifecycleCases() {
         reason: reason.trim(),
         targetFacilityId: transitionRequiresTargetFacility(transition) ? targetFacilityId : null,
       });
-      setLockedPreviewKey(wizardKey);
+      setLockedPreviewKey(null);
       toast({ title: "Lifecycle case created", description: `Case ${caseId.slice(0, 8)} is ready for review.` });
       setWizardOpen(false);
       cases.refetch();

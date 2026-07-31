@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(9);
 
 select has_function('public', 'revoke_user_invitation', array['uuid','text'],
   'managers can revoke pending invitations');

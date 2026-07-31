@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { escapeLikePattern } from "@/lib/utils";
 
 export interface DataImportJobFilters {
   domain?: string;
@@ -26,7 +27,7 @@ export function useDataImportJobs(filters: DataImportJobFilters = {}) {
       if (filters.domain && filters.domain !== "all") query = query.eq("domain", filters.domain);
       if (filters.status && filters.status !== "all") query = query.eq("status", filters.status);
       if (filters.search?.trim()) {
-        const term = filters.search.trim().replaceAll(",", " ");
+        const term = escapeLikePattern(filters.search.trim());
         query = query.ilike("original_file_name", `%${term}%`);
       }
       const { data, error, count } = await query;

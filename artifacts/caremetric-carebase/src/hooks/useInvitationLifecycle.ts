@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { containsFilterValue } from "@/lib/utils";
 import type { Tables } from "@/lib/database.types";
 import type { BulkInviteRow } from "@/lib/invitationLifecycle";
 
@@ -34,9 +35,9 @@ export function useInvitationLifecycle(filters: InvitationListFilters = {}) {
         query = query.eq("invited_role", filters.role);
       }
       if (filters.search?.trim()) {
-        const term = filters.search.trim().replaceAll(",", " ");
+        const like = containsFilterValue(filters.search.trim());
         query = query.or(
-          `email.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%`,
+          `email.ilike.${like},first_name.ilike.${like},last_name.ilike.${like}`,
         );
       }
       const { data, error, count } = await query;
@@ -56,10 +57,7 @@ async function invokeEdgeFunction<TResponse>(functionName: string, body: object)
   const { data, error } = await supabase.functions.invoke<TResponse & EdgeFunctionErrorShape>(functionName, { body });
   if (error) throw error;
   if (data && data.success === false) {
-    throw new Error(data.message ?? `${functionName} failed`);
-  }
-  if (data && typeof data.error === "string") {
-    throw new Error(data.error);
+    throw new Error(data.error ?? data.message ?? `${functionName} failed`);
   }
   return data as TResponse;
 }

@@ -169,11 +169,16 @@ begin
   v_forecast := public.get_workforce_readiness_forecast(p_facility_id);
   v_active_employees := coalesce((v_forecast ->> 'activeEmployees')::integer, 0);
   v_blockers := coalesce((v_forecast ->> 'currentBlockers')::integer, 0);
+  -- Use the 30-day horizon count from the forecast so that employeesAtRisk/
+  -- eligibleCoverageImpactPct reflect the same window as the routing loop.
+  select coalesce((h ->> 'employeesAtRisk')::integer, 0) into v_at_risk
+  from jsonb_array_elements(coalesce(v_forecast -> 'horizons', '[]'::jsonb)) h
+  where (h ->> 'days')::integer = 30
+  limit 1;
 
   for v_risk in
     select value from jsonb_array_elements(coalesce(v_forecast -> 'risks', '[]'::jsonb))
   loop
-    v_at_risk := v_at_risk + 1;
     for v_reason in
       select value from jsonb_array_elements(coalesce(v_risk -> 'reasons', '[]'::jsonb))
     loop
