@@ -91,18 +91,6 @@ Most of `END_USER_REVIEW.md` Part 2 is **already shipped** (often behind default
 
 ---
 
-## Remaining backlog (environment / product depth)
-
-| # | Item | Status |
-|---|------|--------|
-| 4 | Authenticated Playwright journeys per role | **[needs live stack]** |
-| 9 | Mobile e2e: shift, course, service task, COC | **[needs live stack]** |
-| 14 | Metric contract: Dashboard / Today / PCH ops single definitions | Deferred (product contract, multi-surface) |
-| 17 | Full SCORM/xAPI runtime for learners | Deferred (engine-scale) |
-
-Everything else from the original P0–P2 table is **shipped in this change set** (or superseded by the designs above). Secondary list widgets may still gain QueryError polish opportunistically.
-
----
 
 ## Role workflow matrix (reviewed)
 

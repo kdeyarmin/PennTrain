@@ -4,5 +4,11 @@
     "rule": "anon-public-grant",
     "match": "public.list_regulatory_updates",
     "rationale": "Intentional public read path for the signed-out marketing regulatory-updates page, mirroring public.verify_certificate. list_regulatory_updates is SECURITY DEFINER with a fixed status='published' filter and search_path pinned to 'public', so anon callers can only read already-published feed rows -- draft/archived content and the base table stay unreachable (no anon table grant)."
+  },
+  {
+    "file": "20260731120000_workflow_ux_backlog_remediation.sql",
+    "rule": "anon-public-grant",
+    "match": "public.resolve_safety_report_facility",
+    "rationale": "Intentional public walk-up path for /report-safety posters and QR codes. SECURITY DEFINER with search_path pinned empty; accepts only an opaque facility token (or legacy UUID) and returns facilityId/name/token \u2014 never a facility directory. Mirrors public.verify_certificate: anon can execute the resolver, base table has no anon grant."
   }
 ]

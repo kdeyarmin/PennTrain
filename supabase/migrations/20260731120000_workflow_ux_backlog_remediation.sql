@@ -66,6 +66,10 @@ set safety_report_token = replace(gen_random_uuid()::text || gen_random_uuid()::
 where safety_report_token is null
    or btrim(safety_report_token) = '';
 
+-- Default so seed/demo inserts and create-facility paths never need to pass the token.
+alter table public.facilities
+  alter column safety_report_token set default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+
 alter table public.facilities
   alter column safety_report_token set not null;
 
