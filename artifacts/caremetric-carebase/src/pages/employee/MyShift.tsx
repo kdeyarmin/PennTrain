@@ -122,13 +122,41 @@ export default function MyShift() {
           </Card>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm"><ClipboardList className="h-4 w-4" />Services</span><CountBadge count={data.residentServiceTasks.length} /></CardContent></Card>
-            <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm"><Bell className="h-4 w-4" />Handoff</span><CountBadge count={data.handoffItems.length} /></CardContent></Card>
-            <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4" />Assigned work</span><CountBadge count={data.workItems.length} /></CardContent></Card>
-            <Card><CardContent className="flex items-center justify-between p-4"><span className="flex items-center gap-2 text-sm"><GraduationCap className="h-4 w-4" />Unread notices</span><CountBadge count={data.notifications.length} /></CardContent></Card>
+            <Link href="/me/services" className="block">
+              <Card className="h-full transition-colors hover:bg-muted/40">
+                <CardContent className="flex items-center justify-between p-4">
+                  <span className="flex items-center gap-2 text-sm"><ClipboardList className="h-4 w-4" />Services</span>
+                  <CountBadge count={data.residentServiceTasks.length} />
+                </CardContent>
+              </Card>
+            </Link>
+            <a href="#handoff-attention" className="block">
+              <Card className="h-full transition-colors hover:bg-muted/40">
+                <CardContent className="flex items-center justify-between p-4">
+                  <span className="flex items-center gap-2 text-sm"><Bell className="h-4 w-4" />Handoff</span>
+                  <CountBadge count={data.handoffItems.length} />
+                </CardContent>
+              </Card>
+            </a>
+            <Link href="/me/work" className="block">
+              <Card className="h-full transition-colors hover:bg-muted/40">
+                <CardContent className="flex items-center justify-between p-4">
+                  <span className="flex items-center gap-2 text-sm"><FileText className="h-4 w-4" />Assigned work</span>
+                  <CountBadge count={data.workItems.length} />
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/account/notifications" className="block">
+              <Card className="h-full transition-colors hover:bg-muted/40">
+                <CardContent className="flex items-center justify-between p-4">
+                  <span className="flex items-center gap-2 text-sm"><GraduationCap className="h-4 w-4" />Unread notices</span>
+                  <CountBadge count={data.notifications.length} />
+                </CardContent>
+              </Card>
+            </Link>
           </div>
 
-          <Card>
+          <Card id="handoff-attention">
             <CardHeader><CardTitle className="text-base">Handoff requiring attention</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {data.handoffItems.length === 0 ? <p className="text-sm text-muted-foreground">No unresolved handoff items for your facility.</p> : data.handoffItems.map((item) => (
@@ -140,6 +168,56 @@ export default function MyShift() {
               ))}
             </CardContent>
           </Card>
+
+          {(data.workItems.length > 0 || data.notifications.length > 0) && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <CardTitle className="text-base">Assigned work</CardTitle>
+                  <Button asChild size="sm" variant="outline"><Link href="/me/work">Open queue</Link></Button>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {data.workItems.slice(0, 5).map((item) => (
+                    <Link key={item.id} href={`/me/work/${item.id}`} className="block rounded-lg border p-3 text-sm hover:bg-muted">
+                      <span className="font-medium">{item.title}</span>
+                      <span className="block text-muted-foreground">
+                        {String(item.state).replace(/_/g, " ")}
+                        {item.due_at ? ` · due ${new Date(item.due_at).toLocaleDateString()}` : ""}
+                      </span>
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <CardTitle className="text-base">Recent notices</CardTitle>
+                  <Button asChild size="sm" variant="outline"><Link href="/account/notifications">Notification settings</Link></Button>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {data.notifications.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No unread notices right now.</p>
+                  ) : data.notifications.slice(0, 5).map((notice) => {
+                    const title = String(notice.title ?? notice.notification_type ?? "Notice").replace(/_/g, " ");
+                    const body = notice.body ? String(notice.body) : null;
+                    const href = notice.link ? String(notice.link) : null;
+                    const content = (
+                      <>
+                        <p className="font-medium">{title}</p>
+                        {body && <p className="mt-1 text-muted-foreground line-clamp-2">{body}</p>}
+                      </>
+                    );
+                    return href ? (
+                      <Link key={String(notice.id)} href={href} className="block rounded-lg border p-3 text-sm hover:bg-muted">
+                        {content}
+                      </Link>
+                    ) : (
+                      <div key={String(notice.id)} className="rounded-lg border p-3 text-sm">{content}</div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card><CardHeader><CardTitle className="text-base">Assigned resident services</CardTitle></CardHeader><CardContent className="space-y-2">{data.residentServiceTasks.length === 0 ? <p className="text-sm text-muted-foreground">No due service tasks in the current shift window.</p> : data.residentServiceTasks.map((task) => <Link key={task.id} href="/me/services" className="block rounded-lg border p-3 text-sm hover:bg-muted"><span className="font-medium">{task.service_name}</span><span className="block text-muted-foreground">{new Date(task.scheduled_start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {task.status}</span></Link>)}</CardContent></Card>

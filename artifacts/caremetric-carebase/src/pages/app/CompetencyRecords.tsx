@@ -7,7 +7,8 @@ import {
   useListCompetencyRecordItems,
   type CompetencyRecord,
 } from "@/hooks/useCompetencies";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useGetEmployee, useListEmployeesByIds } from "@/hooks/useEmployees";
+import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, ChevronLeft, ChevronRight, Plus, Eye } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
@@ -76,11 +78,9 @@ const EMPTY_RECORD_FORM: RecordFormData = {
 function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | null; onClose: () => void }) {
   const { data: recordItems, isLoading: itemsLoading } = useListCompetencyRecordItems(record?.id);
   const { data: templateItems } = useListCompetencyTemplateItems(record?.template_id);
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: employee } = useGetEmployee(record?.employee_id);
   const { data: templates } = useListCompetencyTemplates();
   const { data: evaluators } = useListProfiles();
-
-  const employee = employees?.find((e) => e.id === record?.employee_id);
   const template = templates?.find((t) => t.id === record?.template_id);
   const evaluator = evaluators?.find((p) => p.id === record?.evaluator_profile_id);
   const itemTextById = new Map((templateItems ?? []).map((i) => [i.id, i.item_text]));
@@ -164,6 +164,7 @@ export default function CompetencyRecords() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<RecordFormData>(EMPTY_RECORD_FORM);
+  const [formEmployee, setFormEmployee] = useState<{ id: string; facility_id: string; organization_id: string } | null>(null);
   const [itemResults, setItemResults] = useState<Record<string, { result: ItemResult; notes: string }>>({});
   const [viewRecord, setViewRecord] = useState<CompetencyRecord | null>(null);
 
@@ -174,27 +175,24 @@ export default function CompetencyRecords() {
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees({ status: "active" });
   const { data: templates } = useListCompetencyTemplates();
-  const { data: records, isLoading } = useListCompetencyRecords({
+  const { data: records, isLoading, isError, error, refetch } = useListCompetencyRecords({
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
     employeeId: employeeFilter !== "all" ? employeeFilter : undefined,
     templateId: templateFilter !== "all" ? templateFilter : undefined,
   });
   const { data: templateItems } = useListCompetencyTemplateItems(form.templateId || undefined);
+  const { data: selectedFormEmployee } = useGetEmployee(form.employeeId || undefined);
 
   const { mutate: createRecord, isPending: creating } = useCreateCompetencyRecord();
 
-  const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
-  const templateById = useMemo(() => new Map((templates ?? []).map((t) => [t.id, t])), [templates]);
-
-  const activeEmployees = useMemo(
-    () =>
-      (employees ?? [])
-        .filter((e) => e.status === "active")
-        .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
-    [employees],
+  const recordEmployeeIds = useMemo(
+    () => Array.from(new Set((records ?? []).map((r) => r.employee_id).filter(Boolean))),
+    [records],
   );
+  const { data: recordEmployees } = useListEmployeesByIds(recordEmployeeIds);
+  const employeeById = useMemo(() => new Map((recordEmployees ?? []).map((e) => [e.id, e])), [recordEmployees]);
+  const templateById = useMemo(() => new Map((templates ?? []).map((t) => [t.id, t])), [templates]);
 
   const allRecords = records ?? [];
   const sorted = [...allRecords].sort((a, b) => b.evaluation_date.localeCompare(a.evaluation_date));
@@ -221,6 +219,7 @@ export default function CompetencyRecords() {
 
   const openCreate = () => {
     setForm(EMPTY_RECORD_FORM);
+    setFormEmployee(null);
     setShowForm(true);
   };
 
@@ -235,8 +234,14 @@ export default function CompetencyRecords() {
       toast({ title: "Employee, template, and evaluation date are required", variant: "destructive" });
       return;
     }
-    const employee = employeeById.get(form.employeeId);
-    if (!employee) return;
+    const employee = formEmployee
+      ?? (selectedFormEmployee
+        ? { id: selectedFormEmployee.id, facility_id: selectedFormEmployee.facility_id, organization_id: selectedFormEmployee.organization_id }
+        : null);
+    if (!employee) {
+      toast({ title: "Select an employee from the search results", variant: "destructive" });
+      return;
+    }
     if (!templateItems || templateItems.length === 0) {
       toast({
         title: "This template has no checklist items",
@@ -305,17 +310,20 @@ export default function CompetencyRecords() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={employeeFilter} onValueChange={(v) => { setEmployeeFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-48 h-9 bg-card">
-              <SelectValue placeholder="All Employees" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Employees</SelectItem>
-              {(employees ?? []).map((e) => (
-                <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-64">
+            <EmployeeSearchSelect
+              label=""
+              value={employeeFilter === "all" ? "" : employeeFilter}
+              onValueChange={(id) => { setEmployeeFilter(id || "all"); setPage(1); }}
+              facilityId={facilityFilter !== "all" ? facilityFilter : undefined}
+              status="active"
+              allowEmpty
+              emptyLabel="All employees"
+              emptyValue="all"
+              placeholder="Filter by employee"
+              className="space-y-1"
+            />
+          </div>
           <Select value={templateFilter} onValueChange={(v) => { setTemplateFilter(v); setPage(1); }}>
             <SelectTrigger className="w-48 h-9 bg-card">
               <SelectValue placeholder="All Templates" />
@@ -329,7 +337,11 @@ export default function CompetencyRecords() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="competency records" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
@@ -411,17 +423,14 @@ export default function CompetencyRecords() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[13px]">Employee *</Label>
-                <Select value={form.employeeId} onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
-                  <SelectContent>
-                    {activeEmployees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <EmployeeSearchSelect
+                required
+                value={form.employeeId}
+                onValueChange={(id) => setForm((f) => ({ ...f, employeeId: id }))}
+                onEmployeeChange={(emp) => setFormEmployee(emp ? { id: emp.id, facility_id: emp.facility_id, organization_id: emp.organization_id } : null)}
+                facilityId={facilityFilter !== "all" ? facilityFilter : undefined}
+                placeholder="Select employee"
+              />
               <div className="space-y-1.5">
                 <Label className="text-[13px]">Template *</Label>
                 <Select value={form.templateId} onValueChange={(v) => setForm((f) => ({ ...f, templateId: v }))}>

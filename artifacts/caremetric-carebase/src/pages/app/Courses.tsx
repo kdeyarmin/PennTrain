@@ -189,7 +189,7 @@ export default function Courses() {
             />
           </div>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-40 h-9 bg-card">
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Filter by status">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -201,7 +201,7 @@ export default function Courses() {
           </Select>
           {categories.length > 0 && (
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-48 h-9 bg-card">
+              <SelectTrigger className="w-48 h-9 bg-card" aria-label="Filter by category">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>

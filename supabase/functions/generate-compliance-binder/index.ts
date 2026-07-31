@@ -20,7 +20,7 @@ function json(req: Request, body: unknown, status = 200) {
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const MARGIN = 50;
-const MAX_LISTED_ROWS = 200;
+const MAX_LISTED_ROWS = 500;
 
 const STATUS_LABELS: Record<string, string> = {
   compliant: "Compliant",
@@ -706,7 +706,7 @@ async function buildBinderPdf(
       [150, 110, 150, 80, 80],
     );
     if (nonCompliantRecords.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${nonCompliantRecords.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${nonCompliantRecords.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -733,7 +733,7 @@ async function buildBinderPdf(
       [180, 150, 100, 100],
     );
     if (nonCompliantPracticums.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${nonCompliantPracticums.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${nonCompliantPracticums.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -789,7 +789,7 @@ async function buildBinderPdf(
       [150, 110, 150, 80, 80],
     );
     if (outstandingAttestations.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${outstandingAttestations.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${outstandingAttestations.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -816,7 +816,7 @@ async function buildBinderPdf(
       [130, 150, 130, 100, 90],
     );
     if (signedAttestations.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${signedAttestations.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${signedAttestations.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -848,7 +848,7 @@ async function buildBinderPdf(
       [150, 110, 150, 80, 80],
     );
     if (nonCompliantCredentials.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${nonCompliantCredentials.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${nonCompliantCredentials.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -872,7 +872,7 @@ async function buildBinderPdf(
       [110, 130, 80, 90, 100, 90],
     );
     if (incidents.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${incidents.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${incidents.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -900,7 +900,7 @@ async function buildBinderPdf(
       [110, 160, 130, 90, 90],
     );
     if (nonCompliantInspectionItems.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${nonCompliantInspectionItems.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${nonCompliantInspectionItems.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -916,7 +916,7 @@ async function buildBinderPdf(
       [110, 300, 90, 90],
     );
     if (openCorrectiveActions.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${openCorrectiveActions.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${openCorrectiveActions.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });
@@ -950,7 +950,7 @@ async function buildBinderPdf(
       [130, 110, 160, 80, 80],
     );
     if (nonCompliantResidentItems.length > MAX_LISTED_ROWS) {
-      pdf.text(`...and ${nonCompliantResidentItems.length - MAX_LISTED_ROWS} more (truncated for report length).`, {
+      pdf.text(`...and ${nonCompliantResidentItems.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
         size: 8,
         color: [0.5, 0.5, 0.5],
       });

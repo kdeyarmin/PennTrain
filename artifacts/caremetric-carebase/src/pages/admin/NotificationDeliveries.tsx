@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Activity, AlertTriangle, Bell, CheckCircle2, CircleDollarSign, Eye, FileText, Search } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 
 type StatusFilter = "all" | "pending" | "processing" | "sent" | "accepted" | "delivered" | "failed" | "skipped";
@@ -96,7 +97,7 @@ export default function NotificationDeliveries() {
   const [fallbackDelayMinutes, setFallbackDelayMinutes] = useState("15");
   const [maxFallbackDepth, setMaxFallbackDepth] = useState("1");
 
-  const { data: deliveriesData, isLoading } = useListNotificationDeliveries({
+  const { data: deliveriesData, isLoading, isError, error, refetch } = useListNotificationDeliveries({
     status: statusFilter !== "all" ? statusFilter : undefined,
     channel: channelFilter !== "all" ? channelFilter : undefined,
   });
@@ -398,7 +399,9 @@ export default function NotificationDeliveries() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="notification deliveries" error={error} onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
             </div>

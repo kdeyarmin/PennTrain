@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useOrganizationIntegrationCredentials, credentialIsExpired } from "@/hooks/useIntegrationCredentials";
+import { Link } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError, QueryLoading } from "@/components/QueryState";
@@ -38,6 +40,12 @@ function sourceFreshness(source: FhirSource) {
 export default function FhirIntegration() {
   const { user } = useAuth();
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const credentials = useOrganizationIntegrationCredentials(user?.organizationId ?? undefined);
+  const commandCredentials = useMemo(
+    () => (credentials.data ?? []).filter((c) => (c.scopes.includes("commands:write") || c.scopes.includes("fhir:write")) && !credentialIsExpired(c)),
+    [credentials.data],
+  );
+  const unboundCredentialValue = "__unbound__";
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const residentContext = useResidentNavigationContext();
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
@@ -265,7 +273,7 @@ export default function FhirIntegration() {
             <div className="space-y-2"><Label htmlFor="fhir-external-facility">External facility ID</Label><Input id="fhir-external-facility" value={externalFacilityId} onChange={(event) => setExternalFacilityId(event.target.value)} /></div>
             <div className="space-y-2"><Label htmlFor="fhir-freshness">Freshness target (minutes)</Label><Input id="fhir-freshness" type="number" min="5" max="1440" value={freshnessMinutes} onChange={(event) => setFreshnessMinutes(event.target.value)} /></div>
             <div className="space-y-2 sm:col-span-2"><Label htmlFor="fhir-base-url">FHIR base URL</Label><Input id="fhir-base-url" value={fhirBaseUrl} onChange={(event) => setFhirBaseUrl(event.target.value)} placeholder="https://fhir.example.org/r4 (optional)" /></div>
-            <div className="space-y-2 sm:col-span-2"><Label htmlFor="fhir-credential">Integration credential ID</Label><Input id="fhir-credential" value={credentialId} onChange={(event) => setCredentialId(event.target.value)} placeholder="Optional UUID" /></div>
+            <div className="space-y-2 sm:col-span-2"><Label>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => setCredentialId(value === unboundCredentialValue ? "" : value)}><SelectTrigger aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{commandCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded.</p> : commandCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active commands:write credentials. Issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSourceDialogOpen(false)}>Cancel</Button>

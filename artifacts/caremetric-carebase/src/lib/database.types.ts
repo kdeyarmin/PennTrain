@@ -10764,6 +10764,7 @@ export type Database = {
           name: string
           organization_id: string
           phone: string | null
+          safety_report_token: string
           sandbox_reset_at: string | null
           sandbox_seed_version: number | null
           state: string | null
@@ -10787,6 +10788,7 @@ export type Database = {
           name: string
           organization_id: string
           phone?: string | null
+          safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
           state?: string | null
@@ -10810,6 +10812,7 @@ export type Database = {
           name?: string
           organization_id?: string
           phone?: string | null
+          safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
           state?: string | null
@@ -31940,6 +31943,175 @@ export type Database = {
           },
         ]
       }
+      survey_rehearsal_items: {
+        Row: {
+          created_at: string
+          domain: string
+          facility_id: string
+          finding: string | null
+          id: string
+          organization_id: string
+          rehearsal_id: string
+          result: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          risk_tier: string
+          source_id: string | null
+          source_label: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          facility_id: string
+          finding?: string | null
+          id?: string
+          organization_id: string
+          rehearsal_id: string
+          result?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          risk_tier?: string
+          source_id?: string | null
+          source_label: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          facility_id?: string
+          finding?: string | null
+          id?: string
+          organization_id?: string
+          rehearsal_id?: string
+          result?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          risk_tier?: string
+          source_id?: string | null
+          source_label?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_rehearsal_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_rehearsal_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_rehearsal_items_rehearsal_id_fkey"
+            columns: ["rehearsal_id"]
+            isOneToOne: false
+            referencedRelation: "survey_rehearsals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_rehearsal_items_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_rehearsals: {
+        Row: {
+          canceled_at: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          facility_id: string
+          id: string
+          name: string
+          notes: string | null
+          organization_id: string
+          report: Json
+          sample_method: string
+          sample_size: number
+          scheduled_for: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          canceled_at?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id: string
+          id?: string
+          name: string
+          notes?: string | null
+          organization_id: string
+          report?: Json
+          sample_method?: string
+          sample_size?: number
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          canceled_at?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          report?: Json
+          sample_method?: string
+          sample_size?: number
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_rehearsals_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_rehearsals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_rehearsals_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_rehearsals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_attendance_evidence: {
         Row: {
           attendance_status: string
@@ -35548,6 +35720,10 @@ export type Database = {
         Args: { p_reason: string; p_request_id: string }
         Returns: boolean
       }
+      cancel_survey_rehearsal: {
+        Args: { p_reason: string; p_rehearsal_id: string }
+        Returns: boolean
+      }
       cancel_time_off_request: {
         Args: { p_reason: string; p_request_id: string }
         Returns: boolean
@@ -35914,6 +36090,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      complete_survey_rehearsal: {
+        Args: { p_notes?: string; p_rehearsal_id: string }
+        Returns: Json
       }
       complete_training_class: {
         Args: { p_class_id: string }
@@ -36416,6 +36596,17 @@ export type Database = {
           p_assessment_form_id?: string
           p_prior_plan_id?: string
           p_resident_id: string
+        }
+        Returns: string
+      }
+      create_survey_rehearsal: {
+        Args: {
+          p_facility_id: string
+          p_name: string
+          p_notes?: string
+          p_sample_method?: string
+          p_sample_size?: number
+          p_scheduled_for?: string
         }
         Returns: string
       }
@@ -38874,6 +39065,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_survey_rehearsal_item_result: {
+        Args: { p_finding?: string; p_item_id: string; p_result: string }
+        Returns: boolean
+      }
       record_training_attendance: {
         Args: {
           p_attendance_status: string
@@ -39050,6 +39245,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      request_confidential_intake_escalation: {
+        Args: { p_intake_id: string; p_reason: string }
+        Returns: Json
+      }
       request_organization_export: {
         Args: never
         Returns: {
@@ -39164,6 +39363,10 @@ export type Database = {
           p_resolution_status: string
         }
         Returns: undefined
+      }
+      resolve_safety_report_facility: {
+        Args: { p_token: string }
+        Returns: Json
       }
       resolve_service_task_alert: {
         Args: { p_alert_id: string; p_status: string }
@@ -39402,6 +39605,10 @@ export type Database = {
         Args: { p_job_id: string }
         Returns: Json
       }
+      rotate_facility_safety_report_token: {
+        Args: { p_facility_id: string }
+        Returns: string
+      }
       rotate_integration_api_credential: {
         Args: { p_credential_id: string; p_expires_at?: string }
         Returns: {
@@ -39465,6 +39672,10 @@ export type Database = {
       }
       run_workforce_readiness_forecast_maintenance: {
         Args: never
+        Returns: Json
+      }
+      sample_survey_rehearsal: {
+        Args: { p_rehearsal_id: string }
         Returns: Json
       }
       save_care_plan_goal: {
@@ -40300,6 +40511,10 @@ export type Database = {
           p_transport_method: string
         }
         Returns: string
+      }
+      start_learning_runtime_session: {
+        Args: { p_assignment_id: string; p_package_id?: string }
+        Returns: Json
       }
       start_move_in_workspace: {
         Args: { p_prospect_id: string }

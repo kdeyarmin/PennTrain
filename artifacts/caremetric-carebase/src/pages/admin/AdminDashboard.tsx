@@ -33,10 +33,23 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { Link } from "wouter";
+import { QueryError } from "@/components/QueryState";
 
 export default function AdminDashboard() {
-  const { data: health, isLoading: healthLoading } = useGetPlatformHealth();
-  const { data: dashboardPage, isLoading: dashboardLoading } = useGetPlatformAdminDashboardPage();
+  const {
+    data: health,
+    isLoading: healthLoading,
+    isError: healthError,
+    error: healthErrorDetail,
+    refetch: refetchHealth,
+  } = useGetPlatformHealth();
+  const {
+    data: dashboardPage,
+    isLoading: dashboardLoading,
+    isError: dashboardError,
+    error: dashboardErrorDetail,
+    refetch: refetchDashboard,
+  } = useGetPlatformAdminDashboardPage();
 
   const orgsByStatus = health?.orgsByStatus ?? {};
   const totalOrgs = Object.values(orgsByStatus).reduce((sum, value) => sum + (Number(value) || 0), 0);
@@ -302,6 +315,17 @@ export default function AdminDashboard() {
         <p>Overview of all organizations, system health, and launch controls.</p>
       </div>
 
+      {(healthError || dashboardError) && (
+        <div className="space-y-3">
+          {healthError ? (
+            <QueryError what="platform health metrics" error={healthErrorDetail} onRetry={() => refetchHealth()} />
+          ) : null}
+          {dashboardError ? (
+            <QueryError what="dashboard detail panels" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
+          ) : null}
+        </div>
+      )}
+
       <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-background to-background">
         <CardContent className="p-6">
           <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
@@ -430,6 +454,11 @@ export default function AdminDashboard() {
             <CardTitle>Tenant Watchlist</CardTitle>
           </CardHeader>
           <CardContent>
+            {dashboardError ? (
+              <QueryError what="tenant watchlist" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
+            ) : dashboardLoading ? (
+              <div className="space-y-3">{[1, 2, 3].map((n) => <div key={n} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div>
+            ) : (
             <div className="space-y-3">
               {atRiskOrganizations.map((org) => (
                 <Link key={org.id} href={`/admin/organizations/${org.id}`} className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50">
@@ -448,6 +477,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -458,6 +488,11 @@ export default function AdminDashboard() {
             <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Tenant Health Scores</CardTitle>
           </CardHeader>
           <CardContent>
+            {dashboardError ? (
+              <QueryError what="tenant health scores" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
+            ) : dashboardLoading ? (
+              <div className="space-y-3">{[1, 2, 3].map((n) => <div key={n} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div>
+            ) : (
             <div className="space-y-3">
               {tenantHealthScores.map(({ id, name, score, facilityCount, employeeCount, adminCount }) => (
                 <Link key={id} href={`/admin/organizations/${id}`} className="block rounded-lg border p-3 hover:bg-muted/50">
@@ -474,6 +509,7 @@ export default function AdminDashboard() {
                 <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No organizations available for scoring yet.</p>
               )}
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -482,6 +518,15 @@ export default function AdminDashboard() {
             <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5 text-primary" /> Data Quality Center</CardTitle>
           </CardHeader>
           <CardContent>
+            {(healthError || dashboardError) ? (
+              <QueryError
+                what="data quality metrics"
+                error={healthErrorDetail ?? dashboardErrorDetail}
+                onRetry={() => { void refetchHealth(); void refetchDashboard(); }}
+              />
+            ) : (healthLoading || dashboardLoading) ? (
+              <div className="grid gap-3 md:grid-cols-2">{[1, 2, 3, 4].map((n) => <div key={n} className="h-20 animate-pulse rounded-lg bg-muted" />)}</div>
+            ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {dataQualityChecks.map((check) => (
                 <Link key={check.label} href={check.href} className="rounded-lg border p-3 hover:bg-muted/50">
@@ -495,6 +540,7 @@ export default function AdminDashboard() {
                 </Link>
               ))}
             </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -641,7 +687,9 @@ export default function AdminDashboard() {
           <CardTitle>System Health</CardTitle>
         </CardHeader>
         <CardContent>
-          {healthLoading ? (
+          {healthError ? (
+            <QueryError what="system health" error={healthErrorDetail} onRetry={() => refetchHealth()} />
+          ) : healthLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-md" />)}
             </div>
@@ -745,7 +793,9 @@ export default function AdminDashboard() {
           </Link>
         </CardHeader>
         <CardContent>
-          {dashboardLoading ? (
+          {dashboardError ? (
+            <QueryError what="organizations" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
+          ) : dashboardLoading ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />

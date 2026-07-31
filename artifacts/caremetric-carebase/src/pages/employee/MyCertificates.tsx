@@ -117,7 +117,12 @@ export default function MyCertificates() {
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>
           ) : allCertificates.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-8">No certificates yet.</p>
+            <div className="space-y-3 py-8 text-center">
+              <p className="text-muted-foreground text-sm">No certificates yet. Complete an assigned training item to earn one.</p>
+              <Button asChild size="sm">
+                <Link href="/me/courses">Go to My Training</Link>
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2">
               {allCertificates.map(cert => {

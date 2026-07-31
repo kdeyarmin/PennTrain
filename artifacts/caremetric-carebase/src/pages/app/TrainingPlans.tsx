@@ -33,6 +33,7 @@ import {
   ListChecks, Plus, Pencil, Trash2, Search, ChevronDown, ChevronRight,
   ArrowUp, ArrowDown, BookOpen, ShieldCheck, UserPlus,
 } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -557,7 +558,7 @@ export default function TrainingPlans() {
   const [planForm, setPlanForm] = useState<PlanFormData>(EMPTY_PLAN_FORM);
   const [deleteTarget, setDeleteTarget] = useState<TrainingPlan | null>(null);
 
-  const { data: plans, isLoading } = useListTrainingPlans();
+  const { data: plans, isLoading, isError, error, refetch } = useListTrainingPlans();
   const { mutate: createPlan, isPending: creatingPlan } = useCreateTrainingPlan();
   const { mutate: updatePlan, isPending: updatingPlan } = useUpdateTrainingPlan();
   const { mutate: deletePlan, isPending: deletingPlan } = useDeleteTrainingPlan();
@@ -652,7 +653,11 @@ export default function TrainingPlans() {
           </div>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <div className="p-6">
+            <QueryError what="training plans" error={error} onRetry={() => refetch()} />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

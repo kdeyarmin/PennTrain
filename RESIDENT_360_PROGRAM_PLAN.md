@@ -1608,7 +1608,7 @@ so they hold on every commit.
 | No unrestricted permissive policy outside enumerated global catalogues | 9 catalogues, each checked individually |
 | Cohort *membership* is org-scoped even though the catalogue is not | held |
 | No storage bucket is public; every bucket is named by a policy | 23 buckets |
-| The anon-reachable SECURITY DEFINER surface is exactly 28 | ratcheted |
+| The anon-reachable SECURITY DEFINER surface is exactly 29 | ratcheted (includes resolve_safety_report_facility) |
 | Every SECURITY DEFINER function pins its `search_path` | held |
 
 **Two invariants I drafted were wrong about how the system must work**, and the corrections matter

@@ -165,7 +165,18 @@ export default function MyCourses() {
               {[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : sorted.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-8">No training assigned yet.</p>
+            <div className="space-y-3 py-8 text-center">
+              <p className="text-muted-foreground text-sm">
+                {statusFilter === "all"
+                  ? "No training assigned yet. You can still start available training below when your organization publishes courses."
+                  : "No training matches this status filter."}
+              </p>
+              {statusFilter !== "all" && (
+                <Button size="sm" variant="outline" onClick={() => setStatusFilter("all")}>
+                  Show all statuses
+                </Button>
+              )}
+            </div>
           ) : (
             <div className="space-y-2">
               {sorted.map(a => {

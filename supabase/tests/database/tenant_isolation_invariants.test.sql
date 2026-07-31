@@ -129,8 +129,8 @@ select is(
    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.prosecdef
      and has_function_privilege('anon', p.oid, 'execute')),
-  28,
-  'the anon-reachable SECURITY DEFINER surface is exactly the 28 known guest/portal entry points'
+  29,
+  'the anon-reachable SECURITY DEFINER surface is exactly the 29 known guest/portal entry points (includes resolve_safety_report_facility)'
 );
 
 -- A SECURITY DEFINER function without a pinned search_path resolves unqualified names against the

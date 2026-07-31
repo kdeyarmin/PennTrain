@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { CalendarDays, Clock, MapPin, RefreshCw, Repeat2, Umbrella } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
-import { useListShiftAssignments } from "@/hooks/useShiftAssignments";
 import {
   useClaimOpenShift,
   useMyShiftWorkspace,
@@ -21,13 +20,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/QueryState";
-import { formatDateLabel, formatTimeLabel, todayIso } from "@/lib/scheduleDates";
+import { formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
 import { getTimeOffRequestWindowError, normalizeTimeOffRequestWindow } from "@/lib/timeOffRequest";
 
 interface TimeOffDraft {
   startsAt: string;
   endsAt: string;
   reason: string;
+}
+
+interface UpcomingShiftRow {
+  id: string;
+  shift_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  facility_name?: string | null;
+  unit_name?: string | null;
+  shift_name?: string | null;
 }
 
 export default function MySchedule() {
@@ -43,24 +53,20 @@ export default function MySchedule() {
   const [swapTargetId, setSwapTargetId] = useState("");
   const [swapReason, setSwapReason] = useState("");
   const candidates = useShiftSwapCandidates(swapAssignmentId);
-  const {
-    data: shifts,
-    isLoading: shiftsLoading,
-    isError: shiftsError,
-    error: shiftsErrorDetail,
-    refetch: refetchShifts,
-  } = useListShiftAssignments(
-    { employeeId: employee?.id, fromDate: todayIso() },
-    { enabled: !!employee?.id },
-  );
 
-  const upcoming = shifts ?? [];
+  // Prefer the shift workspace payload (already fetched for open offers / time-off) so we do not
+  // double-hit shift_assignments via useListShiftAssignments for the same upcoming window.
+  const upcoming = useMemo(
+    () => (workspace.data?.upcomingShifts ?? []) as UpcomingShiftRow[],
+    [workspace.data?.upcomingShifts],
+  );
   const facilityId = workspace.data?.currentOrNextShift?.facility_id
+    ?? workspace.data?.employee?.facility_id
     ?? (employee as { facility_id?: string | null } | undefined)?.facility_id
     ?? null;
   const openOffers = workspace.data?.openShiftOffers ?? [];
   const timeOffRequests = workspace.data?.timeOffRequests ?? [];
-  const isLoading = employeeLoading || shiftsLoading || workspace.isLoading;
+  const isLoading = employeeLoading || workspace.isLoading;
   const selectedShift = useMemo(() => upcoming.find((shift) => shift.id === swapAssignmentId), [upcoming, swapAssignmentId]);
   const timeOffWindowError = timeOffDraft
     ? getTimeOffRequestWindowError(timeOffDraft.startsAt, timeOffDraft.endsAt)
@@ -121,8 +127,7 @@ export default function MySchedule() {
         </Button>
       </div>
 
-      {shiftsError ? <QueryError what="your shifts" error={shiftsErrorDetail} onRetry={() => refetchShifts()} /> : null}
-      {workspace.isError ? <QueryError what="schedule self-service" error={workspace.error} onRetry={() => workspace.refetch()} /> : null}
+      {workspace.isError ? <QueryError what="your schedule" error={workspace.error} onRetry={() => workspace.refetch()} /> : null}
 
       <Card>
         <CardHeader>
@@ -141,10 +146,11 @@ export default function MySchedule() {
                   <div>
                     <div className="font-medium">{formatDateLabel(shift.shift_date, { weekday: "long", month: "short", day: "numeric" })}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{shift.shift_definitions?.name ? `${shift.shift_definitions.name} · ` : ""}{formatTimeLabel(shift.start_time)}–{formatTimeLabel(shift.end_time)}</span>
-                      {shift.facility_units?.name ? <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{shift.facility_units.name}</span> : null}
+                      <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{shift.shift_name ? `${shift.shift_name} · ` : ""}{formatTimeLabel(shift.start_time)}–{formatTimeLabel(shift.end_time)}</span>
+                      {shift.unit_name || shift.facility_name ? (
+                        <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{[shift.facility_name, shift.unit_name].filter(Boolean).join(" · ")}</span>
+                      ) : null}
                     </div>
-                    {shift.notes ? <p className="mt-1 text-sm text-muted-foreground">{shift.notes}</p> : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={shift.status} />

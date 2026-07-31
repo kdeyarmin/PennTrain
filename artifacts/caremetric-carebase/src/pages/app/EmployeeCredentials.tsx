@@ -9,6 +9,7 @@ import {
   type CredentialDocument,
 } from "@/hooks/useCredentialDocuments";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeCredentialAnalytics } from "@/lib/credentialAnalytics";
@@ -515,15 +516,13 @@ export default function EmployeeCredentials() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Credential" : "Add Credential"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Employee *</Label>
-              <Select value={form.employeeId} onValueChange={(v) => field("employeeId", v)} disabled={!!editing}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
-                <SelectContent>
-                  {activeEmployees.map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            <EmployeeSearchSelect
+                required
+                value={form.employeeId}
+                onValueChange={(id) => setForm((f) => ({ ...f, employeeId: id }))}
+                facilityId={facilityFilter !== "all" ? facilityFilter : undefined}
+                placeholder="Select employee"
+              />
             <div className="space-y-1.5">
               <Label className="text-[13px]">Credential Type *</Label>
               <Select value={form.credentialType} onValueChange={(v) => field("credentialType", v)}>

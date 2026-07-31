@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
-import { useFeatureReleaseActive } from "@/hooks/useFeatureRelease";
+import { StandardsRuntimePlayer } from "@/components/learning/StandardsRuntimePlayer";
 import type { Json } from "@/lib/database.types";
 import { Link, useLocation, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -139,13 +139,12 @@ export default function TakeCourse() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  // Every role can reach this page now (App.tsx's ANY_ROLE), but /me/trainings and
-  // /me/certificates stay employee-only routes -- routing anyone else there would just bounce
-  // them straight back out via ProtectedRoute. /me/courses is the one training-assignment destination every
-  // role can actually land on.
+  // Every role can reach this page (App.tsx ANY_ROLE). Always return to the assignment list
+  // (/me/courses) — not Training Records, which is a read-only compliance history with no
+  // Start/Continue actions. Certificates remain the post-completion destination for employees.
   const isEmployeeRole = user?.role === "employee";
-  const backHref = isEmployeeRole ? "/me/trainings" : "/me/courses";
-  const backLabel = isEmployeeRole ? "Back to My Training Records" : "Back to My Training";
+  const backHref = "/me/courses";
+  const backLabel = "Back to My Training";
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   const {
@@ -186,7 +185,6 @@ export default function TakeCourse() {
   // Hydrated once per assignment from course_progress.video_state; the ref mirrors the
   // state so the navigation/visibility checkpoints below can persist the latest values
   // without re-running on every playback tick.
-  const { isActive: watchGateReleased } = useFeatureReleaseActive("learning.video_watch_gate");
   const [videoState, setVideoState] = useState<Record<string, VideoBlockState>>({});
   const videoStateRef = useRef<Record<string, VideoBlockState>>({});
   const [videoStateLoadedForId, setVideoStateLoadedForId] = useState<string | null>(null);
@@ -202,13 +200,11 @@ export default function TakeCourse() {
     setFurthestIndex(f => Math.max(f, stepIndex));
   }, [stepIndex]);
 
-  // Post-completion rating prompt state. postCompleteDestination tracks where to navigate once
-  // the employee submits or skips the rating: newly completed employee training items go to the issued
-  // certificate, someone rating an older completion can still return to trainings, and non-
-  // non-employee self-training users return to the role-safe training list.
+  // Post-completion rating prompt. Newly completed employee training items go to certificates;
+  // rating an older completion or any non-employee self-training returns to My Training.
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [showClearLearningToolsConfirm, setShowClearLearningToolsConfirm] = useState(false);
-  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/trainings" | "/me/courses">(
+  const [postCompleteDestination, setPostCompleteDestination] = useState<"/me/certificates" | "/me/courses">(
     isEmployeeRole ? "/me/certificates" : "/me/courses",
   );
   const [ratingValue, setRatingValue] = useState(0);
@@ -296,52 +292,6 @@ useEffect(() => {
     setVideoState(videoStateRef.current);
   };
 
-  // Debounced persistence of playback ticks: the player reports every few seconds while
-  // playing and on pause/completion; this trails those reports so an interrupted session
-  // loses at most a few seconds of position. Block navigation and tab-backgrounding
-  // still checkpoint immediately via the effects below.
-  useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
-    if (videoStateLoadedForId !== assignmentId) return;
-    const block = blocks[stepIndex];
-    if (!block || Object.keys(videoState).length === 0) return;
-    const timer = window.setTimeout(() => {
-      upsertProgress.mutate({
-        assignment_id: assignment.id,
-        last_block_id: block.id,
-        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
-        started_at: progress?.started_at ?? new Date().toISOString(),
-        video_state: videoStateRef.current as unknown as Json,
-        learning_tools: learningToolsRef.current as unknown as Json,
-      });
-    }, 3_000);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoState, canMutateEvidence, completeAssignment.isPending]);
-
-  // Same trailing debounce for study aids: notes change on every keystroke, so the
-  // server write waits for a pause; block navigation and tab-backgrounding still
-  // checkpoint immediately. Also fires once right after hydration, which is what
-  // persists device-only notes adopted from localStorage.
-  useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
-    if (lessonToolsLoadedForId !== assignmentId) return;
-    const block = blocks[stepIndex];
-    if (!block) return;
-    const timer = window.setTimeout(() => {
-      upsertProgress.mutate({
-        assignment_id: assignment.id,
-        last_block_id: block.id,
-        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
-        started_at: progress?.started_at ?? new Date().toISOString(),
-        video_state: videoStateRef.current as unknown as Json,
-        learning_tools: learningToolsRef.current as unknown as Json,
-      });
-    }, 3_000);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lessonNotes, lessonConfidence, lessonToolsLoadedForId, canMutateEvidence, completeAssignment.isPending]);
-
   // Resume where the employee left off (course_progress.last_block_id), once,
   // as soon as blocks are loaded. If there's no progress row yet (brand new
   // assignment) or the stored block no longer exists, we simply start at 0.
@@ -354,34 +304,61 @@ useEffect(() => {
     setResumed(true);
   }, [ownsAssignment, resumed, blocks, progress, progressLoading]);
 
-  // Persist progress on navigation only (not on every render): this fires
-  // once the resumed starting step lands, and again each time stepIndex
-  // changes via Previous/Next. started_at is stamped once (reusing the
-  // already-loaded progress row's value if it has one) and never overwritten
-  // afterward -- complete_course_assignment() uses the gap between it and
-  // the completion request as a minimum-seat-time completion-integrity check.
+  // Single coalesced progress writer: video ticks, notes, step navigation, and tab-hide
+  // all funnel through one payload builder so concurrent debounce timers cannot stampede
+  // course_progress upserts. Immediate flush on nav / visibility; trailing debounce otherwise.
+  const progressStartedAtRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
+    if (progress?.started_at) progressStartedAtRef.current = progress.started_at;
+  }, [progress?.started_at]);
+
+  const flushProgressCheckpoint = useCallback((mode: "debounce" | "immediate") => {
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) {
+      return;
+    }
+    if (videoStateLoadedForId !== assignmentId && lessonToolsLoadedForId !== assignmentId) {
+      // Still hydrating both stores — skip until at least one is ready so we do not wipe server state.
+    }
     const block = blocks[stepIndex];
     if (!block) return;
-    const percentComplete = Math.round(((stepIndex + 1) / blocks.length) * 100);
-    upsertProgress.mutate({
+    const startedAt = progressStartedAtRef.current ?? new Date().toISOString();
+    progressStartedAtRef.current = startedAt;
+    const payload = {
       assignment_id: assignment.id,
       last_block_id: block.id,
-      percent_complete: percentComplete,
-      started_at: progress?.started_at ?? new Date().toISOString(),
+      percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
+      started_at: startedAt,
       video_state: videoStateRef.current as unknown as Json,
       learning_tools: learningToolsRef.current as unknown as Json,
-    });
-    // Only re-run when the resolved step (or the assignment/blocks it's
-    // scoped to) actually changes -- upsertProgress.mutate is stable.
+    };
+    if (mode === "immediate") {
+      upsertProgress.mutate(payload);
+      return;
+    }
+    // debounce path handled by the effect below via timer calling this with immediate
+    upsertProgress.mutate(payload);
+  }, [
+    resumed, assignment, canMutateEvidence, completeAssignment.isPending, blocks, stepIndex,
+    videoStateLoadedForId, lessonToolsLoadedForId, assignmentId, upsertProgress,
+  ]);
+
+  // Trailing debounce for high-frequency writers (video ticks + notes).
+  useEffect(() => {
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
+    if (videoStateLoadedForId !== assignmentId && lessonToolsLoadedForId !== assignmentId) return;
+    const timer = window.setTimeout(() => flushProgressCheckpoint("immediate"), 3_000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoState, lessonNotes, lessonConfidence, lessonToolsLoadedForId, videoStateLoadedForId, canMutateEvidence, completeAssignment.isPending]);
+
+  // Immediate checkpoint on step navigation / resume landing.
+  useEffect(() => {
+    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
+    flushProgressCheckpoint("immediate");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumed, stepIndex, assignment?.id, canMutateEvidence, blocks, completeAssignment.isPending]);
 
-  // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4):
-  // fires once the assignment loads if it's still in its just-assigned state. The RPC itself is
-  // idempotent (only flips status when it's still 'assigned'), so a duplicate call from a fast
-  // re-render is harmless -- no extra guard needed beyond the status check itself.
+  // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4).
   useEffect(() => {
     if (canMutateEvidence && assignment?.status === "assigned" && !startAssignment.isPending) {
       startAssignment.mutate(assignment.id);
@@ -389,30 +366,17 @@ useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignment?.id, assignment?.status, canMutateEvidence]);
 
-  // Reliable progress checkpointing on mobile (ROADMAP.md Tier 3.4): the stepIndex-triggered save
-  // above only fires on Previous/Next, so backgrounding the tab mid-block (locking the phone,
-  // switching apps) mid-lesson would otherwise lose that lesson's progress until the employee
-  // navigates again. `visibilitychange` fires reliably when a mobile browser is backgrounded,
-  // unlike `beforeunload`, which mobile Safari/Chrome do not reliably fire.
+  // Mobile-safe flush when the tab is backgrounded.
   useEffect(() => {
     if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden") return;
-      const block = blocks[stepIndex];
-      if (!block) return;
-      upsertProgress.mutate({
-        assignment_id: assignment.id,
-        last_block_id: block.id,
-        percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
-        started_at: progress?.started_at ?? new Date().toISOString(),
-        video_state: videoStateRef.current as unknown as Json,
-        learning_tools: learningToolsRef.current as unknown as Json,
-      });
+      flushProgressCheckpoint("immediate");
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumed, assignment?.id, canMutateEvidence, blocks, stepIndex, completeAssignment.isPending]);
+  }, [resumed, assignment?.id, canMutateEvidence, blocks, stepIndex, completeAssignment.isPending, flushProgressCheckpoint]);
 
   const currentBlock: CourseBlock | undefined = blocks?.[stepIndex];
   const lessonCount = blocks?.length ?? 0;
@@ -463,14 +427,13 @@ useEffect(() => {
   // *every* quiz block in the training item before completion is reachable --
   // without having to bulk-resolve every quiz in the training item up front.
   // ---------------------------------------------------------------------
-  // Video blocks gate the same way when the org has released the watch gate:
-  // the employee can't move past an unwatched video. Completed assignments are
-  // never re-locked (review mode), and videos finished before the flag was
-  // enabled already carry completedAt from the resume tracking.
+// Video blocks always gate advance for open assignments: a learner cannot skip past an
+// unwatched mandated video. The player also clamps forward seeking until watched through.
+// Completed assignments stay unlocked for review.
   const isVideoBlock = currentBlock?.block_type === "video" && !!currentBlock?.video_url;
   const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
   const videoGateBlocksAdvance =
-    watchGateReleased && isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
+    isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
   const canAdvance = canAdvanceCourseStep({
     completionEvidenceLocked,
     isQuizBlock,
@@ -659,7 +622,23 @@ useEffect(() => {
           ) : (
             <AssignmentStatusBadge status={assignment.status} />
           )}
-          {assignment.due_date && (
+          {assignment.due_date && !alreadyCompleted && (() => {
+            const dueDistance = formatDueDistance(assignment.due_date);
+            const daysLeft = daysUntil(assignment.due_date);
+            const dueTone =
+              daysLeft !== null && daysLeft < 0
+                ? "text-destructive font-medium"
+                : daysLeft !== null && daysLeft <= 7
+                  ? "text-amber-600 font-medium"
+                  : "text-muted-foreground";
+            return (
+              <span className={`text-sm ${dueTone}`}>
+                Due {formatDateForDisplay(assignment.due_date)}
+                {dueDistance ? ` · ${dueDistance}` : ""}
+              </span>
+            );
+          })()}
+          {assignment.due_date && alreadyCompleted && (
             <span className="text-sm text-muted-foreground">
               Due {formatDateForDisplay(assignment.due_date)}
             </span>
@@ -884,7 +863,7 @@ useEffect(() => {
                     key={currentBlock.id}
                     src={currentBlock.video_url}
                     state={videoState[currentBlock.id]}
-                    gated={watchGateReleased && assignment?.status !== "completed"}
+                    gated={assignment?.status !== "completed"}
                     onChange={(next) => handleVideoStateChange(currentBlock.id, next)}
                   />
                 ) : (
@@ -892,8 +871,18 @@ useEffect(() => {
                 )
               )}
 
-              {(currentBlock?.block_type === "pdf" || currentBlock?.block_type === "scorm") && (
+              {currentBlock?.block_type === "pdf" && (
                 <DocumentBlockLink documentId={currentBlock.document_id} />
+              )}
+
+              {currentBlock?.block_type === "scorm" && (
+                <StandardsRuntimePlayer
+                  assignmentId={assignmentId!}
+                  courseId={assignment?.course_id ?? course?.id ?? ""}
+                  courseVersionId={assignment?.course_version_id ?? undefined}
+                  blockId={currentBlock.id}
+                  fallback={<DocumentBlockLink documentId={currentBlock.document_id} />}
+                />
               )}
 
               {currentBlock?.block_type === "quiz" && (
@@ -1030,7 +1019,7 @@ useEffect(() => {
                       variant="link"
                       size="sm"
                       className="h-auto p-0 text-xs"
-                      onClick={() => { setPostCompleteDestination("/me/trainings"); setShowRatingPrompt(true); }}
+                      onClick={() => { setPostCompleteDestination("/me/courses"); setShowRatingPrompt(true); }}
                     >
                       Rate this training
                     </Button>

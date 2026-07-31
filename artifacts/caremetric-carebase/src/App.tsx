@@ -91,6 +91,7 @@ const ConfidentialIncidentDetail = lazy(() => import("@/pages/app/ConfidentialIn
 const WorkQueue = lazy(() => import("@/pages/app/WorkQueue"));
 const WorkItemDetail = lazy(() => import("@/pages/app/WorkItemDetail"));
 const EvidenceRoom = lazy(() => import("@/pages/app/EvidenceRoom"));
+const GuestAccessCenter = lazy(() => import("@/pages/app/GuestAccessCenter"));
 const EvidenceCollectionDetail = lazy(() => import("@/pages/app/EvidenceCollectionDetail"));
 const EvidenceGuestRoom = lazy(() => import("@/pages/public/EvidenceGuestRoom"));
 const TrainingPassport = lazy(() => import("@/pages/public/TrainingPassport"));
@@ -756,6 +757,9 @@ function Router() {
       </Route>
       <Route path="/app/evidence/:id">
         {() => <ProtectedRoute component={EvidenceCollectionDetail} allowedRoles={EVIDENCE_ROOM_ROLES} />}
+      </Route>
+      <Route path="/app/guest-access">
+        {() => <ProtectedRoute component={GuestAccessCenter} allowedRoles={EVIDENCE_ROOM_ROLES} />}
       </Route>
       <Route path="/app/violations">
         {() => <ProtectedRoute component={Violations} allowedRoles={VIOLATION_ROLES} />}
