@@ -665,3 +665,75 @@ grant execute on function public.list_survey_evidence_packet_items(uuid, uuid) t
 grant execute on function public.assemble_survey_evidence_packet_manifest(uuid, uuid) to authenticated;
 
 grant select on public.survey_evidence_packet_items to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5. Audit classification + storage policies (required by pgTAP ratchets)
+-- ---------------------------------------------------------------------------
+create trigger survey_evidence_packet_items_audit
+after insert or update or delete on public.survey_evidence_packet_items
+for each row execute function public.audit_log_trigger();
+
+insert into app_private.audit_entity_manifest(
+  table_name, audit_mode, contains_regulated_data, rationale
+) values (
+  'survey_evidence_packet_items',
+  'row_trigger',
+  true,
+  'Survey packet selection labels, source IDs, binder links, and session scope are regulated survey-day evidence (20260731230000)'
+)
+on conflict (table_name) do update set
+  audit_mode = excluded.audit_mode,
+  contains_regulated_data = excluded.contains_regulated_data,
+  rationale = excluded.rationale,
+  updated_at = now();
+
+-- Path convention: {organization_id}/{course_version_id}/{sha256}.zip
+drop policy if exists "learning-packages read" on storage.objects;
+create policy "learning-packages read" on storage.objects
+for select to authenticated using (
+  bucket_id = 'learning-packages'
+  and (
+    public.is_platform_admin()
+    or exists (
+      select 1 from public.learning_packages p
+      where p.storage_bucket = storage.objects.bucket_id
+        and p.storage_path = storage.objects.name
+        and p.validation_status = 'accepted'
+        and (
+          p.organization_id is null
+          or p.organization_id = public.current_org_id()
+        )
+    )
+    or (
+      (storage.foldername(name))[1] = (select public.current_org_id())::text
+      and public.current_role() in ('org_admin', 'facility_manager', 'trainer')
+    )
+  )
+);
+
+drop policy if exists "learning-packages write" on storage.objects;
+create policy "learning-packages write" on storage.objects
+for insert to authenticated with check (
+  bucket_id = 'learning-packages'
+  and (
+    public.is_platform_admin()
+    or (
+      (storage.foldername(name))[1] = (select public.current_org_id())::text
+      and public.current_role() in ('org_admin', 'facility_manager', 'trainer')
+    )
+  )
+);
+
+drop policy if exists "learning-packages delete" on storage.objects;
+create policy "learning-packages delete" on storage.objects
+for delete to authenticated using (
+  bucket_id = 'learning-packages'
+  and (
+    public.is_platform_admin()
+    or (
+      (storage.foldername(name))[1] = (select public.current_org_id())::text
+      and public.current_role() = 'org_admin'
+    )
+  )
+);
+
