@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight, QrCode, Copy, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QrCodeImage } from "@/components/QrCodeImage";
 import { QueryError } from "@/components/QueryState";
 import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -362,10 +363,9 @@ export default function FacilityDetail() {
                 );
               }
               const reportUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/report-safety?facility_token=${encodeURIComponent(token)}`;
-              const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(reportUrl)}`;
               return (
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                  <img src={qrSrc} alt="Safety report QR code" width={160} height={160} className="rounded border bg-white p-2" />
+                  <QrCodeImage value={reportUrl} alt="Safety report QR code" size={160} className="rounded border bg-white p-2" />
                   <div className="min-w-0 flex-1 space-y-2">
                     <p className="break-all font-mono text-xs">{reportUrl}</p>
                     <p className="text-xs text-muted-foreground">Token: <span className="font-mono">{token.slice(0, 8)}…{token.slice(-4)}</span></p>

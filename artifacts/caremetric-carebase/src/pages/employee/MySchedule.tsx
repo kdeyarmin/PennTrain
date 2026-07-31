@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CalendarDays, Clock, MapPin, RefreshCw, Repeat2, Umbrella } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
+import { useListShiftAssignments } from "@/hooks/useShiftAssignments";
 import {
   useClaimOpenShift,
   useMyShiftWorkspace,
@@ -20,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/QueryState";
-import { formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
+import { formatDateLabel, formatTimeLabel, todayIso } from "@/lib/scheduleDates";
 import { getTimeOffRequestWindowError, normalizeTimeOffRequestWindow } from "@/lib/timeOffRequest";
 
 interface TimeOffDraft {
@@ -54,19 +55,29 @@ export default function MySchedule() {
   const [swapReason, setSwapReason] = useState("");
   const candidates = useShiftSwapCandidates(swapAssignmentId);
 
-  // Prefer the shift workspace payload (already fetched for open offers / time-off) so we do not
-  // double-hit shift_assignments via useListShiftAssignments for the same upcoming window.
-  const upcoming = useMemo(
-    () => (workspace.data?.upcomingShifts ?? []) as UpcomingShiftRow[],
-    [workspace.data?.upcomingShifts],
+  // The workspace payload caps upcomingShifts at 7 rows (get_my_shift_workspace), which is fine
+  // for the shift-summary surfaces it was built for but silently truncates a full schedule. This
+  // page is the schedule of record, so it keeps its own unbounded query -- an employee with more
+  // than seven future assignments must still see all of them.
+  const {
+    data: shifts,
+    isLoading: shiftsLoading,
+    isError: shiftsError,
+    error: shiftsErrorDetail,
+    refetch: refetchShifts,
+  } = useListShiftAssignments(
+    { employeeId: employee?.id, fromDate: todayIso() },
+    { enabled: !!employee?.id },
   );
+
+  const upcoming = useMemo(() => (shifts ?? []) as unknown as UpcomingShiftRow[], [shifts]);
   const facilityId = workspace.data?.currentOrNextShift?.facility_id
     ?? workspace.data?.employee?.facility_id
     ?? (employee as { facility_id?: string | null } | undefined)?.facility_id
     ?? null;
   const openOffers = workspace.data?.openShiftOffers ?? [];
   const timeOffRequests = workspace.data?.timeOffRequests ?? [];
-  const isLoading = employeeLoading || workspace.isLoading;
+  const isLoading = employeeLoading || shiftsLoading || workspace.isLoading;
   const selectedShift = useMemo(() => upcoming.find((shift) => shift.id === swapAssignmentId), [upcoming, swapAssignmentId]);
   const timeOffWindowError = timeOffDraft
     ? getTimeOffRequestWindowError(timeOffDraft.startsAt, timeOffDraft.endsAt)
@@ -127,6 +138,7 @@ export default function MySchedule() {
         </Button>
       </div>
 
+      {shiftsError ? <QueryError what="your shifts" error={shiftsErrorDetail} onRetry={() => refetchShifts()} /> : null}
       {workspace.isError ? <QueryError what="your schedule" error={workspace.error} onRetry={() => workspace.refetch()} /> : null}
 
       <Card>

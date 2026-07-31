@@ -119,7 +119,10 @@ export function StandardsRuntimePlayer({
         packageId: packages.data?.[0]?.id,
       });
       setLaunch(next);
-      sequenceRef.current = 1;
+      // Resume numbering where this session left off. Relaunching an in-progress package reuses
+      // the existing session and its commits, and the commit RPC rejects anything other than
+      // max(sequence_number) + 1, so restarting at 1 broke every save after the first launch.
+      sequenceRef.current = next.nextSequenceNumber;
       setCompleted(false);
       setProgress(0);
       await pushXapi(next, XAPI_VERBS.initialized);

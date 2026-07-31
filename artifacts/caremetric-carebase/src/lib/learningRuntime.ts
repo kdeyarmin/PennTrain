@@ -37,6 +37,8 @@ export interface LaunchSession {
   registrationKey: string;
   launchNonce?: string;
   expiresAt: string;
+  /** Sequence number the next commit must use; > 1 when a session is resumed with prior commits. */
+  nextSequenceNumber: number;
   reused: boolean;
 }
 

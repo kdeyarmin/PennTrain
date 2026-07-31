@@ -14,7 +14,7 @@ function rpc() {
   };
 }
 
-function asLaunchSession(data: unknown): LaunchSession {
+export function asLaunchSession(data: unknown): LaunchSession {
   const row = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
   return {
     sessionId: String(row.sessionId ?? ""),
@@ -28,6 +28,11 @@ function asLaunchSession(data: unknown): LaunchSession {
     registrationKey: String(row.registrationKey ?? ""),
     launchNonce: row.launchNonce == null ? undefined : String(row.launchNonce),
     expiresAt: String(row.expiresAt ?? ""),
+    // A reused session keeps its existing commits, and commit_learning_runtime_state requires
+    // max(sequence_number) + 1. Fall back to 1 only when the RPC predates 20260731190000.
+    nextSequenceNumber: Number.isFinite(Number(row.nextSequenceNumber))
+      ? Math.max(1, Number(row.nextSequenceNumber))
+      : 1,
     reused: Boolean(row.reused),
   };
 }

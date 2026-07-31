@@ -53,8 +53,13 @@ export default function OfflineCourse() {
   const hasUnsyncedProgress = (progress.data?.percentComplete ?? 0) > (progress.data?.syncedPercent ?? 0);
 
   // Resume at the furthest offline checkpoint instead of always restarting at lesson 1.
+  // The bundle and the progress record are independent queries. If the bundle wins the race we
+  // would read a still-undefined checkpoint as 0, mark the assignment resumed, and then refuse
+  // the real percentage when it lands -- dropping the learner back at lesson one. Wait for
+  // progress to settle before claiming the resume.
   useEffect(() => {
     if (!assignmentId || !blocks.length || resumedAssignmentId === assignmentId) return;
+    if (progress.isLoading) return;
     const savedPercent = progress.data?.percentComplete ?? 0;
     if (savedPercent > 0) {
       const approxIndex = Math.min(
@@ -64,7 +69,7 @@ export default function OfflineCourse() {
       setStepIndex(approxIndex);
     }
     setResumedAssignmentId(assignmentId);
-  }, [assignmentId, blocks.length, progress.data?.percentComplete, resumedAssignmentId]);
+  }, [assignmentId, blocks.length, progress.isLoading, progress.data?.percentComplete, resumedAssignmentId]);
 
   const recordProgress = async (nextIndex: number) => {
     if (!bundle || !blocks.length) return;

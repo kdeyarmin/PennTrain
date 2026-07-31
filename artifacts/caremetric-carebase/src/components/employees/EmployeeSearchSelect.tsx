@@ -20,6 +20,14 @@ interface EmployeeSearchSelectProps {
   emptyLabel?: string;
   emptyValue?: string;
   pageSize?: number;
+  /** Lock the selection, e.g. editing a record whose owning employee the server refuses to change. */
+  disabled?: boolean;
+  /**
+   * Display name for `value` when it is not on the current result page. Callers that already know
+   * the selected employee should pass it -- this picker only holds one page, so a locked selection
+   * would otherwise render as a generic placeholder.
+   */
+  selectedLabel?: string;
 }
 
 /**
@@ -41,6 +49,8 @@ export function EmployeeSearchSelect({
   emptyLabel = "None",
   emptyValue = "none",
   pageSize = 50,
+  disabled = false,
+  selectedLabel,
 }: EmployeeSearchSelectProps) {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -78,21 +88,27 @@ export function EmployeeSearchSelect({
   return (
     <div className={className ?? "space-y-1.5"}>
       {label ? <Label className="text-[13px]">{label}{required ? " *" : ""}</Label> : null}
-      <Input
-        className="h-9"
-        placeholder="Type to search employees"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        autoComplete="off"
-      />
-      <Select value={value || (allowEmpty ? emptyValue : "")} onValueChange={(v) => emit(v === emptyValue ? "" : v)}>
+      {!disabled && (
+        <Input
+          className="h-9"
+          placeholder="Type to search employees"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          autoComplete="off"
+        />
+      )}
+      <Select
+        value={value || (allowEmpty ? emptyValue : "")}
+        onValueChange={(v) => emit(v === emptyValue ? "" : v)}
+        disabled={disabled}
+      >
         <SelectTrigger className="h-9">
           <SelectValue placeholder={query.isLoading ? "Loading…" : placeholder} />
         </SelectTrigger>
         <SelectContent>
           {allowEmpty && <SelectItem value={emptyValue}>{emptyLabel}</SelectItem>}
           {selectedMissing && value && (
-            <SelectItem value={value}>Selected employee (not in current page)</SelectItem>
+            <SelectItem value={value}>{selectedLabel ?? "Selected employee (not in current page)"}</SelectItem>
           )}
           {rows.map((e) => (
             <SelectItem key={e.id} value={e.id}>
