@@ -123,6 +123,45 @@ test.describe("mobile authenticated employee workflows", () => {
       .single();
     if (employeeError) throw employeeError;
 
+    // course_assignments is intentionally not writable via bare service_role
+    // (see role-routing.spec.ts). Build the assignment fixture through a signed-in
+    // platform_admin session using the same grants production uses.
+    const platformEmail = `mobile-platform-${suffix}@test.local`;
+    const { data: platformUser, error: platformUserError } = await admin.auth.admin.createUser({
+      email: platformEmail,
+      password: employeePassword,
+      email_confirm: true,
+      app_metadata: { role: "platform_admin" },
+      user_metadata: { first_name: "Mobile", last_name: "Platform" },
+    });
+    if (platformUserError || !platformUser.user) {
+      throw platformUserError ?? new Error("no platform user");
+    }
+    const { error: platformProfileError } = await admin.rpc("admin_update_profile", {
+      p_user_id: platformUser.user.id,
+      p_role: "platform_admin",
+      p_is_active: true,
+    });
+    if (platformProfileError) throw platformProfileError;
+
+    const platformAuth = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data: platformSession, error: platformSignInError } =
+      await platformAuth.auth.signInWithPassword({
+        email: platformEmail,
+        password: employeePassword,
+      });
+    if (platformSignInError || !platformSession.session) {
+      throw platformSignInError ?? new Error("platform sign-in returned no session");
+    }
+    const platformClient = createClient(supabaseUrl, anonKey, {
+      global: {
+        headers: { Authorization: "Bearer " + platformSession.session.access_token },
+      },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
     const { data: course, error: courseError } = await admin
       .from("courses")
       .insert({
@@ -157,11 +196,18 @@ test.describe("mobile authenticated employee workflows", () => {
     });
     if (blockError) throw blockError;
 
-    // Service-role publish helpers may vary; prefer table updates for fixture speed.
-    await admin.from("course_versions").update({ status: "published" }).eq("id", version.id);
-    await admin.from("courses").update({ status: "published", current_version_id: version.id }).eq("id", course.id);
+    const { error: publishError } = await platformClient.rpc("publish_course_version", {
+      p_course_version_id: version.id,
+    });
+    if (publishError) throw publishError;
 
-    const { data: assignment, error: assignmentError } = await admin
+    const { error: activateError } = await platformClient
+      .from("courses")
+      .update({ status: "published" })
+      .eq("id", course.id);
+    if (activateError) throw activateError;
+
+    const { data: assignment, error: assignmentError } = await platformClient
       .from("course_assignments")
       .insert({
         organization_id: organizationId,
@@ -169,7 +215,7 @@ test.describe("mobile authenticated employee workflows", () => {
         employee_id: employee.id,
         course_id: course.id,
         course_version_id: version.id,
-        assigned_by: user.user.id,
+        assigned_by: platformUser.user.id,
       })
       .select("id")
       .single();
