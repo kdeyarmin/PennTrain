@@ -68,3 +68,30 @@ export function useReviewCredentialRenewal() {
     },
   });
 }
+
+export interface CreateCredentialRenewalInput {
+  employeeId: string;
+  credentialId: string;
+  credentialDocumentId: string;
+  credentialType: string;
+}
+
+export function useCreateCredentialRenewalSubmission() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateCredentialRenewalInput) => {
+      const { data, error } = await supabase.rpc("create_credential_renewal_submission", {
+        p_employee_id: input.employeeId,
+        p_credential_id: input.credentialId,
+        p_credential_document_id: input.credentialDocumentId,
+        p_credential_type: input.credentialType,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["credential-renewal-submissions"] });
+    },
+  });
+}
+

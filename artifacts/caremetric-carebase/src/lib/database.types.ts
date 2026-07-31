@@ -37980,6 +37980,20 @@ export type Database = {
         }
         Returns: string
       }
+      list_audit_legal_holds: {
+        Args: never
+        Returns: {
+          created_at: string
+          created_by: string
+          ends_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string
+          released_at: string
+          starts_at: string
+        }[]
+      }
       list_expired_organization_exports: {
         Args: { p_limit?: number }
         Returns: {
@@ -39601,6 +39615,7 @@ export type Database = {
         Args: { p_invitation_id: string; p_reason: string }
         Returns: Json
       }
+      rollback_data_import_job: { Args: { p_job_id: string }; Returns: Json }
       rollback_employee_import_job: {
         Args: { p_job_id: string }
         Returns: Json
@@ -40810,6 +40825,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      unassign_organization_release_cohort: {
+        Args: {
+          p_cohort_id: string
+          p_feature_key: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       unpublish_course: {
         Args: { p_course_id: string; p_reason: string }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { IMPORT_DOMAIN_DEFINITIONS, IMPORT_DOMAINS, canUploadImportDomain, importTemplate, rowsToErrorCsv } from "./dataImportCenter";
+import {
+  IMPORT_DOMAIN_DEFINITIONS,
+  IMPORT_DOMAINS,
+  canRollbackImportDomain,
+  canUploadImportDomain,
+  importProcessorFunction,
+  importTemplate,
+  rowsToErrorCsv,
+} from "./dataImportCenter";
 
 describe("data import center", () => {
   it("offers a versionable CSV template for every supported domain", () => {
@@ -7,11 +15,20 @@ describe("data import center", () => {
     for (const domain of IMPORT_DOMAINS) expect(importTemplate(domain)).toMatch(/.+,.+\n$/);
   });
 
-  it("does not confuse template availability with an active processor", () => {
+  it("activates only domains with a tested processor", () => {
     expect(IMPORT_DOMAIN_DEFINITIONS).toHaveLength(IMPORT_DOMAINS.length);
-    expect(IMPORT_DOMAIN_DEFINITIONS.filter(({ availability }) => availability === "active").map(({ domain }) => domain)).toEqual(["employees"]);
+    expect(
+      IMPORT_DOMAIN_DEFINITIONS.filter(({ availability }) => availability === "active").map(({ domain }) => domain),
+    ).toEqual(["employees", "training_records"]);
     expect(canUploadImportDomain("employees")).toBe(true);
+    expect(canUploadImportDomain("training_records")).toBe(true);
     expect(canUploadImportDomain("incidents")).toBe(false);
+    expect(importProcessorFunction("employees")).toBe("bulk-import-employees");
+    expect(importProcessorFunction("training_records")).toBe("bulk-import-training-records");
+    expect(importProcessorFunction("credentials")).toBeNull();
+    expect(canRollbackImportDomain("employees")).toBe(true);
+    expect(canRollbackImportDomain("training_records")).toBe(true);
+    expect(canRollbackImportDomain("incidents")).toBe(false);
   });
 
   it("exports row diagnostics without allowing commas or quotes to corrupt the CSV", () => {

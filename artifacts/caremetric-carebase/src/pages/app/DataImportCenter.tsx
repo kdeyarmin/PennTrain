@@ -27,8 +27,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { QueryError, QueryLoading } from "@/components/QueryState";
-import { IMPORT_DOMAIN_DEFINITIONS, IMPORT_DOMAINS, downloadCsv, importTemplate, rowsToErrorCsv } from "@/lib/dataImportCenter";
-import { useDataImportJobs, useImportJobAction, useImportJobRows, useRunEmployeeImport } from "@/hooks/useDataImportCenter";
+import {
+  IMPORT_DOMAIN_DEFINITIONS,
+  IMPORT_DOMAINS,
+  canRollbackImportDomain,
+  canUploadImportDomain,
+  downloadCsv,
+  importTemplate,
+  rowsToErrorCsv,
+  type ImportDomain,
+} from "@/lib/dataImportCenter";
+import { useDataImportJobs, useImportJobAction, useImportJobRows, useRunDomainImport } from "@/hooks/useDataImportCenter";
 import { useToast } from "@/hooks/use-toast";
 
 const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -58,8 +67,9 @@ export default function DataImportCenter() {
   const rows = useImportJobRows(selected);
   const finalize = useImportJobAction("finalize");
   const rollback = useImportJobAction("rollback");
-  const runImport = useRunEmployeeImport();
+  const runImport = useRunDomainImport();
   const { toast } = useToast();
+  const [uploadDomain, setUploadDomain] = useState<ImportDomain>("employees");
   const [file, setFile] = useState<File | null>(null);
   const [strategy, setStrategy] = useState<"create" | "skip" | "update">("create");
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof runImport.mutateAsync>> | null>(null);
@@ -71,8 +81,13 @@ export default function DataImportCenter() {
 
   const execute = async (mode: "validate" | "apply") => {
     if (!file) return;
+    if (!canUploadImportDomain(uploadDomain)) {
+      toast({ title: "Domain is template-only", description: "No active processor for this domain.", variant: "destructive" });
+      return;
+    }
     try {
       const result = await runImport.mutateAsync({
+        domain: uploadDomain,
         csv: await file.text(),
         fileName: file.name,
         strategy,
@@ -159,19 +174,36 @@ export default function DataImportCenter() {
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Start employee roster import</CardTitle>
-            <Badge>Active processor</Badge>
+            <CardTitle>Start governed import</CardTitle>
+            <Badge>Active processors</Badge>
           </div>
           <CardDescription>
-            Employee imports are the only active domain. Upload the canonical employee template, choose duplicate behavior,
-            and complete a no-write dry run before applying. Processing currently uses browser-coordinated 200-row batches;
-            keep this page open until the operation finishes.
+            Upload a canonical template for an active domain, choose duplicate behavior, and complete a no-write dry run
+            before applying. Processing uses browser-coordinated 200-row batches — keep this page open until finished.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+          <div className="grid gap-4 md:grid-cols-[180px_1fr_200px_auto] md:items-end">
             <div className="space-y-2">
-              <Label htmlFor="import-file">Employee CSV</Label>
+              <Label>Domain</Label>
+              <Select
+                value={uploadDomain}
+                onValueChange={(value) => {
+                  setUploadDomain(value as ImportDomain);
+                  setFile(null);
+                  setPreview(null);
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {IMPORT_DOMAIN_DEFINITIONS.filter((d) => d.availability === "active").map((d) => (
+                    <SelectItem key={d.domain} value={d.domain}>{label(d.domain)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="import-file">{label(uploadDomain)} CSV</Label>
               <Input
                 id="import-file"
                 type="file"
@@ -289,7 +321,7 @@ export default function DataImportCenter() {
               const jobTotal = Math.max(job.total_rows, 1);
               const processed = job.applied_rows + job.error_rows + job.skipped_rows;
               const canFinalize = job.status === "applied" || job.status === "ready";
-              const canRollback = job.domain === "employees" && job.status === "applied" && !job.finalized_at;
+              const canRollback = canRollbackImportDomain(job.domain) && job.status === "applied" && !job.finalized_at;
               return (
                 <div key={job.id} className={`rounded-lg border p-4 ${selected === job.id ? "border-primary" : ""}`}>
                   <button className="w-full text-left" onClick={() => setSelected(selected === job.id ? null : job.id)}>
@@ -313,7 +345,7 @@ export default function DataImportCenter() {
                         <p className="font-medium text-foreground">Action preview</p>
                         <p className="mt-1">
                           Finalize locks this job after validation/apply and prevents further mutation.
-                          Safe rollback removes only untouched employee creates from this batch within the rollback window.
+                          Safe rollback removes only untouched creates from this batch within the 24-hour rollback window.
                         </p>
                         <p className="mt-1">
                           Current receipt: {job.applied_rows} applied creates/updates, {job.error_rows} failed rows,
@@ -350,7 +382,7 @@ export default function DataImportCenter() {
                             setConfirmAction({
                               type: "rollback",
                               jobId: job.id,
-                              summary: `Rollback eligible employee creates for ${job.original_file_name}`,
+                              summary: `Rollback eligible creates for ${label(job.domain)} · ${job.original_file_name}`,
                             })
                           }
                         >
