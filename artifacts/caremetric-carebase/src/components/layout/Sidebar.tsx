@@ -29,6 +29,7 @@ import {
   BarChart3,
   Files,
   Settings,
+  CreditCard,
   ShieldAlert,
   GraduationCap,
   ShieldCheck,
@@ -278,7 +279,10 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/training-types", label: "Training Types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
           ...(role === "org_admin"
-            ? [{ href: "/app/enterprise", label: "Enterprise Foundation", icon: Network }]
+            ? [
+              { href: "/app/billing", label: "Billing & Plans", icon: CreditCard },
+              { href: "/app/enterprise", label: "Enterprise Foundation", icon: Network },
+            ]
             : []),
           // Phase 1 audit documentation carries facility scope, so managers see only their assigned
           // facilities while org administrators retain organization-wide visibility.

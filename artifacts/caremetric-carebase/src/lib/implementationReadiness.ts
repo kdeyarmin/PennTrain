@@ -69,7 +69,7 @@ export const IMPLEMENTATION_TASK_ROUTES: Record<string, string> = {
   "resident-import": "/app/admissions",
   "rule-pack": "/app/compliance-command-center",
   "notification-test": "/account/notifications",
-  "integration-test": "/app/enterprise",
+  "integration-test": "/app/billing",
   "training-launch": "/app/course-assignments",
   "report-validation": "/app/reports",
   "survey-rehearsal": "/app/survey-day",

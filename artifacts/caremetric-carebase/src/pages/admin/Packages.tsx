@@ -38,6 +38,11 @@ import {
   type ProductModuleId,
   type PurchasableProductModuleId,
 } from "@/lib/productModules";
+import {
+  billingPriceSummary,
+  isFlatBillingPrice,
+  selectPrimaryBillingPrice,
+} from "@/lib/billingCatalog";
 
 // Expand a package's explicitly enabled modules so the all-inclusive CareBase bundle implies its
 // bundled operational pillars, mirroring withModuleDependencies used by the runtime access layer.
@@ -196,18 +201,7 @@ function strategyLabel(strategy: string): string {
 function pricingSummary(pkg: Package, price?: PackageBillingPrice): string {
   if (pkg.contact_sales || pkg.pricing_strategy === "custom") return "Custom annual contract";
   if (!price) return pkg.price_monthly_cents === null ? "Price not configured" : `${money(pkg.price_monthly_cents)}/month`;
-  const metric = metricDefinition(price.billing_metric);
-  if (price.billing_metric === "flat" || price.pricing_model === "flat") {
-    return `${money(price.base_amount_cents, price.currency)}/${price.recurring_interval}`;
-  }
-  const base = `${money(price.base_amount_cents, price.currency)}/${price.recurring_interval}`;
-  const included = price.included_quantity > 0
-    ? ` includes ${price.included_quantity} ${pluralize(metric.unit, price.included_quantity)}`
-    : "";
-  const overage = price.unit_amount_cents === null
-    ? ""
-    : `, then ${money(price.unit_amount_cents, price.currency)}/${metric.unit}`;
-  return `${base}${included}${overage}`;
+  return billingPriceSummary(price);
 }
 
 function metricIcon(metric: string) {
@@ -473,13 +467,7 @@ export default function Packages() {
               </TableRow></TableHeader>
               <TableBody>
                 {packages.map((pkg) => {
-                  const packagePrices = (prices ?? []).filter((price) => price.package_id === pkg.id);
-                  const now = Date.now();
-                  const monthlyPrice = packagePrices
-                    .filter((price) => price.recurring_interval === "month" && price.is_active && price.is_primary
-                      && Date.parse(price.effective_from) <= now
-                      && (!price.effective_to || Date.parse(price.effective_to) > now))
-                    .sort((left, right) => Date.parse(right.effective_from) - Date.parse(left.effective_from))[0];
+                  const monthlyPrice = selectPrimaryBillingPrice(prices ?? [], pkg.id, "month");
                   const checkoutReady = Boolean(monthlyPrice?.stripe_price_id) || pkg.contact_sales;
                   return (
                     <TableRow key={pkg.id}>
@@ -548,7 +536,7 @@ export default function Packages() {
                     <TableCell><Badge variant="secondary">{PRICING_MODELS.find((model) => model.value === price.pricing_model)?.label ?? price.pricing_model}</Badge></TableCell>
                     <TableCell>{money(price.base_amount_cents, price.currency)}</TableCell>
                     <TableCell className="text-sm">
-                      {price.billing_metric === "flat" || price.pricing_model === "flat" ? (
+                      {isFlatBillingPrice(price) ? (
                         <>
                           <div>Flat fee · quantity 1</div>
                           <div className="text-xs text-muted-foreground">Unlimited seats — not charged per person</div>

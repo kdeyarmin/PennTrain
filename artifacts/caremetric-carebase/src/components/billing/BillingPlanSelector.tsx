@@ -20,8 +20,10 @@ import {
   billingPriceSummary,
   estimatedBillingAmountCents,
   formatBillingMoney,
+  isFlatBillingPrice,
   measuredBillingQuantity,
   resolvedBillingQuantity,
+  selectPrimaryBillingPrice,
 } from "@/lib/billingCatalog";
 import { PRODUCT_MODULES, withModuleDependencies } from "@/lib/productModules";
 import {
@@ -59,27 +61,6 @@ function enabledModuleNames(features: Json | null): string[] {
     enabledIds.delete("carebase");
   }
   return PRODUCT_MODULES.filter((module) => enabledIds.has(module.id)).map((module) => module.name);
-}
-
-function effectivePrice(
-  prices: PackageBillingPrice[],
-  packageId: string,
-  interval: "month" | "year",
-): PackageBillingPrice | undefined {
-  const now = Date.now();
-  return prices
-    .filter((price) => price.package_id === packageId
-      && price.recurring_interval === interval
-      && price.is_active
-      && price.is_primary
-      && Date.parse(price.effective_from) <= now
-      && (!price.effective_to || Date.parse(price.effective_to) > now))
-    .sort((left, right) => Date.parse(right.effective_from) - Date.parse(left.effective_from))[0];
-}
-
-function isFlatPrice(price: PackageBillingPrice | undefined): boolean {
-  if (!price) return false;
-  return price.billing_metric === "flat" || price.pricing_model === "flat";
 }
 
 function subscriptionStateLabel(value: string): string {
@@ -154,7 +135,7 @@ export function BillingPlanSelector() {
   const catalogIsFlat = useMemo(() => {
     const prices = pricesQuery.data ?? [];
     const activePrimary = packages.flatMap((pkg) => {
-      const price = effectivePrice(prices, pkg.id, interval);
+      const price = selectPrimaryBillingPrice(prices, pkg.id, interval);
       return price && !pkg.contact_sales ? [price] : [];
     });
     if (activePrimary.length === 0) return true;
@@ -189,7 +170,7 @@ export function BillingPlanSelector() {
       const result = await session.mutateAsync({
         organizationId,
         action: "portal",
-        returnUrl: `${window.location.origin}${isPlatformAdmin ? "/admin/enterprise" : "/app/enterprise"}`,
+        returnUrl: `${window.location.origin}${isPlatformAdmin ? "/admin/enterprise" : "/app/billing"}`,
         idempotencyKey: crypto.randomUUID(),
       });
       window.location.assign(result.data.url);
@@ -205,7 +186,7 @@ export function BillingPlanSelector() {
 
   const startCheckout = async (pkg: Package, price: PackageBillingPrice) => {
     if (!organizationId) return;
-    const flat = isFlatPrice(price);
+    const flat = isFlatBillingPrice(price);
     if (!flat && !usage) {
       toast({
         title: "Usage could not be measured",
@@ -226,7 +207,7 @@ export function BillingPlanSelector() {
       return;
     }
     try {
-      const returnPath = isPlatformAdmin ? "/admin/enterprise" : "/app/enterprise";
+      const returnPath = isPlatformAdmin ? "/admin/enterprise" : "/app/billing";
       const result = await session.mutateAsync({
         organizationId,
         action: "checkout",
@@ -404,10 +385,10 @@ export function BillingPlanSelector() {
       {showPlanCards ? (
         <div className="grid gap-4 xl:grid-cols-3">
           {packages.map((pkg) => {
-            const price = effectivePrice(pricesQuery.data ?? [], pkg.id, interval);
+            const price = selectPrimaryBillingPrice(pricesQuery.data ?? [], pkg.id, interval);
             const modules = enabledModuleNames(pkg.features);
             const metric = billingMetricDefinition(price?.billing_metric ?? "flat");
-            const flat = isFlatPrice(price);
+            const flat = isFlatBillingPrice(price);
             const measuredQuantity = price && usage && !flat
               ? measuredBillingQuantity(price.billing_metric, usage)
               : 1;

@@ -133,6 +133,7 @@ const Users = lazy(() => import("@/pages/app/Users"));
 const Documents = lazy(() => import("@/pages/app/Documents"));
 const PendingApprovals = lazy(() => import("@/pages/app/PendingApprovals"));
 const Settings = lazy(() => import("@/pages/app/Settings"));
+const Billing = lazy(() => import("@/pages/app/Billing"));
 const ComplianceBinder = lazy(() => import("@/pages/app/ComplianceBinder"));
 const ComplianceCommandCenter = lazy(() => import("@/pages/app/ComplianceCommandCenter"));
 const InspectionReadiness = lazy(() => import("@/pages/app/InspectionReadiness"));
@@ -845,6 +846,9 @@ function Router() {
       </Route>
       <Route path="/app/settings">
         {() => <ProtectedRoute component={Settings} allowedRoles={ORG_MANAGE_ROLES} />}
+      </Route>
+      <Route path="/app/billing">
+        {() => <ProtectedRoute component={Billing} allowedRoles={ORG_ADMIN_ONLY} />}
       </Route>
       <Route path="/app/enterprise">
         {() => <ProtectedRoute component={EnterpriseFoundation} allowedRoles={ORG_ADMIN_ONLY} />}
