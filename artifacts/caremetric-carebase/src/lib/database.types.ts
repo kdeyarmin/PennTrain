@@ -38342,10 +38342,6 @@ export type Database = {
         }
         Returns: string
       }
-      record_user_invitation_resent: {
-        Args: { p_invitation_id: string }
-        Returns: Json
-      }
       reconcile_user_invitation_lifecycle: { Args: never; Returns: Json }
       record_admission_activity: {
         Args: {
@@ -38901,6 +38897,10 @@ export type Database = {
         }
         Returns: string
       }
+      record_user_invitation_resent: {
+        Args: { p_invitation_id: string }
+        Returns: Json
+      }
       record_user_invitation_sent: {
         Args: {
           p_created_by: string
@@ -39426,6 +39426,10 @@ export type Database = {
           credential_secret: string
         }[]
       }
+      route_workforce_readiness_remediation: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       run_compliance_requirement_maintenance: {
         Args: { p_today?: string }
         Returns: number
@@ -39457,10 +39461,6 @@ export type Database = {
           p_subject_id: string
           p_subject_type: string
         }
-        Returns: Json
-      }
-      route_workforce_readiness_remediation: {
-        Args: { p_facility_id: string }
         Returns: Json
       }
       run_workforce_readiness_forecast_maintenance: {
