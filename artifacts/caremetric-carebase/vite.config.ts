@@ -61,6 +61,27 @@ export default defineConfig(({ command, mode }) => {
           "without them ships a broken app even if the vars are added to the runtime later.",
       );
     }
+
+    // A Railway variable whose value is a `${{...}}` reference to something the builder cannot
+    // resolve -- RAILWAY_GIT_COMMIT_SHA is only populated for git-connected deploys -- expands to
+    // an empty string rather than failing. That is indistinguishable from the variable being
+    // absent by the time it reaches the bundle: clientErrorReporting.ts reads
+    // `VITE_RELEASE_ID || "unknown"`, and minification constant-folds `"" || "unknown"` down to
+    // the same bytes either way, so even the chunk hash is unchanged. Observed in production: the
+    // variable was set, the deploy succeeded, and every client error report still said "unknown"
+    // with nothing anywhere to say why.
+    //
+    // These are optional, so this warns rather than throwing -- but it warns on the *set but
+    // empty* case specifically, because that is the one that looks like it worked.
+    const emptyOptional = ["VITE_RELEASE_ID", "VITE_DEMO_ACCOUNTS_JSON", "VITE_CAREMETRIC_MODULES"]
+      .filter((key) => key in env && env[key].trim() === "");
+    for (const key of emptyOptional) {
+      console.warn(
+        `[env] ${key} is set but empty, so the bundle is built as if it were never set. ` +
+          "If the value is a Railway ${{...}} reference, the builder could not resolve it -- " +
+          "use a literal, or a variable that exists for this deploy type.",
+      );
+    }
   }
 
   return {
