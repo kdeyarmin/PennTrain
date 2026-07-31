@@ -238,7 +238,7 @@ export default function WorkQueue() {
             />
             {presentation.showFacilityFilter && (
               <Select value={filters.facilityId} onValueChange={facilityId => setFilters({ facilityId, page: "1" })}>
-                <SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger>
+                <SelectTrigger aria-label="Filter by facility"><SelectValue placeholder="All facilities" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All facilities</SelectItem>
                   {facilities?.map(facility => (
@@ -248,7 +248,7 @@ export default function WorkQueue() {
               </Select>
             )}
             <Select value={filters.state} onValueChange={state => setFilters({ state, page: "1" })}>
-              <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger aria-label="Filter by status"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">All active</SelectItem>
                 <SelectItem value="all">All statuses</SelectItem>
@@ -258,7 +258,7 @@ export default function WorkQueue() {
               </SelectContent>
             </Select>
             <Select value={filters.priority} onValueChange={priority => setFilters({ priority, page: "1" })}>
-              <SelectTrigger><SelectValue placeholder="Priority" /></SelectTrigger>
+              <SelectTrigger aria-label="Filter by priority"><SelectValue placeholder="Priority" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All priorities</SelectItem>
                 {WORK_ITEM_PRIORITIES.map(priority => (
@@ -267,7 +267,7 @@ export default function WorkQueue() {
               </SelectContent>
             </Select>
             <Select value={filters.sourceType} onValueChange={sourceType => setFilters({ sourceType, page: "1" })}>
-              <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
+              <SelectTrigger aria-label="Filter by source"><SelectValue placeholder="Source" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All sources</SelectItem>
                 {/* Grouped by category: a flat list of thirty source types is not a filter anyone
@@ -285,7 +285,7 @@ export default function WorkQueue() {
               </SelectContent>
             </Select>
             <Select value={filters.due} onValueChange={due => setFilters({ due, page: "1" })}>
-              <SelectTrigger><SelectValue placeholder="Due date" /></SelectTrigger>
+              <SelectTrigger aria-label="Filter by due date"><SelectValue placeholder="Due date" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Any due date</SelectItem>
                 <SelectItem value="overdue">Overdue</SelectItem>
@@ -295,7 +295,7 @@ export default function WorkQueue() {
             </Select>
             {presentation.showOwnerFilter && canManage && effectiveScope !== "mine" && (
               <Select value={filters.ownerId} onValueChange={ownerId => setFilters({ ownerId, page: "1" })}>
-                <SelectTrigger><SelectValue placeholder="Owner" /></SelectTrigger>
+                <SelectTrigger aria-label="Filter by owner"><SelectValue placeholder="Owner" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All owners</SelectItem>
                   {profiles?.filter(profile => profile.is_active).map(profile => (

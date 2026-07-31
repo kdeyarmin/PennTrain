@@ -314,8 +314,9 @@ export default function AuditLog() {
                   className="h-8"
                   onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })}
                   disabled={page === 1}
+                  aria-label="Previous page"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
                 <Button
@@ -324,8 +325,9 @@ export default function AuditLog() {
                   className="h-8"
                   onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })}
                   disabled={page === totalPages}
+                  aria-label="Next page"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4" aria-hidden />
                 </Button>
               </div>
             </div>
