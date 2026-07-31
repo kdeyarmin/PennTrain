@@ -38172,6 +38172,12 @@ export type Database = {
           validation_results: Json
           validation_status: string
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "learning_packages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       list_regulatory_updates: {
         Args: {
@@ -38227,6 +38233,12 @@ export type Database = {
           source_type: string
           survey_day_session_id: string | null
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "survey_evidence_packet_items"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       log_clinical_access: {
         Args: {
