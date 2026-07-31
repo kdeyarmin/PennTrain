@@ -53,12 +53,28 @@ export default function TrainerDashboard() {
             certifications.
           </p>
         </div>
-        <Link href="/trainer/classes">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Class
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {todaysClasses.length > 0 && (
+            <Link href={`/trainer/classes/${todaysClasses[0].id}/kiosk`}>
+              <Button>
+                <Monitor className="h-4 w-4 mr-2" />
+                {todaysClasses.length === 1 ? "Start today's kiosk" : "Open today's kiosk"}
+              </Button>
+            </Link>
+          )}
+          <Link href="/trainer/gaps">
+            <Button variant="outline">
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              Training gaps
+            </Button>
+          </Link>
+          <Link href="/trainer/classes">
+            <Button variant={todaysClasses.length > 0 ? "outline" : "default"}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Class
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {isError && (

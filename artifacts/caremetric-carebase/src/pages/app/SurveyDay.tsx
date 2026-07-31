@@ -41,6 +41,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { SurfacePurpose } from "@/components/SurfacePurpose";
 
 // Mirrors the server-side assert_survey_day_manager gate (app_private.assert_phase5_manager):
 // only these roles may activate/refresh/close a session or record a disposition. Auditors reach the
@@ -117,6 +118,7 @@ export default function SurveyDay() {
             One focused workspace for when a licensing representative arrives. It composes your existing
             entrance-conference checklist, compliance binder, staff readiness, and documentation room.
           </p>
+          <SurfacePurpose purpose="Survey Day is the live workspace when a surveyor is on site. Prep lives in Inspection readiness and the binder." />
         </div>
         <div className="w-full md:w-72">
           <label className="mb-1 block text-sm font-medium">Facility</label>

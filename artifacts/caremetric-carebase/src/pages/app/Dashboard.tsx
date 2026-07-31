@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useOrgDashboardSummary } from "@/hooks/useDashboardSummary";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { RoleQuickStart } from "@/components/RoleQuickStart";
+import { SurfacePurpose } from "@/components/SurfacePurpose";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useListResidents } from "@/hooks/useResidents";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
@@ -310,6 +311,7 @@ export default function OrgDashboard() {
           <h1>Compliance Dashboard</h1>
           <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
         </div>
+        <SurfacePurpose purpose="Today is for clearing work; this scorecard is for compliance scores, trends, and facility outliers." />
         <QueryError what="your compliance overview" error={error} onRetry={() => refetch()} />
       </div>
     );

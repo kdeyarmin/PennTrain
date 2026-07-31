@@ -188,6 +188,24 @@ const APP_COMMAND_ACTIONS: AppCommandAction[] = [
     roles: EMPLOYEE_ONLY,
     keywords: ["ticket", "faq", "job aide", "support"],
   },
+  {
+    id: "report-event",
+    label: "Report an event",
+    description: "Choose incident, complaint, or confidential safety report.",
+    path: "/app/report-event",
+    domain: "compliance",
+    roles: REPORTING_ROLES,
+    keywords: ["incident", "complaint", "near miss", "safety", "report something"],
+  },
+  {
+    id: "trainer-gaps",
+    label: "Open training gaps",
+    description: "Matrix, retraining, and pending approvals in one hub.",
+    path: "/trainer/gaps",
+    domain: "training",
+    roles: TRAINER_ONLY,
+    keywords: ["retraining", "overdue", "gaps", "approvals", "matrix"],
+  },
 ];
 
 export const APP_PAGES: AppPageDefinition[] = [
@@ -270,6 +288,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
   { path: "/app/maintenance", label: "Maintenance & work orders", domain: "compliance", roles: MAINTENANCE_ROLES, keywords: ["repair", "work order", "preventive maintenance", "vendor", "downtime", "qr code"] },
   { path: "/app/incidents", label: "Incidents", domain: "compliance", roles: REPORTING_ROLES, keywords: ["reportable events", "safety"] },
+  { path: "/app/report-event", label: "Report an event", domain: "compliance", roles: REPORTING_ROLES, keywords: ["incident", "complaint", "confidential", "near miss", "safety report", "something happened"] },
   { path: "/app/complaints", label: "Complaints, grievances & resident rights", domain: "compliance", roles: REPORTING_ROLES, keywords: ["complaint", "grievance", "ombudsman", "resident rights", "nonretaliation", "appeal"] },
   { path: "/app/confidential-incidents", label: "Confidential reports", domain: "compliance", roles: REPORTING_ROLES, keywords: ["safety report", "anonymous", "near miss", "intake", "whistleblower"] },
   { path: "/app/work", label: "Operational work queue", domain: "compliance", roles: WORK_QUEUE_ROLES, keywords: ["my work", "remediation", "tasks", "owners", "overdue", "approval", "dependencies"] },
@@ -303,6 +322,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/help", label: "Help center", domain: "support", roles: ORG_ROLES, keywords: ["support", "articles"] },
 
   { path: "/trainer", label: "Trainer dashboard", domain: "training", roles: TRAINER_ONLY, keywords: ["classes", "training"] },
+  { path: "/trainer/gaps", label: "Training gaps", domain: "training", roles: TRAINER_ONLY, keywords: ["retraining", "matrix", "approvals", "overdue", "gaps"] },
   { path: "/trainer/facilities", label: "Trainer facilities", domain: "directory", roles: TRAINER_ONLY, keywords: ["locations", "sites"] },
   { path: "/trainer/employees", label: "Trainer employees", domain: "directory", roles: TRAINER_ONLY, keywords: ["employees", "roster"] },
 

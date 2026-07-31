@@ -252,10 +252,32 @@ export default function IncidentDetail() {
         </div>
       </div>
 
+
+      <div className="sticky top-[68px] z-[5] -mx-1 flex flex-wrap gap-2 border-b bg-background/95 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        {[
+          { id: "incident-followthrough", label: "Next actions" },
+          { id: "incident-narrative", label: "Narrative" },
+          { id: "incident-staff", label: "Staff" },
+          { id: "incident-actions", label: "Corrective actions" },
+          { id: "incident-docs", label: "Evidence" },
+        ].map((section) => (
+          <button
+            key={section.id}
+            type="button"
+            className="rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
+            onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+
+      <div id="incident-followthrough" className="scroll-mt-28" />
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <IncidentFollowThroughSection incidentId={incident.id} canManage={canManage} />
       </Suspense>
 
+      <div id="incident-narrative" className="scroll-mt-28" />
       <Card>
         <CardHeader><CardTitle>Narrative</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -291,6 +313,7 @@ export default function IncidentDetail() {
         </Card>
       )}
 
+      <div id="incident-staff" className="scroll-mt-28" />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Staff Involved</CardTitle>
@@ -438,6 +461,7 @@ export default function IncidentDetail() {
         </CardContent>
       </Card>
 
+      <div id="incident-actions" className="scroll-mt-28" />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> Corrective Actions</CardTitle>
@@ -555,6 +579,7 @@ export default function IncidentDetail() {
         </CardContent>
       </Card>
 
+      <div id="incident-docs" className="scroll-mt-28" />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

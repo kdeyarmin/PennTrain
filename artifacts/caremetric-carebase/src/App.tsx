@@ -84,6 +84,7 @@ const BackgroundChecks = lazy(() => import("@/pages/app/BackgroundChecks"));
 const ExclusionScreening = lazy(() => import("@/pages/app/ExclusionScreening"));
 const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQualification"));
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
+const ReportEvent = lazy(() => import("@/pages/app/ReportEvent"));
 const Complaints = lazy(() => import("@/pages/app/Complaints"));
 const ComplaintDetail = lazy(() => import("@/pages/app/ComplaintDetail"));
 const ConfidentialIncidents = lazy(() => import("@/pages/app/ConfidentialIncidents"));
@@ -158,6 +159,7 @@ const HelpCenter = lazy(() => import("@/pages/app/HelpCenter"));
 const SupportTicketDetail = lazy(() => import("@/pages/app/SupportTicketDetail"));
 
 const TrainerDashboard = lazy(() => import("@/pages/trainer/TrainerDashboard"));
+const TrainerGaps = lazy(() => import("@/pages/trainer/TrainerGaps"));
 const TrainerClasses = lazy(() => import("@/pages/trainer/TrainerClasses"));
 const ClassDetail = lazy(() => import("@/pages/trainer/ClassDetail"));
 const ClassKiosk = lazy(() => import("@/pages/trainer/ClassKiosk"));
@@ -731,6 +733,9 @@ function Router() {
       <Route path="/app/incidents">
         {() => <ProtectedRoute component={Incidents} allowedRoles={INCIDENT_ROLES} />}
       </Route>
+      <Route path="/app/report-event">
+        {() => <ProtectedRoute component={ReportEvent} allowedRoles={REPORTS_VIEW_ROLES} />}
+      </Route>
       <Route path="/app/incidents/:id">
         {() => <ProtectedRoute component={IncidentDetail} allowedRoles={INCIDENT_ROLES} />}
       </Route>
@@ -903,6 +908,9 @@ function Router() {
       {/* Trainer routes */}
       <Route path="/trainer">
         {() => <ProtectedRoute component={TrainerDashboard} allowedRoles={["trainer"]} />}
+      </Route>
+      <Route path="/trainer/gaps">
+        {() => <ProtectedRoute component={TrainerGaps} allowedRoles={["trainer"]} />}
       </Route>
       <Route path="/trainer/classes">
         {() => <ProtectedRoute component={TrainerClasses} allowedRoles={CLASS_SCHEDULING_ROLES} />}

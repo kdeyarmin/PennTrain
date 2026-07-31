@@ -68,7 +68,6 @@ import {
   Network,
   UserRoundCheck,
   FolderLock,
-  KeyRound,
   ScanText,
   FileSearch,
   MessageSquareWarning,
@@ -163,149 +162,143 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
       }
     ];
   } else if (role === "org_admin" || role === "facility_manager") {
+    // Workflow IA: daily work first (Today only), then People / Training / Credentials /
+    // Residents / Safety & survey. Advanced tools + admin collapse by default via section titles
+    // users already pin/collapse. Dashboard is reached from Today, not as a peer of Home.
     return [
       {
         items: [
           { href: "/app/today", label: "Home", icon: Activity },
-          { href: "/app", label: "Dashboard", icon: LayoutDashboard },
         ]
       },
       {
-        title: "Guided Workflows",
+        title: "Start here",
         items: [
-          { href: "/app/employees?action=add", label: "Onboard Employee", icon: Users },
-          { href: "/app/data-imports", label: "Import & Migration", icon: FileUp },
+          { href: "/app/employees?action=add", label: "Onboard employee", icon: Users },
+          { href: "/app/report-event", label: "Report an event", icon: Siren },
+          { href: "/app/data-imports", label: "Import & migration", icon: FileUp },
+          { href: "/app/alerts", label: "Resolve risks", icon: ShieldAlert },
           ...(showPchAlrModules
-            ? [{ href: "/app/inspection-readiness", label: "Prepare for Inspection", icon: Radar }]
+            ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }]
             : []),
-          { href: "/app/alerts", label: "Resolve Compliance Risks", icon: ShieldAlert },
-          { href: "/app/value-center", label: "Value Center", icon: Gauge },
         ],
       },
       {
-        title: "Directory",
+        title: "People",
         items: [
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
           { href: "/app/schedule", label: "Schedule", icon: CalendarDays },
-          { href: "/app/workforce-operations", label: "Workforce Operations", icon: UserRoundCheck },
-          ...(showPchAlrModules ? [{ href: "/app/shift-handoffs", label: "Shift Handoff Inbox", icon: ClipboardList }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency Operations", icon: Siren }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
+          { href: "/app/workforce-operations", label: "Workforce operations", icon: UserRoundCheck },
+          { href: "/app/employee-lifecycle", label: "Lifecycle cases", icon: Users },
+          { href: "/app/invitations", label: "Invitations", icon: Send },
+          ...(showPchAlrModules ? [{ href: "/app/shift-handoffs", label: "Shift handoffs", icon: ClipboardList }] : []),
         ]
       },
       {
-        title: "Staff Training & Requirements",
+        title: "Training",
         items: [
-          { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
-          { href: "/app/courses", label: "Training Content", icon: GraduationCap },
-          { href: "/app/course-assignments", label: "Training Assignments", icon: FileCheck },
-          { href: "/trainer/classes", label: "In-Service Classes", icon: GraduationCap },
-          { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
-          { href: "/app/governed-learning", label: "Governed Content", icon: BookCheck },
-          { href: "/me/courses", label: "My Training", icon: BookOpen },
+          { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
+          { href: "/app/courses", label: "Training content", icon: GraduationCap },
+          { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
+          { href: "/trainer/classes", label: "In-service classes", icon: GraduationCap },
+          { href: "/app/training-plans", label: "Training plans", icon: ListChecks },
+          { href: "/app/pending-approvals", label: "Pending approvals", icon: ClipboardCheck },
+          { href: "/me/courses", label: "My training", icon: BookOpen },
         ]
       },
       {
-        title: "Competency & Qualifications",
+        title: "Credentials",
         items: [
-          { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
-          { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
+          { href: "/app/credentials", label: "Credentials & clearances", icon: ShieldCheck },
+          { href: "/app/background-checks", label: "Background checks", icon: ShieldQuestion },
+          { href: "/app/exclusion-screening", label: "Exclusion screening", icon: ShieldAlert },
+          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who can pass meds", icon: Pill }] : []),
+          { href: "/app/competency-records", label: "Competency records", icon: ClipboardCheck },
+          { href: "/app/competency-templates", label: "Competency templates", icon: ClipboardList },
           ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/administrator-qualification", label: "Administrator Qualification", icon: GraduationCap }] : []),
-        ]
-      },
-      {
-        title: "Credentialing & Screening",
-        items: [
-          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill }] : []),
-          { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
-          { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
-          { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
+          ...(showPchAlrModules ? [{ href: "/app/administrator-qualification", label: "Administrator qualification", icon: GraduationCap }] : []),
         ]
       },
       ...(showPchAlrModules ? [{
-        title: "Residents",
+        title: "Residents & care",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
-          { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
-          { href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils },
-          { href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays },
-          { href: "/app/resident-finance", label: "Resident Finance", icon: Landmark },
-          { href: "/app/medication-integration", label: "Medication Integration", icon: Pill },
-          { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
-          { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
-          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
-          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
+          { href: "/app/admissions", label: "Admissions & census", icon: ClipboardCheck },
+          { href: "/app/services", label: "Resident services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care delivery", icon: HeartPulse },
+          { href: "/app/change-of-condition", label: "Change follow-up", icon: Activity },
+          { href: "/app/dietary-operations", label: "Dietary & food safety", icon: Utensils },
+          { href: "/app/resident-services-calendar", label: "Resident calendar", icon: CalendarDays },
+          { href: "/app/medication-integration", label: "Medication integration", icon: Pill },
+          { href: "/app/state-forms", label: "State forms", icon: ClipboardList },
+          { href: "/app/resident-finance", label: "Resident finance", icon: Landmark },
+          { href: "/app/qapi", label: "QAPI & quality", icon: BarChart3 },
         ]
       }] : []),
       {
-        title: "Incidents & Alerts",
+        title: "Safety & survey",
         items: [
+          { href: "/app/report-event", label: "Report an event", icon: Siren },
           { href: "/app/incidents", label: "Incidents", icon: AlertTriangle },
-          { href: "/app/complaints", label: "Complaints & Grievances", icon: MessageSquareWarning },
-          { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
-          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
+          { href: "/app/complaints", label: "Complaints & grievances", icon: MessageSquareWarning },
+          { href: "/app/confidential-incidents", label: "Confidential reports", icon: ShieldAlert },
+          { href: "/app/work", label: "Work queue", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
-          { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
-        ]
-      },
-      {
-        title: "Reporting & Documents",
-        items: [
-          { href: "/app/reports", label: "Reports", icon: BarChart3 },
-          { href: "/app/reports/comprehensive", label: "Comprehensive Report", icon: Printer },
-          { href: "/app/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
-          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency operations", icon: Siren }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance", icon: Wrench }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory Copilot", icon: Sparkles }] : []),
-          { href: "/app/compliance-command-center", label: "Compliance Command Center", icon: ShieldCheck },
-          { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
-          { href: "/app/evidence", label: "Documentation Room", icon: FolderLock },
-          { href: "/app/guest-access", label: "Guest Access Center", icon: KeyRound },
-          { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
-          { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
-          { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
-          { href: "/app/documents", label: "Documents", icon: Files },
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
+          { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
+          { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
+          { href: "/app/reports", label: "Reports", icon: BarChart3 },
         ]
       },
       {
-        title: "Settings",
+        title: "Advanced",
+        items: [
+          { href: "/app", label: "Compliance scorecard", icon: LayoutDashboard },
+          { href: "/app/compliance-command-center", label: "Command Center", icon: ShieldCheck },
+          { href: "/app/closed-loop-compliance", label: "Closed-loop compliance", icon: Gavel },
+          { href: "/app/value-center", label: "Value Center", icon: Gauge },
+          { href: "/app/reports/comprehensive", label: "Comprehensive report", icon: Printer },
+          ...(showPchAlrModules ? [{ href: "/app/survey-rehearsals", label: "Survey rehearsal", icon: Crosshair }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF operations", icon: Crosshair }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory crosswalk", icon: FileSearch }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory copilot", icon: Sparkles }] : []),
+          { href: "/app/policy-documents", label: "Policies & procedures", icon: FileSignature },
+          { href: "/app/template-documents", label: "Template documents", icon: FileStack },
+          { href: "/app/dhs-forms", label: "DHS forms library", icon: Landmark },
+          { href: "/app/documents", label: "Documents", icon: Files },
+          { href: "/app/governed-learning", label: "Governed content", icon: BookCheck },
+        ]
+      },
+      {
+        title: "Admin",
         items: [
           { href: "/app/users", label: "Users", icon: Users },
-          { href: "/app/training-types", label: "Training Types", icon: ListChecks },
+          { href: "/app/training-types", label: "Training types", icon: ListChecks },
           { href: "/app/settings", label: "Settings", icon: Settings },
           ...(role === "org_admin"
             ? [
-              { href: "/app/billing", label: "Billing & Plans", icon: CreditCard },
-              { href: "/app/enterprise", label: "Enterprise Foundation", icon: Network },
+              { href: "/app/billing", label: "Billing & plans", icon: CreditCard },
+              { href: "/app/enterprise", label: "Enterprise foundation", icon: Network },
             ]
             : []),
-          // Phase 1 audit documentation carries facility scope, so managers see only their assigned
-          // facilities while org administrators retain organization-wide visibility.
           ...(["org_admin", "facility_manager"].includes(role ?? "")
-            ? [{ href: "/app/audit", label: "Audit Log", icon: ShieldAlert }]
+            ? [{ href: "/app/audit", label: "Audit log", icon: ShieldAlert }]
             : []),
+          { href: "/app/help", label: "Help center", icon: HelpCircle },
         ]
       },
-      {
-        title: "Help",
-        items: [
-          { href: "/app/help", label: "Help Center", icon: HelpCircle },
-        ]
-      }
     ];
   } else if (role === "auditor") {
     return [
       {
         items: [
           { href: "/app/today", label: "Home", icon: Activity },
-          { href: "/app", label: "Dashboard", icon: LayoutDashboard },
         ]
       },
       {
@@ -313,85 +306,75 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/facilities", label: "Facilities", icon: Building2 },
           { href: "/app/employees", label: "Employees", icon: Users },
-          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency Operations", icon: Siren }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency operations", icon: Siren }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance", icon: Wrench }] : []),
         ]
       },
       {
-        title: "Training & Competency",
+        title: "Training & credentials",
         items: [
-          { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
-          { href: "/app/course-assignments", label: "Training Assignments", icon: FileCheck },
-          { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
-          { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
+          { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
+          { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
+          { href: "/app/training-plans", label: "Training plans", icon: ListChecks },
+          { href: "/app/competency-records", label: "Competency records", icon: ClipboardCheck },
           ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
-          { href: "/me/courses", label: "My Training", icon: BookOpen },
-        ]
-      },
-      {
-        title: "Credentialing & Screening",
-        items: [
-          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill }] : []),
-          { href: "/app/credentials", label: "Credentials & Clearances", icon: ShieldCheck },
-          { href: "/app/background-checks", label: "Background Checks", icon: ShieldQuestion },
-          { href: "/app/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
+          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who can pass meds", icon: Pill }] : []),
+          { href: "/app/credentials", label: "Credentials & clearances", icon: ShieldCheck },
+          { href: "/app/background-checks", label: "Background checks", icon: ShieldQuestion },
+          { href: "/app/exclusion-screening", label: "Exclusion screening", icon: ShieldAlert },
+          { href: "/me/courses", label: "My training", icon: BookOpen },
         ]
       },
       ...(showPchAlrModules ? [{
-        title: "Residents",
+        title: "Residents & care",
         items: [
           { href: "/app/residents", label: "Residents", icon: BedDouble },
-          { href: "/app/admissions", label: "Admissions & Census", icon: ClipboardCheck },
-          { href: "/app/change-of-condition", label: "Change Follow-Up", icon: Activity },
-          { href: "/app/dietary-operations", label: "Dietary & Food Safety", icon: Utensils },
-          { href: "/app/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays },
-          { href: "/app/resident-finance", label: "Resident Finance", icon: Landmark },
-          { href: "/app/medication-integration", label: "Medication Integration", icon: Pill },
-          { href: "/app/qapi", label: "QAPI & Quality", icon: BarChart3 },
-          { href: "/app/state-forms", label: "State Forms", icon: ClipboardList },
-          { href: "/app/services", label: "Resident Services", icon: CalendarDays },
-          { href: "/app/resident-care-delivery", label: "Care Delivery", icon: HeartPulse },
+          { href: "/app/admissions", label: "Admissions & census", icon: ClipboardCheck },
+          { href: "/app/change-of-condition", label: "Change follow-up", icon: Activity },
+          { href: "/app/dietary-operations", label: "Dietary & food safety", icon: Utensils },
+          { href: "/app/resident-services-calendar", label: "Resident calendar", icon: CalendarDays },
+          { href: "/app/resident-finance", label: "Resident finance", icon: Landmark },
+          { href: "/app/medication-integration", label: "Medication integration", icon: Pill },
+          { href: "/app/qapi", label: "QAPI & quality", icon: BarChart3 },
+          { href: "/app/state-forms", label: "State forms", icon: ClipboardList },
+          { href: "/app/services", label: "Resident services", icon: CalendarDays },
+          { href: "/app/resident-care-delivery", label: "Care delivery", icon: HeartPulse },
         ]
       }] : []),
       {
-        title: "Incidents & Alerts",
+        title: "Safety & survey",
         items: [
           { href: "/app/incidents", label: "Incidents", icon: AlertTriangle },
-          { href: "/app/complaints", label: "Complaints & Grievances", icon: MessageSquareWarning },
-          { href: "/app/confidential-incidents", label: "Confidential Reports", icon: ShieldAlert },
-          { href: "/app/work", label: "Operational Work", icon: ClipboardList },
+          { href: "/app/complaints", label: "Complaints & grievances", icon: MessageSquareWarning },
+          { href: "/app/confidential-incidents", label: "Confidential reports", icon: ShieldAlert },
+          { href: "/app/work", label: "Work queue", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
-        ]
-      },
-      {
-        title: "Reporting & Documents",
-        items: [
-          { href: "/app/reports", label: "Reports", icon: BarChart3 },
-          { href: "/app/reports/comprehensive", label: "Comprehensive Report", icon: Printer },
-          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection Readiness", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF Operations", icon: Crosshair }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory Crosswalk", icon: FileSearch }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory Copilot", icon: Sparkles }] : []),
-          { href: "/app/compliance-command-center", label: "Compliance Command Center", icon: ShieldCheck },
-          { href: "/app/compliance-binder", label: "Compliance Binder", icon: Files },
-          { href: "/app/evidence", label: "Documentation Room", icon: FolderLock },
-          { href: "/app/guest-access", label: "Guest Access Center", icon: KeyRound },
-          { href: "/app/policy-documents", label: "Policies & Procedures", icon: FileSignature },
-          { href: "/app/template-documents", label: "Template Documents", icon: FileStack },
-          { href: "/app/dhs-forms", label: "DHS Forms Library", icon: Landmark },
-          { href: "/app/documents", label: "Documents", icon: Files },
-          { href: "/app/audit", label: "Audit Log", icon: ShieldAlert },
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
+          { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
+          { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
+          { href: "/app/reports", label: "Reports", icon: BarChart3 },
+          { href: "/app/audit", label: "Audit log", icon: ShieldAlert },
         ]
       },
       {
-        title: "Help",
+        title: "Advanced",
         items: [
-          { href: "/app/help", label: "Help Center", icon: HelpCircle },
+          { href: "/app", label: "Compliance scorecard", icon: LayoutDashboard },
+          { href: "/app/compliance-command-center", label: "Command Center", icon: ShieldCheck },
+          { href: "/app/reports/comprehensive", label: "Comprehensive report", icon: Printer },
+          ...(showPchAlrModules ? [{ href: "/app/pch-alr-operations", label: "PCH / ALF operations", icon: Crosshair }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/regulatory-crosswalk", label: "Regulatory crosswalk", icon: FileSearch }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/regulatory-copilot", label: "Regulatory copilot", icon: Sparkles }] : []),
+          { href: "/app/policy-documents", label: "Policies & procedures", icon: FileSignature },
+          { href: "/app/template-documents", label: "Template documents", icon: FileStack },
+          { href: "/app/dhs-forms", label: "DHS forms library", icon: Landmark },
+          { href: "/app/documents", label: "Documents", icon: Files },
+          { href: "/app/help", label: "Help center", icon: HelpCircle },
         ]
-      }
+      },
     ];
   } else if (role === "trainer") {
     return [
@@ -401,25 +384,26 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         ]
       },
       {
-        title: "Training",
+        title: "Classes & gaps",
         items: [
-          { href: "/trainer/classes", label: "My Classes", icon: GraduationCap },
-          { href: "/app/courses", label: "Training Content", icon: GraduationCap },
-          { href: "/app/course-assignments", label: "Training Assignments", icon: FileCheck },
-          { href: "/app/training-plans", label: "Training Plans", icon: ListChecks },
-          { href: "/trainer/retraining", label: "Retraining Monitor", icon: ShieldAlert },
-          { href: "/app/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
-          { href: "/me/courses", label: "My Training", icon: BookOpen },
+          { href: "/trainer/classes", label: "My classes", icon: GraduationCap },
+          { href: "/trainer/gaps", label: "Training gaps", icon: ShieldAlert },
+          { href: "/app/courses", label: "Training content", icon: GraduationCap },
+          { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
+          { href: "/app/training-plans", label: "Training plans", icon: ListChecks },
+          { href: "/trainer/retraining", label: "Retraining monitor", icon: ShieldAlert },
+          { href: "/app/pending-approvals", label: "Pending approvals", icon: ClipboardCheck },
+          { href: "/me/courses", label: "My training", icon: BookOpen },
         ]
       },
       {
         title: "Competency",
         items: [
-          { href: "/app/training-matrix", label: "Training Matrix", icon: Grid },
-          { href: "/app/competency-templates", label: "Competency Templates", icon: ClipboardList },
-          { href: "/app/competency-records", label: "Competency Records", icon: ClipboardCheck },
+          { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
+          { href: "/app/competency-templates", label: "Competency templates", icon: ClipboardList },
+          { href: "/app/competency-records", label: "Competency records", icon: ClipboardCheck },
           ...(showPchAlrModules ? [{ href: "/app/practicums", label: "Practicums", icon: FileCheck }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who Can Pass Meds", icon: Pill }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who can pass meds", icon: Pill }] : []),
         ]
       },
       {
@@ -427,11 +411,8 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/trainer/facilities", label: "Facilities", icon: Building2 },
           { href: "/trainer/employees", label: "Employees", icon: Users },
-          // Mounted at /app/* (not /trainer/*) since inspections has no separate trainer-scoped
-          // page -- ProtectedRoute gates by role membership, not URL prefix, and
-          // INSPECTION_ROLES already includes trainer.
-          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & Equipment", icon: Flame }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance & Work Orders", icon: Wrench }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & equipment", icon: Flame }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance", icon: Wrench }] : []),
         ]
       },
       {
@@ -439,58 +420,52 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/documents", label: "Documents", icon: Files },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
+          { href: "/app/help", label: "Help center", icon: HelpCircle },
         ]
       },
-      {
-        title: "Help",
-        items: [
-          { href: "/app/help", label: "Help Center", icon: HelpCircle },
-        ]
-      }
     ];
   } else if (role === "employee") {
     return [
       {
         items: [
-          { href: "/me", label: "My Work", icon: LayoutDashboard },
+          { href: "/me", label: "Home", icon: LayoutDashboard },
         ]
       },
       {
-        title: "Schedule & Floor",
+        title: "My shift",
         items: [
-          { href: "/me/shift", label: "My Shift", icon: ClipboardList },
-          { href: "/me/floor", label: "Floor", icon: HeartPulse },
-          { href: "/me/schedule", label: "My Schedule", icon: CalendarDays },
-          { href: "/me/services", label: "My Services", icon: ClipboardCheck },
-          { href: "/me/change-of-condition", label: "Change Follow-Up", icon: Activity },
-          ...(showPchAlrModules ? [{ href: "/me/dietary-operations", label: "Dietary & Food Safety", icon: Utensils }] : []),
-          ...(showPchAlrModules ? [{ href: "/me/resident-services-calendar", label: "Resident Calendar", icon: CalendarDays }] : []),
-          { href: "/me/work", label: "My Work Queue", icon: ClipboardList },
-          { href: "/me/courses", label: "My Training", icon: BookOpen },
+          { href: "/me/shift", label: "My shift", icon: ClipboardList },
+          { href: "/me/schedule", label: "My schedule", icon: CalendarDays },
+          { href: "/me/services", label: "My services", icon: ClipboardCheck },
+          { href: "/me/change-of-condition", label: "Change follow-up", icon: Activity },
+          ...(showPchAlrModules ? [{ href: "/me/dietary-operations", label: "Dietary & food safety", icon: Utensils }] : []),
+          ...(showPchAlrModules ? [{ href: "/me/resident-services-calendar", label: "Resident calendar", icon: CalendarDays }] : []),
+          { href: "/me/work", label: "My work", icon: ClipboardList },
         ]
       },
       {
-        title: "My Records",
+        title: "My learning",
         items: [
-          { href: "/me/trainings", label: "Training Records", icon: GraduationCap },
-          { href: "/me/certificates", label: "My Certificates", icon: FileCheck },
-          { href: "/me/documents", label: "My Documents", icon: Files },
-          { href: "/me/credentials", label: "My Credentials", icon: ShieldCheck },
-          { href: "/me/attestations", label: "My Attestations", icon: FileSignature },
+          { href: "/me/courses", label: "Courses", icon: BookOpen },
+          { href: "/me/trainings", label: "Training records", icon: GraduationCap },
+          { href: "/me/attestations", label: "Policy signatures", icon: FileSignature },
         ]
       },
       {
-        title: "Help",
+        title: "My records",
         items: [
-          { href: "/me/help", label: "Help Center", icon: HelpCircle },
+          { href: "/me/certificates", label: "Certificates", icon: FileCheck },
+          { href: "/me/credentials", label: "Credentials", icon: ShieldCheck },
+          { href: "/me/documents", label: "Documents", icon: Files },
         ]
       },
       {
-        title: "Settings",
+        title: "Account",
         items: [
-          { href: "/account/notifications", label: "Notification Settings", icon: Bell },
+          { href: "/account/notifications", label: "Notification settings", icon: Bell },
+          { href: "/me/help", label: "Help center", icon: HelpCircle },
         ]
-      }
+      },
     ];
   }
   return [];
@@ -523,6 +498,9 @@ function saveCollapsedSections(userId: string, titles: Set<string>): void {
   }
 }
 
+/** Default-collapsed advanced/admin groups so daily work stays above the fold. */
+const DEFAULT_COLLAPSED_SECTIONS = new Set(["Advanced", "Admin"]);
+
 /**
  * The sidebar's inner content (logo, filter, nav sections, user footer). Shared by the
  * desktop `<aside>` and the mobile drawer. `onNavigate` lets the mobile drawer
@@ -537,13 +515,19 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const navigation = useNavigationWorkspace();
   const moduleAccess = useProductModuleAccess();
   const [filter, setFilter] = useState("");
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => (user ? loadCollapsedSections(user.id) : new Set()));
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    if (!user) return new Set(DEFAULT_COLLAPSED_SECTIONS);
+    const stored = loadCollapsedSections(user.id);
+    // First visit: seed Advanced/Admin collapsed so managers land on daily work.
+    return stored.size === 0 ? new Set(DEFAULT_COLLAPSED_SECTIONS) : stored;
+  });
   const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
 
   useEffect(() => {
     if (!user) return;
     if (collapsedSectionsUserId !== user.id) {
-      setCollapsedSections(loadCollapsedSections(user.id));
+      const stored = loadCollapsedSections(user.id);
+      setCollapsedSections(stored.size === 0 ? new Set(DEFAULT_COLLAPSED_SECTIONS) : stored);
       setCollapsedSectionsUserId(user.id);
       return;
     }

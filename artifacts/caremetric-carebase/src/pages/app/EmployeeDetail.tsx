@@ -416,6 +416,24 @@ export default function EmployeeDetail() {
         )}
       </div>
 
+      {readiness && readiness.status !== "ready" && (
+        <div className="sticky top-[68px] z-[5] rounded-lg border border-amber-200 bg-amber-50/95 px-4 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-amber-50/90">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-950">Not survey-ready — {readiness.label}</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-amber-900/90">
+                {readiness.reasons.slice(0, 4).map((reason, i) => (
+                  <li key={i}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+            <p className="text-xs text-amber-900/80 max-w-xs">
+              Use the Onboarding checklist, Training, and Credentials tabs below to close each gap.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">

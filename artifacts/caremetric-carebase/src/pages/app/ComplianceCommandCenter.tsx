@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SurfacePurpose } from "@/components/SurfacePurpose";
 import {
   AlertTriangle, CalendarClock, ClipboardCheck, ClipboardList, Copy, Download, FileWarning,
   Gauge, Pencil, Plus, RefreshCw, Search, ShieldCheck, X,
@@ -197,6 +198,7 @@ export default function ComplianceCommandCenter() {
           <p className="text-muted-foreground">
             One register for every recurring facility obligation — by facility, building, category, and regulation — tracked to completion with evidence, review, and history.
           </p>
+          <SurfacePurpose purpose="Command Center tracks recurring facility obligations (drills, postings, renewals). It is not Survey Day or the daily Home queue." />
         </div>
         {canManage && (
           <div className="flex flex-wrap items-center gap-2">
