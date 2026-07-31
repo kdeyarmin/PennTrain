@@ -17,28 +17,32 @@ export async function signInAs(
 }
 
 /**
- * Full-page boot gates: the app renders one of these instead of the route while the session, its
- * security state, and organization access resolve against Supabase. They are the only `role=status`
- * elements that take the whole viewport, which is what distinguishes them from toasts, table
- * skeletons, and per-panel loading states.
+ * The authenticated shell's main landmark. MainLayout renders it only after the session, its
+ * security state, and organization access have all resolved -- so its presence is a positive
+ * "boot finished" signal.
  */
-const APP_BOOT_GATE = '[role="status"][class*="min-h-screen"]';
+const APP_SHELL_READY = "main#main-content";
 
 /**
  * Navigate to an authenticated route and wait for the app shell to finish booting.
  *
- * Asserting page content straight after `goto` races those boot gates, and the race is not evenly
- * matched: the gates wait on network round trips, so on a loaded CI runner they can outlast a fixed
- * per-assertion timeout. That is what made the role-journey suites flake -- on whichever role
- * happened to be slowest in that run rather than on any one broken route, which is why the failures
- * moved between roles and browser projects instead of reproducing.
+ * Asserting page content straight after `goto` races the app's full-page boot gates, and the race
+ * is not evenly matched: those gates wait on Supabase round trips, so on a loaded CI runner they
+ * can outlast a fixed per-assertion timeout. That is what made the role-journey suites flake -- on
+ * whichever role happened to be slowest in a given run rather than on any one broken route, which
+ * is why the failures moved between roles and browser projects instead of reproducing.
  *
- * Waiting for the shell separately also makes a real failure legible: "still booting after 60s"
- * and "this route rendered no h1" stop being the same error message.
+ * This waits for the shell to be *present*, not for a loader to be *absent*. Absence is not a
+ * usable signal here: `page.goto` resolves on `load`, before React has necessarily committed its
+ * first render, so "no boot gate on the page" is equally true before booting starts and after it
+ * finishes. Waiting for that would pass instantly and leave the original race untouched.
+ *
+ * Splitting the wait also makes a real failure legible: "the shell never came up" and "this route
+ * rendered no h1" stop being the same error message.
  */
-export async function gotoAppRoute(page: Page, path: string, timeout = 60_000) {
+export async function gotoAppRoute(page: Page, path: string, timeout = 45_000) {
   await page.goto(path);
-  await expect(page.locator(APP_BOOT_GATE)).toHaveCount(0, { timeout });
+  await expect(page.locator(APP_SHELL_READY)).toBeVisible({ timeout });
 }
 
 /** Assert the live page has no horizontal overflow at the current viewport. */

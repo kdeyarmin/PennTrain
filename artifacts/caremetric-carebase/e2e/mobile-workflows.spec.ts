@@ -240,7 +240,7 @@ test.describe("mobile authenticated employee workflows", () => {
 
   test("employee can open an assigned course on mobile", async ({ page }) => {
     await employeeHome(page);
-    await page.goto(`/me/courses/${assignmentId}`);
+    await gotoAppRoute(page, `/me/courses/${assignmentId}`);
     await expect(page.getByText(/Mobile lesson|Mobile E2E Course|lesson/i).first()).toBeVisible({ timeout: 20_000 });
     await expectNoHorizontalOverflow(page);
   });
