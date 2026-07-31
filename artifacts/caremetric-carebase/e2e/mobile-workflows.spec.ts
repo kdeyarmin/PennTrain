@@ -10,6 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   expectNoHorizontalOverflow,
+  gotoAppRoute,
   hasLiveSupabaseEnv,
   requireLiveSupabaseEnv,
   signInAs,
@@ -229,7 +230,7 @@ test.describe("mobile authenticated employee workflows", () => {
 
   test("employee shift surface fits mobile and exposes primary actions", async ({ page }) => {
     await employeeHome(page);
-    await page.goto("/me/shift");
+    await gotoAppRoute(page, "/me/shift");
     await expect(page.locator("h1").first()).toBeVisible({ timeout: 20_000 });
     await expectNoHorizontalOverflow(page);
     const critical = (await new AxeBuilder({ page }).analyze()).violations
@@ -246,14 +247,14 @@ test.describe("mobile authenticated employee workflows", () => {
 
   test("employee services queue is usable on mobile", async ({ page }) => {
     await employeeHome(page);
-    await page.goto("/me/services");
+    await gotoAppRoute(page, "/me/services");
     await expect(page.locator("h1").first()).toBeVisible({ timeout: 20_000 });
     await expectNoHorizontalOverflow(page);
   });
 
   test("employee change-of-condition list is usable on mobile", async ({ page }) => {
     await employeeHome(page);
-    await page.goto("/me/change-of-condition");
+    await gotoAppRoute(page, "/me/change-of-condition");
     await expect(page.locator("h1").first()).toBeVisible({ timeout: 20_000 });
     await expectNoHorizontalOverflow(page);
   });

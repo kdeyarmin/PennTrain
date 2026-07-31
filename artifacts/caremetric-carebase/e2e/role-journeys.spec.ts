@@ -9,6 +9,7 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   expectNoHorizontalOverflow,
+  gotoAppRoute,
   hasLiveSupabaseEnv,
   requireLiveSupabaseEnv,
   signInAs,
@@ -186,7 +187,7 @@ test.describe("authenticated role journeys", () => {
       }
 
       for (const step of JOURNEYS[role]) {
-        await page.goto(step.path);
+        await gotoAppRoute(page, step.path);
         await expect(page.locator("h1").first()).toBeVisible({ timeout: 20_000 });
         if (step.heading) {
           await expect(page.locator("body")).toContainText(step.heading);
