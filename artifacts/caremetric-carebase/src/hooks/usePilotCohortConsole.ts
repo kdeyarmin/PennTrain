@@ -134,12 +134,12 @@ export function useUnassignOrgFromReleaseCohort() {
       featureKey: string;
       reason: string;
     }) => {
-      const { data, error } = await supabase.rpc("unassign_organization_release_cohort" as never, {
+      const { data, error } = await supabase.rpc("unassign_organization_release_cohort", {
         p_organization_id: input.organizationId,
         p_cohort_id: input.cohortId,
         p_feature_key: input.featureKey,
         p_reason: input.reason,
-      } as never);
+      });
       if (error) throw new Error(aal2Hint(error.message));
       return data as boolean;
     },

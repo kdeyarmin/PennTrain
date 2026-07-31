@@ -58,7 +58,7 @@ export function useListAuditLegalHolds() {
   return useQuery({
     queryKey: ["audit_legal_holds"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_audit_legal_holds" as never);
+      const { data, error } = await supabase.rpc("list_audit_legal_holds");
       if (error) throw error;
       return (data ?? []) as AuditLegalHoldRow[];
     },
