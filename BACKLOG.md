@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `2951ab8` (2026-08-01) — B4 SCORM→training-record bridge via trigger (20260801160000) on post-#377 main
+**Last verified against main:** `74a3af4` (2026-08-01) — B4 SCORM→training-record bridge via trigger (20260801160000) on post-#392 main
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
