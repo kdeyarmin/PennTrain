@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -118,6 +119,13 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
             ))}
           </SelectContent>
         </Select>
+        {/* Facility is required to create an employee, so an organization that has not added
+            one yet would otherwise meet an empty dropdown with nothing explaining the block. */}
+        {facilityFieldMode === "create" && facilities?.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No facilities yet — <Link href="/app/facilities" className="text-primary underline-offset-2 hover:underline">add one first</Link>, then come back to add staff.
+          </p>
+        )}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${__fieldIds}-hire-date`} className="text-[13px]">Hire Date</Label>

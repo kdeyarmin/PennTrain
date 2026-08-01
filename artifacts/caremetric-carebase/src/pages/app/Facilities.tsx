@@ -282,6 +282,13 @@ export default function Facilities() {
               <p className="text-xs text-muted-foreground/60 mt-1">
                 {facilities && facilities.length > 0 ? "Try adjusting your search." : "Add a facility to get started."}
               </p>
+              {/* This is step one for a brand-new organization -- nothing else can be created
+                  until a facility exists, so the empty state carries the action itself. */}
+              {canManage && facilities?.length === 0 && (
+                <Button className="mt-4" onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" /> Add your first facility
+                </Button>
+              )}
             </div>
           )}
         </div>
