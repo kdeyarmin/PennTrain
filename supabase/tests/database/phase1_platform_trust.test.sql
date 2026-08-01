@@ -339,6 +339,7 @@ select is(
 );
 
 -- 23 -> 45 when 20260726250000 registered the 22 scheduled jobs that had no definition row.
+-- 45 -> 46 when 20260731240000 registered process-credential-renewals OCR worker.
 --
 -- The old message claimed this proved the control plane "registers every platform job". It did not,
 -- and could not: a bare count over system_job_definitions cannot notice a cron job that is missing
@@ -349,7 +350,7 @@ select is(
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  45::bigint,
+  46::bigint,
   'the control plane returns one row per registered job definition'
 );
 

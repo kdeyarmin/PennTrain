@@ -6,16 +6,6 @@ import {
   FolderOpen, Loader2, RefreshCw, ShieldCheck, Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { surveyEvidencePacketManifest } from "@/lib/surveyEvidencePacket";
-import {
-  useAddSurveyEvidencePacketItem,
-  useAssembleSurveyEvidencePacket,
-  useIssueSurveyPacketGuestGrant,
-  usePackageSurveyEvidencePacket,
-  useRemoveSurveyEvidencePacketItem,
-  useSurveyEvidencePacketExports,
-  useSurveyEvidencePacketItems,
-} from "@/hooks/useSurveyEvidencePacket";
 import { facilityTypeLabel } from "@/lib/facilityTypes";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -28,11 +18,15 @@ import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
 import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
 import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
+import type { SurveyEvidencePacketJob } from "@/lib/surveyEvidencePacket";
 
 // Lazy, and given its own bundle budget, for the same reason the resident record splits by tab: the
 // log is the largest surface on this page and it is worth nothing until a session is active. The
 // header, entrance-conference checklist, and Close control paint without waiting for it.
 const SurveyDayLogSection = lazy(() => import("@/components/survey/SurveyDayLogSection"));
+// Packet selection / zip / guest grant only matter after a binder is pinned — keep them out of the
+// route shell so Survey Day stays under its route budget.
+const SurveyDayPacketSection = lazy(() => import("@/components/survey/SurveyDayPacketSection"));
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
   useActivateSurveyDay, useRefreshSurveyDay, useSetSurveyDayDisposition, useCloseSurveyDay,
@@ -141,7 +135,7 @@ export default function SurveyDay() {
 
       {featureBlocked ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">
-          Survey Day Mode isn&apos;t enabled for your organization yet. Contact CareMetric to join the pilot.
+          Survey Day Mode isn't enabled for your organization yet. Contact CareMetric to join the pilot.
         </CardContent></Card>
       ) : !activeFacilityId ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">Select a facility to begin.</CardContent></Card>
@@ -393,25 +387,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
   const queryClient = useQueryClient();
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
-  const packetItems = useSurveyEvidencePacketItems({
-    surveyDaySessionId: sessionId,
-    binderExportJobId: pinnedBinderJobId,
-  });
-  const packetExports = useSurveyEvidencePacketExports({
-    surveyDaySessionId: sessionId,
-    binderExportJobId: pinnedBinderJobId,
-  });
-  const addPacketItem = useAddSurveyEvidencePacketItem();
-  const removePacketItem = useRemoveSurveyEvidencePacketItem();
-  const assemblePacket = useAssembleSurveyEvidencePacket();
-  const packagePacket = usePackageSurveyEvidencePacket();
-  const issueGuest = useIssueSurveyPacketGuestGrant();
-  const [packetNote, setPacketNote] = useState("");
-  const [assembledManifest, setAssembledManifest] = useState<Record<string, unknown> | null>(null);
-  const [guestLabel, setGuestLabel] = useState("Surveyor packet access");
-  const [lastGuestToken, setLastGuestToken] = useState<string | null>(null);
-  const packetManifest = pinned ? surveyEvidencePacketManifest(pinned) : null;
-  const latestExport = (packetExports.data ?? [])[0] ?? null;
+  const packetJob = pinned as SurveyEvidencePacketJob | undefined;
 
   return (
     <Card>
@@ -433,193 +409,15 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
                 {isCurrent ? "Current (under 24h)" : "Stale (over 24h)"}
               </Badge>
             </div>
-            {packetManifest && (
-              <div className="mt-3 rounded-md bg-muted/40 p-3">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge
-                    variant={packetManifest.readiness === "failed" ? "destructive" : "outline"}
-                    className={packetManifest.readiness === "ready" ? "border-emerald-200 text-emerald-700" : packetManifest.readiness === "stale" ? "border-amber-200 text-amber-800" : ""}
-                  >
-                    {packetManifest.readinessLabel}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">Survey documentation packet manifest</span>
-                </div>
-                <p className="text-sm text-muted-foreground">{packetManifest.readinessDetail}</p>
-                <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-                  <div><dt className="font-medium text-foreground">Facility scope</dt><dd className="text-muted-foreground">{packetManifest.facilityScopeLabel}</dd></div>
-                  <div><dt className="font-medium text-foreground">Checksum</dt><dd className="text-muted-foreground">{packetManifest.checksumLabel}</dd></div>
-                  <div><dt className="font-medium text-foreground">Packet size</dt><dd className="text-muted-foreground">{packetManifest.sizeLabel}</dd></div>
-                  <div><dt className="font-medium text-foreground">Attempts</dt><dd className="text-muted-foreground">{packetManifest.attemptsLabel}</dd></div>
-                  <div className="sm:col-span-2"><dt className="font-medium text-foreground">Correlation ID</dt><dd className="break-all text-muted-foreground">{packetManifest.correlationId}</dd></div>
-                  <div className="sm:col-span-2"><dt className="font-medium text-foreground">Storage</dt><dd className="break-all text-muted-foreground">{packetManifest.storageLabel}</dd></div>
-                </dl>
-                {packetManifest.errorDetail && <p className="mt-2 text-xs text-destructive">{packetManifest.errorDetail}</p>}
-                <p className="mt-3 text-xs text-muted-foreground">{packetManifest.accessControlNote}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{packetManifest.auditTrailNote}</p>
-
-                <div className="mt-4 space-y-3 border-t pt-3">
-                  <p className="text-sm font-medium">Selected evidence for this survey packet</p>
-                  <p className="text-xs text-muted-foreground">
-                    Add binder export or notes, assemble a selection manifest, then package a downloadable zip.
-                    Issue a time-limited surveyor guest link for that package only.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!pinnedBinderJobId || addPacketItem.isPending}
-                      onClick={() => {
-                        if (!pinnedBinderJobId) return;
-                        void addPacketItem.mutateAsync({
-                          sourceType: "binder_export",
-                          label: "Pinned compliance binder",
-                          sourceId: pinnedBinderJobId,
-                          facilityId,
-                          surveyDaySessionId: sessionId,
-                          binderExportJobId: pinnedBinderJobId,
-                        }).catch((e: Error) => {
-                          toast({ title: "Could not add binder", description: e.message, variant: "destructive" });
-                        });
-                      }}
-                    >
-                      Include binder
-                    </Button>
-                    <Input
-                      className="max-w-xs"
-                      placeholder="Optional note label"
-                      value={packetNote}
-                      onChange={(e) => setPacketNote(e.target.value)}
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={packetNote.trim().length < 2 || addPacketItem.isPending}
-                      onClick={() => {
-                        void addPacketItem.mutateAsync({
-                          sourceType: "note",
-                          label: packetNote.trim(),
-                          facilityId,
-                          surveyDaySessionId: sessionId,
-                          binderExportJobId: pinnedBinderJobId,
-                        }).then(() => setPacketNote("")).catch((e: Error) => {
-                          toast({ title: "Could not add note", description: e.message, variant: "destructive" });
-                        });
-                      }}
-                    >
-                      Add note
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={assemblePacket.isPending || (packetItems.data?.length ?? 0) === 0}
-                      onClick={() => {
-                        void assemblePacket.mutateAsync({
-                          surveyDaySessionId: sessionId,
-                          binderExportJobId: pinnedBinderJobId,
-                        }).then((manifest) => {
-                          setAssembledManifest(manifest);
-                          toast({ title: "Packet manifest assembled" });
-                        }).catch((e: Error) => {
-                          toast({ title: "Assemble failed", description: e.message, variant: "destructive" });
-                        });
-                      }}
-                    >
-                      Assemble packet manifest
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={packagePacket.isPending || (packetItems.data?.length ?? 0) === 0}
-                      onClick={() => {
-                        void packagePacket.mutateAsync({
-                          surveyDaySessionId: sessionId,
-                          binderExportJobId: pinnedBinderJobId,
-                          facilityId,
-                        }).then((result) => {
-                          toast({
-                            title: "Survey packet packaged",
-                            description: `${result.itemCount} item(s) · ${(result.byteSize / 1024).toFixed(0)} KB`,
-                          });
-                          if (result.downloadUrl) window.open(result.downloadUrl, "_blank", "noopener");
-                        }).catch((e: Error) => {
-                          toast({ title: "Package failed", description: e.message, variant: "destructive" });
-                        });
-                      }}
-                    >
-                      Package zip
-                    </Button>
-                  </div>
-                  {latestExport && (
-                    <div className="rounded border bg-background p-2 text-xs space-y-2">
-                      <p className="font-medium text-sm">Latest package</p>
-                      <p className="text-muted-foreground">
-                        {new Date(latestExport.created_at).toLocaleString()} · {latestExport.item_count} items ·
-                        {" "}{latestExport.content_sha256.slice(0, 12)}…
-                      </p>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <Input
-                          className="max-w-xs h-8"
-                          value={guestLabel}
-                          onChange={(e) => setGuestLabel(e.target.value)}
-                          placeholder="Guest label"
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={issueGuest.isPending || guestLabel.trim().length < 2}
-                          onClick={() => {
-                            const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-                            void issueGuest.mutateAsync({
-                              packetExportId: latestExport.id,
-                              guestLabel: guestLabel.trim(),
-                              expiresAt: expires,
-                            }).then((grant) => {
-                              setLastGuestToken(grant.token);
-                              toast({ title: "Guest grant issued", description: "Copy the token now — it is shown once." });
-                            }).catch((e: Error) => {
-                              toast({ title: "Guest grant failed", description: e.message, variant: "destructive" });
-                            });
-                          }}
-                        >
-                          Issue surveyor guest link
-                        </Button>
-                      </div>
-                      {lastGuestToken && (
-                        <p className="break-all font-mono text-[11px] text-amber-800 bg-amber-50 p-2 rounded">
-                          Token (copy now): {lastGuestToken}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  <ul className="space-y-1 text-sm">
-                    {(packetItems.data ?? []).map((item) => (
-                      <li key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
-                        <span>
-                          <span className="text-muted-foreground">{item.source_type}</span>
-                          {" · "}
-                          {item.label}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={removePacketItem.isPending}
-                          onClick={() => {
-                            void removePacketItem.mutateAsync(item.id).catch((e: Error) => {
-                              toast({ title: "Remove failed", description: e.message, variant: "destructive" });
-                            });
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                  {assembledManifest && (
-                    <pre className="max-h-40 overflow-auto rounded bg-muted/40 p-2 text-xs">
-                      {JSON.stringify(assembledManifest, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              </div>
+            {packetJob && (
+              <Suspense fallback={null}>
+                <SurveyDayPacketSection
+                  sessionId={sessionId}
+                  facilityId={facilityId}
+                  pinnedBinderJobId={pinnedBinderJobId}
+                  pinnedBinder={packetJob}
+                />
+              </Suspense>
             )}
             {pinned.status === "succeeded" && (
               <Button

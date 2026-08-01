@@ -94,6 +94,9 @@ const routeBudgets = [
   // a survey is starting. Budgeted separately rather than left uncovered: splitting a section out
   // must not be a way to move code past the tripwire.
   { label: "Survey Day log section", pattern: /^SurveyDayLogSection-.+\.js$/, budget: 25 * 1024 },
+  // Packet selection / zip / guest grant only loads when a binder is pinned. Budgeted separately
+  // so the Survey Day route shell stays under 32 KiB after residual-gaps packaging UI.
+  { label: "Survey Day packet section", pattern: /^SurveyDayPacketSection-.+\.js$/, budget: 20 * 1024 },
   { label: "System Jobs route", pattern: /^SystemJobs-.+\.js$/, budget: 20 * 1024 },
   { label: "Work Queue route", pattern: /^WorkQueue-.+\.js$/, budget: 20 * 1024 },
 ];
