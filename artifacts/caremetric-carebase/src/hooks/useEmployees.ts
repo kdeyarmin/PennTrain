@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { containsFilterValue, rangeFor } from "@/lib/utils";
+import { TRAINING_MATRIX_QUERY_KEY } from "@/hooks/useTrainingMatrix";
 
 export type Employee = Tables<"employees">;
 export type EmployeeInsert = TablesInsert<"employees">;
@@ -13,6 +14,11 @@ export interface ListEmployeesFilters {
   organizationId?: string;
   /** When set, restrict to staff who do / do not administer medications. */
   administersMedications?: boolean;
+  /**
+   * When set, restrict to staff flagged as trainers. Lets a trainer picker fetch just the
+   * trainers instead of the whole roster to filter it down in the browser.
+   */
+  trainerStatus?: boolean;
 }
 
 // Unbounded by design -- used for dropdowns/rosters/matrices elsewhere in the app that need the
@@ -38,6 +44,9 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.administersMedications !== undefined) {
         query = query.eq("administers_medications", filters.administersMedications);
+      }
+      if (filters.trainerStatus !== undefined) {
+        query = query.eq("trainer_status", filters.trainerStatus);
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -164,7 +173,13 @@ export function useCreateEmployee() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
+    // The training matrix is keyed by employee as well as by record, so hiring, editing
+    // (job title, facility, meds/trainer flags), or removing someone changes which rows and
+    // columns it returns.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+    },
   });
 }
 
@@ -176,7 +191,13 @@ export function useUpdateEmployee() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
+    // The training matrix is keyed by employee as well as by record, so hiring, editing
+    // (job title, facility, meds/trainer flags), or removing someone changes which rows and
+    // columns it returns.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+    },
   });
 }
 
@@ -187,6 +208,12 @@ export function useDeleteEmployee() {
       const { error } = await supabase.from("employees").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employees"] }),
+    // The training matrix is keyed by employee as well as by record, so hiring, editing
+    // (job title, facility, meds/trainer flags), or removing someone changes which rows and
+    // columns it returns.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+    },
   });
 }

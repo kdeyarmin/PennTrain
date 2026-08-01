@@ -38218,6 +38218,22 @@ export type Database = {
         }[]
       }
       get_trainer_dashboard_summary: { Args: never; Returns: Json }
+      get_training_matrix_page: {
+        Args: {
+          p_due_within_days?: number
+          p_facility_id?: string
+          p_meds_only?: boolean
+          p_page?: number
+          p_page_size?: number
+          p_search?: string
+          p_sort_dir?: string
+          p_sort_field?: string
+          p_status_filter?: string
+          p_today?: string
+          p_trainer_only?: boolean
+        }
+        Returns: Json
+      }
       get_work_item_list_summary: {
         Args: {
           p_facility_id?: string
