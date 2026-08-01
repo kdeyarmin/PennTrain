@@ -1,22 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import type { Tables } from "@/lib/database.types";
 
-/** Row shape for plan_of_correction_versions until database.types is regenerated. */
-export interface PlanOfCorrectionVersion {
-  id: string;
-  organization_id: string;
-  facility_id: string;
-  violation_id: string;
-  version_number: number;
-  submitted_at: string;
-  submitted_by_profile_id: string | null;
-  snapshot: Record<string, unknown>;
-  pdf_storage_bucket: string | null;
-  pdf_storage_path: string | null;
-  pdf_sha256: string | null;
-  amendment_reason: string | null;
-  created_at: string;
-}
+export type PlanOfCorrectionVersion = Tables<"plan_of_correction_versions">;
 
 export function useListPocVersions(violationId: string | undefined) {
   return useQuery({
@@ -49,9 +35,11 @@ export function useSubmitPlanOfCorrection() {
       violationId: string;
       amendmentReason?: string;
     }): Promise<PlanOfCorrectionVersion> => {
+      // Omitted rather than passed as null: the RPC's own `default null` is what marks a
+      // first submission, and the generated Args type only accepts a string.
       const { data, error } = await supabase.rpc("submit_plan_of_correction", {
         p_violation_id: violationId,
-        p_amendment_reason: amendmentReason ?? null,
+        ...(amendmentReason ? { p_amendment_reason: amendmentReason } : {}),
       });
       if (error) throw error;
       return data as PlanOfCorrectionVersion;

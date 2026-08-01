@@ -1,38 +1,31 @@
-/** Durable import claim loop (BACKLOG D3). Auth: service role Bearer or x-cron-secret. */
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+/** Durable import claim loop (BACKLOG D3). Auth: the shared cron secret, like the other workers. */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
+const HEADERS = withCronCorsHeader({
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Content-Type": "application/json",
+});
+
+const response = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: HEADERS });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const authError = requireCronRequest(req, HEADERS);
+  if (authError) return authError;
+
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) return response({ error: "Service credentials are missing" }, 503);
 
   try {
-    const cronSecret = Deno.env.get("CRON_SECRET") ?? Deno.env.get("IMPORT_WORKER_SECRET");
-    const headerSecret = req.headers.get("x-cron-secret");
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const isCron = Boolean(cronSecret && headerSecret && headerSecret === cronSecret);
-    const isService = Boolean(serviceKey && authHeader === `Bearer ${serviceKey}`);
-
-    if (!isCron && !isService) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const supabase = createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceKey, {
+    const supabase = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const payload = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-    const limit = Math.min(Number((payload as { limit?: number }).limit ?? 3), 10);
+    const payload = await req.json().catch(() => ({}));
+    const requested = Number((payload as { limit?: number }).limit ?? 3);
+    const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 10) : 3;
 
     const { data: claimed, error: claimErr } = await supabase.rpc("claim_data_import_jobs", {
       p_limit: limit,
@@ -43,6 +36,9 @@ Deno.serve(async (req) => {
     const jobs = (claimed ?? []) as Array<{ id: string; domain: string }>;
     const results: Array<{ jobId: string; domain: string; ok: boolean; error: string | null }> = [];
 
+    // The row-application pass still runs in the browser; this worker only takes the claim and
+    // hands it straight back, so a tab that closes mid-apply leaves the job re-claimable at
+    // 'ready' instead of stranded in 'applying' until the lease lapses.
     for (const job of jobs) {
       const { error: releaseErr } = await supabase.rpc("release_data_import_job_claim", {
         p_job_id: job.id,
@@ -57,14 +53,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, claimed: jobs.length, results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return response({ success: true, claimed: jobs.length, results });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ success: false, error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return response({ success: false, error: message }, 500);
   }
 });

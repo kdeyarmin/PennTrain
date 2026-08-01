@@ -124,7 +124,11 @@ begin
   select ca.organization_id, ca.facility_id, 'violation_corrective_action', ca.id,
     'violation_ca:' || ca.id::text, left(coalesce(ca.description, 'Corrective action'), 200),
     ca.description, case when v.severity = 'high' then 'high' else 'normal' end,
-    coalesce(ca.due_date::timestamptz, (current_date + 14)::timestamptz),
+    -- The 14-day correction clock runs on the facility's Pennsylvania day, not the server's:
+    -- after 19:00 local the database has already rolled over to tomorrow. Hence pa_today().
+    -- (Spelling the rejected builtin here would trip the prosrc scan in
+    -- pa_day_is_the_facility_day.test.sql, which reads comments too.)
+    coalesce(ca.due_date::timestamptz, (public.pa_today() + 14)::timestamptz),
     case when ca.status = 'completed' then 'closed' else 'open' end, auth.uid()
   from public.corrective_actions ca
   where ca.violation_id = p_violation_id and coalesce(ca.status, '') <> 'cancelled' and ca.work_item_id is null
@@ -214,3 +218,25 @@ $$;
 
 revoke all on function public.list_plan_of_correction_versions(uuid) from public, anon;
 grant execute on function public.list_plan_of_correction_versions(uuid) to authenticated;
+
+-- Audit classification. A submitted plan of correction is what the facility told DHS it would do
+-- about a cited violation, so each version is regulated survey evidence and carries the row
+-- trigger rather than relying on the submitting RPC to log it by hand.
+insert into app_private.audit_entity_manifest(
+  table_name, audit_mode, contains_regulated_data, rationale
+) values (
+  'plan_of_correction_versions',
+  'row_trigger',
+  true,
+  'Immutable submitted plan-of-correction snapshots (violation + corrective actions, amendment reason, signed PDF digest) are DHS survey evidence (20260801021000)'
+)
+on conflict (table_name) do update set
+  audit_mode = excluded.audit_mode,
+  contains_regulated_data = excluded.contains_regulated_data,
+  rationale = excluded.rationale,
+  updated_at = now();
+
+drop trigger if exists plan_of_correction_versions_audit on public.plan_of_correction_versions;
+create trigger plan_of_correction_versions_audit
+after insert or update or delete on public.plan_of_correction_versions
+for each row execute function public.audit_log_trigger();
