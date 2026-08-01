@@ -170,7 +170,17 @@ function isSupportedDurableDomain(domain: string): domain is typeof DURABLE_IMPO
 }
 
 function getPendingDurableReason(domain: string): string | null {
-  if (domain === "incidents" && PENDING_DURABLE_DOMAINS.has(domain)) {
+  if (!PENDING_DURABLE_DOMAINS.has(domain)) return null;
+  if (domain === "rooms") {
+    return "create_room_with_beds requires authenticated caller (assert_admission_manager); durable service-role path cannot call it without a schema change";
+  }
+  if (domain === "credentials") {
+    return "save_employee_credential requires auth.uid/current_org; durable service-role path cannot call it without a schema change";
+  }
+  if (domain === "training_records") {
+    return "save_training_record requires auth.uid/current_org; durable service-role path cannot call it without a schema change";
+  }
+  if (domain === "incidents") {
     return "Durable apply for incidents is pending: create_incident_atomic requires auth.uid(); durable service-role path cannot call it without a schema change.";
   }
   return null;
@@ -1301,14 +1311,8 @@ Deno.serve(async (req) => {
       try {
         const workerResult = job.domain === "employees"
           ? await processEmployeeJob(supabase, job)
-          : job.domain === "rooms"
-          ? await processRoomJob(supabase, job)
-          : job.domain === "credentials"
-          ? await processCredentialJob(supabase, job)
           : job.domain === "residents"
           ? await processResidentJob(supabase, job)
-          : job.domain === "training_records"
-          ? await processTrainingRecordJob(supabase, job)
           : job.domain === "resident_contacts"
           ? await processResidentContactJob(supabase, job)
           : job.domain === "assessments"

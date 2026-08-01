@@ -11,17 +11,19 @@ import {
 Deno.test("durable import domains include all ledger-backed processors", () => {
   assertEquals(DURABLE_IMPORT_DOMAINS, [
     "employees",
-    "rooms",
-    "credentials",
     "residents",
-    "training_records",
     "resident_contacts",
     "assessments",
   ]);
 });
 
-Deno.test("pending durable domains include incidents auth.uid barrier path", () => {
-  assertEquals(Array.from(PENDING_DURABLE_DOMAINS), ["incidents"]);
+Deno.test("pending durable domains include auth.uid barrier paths", () => {
+  assertEquals(Array.from(PENDING_DURABLE_DOMAINS), [
+    "rooms",
+    "credentials",
+    "training_records",
+    "incidents",
+  ]);
 });
 
 Deno.test("buildTrainingRecordPayload normalizes optional fields", () => {
