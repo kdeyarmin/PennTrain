@@ -6,8 +6,11 @@ export const DURABLE_IMPORT_DOMAINS = [
   "training_records",
   "resident_contacts",
   "assessments",
-  "incidents",
 ] as const;
+
+export const PENDING_DURABLE_DOMAINS = new Set([
+  "incidents",
+]);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};

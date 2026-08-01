@@ -8,6 +8,7 @@ import {
   buildResidentContactPayload,
   buildTrainingRecordPayload,
   DURABLE_IMPORT_DOMAINS,
+  PENDING_DURABLE_DOMAINS,
 } from "./helpers.ts";
 
 const HEADERS = withCronCorsHeader({
@@ -166,6 +167,13 @@ function buildResidentPayload(normalizedRow: unknown, organizationId: string) {
 
 function isSupportedDurableDomain(domain: string): domain is typeof DURABLE_IMPORT_DOMAINS[number] {
   return DURABLE_IMPORT_DOMAINS.includes(domain as typeof DURABLE_IMPORT_DOMAINS[number]);
+}
+
+function getPendingDurableReason(domain: string): string | null {
+  if (domain === "incidents" && PENDING_DURABLE_DOMAINS.has(domain)) {
+    return "Durable apply for incidents is pending: create_incident_atomic requires auth.uid(); durable service-role path cannot call it without a schema change.";
+  }
+  return null;
 }
 
 async function recountAndPersistJobCounters(
@@ -1230,6 +1238,23 @@ Deno.serve(async (req) => {
     }> = [];
 
     for (const job of jobs) {
+      const pendingReason = getPendingDurableReason(job.domain);
+      if (pendingReason) {
+        const { error: releaseErr } = await supabase.rpc("release_data_import_job_claim", {
+          p_job_id: job.id,
+          p_status: "ready",
+          p_last_error: pendingReason,
+        });
+        results.push({
+          jobId: job.id,
+          domain: job.domain,
+          ok: !releaseErr,
+          releasedTo: "ready",
+          error: releaseErr?.message ?? pendingReason,
+        });
+        continue;
+      }
+
       if (!isSupportedDurableDomain(job.domain)) {
         const { error: releaseErr } = await supabase.rpc("release_data_import_job_claim", {
           p_job_id: job.id,
@@ -1261,7 +1286,9 @@ Deno.serve(async (req) => {
           ? await processResidentContactJob(supabase, job)
           : job.domain === "assessments"
           ? await processAssessmentJob(supabase, job)
-          : await processIncidentJob(supabase, job);
+          : (() => {
+            throw new Error(`Unsupported durable import domain: ${job.domain}`);
+          })();
         results.push({
           jobId: job.id,
           domain: job.domain,
