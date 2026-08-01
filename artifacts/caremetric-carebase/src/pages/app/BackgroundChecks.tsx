@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { facilityDaysUntil } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +62,7 @@ interface ProfileFormData {
 }
 
 export default function BackgroundChecks() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const [facilityFilter, setFacilityFilter] = useState("all");
@@ -214,9 +215,9 @@ export default function BackgroundChecks() {
           {form && (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">PA resident for the preceding 2 years?</Label>
+                <Label htmlFor={`${__fieldIds}-pa-resident-for-the-preceding-2-years`} className="text-[13px]">PA resident for the preceding 2 years?</Label>
                 <Select value={form.paResidentTwoYears} onValueChange={(v) => field("paResidentTwoYears", v)}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-pa-resident-for-the-preceding-2-years`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unknown">Not yet determined</SelectItem>
                     <SelectItem value="yes">Yes</SelectItem>
@@ -229,8 +230,8 @@ export default function BackgroundChecks() {
               </div>
 
               <div className="space-y-1.5 pt-2 border-t">
-                <Label className="text-[13px]">Provisional employment start date</Label>
-                <Input type="date" value={form.provisionalStartDate} onChange={(e) => field("provisionalStartDate", e.target.value)} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-provisional-employment-start-date`} className="text-[13px]">Provisional employment start date</Label>
+                <Input id={`${__fieldIds}-provisional-employment-start-date`} type="date" value={form.provisionalStartDate} onChange={(e) => field("provisionalStartDate", e.target.value)} className="h-9" />
                 <p className="text-xs text-muted-foreground">
                   Countdown defaults to {orgSettings?.oapsa_provisional_days_resident ?? 30} days (PA resident) / {orgSettings?.oapsa_provisional_days_nonresident ?? 90} days
                   (non-resident), based on OAPSA (6 Pa Code Sec 15.146) and the parallel PA Code provisions for personal care homes -- confirm the applicable figure with your own regulatory counsel.
@@ -245,14 +246,14 @@ export default function BackgroundChecks() {
                 Regular/random direct supervision during the provisional period is documented.
               </label>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Supervision notes</Label>
-                <Textarea value={form.supervisionNotes} onChange={(e) => field("supervisionNotes", e.target.value)} rows={2} />
+                <Label htmlFor={`${__fieldIds}-supervision-notes`} className="text-[13px]">Supervision notes</Label>
+                <Textarea id={`${__fieldIds}-supervision-notes`} value={form.supervisionNotes} onChange={(e) => field("supervisionNotes", e.target.value)} rows={2} />
               </div>
 
               <div className="space-y-1.5 pt-2 border-t">
-                <Label className="text-[13px]">Suitability determination</Label>
+                <Label htmlFor={`${__fieldIds}-suitability-determination`} className="text-[13px]">Suitability determination</Label>
                 <Select value={form.suitabilityDetermination} onValueChange={(v) => field("suitabilityDetermination", v as ProfileFormData["suitabilityDetermination"])}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-suitability-determination`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(SUITABILITY_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
                   </SelectContent>
@@ -260,13 +261,13 @@ export default function BackgroundChecks() {
               </div>
               {form.suitabilityDetermination === "suitable_with_conditions" && (
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Conditions</Label>
-                  <Textarea value={form.suitabilityConditions} onChange={(e) => field("suitabilityConditions", e.target.value)} rows={2} />
+                  <Label htmlFor={`${__fieldIds}-conditions`} className="text-[13px]">Conditions</Label>
+                  <Textarea id={`${__fieldIds}-conditions`} value={form.suitabilityConditions} onChange={(e) => field("suitabilityConditions", e.target.value)} rows={2} />
                 </div>
               )}
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Determination notes</Label>
-                <Textarea value={form.suitabilityNotes} onChange={(e) => field("suitabilityNotes", e.target.value)} rows={3} />
+                <Label htmlFor={`${__fieldIds}-determination-notes`} className="text-[13px]">Determination notes</Label>
+                <Textarea id={`${__fieldIds}-determination-notes`} value={form.suitabilityNotes} onChange={(e) => field("suitabilityNotes", e.target.value)} rows={3} />
               </div>
             </div>
           )}

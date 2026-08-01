@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from "react";
+import { useId, lazy, Suspense, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetIncident, useUpdateIncident,
@@ -64,6 +64,7 @@ function NotificationStatusBadge({ status }: { status: string }) {
 }
 
 export default function IncidentDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -294,16 +295,16 @@ export default function IncidentDetail() {
           <CardHeader><CardTitle>Investigation</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Findings</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-findings`} className="text-[13px]">Findings</Label>
+              <Textarea id={`${__fieldIds}-findings`}
                 defaultValue={incident.investigation_findings ?? ""}
                 onBlur={(e) => { if (e.target.value !== (incident.investigation_findings ?? "")) updateIncident({ id: incident.id, investigation_findings: e.target.value || null }); }}
                 placeholder="Investigation findings"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Root Cause</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-root-cause`} className="text-[13px]">Root Cause</Label>
+              <Textarea id={`${__fieldIds}-root-cause`}
                 defaultValue={incident.root_cause ?? ""}
                 onBlur={(e) => { if (e.target.value !== (incident.root_cause ?? "")) updateIncident({ id: incident.id, root_cause: e.target.value || null }); }}
                 placeholder="Root cause analysis"

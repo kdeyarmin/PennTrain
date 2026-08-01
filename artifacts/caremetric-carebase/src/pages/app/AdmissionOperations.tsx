@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   BedDouble,
@@ -99,6 +99,7 @@ function ProspectDialog({
   facilityId: string;
   sources: { id: string; name: string }[];
 }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const create = useCreateAdmissionProspect();
   const [firstName, setFirstName] = useState("");
@@ -144,23 +145,23 @@ function ProspectDialog({
           <DialogDescription>Create a pre-admission record without adding the person to active census.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1"><Label>First name *</Label><Input value={firstName} onChange={event => setFirstName(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Last name *</Label><Input value={lastName} onChange={event => setLastName(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Date of birth</Label><Input type="date" value={dateOfBirth} onChange={event => setDateOfBirth(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Expected move-in</Label><Input type="date" value={expectedDate} onChange={event => setExpectedDate(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Phone</Label><Input value={phone} onChange={event => setPhone(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Email</Label><Input type="email" value={email} onChange={event => setEmail(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-first-name`}>First name *</Label><Input id={`${__fieldIds}-first-name`} value={firstName} onChange={event => setFirstName(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-last-name`}>Last name *</Label><Input id={`${__fieldIds}-last-name`} value={lastName} onChange={event => setLastName(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-date-of-birth`}>Date of birth</Label><Input id={`${__fieldIds}-date-of-birth`} type="date" value={dateOfBirth} onChange={event => setDateOfBirth(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-expected-move-in`}>Expected move-in</Label><Input id={`${__fieldIds}-expected-move-in`} type="date" value={expectedDate} onChange={event => setExpectedDate(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-phone`}>Phone</Label><Input id={`${__fieldIds}-phone`} value={phone} onChange={event => setPhone(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-email`}>Email</Label><Input id={`${__fieldIds}-email`} type="email" value={email} onChange={event => setEmail(event.target.value)} /></div>
           <div className="space-y-1 sm:col-span-2">
-            <Label>Referral source</Label>
+            <Label htmlFor={`${__fieldIds}-referral-source`}>Referral source</Label>
             <Select value={sourceId} onValueChange={setSourceId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-referral-source`}><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="none">Direct inquiry / not specified</SelectItem>{sources.map(source => <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-1"><Label>Primary contact</Label><Input value={contactName} onChange={event => setContactName(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Relationship</Label><Input value={contactRelationship} onChange={event => setContactRelationship(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Contact phone</Label><Input value={contactPhone} onChange={event => setContactPhone(event.target.value)} /></div>
-          <div className="space-y-1 sm:col-span-2"><Label>Notes</Label><Textarea value={notes} onChange={event => setNotes(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-primary-contact`}>Primary contact</Label><Input id={`${__fieldIds}-primary-contact`} value={contactName} onChange={event => setContactName(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-relationship`}>Relationship</Label><Input id={`${__fieldIds}-relationship`} value={contactRelationship} onChange={event => setContactRelationship(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-contact-phone`}>Contact phone</Label><Input id={`${__fieldIds}-contact-phone`} value={contactPhone} onChange={event => setContactPhone(event.target.value)} /></div>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-notes`}>Notes</Label><Textarea id={`${__fieldIds}-notes`} value={notes} onChange={event => setNotes(event.target.value)} /></div>
         </div>
         <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!firstName.trim() || !lastName.trim() || !facilityId || create.isPending} onClick={submit}>{create.isPending ? "Adding..." : "Add prospect"}</Button></DialogFooter>
       </DialogContent>
@@ -177,6 +178,7 @@ function ProspectReviewDialog({
   availableBeds: FacilityBedWithRelations[];
   onClose: () => void;
 }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const update = useUpdateAdmissionProspect();
   const activity = useRecordAdmissionActivity();
@@ -217,13 +219,13 @@ function ProspectReviewDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{prospect?.first_name} {prospect?.last_name}</DialogTitle><DialogDescription>Clinical, financial, tour, room reservation, and move-in decisions.</DialogDescription></DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1"><Label>Pipeline stage</Label><Select value={stage} onValueChange={setStage}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{STAGES.filter(value => value !== "admitted").map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1"><Label>Expected move-in</Label><Input type="date" value={expectedDate} onChange={event => setExpectedDate(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Clinical review</Label><Select value={clinical} onValueChange={setClinical}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1"><Label>Financial review</Label><Select value={financial} onValueChange={setFinancial}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1 sm:col-span-2"><Label>Decision reason</Label><Input value={reason} onChange={event => setReason(event.target.value)} /></div>
-          {isLostStage && <div className="space-y-1 sm:col-span-2"><Label>Lost / declined reason</Label><Select value={lostReason} onValueChange={setLostReason}><SelectTrigger><SelectValue placeholder="Select a standard reason" /></SelectTrigger><SelectContent>{LOST_REASONS.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>}
-          <div className="space-y-1 sm:col-span-2"><Label>Notes</Label><Textarea value={notes} onChange={event => setNotes(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-pipeline-stage`}>Pipeline stage</Label><Select value={stage} onValueChange={setStage}><SelectTrigger id={`${__fieldIds}-pipeline-stage`}><SelectValue /></SelectTrigger><SelectContent>{STAGES.filter(value => value !== "admitted").map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-expected-move-in-2`}>Expected move-in</Label><Input id={`${__fieldIds}-expected-move-in-2`} type="date" value={expectedDate} onChange={event => setExpectedDate(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-clinical-review`}>Clinical review</Label><Select value={clinical} onValueChange={setClinical}><SelectTrigger id={`${__fieldIds}-clinical-review`}><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-financial-review`}>Financial review</Label><Select value={financial} onValueChange={setFinancial}><SelectTrigger id={`${__fieldIds}-financial-review`}><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-decision-reason`}>Decision reason</Label><Input id={`${__fieldIds}-decision-reason`} value={reason} onChange={event => setReason(event.target.value)} /></div>
+          {isLostStage && <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-lost-declined-reason`}>Lost / declined reason</Label><Select value={lostReason} onValueChange={setLostReason}><SelectTrigger id={`${__fieldIds}-lost-declined-reason`}><SelectValue placeholder="Select a standard reason" /></SelectTrigger><SelectContent>{LOST_REASONS.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>}
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-notes-2`}>Notes</Label><Textarea id={`${__fieldIds}-notes-2`} value={notes} onChange={event => setNotes(event.target.value)} /></div>
         </div>
         <Button onClick={saveReview} disabled={update.isPending}>{update.isPending ? "Saving..." : "Save review"}</Button>
 
@@ -234,7 +236,7 @@ function ProspectReviewDialog({
             <Input value={activityNotes} onChange={event => setActivityNotes(event.target.value)} placeholder="Outcome or notes" />
             <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate ? new Date(activityDate).toISOString() : undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); } })}>Add activity</Button>
           </div>
-          {activityType.startsWith("tour") && <div className="space-y-1"><Label className="text-xs text-muted-foreground">Tour date &amp; time</Label><Input type="datetime-local" value={activityDate} onChange={event => setActivityDate(event.target.value)} className="w-full sm:w-72" /></div>}
+          {activityType.startsWith("tour") && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-tour-date-amp-time`} className="text-xs text-muted-foreground">Tour date &amp; time</Label><Input id={`${__fieldIds}-tour-date-amp-time`} type="datetime-local" value={activityDate} onChange={event => setActivityDate(event.target.value)} className="w-full sm:w-72" /></div>}
         </div>
 
         {["approved", "waitlisted", "reserved"].includes(prospect?.stage ?? "") && (
@@ -255,6 +257,7 @@ function ProspectReviewDialog({
 }
 
 function RoomDialog({ open, onClose, facilityId }: { open: boolean; onClose: () => void; facilityId: string }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const create = useCreateRoomWithBeds();
   const [building, setBuilding] = useState("Main Building");
@@ -269,13 +272,13 @@ function RoomDialog({ open, onClose, facilityId }: { open: boolean; onClose: () 
       <DialogContent>
         <DialogHeader><DialogTitle>Add room and beds</DialogTitle><DialogDescription>Residential inventory is separate from scheduling units.</DialogDescription></DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1"><Label>Building *</Label><Input value={building} onChange={event => setBuilding(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Residential unit</Label><Input value={unit} onChange={event => setUnit(event.target.value)} placeholder="e.g. First Floor" /></div>
-          <div className="space-y-1"><Label>Room number *</Label><Input value={room} onChange={event => setRoom(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Room type</Label><Select value={roomType} onValueChange={setRoomType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["private", "semi_private", "shared", "suite", "studio", "other"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1"><Label>Bed count</Label><Input type="number" min={1} max={8} value={beds} onChange={event => setBeds(event.target.value)} /></div>
-          <div className="space-y-1"><Label>Compatibility restriction</Label><Select value={restriction} onValueChange={setRestriction}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["none", "female", "male", "compatibility_review"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1 sm:col-span-2"><Label>Building licensed capacity</Label><Input type="number" min={0} value={capacity} onChange={event => setCapacity(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-building`}>Building *</Label><Input id={`${__fieldIds}-building`} value={building} onChange={event => setBuilding(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-residential-unit`}>Residential unit</Label><Input id={`${__fieldIds}-residential-unit`} value={unit} onChange={event => setUnit(event.target.value)} placeholder="e.g. First Floor" /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-room-number`}>Room number *</Label><Input id={`${__fieldIds}-room-number`} value={room} onChange={event => setRoom(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-room-type`}>Room type</Label><Select value={roomType} onValueChange={setRoomType}><SelectTrigger id={`${__fieldIds}-room-type`}><SelectValue /></SelectTrigger><SelectContent>{["private", "semi_private", "shared", "suite", "studio", "other"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-bed-count`}>Bed count</Label><Input id={`${__fieldIds}-bed-count`} type="number" min={1} max={8} value={beds} onChange={event => setBeds(event.target.value)} /></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-compatibility-restriction`}>Compatibility restriction</Label><Select value={restriction} onValueChange={setRestriction}><SelectTrigger id={`${__fieldIds}-compatibility-restriction`}><SelectValue /></SelectTrigger><SelectContent>{["none", "female", "male", "compatibility_review"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-building-licensed-capacity`}>Building licensed capacity</Label><Input id={`${__fieldIds}-building-licensed-capacity`} type="number" min={0} value={capacity} onChange={event => setCapacity(event.target.value)} /></div>
         </div>
         <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!facilityId || !building.trim() || !room.trim() || create.isPending} onClick={() => create.mutate({ facilityId, buildingName: building, unitName: unit, roomNumber: room, roomType, bedCount: Number(beds), genderRestriction: restriction, licensedCapacity: capacity ? Number(capacity) : null }, { onSuccess: () => { toast({ title: "Room inventory added" }); onClose(); }, onError: (error: Error) => toast({ title: "Couldn't add room", description: error.message, variant: "destructive" }) })}>Add room</Button></DialogFooter>
       </DialogContent>
@@ -378,7 +381,7 @@ export default function AdmissionOperations() {
               )}
               {canManage && organizationId && (
                 <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4">
-                  <div className="space-y-1"><Label className="text-xs">Quick-add referral source</Label><Input id="quick-referral-source" placeholder="e.g. Regional Hospital" className="w-64" /></div>
+                  <div className="space-y-1"><Label htmlFor="quick-referral-source" className="text-xs">Quick-add referral source</Label><Input id="quick-referral-source" placeholder="e.g. Regional Hospital" className="w-64" /></div>
                   <Button variant="outline" onClick={() => { const input = document.getElementById("quick-referral-source") as HTMLInputElement | null; if (!input?.value.trim()) return; createSource.mutate({ organizationId, name: input.value.trim(), sourceType: "other" }, { onSuccess: () => { toast({ title: "Referral source added" }); input.value = ""; } }); }}>Add source</Button>
                 </div>
               )}

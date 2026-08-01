@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   AlertTriangle,
@@ -64,6 +64,7 @@ const localDateTime = () => {
 type DialogName = "plan" | "event" | "profile" | "resource" | "inventory" | "assignment" | null;
 
 export default function EmergencyOperations() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
@@ -483,13 +484,13 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "plan"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Approve a new emergency plan version</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1"><Label>Plan title</Label><Input value={planTitle} onChange={(event) => setPlanTitle(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Effective date</Label><Input type="date" value={planEffectiveDate} onChange={(event) => setPlanEffectiveDate(event.target.value)} /></div>
-            <div className="space-y-1 sm:col-span-2"><Label>Change summary</Label><Textarea value={planSummary} onChange={(event) => setPlanSummary(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Evacuation procedure</Label><Textarea value={evacuationProcedure} onChange={(event) => setEvacuationProcedure(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Accountability procedure</Label><Textarea value={accountabilityProcedure} onChange={(event) => setAccountabilityProcedure(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Family/designated-person notification</Label><Textarea value={notificationProcedure} onChange={(event) => setNotificationProcedure(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Utilities, transportation & medication continuity</Label><Textarea value={continuityProcedure} onChange={(event) => setContinuityProcedure(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-plan-title`}>Plan title</Label><Input id={`${__fieldIds}-plan-title`} value={planTitle} onChange={(event) => setPlanTitle(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-effective-date`}>Effective date</Label><Input id={`${__fieldIds}-effective-date`} type="date" value={planEffectiveDate} onChange={(event) => setPlanEffectiveDate(event.target.value)} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-change-summary`}>Change summary</Label><Textarea id={`${__fieldIds}-change-summary`} value={planSummary} onChange={(event) => setPlanSummary(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-evacuation-procedure`}>Evacuation procedure</Label><Textarea id={`${__fieldIds}-evacuation-procedure`} value={evacuationProcedure} onChange={(event) => setEvacuationProcedure(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-accountability-procedure`}>Accountability procedure</Label><Textarea id={`${__fieldIds}-accountability-procedure`} value={accountabilityProcedure} onChange={(event) => setAccountabilityProcedure(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-family-designated-person-notification`}>Family/designated-person notification</Label><Textarea id={`${__fieldIds}-family-designated-person-notification`} value={notificationProcedure} onChange={(event) => setNotificationProcedure(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-utilities-transportation-medication-cont`}>Utilities, transportation & medication continuity</Label><Textarea id={`${__fieldIds}-utilities-transportation-medication-cont`} value={continuityProcedure} onChange={(event) => setContinuityProcedure(event.target.value)} /></div>
           </div>
           <DialogFooter><Button onClick={submitPlan} disabled={!planSummary || publishPlan.isPending}>Approve version</Button></DialogFooter>
         </DialogContent>
@@ -500,11 +501,11 @@ export default function EmergencyOperations() {
           <div className="grid gap-3 sm:grid-cols-2">
             <Select value={eventMode} onValueChange={setEventMode}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="drill">Drill</SelectItem><SelectItem value="actual">Actual event</SelectItem></SelectContent></Select>
             <Select value={eventType} onValueChange={setEventType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["fire","severe_weather","power_outage","water_outage","hvac_outage","evacuation","shelter_in_place","missing_person","infectious_disease","transportation_disruption","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
-            <div className="space-y-1"><Label>Started at</Label><Input type="datetime-local" value={eventStartedAt} onChange={(event) => setEventStartedAt(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Incident commander</Label><Select value={commanderId} onValueChange={setCommanderId}><SelectTrigger><SelectValue placeholder="Select commander" /></SelectTrigger><SelectContent>{profiles.data?.filter((profile) => profile.is_active).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1 sm:col-span-2"><Label>Situation summary</Label><Textarea value={eventSummary} onChange={(event) => setEventSummary(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Location</Label><Input value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Assembly point</Label><Input value={assemblyPoint} onChange={(event) => setAssemblyPoint(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-started-at`}>Started at</Label><Input id={`${__fieldIds}-started-at`} type="datetime-local" value={eventStartedAt} onChange={(event) => setEventStartedAt(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-incident-commander`}>Incident commander</Label><Select value={commanderId} onValueChange={setCommanderId}><SelectTrigger id={`${__fieldIds}-incident-commander`}><SelectValue placeholder="Select commander" /></SelectTrigger><SelectContent>{profiles.data?.filter((profile) => profile.is_active).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-situation-summary`}>Situation summary</Label><Textarea id={`${__fieldIds}-situation-summary`} value={eventSummary} onChange={(event) => setEventSummary(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-location`}>Location</Label><Input id={`${__fieldIds}-location`} value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-assembly-point`}>Assembly point</Label><Input id={`${__fieldIds}-assembly-point`} value={assemblyPoint} onChange={(event) => setAssemblyPoint(event.target.value)} /></div>
           </div>
           <p className="text-xs text-muted-foreground">Activation snapshots all active residents, their assistance profiles, scheduled staff, and standing emergency assignments.</p>
           <DialogFooter><Button onClick={submitEvent} disabled={!eventSummary || startEvent.isPending}>Activate command</Button></DialogFooter>
@@ -514,14 +515,14 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "profile"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Resident evacuation-assistance profile</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1"><Label>Assistance level</Label><Select value={assistanceLevel} onValueChange={setAssistanceLevel}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["independent","cueing","one_person","two_person","full_assistance"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1"><Label>Mobility needs</Label><Input value={mobilityNeeds} onChange={(event) => setMobilityNeeds(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Transportation needs</Label><Input value={transportationNeeds} onChange={(event) => setTransportationNeeds(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Evacuation method</Label><Input value={evacuationMethod} onChange={(event) => setEvacuationMethod(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Required equipment</Label><Input value={requiredEquipment} onChange={(event) => setRequiredEquipment(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Communication needs</Label><Input value={communicationNeeds} onChange={(event) => setCommunicationNeeds(event.target.value)} /></div>
-            <div className="space-y-1 sm:col-span-2"><Label>Preferred relocation / transportation notes</Label><Textarea value={relocationNotes} onChange={(event) => setRelocationNotes(event.target.value)} /></div>
-            <div className="space-y-1 sm:col-span-2"><Label>Review notes</Label><Textarea value={profileNotes} onChange={(event) => setProfileNotes(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-assistance-level`}>Assistance level</Label><Select value={assistanceLevel} onValueChange={setAssistanceLevel}><SelectTrigger id={`${__fieldIds}-assistance-level`}><SelectValue /></SelectTrigger><SelectContent>{["independent","cueing","one_person","two_person","full_assistance"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-mobility-needs`}>Mobility needs</Label><Input id={`${__fieldIds}-mobility-needs`} value={mobilityNeeds} onChange={(event) => setMobilityNeeds(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-transportation-needs`}>Transportation needs</Label><Input id={`${__fieldIds}-transportation-needs`} value={transportationNeeds} onChange={(event) => setTransportationNeeds(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-evacuation-method`}>Evacuation method</Label><Input id={`${__fieldIds}-evacuation-method`} value={evacuationMethod} onChange={(event) => setEvacuationMethod(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-required-equipment`}>Required equipment</Label><Input id={`${__fieldIds}-required-equipment`} value={requiredEquipment} onChange={(event) => setRequiredEquipment(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-communication-needs`}>Communication needs</Label><Input id={`${__fieldIds}-communication-needs`} value={communicationNeeds} onChange={(event) => setCommunicationNeeds(event.target.value)} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-preferred-relocation-transportation-note`}>Preferred relocation / transportation notes</Label><Textarea id={`${__fieldIds}-preferred-relocation-transportation-note`} value={relocationNotes} onChange={(event) => setRelocationNotes(event.target.value)} /></div>
+            <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-review-notes`}>Review notes</Label><Textarea id={`${__fieldIds}-review-notes`} value={profileNotes} onChange={(event) => setProfileNotes(event.target.value)} /></div>
           </div>
           <DialogFooter><Button onClick={submitProfile} disabled={upsertProfile.isPending}>Save reviewed profile</Button></DialogFooter>
         </DialogContent>

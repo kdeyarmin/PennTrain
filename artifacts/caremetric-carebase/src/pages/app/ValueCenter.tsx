@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Activity,
@@ -194,6 +194,7 @@ function ImplementationTaskCard({
     note?: string;
   }) => Promise<void>;
 }) {
+  const __fieldIds = useId();
   const [status, setStatus] = useState(task.status);
   const [ownerId, setOwnerId] = useState(task.owner_profile_id ?? "unassigned");
   const [dueOn, setDueOn] = useState(task.due_date ?? "");
@@ -229,9 +230,9 @@ function ImplementationTaskCard({
       </CardHeader>
       <CardContent className="grid gap-3 lg:grid-cols-[180px_220px_160px_1fr_auto] lg:items-end">
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label htmlFor={`${__fieldIds}-status`}>Status</Label>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger>
             <SelectContent>
               {IMPLEMENTATION_STATUSES.map(value => (
                 <SelectItem key={value} value={value}>{human(value)}</SelectItem>
@@ -240,9 +241,9 @@ function ImplementationTaskCard({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Owner</Label>
+          <Label htmlFor={`${__fieldIds}-owner`}>Owner</Label>
           <Select value={ownerId} onValueChange={setOwnerId}>
-            <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-owner`}><SelectValue placeholder="Unassigned" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="unassigned">Unassigned</SelectItem>
               {profiles.map(profile => (
@@ -254,12 +255,12 @@ function ImplementationTaskCard({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Due date</Label>
-          <Input type="date" value={dueOn} onChange={event => setDueOn(event.target.value)} />
+          <Label htmlFor={`${__fieldIds}-due-date`}>Due date</Label>
+          <Input id={`${__fieldIds}-due-date`} type="date" value={dueOn} onChange={event => setDueOn(event.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>Validation or blocker note</Label>
-          <Input
+          <Label htmlFor={`${__fieldIds}-validation-or-blocker-note`}>Validation or blocker note</Label>
+          <Input id={`${__fieldIds}-validation-or-blocker-note`}
             value={note}
             onChange={event => setNote(event.target.value)}
             placeholder="What proves completion, or what is blocking it?"
@@ -284,6 +285,7 @@ function ImplementationTaskCard({
 }
 
 export default function ValueCenter() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const organizationId = user?.organizationId ?? undefined;
@@ -534,13 +536,13 @@ export default function ValueCenter() {
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-6">
               <div className="space-y-2 md:col-span-2">
-                <Label>Rule name</Label>
-                <Input value={automationName} onChange={event => setAutomationName(event.target.value)} />
+                <Label htmlFor={`${__fieldIds}-rule-name`}>Rule name</Label>
+                <Input id={`${__fieldIds}-rule-name`} value={automationName} onChange={event => setAutomationName(event.target.value)} />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Trigger</Label>
+                <Label htmlFor={`${__fieldIds}-trigger`}>Trigger</Label>
                 <Select value={automationTrigger} onValueChange={setAutomationTrigger}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-trigger`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {AUTOMATION_TRIGGERS.map(item => (
                       <SelectItem key={item} value={item}>{human(item)}</SelectItem>
@@ -549,12 +551,12 @@ export default function ValueCenter() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Priority</Label>
+                <Label htmlFor={`${__fieldIds}-priority`}>Priority</Label>
                 <Select
                   value={automationPriority}
                   onValueChange={item => setAutomationPriority(item as typeof automationPriority)}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-priority`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["normal", "high", "urgent"].map(item => (
                       <SelectItem key={item} value={item}>{human(item)}</SelectItem>
@@ -563,8 +565,8 @@ export default function ValueCenter() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Due in days</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-due-in-days`}>Due in days</Label>
+                <Input id={`${__fieldIds}-due-in-days`}
                   type="number"
                   min={0}
                   max={365}
@@ -573,13 +575,13 @@ export default function ValueCenter() {
                 />
               </div>
               <div className="space-y-2 md:col-span-4">
-                <Label>Description</Label>
-                <Textarea value={automationDescription} onChange={event => setAutomationDescription(event.target.value)} />
+                <Label htmlFor={`${__fieldIds}-description`}>Description</Label>
+                <Textarea id={`${__fieldIds}-description`} value={automationDescription} onChange={event => setAutomationDescription(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Initial state</Label>
+                <Label htmlFor={`${__fieldIds}-initial-state`}>Initial state</Label>
                 <Select value={automationState} onValueChange={item => setAutomationState(item as typeof automationState)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-initial-state`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft for review</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
@@ -693,8 +695,8 @@ export default function ValueCenter() {
             </CardHeader>
             <CardContent className="flex flex-wrap items-end gap-3">
               <div className="min-w-72 flex-1 space-y-2">
-                <Label>Room name</Label>
-                <Input value={warRoomName} onChange={event => setWarRoomName(event.target.value)} />
+                <Label htmlFor={`${__fieldIds}-room-name`}>Room name</Label>
+                <Input id={`${__fieldIds}-room-name`} value={warRoomName} onChange={event => setWarRoomName(event.target.value)} />
               </div>
               <Button
                 disabled={!facilityId || warRoomName.trim().length < 3 || createWarRoom.isPending}
@@ -776,8 +778,8 @@ export default function ValueCenter() {
               </CardHeader>
               <CardContent className="flex flex-wrap items-end gap-3">
                 <div className="min-w-72 flex-1 space-y-2">
-                  <Label>Project name</Label>
-                  <Input value={projectName} onChange={event => setProjectName(event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-project-name`}>Project name</Label>
+                  <Input id={`${__fieldIds}-project-name`} value={projectName} onChange={event => setProjectName(event.target.value)} />
                 </div>
                 <Button
                   disabled={projectName.trim().length < 3 || initializeProject.isPending}
@@ -958,36 +960,36 @@ export default function ValueCenter() {
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Hourly admin cost</Label>
-                  <Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.hourlyCost} onChange={event => setBaselineField("hourlyCost", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-hourly-admin-cost`}>Hourly admin cost</Label>
+                  <Input id={`${__fieldIds}-hourly-admin-cost`} type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.hourlyCost} onChange={event => setBaselineField("hourlyCost", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Annual retired-software cost</Label>
-                  <Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.softwareCost} onChange={event => setBaselineField("softwareCost", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-annual-retired-software-cost`}>Annual retired-software cost</Label>
+                  <Input id={`${__fieldIds}-annual-retired-software-cost`} type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.softwareCost} onChange={event => setBaselineField("softwareCost", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Minutes saved per report export</Label>
-                  <Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.reportMinutes} onChange={event => setBaselineField("reportMinutes", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-minutes-saved-per-report-export`}>Minutes saved per report export</Label>
+                  <Input id={`${__fieldIds}-minutes-saved-per-report-export`} type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.reportMinutes} onChange={event => setBaselineField("reportMinutes", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Minutes saved per mock inspection</Label>
-                  <Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.inspectionMinutes} onChange={event => setBaselineField("inspectionMinutes", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-minutes-saved-per-mock-inspection`}>Minutes saved per mock inspection</Label>
+                  <Input id={`${__fieldIds}-minutes-saved-per-mock-inspection`} type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.inspectionMinutes} onChange={event => setBaselineField("inspectionMinutes", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Admin minutes saved per course completion</Label>
-                  <Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.courseMinutes} onChange={event => setBaselineField("courseMinutes", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-admin-minutes-saved-per-course-completio`}>Admin minutes saved per course completion</Label>
+                  <Input id={`${__fieldIds}-admin-minutes-saved-per-course-completio`} type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.courseMinutes} onChange={event => setBaselineField("courseMinutes", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Minutes saved per closed work item</Label>
-                  <Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.workItemMinutes} onChange={event => setBaselineField("workItemMinutes", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-minutes-saved-per-closed-work-item`}>Minutes saved per closed work item</Label>
+                  <Input id={`${__fieldIds}-minutes-saved-per-closed-work-item`} type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.workItemMinutes} onChange={event => setBaselineField("workItemMinutes", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Minutes saved per portal message</Label>
-                  <Input type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.portalMinutes} onChange={event => setBaselineField("portalMinutes", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-minutes-saved-per-portal-message`}>Minutes saved per portal message</Label>
+                  <Input id={`${__fieldIds}-minutes-saved-per-portal-message`} type="number" min="0" step="0.01" disabled={!baselineReady} value={baselineForm.portalMinutes} onChange={event => setBaselineField("portalMinutes", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Systems replaced (comma separated)</Label>
-                  <Input disabled={!baselineReady} value={baselineForm.replacedSystems} onChange={event => setBaselineField("replacedSystems", event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-systems-replaced-comma-separated`}>Systems replaced (comma separated)</Label>
+                  <Input id={`${__fieldIds}-systems-replaced-comma-separated`} disabled={!baselineReady} value={baselineForm.replacedSystems} onChange={event => setBaselineField("replacedSystems", event.target.value)} />
                 </div>
                 <div className="flex flex-wrap gap-2 sm:col-span-2">
                   <AlertDialog>

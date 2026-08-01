@@ -461,7 +461,7 @@ export default function MfaSettings() {
                   <img src={enrollment.qrCode} alt="Authenticator enrollment QR code" className="h-48 w-48" />
                 </div>
                 <div>
-                  <Label>Manual setup key</Label>
+                  <p className="text-sm font-medium leading-none">Manual setup key</p>
                   <code className="mt-1 block break-all rounded bg-muted p-2 text-xs">{enrollment.secret}</code>
                 </div>
               </div>

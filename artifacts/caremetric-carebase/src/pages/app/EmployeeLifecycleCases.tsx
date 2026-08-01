@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -64,6 +64,7 @@ function statusVariant(status: string): "default" | "secondary" | "destructive" 
 }
 
 export default function EmployeeLifecycleCases() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const [status, setStatus] = useState("all");
@@ -436,9 +437,9 @@ export default function EmployeeLifecycleCases() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1.5">
-              <Label>Employee</Label>
+              <Label htmlFor={`${__fieldIds}-employee`}>Employee</Label>
               <Select value={employeeId} onValueChange={setEmployeeId}>
-                <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-employee`}><SelectValue placeholder="Select employee" /></SelectTrigger>
                 <SelectContent>
                   {(employees.data ?? []).map((employee) => (
                     <SelectItem key={employee.id} value={employee.id}>
@@ -450,9 +451,9 @@ export default function EmployeeLifecycleCases() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Transition</Label>
+                <Label htmlFor={`${__fieldIds}-transition`}>Transition</Label>
                 <Select value={transition} onValueChange={(value) => setTransition(value as EmployeeLifecycleTransition)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-transition`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {EMPLOYEE_LIFECYCLE_TRANSITIONS.map((value) => (
                       <SelectItem key={value} value={value}>{lifecycleTransitionLabel(value)}</SelectItem>
@@ -467,9 +468,9 @@ export default function EmployeeLifecycleCases() {
             </div>
             {transitionRequiresTargetFacility(transition) && (
               <div className="space-y-1.5">
-                <Label>Target facility</Label>
+                <Label htmlFor={`${__fieldIds}-target-facility`}>Target facility</Label>
                 <Select value={targetFacilityId} onValueChange={setTargetFacilityId}>
-                  <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-target-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {(facilities.data ?? []).map((facility) => (
                       <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>

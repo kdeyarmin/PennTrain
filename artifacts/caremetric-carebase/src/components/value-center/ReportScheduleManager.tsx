@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { CalendarClock, Loader2, Mail, Pencil, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -122,6 +122,7 @@ function ScheduleCard({
 }
 
 export function ReportScheduleManager() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const canManage = user?.role === "platform_admin" || user?.role === "org_admin" || user?.role === "facility_manager";
@@ -192,17 +193,17 @@ export function ReportScheduleManager() {
             <AlertDescription>Organization admins and facility managers can create or change report subscriptions.</AlertDescription>
           </Alert> : savedReports.isLoading ? <QueryLoading what="saved reports" /> : savedReports.isError ? <QueryError what="saved reports" error={savedReports.error} onRetry={() => savedReports.refetch()} /> : <>
             <div className="space-y-2">
-              <Label>Saved report</Label>
+              <Label htmlFor={`${__fieldIds}-saved-report`}>Saved report</Label>
               <Select value={form.reportDefinitionId} onValueChange={(value) => updateForm("reportDefinitionId", value)}>
-                <SelectTrigger><SelectValue placeholder="Choose saved report" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-saved-report`}><SelectValue placeholder="Choose saved report" /></SelectTrigger>
                 <SelectContent>{savedReports.data?.map((report) => <SelectItem key={report.id} value={report.id}>{report.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Frequency</Label>
+                <Label htmlFor={`${__fieldIds}-frequency`}>Frequency</Label>
                 <Select value={form.frequency} onValueChange={(value) => setForm((current) => changeReportScheduleFrequency(current, value as ReportScheduleFrequency))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-frequency`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
@@ -211,9 +212,9 @@ export function ReportScheduleManager() {
                 </Select>
               </div>
               {form.frequency === "weekly" && <div className="space-y-2">
-                <Label>Day of week</Label>
+                <Label htmlFor={`${__fieldIds}-day-of-week`}>Day of week</Label>
                 <Select value={String(form.dayOfWeek ?? 1)} onValueChange={(value) => updateForm("dayOfWeek", Number(value))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-day-of-week`}><SelectValue /></SelectTrigger>
                   <SelectContent>{REPORT_SCHEDULE_WEEKDAYS.map((day, index) => <SelectItem key={day} value={String(index + 1)}>{day}</SelectItem>)}</SelectContent>
                 </Select>
               </div>}
@@ -234,9 +235,9 @@ export function ReportScheduleManager() {
                 <Input id="report-time-zone" value={form.timeZone} onChange={(event) => updateForm("timeZone", event.target.value)} placeholder="America/New_York" />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label>Delivery channel</Label>
+                <Label htmlFor={`${__fieldIds}-delivery-channel`}>Delivery channel</Label>
                 <Select value={form.deliveryMode} onValueChange={(value) => updateForm("deliveryMode", value as ReportScheduleDeliveryMode)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-delivery-channel`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="in_app">In-app notification</SelectItem>
                     <SelectItem value="email_link">Email link + in-app notification</SelectItem>
@@ -245,10 +246,10 @@ export function ReportScheduleManager() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Audience roles</Label>
+              <Label htmlFor={`${__fieldIds}-audience-roles`}>Audience roles</Label>
               <div className="grid gap-2 sm:grid-cols-2">
                 {REPORT_SCHEDULE_ROLE_OPTIONS.map((option) => <label key={option.value} className="flex items-center gap-2 rounded-md border p-3 text-sm">
-                  <Checkbox checked={form.roles.includes(option.value)} onCheckedChange={(checked) => toggleRole(option.value, checked === true)} />
+                  <Checkbox id={`${__fieldIds}-audience-roles`} checked={form.roles.includes(option.value)} onCheckedChange={(checked) => toggleRole(option.value, checked === true)} />
                   {option.label}
                 </label>)}
               </div>

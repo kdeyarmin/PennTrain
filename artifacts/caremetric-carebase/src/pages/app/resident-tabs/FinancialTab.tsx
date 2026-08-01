@@ -4,11 +4,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ResidentAgreementWorkspace } from "@/components/residents/ResidentAgreementWorkspace";
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import type { ResidentTabProps } from "./types";
+import { QueryError } from "@/components/QueryState";
 
 export default function FinancialTab({ resident, canManage }: ResidentTabProps) {
-  const { data: documents } = useListResidentDocuments(resident.id);
+  const documentsQuery = useListResidentDocuments(resident.id);
+  const { data: documents } = documentsQuery;
   return (
     <div className="space-y-6">
+      {/* The agreement workspace picks documents to attach from this list; if it failed to
+          load, an empty picker reads as "this resident has no documents". */}
+      {documentsQuery.isError && (
+        <QueryError
+          what="this resident's documents"
+          error={documentsQuery.error}
+          onRetry={() => void documentsQuery.refetch()}
+        />
+      )}
       <ResidentAgreementWorkspace
         residentId={resident.id}
         documents={documents ?? []}

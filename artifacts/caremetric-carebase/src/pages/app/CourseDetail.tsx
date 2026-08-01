@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useId, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -194,6 +194,7 @@ function QuizBlockSummary({
 }
 
 export default function CourseDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1395,22 +1396,22 @@ export default function CourseDetail() {
           <DialogHeader><DialogTitle>Edit Training Content</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label>Title *</Label>
-              <Input value={courseForm.title} onChange={e => setCourseForm(f => ({ ...f, title: e.target.value }))} />
+              <Label htmlFor={`${__fieldIds}-title`}>Title *</Label>
+              <Input id={`${__fieldIds}-title`} value={courseForm.title} onChange={e => setCourseForm(f => ({ ...f, title: e.target.value }))} />
             </div>
             <div className="space-y-1">
-              <Label>Description</Label>
-              <Textarea value={courseForm.description} onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))} />
+              <Label htmlFor={`${__fieldIds}-description`}>Description</Label>
+              <Textarea id={`${__fieldIds}-description`} value={courseForm.description} onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label>Category</Label>
-                <Input value={courseForm.category} onChange={e => setCourseForm(f => ({ ...f, category: e.target.value }))} />
+                <Label htmlFor={`${__fieldIds}-category`}>Category</Label>
+                <Input id={`${__fieldIds}-category`} value={courseForm.category} onChange={e => setCourseForm(f => ({ ...f, category: e.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label>Status</Label>
+                <Label htmlFor={`${__fieldIds}-status`}>Status</Label>
                 <Select value={courseForm.status} onValueChange={v => setCourseForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="published">Published</SelectItem>
@@ -1423,9 +1424,9 @@ export default function CourseDetail() {
               This is the training item's catalog status. It's independent of the per-version publish workflow below.
             </p>
             <div className="space-y-1">
-              <Label>Training Requirement Type</Label>
+              <Label htmlFor={`${__fieldIds}-training-requirement-type`}>Training Requirement Type</Label>
               <Select value={courseForm.trainingTypeId} onValueChange={v => setCourseForm(f => ({ ...f, trainingTypeId: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-training-requirement-type`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
                   {(trainingTypes ?? []).map(tt => (
@@ -1457,8 +1458,8 @@ export default function CourseDetail() {
                 : `This creates version ${nextVersionNumber} as a new, empty draft -- this course has no existing version to copy from yet.`}
             </p>
             <div className="space-y-1">
-              <Label>Title</Label>
-              <Input value={newVersionTitle} onChange={e => setNewVersionTitle(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-title-2`}>Title</Label>
+              <Input id={`${__fieldIds}-title-2`} value={newVersionTitle} onChange={e => setNewVersionTitle(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
@@ -1561,9 +1562,9 @@ export default function CourseDetail() {
           <DialogHeader><DialogTitle>Add Content Block</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label>Block Type</Label>
+              <Label htmlFor={`${__fieldIds}-block-type`}>Block Type</Label>
               <Select value={blockForm.block_type} onValueChange={v => setBlockForm(f => ({ ...f, block_type: v as BlockFormState["block_type"] }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-block-type`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="text">Text</SelectItem>
                   <SelectItem value="video">Video</SelectItem>
@@ -1574,13 +1575,13 @@ export default function CourseDetail() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Title</Label>
-              <Input value={blockForm.title} onChange={e => setBlockForm(f => ({ ...f, title: e.target.value }))} placeholder="Optional block title" />
+              <Label htmlFor={`${__fieldIds}-title-3`}>Title</Label>
+              <Input id={`${__fieldIds}-title-3`} value={blockForm.title} onChange={e => setBlockForm(f => ({ ...f, title: e.target.value }))} placeholder="Optional block title" />
             </div>
             {blockForm.block_type === "text" && (
               <div className="space-y-1">
-                <Label>Content</Label>
-                <Textarea
+                <Label htmlFor={`${__fieldIds}-content`}>Content</Label>
+                <Textarea id={`${__fieldIds}-content`}
                   value={blockForm.textContent}
                   onChange={e => setBlockForm(f => ({ ...f, textContent: e.target.value }))}
                   placeholder="Enter the text content for this block"
@@ -1591,15 +1592,15 @@ export default function CourseDetail() {
             {blockForm.block_type === "video" && (
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label>Video URL</Label>
-                  <Input value={blockForm.videoUrl} onChange={e => setBlockForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://..." />
+                  <Label htmlFor={`${__fieldIds}-video-url`}>Video URL</Label>
+                  <Input id={`${__fieldIds}-video-url`} value={blockForm.videoUrl} onChange={e => setBlockForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://..." />
                   <p className="text-xs text-muted-foreground">
                     Leave blank if you plan to generate an AI avatar video after creating this block.
                   </p>
                 </div>
                 <div className="space-y-1">
-                  <Label>Transcript or Caption Notes</Label>
-                  <Textarea
+                  <Label htmlFor={`${__fieldIds}-transcript-or-caption-notes`}>Transcript or Caption Notes</Label>
+                  <Textarea id={`${__fieldIds}-transcript-or-caption-notes`}
                     value={blockForm.videoTranscript}
                     onChange={e => setBlockForm(f => ({ ...f, videoTranscript: e.target.value }))}
                     placeholder="Paste transcript text or caption notes for employees who cannot use audio"
@@ -1611,13 +1612,13 @@ export default function CourseDetail() {
             {(blockForm.block_type === "pdf" || blockForm.block_type === "scorm") && (
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <Label>Document</Label>
+                  <Label htmlFor={`${__fieldIds}-document`}>Document</Label>
                   <Select
                     value={blockForm.documentId || NO_DOCUMENT}
                     onValueChange={value => setBlockForm(f => ({ ...f, documentId: value === NO_DOCUMENT ? "" : value }))}
                     disabled={courseDocumentsLoading}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-document`}>
                       <SelectValue placeholder={courseDocumentsLoading ? "Loading documents..." : "Select a document"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -1680,17 +1681,17 @@ export default function CourseDetail() {
           <DialogHeader><DialogTitle>Configure Quiz</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label>Quiz Title *</Label>
-              <Input value={quizForm.title} onChange={e => setQuizForm(f => ({ ...f, title: e.target.value }))} />
+              <Label htmlFor={`${__fieldIds}-quiz-title`}>Quiz Title *</Label>
+              <Input id={`${__fieldIds}-quiz-title`} value={quizForm.title} onChange={e => setQuizForm(f => ({ ...f, title: e.target.value }))} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label>Passing Score (%)</Label>
-                <Input type="number" min="0" max="100" value={quizForm.passingScore} onChange={e => setQuizForm(f => ({ ...f, passingScore: e.target.value }))} />
+                <Label htmlFor={`${__fieldIds}-passing-score`}>Passing Score (%)</Label>
+                <Input id={`${__fieldIds}-passing-score`} type="number" min="0" max="100" value={quizForm.passingScore} onChange={e => setQuizForm(f => ({ ...f, passingScore: e.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label>Max Attempts</Label>
-                <Input type="number" min="1" value={quizForm.maxAttempts} onChange={e => setQuizForm(f => ({ ...f, maxAttempts: e.target.value }))} placeholder="Unlimited" />
+                <Label htmlFor={`${__fieldIds}-max-attempts`}>Max Attempts</Label>
+                <Input id={`${__fieldIds}-max-attempts`} type="number" min="1" value={quizForm.maxAttempts} onChange={e => setQuizForm(f => ({ ...f, maxAttempts: e.target.value }))} placeholder="Unlimited" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -1714,9 +1715,9 @@ export default function CourseDetail() {
               and preselected so high-quality course videos can be created with one click.
             </p>
             <div className="space-y-1">
-              <Label>Avatar *</Label>
+              <Label htmlFor={`${__fieldIds}-avatar`}>Avatar *</Label>
               <Select value={videoGenForm.avatarId} onValueChange={v => setVideoGenForm(f => ({ ...f, avatarId: v }))} disabled={heygenOptionsLoading}>
-                <SelectTrigger><SelectValue placeholder={heygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-avatar`}><SelectValue placeholder={heygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
                 <SelectContent>
                   {heygenOptions?.avatars.map(a => (
                     <SelectItem key={a.id} value={a.id}>{a.is_ai_twin ? "AI Twin · " : ""}{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
@@ -1725,9 +1726,9 @@ export default function CourseDetail() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Voice *</Label>
+              <Label htmlFor={`${__fieldIds}-voice`}>Voice *</Label>
               <Select value={videoGenForm.voiceId} onValueChange={v => setVideoGenForm(f => ({ ...f, voiceId: v }))} disabled={heygenOptionsLoading}>
-                <SelectTrigger><SelectValue placeholder={heygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-voice`}><SelectValue placeholder={heygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
                 <SelectContent>
                   {heygenOptions?.voices.map(v => (
                     <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}{v.language ? ` — ${v.language}` : ""}</SelectItem>
@@ -1736,8 +1737,8 @@ export default function CourseDetail() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Script *</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-script`}>Script *</Label>
+              <Textarea id={`${__fieldIds}-script`}
                 value={videoGenForm.script}
                 onChange={e => setVideoGenForm(f => ({ ...f, script: e.target.value }))}
                 placeholder="What should the avatar say?"
@@ -1764,9 +1765,9 @@ export default function CourseDetail() {
                   one avatar and voice for all of them. Your HeyGen AI Twin is sorted first when available, and each block uses its AI-authored narration script.
                 </p>
                 <div className="space-y-1">
-                  <Label>Avatar *</Label>
+                  <Label htmlFor={`${__fieldIds}-avatar-2`}>Avatar *</Label>
                   <Select value={bulkVideoForm.avatarId} onValueChange={v => setBulkVideoForm(f => ({ ...f, avatarId: v }))} disabled={bulkHeygenOptionsLoading}>
-                    <SelectTrigger><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-avatar-2`}><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
                     <SelectContent>
                       {bulkHeygenOptions?.avatars.map(a => (
                         <SelectItem key={a.id} value={a.id}>{a.is_ai_twin ? "AI Twin · " : ""}{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
@@ -1775,9 +1776,9 @@ export default function CourseDetail() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Voice *</Label>
+                  <Label htmlFor={`${__fieldIds}-voice-2`}>Voice *</Label>
                   <Select value={bulkVideoForm.voiceId} onValueChange={v => setBulkVideoForm(f => ({ ...f, voiceId: v }))} disabled={bulkHeygenOptionsLoading}>
-                    <SelectTrigger><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-voice-2`}><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
                     <SelectContent>
                       {bulkHeygenOptions?.voices.map(v => (
                         <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}{v.language ? ` — ${v.language}` : ""}</SelectItem>
@@ -1849,8 +1850,8 @@ export default function CourseDetail() {
               scratch based on your feedback, replacing what's there now.
             </p>
             <div className="space-y-1">
-              <Label>What should change? *</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-what-should-change`}>What should change? *</Label>
+              <Textarea id={`${__fieldIds}-what-should-change`}
                 value={regenerateFeedback}
                 onChange={e => setRegenerateFeedback(e.target.value)}
                 placeholder="e.g. &quot;make this shorter and more conversational&quot; or &quot;add more detail on fall-prevention procedures&quot;"

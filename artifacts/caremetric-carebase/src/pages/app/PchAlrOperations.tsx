@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { QueryError } from "@/components/QueryState";
 
 const DOMAIN_ICONS: Record<OperationsDomain, typeof Gavel> = {
   "Regulatory crosswalk": Gavel,
@@ -60,7 +61,8 @@ export default function PchAlrOperations() {
   const pchCount = PCH_ALR_OPERATIONS_ITEMS.filter((item) => item.programs.includes("PCH")).length;
   const alrCount = PCH_ALR_OPERATIONS_ITEMS.filter((item) => item.programs.includes("ALR")).length;
 
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { data: facilities } = facilitiesQuery;
   const eligibleFacilities = useMemo(
     () => (facilities ?? []).filter((facility) => PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType)),
     [facilities],
@@ -113,6 +115,15 @@ export default function PchAlrOperations() {
 
   return (
     <div className="space-y-6">
+      {/* The snapshot panels below surface their own errors; without this one a failed
+          facility list reads as "this org has no PCH/ALF facilities". */}
+      {facilitiesQuery.isError && (
+        <QueryError
+          what="your facilities"
+          error={facilitiesQuery.error}
+          onRetry={() => void facilitiesQuery.refetch()}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl">
           <h1 className="text-2xl font-bold tracking-tight">PCH / ALF Operations Center</h1>

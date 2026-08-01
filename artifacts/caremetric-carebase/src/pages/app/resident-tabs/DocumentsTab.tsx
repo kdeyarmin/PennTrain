@@ -16,10 +16,12 @@ import {
 import { ResidentPortalWorkspace } from "@/components/residents/ResidentPortalWorkspace";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import type { ResidentTabProps } from "./types";
+import { QueryError } from "@/components/QueryState";
 
 export default function DocumentsTab({ resident, facility, canManage, canDelete }: ResidentTabProps) {
   const { toast } = useToast();
-  const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(resident.id);
+  const documentsQuery = useListResidentDocuments(resident.id);
+  const { data: documents, isLoading: documentsLoading } = documentsQuery;
   const uploadDocument = useUploadResidentDocument();
   const getSignedUrl = useResidentDocumentSignedUrl();
   const deleteDocument = useDeleteResidentDocument();
@@ -80,7 +82,9 @@ export default function DocumentsTab({ resident, facility, canManage, canDelete 
           </div>
         </CardHeader>
         <CardContent>
-          {documentsLoading ? (
+          {documentsQuery.isError ? (
+            <QueryError what="this resident's documents" error={documentsQuery.error} onRetry={() => void documentsQuery.refetch()} />
+          ) : documentsLoading ? (
             <Skeleton className="h-10" />
           ) : !documents?.length ? (
             <p className="text-sm text-muted-foreground">No documents uploaded. Completed DHS {formLabel}/DME forms go here.</p>

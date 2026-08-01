@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Globe, Clock, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { QueryError } from "@/components/QueryState";
 
 interface SettingConfig {
   label: string;
@@ -135,7 +136,7 @@ const CONFIRM_COPY: Record<string, { title: string; description: string; confirm
 
 export default function PlatformSettings() {
   const { toast } = useToast();
-  const { data: settings, isLoading } = useListPlatformSettings();
+  const { data: settings, isLoading, isError, error, refetch } = useListPlatformSettings();
   const { mutate: updateSetting, isPending } = useUpdatePlatformSetting();
 
   // Controlled per-key draft state for number inputs, so a failed update visibly reverts to the
@@ -250,7 +251,9 @@ export default function PlatformSettings() {
         </p>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <QueryError what="platform settings" error={error} onRetry={() => void refetch()} />
+      ) : isLoading ? (
         <div className="space-y-6">
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}
         </div>

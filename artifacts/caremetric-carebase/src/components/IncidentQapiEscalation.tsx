@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,7 @@ function ninetyDaysOut(): string {
 }
 
 export function IncidentQapiEscalation({ incident }: { incident: Incident }) {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -135,9 +136,9 @@ export function IncidentQapiEscalation({ incident }: { incident: Incident }) {
                 <Input id="qapi-date" type="date" value={completion} onChange={(e) => setCompletion(e.target.value)} />
               </div>
               <div className="grid gap-2">
-                <Label>Project lead</Label>
+                <Label htmlFor={`${__fieldIds}-project-lead`}>Project lead</Label>
                 <Select value={lead} onValueChange={setLead}>
-                  <SelectTrigger><SelectValue placeholder="Select lead" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-project-lead`}><SelectValue placeholder="Select lead" /></SelectTrigger>
                   <SelectContent>
                     {orgManagers.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}
                   </SelectContent>

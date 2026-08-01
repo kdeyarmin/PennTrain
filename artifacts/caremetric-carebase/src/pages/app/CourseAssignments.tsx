@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListCourseAssignmentsPaginated,
@@ -111,6 +111,7 @@ function ProgressDialog({ assignmentId, onClose }: { assignmentId: string | null
 }
 
 export default function CourseAssignments() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -744,9 +745,9 @@ export default function CourseAssignments() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Training item *</Label>
+              <Label htmlFor={`${__fieldIds}-training-item`} className="text-[13px]">Training item *</Label>
               <Select value={assignForm.courseId} onValueChange={handleCourseChange}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select training item" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-training-item`} className="h-9"><SelectValue placeholder="Select training item" /></SelectTrigger>
                 <SelectContent>
                   {publishedCourses.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
@@ -755,14 +756,14 @@ export default function CourseAssignments() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Due Date</Label>
-              <Input type="date" value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-due-date`} className="text-[13px]">Due Date</Label>
+              <Input id={`${__fieldIds}-due-date`} type="date" value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <Label className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
+                <Label htmlFor={`${__fieldIds}-employees-selected`} className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
                 <Select value={assignFacilityFilter} onValueChange={setAssignFacilityFilter}>
-                  <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-employees-selected`} className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Facilities</SelectItem>
                     {facilities?.map(f => (

@@ -831,7 +831,7 @@ function Field({
 }) {
   return (
     <div className={`space-y-1 ${span ? "sm:col-span-2" : ""}`}>
-      <Label>{label}</Label>
+      <p className="text-sm font-medium leading-none">{label}</p>
       {children}
     </div>
   );

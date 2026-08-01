@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,6 +112,7 @@ export function ResidentAdministrativeMaster({
   data: ResidentAdministrativeMasterData | undefined;
   canManage: boolean;
 }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const saveMaster = useSaveResidentAdministrativeMaster();
   const saveProperty = useUpsertResidentPropertyItem();
@@ -325,14 +326,14 @@ export function ResidentAdministrativeMaster({
             <section className="space-y-3">
               <h3 className="font-semibold">Identity, photograph & prior address</h3>
               <div className="grid gap-3 md:grid-cols-3">
-                <div><Label>Preferred name</Label><Input value={profile.preferred_name} onChange={(e) => setProfile({ ...profile, preferred_name: e.target.value })} /></div>
-                <div><Label>Date of birth</Label><Input type="date" value={profile.date_of_birth} onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })} /></div>
-                <div><Label>Photograph document</Label><DocumentSelect value={profile.photo_document_id} documents={documents.filter((document) => document.file_type.startsWith("image/"))} onChange={(value) => setProfile({ ...profile, photo_document_id: value })} /></div>
-                <div><Label>Prior address</Label><Input value={profile.prior_address_line1} onChange={(e) => setProfile({ ...profile, prior_address_line1: e.target.value })} /></div>
-                <div><Label>Address line 2</Label><Input value={profile.prior_address_line2} onChange={(e) => setProfile({ ...profile, prior_address_line2: e.target.value })} /></div>
-                <div><Label>City</Label><Input value={profile.prior_address_city} onChange={(e) => setProfile({ ...profile, prior_address_city: e.target.value })} /></div>
-                <div><Label>State</Label><Input maxLength={2} value={profile.prior_address_state} onChange={(e) => setProfile({ ...profile, prior_address_state: e.target.value })} /></div>
-                <div><Label>Postal code</Label><Input value={profile.prior_address_postal_code} onChange={(e) => setProfile({ ...profile, prior_address_postal_code: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-preferred-name`}>Preferred name</Label><Input id={`${__fieldIds}-preferred-name`} value={profile.preferred_name} onChange={(e) => setProfile({ ...profile, preferred_name: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-date-of-birth`}>Date of birth</Label><Input id={`${__fieldIds}-date-of-birth`} type="date" value={profile.date_of_birth} onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-photograph-document`}>Photograph document</Label><DocumentSelect id={`${__fieldIds}-photograph-document`} value={profile.photo_document_id} documents={documents.filter((document) => document.file_type.startsWith("image/"))} onChange={(value) => setProfile({ ...profile, photo_document_id: value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-prior-address`}>Prior address</Label><Input id={`${__fieldIds}-prior-address`} value={profile.prior_address_line1} onChange={(e) => setProfile({ ...profile, prior_address_line1: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-address-line-2`}>Address line 2</Label><Input id={`${__fieldIds}-address-line-2`} value={profile.prior_address_line2} onChange={(e) => setProfile({ ...profile, prior_address_line2: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-city`}>City</Label><Input id={`${__fieldIds}-city`} value={profile.prior_address_city} onChange={(e) => setProfile({ ...profile, prior_address_city: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-state`}>State</Label><Input id={`${__fieldIds}-state`} maxLength={2} value={profile.prior_address_state} onChange={(e) => setProfile({ ...profile, prior_address_state: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-postal-code`}>Postal code</Label><Input id={`${__fieldIds}-postal-code`} value={profile.prior_address_postal_code} onChange={(e) => setProfile({ ...profile, prior_address_postal_code: e.target.value })} /></div>
               </div>
             </section>
             <section className="space-y-3">
@@ -353,28 +354,28 @@ export function ResidentAdministrativeMaster({
             <section className="space-y-3">
               <h3 className="font-semibold">Payer, residential-care preferences & assistance</h3>
               <div className="grid gap-3 md:grid-cols-2">
-                <div><Label>Primary payer</Label><Input value={profile.insurance_payer_name} onChange={(e) => setProfile({ ...profile, insurance_payer_name: e.target.value })} /></div>
-                <div><Label>Member ID</Label><Input value={profile.insurance_member_id} onChange={(e) => setProfile({ ...profile, insurance_member_id: e.target.value })} /></div>
-                <div><Label>Group number</Label><Input value={profile.insurance_group_number} onChange={(e) => setProfile({ ...profile, insurance_group_number: e.target.value })} /></div>
-                <div><Label>Secondary payer</Label><Input value={profile.secondary_payer_name} onChange={(e) => setProfile({ ...profile, secondary_payer_name: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-primary-payer`}>Primary payer</Label><Input id={`${__fieldIds}-primary-payer`} value={profile.insurance_payer_name} onChange={(e) => setProfile({ ...profile, insurance_payer_name: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-member-id`}>Member ID</Label><Input id={`${__fieldIds}-member-id`} value={profile.insurance_member_id} onChange={(e) => setProfile({ ...profile, insurance_member_id: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-group-number`}>Group number</Label><Input id={`${__fieldIds}-group-number`} value={profile.insurance_group_number} onChange={(e) => setProfile({ ...profile, insurance_group_number: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-secondary-payer`}>Secondary payer</Label><Input id={`${__fieldIds}-secondary-payer`} value={profile.secondary_payer_name} onChange={(e) => setProfile({ ...profile, secondary_payer_name: e.target.value })} /></div>
                 <TextField label="Dietary requirements" value={profile.dietary_requirements} onChange={(value) => setProfile({ ...profile, dietary_requirements: value })} />
                 <TextField label="Food allergies (comma-separated)" value={profile.food_allergies} onChange={(value) => setProfile({ ...profile, food_allergies: value })} />
                 <TextField label="Mobility summary" value={profile.mobility_summary} onChange={(value) => setProfile({ ...profile, mobility_summary: value })} />
                 <TextField label="Supervision requirements" value={profile.supervision_requirements} onChange={(value) => setProfile({ ...profile, supervision_requirements: value })} />
                 <TextField label="Communication preferences" value={profile.communication_preferences} onChange={(value) => setProfile({ ...profile, communication_preferences: value })} />
-                <div><Label>Preferred language</Label><Input value={profile.preferred_language} onChange={(e) => setProfile({ ...profile, preferred_language: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-preferred-language`}>Preferred language</Label><Input id={`${__fieldIds}-preferred-language`} value={profile.preferred_language} onChange={(e) => setProfile({ ...profile, preferred_language: e.target.value })} /></div>
                 <TextField label="Religious / cultural preferences" value={profile.religious_cultural_preferences} onChange={(value) => setProfile({ ...profile, religious_cultural_preferences: value })} />
               </div>
             </section>
             <section className="space-y-3">
               <h3 className="font-semibold">Directives, resident rights & contract</h3>
               <div className="grid gap-3 md:grid-cols-3">
-                <div><Label>Advance directive</Label><Select value={profile.advance_directive_status} onValueChange={(value) => setProfile({ ...profile, advance_directive_status: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["unknown", "not_on_file", "on_file", "declined"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label>Rights acknowledged</Label><Input type="datetime-local" value={profile.resident_rights_acknowledged_at} onChange={(e) => setProfile({ ...profile, resident_rights_acknowledged_at: e.target.value })} /></div>
-                <div><Label>Rights document</Label><DocumentSelect value={profile.resident_rights_document_id} documents={documents} onChange={(value) => setProfile({ ...profile, resident_rights_document_id: value })} /></div>
-                <div><Label>Contract status</Label><Select value={profile.contract_status} onValueChange={(value) => setProfile({ ...profile, contract_status: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTRACT_STATUSES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-                <div><Label>Contract effective date</Label><Input type="date" value={profile.contract_effective_date} onChange={(e) => setProfile({ ...profile, contract_effective_date: e.target.value })} /></div>
-                <div><Label>Contract document</Label><DocumentSelect value={profile.contract_document_id} documents={documents} onChange={(value) => setProfile({ ...profile, contract_document_id: value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-advance-directive`}>Advance directive</Label><Select value={profile.advance_directive_status} onValueChange={(value) => setProfile({ ...profile, advance_directive_status: value })}><SelectTrigger id={`${__fieldIds}-advance-directive`}><SelectValue /></SelectTrigger><SelectContent>{["unknown", "not_on_file", "on_file", "declined"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label htmlFor={`${__fieldIds}-rights-acknowledged`}>Rights acknowledged</Label><Input id={`${__fieldIds}-rights-acknowledged`} type="datetime-local" value={profile.resident_rights_acknowledged_at} onChange={(e) => setProfile({ ...profile, resident_rights_acknowledged_at: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-rights-document`}>Rights document</Label><DocumentSelect id={`${__fieldIds}-rights-document`} value={profile.resident_rights_document_id} documents={documents} onChange={(value) => setProfile({ ...profile, resident_rights_document_id: value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-contract-status`}>Contract status</Label><Select value={profile.contract_status} onValueChange={(value) => setProfile({ ...profile, contract_status: value })}><SelectTrigger id={`${__fieldIds}-contract-status`}><SelectValue /></SelectTrigger><SelectContent>{CONTRACT_STATUSES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label htmlFor={`${__fieldIds}-contract-effective-date`}>Contract effective date</Label><Input id={`${__fieldIds}-contract-effective-date`} type="date" value={profile.contract_effective_date} onChange={(e) => setProfile({ ...profile, contract_effective_date: e.target.value })} /></div>
+                <div><Label htmlFor={`${__fieldIds}-contract-document`}>Contract document</Label><DocumentSelect id={`${__fieldIds}-contract-document`} value={profile.contract_document_id} documents={documents} onChange={(value) => setProfile({ ...profile, contract_document_id: value })} /></div>
               </div>
             </section>
           </div>
@@ -384,38 +385,39 @@ export function ResidentAdministrativeMaster({
 
       <Dialog open={propertyOpen} onOpenChange={setPropertyOpen}>
         <DialogContent><DialogHeader><DialogTitle>Add property inventory item</DialogTitle></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
-          <div><Label>Item name</Label><Input value={property.itemName} onChange={(e) => setProperty({ ...property, itemName: e.target.value })} /></div>
-          <div><Label>Quantity</Label><Input type="number" min="1" value={property.quantity} onChange={(e) => setProperty({ ...property, quantity: e.target.value })} /></div>
-          <div><Label>Description</Label><Input value={property.description} onChange={(e) => setProperty({ ...property, description: e.target.value })} /></div>
-          <div><Label>Condition at receipt</Label><Input value={property.condition} onChange={(e) => setProperty({ ...property, condition: e.target.value })} /></div>
-          <div><Label>Received on</Label><Input type="date" value={property.receivedOn} onChange={(e) => setProperty({ ...property, receivedOn: e.target.value })} /></div>
-          <div><Label>Receipt / acknowledgement document</Label><DocumentSelect value={property.documentId} documents={documents} onChange={(value) => setProperty({ ...property, documentId: value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-item-name`}>Item name</Label><Input id={`${__fieldIds}-item-name`} value={property.itemName} onChange={(e) => setProperty({ ...property, itemName: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-quantity`}>Quantity</Label><Input id={`${__fieldIds}-quantity`} type="number" min="1" value={property.quantity} onChange={(e) => setProperty({ ...property, quantity: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-description`}>Description</Label><Input id={`${__fieldIds}-description`} value={property.description} onChange={(e) => setProperty({ ...property, description: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-condition-at-receipt`}>Condition at receipt</Label><Input id={`${__fieldIds}-condition-at-receipt`} value={property.condition} onChange={(e) => setProperty({ ...property, condition: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-received-on`}>Received on</Label><Input id={`${__fieldIds}-received-on`} type="date" value={property.receivedOn} onChange={(e) => setProperty({ ...property, receivedOn: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-receipt-document`}>Receipt / acknowledgement document</Label><DocumentSelect id={`${__fieldIds}-receipt-document`} value={property.documentId} documents={documents} onChange={(value) => setProperty({ ...property, documentId: value })} /></div>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={property.acknowledged} onCheckedChange={(checked) => setProperty({ ...property, acknowledged: checked === true })} /> Resident acknowledgement recorded now</label>
-          <div className="sm:col-span-2"><Label>Notes</Label><Textarea value={property.notes} onChange={(e) => setProperty({ ...property, notes: e.target.value })} /></div>
+          <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-notes`}>Notes</Label><Textarea id={`${__fieldIds}-notes`} value={property.notes} onChange={(e) => setProperty({ ...property, notes: e.target.value })} /></div>
         </div><DialogFooter><Button variant="outline" onClick={() => setPropertyOpen(false)}>Cancel</Button><Button onClick={handleSaveProperty} disabled={saveProperty.isPending || !property.itemName.trim()}>Save property</Button></DialogFooter></DialogContent>
       </Dialog>
 
       <Dialog open={legalOpen} onOpenChange={setLegalOpen}>
         <DialogContent><DialogHeader><DialogTitle>Add legal or document record</DialogTitle></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
-          <div><Label>Record type</Label><Select value={legal.recordType} onValueChange={(value) => setLegal({ ...legal, recordType: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LEGAL_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-          <div><Label>Status</Label><Select value={legal.status} onValueChange={(value) => setLegal({ ...legal, status: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LEGAL_STATUSES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
-          <div className="sm:col-span-2"><Label>Title</Label><Input value={legal.title} onChange={(e) => setLegal({ ...legal, title: e.target.value })} /></div>
-          <div><Label>Authority / issuer</Label><Input value={legal.authorityName} onChange={(e) => setLegal({ ...legal, authorityName: e.target.value })} /></div>
-          <div><Label>Linked document</Label><DocumentSelect value={legal.documentId} documents={documents} onChange={(value) => setLegal({ ...legal, documentId: value })} /></div>
-          <div><Label>Effective date</Label><Input type="date" value={legal.effectiveDate} onChange={(e) => setLegal({ ...legal, effectiveDate: e.target.value })} /></div>
-          <div><Label>Expiration date</Label><Input type="date" value={legal.expirationDate} onChange={(e) => setLegal({ ...legal, expirationDate: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-record-type`}>Record type</Label><Select value={legal.recordType} onValueChange={(value) => setLegal({ ...legal, recordType: value })}><SelectTrigger id={`${__fieldIds}-record-type`}><SelectValue /></SelectTrigger><SelectContent>{LEGAL_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label htmlFor={`${__fieldIds}-status`}>Status</Label><Select value={legal.status} onValueChange={(value) => setLegal({ ...legal, status: value })}><SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger><SelectContent>{LEGAL_STATUSES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-title`}>Title</Label><Input id={`${__fieldIds}-title`} value={legal.title} onChange={(e) => setLegal({ ...legal, title: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-authority-issuer`}>Authority / issuer</Label><Input id={`${__fieldIds}-authority-issuer`} value={legal.authorityName} onChange={(e) => setLegal({ ...legal, authorityName: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-linked-document`}>Linked document</Label><DocumentSelect id={`${__fieldIds}-linked-document`} value={legal.documentId} documents={documents} onChange={(value) => setLegal({ ...legal, documentId: value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-effective-date`}>Effective date</Label><Input id={`${__fieldIds}-effective-date`} type="date" value={legal.effectiveDate} onChange={(e) => setLegal({ ...legal, effectiveDate: e.target.value })} /></div>
+          <div><Label htmlFor={`${__fieldIds}-expiration-date`}>Expiration date</Label><Input id={`${__fieldIds}-expiration-date`} type="date" value={legal.expirationDate} onChange={(e) => setLegal({ ...legal, expirationDate: e.target.value })} /></div>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={legal.acknowledged} onCheckedChange={(checked) => setLegal({ ...legal, acknowledged: checked === true })} /> Acknowledgement recorded now</label>
-          <div className="sm:col-span-2"><Label>Summary</Label><Textarea value={legal.summary} onChange={(e) => setLegal({ ...legal, summary: e.target.value })} /></div>
+          <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-summary`}>Summary</Label><Textarea id={`${__fieldIds}-summary`} value={legal.summary} onChange={(e) => setLegal({ ...legal, summary: e.target.value })} /></div>
         </div><DialogFooter><Button variant="outline" onClick={() => setLegalOpen(false)}>Cancel</Button><Button onClick={handleSaveLegal} disabled={saveLegal.isPending || !legal.title.trim()}>Save record</Button></DialogFooter></DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function DocumentSelect({ value, documents, onChange }: { value: string; documents: ResidentDocument[]; onChange: (value: string) => void }) {
-  return <Select value={value || "none"} onValueChange={(next) => onChange(next === "none" ? "" : next)}><SelectTrigger><SelectValue placeholder="No document" /></SelectTrigger><SelectContent><SelectItem value="none">No document</SelectItem>{documents.map((document) => <SelectItem key={document.id} value={document.id}>{documentLabel(document)}</SelectItem>)}</SelectContent></Select>;
+function DocumentSelect({ id, value, documents, onChange }: { id?: string; value: string; documents: ResidentDocument[]; onChange: (value: string) => void }) {
+  return <Select value={value || "none"} onValueChange={(next) => onChange(next === "none" ? "" : next)}><SelectTrigger id={id}><SelectValue placeholder="No document" /></SelectTrigger><SelectContent><SelectItem value="none">No document</SelectItem>{documents.map((document) => <SelectItem key={document.id} value={document.id}>{documentLabel(document)}</SelectItem>)}</SelectContent></Select>;
 }
 
 function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <div><Label>{label}</Label><Textarea rows={2} value={value} onChange={(event) => onChange(event.target.value)} /></div>;
+  const __fieldIds = useId();
+  return <div><Label htmlFor={`${__fieldIds}-field`}>{label}</Label><Textarea id={`${__fieldIds}-field`} rows={2} value={value} onChange={(event) => onChange(event.target.value)} /></div>;
 }

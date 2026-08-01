@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListEmployeesByIds } from "@/hooks/useEmployees";
@@ -51,6 +51,7 @@ function formatTimestamp(value: string | null): string {
 }
 
 export default function ExclusionScreening() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("pending_review");
@@ -227,8 +228,8 @@ export default function ExclusionScreening() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label className="text-[13px]">Review notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Optional" />
+            <Label htmlFor={`${__fieldIds}-review-notes`} className="text-[13px]">Review notes</Label>
+            <Textarea id={`${__fieldIds}-review-notes`} value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Optional" />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReviewing(null); setNotes(""); }}>Cancel</Button>

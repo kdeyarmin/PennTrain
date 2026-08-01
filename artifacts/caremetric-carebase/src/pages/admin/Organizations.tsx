@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useListOrganizations, useCreateOrganization } from "@/hooks/useOrganizations";
 import { useListPackages } from "@/hooks/usePackages";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -74,6 +74,7 @@ function slugify(value: string) {
 }
 
 export default function Organizations() {
+  const __fieldIds = useId();
   const [urlState, setUrlState] = useUrlState(ORGANIZATIONS_URL_DEFAULTS);
   const [showForm, setShowForm] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
@@ -274,12 +275,12 @@ export default function Organizations() {
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Name *</Label>
-              <Input value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="Acme Care Group" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-name`} className="text-[13px]">Name *</Label>
+              <Input id={`${__fieldIds}-name`} value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="Acme Care Group" className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Slug *</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-slug`} className="text-[13px]">Slug *</Label>
+              <Input id={`${__fieldIds}-slug`}
                 value={form.slug}
                 onChange={e => { setSlugEdited(true); field("slug", e.target.value); }}
                 placeholder="acme-care-group"
@@ -287,9 +288,9 @@ export default function Organizations() {
               />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Package</Label>
+              <Label htmlFor={`${__fieldIds}-package`} className="text-[13px]">Package</Label>
               <Select value={form.packageId || "none"} onValueChange={v => field("packageId", v === "none" ? "" : v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-package`} className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No package</SelectItem>
                   {packages?.map(pkg => (
@@ -301,32 +302,32 @@ export default function Organizations() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Contact Name</Label>
-              <Input value={form.contactName} onChange={e => field("contactName", e.target.value)} placeholder="Jane Smith" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-contact-name`} className="text-[13px]">Contact Name</Label>
+              <Input id={`${__fieldIds}-contact-name`} value={form.contactName} onChange={e => field("contactName", e.target.value)} placeholder="Jane Smith" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Contact Email</Label>
-              <Input type="email" value={form.contactEmail} onChange={e => field("contactEmail", e.target.value)} placeholder="jane@example.com" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-contact-email`} className="text-[13px]">Contact Email</Label>
+              <Input id={`${__fieldIds}-contact-email`} type="email" value={form.contactEmail} onChange={e => field("contactEmail", e.target.value)} placeholder="jane@example.com" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Contact Phone</Label>
-              <Input value={form.contactPhone} onChange={e => field("contactPhone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-contact-phone`} className="text-[13px]">Contact Phone</Label>
+              <Input id={`${__fieldIds}-contact-phone`} value={form.contactPhone} onChange={e => field("contactPhone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Address</Label>
-              <Input value={form.address} onChange={e => field("address", e.target.value)} placeholder="123 Main St" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-address`} className="text-[13px]">Address</Label>
+              <Input id={`${__fieldIds}-address`} value={form.address} onChange={e => field("address", e.target.value)} placeholder="123 Main St" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">City</Label>
-              <Input value={form.city} onChange={e => field("city", e.target.value)} placeholder="Philadelphia" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-city`} className="text-[13px]">City</Label>
+              <Input id={`${__fieldIds}-city`} value={form.city} onChange={e => field("city", e.target.value)} placeholder="Philadelphia" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">State</Label>
-              <Input value={form.state} onChange={e => field("state", e.target.value)} placeholder="PA" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-state`} className="text-[13px]">State</Label>
+              <Input id={`${__fieldIds}-state`} value={form.state} onChange={e => field("state", e.target.value)} placeholder="PA" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Zip</Label>
-              <Input value={form.zip} onChange={e => field("zip", e.target.value)} placeholder="19107" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-zip`} className="text-[13px]">Zip</Label>
+              <Input id={`${__fieldIds}-zip`} value={form.zip} onChange={e => field("zip", e.target.value)} placeholder="19107" className="h-9" />
             </div>
           </div>
           <DialogFooter>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListResidentAssessmentForms } from "@/hooks/useResidentAssessmentForms";
@@ -142,6 +142,7 @@ function JsonbList({ label, value }: { label: string; value: unknown }) {
 }
 
 export function ResidentSupportPlanSection({ residentId, canManage }: { residentId: string; canManage: boolean }) {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const plansQuery = useResidentSupportPlans(residentId);
@@ -499,9 +500,9 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label>Decision</Label>
+              <Label htmlFor={`${__fieldIds}-decision`}>Decision</Label>
               <Select value={decision} onValueChange={(v) => setDecision(v as typeof decision)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="accepted">Accept</SelectItem>
                   <SelectItem value="rejected">Reject</SelectItem>

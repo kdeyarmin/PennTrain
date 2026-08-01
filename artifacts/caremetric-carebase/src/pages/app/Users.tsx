@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useId, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import {
   useListProfiles, useUpdateProfile, useCreateUserViaAdmin, useInviteUser, useAdminUpdateUser,
@@ -84,6 +84,7 @@ const PAGE_SIZE = 15;
 type SortField = "name" | "role" | "status";
 
 export default function Users() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const { viewingOrgId } = useViewingOrg();
@@ -677,22 +678,22 @@ export default function Users() {
               </label>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">First Name *</Label>
-              <Input value={createForm.firstName} onChange={e => createField("firstName", e.target.value)} placeholder="Jane" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-first-name`} className="text-[13px]">First Name *</Label>
+              <Input id={`${__fieldIds}-first-name`} value={createForm.firstName} onChange={e => createField("firstName", e.target.value)} placeholder="Jane" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Last Name *</Label>
-              <Input value={createForm.lastName} onChange={e => createField("lastName", e.target.value)} placeholder="Smith" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-last-name`} className="text-[13px]">Last Name *</Label>
+              <Input id={`${__fieldIds}-last-name`} value={createForm.lastName} onChange={e => createField("lastName", e.target.value)} placeholder="Smith" className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Email *</Label>
-              <Input type="email" value={createForm.email} onChange={e => createField("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-email`} className="text-[13px]">Email *</Label>
+              <Input id={`${__fieldIds}-email`} type="email" value={createForm.email} onChange={e => createField("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
             </div>
             {!inviteMode && (
               <div className="col-span-full space-y-1.5">
-                <Label className="text-[13px]">Temporary Password *</Label>
+                <Label htmlFor={`${__fieldIds}-temporary-password`} className="text-[13px]">Temporary Password *</Label>
                 <div className="flex gap-2">
-                  <Input value={createForm.password} onChange={e => createField("password", e.target.value)} className="h-9 font-mono" />
+                  <Input id={`${__fieldIds}-temporary-password`} value={createForm.password} onChange={e => createField("password", e.target.value)} className="h-9 font-mono" />
                   <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => createField("password", randomPassword())} aria-label="Generate a new temporary password">
                     <RefreshCw className="h-4 w-4" />
                   </Button>
@@ -703,7 +704,7 @@ export default function Users() {
               </div>
             )}
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Role *</Label>
+              <Label htmlFor={`${__fieldIds}-role`} className="text-[13px]">Role *</Label>
               <Select
                 value={createForm.role}
                 onValueChange={v => {
@@ -711,7 +712,7 @@ export default function Users() {
                   if (v === "employee") setInviteMode(true);
                 }}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-role`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {assignableRoles.map(r => (
                     <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
@@ -727,9 +728,9 @@ export default function Users() {
             )}
             {isPlatformAdmin && createForm.role !== "platform_admin" && (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Organization *</Label>
+                <Label htmlFor={`${__fieldIds}-organization`} className="text-[13px]">Organization *</Label>
                 <Select value={createForm.organizationId} onValueChange={v => createField("organizationId", v)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select organization" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-organization`} className="h-9"><SelectValue placeholder="Select organization" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Select organization</SelectItem>
                     {organizations?.map(o => (
@@ -756,16 +757,16 @@ export default function Users() {
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">First Name *</Label>
-              <Input value={editForm.firstName} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-first-name-2`} className="text-[13px]">First Name *</Label>
+              <Input id={`${__fieldIds}-first-name-2`} value={editForm.firstName} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Last Name *</Label>
-              <Input value={editForm.lastName} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-last-name-2`} className="text-[13px]">Last Name *</Label>
+              <Input id={`${__fieldIds}-last-name-2`} value={editForm.lastName} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))} className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Phone</Label>
-              <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="(215) 555-0100" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-phone`} className="text-[13px]">Phone</Label>
+              <Input id={`${__fieldIds}-phone`} value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="(215) 555-0100" className="h-9" />
             </div>
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <input
@@ -788,7 +789,7 @@ export default function Users() {
               </label>
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Preferred notification channel</Label>
+              <Label htmlFor={`${__fieldIds}-preferred-notification-channel`} className="text-[13px]">Preferred notification channel</Label>
               <Select
                 value={editForm.preferredNotificationChannel}
                 onValueChange={value => setEditForm(f => ({
@@ -796,7 +797,7 @@ export default function Users() {
                   preferredNotificationChannel: value as "email" | "sms" | "web_push",
                 }))}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-preferred-notification-channel`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="email">Email first</SelectItem>
                   <SelectItem value="sms" disabled={!editForm.smsOptIn || !editForm.phone.trim()}>
@@ -811,8 +812,8 @@ export default function Users() {
               </p>
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Email</Label>
-              <Input value={editProfile?.email ?? ""} disabled className="h-9" />
+              <Label htmlFor={`${__fieldIds}-email-2`} className="text-[13px]">Email</Label>
+              <Input id={`${__fieldIds}-email-2`} value={editProfile?.email ?? ""} disabled className="h-9" />
               <p className="text-[11px] text-muted-foreground">Email changes require an admin action; contact platform support.</p>
             </div>
           </div>
@@ -836,8 +837,8 @@ export default function Users() {
               return to your own admin session at any time from the banner at the top of the screen.
             </p>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Reason *</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-reason`} className="text-[13px]">Reason *</Label>
+              <Textarea id={`${__fieldIds}-reason`}
                 value={impersonateReason}
                 onChange={e => setImpersonateReason(e.target.value)}
                 placeholder="e.g. Investigating a support ticket about missing training progress"

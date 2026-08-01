@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BellRing,
@@ -95,6 +95,7 @@ function RequirementDialog({
   requirement: ServiceRequirementWithRelations | null;
   onClose: () => void;
 }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const update = useUpdateResidentServiceRequirement();
   const [frequency, setFrequency] = useState(requirement?.frequency ?? "daily");
@@ -141,9 +142,9 @@ function RequirementDialog({
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Frequency</Label>
+            <Label htmlFor={`${__fieldIds}-frequency`}>Frequency</Label>
             <Select value={frequency} onValueChange={setFrequency}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-frequency`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {["hourly", "daily", "weekly", "monthly", "other"].map(value => (
                   <SelectItem key={value} value={value} className="capitalize">{value}</SelectItem>
@@ -152,31 +153,31 @@ function RequirementDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Frequency detail</Label>
-            <Input value={frequencyDetail} onChange={event => setFrequencyDetail(event.target.value)} placeholder="Optional schedule detail" />
+            <Label htmlFor={`${__fieldIds}-frequency-detail`}>Frequency detail</Label>
+            <Input id={`${__fieldIds}-frequency-detail`} value={frequencyDetail} onChange={event => setFrequencyDetail(event.target.value)} placeholder="Optional schedule detail" />
           </div>
-          <div className="space-y-1.5"><Label>Window starts</Label><Input type="time" value={start} onChange={event => setStart(event.target.value)} /></div>
-          <div className="space-y-1.5"><Label>Window ends</Label><Input type="time" value={end} onChange={event => setEnd(event.target.value)} /></div>
+          <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-window-starts`}>Window starts</Label><Input id={`${__fieldIds}-window-starts`} type="time" value={start} onChange={event => setStart(event.target.value)} /></div>
+          <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-window-ends`}>Window ends</Label><Input id={`${__fieldIds}-window-ends`} type="time" value={end} onChange={event => setEnd(event.target.value)} /></div>
           <div className="space-y-1.5">
-            <Label>Responsible role</Label>
-            <Input value={role} onChange={event => setRole(event.target.value)} />
+            <Label htmlFor={`${__fieldIds}-responsible-role`}>Responsible role</Label>
+            <Input id={`${__fieldIds}-responsible-role`} value={role} onChange={event => setRole(event.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label>Expires</Label>
-            <Input type="date" value={expiresOn} onChange={event => setExpiresOn(event.target.value)} />
+            <Label htmlFor={`${__fieldIds}-expires`}>Expires</Label>
+            <Input id={`${__fieldIds}-expires`} type="date" value={expiresOn} onChange={event => setExpiresOn(event.target.value)} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>Special instructions</Label>
-            <Textarea value={instructions} onChange={event => setInstructions(event.target.value)} />
+            <Label htmlFor={`${__fieldIds}-special-instructions`}>Special instructions</Label>
+            <Textarea id={`${__fieldIds}-special-instructions`} value={instructions} onChange={event => setInstructions(event.target.value)} />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={twoStaff} onCheckedChange={value => setTwoStaff(value === true)} />
             Two staff required
           </label>
           <div className="space-y-1.5">
-            <Label>Documentation</Label>
+            <Label htmlFor={`${__fieldIds}-documentation`}>Documentation</Label>
             <Select value={documentationMode} onValueChange={setDocumentationMode}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-documentation`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="every_task">Every task</SelectItem>
                 <SelectItem value="exception_only">Exception only</SelectItem>
@@ -196,6 +197,7 @@ function RequirementDialog({
 }
 
 function RuleRow({ rule }: { rule: ServiceExceptionRule }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const update = useUpsertServiceExceptionRule();
   const [threshold, setThreshold] = useState(String(rule.threshold_count));
@@ -206,8 +208,8 @@ function RuleRow({ rule }: { rule: ServiceExceptionRule }) {
         <p className="font-medium capitalize">{rule.exception_status.replace(/_/g, " ")}</p>
         <p className="text-xs text-muted-foreground">Route to {rule.action_target.replace(/_/g, " ")}</p>
       </div>
-      <div className="space-y-1"><Label className="text-xs">Occurrences</Label><Input type="number" min={1} value={threshold} onChange={event => setThreshold(event.target.value)} /></div>
-      <div className="space-y-1"><Label className="text-xs">Lookback days</Label><Input type="number" min={1} value={lookback} onChange={event => setLookback(event.target.value)} /></div>
+      <div className="space-y-1"><Label htmlFor={`${__fieldIds}-occurrences`} className="text-xs">Occurrences</Label><Input id={`${__fieldIds}-occurrences`} type="number" min={1} value={threshold} onChange={event => setThreshold(event.target.value)} /></div>
+      <div className="space-y-1"><Label htmlFor={`${__fieldIds}-lookback-days`} className="text-xs">Lookback days</Label><Input id={`${__fieldIds}-lookback-days`} type="number" min={1} value={lookback} onChange={event => setLookback(event.target.value)} /></div>
       <Badge variant="outline" className="h-9 justify-center">{rule.is_active ? "Active" : "Disabled"}</Badge>
       <Button
         size="sm"
@@ -232,6 +234,7 @@ function RuleRow({ rule }: { rule: ServiceExceptionRule }) {
 }
 
 export default function ServiceDelivery() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
@@ -529,21 +532,21 @@ export default function ServiceDelivery() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Outcome</Label>
+              <Label htmlFor={`${__fieldIds}-outcome`}>Outcome</Label>
               <Select value={outcome} onValueChange={setOutcome}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-outcome`}><SelectValue /></SelectTrigger>
                 <SelectContent>{OUTCOMES.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Additional note {outcome !== "completed" ? "*" : ""}</Label>
-              <Textarea value={note} onChange={event => setNote(event.target.value)} placeholder={selectedTask?.documentation_mode === "exception_only" ? "Required only when documenting an exception" : "Optional service note"} />
+              <Label htmlFor={`${__fieldIds}-additional-note`}>Additional note {outcome !== "completed" ? "*" : ""}</Label>
+              <Textarea id={`${__fieldIds}-additional-note`} value={note} onChange={event => setNote(event.target.value)} placeholder={selectedTask?.documentation_mode === "exception_only" ? "Required only when documenting an exception" : "Optional service note"} />
             </div>
             {selectedTask?.requires_two_staff && (
               <div className="space-y-1.5">
-                <Label>Second authorized employee *</Label>
+                <Label htmlFor={`${__fieldIds}-second-authorized-employee`}>Second authorized employee *</Label>
                 <Select value={secondEmployeeId} onValueChange={setSecondEmployeeId}>
-                  <SelectTrigger><SelectValue placeholder="Select second staff member" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-second-authorized-employee`}><SelectValue placeholder="Select second staff member" /></SelectTrigger>
                   <SelectContent>{availableStaff?.map(employee => <SelectItem key={employee.employee_id} value={employee.employee_id}>{employee.employee_name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>

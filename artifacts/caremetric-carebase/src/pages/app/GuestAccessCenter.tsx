@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, KeyRound, ShieldOff } from "lucide-react";
@@ -47,6 +47,7 @@ function isActive(grant: UnifiedGrant) {
 }
 
 export default function GuestAccessCenter() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
@@ -317,8 +318,8 @@ export default function GuestAccessCenter() {
             {revokeTarget ? `${revokeTarget.label} (${KIND_LABEL[revokeTarget.kind]}) will stop working immediately.` : ""}
           </p>
           <div className="space-y-2">
-            <Label>Reason *</Label>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Survey complete; access no longer needed" />
+            <Label htmlFor={`${__fieldIds}-reason`}>Reason *</Label>
+            <Input id={`${__fieldIds}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Survey complete; access no longer needed" />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRevokeTarget(null)}>Cancel</Button>

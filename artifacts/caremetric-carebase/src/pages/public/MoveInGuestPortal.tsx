@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useId, useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { CheckCircle2, FileSignature, Loader2, LockKeyhole } from "lucide-react";
 import {
@@ -20,6 +20,7 @@ import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/pu
 const SESSION_TOKEN_KEY = "carebase-move-in-guest-token";
 
 export default function MoveInGuestPortal() {
+  const __fieldIds = useId();
   const { token: routeToken } = useParams<{ token?: string }>();
   const [token] = useState(() => consumePublicAccessToken(
     routeToken,
@@ -138,9 +139,9 @@ export default function MoveInGuestPortal() {
         <DialogContent>
           <DialogHeader><DialogTitle>Electronic signature</DialogTitle><DialogDescription>Your name, relationship, timestamp, authentication method, and attestation become part of the admission record.</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1"><Label>Signer name *</Label><Input value={signerName} onChange={event => setSignerName(event.target.value)} /></div>
-            <div className="space-y-1"><Label>Relationship and legal authority *</Label><Input value={relationship} onChange={event => setRelationship(event.target.value)} placeholder="e.g. Designated person" /></div>
-            <div className="space-y-1"><Label>Attestation *</Label><Textarea value={attestation} onChange={event => setAttestation(event.target.value)} placeholder="I reviewed and agree to this admission item..." /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-signer-name`}>Signer name *</Label><Input id={`${__fieldIds}-signer-name`} value={signerName} onChange={event => setSignerName(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-relationship-and-legal-authority`}>Relationship and legal authority *</Label><Input id={`${__fieldIds}-relationship-and-legal-authority`} value={relationship} onChange={event => setRelationship(event.target.value)} placeholder="e.g. Designated person" /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-attestation`}>Attestation *</Label><Textarea id={`${__fieldIds}-attestation`} value={attestation} onChange={event => setAttestation(event.target.value)} placeholder="I reviewed and agree to this admission item..." /></div>
             {sign.isError && <p className="text-sm text-destructive">{sign.error.message}</p>}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setTaskId("")}>Cancel</Button><Button disabled={signerName.trim().length < 2 || relationship.trim().length < 2 || attestation.trim().length < 5 || sign.isPending} onClick={signTask}>{sign.isPending ? "Signing..." : "Sign electronically"}</Button></DialogFooter>

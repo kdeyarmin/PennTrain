@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useId, useCallback, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -440,6 +440,7 @@ async function requestReportPage(
 }
 
 export default function Reports() {
+  const __fieldIds = useId();
   const [facilityId, setFacilityId] = useState<string>("all");
   const [category, setCategory] = useState<string>("All");
   const [search, setSearch] = useState("");
@@ -1032,8 +1033,8 @@ export default function Reports() {
               name again publishes a new version of the view.
             </p>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">View name</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-view-name`} className="text-[13px]">View name</Label>
+              <Input id={`${__fieldIds}-view-name`}
                 value={saveViewName}
                 onChange={(e) => setSaveViewName(e.target.value)}
                 placeholder="e.g. Weekly expired training"

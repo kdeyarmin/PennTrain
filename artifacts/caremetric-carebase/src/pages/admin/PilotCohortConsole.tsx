@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   useAssignOrgToReleaseCohort,
@@ -38,6 +38,7 @@ function flagBadge(mode: string, enabled: boolean) {
 }
 
 export default function PilotCohortConsole() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const cohortsQ = useReleaseCohorts();
   const flagsQ = useReleaseFlags();
@@ -300,8 +301,8 @@ export default function PilotCohortConsole() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="max-w-xl space-y-1.5">
-            <Label>Change reason (required for flag writes)</Label>
-            <Input value={flagReason} onChange={(e) => setFlagReason(e.target.value)} />
+            <Label htmlFor={`${__fieldIds}-change-reason-required-for-flag-writes`}>Change reason (required for flag writes)</Label>
+            <Input id={`${__fieldIds}-change-reason-required-for-flag-writes`} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} />
           </div>
           <Table>
             <TableHeader>
@@ -360,17 +361,17 @@ export default function PilotCohortConsole() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Filter organizations</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-filter-organizations`}>Filter organizations</Label>
+              <Input id={`${__fieldIds}-filter-organizations`}
                 value={orgFilter}
                 onChange={(e) => setOrgFilter(e.target.value)}
                 placeholder="Search by name, slug, or id"
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Organization</Label>
+              <Label htmlFor={`${__fieldIds}-organization`}>Organization</Label>
               <Select value={orgId} onValueChange={setOrgId}>
-                <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-organization`}><SelectValue placeholder="Select organization" /></SelectTrigger>
                 <SelectContent>
                   {filteredOrgs.map((org) => (
                     <SelectItem key={org.id} value={org.id}>
@@ -382,12 +383,12 @@ export default function PilotCohortConsole() {
               <p className="text-xs text-muted-foreground">{filteredOrgs.length} match(es)</p>
             </div>
             <div className="space-y-1.5">
-              <Label>Reason</Label>
-              <Input value={enrollReason} onChange={(e) => setEnrollReason(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-reason`}>Reason</Label>
+              <Input id={`${__fieldIds}-reason`} value={enrollReason} onChange={(e) => setEnrollReason(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Enrollment expires (optional)</Label>
-              <Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-enrollment-expires-optional`}>Enrollment expires (optional)</Label>
+              <Input id={`${__fieldIds}-enrollment-expires-optional`} type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
               <p className="text-xs text-muted-foreground">Leave blank for open-ended pilot membership.</p>
             </div>
           </div>

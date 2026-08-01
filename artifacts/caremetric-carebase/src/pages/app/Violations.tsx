@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { useCreateViolation, type Violation, type ViolationInsert } from "@/hooks/useViolations";
 import { usePaginatedViolations } from "@/hooks/usePaginatedDomainLists";
@@ -6,14 +6,14 @@ import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
-import { QueryError } from "@/components/QueryState";
+import { DataTable } from "@/components/DataTable";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ShieldAlert, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { ShieldAlert, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
@@ -61,6 +61,7 @@ const EMPTY_FORM: ViolationFormData = {
 const VIOLATIONS_URL_DEFAULTS = { search: "", facility: "all", status: "all", page: "1" };
 
 export default function Violations() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -116,7 +117,13 @@ export default function Violations() {
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const topicById = useMemo(() => new Map((citationTopics ?? []).map((t) => [t.id, t])), [citationTopics]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // Drives DataTable's Reset control, and distinguishes "nothing matches these filters"
+  // from "nothing has been cited yet" in the empty state.
+  const hasActiveFilters = urlState.facility !== "all" || urlState.status !== "all" || !!urlState.search;
+  const resetFilters = () => {
+    setSearch("");
+    setUrlState({ search: "", facility: "all", status: "all", page: "1" });
+  };
 
   // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
   // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs,
@@ -231,70 +238,78 @@ export default function Violations() {
           </Select>
         </div>
 
-        {isError ? (
-          <div className="p-6">
-            <QueryError what="violations" error={error} onRetry={() => refetch()} />
-          </div>
-        ) : isLoading ? (
-          <div className="p-6 space-y-3">
-            {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
-          </div>
-        ) : violations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <ShieldAlert className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No violations found</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              {canManage ? "Record a cited violation to start its Plan of Correction." : "Try adjusting your filters."}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[760px]">
-                <thead>
-                  <tr>
-                    <th>Inspection Date</th>
-                    <th>Facility</th>
-                    <th>Citation</th>
-                    <th>Severity</th>
-                    <th>Status</th>
-                    <th className="w-16" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {violations.map((v) => (
-                    <tr key={v.id}>
-                      <td className="text-muted-foreground">{formatDateForDisplay(v.inspection_date)}</td>
-                      <td className="font-medium text-foreground">{facilityById.get(v.facility_id)?.name ?? "—"}</td>
-                      <td className="text-muted-foreground">
-                        {v.citation_ref ?? topicById.get(v.citation_topic_id ?? "")?.title ?? "—"}
-                      </td>
-                      <td><SeverityBadge severity={v.severity} /></td>
-                      <td><StatusPill status={v.status} /></td>
-                      <td>
-                        <Link href={`/app/violations/${v.id}`} className="text-sm text-primary hover:underline">View</Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
-              <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+        <div className="p-4">
+          <DataTable
+            rows={violations}
+            totalCount={totalCount}
+            getRowId={(v) => v.id}
+            page={page}
+            pageSize={PAGE_SIZE}
+            isLoading={isLoading}
+            error={isError ? error : null}
+            errorLabel="violations"
+            onRetry={() => void refetch()}
+            onPageChange={(next) => setUrlState({ page: String(next) })}
+            onResetFilters={hasActiveFilters ? resetFilters : undefined}
+            activeFilterSummary={hasActiveFilters ? "· filtered" : undefined}
+            emptyIcon={<ShieldAlert className="mb-3 h-10 w-10 text-muted-foreground/30" />}
+            emptyTitle="No violations found"
+            emptyDescription={
+              hasActiveFilters
+                ? "Try adjusting your filters."
+                : canManage
+                  ? "Record a cited violation to start its Plan of Correction."
+                  : "Nothing has been cited yet."
+            }
+            emptyAction={canManage && !hasActiveFilters
+              ? <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Record Violation</Button>
+              : undefined}
+            columns={[
+              {
+                id: "inspection_date",
+                header: "Inspection Date",
+                cell: (v) => <span className="text-muted-foreground">{formatDateForDisplay(v.inspection_date)}</span>,
+              },
+              {
+                id: "facility",
+                header: "Facility",
+                cell: (v) => <span className="font-medium text-foreground">{facilityById.get(v.facility_id)?.name ?? "—"}</span>,
+              },
+              {
+                id: "citation",
+                header: "Citation",
+                cell: (v) => (
+                  <span className="text-muted-foreground">
+                    {v.citation_ref ?? topicById.get(v.citation_topic_id ?? "")?.title ?? "—"}
+                  </span>
+                ),
+              },
+              { id: "severity", header: "Severity", cell: (v) => <SeverityBadge severity={v.severity} /> },
+              { id: "status", header: "Status", cell: (v) => <StatusPill status={v.status} /> },
+              {
+                id: "actions",
+                header: "",
+                className: "w-16",
+                cell: (v) => <Link href={`/app/violations/${v.id}`} className="text-sm text-primary hover:underline">View</Link>,
+              },
+            ]}
+            renderMobileCard={(v) => (
+              <Link href={`/app/violations/${v.id}`} className="block">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-medium">{facilityById.get(v.facility_id)?.name ?? "—"}</span>
+                  <StatusPill status={v.status} />
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {v.citation_ref ?? topicById.get(v.citation_topic_id ?? "")?.title ?? "—"}
+                </p>
+                <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                  {formatDateForDisplay(v.inspection_date)}
+                  <SeverityBadge severity={v.severity} />
+                </p>
+              </Link>
+            )}
+          />
+        </div>
       </div>
 
       <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
@@ -303,7 +318,7 @@ export default function Violations() {
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Facility *</Label>
+                <Label htmlFor={`${__fieldIds}-facility`} className="text-[13px]">Facility *</Label>
                 <Select
                   value={form.facilityId}
                   onValueChange={(v) => {
@@ -314,18 +329,18 @@ export default function Violations() {
                     setSourceInspectionEventId(null);
                   }}
                 >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-facility`} className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Inspection Date *</Label>
-                <Input type="date" value={form.inspectionDate} onChange={(e) => setForm((f) => ({ ...f, inspectionDate: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-inspection-date`} className="text-[13px]">Inspection Date *</Label>
+                <Input id={`${__fieldIds}-inspection-date`} type="date" value={form.inspectionDate} onChange={(e) => setForm((f) => ({ ...f, inspectionDate: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Citation Topic</Label>
+                <Label htmlFor={`${__fieldIds}-citation-topic`} className="text-[13px]">Citation Topic</Label>
                 <Select
                   value={form.citationTopicId}
                   onValueChange={(v) => {
@@ -337,36 +352,36 @@ export default function Violations() {
                     }));
                   }}
                 >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select topic (optional)" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-citation-topic`} className="h-9"><SelectValue placeholder="Select topic (optional)" /></SelectTrigger>
                   <SelectContent>
                     {citationTopics?.map((t) => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Citation Reference</Label>
-                <Input value={form.citationRef} onChange={(e) => setForm((f) => ({ ...f, citationRef: e.target.value }))} placeholder="e.g. 55 Pa. Code 2600.42(a)" className="h-9" />
+                <Label htmlFor={`${__fieldIds}-citation-reference`} className="text-[13px]">Citation Reference</Label>
+                <Input id={`${__fieldIds}-citation-reference`} value={form.citationRef} onChange={(e) => setForm((f) => ({ ...f, citationRef: e.target.value }))} placeholder="e.g. 55 Pa. Code 2600.42(a)" className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Surveyor Name</Label>
-                <Input value={form.surveyorName} onChange={(e) => setForm((f) => ({ ...f, surveyorName: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-surveyor-name`} className="text-[13px]">Surveyor Name</Label>
+                <Input id={`${__fieldIds}-surveyor-name`} value={form.surveyorName} onChange={(e) => setForm((f) => ({ ...f, surveyorName: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Severity</Label>
+                <Label htmlFor={`${__fieldIds}-severity`} className="text-[13px]">Severity</Label>
                 <Select value={form.severity} onValueChange={(v) => setForm((f) => ({ ...f, severity: v as ViolationFormData["severity"] }))}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-severity`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["low", "moderate", "high"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Plan of Correction Due Date</Label>
-                <Input type="date" value={form.pocDueDate} onChange={(e) => setForm((f) => ({ ...f, pocDueDate: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-plan-of-correction-due-date`} className="text-[13px]">Plan of Correction Due Date</Label>
+                <Input id={`${__fieldIds}-plan-of-correction-due-date`} type="date" value={form.pocDueDate} onChange={(e) => setForm((f) => ({ ...f, pocDueDate: e.target.value }))} className="h-9" />
               </div>
               <div className="col-span-full space-y-1.5">
-                <Label className="text-[13px]">Violation Description *</Label>
-                <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="What the surveyor cited, quoted or paraphrased from the inspection report" rows={4} />
+                <Label htmlFor={`${__fieldIds}-violation-description`} className="text-[13px]">Violation Description *</Label>
+                <Textarea id={`${__fieldIds}-violation-description`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="What the surveyor cited, quoted or paraphrased from the inspection report" rows={4} />
               </div>
             </div>
           </div>

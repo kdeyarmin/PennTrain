@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useId, useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -264,6 +264,7 @@ function QuestionCard({
 }
 
 export default function QuizBuilder() {
+  const __fieldIds = useId();
   const { quizId } = useParams<{ quizId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -535,17 +536,17 @@ export default function QuizBuilder() {
           <DialogHeader><DialogTitle>Edit Quiz</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label>Quiz Title *</Label>
-              <Input value={quizForm.title} onChange={e => setQuizForm(f => ({ ...f, title: e.target.value }))} />
+              <Label htmlFor={`${__fieldIds}-quiz-title`}>Quiz Title *</Label>
+              <Input id={`${__fieldIds}-quiz-title`} value={quizForm.title} onChange={e => setQuizForm(f => ({ ...f, title: e.target.value }))} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label>Passing Score (%)</Label>
-                <Input type="number" min="0" max="100" value={quizForm.passingScore} onChange={e => setQuizForm(f => ({ ...f, passingScore: e.target.value }))} />
+                <Label htmlFor={`${__fieldIds}-passing-score`}>Passing Score (%)</Label>
+                <Input id={`${__fieldIds}-passing-score`} type="number" min="0" max="100" value={quizForm.passingScore} onChange={e => setQuizForm(f => ({ ...f, passingScore: e.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label>Max Attempts</Label>
-                <Input type="number" min="1" value={quizForm.maxAttempts} onChange={e => setQuizForm(f => ({ ...f, maxAttempts: e.target.value }))} placeholder="Unlimited" />
+                <Label htmlFor={`${__fieldIds}-max-attempts`}>Max Attempts</Label>
+                <Input id={`${__fieldIds}-max-attempts`} type="number" min="1" value={quizForm.maxAttempts} onChange={e => setQuizForm(f => ({ ...f, maxAttempts: e.target.value }))} placeholder="Unlimited" />
               </div>
             </div>
           </div>
@@ -562,8 +563,8 @@ export default function QuizBuilder() {
           <DialogHeader><DialogTitle>{editingQuestion ? "Edit Question" : "Add Question"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label>Question Text *</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-question-text`}>Question Text *</Label>
+              <Textarea id={`${__fieldIds}-question-text`}
                 value={questionForm.question_text}
                 onChange={e => setQuestionForm(f => ({ ...f, question_text: e.target.value }))}
                 rows={3}
@@ -571,12 +572,12 @@ export default function QuizBuilder() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label>Question Type</Label>
+                <Label htmlFor={`${__fieldIds}-question-type`}>Question Type</Label>
                 <Select
                   value={questionForm.question_type}
                   onValueChange={v => setQuestionForm(f => ({ ...f, question_type: v as QuestionFormState["question_type"] }))}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-question-type`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="single_choice">Single choice</SelectItem>
                     <SelectItem value="multiple_choice">Multiple choice</SelectItem>
@@ -585,13 +586,13 @@ export default function QuizBuilder() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Points</Label>
-                <Input type="number" min="1" value={questionForm.points} onChange={e => setQuestionForm(f => ({ ...f, points: e.target.value }))} />
+                <Label htmlFor={`${__fieldIds}-points`}>Points</Label>
+                <Input id={`${__fieldIds}-points`} type="number" min="1" value={questionForm.points} onChange={e => setQuestionForm(f => ({ ...f, points: e.target.value }))} />
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Explanation (optional)</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-explanation-optional`}>Explanation (optional)</Label>
+              <Textarea id={`${__fieldIds}-explanation-optional`}
                 value={questionForm.explanation}
                 onChange={e => setQuestionForm(f => ({ ...f, explanation: e.target.value }))}
                 placeholder="Shown to employees after they finish the quiz, to reinforce why the correct answer is correct."

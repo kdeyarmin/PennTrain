@@ -54,7 +54,7 @@ export function CopyTemplateDialog({ open, onOpenChange, template }: Props) {
           {(facilities ?? []).map((f) => (
             <label key={f.id} className="flex items-center gap-3 rounded-md border p-2 text-sm">
               <Checkbox checked={selected.has(f.id)} onCheckedChange={() => toggle(f.id)} />
-              <Label className="cursor-pointer font-normal">{f.name}</Label>
+              <span className="cursor-pointer font-normal">{f.name}</span>
             </label>
           ))}
           {(facilities ?? []).length === 0 && <p className="text-sm text-muted-foreground">No facilities available.</p>}

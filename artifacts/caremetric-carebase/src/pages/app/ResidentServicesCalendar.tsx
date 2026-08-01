@@ -38,7 +38,7 @@ const list = (value: string) => value.split(",").map((item) => item.trim()).filt
 const addDays = (days: number) => new Date(Date.now() + days * 86_400_000);
 
 function Field({ label, children, span = false }: { label: string; children: React.ReactNode; span?: boolean }) {
-  return <div className={`space-y-1 ${span ? "sm:col-span-2" : ""}`}><Label>{label}</Label>{children}</div>;
+  return <div className={`space-y-1 ${span ? "sm:col-span-2" : ""}`}><p className="text-sm font-medium leading-none">{label}</p>{children}</div>;
 }
 
 function Choice({ value, onChange, values, placeholder, disabled }: { value: string; onChange: (value: string) => void; values: Array<string | { value: string; label: string }>; placeholder?: string; disabled?: boolean }) {

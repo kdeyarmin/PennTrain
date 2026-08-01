@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -22,6 +22,7 @@ import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/li
 import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { supabase } from "@/lib/supabase";
+import { QueryError } from "@/components/QueryState";
 
 const CE_SOURCE_OPTIONS = ["In-Service", "Conference", "Webinar", "Online Course", "Other"];
 const ROLLING_WINDOW_HOURS_REQUIRED = 24;
@@ -35,6 +36,7 @@ function fmtDate(iso: string | null | undefined): string {
 function DocumentUploadRow({
   label, path, organizationId, profileId, onUploaded,
 }: { label: string; path: string | null; organizationId: string; profileId: string; onUploaded: (path: string) => void | Promise<void> }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadAdministratorDocument();
@@ -70,7 +72,7 @@ function DocumentUploadRow({
 
   return (
     <div className="flex items-center justify-between gap-2 flex-wrap">
-      <Label className="text-[13px]">{label}</Label>
+      <Label htmlFor={`${__fieldIds}-field`} className="text-[13px]">{label}</Label>
       <div className="flex items-center gap-2">
         {path && (
           <Button size="sm" variant="outline" onClick={handleView}><Download className="mr-1.5 h-3.5 w-3.5" /> View</Button>
@@ -78,20 +80,29 @@ function DocumentUploadRow({
         <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={upload.isPending}>
           <Upload className="mr-1.5 h-3.5 w-3.5" /> {upload.isPending ? "Uploading..." : path ? "Replace" : "Upload"}
         </Button>
-        <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleUpload} />
+        <input id={`${__fieldIds}-field`} ref={fileInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleUpload} />
       </div>
     </div>
   );
 }
 
 function AdministratorProfileEditor({ profileId, organizationId }: { profileId: string; organizationId: string }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: profile } = useGetAdministratorProfileByProfileId(profileId);
+  const profileQuery = useGetAdministratorProfileByProfileId(profileId);
+  const { data: profile } = profileQuery;
   const { mutateAsync: upsertProfile, isPending: savingProfile } = useUpsertAdministratorProfile();
-  const { data: ceEntries } = useListAdministratorCeEntries(profile?.id);
+  const ceEntriesQuery = useListAdministratorCeEntries(profile?.id);
+  const { data: ceEntries } = ceEntriesQuery;
   const { mutateAsync: addCeEntry, isPending: addingCe } = useAddAdministratorCeEntry();
   const { mutateAsync: deleteCeEntry } = useDeleteAdministratorCeEntry();
-  const { data: facilities } = useListFacilities();
+  const facilitiesQuery = useListFacilities();
+  const { data: facilities } = facilitiesQuery;
+  // The rule-pack badge reports whether the administrator meets PCH/ALF qualification.
+  // Missing CE hours because of a failed fetch would render as "not ready" and send
+  // someone chasing training that is already on file.
+  const qualificationQueries = [profileQuery, ceEntriesQuery, facilitiesQuery];
+  const qualificationFailure = qualificationQueries.find((query) => query.isError);
 
   const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "" });
   const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
@@ -164,6 +175,13 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
 
   return (
     <div className="space-y-6">
+      {qualificationFailure && (
+        <QueryError
+          what="this administrator's qualification record"
+          error={qualificationFailure.error}
+          onRetry={() => void Promise.all(qualificationQueries.map((query) => query.refetch()))}
+        />
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -178,9 +196,9 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5 max-w-xs">
-            <Label className="text-[13px]">Preview facility type</Label>
+            <Label htmlFor={`${__fieldIds}-preview-facility-type`} className="text-[13px]">Preview facility type</Label>
             <Select value={facilityTypePreview} onValueChange={(v) => setFacilityTypePreview(v as FacilityType)}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-preview-facility-type`} className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {facilityTypeOptions.map((type) => <SelectItem key={type} value={type}>{facilityTypeLabel(type)}</SelectItem>)}
               </SelectContent>
@@ -210,9 +228,9 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5 max-w-xs">
-            <Label className="text-[13px]">Qualification Path</Label>
+            <Label htmlFor={`${__fieldIds}-qualification-path`} className="text-[13px]">Qualification Path</Label>
             <Select value={profile?.qualification_path ?? "unset"} onValueChange={(v) => save({ qualification_path: v === "unset" ? null : (v as AdministratorProfile["qualification_path"]) })}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-qualification-path`} className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="unset">Not yet determined</SelectItem>
                 <SelectItem value="hundred_hour_course">100-Hour Administrator Course</SelectItem>
@@ -224,20 +242,20 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           {profile?.qualification_path === "hundred_hour_course" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Training Course Completed Date</Label>
-                <Input type="date" defaultValue={profile.hundred_hour_course_completed_date ?? ""} onBlur={(e) => save({ hundred_hour_course_completed_date: e.target.value || null })} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-training-course-completed-date`} className="text-[13px]">Training Course Completed Date</Label>
+                <Input id={`${__fieldIds}-training-course-completed-date`} type="date" defaultValue={profile.hundred_hour_course_completed_date ?? ""} onBlur={(e) => save({ hundred_hour_course_completed_date: e.target.value || null })} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Training Course Provider</Label>
-                <Input defaultValue={profile.hundred_hour_course_provider ?? ""} onBlur={(e) => save({ hundred_hour_course_provider: e.target.value || null })} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-training-course-provider`} className="text-[13px]">Training Course Provider</Label>
+                <Input id={`${__fieldIds}-training-course-provider`} defaultValue={profile.hundred_hour_course_provider ?? ""} onBlur={(e) => save({ hundred_hour_course_provider: e.target.value || null })} className="h-9" />
               </div>
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
                 <Checkbox checked={profile.competency_test_passed} onCheckedChange={(v) => save({ competency_test_passed: !!v })} />
                 Competency test passed
               </label>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Competency Test Date</Label>
-                <Input type="date" defaultValue={profile.competency_test_date ?? ""} onBlur={(e) => save({ competency_test_date: e.target.value || null })} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-competency-test-date`} className="text-[13px]">Competency Test Date</Label>
+                <Input id={`${__fieldIds}-competency-test-date`} type="date" defaultValue={profile.competency_test_date ?? ""} onBlur={(e) => save({ competency_test_date: e.target.value || null })} className="h-9" />
               </div>
               <div className="sm:col-span-2">
                 <DocumentUploadRow
@@ -254,16 +272,16 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           {profile?.qualification_path === "nha_exemption" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">NHA License Number</Label>
-                <Input defaultValue={profile.nha_license_number ?? ""} onBlur={(e) => save({ nha_license_number: e.target.value || null })} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-nha-license-number`} className="text-[13px]">NHA License Number</Label>
+                <Input id={`${__fieldIds}-nha-license-number`} defaultValue={profile.nha_license_number ?? ""} onBlur={(e) => save({ nha_license_number: e.target.value || null })} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Licensing State</Label>
-                <Input defaultValue={profile.nha_license_state ?? ""} onBlur={(e) => save({ nha_license_state: e.target.value || null })} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-licensing-state`} className="text-[13px]">Licensing State</Label>
+                <Input id={`${__fieldIds}-licensing-state`} defaultValue={profile.nha_license_state ?? ""} onBlur={(e) => save({ nha_license_state: e.target.value || null })} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">License Expiration</Label>
-                <Input type="date" defaultValue={profile.nha_license_expiration ?? ""} onBlur={(e) => save({ nha_license_expiration: e.target.value || null })} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-license-expiration`} className="text-[13px]">License Expiration</Label>
+                <Input id={`${__fieldIds}-license-expiration`} type="date" defaultValue={profile.nha_license_expiration ?? ""} onBlur={(e) => save({ nha_license_expiration: e.target.value || null })} className="h-9" />
               </div>
             </div>
           )}
@@ -278,13 +296,13 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Submitted Date</Label>
-              <Input type="date" defaultValue={profile?.regional_office_verification_submitted_date ?? ""} onBlur={(e) => save({ regional_office_verification_submitted_date: e.target.value || null })} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-submitted-date`} className="text-[13px]">Submitted Date</Label>
+              <Input id={`${__fieldIds}-submitted-date`} type="date" defaultValue={profile?.regional_office_verification_submitted_date ?? ""} onBlur={(e) => save({ regional_office_verification_submitted_date: e.target.value || null })} className="h-9" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[13px]">Notes</Label>
-            <Textarea defaultValue={profile?.regional_office_verification_notes ?? ""} onBlur={(e) => save({ regional_office_verification_notes: e.target.value || null })} rows={2} />
+            <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
+            <Textarea id={`${__fieldIds}-notes`} defaultValue={profile?.regional_office_verification_notes ?? ""} onBlur={(e) => save({ regional_office_verification_notes: e.target.value || null })} rows={2} />
           </div>
           <DocumentUploadRow
             label="Proof of Submission"
@@ -309,25 +327,25 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
             <div className="space-y-1">
-              <Label className="text-xs">Hours</Label>
-              <Input type="number" step="0.5" min="0.5" value={ceForm.hours} onChange={(e) => setCeForm((f) => ({ ...f, hours: e.target.value }))} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-hours`} className="text-xs">Hours</Label>
+              <Input id={`${__fieldIds}-hours`} type="number" step="0.5" min="0.5" value={ceForm.hours} onChange={(e) => setCeForm((f) => ({ ...f, hours: e.target.value }))} className="h-9" />
             </div>
             <div className="space-y-1 col-span-2">
-              <Label className="text-xs">Topic</Label>
-              <Input value={ceForm.topic} onChange={(e) => setCeForm((f) => ({ ...f, topic: e.target.value }))} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-topic`} className="text-xs">Topic</Label>
+              <Input id={`${__fieldIds}-topic`} value={ceForm.topic} onChange={(e) => setCeForm((f) => ({ ...f, topic: e.target.value }))} className="h-9" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Source</Label>
+              <Label htmlFor={`${__fieldIds}-source`} className="text-xs">Source</Label>
               <Select value={ceForm.source} onValueChange={(v) => setCeForm((f) => ({ ...f, source: v }))}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-source`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CE_SOURCE_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Date</Label>
-              <Input type="date" value={ceForm.completedDate} onChange={(e) => setCeForm((f) => ({ ...f, completedDate: e.target.value }))} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-date`} className="text-xs">Date</Label>
+              <Input id={`${__fieldIds}-date`} type="date" value={ceForm.completedDate} onChange={(e) => setCeForm((f) => ({ ...f, completedDate: e.target.value }))} className="h-9" />
             </div>
             <div className="col-span-2 sm:col-span-5">
               <Button size="sm" onClick={handleAddCe} disabled={addingCe || !ceForm.hours || !ceForm.topic || !ceForm.completedDate}>
@@ -366,6 +384,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
 }
 
 export default function AdministratorQualification() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const isSelfService = user?.role === "facility_manager";
   const { data: administrators } = useListProfiles({ organizationId: user?.organizationId ?? undefined, role: "facility_manager" });
@@ -386,9 +405,9 @@ export default function AdministratorQualification() {
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-1.5 max-w-sm">
-              <Label className="text-[13px]">Administrator</Label>
+              <Label htmlFor={`${__fieldIds}-administrator`} className="text-[13px]">Administrator</Label>
               <Select value={selectedProfileId ?? ""} onValueChange={setSelectedProfileId}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select an administrator" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-administrator`} className="h-9"><SelectValue placeholder="Select an administrator" /></SelectTrigger>
                 <SelectContent>
                   {(administrators ?? []).map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>

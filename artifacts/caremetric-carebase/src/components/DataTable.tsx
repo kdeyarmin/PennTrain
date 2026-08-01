@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { cn } from "@/lib/utils";
 
 export interface DataTableColumn<T> {
@@ -27,9 +28,15 @@ export interface DataTableProps<T> {
   sortDir?: "asc" | "desc";
   isLoading?: boolean;
   isRefreshing?: boolean;
-  error?: Error | null;
+  error?: unknown;
+  /** What failed, as a noun: "violations" -> "Couldn't load violations". */
+  errorLabel?: string;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Icon for the empty state, e.g. the page's own domain icon. */
+  emptyIcon?: ReactNode;
+  /** Primary action offered when the list is empty, e.g. "Record a violation". */
+  emptyAction?: ReactNode;
   selectedIds?: Set<string>;
   onSelectedIdsChange?: (ids: Set<string>) => void;
   onSort?: (field: string) => void;
@@ -42,7 +49,7 @@ export interface DataTableProps<T> {
   renderMobileCard?: (row: T) => ReactNode;
 }
 
-export function DataTable<T>({ rows, totalCount, getRowId, columns, page, pageSize, sortField, sortDir, isLoading, isRefreshing, error, emptyTitle = "No records found", emptyDescription = "Try changing your filters or search.", selectedIds, onSelectedIdsChange, onSort, onPageChange, onPageSizeChange, onRetry, onResetFilters, activeFilterSummary, bulkActions, renderMobileCard }: DataTableProps<T>) {
+export function DataTable<T>({ rows, totalCount, getRowId, columns, page, pageSize, sortField, sortDir, isLoading, isRefreshing, error, errorLabel = "these records", emptyTitle = "No records found", emptyDescription = "Try changing your filters or search.", emptyIcon, emptyAction, selectedIds, onSelectedIdsChange, onSort, onPageChange, onPageSizeChange, onRetry, onResetFilters, activeFilterSummary, bulkActions, renderMobileCard }: DataTableProps<T>) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const pageIds = rows.map(getRowId);
   const allPageSelected = !!selectedIds && pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
@@ -60,8 +67,10 @@ export function DataTable<T>({ rows, totalCount, getRowId, columns, page, pageSi
     onSelectedIdsChange(next);
   };
 
+  // Defers to the shared QueryError so a failed list reads the same here as everywhere else
+  // in the app, including the sanitized message and the reported-error side effect.
   if (error) {
-    return <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm"><p className="font-medium">Could not load records.</p><p className="mt-1 text-muted-foreground">{error.message}</p>{onRetry && <Button className="mt-3" variant="outline" size="sm" onClick={onRetry}>Retry</Button>}</div>;
+    return <QueryError what={errorLabel} error={error} onRetry={onRetry} />;
   }
 
   return <div className="space-y-3" aria-busy={isLoading || isRefreshing}>
@@ -69,7 +78,7 @@ export function DataTable<T>({ rows, totalCount, getRowId, columns, page, pageSi
       <div>{isRefreshing ? <span className="inline-flex items-center gap-1"><RefreshCw className="h-3 w-3 animate-spin" />Refreshing</span> : `${totalCount.toLocaleString()} record${totalCount === 1 ? "" : "s"}`}{activeFilterSummary ? <span className="ml-2">{activeFilterSummary}</span> : null}</div>
       <div className="flex items-center gap-2">{bulkActions}{onResetFilters && <Button variant="ghost" size="sm" onClick={onResetFilters}><RotateCcw className="mr-1 h-3 w-3" />Reset</Button>}</div>
     </div>
-    {isLoading ? <div className="overflow-hidden rounded-lg border" role="status" aria-busy="true"><div className="border-b bg-muted/60 px-4 py-3"><Skeleton className="h-3.5 w-40" /></div>{Array.from({ length: 6 }).map((_, i) => <div key={i} className="flex items-center gap-4 border-b border-border/60 px-4 py-3.5 last:border-b-0"><Skeleton className="h-4 flex-1" /><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-16" /></div>)}<span className="sr-only">Loading records…</span></div> : rows.length === 0 ? <div className="rounded-lg border p-8 text-center"><p className="font-medium">{emptyTitle}</p><p className="mt-1 text-sm text-muted-foreground">{emptyDescription}</p></div> : <>
+    {isLoading ? <div className="overflow-hidden rounded-lg border" role="status" aria-busy="true"><div className="border-b bg-muted/60 px-4 py-3"><Skeleton className="h-3.5 w-40" /></div>{Array.from({ length: 6 }).map((_, i) => <div key={i} className="flex items-center gap-4 border-b border-border/60 px-4 py-3.5 last:border-b-0"><Skeleton className="h-4 flex-1" /><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-16" /></div>)}<span className="sr-only">Loading records…</span></div> : rows.length === 0 ? <div className="flex flex-col items-center rounded-lg border p-8 text-center">{emptyIcon}<p className="font-medium">{emptyTitle}</p><p className="mt-1 text-sm text-muted-foreground">{emptyDescription}</p>{emptyAction && <div className="mt-4">{emptyAction}</div>}</div> : <>
       <div className="hidden overflow-hidden rounded-lg border md:block">
         <Table>
           <TableHeader><TableRow>{selectedIds && onSelectedIdsChange ? <TableHead className="w-10"><Checkbox aria-label="Select current page" checked={allPageSelected} onCheckedChange={togglePage} /></TableHead> : null}{columns.map((column) => <TableHead key={column.id} className={column.className}>{column.sortField && onSort ? <button type="button" className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSort(column.sortField!)}>{column.header}{sortField === column.sortField ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</button> : column.header}</TableHead>)}</TableRow></TableHeader>
