@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
-import { useGetViolation, useUpdateViolation, useGeneratePocDocument } from "@/hooks/useViolations";
+import { useGetViolation, useGeneratePocDocument } from "@/hooks/useViolations";
+import { PocLifecycleActions } from "@/components/violations/PocLifecycleActions";
 import { usePageTitle } from "@/lib/pageTitle";
 import {
   useListCorrectiveActions, useUpdateCorrectiveAction,
@@ -61,7 +62,6 @@ export default function ViolationDetail() {
   const { data: correctiveActions, isLoading: correctiveLoading } = useListCorrectiveActions({ violationId: id });
   const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
 
-  const { mutate: updateViolation, isPending: updatingViolation } = useUpdateViolation();
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
   const deleteCorrectiveAction = useDeleteCorrectiveAction();
   const createRetrainingAction = useCreateViolationRetrainingAction();
@@ -404,28 +404,13 @@ export default function ViolationDetail() {
               <FileDown className="mr-2 h-4 w-4" />
               {generatePocDocument.isPending ? "Generating..." : "Generate Plan of Correction PDF"}
             </Button>
-            {canManage && violation.status === "open" && (
-              <Button
-                size="sm" variant="outline" disabled={updatingViolation}
-                onClick={() => updateViolation({ id: violation.id, status: "poc_submitted", poc_submitted_at: new Date().toISOString() })}
-              >
-                Mark POC Submitted
-              </Button>
-            )}
-            {canManage && violation.status === "poc_submitted" && (
-              <Button size="sm" variant="outline" disabled={updatingViolation} onClick={() => updateViolation({ id: violation.id, status: "corrected" })}>
-                Mark Corrected
-              </Button>
-            )}
-            {canManage && violation.status === "corrected" && (
-              <Button
-                size="sm" variant="outline" disabled={updatingViolation}
-                onClick={() => updateViolation({ id: violation.id, status: "verified", verified_at: new Date().toISOString(), verified_by_profile_id: user?.id })}
-              >
-                Mark Verified (Follow-Up Visit)
-              </Button>
-            )}
           </div>
+          <PocLifecycleActions
+            violationId={violation.id}
+            status={violation.status}
+            canManage={canManage}
+            effectivenessNotes={(violation as { effectiveness_notes?: string | null }).effectiveness_notes}
+          />
         </CardContent>
       </Card>
 

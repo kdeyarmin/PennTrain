@@ -344,3 +344,9 @@ verify_jwt = true
 
 [functions.survey-packet-guest-download]
 verify_jwt = false
+
+# Durable data-import claim worker. Platform cron and the system-jobs control plane call it
+# without a user JWT, so verify_jwt stays false; the handler rejects anything that is not a
+# service-role Bearer or a matching X-Cron-Secret -- the same boundary as the other cron workers.
+[functions.process-data-import-jobs]
+verify_jwt = false

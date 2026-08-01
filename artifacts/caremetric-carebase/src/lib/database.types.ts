@@ -4346,6 +4346,7 @@ export type Database = {
           updated_at: string
           verification_notes: string | null
           violation_id: string | null
+          work_item_id: string | null
         }
         Insert: {
           completed_date?: string | null
@@ -4364,6 +4365,7 @@ export type Database = {
           updated_at?: string
           verification_notes?: string | null
           violation_id?: string | null
+          work_item_id?: string | null
         }
         Update: {
           completed_date?: string | null
@@ -4382,6 +4384,7 @@ export type Database = {
           updated_at?: string
           verification_notes?: string | null
           violation_id?: string | null
+          work_item_id?: string | null
         }
         Relationships: [
           {
@@ -4445,6 +4448,13 @@ export type Database = {
             columns: ["violation_id"]
             isOneToOne: false
             referencedRelation: "dhs_violations_search"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
             referencedColumns: ["id"]
           },
         ]
@@ -5424,6 +5434,9 @@ export type Database = {
           applied_at: string | null
           applied_rows: number
           canceled_at: string | null
+          claim_expires_at: string | null
+          claimed_at: string | null
+          claimed_by: string | null
           created_at: string
           created_by: string | null
           definition_version: string
@@ -5452,6 +5465,9 @@ export type Database = {
           applied_at?: string | null
           applied_rows?: number
           canceled_at?: string | null
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string
           created_by?: string | null
           definition_version?: string
@@ -5480,6 +5496,9 @@ export type Database = {
           applied_at?: string | null
           applied_rows?: number
           canceled_at?: string | null
+          claim_expires_at?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string
           created_by?: string | null
           definition_version?: string
@@ -5878,6 +5897,9 @@ export type Database = {
           citation_topic_id: string | null
           created_at: string
           description: string
+          effectiveness_notes: string | null
+          effectiveness_reviewed_at: string | null
+          effectiveness_reviewed_by_profile_id: string | null
           facility_id: string
           id: string
           inspection_date: string
@@ -5897,6 +5919,9 @@ export type Database = {
           citation_topic_id?: string | null
           created_at?: string
           description: string
+          effectiveness_notes?: string | null
+          effectiveness_reviewed_at?: string | null
+          effectiveness_reviewed_by_profile_id?: string | null
           facility_id: string
           id?: string
           inspection_date: string
@@ -5916,6 +5941,9 @@ export type Database = {
           citation_topic_id?: string | null
           created_at?: string
           description?: string
+          effectiveness_notes?: string | null
+          effectiveness_reviewed_at?: string | null
+          effectiveness_reviewed_by_profile_id?: string | null
           facility_id?: string
           id?: string
           inspection_date?: string
@@ -5936,6 +5964,13 @@ export type Database = {
             columns: ["citation_topic_id"]
             isOneToOne: false
             referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dhs_violations_effectiveness_reviewed_by_profile_id_fkey"
+            columns: ["effectiveness_reviewed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -19814,6 +19849,90 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      plan_of_correction_versions: {
+        Row: {
+          amendment_reason: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          pdf_sha256: string | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          snapshot: Json
+          submitted_at: string
+          submitted_by_profile_id: string | null
+          version_number: number
+          violation_id: string
+        }
+        Insert: {
+          amendment_reason?: string | null
+          created_at?: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          pdf_sha256?: string | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
+          snapshot?: Json
+          submitted_at?: string
+          submitted_by_profile_id?: string | null
+          version_number: number
+          violation_id: string
+        }
+        Update: {
+          amendment_reason?: string | null
+          created_at?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          pdf_sha256?: string | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
+          snapshot?: Json
+          submitted_at?: string
+          submitted_by_profile_id?: string | null
+          version_number?: number
+          violation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_of_correction_versions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_of_correction_versions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_of_correction_versions_submitted_by_profile_id_fkey"
+            columns: ["submitted_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_of_correction_versions_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_of_correction_versions_violation_id_fkey"
+            columns: ["violation_id"]
+            isOneToOne: false
+            referencedRelation: "dhs_violations_search"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_settings: {
         Row: {
@@ -35737,6 +35856,37 @@ export type Database = {
         }
         Returns: Json
       }
+      assert_can_manage_violation: {
+        Args: { p_violation_id: string }
+        Returns: {
+          citation_ref: string | null
+          citation_topic_id: string | null
+          created_at: string
+          description: string
+          effectiveness_notes: string | null
+          effectiveness_reviewed_at: string | null
+          effectiveness_reviewed_by_profile_id: string | null
+          facility_id: string
+          id: string
+          inspection_date: string
+          organization_id: string
+          poc_due_date: string | null
+          poc_submitted_at: string | null
+          severity: string
+          source_inspection_event_id: string | null
+          status: string
+          surveyor_name: string | null
+          updated_at: string
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "dhs_violations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assert_course_version_publish_ready: {
         Args: { p_version_id: string }
         Returns: undefined
@@ -36081,6 +36231,46 @@ export type Database = {
           id: string
           organization_id: string
         }[]
+      }
+      claim_data_import_jobs: {
+        Args: { p_claim_seconds?: number; p_limit?: number }
+        Returns: {
+          applied_at: string | null
+          applied_rows: number
+          canceled_at: string | null
+          claim_expires_at: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          created_by: string | null
+          definition_version: string
+          domain: string
+          duplicate_strategy: string
+          error_rows: number
+          facility_id: string | null
+          finalized_at: string | null
+          id: string
+          last_error: string | null
+          mapping: Json
+          organization_id: string
+          original_file_name: string
+          original_file_sha256: string
+          reverted_rows: number
+          rolled_back_at: string | null
+          skipped_rows: number
+          started_at: string | null
+          status: string
+          total_rows: number
+          updated_at: string
+          valid_rows: number
+          warning_rows: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "data_import_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_document_analyzer_jobs: {
         Args: { p_job_id?: string; p_limit?: number; p_worker_id: string }
@@ -36916,6 +37106,7 @@ export type Database = {
           updated_at: string
           verification_notes: string | null
           violation_id: string | null
+          work_item_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -38357,6 +38548,30 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      list_plan_of_correction_versions: {
+        Args: { p_violation_id: string }
+        Returns: {
+          amendment_reason: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          pdf_sha256: string | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          snapshot: Json
+          submitted_at: string
+          submitted_by_profile_id: string | null
+          version_number: number
+          violation_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "plan_of_correction_versions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       list_regulatory_updates: {
         Args: {
           p_category?: string
@@ -38578,6 +38793,37 @@ export type Database = {
       mark_org_announcement_seen: {
         Args: { p_announcement_id: string }
         Returns: string
+      }
+      mark_plan_of_correction_corrected: {
+        Args: { p_violation_id: string }
+        Returns: {
+          citation_ref: string | null
+          citation_topic_id: string | null
+          created_at: string
+          description: string
+          effectiveness_notes: string | null
+          effectiveness_reviewed_at: string | null
+          effectiveness_reviewed_by_profile_id: string | null
+          facility_id: string
+          id: string
+          inspection_date: string
+          organization_id: string
+          poc_due_date: string | null
+          poc_submitted_at: string | null
+          severity: string
+          source_inspection_event_id: string | null
+          status: string
+          surveyor_name: string | null
+          updated_at: string
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "dhs_violations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       mark_product_changelog_seen: { Args: never; Returns: string }
       mark_resident_agreement_copy_delivered: {
@@ -39590,6 +39836,46 @@ export type Database = {
       release_audit_legal_hold: {
         Args: { p_hold_id: string; p_reason: string }
         Returns: undefined
+      }
+      release_data_import_job_claim: {
+        Args: { p_job_id: string; p_last_error?: string; p_status?: string }
+        Returns: {
+          applied_at: string | null
+          applied_rows: number
+          canceled_at: string | null
+          claim_expires_at: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          created_by: string | null
+          definition_version: string
+          domain: string
+          duplicate_strategy: string
+          error_rows: number
+          facility_id: string | null
+          finalized_at: string | null
+          id: string
+          last_error: string | null
+          mapping: Json
+          organization_id: string
+          original_file_name: string
+          original_file_sha256: string
+          reverted_rows: number
+          rolled_back_at: string | null
+          skipped_rows: number
+          started_at: string | null
+          status: string
+          total_rows: number
+          updated_at: string
+          valid_rows: number
+          warning_rows: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "data_import_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       remove_compliance_evidence: {
         Args: { p_document_id: string }
@@ -41034,6 +41320,30 @@ export type Database = {
         Args: { p_revision_id: string; p_validation_results: Json }
         Returns: boolean
       }
+      submit_plan_of_correction: {
+        Args: { p_amendment_reason?: string; p_violation_id: string }
+        Returns: {
+          amendment_reason: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          pdf_sha256: string | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          snapshot: Json
+          submitted_at: string
+          submitted_by_profile_id: string | null
+          version_number: number
+          violation_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "plan_of_correction_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       submit_regulatory_rule_version: {
         Args: { p_version_id: string }
         Returns: {
@@ -41709,6 +42019,37 @@ export type Database = {
         Args: { p_domain_id: string; p_observed_challenge_sha256: string }
         Returns: boolean
       }
+      verify_plan_of_correction: {
+        Args: { p_notes: string; p_violation_id: string }
+        Returns: {
+          citation_ref: string | null
+          citation_topic_id: string | null
+          created_at: string
+          description: string
+          effectiveness_notes: string | null
+          effectiveness_reviewed_at: string | null
+          effectiveness_reviewed_by_profile_id: string | null
+          facility_id: string
+          id: string
+          inspection_date: string
+          organization_id: string
+          poc_due_date: string | null
+          poc_submitted_at: string | null
+          severity: string
+          source_inspection_event_id: string | null
+          status: string
+          surveyor_name: string | null
+          updated_at: string
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "dhs_violations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       verify_training_passport: { Args: { p_slug: string }; Returns: Json }
       verify_work_order: {
         Args: {
@@ -41921,3 +42262,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

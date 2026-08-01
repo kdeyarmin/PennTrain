@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"/><title>Captivate-shaped fixture</title></head>
+<body>
+  <h1>Captivate-shaped runtime</h1>
+  <p id="status">Booting…</p>
+  <script src="./carebase/learning-runtime-bridge.js"></script>
+  <script>
+    window.cpAPIInterface = { setVariableValue: function () {}, getVariableValue: function () { return null; } };
+    CareBaseLearningRuntime.onReady(function () {
+      document.getElementById("status").textContent = "Captivate-shaped connected";
+      CareBaseLearningRuntime.commit({ progress: 0.25, completionStatus: "incomplete" });
+      CareBaseLearningRuntime.commit({ progress: 1, completionStatus: "completed", successStatus: "passed" });
+    });
+  </script>
+</body>
+</html>

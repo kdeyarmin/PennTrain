@@ -88,6 +88,12 @@
     ],
     "rationale": "Internal cron worker fetching regulatory source pages."
   },
+  "process-data-import-jobs": {
+    "gates": [
+      "cron-secret"
+    ],
+    "rationale": "Internal cron worker that claims durable data-import jobs so a closed browser tab cannot strand one in 'applying'."
+  },
   "process-organization-export-jobs": {
     "gates": [
       "cron-secret"
