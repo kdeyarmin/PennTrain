@@ -13,13 +13,25 @@
 -- pass on public.exclusion_list_entries (which is the live table). No primary key, no code
 -- references found. Locking it down here rather than dropping it -- deleting 97k rows of
 -- what may be a retained pre-dedup safety copy is a data-destructive call for the team to make
--- explicitly, not an RLS migration.
+-- explicitly, not an RLS migration. Confirmed (via a `supabase db reset` CI failure on this
+-- exact statement) that this table was created out-of-band on the live project -- not by any
+-- tracked migration -- so it does not exist when the migration chain is replayed from scratch.
+-- Guarded with an existence check so this statement is a no-op on a fresh database and only
+-- takes effect against the live project where the table (and the risk) actually is.
 -- product_module_resources / product_module_storage_buckets: internal product-module metadata,
 -- not tenant data.
 -- retained_records_archive_2026 / _2027 / _default: regulatory retention archive partitions.
 
 alter table app_private.clinical_access_log enable row level security;
-alter table app_private.exclusion_list_entries_dedup_backup_20260712 enable row level security;
+
+do $$
+begin
+  if to_regclass('app_private.exclusion_list_entries_dedup_backup_20260712') is not null then
+    execute 'alter table app_private.exclusion_list_entries_dedup_backup_20260712 enable row level security';
+  end if;
+end
+$$;
+
 alter table app_private.product_module_resources enable row level security;
 alter table app_private.product_module_storage_buckets enable row level security;
 alter table app_private.retained_records_archive_2026 enable row level security;
