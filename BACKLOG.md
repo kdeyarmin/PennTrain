@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `849b42b` (2026-08-01) — B1+B5 wire-up
+**Last verified against main:** `ef760cdf` (2026-08-01) — B4 SCORM→training-record bridge (20260801150000)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -156,9 +156,9 @@ The build command now runs the unit suite and the startup check.
 1. Live pilot evidence against a non-demo org (runbook + manifest)
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
-4. SCORM production hardening: adapter injection wired into the accept path, real vendor packages
-5. Trainer quarantine UX reachable from a surface (dialog built, nothing imports it — ~~B5~~ done)
-6. Durable import worker that survives a closed browser (claim layer exists; stored file does not)
+4. SCORM real vendor packages (B3); B1/B4/B5 shipped
+5. ~~B5 quarantine UX~~ done
+6. Durable import worker that survives a closed browser (claim layer exists; apply-from-ledger in progress)
 7. Home IA density (too many "homes")
 8. PA rule pack for the copilot — **SG-2**
 9. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
@@ -191,7 +191,7 @@ Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCT
 | B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | in_progress | `accept-learning-package` edge function created; `useAcceptLearningPackage` now invokes it server-side. Bridge injected via fflate at accept time; `content_sha256` updated. Real vendor packages (B3) and production storage policy still needed for full confidence |
 | B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
 | B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
-| B4 | Bridge SCORM complete → training record / hour bucket | M | open | Credibility for §2600.65 |
+| B4 | Bridge SCORM complete → training record / hour bucket | M | done | `commit_learning_runtime_state` → `bridge_learning_runtime_completion` on first completed commit; assignment + training_records + hour buckets when `courses.training_type_id` set; quiz blocks still gate |
 | B5 | Trainer package quarantine UX (reject reason + re-upload) | S | done | `QuarantinePackageDialog` imported into `GovernedLearning.tsx`; replaces `window.prompt`. Trainer can now reach quarantine from the Standards tab |
 
 ### Tier C — Plan of Correction depth
@@ -212,7 +212,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (stored CSV, resume after browser close) | M | in_progress | #355 landed the claim/lease layer: `claimed_at`/`claimed_by`/`claim_expires_at`, `claim_data_import_jobs`, `release_data_import_job_claim`, `process-data-import-jobs`. The worker reads no stored file, so a closed browser still loses the CSV — the actual promise of this row |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Employee-domain durable apply via process-data-import-jobs from data_import_rows (PR open) |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
 
@@ -262,7 +262,7 @@ real email*. SG-1 is the difference between a pilot and a demo, and A1–A4 are 
 without it. Nothing below this line matters until a real tenant has used the product.
 
 **2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, D3.
-Each is a half-built row: the code exists, no surface calls it. B1 and B5 are now wired (this PR). B3 and D3 remain. This is the cheapest block
+Each is a half-built row: the code exists, no surface calls it. B1 and B5 are wired. B3 and D3 remain. This is the cheapest block
 on the list and the one most likely to be skipped, because none of it looks like progress.
 Doing it before new features is how the pile stops growing. (C2 was the fifth and is now
 closed.)
@@ -272,7 +272,7 @@ It needs a decision, not engineering time, and the decision is cheap while the w
 not. Picking option 3 above costs an afternoon of copy changes; discovering you should
 have picked it *after* authoring a pack costs the pack.
 
-**4. Product depth.** B4, then C5.
+**4. Product depth.** ~~B4~~ done, then C5.
 Only once 1–3 are settled.
 
 **Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both depend on
@@ -304,3 +304,5 @@ checks that do not depend on a second reader are the ones carrying real weight: 
 pgTAP suite, `check:all`, and this register's own freshness check. Treat a mechanical gate
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
+
+<!-- Register verified with B4 migration 20260801150000 on enhancement/b4-scorm-training-record-bridge -->
