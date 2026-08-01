@@ -205,6 +205,19 @@ export function hasAnyBanner(markdown) {
 }
 
 /**
+ * Does one commit's file list count as drift?
+ *
+ * Drift means: it changed something register-affecting and did not re-verify the register
+ * in the same commit. Pure so it can be fixtured -- this rule is subtle enough that it
+ * shipped wrong once (every conforming commit was flagged), and a regression here would
+ * silently un-gate the whole check.
+ */
+export function commitIsDrift(changedPaths) {
+  if (changedPaths.includes(CANONICAL_REGISTER)) return false;
+  return changedPaths.some((path) => classifyPath(path) === "affecting");
+}
+
+/**
  * Parse the "Standing gaps" table out of BACKLOG.md.
  *
  * A standing gap is a known, accepted, *unfixed* problem -- the kind that survives review
@@ -280,6 +293,32 @@ const FIXTURES = [
   ["any-banner detects reference", () => hasAnyBanner(`# Doc\n\n${REFERENCE_MARKER}\n`)],
   ["any-banner detects supersession", () => hasAnyBanner(`# Doc\n\n${SUPERSESSION_MARKER}\n`)],
   ["any-banner rejects plain doc", () => hasAnyBanner("# Doc\n\nprose\n") === false],
+
+  // commitIsDrift -- the rule that shipped wrong once. A stamp cannot name the commit
+  // containing it, so a commit that re-verifies the register certifies its own work.
+  [
+    "drift: src only",
+    () => commitIsDrift(["artifacts/caremetric-carebase/src/pages/app/Today.tsx"]),
+  ],
+  ["drift: migration only", () => commitIsDrift(["supabase/migrations/20260801_x.sql"])],
+  [
+    "conforming: src + register in one commit",
+    () =>
+      commitIsDrift(["artifacts/caremetric-carebase/src/pages/app/Today.tsx", "BACKLOG.md"]) ===
+      false,
+  ],
+  [
+    "conforming: migration + register in one commit",
+    () => commitIsDrift(["supabase/migrations/20260801_x.sql", "BACKLOG.md"]) === false,
+  ],
+  ["no drift: neutral files only", () => commitIsDrift(["README.md", "railway.json"]) === false],
+  ["no drift: tests only", () => commitIsDrift(["src/lib/thing.test.ts"]) === false],
+  ["no drift: empty commit", () => commitIsDrift([]) === false],
+  [
+    // A register edit alone is not drift and must not need a stamp bump to itself.
+    "no drift: register only",
+    () => commitIsDrift(["BACKLOG.md"]) === false,
+  ],
 
   // parseStandingGaps
   [
@@ -391,7 +430,21 @@ async function isAncestor(ancestor, descendant) {
   }
 }
 
-/** Commits in (from, to] that touch at least one register-affecting path. */
+/**
+ * Commits in (from, to] that changed register-affecting files *without* re-verifying the
+ * register in the same commit.
+ *
+ * The second half of that sentence is load-bearing. A stamp can never name the commit
+ * that contains it, and a squash merge cannot carry a SHA computed before the squash
+ * existed. So a commit that touches BACKLOG.md is treated as self-certifying: whoever
+ * wrote it re-verified the register as part of the same change, which is exactly the
+ * discipline being enforced.
+ *
+ * Without this, every *conforming* product PR would turn main red the moment it merged --
+ * PR mode would pass it, then tree mode on main would flag the merge commit as drift,
+ * blocking ci-result and with it deploy-migrations.yml. A gate that fails on correct
+ * behaviour trains people to disable the gate.
+ */
 async function registerAffectingCommits(from, to) {
   const UNIT_SEPARATOR = "\x1f";
   const raw = await git(["log", "--format=%H%x1f%s", "--name-only", `${from}..${to}`]);
@@ -403,15 +456,20 @@ async function registerAffectingCommits(from, to) {
   for (const line of raw.split("\n")) {
     if (line.includes(UNIT_SEPARATOR)) {
       const [sha, subject] = line.split(UNIT_SEPARATOR);
-      current = { sha, subject, paths: [] };
+      current = { sha, subject, changedPaths: [] };
       commits.push(current);
       continue;
     }
     const path = line.trim();
-    if (path && current && classifyPath(path) === "affecting") current.paths.push(path);
+    if (path && current) current.changedPaths.push(path);
   }
 
-  return commits.filter((commit) => commit.paths.length > 0);
+  return commits
+    .filter((commit) => commitIsDrift(commit.changedPaths))
+    .map((commit) => ({
+      ...commit,
+      paths: commit.changedPaths.filter((path) => classifyPath(path) === "affecting"),
+    }));
 }
 
 // ---------------------------------------------------------------------------
