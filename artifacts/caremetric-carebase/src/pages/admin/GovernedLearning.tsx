@@ -6,6 +6,7 @@ import {
   useAdminLearningPackages,
   useQuarantineLearningPackage,
 } from "@/hooks/useLearningRuntime";
+import { QuarantinePackageDialog } from "@/components/learning/QuarantinePackageDialog";
 import { useToast } from "@/hooks/use-toast";
 import type { EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
 import { QueryError } from "@/components/QueryState";
@@ -38,9 +39,27 @@ function StandardsPackagesPanel() {
   const quarantine = useQuarantineLearningPackage();
   const { toast } = useToast();
   const rows = packages.data ?? [];
+  const [quarantineTarget, setQuarantineTarget] = useState<{ id: string; path: string } | null>(null);
 
   return (
     <div className="space-y-4">
+      <QuarantinePackageDialog
+        open={quarantineTarget !== null}
+        packagePath={quarantineTarget?.path}
+        pending={quarantine.isPending}
+        onOpenChange={(open) => { if (!open) setQuarantineTarget(null); }}
+        onConfirm={async (reason) => {
+          if (!quarantineTarget) return;
+          try {
+            await quarantine.mutateAsync({ packageId: quarantineTarget.id, reason });
+            toast({ title: "Package quarantined" });
+          } catch (e) {
+            toast({ title: "Quarantine blocked", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+          } finally {
+            setQuarantineTarget(null);
+          }
+        }}
+      />
       <Metrics title="Interoperability" description="Only validated packages launch; unsupported capabilities stay online-only." values={(packages.isLoading ? {} : {
         acceptedPackages: rows.filter((r) => r.validation_status === "accepted").length,
         pendingPackages: rows.filter((r) => r.validation_status === "pending" || r.validation_status === "validating").length,
@@ -94,16 +113,7 @@ function StandardsPackagesPanel() {
                     size="sm"
                     variant="ghost"
                     disabled={quarantine.isPending}
-                    onClick={async () => {
-                      const reason = window.prompt("Quarantine reason (min 8 characters)", "Package quarantined from governed learning console");
-                      if (!reason || reason.trim().length < 8) return;
-                      try {
-                        await quarantine.mutateAsync({ packageId: pkg.id, reason: reason.trim() });
-                        toast({ title: "Package quarantined" });
-                      } catch (e) {
-                        toast({ title: "Quarantine blocked", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-                      }
-                    }}
+                    onClick={() => setQuarantineTarget({ id: pkg.id, path: pkg.storage_path })}
                   >
                     Quarantine
                   </Button>

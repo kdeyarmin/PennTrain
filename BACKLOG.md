@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `67506b1` (2026-08-01) — UI/UX debt wave
+**Last verified against main:** `849b42b` (2026-08-01) — B1+B5 wire-up
 **Owner:** product + engineering
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -97,7 +97,7 @@ The build command now runs the unit suite and the startup check.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM production hardening: adapter injection wired into the accept path, real vendor packages
-5. Trainer quarantine UX reachable from a surface (dialog built, nothing imports it — B5)
+5. Trainer quarantine UX reachable from a surface (dialog built, nothing imports it — ~~B5~~ done)
 6. Durable import worker that survives a closed browser (claim layer exists; stored file does not)
 7. Home IA density (too many "homes")
 8. PA rule pack for the copilot — **SG-2**
@@ -128,11 +128,11 @@ Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCT
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | in_progress | #355 landed `bundleRuntimeAdapter.ts` (injection planner + unit tests). Nothing calls it yet — the accept path still does not inject, and the module's own header says this must run server-side so clients cannot skip it |
+| B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | in_progress | `accept-learning-package` edge function created; `useAcceptLearningPackage` now invokes it server-side. Bridge injected via fflate at accept time; `content_sha256` updated. Real vendor packages (B3) and production storage policy still needed for full confidence |
 | B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
 | B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
 | B4 | Bridge SCORM complete → training record / hour bucket | M | open | Credibility for §2600.65 |
-| B5 | Trainer package quarantine UX (reject reason + re-upload) | S | in_progress | `QuarantinePackageDialog.tsx` exists; nothing imports it, so no trainer can reach it. Same shape as B1 — a built component that is not wired to a surface |
+| B5 | Trainer package quarantine UX (reject reason + re-upload) | S | done | `QuarantinePackageDialog` imported into `GovernedLearning.tsx`; replaces `window.prompt`. Trainer can now reach quarantine from the Standards tab |
 
 ### Tier C — Plan of Correction depth
 
