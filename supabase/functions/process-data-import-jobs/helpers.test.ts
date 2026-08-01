@@ -5,6 +5,7 @@ import {
   buildResidentContactPayload,
   buildTrainingRecordPayload,
   DURABLE_IMPORT_DOMAINS,
+  PENDING_DURABLE_DOMAINS,
 } from "./helpers.ts";
 
 Deno.test("durable import domains include all ledger-backed processors", () => {
@@ -16,8 +17,11 @@ Deno.test("durable import domains include all ledger-backed processors", () => {
     "training_records",
     "resident_contacts",
     "assessments",
-    "incidents",
   ]);
+});
+
+Deno.test("pending durable domains include incidents auth.uid barrier path", () => {
+  assertEquals(Array.from(PENDING_DURABLE_DOMAINS), ["incidents"]);
 });
 
 Deno.test("buildTrainingRecordPayload normalizes optional fields", () => {

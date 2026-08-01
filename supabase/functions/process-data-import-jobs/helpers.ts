@@ -6,8 +6,11 @@ export const DURABLE_IMPORT_DOMAINS = [
   "training_records",
   "resident_contacts",
   "assessments",
-  "incidents",
 ] as const;
+
+export const PENDING_DURABLE_DOMAINS = new Set([
+  "incidents",
+]);
 
 const RESIDENT_CONTACT_TYPES = new Set([
   "emergency_contact",
