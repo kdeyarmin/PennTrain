@@ -11,6 +11,10 @@
 -- on the same course version, still must be passed before the assignment is marked complete.
 --
 -- Idempotent: only runs when the session transitions into completed (not on later commits).
+--
+-- Security: bridge_learning_runtime_completion is INTERNAL only (called from
+-- commit_learning_runtime_state). It is not granted to authenticated — the tenant-scoped
+-- definer predicate suite requires that. Date fields use public.pa_today(), not current_date.
 
 create or replace function public.bridge_learning_runtime_completion(
   p_runtime_session_id uuid
@@ -26,6 +30,7 @@ declare
   v_course record;
   v_record_id uuid;
   v_hours numeric(6,2);
+  v_today date := public.pa_today();
 begin
   select * into v_session
   from public.learning_runtime_sessions
@@ -91,7 +96,7 @@ begin
 
   if v_record_id is not null then
     update public.employee_training_records
-    set completion_date = current_date,
+    set completion_date = v_today,
         status = 'compliant',
         completion_method = 'online',
         training_provider = 'CareMetric CareBase Training Suite',
@@ -116,7 +121,7 @@ begin
       e.facility_id,
       v_assignment.employee_id,
       v_course.training_type_id,
-      current_date,
+      v_today,
       'compliant',
       v_hours,
       'online',
@@ -134,11 +139,11 @@ begin
 end;
 $function$;
 
-revoke all on function public.bridge_learning_runtime_completion(uuid) from public, anon;
-grant execute on function public.bridge_learning_runtime_completion(uuid) to authenticated;
+-- Internal helper only — invoked from commit_learning_runtime_state after identity checks.
+revoke all on function public.bridge_learning_runtime_completion(uuid) from public, anon, authenticated, service_role;
 
 comment on function public.bridge_learning_runtime_completion(uuid) is
-  'B4: On SCORM/xAPI runtime completion, complete the assignment and upsert employee_training_records / hour buckets when the course maps to a training_type. Quiz blocks still gate assignment completion.';
+  'B4 internal: On SCORM/xAPI runtime completion, complete the assignment and upsert employee_training_records / hour buckets when the course maps to a training_type. Not granted to clients; call only from commit_learning_runtime_state.';
 
 -- Hook into commit path: only on first transition to completed.
 create or replace function public.commit_learning_runtime_state(
