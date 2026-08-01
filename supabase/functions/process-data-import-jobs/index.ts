@@ -854,7 +854,7 @@ async function processTrainingRecordJob(supabase: ReturnType<typeof createClient
       }
       const { data: existingRecord, error: existingRecordErr } = await supabase
         .from("employee_training_records")
-        .select("id,organization_id")
+        .select("id,organization_id,employee_id")
         .eq("id", row.target_id)
         .eq("organization_id", job.organization_id)
         .maybeSingle();
@@ -864,6 +864,15 @@ async function processTrainingRecordJob(supabase: ReturnType<typeof createClient
           row,
           TRAINING_RECORD_TARGET_TABLE,
           `Row ${row.row_number}: ${existingRecordErr?.message ?? "training record target was not found in the job organization"}`,
+        );
+        continue;
+      }
+      if (asStringOrNull(existingRecord.employee_id) !== employeeId) {
+        await markLedgerRowFailureForTable(
+          supabase,
+          row,
+          TRAINING_RECORD_TARGET_TABLE,
+          `Row ${row.row_number}: training record target is not in employee scope`,
         );
         continue;
       }
@@ -955,7 +964,7 @@ async function processResidentContactJob(supabase: ReturnType<typeof createClien
       }
       const { data: existingContact, error: existingContactErr } = await supabase
         .from("resident_contacts")
-        .select("id,organization_id")
+        .select("id,organization_id,resident_id")
         .eq("id", row.target_id)
         .eq("organization_id", job.organization_id)
         .maybeSingle();
@@ -965,6 +974,15 @@ async function processResidentContactJob(supabase: ReturnType<typeof createClien
           row,
           RESIDENT_CONTACT_TARGET_TABLE,
           `Row ${row.row_number}: ${existingContactErr?.message ?? "resident contact target was not found in the job organization"}`,
+        );
+        continue;
+      }
+      if (asStringOrNull(existingContact.resident_id) !== residentId) {
+        await markLedgerRowFailureForTable(
+          supabase,
+          row,
+          RESIDENT_CONTACT_TARGET_TABLE,
+          `Row ${row.row_number}: resident contact target is not in resident scope`,
         );
         continue;
       }
@@ -1070,7 +1088,7 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
       }
       const { data: existingAssessment, error: existingAssessmentErr } = await supabase
         .from("resident_assessment_forms")
-        .select("id,organization_id")
+        .select("id,organization_id,resident_id")
         .eq("id", row.target_id)
         .eq("organization_id", job.organization_id)
         .maybeSingle();
@@ -1080,6 +1098,15 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
           row,
           ASSESSMENT_TARGET_TABLE,
           `Row ${row.row_number}: ${existingAssessmentErr?.message ?? "assessment target was not found in the job organization"}`,
+        );
+        continue;
+      }
+      if (asStringOrNull(existingAssessment.resident_id) !== residentId) {
+        await markLedgerRowFailureForTable(
+          supabase,
+          row,
+          ASSESSMENT_TARGET_TABLE,
+          `Row ${row.row_number}: assessment target is not in resident scope`,
         );
         continue;
       }

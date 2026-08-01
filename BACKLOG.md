@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `a483d37` (2026-08-01) — D5 ImportSampleDownloads wired into DataImportCenter; D3 durable import worker covers 7 domains, incidents remain pending (auth.uid barrier)
+**Last verified against main:** `869cdca` (2026-08-01) — D5 ImportSampleDownloads wired into DataImportCenter; D3 durable import worker covers 7 domains with org/resident/employee update scoping, incidents remain pending (auth.uid barrier)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and

@@ -12,6 +12,21 @@ export const PENDING_DURABLE_DOMAINS = new Set([
   "incidents",
 ]);
 
+const RESIDENT_CONTACT_TYPES = new Set([
+  "emergency_contact",
+  "designated_person",
+  "guardian",
+  "power_of_attorney",
+  "primary_care_provider",
+  "dentist",
+  "pharmacy",
+  "case_manager",
+  "hospice_agency",
+  "home_health_agency",
+  "insurer",
+  "other",
+]);
+
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
 }
@@ -61,6 +76,8 @@ export function buildTrainingRecordPayload(normalizedRow: unknown) {
 
 export function buildResidentContactPayload(normalizedRow: unknown) {
   const row = asRecord(normalizedRow);
+  const isPrimary = asBoolean(row.is_primary, false);
+  const contactType = asStringOrNull(row.contact_type)?.toLowerCase();
   return {
     organization_id: asStringOrNull(row.organization_id),
     facility_id: asStringOrNull(row.facility_id),
@@ -69,8 +86,10 @@ export function buildResidentContactPayload(normalizedRow: unknown) {
     relationship: asStringOrNull(row.relationship),
     email: asStringOrNull(row.email)?.toLowerCase() ?? null,
     phone: asStringOrNull(row.phone),
-    is_primary: asBoolean(row.is_primary, false),
-    contact_type: asStringOrNull(row.contact_type),
+    is_primary: isPrimary,
+    contact_type: contactType && RESIDENT_CONTACT_TYPES.has(contactType)
+      ? contactType
+      : (isPrimary ? "emergency_contact" : "other"),
     active: asBoolean(row.active, true),
   };
 }
