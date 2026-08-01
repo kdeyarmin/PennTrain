@@ -1,0 +1,6 @@
+employee_number,first_name,last_name,email,facility_name,job_title,hire_date,department,phone,status,trainer_status,administers_medications
+EMP-1001,Maria,Santos,maria.santos@example-pch.local,Harmony Personal Care Home,Direct Care Staff,2024-03-12,Care,412-555-0101,active,none,true
+EMP-1002,James,Okonkwo,james.okonkwo@example-pch.local,Harmony Personal Care Home,Shift Supervisor,2023-08-01,Care,412-555-0102,active,none,true
+EMP-1003,Priya,Patel,priya.patel@example-pch.local,Harmony Personal Care Home,Administrator,2022-01-15,Administration,412-555-0103,active,none,false
+EMP-1004,Robert,Miller,robert.miller@example-pch.local,Harmony Personal Care Home,Dietary Aide,2025-06-20,Dietary,412-555-0104,active,none,false
+EMP-1005,Aisha,Hassan,aisha.hassan@example-pch.local,Harmony Personal Care Home,Direct Care Staff,2024-11-04,Care,412-555-0105,active,none,true
