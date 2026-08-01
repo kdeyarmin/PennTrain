@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CareBase bridge e2e fixture package</title>
+  </head>
+  <body>
+    <p id="state">booting</p>
+
+    <!-- The real shipped adapter, served by the app exactly as a package author would load it. -->
+    <script src="/learning-runtime-bridge.js"></script>
+    <script>
+      // Report progress before init can possibly have arrived. Real content does this -- a course
+      // that opens on lesson 2 reports its restored position immediately -- and it is the case the
+      // adapter's buffering exists for. If buffering regresses, this commit is silently lost.
+      CareBaseLearningRuntime.commit({ progress: 0.25, completionStatus: "incomplete" });
+
+      CareBaseLearningRuntime.onReady(function (session) {
+        document.getElementById("state").textContent = "ready:" + String(session.sessionId);
+        CareBaseLearningRuntime.complete({ successStatus: "passed" });
+      });
+    </script>
+  </body>
+</html>
