@@ -1525,6 +1525,7 @@ if (import.meta.main) {
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          console.error("process-data-import-jobs: job failed", { jobId: job.id, domain: job.domain, message });
           await supabase.rpc("release_data_import_job_claim", {
             p_job_id: job.id,
             p_status: "failed",
@@ -1535,7 +1536,7 @@ if (import.meta.main) {
             domain: job.domain,
             ok: false,
             releasedTo: "failed",
-            error: message,
+            error: "Job failed during durable apply",
           });
         }
       }
@@ -1543,7 +1544,8 @@ if (import.meta.main) {
       return response({ success: true, claimed: jobs.length, results });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return response({ success: false, error: message }, 500);
+      console.error("process-data-import-jobs: request failed", message);
+      return response({ success: false, error: "Failed to process import jobs" }, 500);
     }
   });
 }
