@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 // Currently runtime-tested: capture-product-event, report-client-error, run-data-lifecycle, create-billing-session, stripe-billing-webhook, sync-billing-quantities.
 // Whenever a function gains its first runtime test, RAISE this floor to the new count in
 // the same PR so coverage can only ratchet up. Never lower it.
-const RUNTIME_TEST_FLOOR = 6;
+const RUNTIME_TEST_FLOOR = 7;
 
 async function findEntrypoints(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
