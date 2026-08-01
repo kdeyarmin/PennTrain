@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `849b42b` (2026-08-01) — B1+B5 wire-up
+**Last verified against main:** `0932ac0` (2026-08-01) — D3 employee apply-from-ledger
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -156,12 +156,11 @@ The build command now runs the unit suite and the startup check.
 1. Live pilot evidence against a non-demo org (runbook + manifest)
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
-4. SCORM production hardening: adapter injection wired into the accept path, real vendor packages
-5. Trainer quarantine UX reachable from a surface (dialog built, nothing imports it — ~~B5~~ done)
-6. Durable import worker that survives a closed browser (claim layer exists; stored file does not)
-7. Home IA density (too many "homes")
-8. PA rule pack for the copilot — **SG-2**
-9. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+4. SCORM production hardening: real vendor packages (B3); adapter injection is now wired
+5. Durable import worker — employee domain applies from ledger; other domains pending
+6. Home IA density (too many "homes")
+7. PA rule pack for the copilot — **SG-2**
+8. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
 
 ---
 
@@ -212,7 +211,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (stored CSV, resume after browser close) | M | in_progress | #355 landed the claim/lease layer: `claimed_at`/`claimed_by`/`claim_expires_at`, `claim_data_import_jobs`, `release_data_import_job_claim`, `process-data-import-jobs`. The worker reads no stored file, so a closed browser still loses the CSV — the actual promise of this row |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Employee-domain durable apply now runs in `process-data-import-jobs` from `data_import_rows` (`normalized_row`/`proposed_action`) under service-role org scope; non-employee domains still release to `ready` until their applicators are added |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
 
@@ -262,7 +261,7 @@ real email*. SG-1 is the difference between a pilot and a demo, and A1–A4 are 
 without it. Nothing below this line matters until a real tenant has used the product.
 
 **2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, D3.
-Each is a half-built row: the code exists, no surface calls it. B1 and B5 are now wired (this PR). B3 and D3 remain. This is the cheapest block
+Each is a half-built row: the code exists, no surface calls it. B1 and B5 are now wired. B3 and D3 remain. This is the cheapest block
 on the list and the one most likely to be skipped, because none of it looks like progress.
 Doing it before new features is how the pile stops growing. (C2 was the fifth and is now
 closed.)
