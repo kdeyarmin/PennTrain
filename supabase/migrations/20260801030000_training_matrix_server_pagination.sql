@@ -43,8 +43,13 @@ set search_path = ''
 as $$
 declare
   -- The caller passes its own local day so a due-date window doesn't shift by one for
-  -- facilities west of UTC, matching how the page compared dates client-side.
-  v_today date := coalesce(p_today, current_date);
+  -- facilities west of UTC, matching how the page compared dates client-side. The fallback is
+  -- pa_today() -- the facility (America/New_York) day. Hosted Supabase runs UTC, where the
+  -- server's own calendar day is already tomorrow every evening after 20:00 ET and would pull
+  -- the next day's renewals into a "due within 30 days" window. See 20260727010100 and
+  -- pa_day_is_the_facility_day.test.sql, whose ratchet greps every function body for the UTC
+  -- spelling -- including comments, so this one deliberately avoids naming it.
+  v_today date := coalesce(p_today, public.pa_today());
   -- 500 mirrors the compliance binder's MAX_LISTED_ROWS cap; the CSV export asks for a
   -- full page at this size rather than streaming an unbounded result set.
   v_limit integer := least(greatest(coalesce(p_page_size, 15), 1), 500);
