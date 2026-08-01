@@ -16,6 +16,7 @@ import { listUpcomingRenewals, sortOpenItemsByUrgency } from "@/lib/stateFormWor
 import { StateFormWorkflowStepper } from "@/components/residents/StateFormWorkflowStepper";
 import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
 import { facilityToday } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 
 const OPEN_STATUSES = new Set(["expired", "missing", "due_soon"]);
 const RENEWAL_WINDOW_DAYS = 60;
@@ -47,11 +48,13 @@ export default function StateFormsCenter() {
   const [showChangeDialog, setShowChangeDialog] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
-  const { data: facilities } = useListFacilities();
-  const { data: residents } = useListResidents();
+  const facilitiesQuery = useListFacilities();
+  const residentsQuery = useListResidents();
+  const { data: facilities } = facilitiesQuery;
+  const { data: residents } = residentsQuery;
   // One unfiltered-by-status query powers the tiles, the queue, and the renewal window; the
   // facility filter is server-side because it changes what every section shows.
-  const { data: items, isLoading } = useListAllResidentComplianceItems({
+  const { data: items, isLoading, ...itemsQuery } = useListAllResidentComplianceItems({
     facilityId: facilityId !== "all" ? facilityId : undefined,
   });
 
@@ -144,8 +147,20 @@ export default function StateFormsCenter() {
     { label: "Residents Needing Forms", value: summary.residentsWithOpenItems, tone: "text-foreground" },
   ];
 
+  // The queue drives what staff prepare and file; a silently short list means a missed
+  // DHS form, so surface the failure instead of rendering a partial queue.
+  const queueQueries = [facilitiesQuery, residentsQuery, itemsQuery];
+  const queueFailure = queueQueries.find((query) => query.isError);
+
   return (
     <div className="space-y-6">
+      {queueFailure && (
+        <QueryError
+          what="the state forms queue"
+          error={queueFailure.error}
+          onRetry={() => void Promise.all(queueQueries.map((query) => query.refetch()))}
+        />
+      )}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">State Forms</h1>

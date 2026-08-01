@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useCreateResident, type Resident, type ResidentInsert } from "@/hooks/useResidents";
 import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
@@ -61,6 +61,7 @@ const EMPTY_FORM: ResidentFormData = {
 const RESIDENTS_URL_DEFAULTS = { search: "", facility: "all", status: "active", page: "1" };
 
 export default function Residents() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -370,12 +371,12 @@ export default function Residents() {
               </div>
               {selectedFacility?.facility_type === "ALR" && (
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[13px]">Admission Track</Label>
+                  <Label htmlFor={`${__fieldIds}-admission-track`} className="text-[13px]">Admission Track</Label>
                   <Select
                     value={form.admissionTrack}
                     onValueChange={(v) => setForm((f) => ({ ...f, admissionTrack: v as ResidentFormData["admissionTrack"] }))}
                   >
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-admission-track`} className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="standard">Standard (assessment due 30 days before admission)</SelectItem>
                       <SelectItem value="expedited">Expedited (assessment due 15 days after admission)</SelectItem>

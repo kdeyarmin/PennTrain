@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { ClipboardCheck, FlaskConical, Play, CheckCircle2, Ban } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -35,6 +35,7 @@ function statusVariant(status: string): "default" | "secondary" | "destructive" 
 }
 
 export default function SurveyRehearsals() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
@@ -163,9 +164,9 @@ export default function SurveyRehearsals() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>Facility</Label>
+            <Label htmlFor={`${__fieldIds}-facility`}>Facility</Label>
             <Select value={activeFacilityId} onValueChange={setFacilityId}>
-              <SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-facility`}>
                 <SelectValue placeholder="Select facility" />
               </SelectTrigger>
               <SelectContent>
@@ -193,9 +194,9 @@ export default function SurveyRehearsals() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Sample method</Label>
+            <Label htmlFor={`${__fieldIds}-sample-method`}>Sample method</Label>
             <Select value={sampleMethod} onValueChange={setSampleMethod}>
-              <SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-sample-method`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

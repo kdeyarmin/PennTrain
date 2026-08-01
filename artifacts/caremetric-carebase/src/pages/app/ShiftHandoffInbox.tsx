@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock, RefreshCw, UserRoundCheck } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,7 @@ function destinationHref(entry: ShiftReportEntry): string | null {
 }
 
 export default function ShiftHandoffInbox() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const [facilityId, setFacilityId] = useState("");
@@ -95,7 +96,7 @@ export default function ShiftHandoffInbox() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-4 p-4">
-          <div className="min-w-64 space-y-2"><Label>Facility</Label><Select value={activeFacilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
+          <div className="min-w-64 space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={activeFacilityId} onValueChange={setFacilityId}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
           <Button variant={includeClosed ? "secondary" : "outline"} onClick={() => setIncludeClosed((value) => !value)}>{includeClosed ? "Showing closed" : "Include closed"}</Button>
         </CardContent>
       </Card>
@@ -114,9 +115,9 @@ export default function ShiftHandoffInbox() {
       )}
 
       <Dialog open={!!selected} onOpenChange={(open) => !open && closeDialog()}><DialogContent><DialogHeader><DialogTitle>{mode === "triage" ? "Triage handoff" : mode === "convert" ? "Route to formal workflow" : "Resolve handoff"}</DialogTitle><DialogDescription>{mode === "convert" ? "The original handoff remains linked to the new formal record and its audit trail." : "Record an accountable decision and note."}</DialogDescription></DialogHeader>
-        {mode === "triage" && <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Action</Label><Select value={action} onValueChange={(value) => setAction(value as typeof action)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="review">Mark reviewed</SelectItem><SelectItem value="carry_forward">Carry forward</SelectItem><SelectItem value="void">Void duplicate/invalid</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label>Owner</Label><Select value={ownerId || "self"} onValueChange={(value) => setOwnerId(value === "self" ? "" : value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="self">Assign to me</SelectItem>{owners.map((owner) => <SelectItem key={owner.id} value={owner.id}>{owner.last_name}, {owner.first_name}</SelectItem>)}</SelectContent></Select></div></div>}
-        {mode === "convert" && <div className="space-y-2"><Label>Destination</Label><Select value={destination} onValueChange={(value) => setDestination(value as typeof destination)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="incident">Formal incident</SelectItem><SelectItem value="maintenance">Maintenance work order</SelectItem><SelectItem value="change_of_condition" disabled={!selected?.resident_id}>Change of condition</SelectItem><SelectItem value="work_item">General owned work</SelectItem></SelectContent></Select>{destination === "incident" && <p className="flex gap-2 text-xs text-amber-700"><AlertTriangle className="h-4 w-4 shrink-0" />The incident workflow will determine required notifications and investigation follow-up.</p>}</div>}
-        <div className="space-y-2"><Label>Decision note</Label><Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what was reviewed, routed, or completed." /></div>
+        {mode === "triage" && <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor={`${__fieldIds}-action`}>Action</Label><Select value={action} onValueChange={(value) => setAction(value as typeof action)}><SelectTrigger id={`${__fieldIds}-action`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="review">Mark reviewed</SelectItem><SelectItem value="carry_forward">Carry forward</SelectItem><SelectItem value="void">Void duplicate/invalid</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor={`${__fieldIds}-owner`}>Owner</Label><Select value={ownerId || "self"} onValueChange={(value) => setOwnerId(value === "self" ? "" : value)}><SelectTrigger id={`${__fieldIds}-owner`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="self">Assign to me</SelectItem>{owners.map((owner) => <SelectItem key={owner.id} value={owner.id}>{owner.last_name}, {owner.first_name}</SelectItem>)}</SelectContent></Select></div></div>}
+        {mode === "convert" && <div className="space-y-2"><Label htmlFor={`${__fieldIds}-destination`}>Destination</Label><Select value={destination} onValueChange={(value) => setDestination(value as typeof destination)}><SelectTrigger id={`${__fieldIds}-destination`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="incident">Formal incident</SelectItem><SelectItem value="maintenance">Maintenance work order</SelectItem><SelectItem value="change_of_condition" disabled={!selected?.resident_id}>Change of condition</SelectItem><SelectItem value="work_item">General owned work</SelectItem></SelectContent></Select>{destination === "incident" && <p className="flex gap-2 text-xs text-amber-700"><AlertTriangle className="h-4 w-4 shrink-0" />The incident workflow will determine required notifications and investigation follow-up.</p>}</div>}
+        <div className="space-y-2"><Label htmlFor={`${__fieldIds}-decision-note`}>Decision note</Label><Textarea id={`${__fieldIds}-decision-note`} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Describe what was reviewed, routed, or completed." /></div>
         <DialogFooter><Button variant="outline" onClick={closeDialog}>Cancel</Button><Button disabled={pending || note.trim().length < 5} onClick={() => void submit()}>{pending ? "Saving…" : "Save decision"}</Button></DialogFooter>
       </DialogContent></Dialog>
     </div>

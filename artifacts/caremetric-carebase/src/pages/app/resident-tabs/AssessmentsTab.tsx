@@ -23,15 +23,18 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import type { ResidentTabProps } from "./types";
+import { QueryError } from "@/components/QueryState";
 
 export default function AssessmentsTab({ resident, facility, canManage, residentPathPrefix }: ResidentTabProps) {
   const { toast } = useToast();
-  const { data: items, isLoading: itemsLoading } = useListResidentComplianceItems(resident.id);
+  const itemsQuery = useListResidentComplianceItems(resident.id);
+  const { data: items, isLoading: itemsLoading } = itemsQuery;
   const { data: reviews } = useResidentAssessmentReviews(resident.id);
   const recordClinicalReview = useRecordAssessmentReviewClinicalReview();
   const [openTemplate, setOpenTemplate] = useState<AssessmentTemplate | null>(null);
   const templates = internalReviewTemplates(facility?.facility_type);
-  const { data: assessmentForms, isLoading: assessmentFormsLoading } = useListResidentAssessmentForms(resident.id);
+  const assessmentFormsQuery = useListResidentAssessmentForms(resident.id);
+  const { data: assessmentForms, isLoading: assessmentFormsLoading } = assessmentFormsQuery;
   const formLabel = getComplianceFormLabel(facility?.facility_type);
   const itemById = new Map((items ?? []).map((i) => [i.id, i]));
 
@@ -42,7 +45,9 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
           <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> {formLabel} Compliance Checklist</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {itemsLoading ? (
+          {itemsQuery.isError ? (
+            <QueryError what="this resident's compliance items" error={itemsQuery.error} onRetry={() => void itemsQuery.refetch()} />
+          ) : itemsLoading ? (
             <Skeleton className="h-10" />
           ) : !items?.length ? (
             <p className="text-sm text-muted-foreground">No compliance items recorded.</p>
@@ -103,7 +108,9 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
             not by itself satisfy the resident's compliance requirement. Attach the signed DHS-prescribed{" "}
             {formLabel} form using "Upload signed form" on the checklist above.
           </p>
-          {assessmentFormsLoading ? (
+          {assessmentFormsQuery.isError ? (
+            <QueryError what={`prepared ${formLabel} forms`} error={assessmentFormsQuery.error} onRetry={() => void assessmentFormsQuery.refetch()} />
+          ) : assessmentFormsLoading ? (
             <Skeleton className="h-10" />
           ) : !assessmentForms?.length ? (
             <p className="text-sm text-muted-foreground">

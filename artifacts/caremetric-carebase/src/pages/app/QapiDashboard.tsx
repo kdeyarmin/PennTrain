@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { useId, lazy, Suspense, useState } from "react";
 import { Link } from "wouter";
 import { BarChart3, ChevronRight, Plus, Target } from "lucide-react";
 import { BarChart } from "@/components/charts";
@@ -46,12 +46,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 
 const today = () => facilityToday();
 const ago = () => toLocalIsoDate(new Date(Date.now() - 30 * 864e5));
 const human = (v: string) =>
   v.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 export default function QapiDashboard() {
+  const __fieldIds = useId();
   const { user } = useAuth(),
     { viewingOrgId } = useViewingOrg(),
     { toast } = useToast(),
@@ -65,6 +67,10 @@ export default function QapiDashboard() {
     facilityId: fac || undefined,
   });
   const metrics = useQapiSourceMetrics(fac, ago(), today());
+  // The facility picker, project list, and source metrics all render from these. Any of them
+  // failing would otherwise show as "no facilities" / "no projects" / zeroed metrics.
+  const dataQueries = [facilities, profiles, projects, metrics];
+  const loadFailure = dataQueries.find((query) => query.isError);
   const create = useCreateQapiProject();
   const [title, setTitle] = useState(""),
     [problem, setProblem] = useState(""),
@@ -124,6 +130,13 @@ export default function QapiDashboard() {
           New QAPI project
         </Button>
       </div>
+      {loadFailure && (
+        <QueryError
+          what="QAPI projects and source metrics"
+          error={loadFailure.error}
+          onRetry={() => void Promise.all(dataQueries.map((query) => query.refetch()))}
+        />
+      )}
       <Card>
         <CardContent className="pt-6">
           <Select value={fac} onValueChange={setFac}>
@@ -234,27 +247,27 @@ export default function QapiDashboard() {
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1 sm:col-span-2">
-              <Label>Project title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-project-title`}>Project title</Label>
+              <Input id={`${__fieldIds}-project-title`} value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label>Problem statement</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-problem-statement`}>Problem statement</Label>
+              <Textarea id={`${__fieldIds}-problem-statement`}
                 value={problem}
                 onChange={(e) => setProblem(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Source of concern</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-source-of-concern`}>Source of concern</Label>
+              <Input id={`${__fieldIds}-source-of-concern`}
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Project lead</Label>
+              <Label htmlFor={`${__fieldIds}-project-lead`}>Project lead</Label>
               <Select value={lead} onValueChange={setLead}>
-                <SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-project-lead`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -269,29 +282,29 @@ export default function QapiDashboard() {
               </Select>
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label>Baseline data</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-baseline-data`}>Baseline data</Label>
+              <Textarea id={`${__fieldIds}-baseline-data`}
                 value={baseline}
                 onChange={(e) => setBaseline(e.target.value)}
               />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label>Measurable objective</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-measurable-objective`}>Measurable objective</Label>
+              <Textarea id={`${__fieldIds}-measurable-objective`}
                 value={objective}
                 onChange={(e) => setObjective(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Target</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-target`}>Target</Label>
+              <Input id={`${__fieldIds}-target`}
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
               />
             </div>
             <div className="space-y-1">
-              <Label>Target completion</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-target-completion`}>Target completion</Label>
+              <Input id={`${__fieldIds}-target-completion`}
                 type="date"
                 value={completion}
                 onChange={(e) => setCompletion(e.target.value)}

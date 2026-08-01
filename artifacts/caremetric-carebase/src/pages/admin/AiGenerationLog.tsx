@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Bot, Sparkles } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 
 type StatusFilter = "all" | "pending" | "completed" | "failed";
 
@@ -60,9 +61,17 @@ export default function AiGenerationLog() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const filters = { status: statusFilter !== "all" ? statusFilter : undefined };
-  const { data: courseGenerationsData, isLoading: isLoadingCourseGenerations } = useListCourseAiGenerations(filters);
-  const { data: residentAssessmentGenerationsData, isLoading: isLoadingResidentAssessmentGenerations } = useListResidentAssessmentAiGenerations(filters);
-  const isLoading = isLoadingCourseGenerations || isLoadingResidentAssessmentGenerations;
+  const courseGenerations = useListCourseAiGenerations(filters);
+  const residentAssessmentGenerations = useListResidentAssessmentAiGenerations(filters);
+  const { data: courseGenerationsData } = courseGenerations;
+  const { data: residentAssessmentGenerationsData } = residentAssessmentGenerations;
+  const isLoading = courseGenerations.isLoading || residentAssessmentGenerations.isLoading;
+  // Either feed failing leaves the table missing rows, so surface the first failure
+  // rather than rendering a partial log as if it were the whole log.
+  const loadError = [courseGenerations, residentAssessmentGenerations].find((query) => query.isError)?.error;
+  const retryAll = () => {
+    void Promise.all([courseGenerations.refetch(), residentAssessmentGenerations.refetch()]);
+  };
 
   const generations: AiGenerationLogRow[] = [
     ...(courseGenerationsData ?? []).map((gen): AiGenerationLogRow => {
@@ -145,7 +154,9 @@ export default function AiGenerationLog() {
           </Select>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {loadError ? (
+            <QueryError what="the AI generation log" error={loadError} onRetry={retryAll} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
             </div>

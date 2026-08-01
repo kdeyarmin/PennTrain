@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ClipboardList, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,17 +19,27 @@ import { ResidentAdministrativeMaster } from "@/components/residents/ResidentAdm
 import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
 import { formatDateOnly, getComplianceFormLabel } from "@/lib/residentCompliance";
 import type { ResidentTabProps } from "./types";
+import { QueryError } from "@/components/QueryState";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
 const emptySupportRow = (): SupportRow => ({ name: "", relationship: "", phone: "" });
 
 export default function OverviewTab({ resident, facility, canManage, canDelete, isTrackedFacilityType }: ResidentTabProps) {
+  const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: items } = useListResidentComplianceItems(resident.id);
-  const { data: documents } = useListResidentDocuments(resident.id);
-  const { data: informalSupports, isLoading: informalSupportsLoading } = useListResidentInformalSupports(resident.id);
-  const { data: administrativeMaster } = useResidentAdministrativeMaster(resident.id);
+  const itemsQuery = useListResidentComplianceItems(resident.id);
+  const documentsQuery = useListResidentDocuments(resident.id);
+  const informalSupportsQuery = useListResidentInformalSupports(resident.id);
+  const administrativeMasterQuery = useResidentAdministrativeMaster(resident.id);
+  const { data: items } = itemsQuery;
+  const { data: documents } = documentsQuery;
+  const { data: informalSupports, isLoading: informalSupportsLoading } = informalSupportsQuery;
+  const { data: administrativeMaster } = administrativeMasterQuery;
+  // The move-in readiness packet counts blockers from these lists. A failed load looks
+  // identical to "nothing on file", which would read as blockers that aren't real.
+  const overviewQueries = [itemsQuery, documentsQuery, informalSupportsQuery, administrativeMasterQuery];
+  const overviewFailure = overviewQueries.find((query) => query.isError);
   const upsertSupport = useUpsertResidentInformalSupport();
   const deleteSupport = useDeleteResidentInformalSupport();
   const saveAdministrativeMaster = useSaveResidentAdministrativeMaster();
@@ -146,6 +156,13 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
 
   return (
     <div className="space-y-6">
+      {overviewFailure && (
+        <QueryError
+          what="this resident's overview"
+          error={overviewFailure.error}
+          onRetry={() => void Promise.all(overviewQueries.map((query) => query.refetch()))}
+        />
+      )}
       {isTrackedFacilityType && (
         <Card>
           <CardHeader>
@@ -232,44 +249,44 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1 col-span-2">
-                <Label className="text-xs">Date of Birth</Label>
-                <Input type="date" value={contactsForm.date_of_birth} onChange={(e) => setContactsForm({ ...contactsForm, date_of_birth: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-date-of-birth`} className="text-xs">Date of Birth</Label>
+                <Input id={`${__fieldIds}-date-of-birth`} type="date" value={contactsForm.date_of_birth} onChange={(e) => setContactsForm({ ...contactsForm, date_of_birth: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Physician Name</Label>
-                <Input value={contactsForm.primary_physician_name} onChange={(e) => setContactsForm({ ...contactsForm, primary_physician_name: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-physician-name`} className="text-xs">Physician Name</Label>
+                <Input id={`${__fieldIds}-physician-name`} value={contactsForm.primary_physician_name} onChange={(e) => setContactsForm({ ...contactsForm, primary_physician_name: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Physician Phone</Label>
-                <Input value={contactsForm.primary_physician_phone} onChange={(e) => setContactsForm({ ...contactsForm, primary_physician_phone: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-physician-phone`} className="text-xs">Physician Phone</Label>
+                <Input id={`${__fieldIds}-physician-phone`} value={contactsForm.primary_physician_phone} onChange={(e) => setContactsForm({ ...contactsForm, primary_physician_phone: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Dentist Name</Label>
-                <Input value={contactsForm.dentist_name} onChange={(e) => setContactsForm({ ...contactsForm, dentist_name: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-dentist-name`} className="text-xs">Dentist Name</Label>
+                <Input id={`${__fieldIds}-dentist-name`} value={contactsForm.dentist_name} onChange={(e) => setContactsForm({ ...contactsForm, dentist_name: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Dentist Phone</Label>
-                <Input value={contactsForm.dentist_phone} onChange={(e) => setContactsForm({ ...contactsForm, dentist_phone: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-dentist-phone`} className="text-xs">Dentist Phone</Label>
+                <Input id={`${__fieldIds}-dentist-phone`} value={contactsForm.dentist_phone} onChange={(e) => setContactsForm({ ...contactsForm, dentist_phone: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Case Manager Name</Label>
-                <Input value={contactsForm.case_manager_name} onChange={(e) => setContactsForm({ ...contactsForm, case_manager_name: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-case-manager-name`} className="text-xs">Case Manager Name</Label>
+                <Input id={`${__fieldIds}-case-manager-name`} value={contactsForm.case_manager_name} onChange={(e) => setContactsForm({ ...contactsForm, case_manager_name: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Case Manager Phone</Label>
-                <Input value={contactsForm.case_manager_phone} onChange={(e) => setContactsForm({ ...contactsForm, case_manager_phone: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-case-manager-phone`} className="text-xs">Case Manager Phone</Label>
+                <Input id={`${__fieldIds}-case-manager-phone`} value={contactsForm.case_manager_phone} onChange={(e) => setContactsForm({ ...contactsForm, case_manager_phone: e.target.value })} />
               </div>
               {facility?.facility_type === "ALR" && (
                 <div className="space-y-1 col-span-2">
-                  <Label className="text-xs">Designated Person</Label>
-                  <Input value={contactsForm.designated_person_name} onChange={(e) => setContactsForm({ ...contactsForm, designated_person_name: e.target.value })} />
+                  <Label htmlFor={`${__fieldIds}-designated-person`} className="text-xs">Designated Person</Label>
+                  <Input id={`${__fieldIds}-designated-person`} value={contactsForm.designated_person_name} onChange={(e) => setContactsForm({ ...contactsForm, designated_person_name: e.target.value })} />
                 </div>
               )}
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Informal Supports (up to 5)</Label>
+                <p className="text-sm font-medium leading-none text-xs" >Informal Supports (up to 5)</p>
                 {supportRows.length < 5 && (
                   <Button variant="outline" size="sm" onClick={() => setSupportRows([...supportRows, emptySupportRow()])}>
                     <Plus className="mr-1 h-3.5 w-3.5" /> Add
@@ -279,16 +296,16 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
               {supportRows.map((row, i) => (
                 <div key={row.id ?? `new-${i}`} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Name</Label>
-                    <Input className="h-8 text-xs" value={row.name} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r))} />
+                    <Label htmlFor={`${__fieldIds}-support-${i}-name`} className="text-[11px]">Name</Label>
+                    <Input id={`${__fieldIds}-support-${i}-name`} className="h-8 text-xs" value={row.name} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r))} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Relationship</Label>
-                    <Input className="h-8 text-xs" value={row.relationship} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, relationship: e.target.value } : r))} />
+                    <Label htmlFor={`${__fieldIds}-support-${i}-relationship`} className="text-[11px]">Relationship</Label>
+                    <Input id={`${__fieldIds}-support-${i}-relationship`} className="h-8 text-xs" value={row.relationship} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, relationship: e.target.value } : r))} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Phone</Label>
-                    <Input className="h-8 text-xs" value={row.phone} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, phone: e.target.value } : r))} />
+                    <Label htmlFor={`${__fieldIds}-support-${i}-phone`} className="text-[11px]">Phone</Label>
+                    <Input id={`${__fieldIds}-support-${i}-phone`} className="h-8 text-xs" value={row.phone} onChange={(e) => setSupportRows(supportRows.map((r, j) => j === i ? { ...r, phone: e.target.value } : r))} />
                   </div>
                   {/* A facility_manager can still drop a row they just added locally (no delete call
                       involved), but removing an already-persisted row is org_admin-only. */}

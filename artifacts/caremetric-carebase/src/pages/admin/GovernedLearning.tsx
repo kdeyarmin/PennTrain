@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { BookCheck, GitBranch, PackageCheck, RefreshCw, ShieldCheck, WifiOff } from "lucide-react";
 import { useGovernedLearning, useGovernedLearningCommand } from "@/hooks/useGovernedLearning";
 import {
@@ -6,8 +6,10 @@ import {
   useAdminLearningPackages,
   useQuarantineLearningPackage,
 } from "@/hooks/useLearningRuntime";
+import { QuarantinePackageDialog } from "@/components/learning/QuarantinePackageDialog";
 import { useToast } from "@/hooks/use-toast";
 import type { EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
+import { QueryError } from "@/components/QueryState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,10 +26,11 @@ function Metrics({ title, description, values }: { title: string; description: s
 }
 
 function ReviewCommand() {
+  const __fieldIds = useId();
   const command = useGovernedLearningCommand(); const { toast } = useToast();
   const [revisionId, setRevisionId] = useState(""); const [decision, setDecision] = useState("approve"); const [reason, setReason] = useState("");
   const submit = async () => { try { await command.mutateAsync({ rpc: "review_governed_content_revision", args: { p_revision_id: revisionId, p_decision: decision, p_reason: reason } }); toast({ title: "Independent review recorded" }); setReason(""); } catch (error) { toast({ title: "Review blocked", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" }); } };
-  return <Card><CardHeader><CardTitle>Independent content review</CardTitle><CardDescription>Authors cannot approve their own protected publication. Validation and exact snapshot hashes remain attached.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><div className="space-y-2 md:col-span-2"><Label htmlFor="p4-revision">Revision ID</Label><Input id="p4-revision" value={revisionId} onChange={(e) => setRevisionId(e.target.value)} /></div><div className="space-y-2"><Label>Decision</Label><Select value={decision} onValueChange={setDecision}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="approve">Approve</SelectItem><SelectItem value="request_changes">Request changes</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="p4-reason">Reason</Label><Textarea id="p4-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></div><div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!revisionId || reason.trim().length < 5 || command.isPending}>Record review</Button></div></CardContent></Card>;
+  return <Card><CardHeader><CardTitle>Independent content review</CardTitle><CardDescription>Authors cannot approve their own protected publication. Validation and exact snapshot hashes remain attached.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><div className="space-y-2 md:col-span-2"><Label htmlFor="p4-revision">Revision ID</Label><Input id="p4-revision" value={revisionId} onChange={(e) => setRevisionId(e.target.value)} /></div><div className="space-y-2"><Label htmlFor={`${__fieldIds}-decision`}>Decision</Label><Select value={decision} onValueChange={setDecision}><SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="approve">Approve</SelectItem><SelectItem value="request_changes">Request changes</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="p4-reason">Reason</Label><Textarea id="p4-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></div><div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!revisionId || reason.trim().length < 5 || command.isPending}>Record review</Button></div></CardContent></Card>;
 }
 
 function StandardsPackagesPanel() {
@@ -36,9 +39,27 @@ function StandardsPackagesPanel() {
   const quarantine = useQuarantineLearningPackage();
   const { toast } = useToast();
   const rows = packages.data ?? [];
+  const [quarantineTarget, setQuarantineTarget] = useState<{ id: string; path: string } | null>(null);
 
   return (
     <div className="space-y-4">
+      <QuarantinePackageDialog
+        open={quarantineTarget !== null}
+        packagePath={quarantineTarget?.path}
+        pending={quarantine.isPending}
+        onOpenChange={(open) => { if (!open) setQuarantineTarget(null); }}
+        onConfirm={async (reason) => {
+          if (!quarantineTarget) return;
+          try {
+            await quarantine.mutateAsync({ packageId: quarantineTarget.id, reason });
+            toast({ title: "Package quarantined" });
+          } catch (e) {
+            toast({ title: "Quarantine blocked", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+          } finally {
+            setQuarantineTarget(null);
+          }
+        }}
+      />
       <Metrics title="Interoperability" description="Only validated packages launch; unsupported capabilities stay online-only." values={(packages.isLoading ? {} : {
         acceptedPackages: rows.filter((r) => r.validation_status === "accepted").length,
         pendingPackages: rows.filter((r) => r.validation_status === "pending" || r.validation_status === "validating").length,
@@ -52,8 +73,11 @@ function StandardsPackagesPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {packages.isError && (
+            <QueryError what="learning packages" error={packages.error} onRetry={() => void packages.refetch()} />
+          )}
           {packages.isLoading && <p className="text-sm text-muted-foreground">Loading packages…</p>}
-          {!packages.isLoading && rows.length === 0 && (
+          {!packages.isLoading && !packages.isError && rows.length === 0 && (
             <p className="text-sm text-muted-foreground">No packages registered yet. Upload a SCORM zip on a course block, then register/accept it here or via course authoring.</p>
           )}
           {rows.map((pkg) => (
@@ -89,16 +113,7 @@ function StandardsPackagesPanel() {
                     size="sm"
                     variant="ghost"
                     disabled={quarantine.isPending}
-                    onClick={async () => {
-                      const reason = window.prompt("Quarantine reason (min 8 characters)", "Package quarantined from governed learning console");
-                      if (!reason || reason.trim().length < 8) return;
-                      try {
-                        await quarantine.mutateAsync({ packageId: pkg.id, reason: reason.trim() });
-                        toast({ title: "Package quarantined" });
-                      } catch (e) {
-                        toast({ title: "Quarantine blocked", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-                      }
-                    }}
+                    onClick={() => setQuarantineTarget({ id: pkg.id, path: pkg.storage_path })}
                   >
                     Quarantine
                   </Button>

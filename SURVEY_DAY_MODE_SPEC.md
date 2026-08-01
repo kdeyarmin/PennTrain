@@ -1,5 +1,7 @@
 # E19 — Survey Day Mode
 
+> **Not the backlog.** This is the Survey Day mode spec; it stays current and is worth reading. What is actually open, and in what order, lives in [BACKLOG.md](./BACKLOG.md).
+
 Status: implementation-ready product specification
 Scope: CareMetric CareBase PCH/ALF organization workspace
 Primary users: organization administrators and facility managers

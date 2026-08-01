@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useId, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useMyProfile, useUpdateProfile } from "@/hooks/useProfiles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ interface ContactFormData {
 }
 
 export default function NotificationSettings() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: profile, isLoading, isError, error, refetch } = useMyProfile(user?.id);
@@ -163,24 +164,24 @@ export default function NotificationSettings() {
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">First Name *</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-first-name`} className="text-[13px]">First Name *</Label>
+                  <Input id={`${__fieldIds}-first-name`}
                     value={form.firstName}
                     onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
                     className="h-9"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Last Name *</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-last-name`} className="text-[13px]">Last Name *</Label>
+                  <Input id={`${__fieldIds}-last-name`}
                     value={form.lastName}
                     onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
                     className="h-9"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Mobile Phone</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-mobile-phone`} className="text-[13px]">Mobile Phone</Label>
+                  <Input id={`${__fieldIds}-mobile-phone`}
                     value={form.phone}
                     onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                     placeholder="(215) 555-0100"
@@ -188,8 +189,8 @@ export default function NotificationSettings() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Email</Label>
-                  <Input value={profile?.email ?? ""} disabled className="h-9" />
+                  <Label htmlFor={`${__fieldIds}-email`} className="text-[13px]">Email</Label>
+                  <Input id={`${__fieldIds}-email`} value={profile?.email ?? ""} disabled className="h-9" />
                   <p className="text-[11px] text-muted-foreground">
                     Email changes require an admin action; contact your administrator.
                   </p>
@@ -264,7 +265,7 @@ export default function NotificationSettings() {
                 </Button>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Preferred notification channel</Label>
+                <Label htmlFor={`${__fieldIds}-preferred-notification-channel`} className="text-[13px]">Preferred notification channel</Label>
                 <Select
                   value={form.preferredNotificationChannel}
                   onValueChange={value => setForm(f => ({
@@ -272,7 +273,7 @@ export default function NotificationSettings() {
                     preferredNotificationChannel: value as "email" | "sms" | "web_push",
                   }))}
                 >
-                  <SelectTrigger className="h-9 w-full sm:w-64"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-preferred-notification-channel`} className="h-9 w-full sm:w-64"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="email">Email first</SelectItem>
                     <SelectItem value="sms" disabled={!form.smsOptIn || !form.phone.trim()}>

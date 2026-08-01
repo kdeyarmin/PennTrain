@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +80,7 @@ const NONE_TRAINER = "none";
 const OTHER_TRAINER = "__other__";
 
 export default function EmployeeDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { user } = useAuth();
@@ -855,12 +856,12 @@ export default function EmployeeDetail() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Training Type *</Label>
+              <Label htmlFor={`${__fieldIds}-training-type`} className="text-[13px]">Training Type *</Label>
               <Select
                 value={trainingForm.trainingTypeId}
                 onValueChange={v => setTrainingForm(f => ({ ...f, trainingTypeId: v }))}
               >
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-training-type`} className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
                 <SelectContent>
                   {trainingTypes?.map(t => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -869,15 +870,15 @@ export default function EmployeeDetail() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Completion Date *</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-completion-date`} className="text-[13px]">Completion Date *</Label>
+              <Input id={`${__fieldIds}-completion-date`}
                 type="date" className="h-9" value={trainingForm.completionDate}
                 onChange={e => setTrainingForm(f => ({ ...f, completionDate: e.target.value }))}
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Hours</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-hours`} className="text-[13px]">Hours</Label>
+              <Input id={`${__fieldIds}-hours`}
                 type="number" step="0.25" min="0" className="h-9"
                 placeholder={trainingFormType?.required_hours != null ? String(trainingFormType.required_hours) : "0"}
                 value={trainingForm.hours}
@@ -885,7 +886,7 @@ export default function EmployeeDetail() {
               />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Trainer</Label>
+              <Label htmlFor={`${__fieldIds}-trainer`} className="text-[13px]">Trainer</Label>
               <Select
                 value={trainerSelection}
                 onValueChange={v => {
@@ -896,7 +897,7 @@ export default function EmployeeDetail() {
                   }));
                 }}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-trainer`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE_TRAINER}>None</SelectItem>
                   {qualifiedTrainers.map(t => (
@@ -918,12 +919,12 @@ export default function EmployeeDetail() {
             </div>
             {!!documents?.length && (
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-[13px]">Documentation Document</Label>
+                <Label htmlFor={`${__fieldIds}-documentation-document`} className="text-[13px]">Documentation Document</Label>
                 <Select
                   value={trainingForm.documentId || "none"}
                   onValueChange={v => setTrainingForm(f => ({ ...f, documentId: v === "none" ? "" : v }))}
                 >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-documentation-document`} className="h-9"><SelectValue placeholder="None" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {documents.map(d => (
@@ -955,8 +956,8 @@ export default function EmployeeDetail() {
             <DialogTitle>Set Check-In PIN</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 py-2">
-            <Label className="text-[13px]">4-6 Digit PIN</Label>
-            <Input
+            <Label htmlFor={`${__fieldIds}-4-6-digit-pin`} className="text-[13px]">4-6 Digit PIN</Label>
+            <Input id={`${__fieldIds}-4-6-digit-pin`}
               type="text" inputMode="numeric" maxLength={6} value={pinValue}
               onChange={(e) => setPinValue(e.target.value.replace(/\D/g, ""))}
               className="h-10 text-center text-lg tracking-widest"

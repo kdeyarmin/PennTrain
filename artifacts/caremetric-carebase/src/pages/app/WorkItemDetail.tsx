@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import {
   AlertTriangle,
@@ -71,6 +71,7 @@ function actorName(actor: { first_name: string; last_name: string } | null): str
 }
 
 export default function WorkItemDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -314,9 +315,9 @@ export default function WorkItemDetail() {
               {canContribute && (
                 <div className="grid gap-4 border-t pt-4 lg:grid-cols-2">
                   <div className="space-y-3">
-                    <Label>Upload documentation</Label>
+                    <Label htmlFor={`${__fieldIds}-upload-documentation`}>Upload documentation</Label>
                     <Select value={evidenceType} onValueChange={setEvidenceType}>
-                      <SelectTrigger><SelectValue placeholder="Documentation type" /></SelectTrigger>
+                      <SelectTrigger id={`${__fieldIds}-upload-documentation`}><SelectValue placeholder="Documentation type" /></SelectTrigger>
                       <SelectContent>
                         {requiredEvidence.map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, " ")}</SelectItem>)}
                         <SelectItem value="supporting_document">Supporting document</SelectItem>
@@ -330,8 +331,8 @@ export default function WorkItemDetail() {
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    <Label>Link governed record</Label>
-                    <Input value={linkedRecordType} onChange={event => setLinkedRecordType(event.target.value)} placeholder="Record type, e.g. incident" />
+                    <Label htmlFor={`${__fieldIds}-link-governed-record`}>Link governed record</Label>
+                    <Input id={`${__fieldIds}-link-governed-record`} value={linkedRecordType} onChange={event => setLinkedRecordType(event.target.value)} placeholder="Record type, e.g. incident" />
                     <Input value={linkedRecordId} onChange={event => setLinkedRecordId(event.target.value)} placeholder="Record UUID" />
                     <Input value={evidenceType} onChange={event => setEvidenceType(event.target.value)} placeholder="Documentation type" />
                     <Button
@@ -538,9 +539,9 @@ export default function WorkItemDetail() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label>Owner</Label>
+                  <Label htmlFor={`${__fieldIds}-owner`}>Owner</Label>
                   <Select value={ownerId ?? "unassigned"} onValueChange={value => setOwnerId(value === "unassigned" ? null : value)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-owner`}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
                       {profiles?.filter(profile => profile.is_active).map(profile => (
@@ -550,9 +551,9 @@ export default function WorkItemDetail() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Priority</Label>
+                  <Label htmlFor={`${__fieldIds}-priority`}>Priority</Label>
                   <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-priority`}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {WORK_ITEM_PRIORITIES.map(value => (
                         <SelectItem key={value} value={value}>{WORK_ITEM_PRIORITY_LABELS[value]}</SelectItem>
@@ -561,8 +562,8 @@ export default function WorkItemDetail() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Due date</Label>
-                  <Input type="datetime-local" value={dueAt} onChange={event => setDueAt(event.target.value)} />
+                  <Label htmlFor={`${__fieldIds}-due-date`}>Due date</Label>
+                  <Input id={`${__fieldIds}-due-date`} type="datetime-local" value={dueAt} onChange={event => setDueAt(event.target.value)} />
                 </div>
                 <Button onClick={saveAssignment} disabled={!priority || !dueAt || updateAssignment.isPending}>
                   {updateAssignment.isPending ? "Saving..." : "Save assignment"}

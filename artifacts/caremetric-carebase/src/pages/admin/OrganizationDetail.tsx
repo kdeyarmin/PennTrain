@@ -21,6 +21,7 @@ import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { useToast } from "@/hooks/use-toast";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { facilityTypeBadgeClass, facilityTypeLabel } from "@/lib/facilityTypes";
+import { QueryError } from "@/components/QueryState";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
@@ -28,8 +29,10 @@ export default function OrganizationDetail() {
   const { toast } = useToast();
   const { viewingOrgId, setViewingOrgId } = useViewingOrg();
 
-  const { data: org, isLoading: orgLoading } = useGetOrganization(id);
-  const { data: stats, isLoading: statsLoading } = useGetOrganizationStats(id);
+  const orgQuery = useGetOrganization(id);
+  const statsQuery = useGetOrganizationStats(id);
+  const { data: org, isLoading: orgLoading } = orgQuery;
+  const { data: stats, isLoading: statsLoading } = statsQuery;
   const { data: facilities, isLoading: facLoading } = useListFacilities({ organizationId: id });
   const { data: currentPackage } = useGetPackage(org?.package_id);
   const { data: packages } = useListPackages();
@@ -130,6 +133,19 @@ export default function OrganizationDetail() {
         </div>
         <Skeleton className="h-64" />
       </div>
+    );
+  }
+
+  // A failed fetch must not read as "this organization does not exist" -- that sends a
+  // platform admin looking for a deleted tenant instead of retrying.
+  const loadFailure = [orgQuery, statsQuery].find((query) => query.isError);
+  if (loadFailure) {
+    return (
+      <QueryError
+        what="this organization"
+        error={loadFailure.error}
+        onRetry={() => void Promise.all([orgQuery.refetch(), statsQuery.refetch()])}
+      />
     );
   }
 

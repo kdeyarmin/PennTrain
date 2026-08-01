@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { RoleQuickStart } from "@/components/RoleQuickStart";
+import { OrganizationSetupGuide } from "@/components/OrganizationSetupGuide";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
 import { useAuth } from "@/lib/auth";
 import { getTodayDestinations } from "@/lib/todayWorkspace";
@@ -84,6 +85,9 @@ export default function Today() {
   const alerts = useListAlerts({ facilityId, status: "open" });
   const value = useProductValueWorkspace(facilityId);
   const destinations = getTodayDestinations(user?.role);
+  // Only an org_admin can create facilities or invite users (see facilities_insert /
+  // profiles RLS), so nobody else is shown a checklist they cannot act on.
+  const canSetUpOrganization = user?.role === "org_admin";
   const isAuditor = user?.role === "auditor";
   const PrimaryIcon = isAuditor ? ShieldCheck : Activity;
   const queries = [facilities, myAssignments, operations, work, alerts, value];
@@ -93,11 +97,17 @@ export default function Today() {
   if (queries.some((query) => query.isLoading)) return <QueryLoading what="today's priorities" />;
   const failed = queries.find((query) => query.isError);
   if (failed?.error) {
-    return <QueryError
-      what="today's priorities"
-      error={failed.error}
-      onRetry={() => void Promise.all(queries.map((query) => query.refetch()))}
-    />;
+    // Still offer the setup path here: an organization with no facility yet is exactly the
+    // one whose daily-operations RPCs are most likely to come back unhappy, and bouncing a
+    // brand-new admin to a bare error is the dead end this guide exists to remove.
+    return <div className="space-y-6">
+      {canSetUpOrganization && <OrganizationSetupGuide organizationId={user?.organizationId ?? undefined} />}
+      <QueryError
+        what="today's priorities"
+        error={failed.error}
+        onRetry={() => void Promise.all(queries.map((query) => query.refetch()))}
+      />
+    </div>;
   }
 
   const changeFacility = (next: string) => {
@@ -189,6 +199,11 @@ export default function Today() {
     </div>
 
     <SurfacePurpose purpose="Today = do the work. Compliance scorecard = scores and trends. Survey Day = surveyor is here." />
+
+    {/* A brand-new organization has no facility and no roster, so every card below reads
+        zero and the daily quick start points at pages that are all empty. This is the
+        first-run path out of that; it retires itself once the org is operating. */}
+    {canSetUpOrganization && <OrganizationSetupGuide organizationId={user?.organizationId ?? undefined} />}
 
     <RoleQuickStart
       role={user?.role}

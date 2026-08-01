@@ -41,12 +41,22 @@ Instructions for Codex cloud and other AI coding agents working in this reposito
 | Network doctor | `pnpm run doctor:network` |
 | Supabase migrations | `pnpm run db:migrate` only when requested and credentials are configured |
 | Edge function check | `pnpm run check:edge-functions` |
+| Planning registers | `pnpm run check:planning-registers` |
 | Full check | `pnpm run check:all` |
 
 Before finishing a code change, run the smallest relevant checks first. For typical app changes, prefer `pnpm run typecheck`, `pnpm run test`, and `pnpm run build`. Include `pnpm run doctor` or `pnpm run check:all` for changes that touch environment validation, Supabase functions, migrations, or deployment behavior.
 
 ## Working rules
 
+- **`BACKLOG.md` is the only planning register.** If your change touches application
+  source, a migration, or an edge function, re-verify the affected rows and bump the
+  `Last verified against main` stamp in the same change set. CI enforces this
+  (`check:planning-registers`); tests, fixtures, generated types, and docs are exempt.
+- **Do not add a new root-level review or backlog markdown.** Seven such documents
+  accumulated and two of them claimed authority in their own opening paragraph. The check
+  rejects new ones. Update `BACKLOG.md` instead.
+- Mark a row `done` only when something calls the code. A shipped module that nothing
+  invokes is `in_progress` — that distinction is why the register drifted before.
 - Do not invent production credentials or commit generated secrets.
 - Keep redirects, auth URLs, and deployment settings synchronized across app code, Supabase config, and docs.
 - If a check cannot run because a Codex secret, Deno, Supabase CLI, or external service is missing, state that clearly in the final response.

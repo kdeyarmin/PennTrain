@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   useListPackages,
   useCreatePackage,
@@ -43,6 +43,7 @@ import {
   isFlatBillingPrice,
   selectPrimaryBillingPrice,
 } from "@/lib/billingCatalog";
+import { QueryError } from "@/components/QueryState";
 
 // Expand a package's explicitly enabled modules so the all-inclusive CareBase bundle implies its
 // bundled operational pillars, mirroring withModuleDependencies used by the runtime access layer.
@@ -213,9 +214,12 @@ function metricIcon(metric: string) {
 }
 
 export default function Packages() {
+  const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: packages, isLoading } = useListPackages();
-  const { data: prices, isLoading: pricesLoading } = useListPackageBillingPrices();
+  const packagesQuery = useListPackages();
+  const pricesQuery = useListPackageBillingPrices();
+  const { data: packages, isLoading } = packagesQuery;
+  const { data: prices, isLoading: pricesLoading } = pricesQuery;
   const { mutate: createPackage, isPending: creating } = useCreatePackage();
   const { mutate: updatePackage, isPending: updating } = useUpdatePackage();
   const { mutate: deletePackage, isPending: deleting } = useDeletePackage();
@@ -450,7 +454,9 @@ export default function Packages() {
       <Card>
         <CardHeader><CardTitle>Subscription packages</CardTitle></CardHeader>
         <CardContent>
-          {isLoading ? (
+          {packagesQuery.isError ? (
+            <QueryError what="subscription packages" error={packagesQuery.error} onRetry={() => void packagesQuery.refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">{[...Array(3)].map((_, index) => <div key={index} className="h-14 animate-pulse rounded-md bg-muted" />)}</div>
           ) : !packages?.length ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -517,7 +523,9 @@ export default function Packages() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {pricesLoading ? <div className="h-24 animate-pulse rounded-md bg-muted" /> : !prices?.length ? (
+          {pricesQuery.isError ? (
+            <QueryError what="billing configurations" error={pricesQuery.error} onRetry={() => void pricesQuery.refetch()} />
+          ) : pricesLoading ? <div className="h-24 animate-pulse rounded-md bg-muted" /> : !prices?.length ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No billing configurations yet.</p>
           ) : (
             <Table>
@@ -576,26 +584,26 @@ export default function Packages() {
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader><DialogTitle>{editId ? "Edit package" : "Add package"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
-            <div className="col-span-full space-y-1.5"><Label>Package name *</Label><Input value={packageForm.name} onChange={(event) => packageField("name", event.target.value)} placeholder="CareMetric Train" /></div>
-            <div className="col-span-full space-y-1.5"><Label>Customer-facing description</Label><Textarea value={packageForm.description} onChange={(event) => packageField("description", event.target.value)} placeholder="Describe the outcome and included product experience." className="min-h-20" /></div>
-            <div className="space-y-1.5"><Label>Pricing strategy</Label><Select value={packageForm.pricingStrategy} onValueChange={(value) => packageField("pricingStrategy", value as PricingStrategy)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="flat_rate">Flat rate</SelectItem><SelectItem value="hybrid">Base + usage (legacy)</SelectItem><SelectItem value="per_unit">Per unit</SelectItem><SelectItem value="custom">Custom contract</SelectItem></SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Starting monthly price ($)</Label><Input type="number" step="0.01" min="0" value={packageForm.priceMonthly} onChange={(event) => packageField("priceMonthly", event.target.value)} placeholder="239.00" /></div>
-            <div className="space-y-1.5"><Label>Trial days</Label><Input type="number" min="0" max="90" value={packageForm.trialDays} onChange={(event) => packageField("trialDays", event.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Annual discount (%)</Label><Input type="number" step="0.01" min="0" max="50" value={packageForm.annualDiscountPercent} onChange={(event) => packageField("annualDiscountPercent", event.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Hard facility limit</Label><Input type="number" min="0" value={packageForm.facilityLimit} onChange={(event) => packageField("facilityLimit", event.target.value)} placeholder="Unlimited" /><p className="text-xs text-muted-foreground">Authorization limit, not included billing quantity.</p></div>
-            <div className="space-y-1.5"><Label>Hard learner limit</Label><Input type="number" min="0" value={packageForm.learnerLimit} onChange={(event) => packageField("learnerLimit", event.target.value)} placeholder="Unlimited" /><p className="text-xs text-muted-foreground">Authorization limit, not included billing quantity.</p></div>
-            <div className="space-y-1.5"><Label>Sort order</Label><Input type="number" value={packageForm.sortOrder} onChange={(event) => packageField("sortOrder", event.target.value)} /></div>
+            <div className="col-span-full space-y-1.5"><Label htmlFor={`${__fieldIds}-package-name`}>Package name *</Label><Input id={`${__fieldIds}-package-name`} value={packageForm.name} onChange={(event) => packageField("name", event.target.value)} placeholder="CareMetric Train" /></div>
+            <div className="col-span-full space-y-1.5"><Label htmlFor={`${__fieldIds}-customer-facing-description`}>Customer-facing description</Label><Textarea id={`${__fieldIds}-customer-facing-description`} value={packageForm.description} onChange={(event) => packageField("description", event.target.value)} placeholder="Describe the outcome and included product experience." className="min-h-20" /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-pricing-strategy`}>Pricing strategy</Label><Select value={packageForm.pricingStrategy} onValueChange={(value) => packageField("pricingStrategy", value as PricingStrategy)}><SelectTrigger id={`${__fieldIds}-pricing-strategy`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="flat_rate">Flat rate</SelectItem><SelectItem value="hybrid">Base + usage (legacy)</SelectItem><SelectItem value="per_unit">Per unit</SelectItem><SelectItem value="custom">Custom contract</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-starting-monthly-price`}>Starting monthly price ($)</Label><Input id={`${__fieldIds}-starting-monthly-price`} type="number" step="0.01" min="0" value={packageForm.priceMonthly} onChange={(event) => packageField("priceMonthly", event.target.value)} placeholder="239.00" /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-trial-days`}>Trial days</Label><Input id={`${__fieldIds}-trial-days`} type="number" min="0" max="90" value={packageForm.trialDays} onChange={(event) => packageField("trialDays", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-annual-discount`}>Annual discount (%)</Label><Input id={`${__fieldIds}-annual-discount`} type="number" step="0.01" min="0" max="50" value={packageForm.annualDiscountPercent} onChange={(event) => packageField("annualDiscountPercent", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-hard-facility-limit`}>Hard facility limit</Label><Input id={`${__fieldIds}-hard-facility-limit`} type="number" min="0" value={packageForm.facilityLimit} onChange={(event) => packageField("facilityLimit", event.target.value)} placeholder="Unlimited" /><p className="text-xs text-muted-foreground">Authorization limit, not included billing quantity.</p></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-hard-learner-limit`}>Hard learner limit</Label><Input id={`${__fieldIds}-hard-learner-limit`} type="number" min="0" value={packageForm.learnerLimit} onChange={(event) => packageField("learnerLimit", event.target.value)} placeholder="Unlimited" /><p className="text-xs text-muted-foreground">Authorization limit, not included billing quantity.</p></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-sort-order`}>Sort order</Label><Input id={`${__fieldIds}-sort-order`} type="number" value={packageForm.sortOrder} onChange={(event) => packageField("sortOrder", event.target.value)} /></div>
             <div className="col-span-full grid gap-3 sm:grid-cols-3">
               <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Active</p><p className="text-xs text-muted-foreground">Selectable by customers</p></div><Switch checked={packageForm.isActive} onCheckedChange={(value) => packageField("isActive", value)} /></div>
               <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Recommended</p><p className="text-xs text-muted-foreground">Highlights the package</p></div><Switch checked={packageForm.isRecommended} onCheckedChange={(value) => packageField("isRecommended", value)} /></div>
               <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Contact sales</p><p className="text-xs text-muted-foreground">Disables self-serve price</p></div><Switch checked={packageForm.contactSales} onCheckedChange={(value) => packageField("contactSales", value)} /></div>
             </div>
-            <div className="col-span-full space-y-1.5"><Label>CareMetric products</Label><div className="space-y-2 rounded-lg border p-3">{PRODUCT_MODULES.map((module) => {
+            <div className="col-span-full space-y-1.5"><Label htmlFor={`${__fieldIds}-caremetric-products`}>CareMetric products</Label><div className="space-y-2 rounded-lg border p-3">{PRODUCT_MODULES.map((module) => {
               const forcedByCareBase = module.id !== "carebase" && packageForm.enabledModules.includes("carebase");
               const enabled = packageForm.enabledModules.includes(module.id) || forcedByCareBase;
-              return <div key={module.id} className="flex items-center justify-between gap-4"><div><p className="text-sm font-medium">{module.name}</p><p className="text-xs text-muted-foreground">{module.description}</p></div><Switch checked={enabled} disabled={forcedByCareBase} onCheckedChange={(checked) => packageField("enabledModules", checked ? (module.id === "carebase" ? [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS] : Array.from(new Set([...packageForm.enabledModules, module.id]))) : packageForm.enabledModules.filter((moduleId) => moduleId !== module.id))} aria-label={`${enabled ? "Disable" : "Enable"} ${module.name}`} /></div>;
+              return <div key={module.id} className="flex items-center justify-between gap-4"><div><p className="text-sm font-medium">{module.name}</p><p className="text-xs text-muted-foreground">{module.description}</p></div><Switch id={`${__fieldIds}-caremetric-products`} checked={enabled} disabled={forcedByCareBase} onCheckedChange={(checked) => packageField("enabledModules", checked ? (module.id === "carebase" ? [...ALL_PURCHASABLE_PRODUCT_MODULE_IDS] : Array.from(new Set([...packageForm.enabledModules, module.id]))) : packageForm.enabledModules.filter((moduleId) => moduleId !== module.id))} aria-label={`${enabled ? "Disable" : "Enable"} ${module.name}`} /></div>;
             })}</div><p className="text-xs text-muted-foreground">CareMetric CareBase is the all-inclusive bundle: it always includes Train, Workforce, Compliance, and Billing.</p></div>
-            <div className="col-span-full space-y-1.5"><Label>Advanced feature flags (JSON)</Label><Textarea value={packageForm.featuresJson} onChange={(event) => packageField("featuresJson", event.target.value)} className="min-h-24 font-mono text-xs" /><p className="text-xs text-muted-foreground">Product module keys above are synchronized when you save.</p></div>
+            <div className="col-span-full space-y-1.5"><Label htmlFor={`${__fieldIds}-advanced-feature-flags-json`}>Advanced feature flags (JSON)</Label><Textarea id={`${__fieldIds}-advanced-feature-flags-json`} value={packageForm.featuresJson} onChange={(event) => packageField("featuresJson", event.target.value)} className="min-h-24 font-mono text-xs" /><p className="text-xs text-muted-foreground">Product module keys above are synchronized when you save.</p></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowPackageForm(false)}>Cancel</Button><Button onClick={handlePackageSubmit} disabled={creating || updating}>{creating || updating ? "Saving..." : editId ? "Save changes" : "Create package"}</Button></DialogFooter>
         </DialogContent>
@@ -605,19 +613,19 @@ export default function Packages() {
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader><DialogTitle>{editPriceId ? "Edit billing configuration" : "Add billing configuration"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
-            <div className="space-y-1.5"><Label>Package *</Label><Select value={priceForm.packageId} onValueChange={(value) => priceField("packageId", value)}><SelectTrigger><SelectValue placeholder="Choose a package" /></SelectTrigger><SelectContent>{packages?.map((pkg) => <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Configuration name *</Label><Input value={priceForm.displayName} onChange={(event) => priceField("displayName", event.target.value)} placeholder="Monthly subscription" /></div>
-            <div className="space-y-1.5"><Label>Billing cadence</Label><Select value={priceForm.recurringInterval} onValueChange={(value) => priceField("recurringInterval", value as "month" | "year")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="month">Monthly</SelectItem><SelectItem value="year">Annual</SelectItem></SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Value metric</Label><Select value={priceForm.billingMetric} onValueChange={(value) => priceField("billingMetric", value as BillingMetric)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{BILLING_METRICS.map((metric) => <SelectItem key={metric.value} value={metric.value}>{metric.label}</SelectItem>)}</SelectContent></Select></div>
-            <div className="col-span-full space-y-1.5"><Label>Pricing model</Label><Select value={priceForm.billingMetric === "flat" ? "flat" : priceForm.pricingModel} disabled={priceForm.billingMetric === "flat"} onValueChange={(value) => priceField("pricingModel", value as PricingModel)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRICING_MODELS.map((model) => <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Base amount ($)</Label><Input type="number" step="0.01" min="0" value={priceForm.baseAmount} onChange={(event) => priceField("baseAmount", event.target.value)} placeholder="239.00" /></div>
-            <div className="space-y-1.5"><Label>Per-unit / overage amount ($)</Label><Input type="number" step="0.01" min="0" disabled={priceForm.billingMetric === "flat"} value={priceForm.unitAmount} onChange={(event) => priceField("unitAmount", event.target.value)} placeholder="4.00" /></div>
-            <div className="space-y-1.5"><Label>Included quantity</Label><Input type="number" min="0" disabled={priceForm.billingMetric === "flat"} value={priceForm.includedQuantity} onChange={(event) => priceField("includedQuantity", event.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Minimum quantity</Label><Input type="number" min="1" disabled={priceForm.billingMetric === "flat"} value={priceForm.minimumQuantity} onChange={(event) => priceField("minimumQuantity", event.target.value)} /></div>
-            <div className="space-y-1.5"><Label>Maximum quantity</Label><Input type="number" min="1" disabled={priceForm.billingMetric === "flat"} value={priceForm.maximumQuantity} onChange={(event) => priceField("maximumQuantity", event.target.value)} placeholder="Unlimited" /></div>
-            <div className="space-y-1.5"><Label>Currency</Label><Input value={priceForm.currency} maxLength={3} onChange={(event) => priceField("currency", event.target.value)} /></div>
-            <div className="col-span-full space-y-1.5"><Label>Stripe Price ID</Label><Input value={priceForm.stripePriceId} onChange={(event) => priceField("stripePriceId", event.target.value)} placeholder="price_... (optional while drafting)" /><p className="text-xs text-muted-foreground">Create an immutable flat recurring Stripe Price at the same monthly/annual amount (not graduated overage tiers), then paste its ID here to enable checkout.</p></div>
-            <div className="space-y-1.5"><Label>Sort order</Label><Input type="number" value={priceForm.sortOrder} onChange={(event) => priceField("sortOrder", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-package`}>Package *</Label><Select value={priceForm.packageId} onValueChange={(value) => priceField("packageId", value)}><SelectTrigger id={`${__fieldIds}-package`}><SelectValue placeholder="Choose a package" /></SelectTrigger><SelectContent>{packages?.map((pkg) => <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-configuration-name`}>Configuration name *</Label><Input id={`${__fieldIds}-configuration-name`} value={priceForm.displayName} onChange={(event) => priceField("displayName", event.target.value)} placeholder="Monthly subscription" /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-billing-cadence`}>Billing cadence</Label><Select value={priceForm.recurringInterval} onValueChange={(value) => priceField("recurringInterval", value as "month" | "year")}><SelectTrigger id={`${__fieldIds}-billing-cadence`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="month">Monthly</SelectItem><SelectItem value="year">Annual</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-value-metric`}>Value metric</Label><Select value={priceForm.billingMetric} onValueChange={(value) => priceField("billingMetric", value as BillingMetric)}><SelectTrigger id={`${__fieldIds}-value-metric`}><SelectValue /></SelectTrigger><SelectContent>{BILLING_METRICS.map((metric) => <SelectItem key={metric.value} value={metric.value}>{metric.label}</SelectItem>)}</SelectContent></Select></div>
+            <div className="col-span-full space-y-1.5"><Label htmlFor={`${__fieldIds}-pricing-model`}>Pricing model</Label><Select value={priceForm.billingMetric === "flat" ? "flat" : priceForm.pricingModel} disabled={priceForm.billingMetric === "flat"} onValueChange={(value) => priceField("pricingModel", value as PricingModel)}><SelectTrigger id={`${__fieldIds}-pricing-model`}><SelectValue /></SelectTrigger><SelectContent>{PRICING_MODELS.map((model) => <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-base-amount`}>Base amount ($)</Label><Input id={`${__fieldIds}-base-amount`} type="number" step="0.01" min="0" value={priceForm.baseAmount} onChange={(event) => priceField("baseAmount", event.target.value)} placeholder="239.00" /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-per-unit-overage-amount`}>Per-unit / overage amount ($)</Label><Input id={`${__fieldIds}-per-unit-overage-amount`} type="number" step="0.01" min="0" disabled={priceForm.billingMetric === "flat"} value={priceForm.unitAmount} onChange={(event) => priceField("unitAmount", event.target.value)} placeholder="4.00" /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-included-quantity`}>Included quantity</Label><Input id={`${__fieldIds}-included-quantity`} type="number" min="0" disabled={priceForm.billingMetric === "flat"} value={priceForm.includedQuantity} onChange={(event) => priceField("includedQuantity", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-minimum-quantity`}>Minimum quantity</Label><Input id={`${__fieldIds}-minimum-quantity`} type="number" min="1" disabled={priceForm.billingMetric === "flat"} value={priceForm.minimumQuantity} onChange={(event) => priceField("minimumQuantity", event.target.value)} /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-maximum-quantity`}>Maximum quantity</Label><Input id={`${__fieldIds}-maximum-quantity`} type="number" min="1" disabled={priceForm.billingMetric === "flat"} value={priceForm.maximumQuantity} onChange={(event) => priceField("maximumQuantity", event.target.value)} placeholder="Unlimited" /></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-currency`}>Currency</Label><Input id={`${__fieldIds}-currency`} value={priceForm.currency} maxLength={3} onChange={(event) => priceField("currency", event.target.value)} /></div>
+            <div className="col-span-full space-y-1.5"><Label htmlFor={`${__fieldIds}-stripe-price-id`}>Stripe Price ID</Label><Input id={`${__fieldIds}-stripe-price-id`} value={priceForm.stripePriceId} onChange={(event) => priceField("stripePriceId", event.target.value)} placeholder="price_... (optional while drafting)" /><p className="text-xs text-muted-foreground">Create an immutable flat recurring Stripe Price at the same monthly/annual amount (not graduated overage tiers), then paste its ID here to enable checkout.</p></div>
+            <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-sort-order-2`}>Sort order</Label><Input id={`${__fieldIds}-sort-order-2`} type="number" value={priceForm.sortOrder} onChange={(event) => priceField("sortOrder", event.target.value)} /></div>
             <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Active primary price</p><p className="text-xs text-muted-foreground">Eligible for checkout</p></div><div className="flex gap-3"><Switch checked={priceForm.isPrimary} onCheckedChange={(value) => priceField("isPrimary", value)} aria-label="Primary price" /><Switch checked={priceForm.isActive} onCheckedChange={(value) => priceField("isActive", value)} aria-label="Active price" /></div></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowPriceForm(false)}>Cancel</Button><Button onClick={handlePriceSubmit} disabled={creatingPrice || updatingPrice}>{creatingPrice || updatingPrice ? "Saving..." : "Save billing configuration"}</Button></DialogFooter>

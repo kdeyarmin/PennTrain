@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { facilityToday } from "@/lib/dateUtils";
 import {
   useListEmployeeCredentials, useCreateEmployeeCredential, useUpdateEmployeeCredential, useDeleteEmployeeCredential,
@@ -92,6 +92,7 @@ const CREDENTIALS_FILTER_DEFAULTS = {
 };
 
 function CredentialDocuments({ credential, canManage, canDelete }: { credential: EmployeeCredential; canManage: boolean; canDelete: boolean }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: documents, isLoading } = useListCredentialDocuments({ credentialId: credential.id });
@@ -137,9 +138,9 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="group" aria-labelledby={`${__fieldIds}-credential-documents`}>
       <div className="flex items-center justify-between">
-        <Label className="text-[13px]">Documentation Documents</Label>
+        <Label id={`${__fieldIds}-credential-documents`} className="text-[13px]">Documentation Documents</Label>
         {canManage && (
           <>
             <Button variant="outline" size="sm" disabled={uploadDocument.isPending} onClick={() => fileInputRef.current?.click()}>
@@ -195,6 +196,7 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
 }
 
 export default function EmployeeCredentials() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -532,42 +534,42 @@ export default function EmployeeCredentials() {
                 })()}
               />
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Credential Type *</Label>
+              <Label htmlFor={`${__fieldIds}-credential-type`} className="text-[13px]">Credential Type *</Label>
               <Select value={form.credentialType} onValueChange={(v) => field("credentialType", v)}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-credential-type`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CREDENTIAL_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Label</Label>
-              <Input value={form.credentialLabel} onChange={(e) => field("credentialLabel", e.target.value)} placeholder="e.g. Flu Shot 2026" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-label`} className="text-[13px]">Label</Label>
+              <Input id={`${__fieldIds}-label`} value={form.credentialLabel} onChange={(e) => field("credentialLabel", e.target.value)} placeholder="e.g. Flu Shot 2026" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Issuing Authority</Label>
-              <Input value={form.issuingAuthority} onChange={(e) => field("issuingAuthority", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-issuing-authority`} className="text-[13px]">Issuing Authority</Label>
+              <Input id={`${__fieldIds}-issuing-authority`} value={form.issuingAuthority} onChange={(e) => field("issuingAuthority", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Credential/License Number</Label>
-              <Input value={form.credentialNumber} onChange={(e) => field("credentialNumber", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-credential-license-number`} className="text-[13px]">Credential/License Number</Label>
+              <Input id={`${__fieldIds}-credential-license-number`} value={form.credentialNumber} onChange={(e) => field("credentialNumber", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Issue Date</Label>
-              <Input type="date" value={form.issueDate} onChange={(e) => field("issueDate", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-issue-date`} className="text-[13px]">Issue Date</Label>
+              <Input id={`${__fieldIds}-issue-date`} type="date" value={form.issueDate} onChange={(e) => field("issueDate", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Expiration Date</Label>
-              <Input type="date" value={form.expirationDate} onChange={(e) => field("expirationDate", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-expiration-date`} className="text-[13px]">Expiration Date</Label>
+              <Input id={`${__fieldIds}-expiration-date`} type="date" value={form.expirationDate} onChange={(e) => field("expirationDate", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Warning Days</Label>
-              <Input type="number" min={1} value={form.warningDays} onChange={(e) => field("warningDays", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-warning-days`} className="text-[13px]">Warning Days</Label>
+              <Input id={`${__fieldIds}-warning-days`} type="number" min={1} value={form.warningDays} onChange={(e) => field("warningDays", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Verification Method</Label>
+              <Label htmlFor={`${__fieldIds}-verification-method`} className="text-[13px]">Verification Method</Label>
               <Select value={form.verificationMethod || "none"} onValueChange={(v) => field("verificationMethod", v === "none" ? "" : v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Not yet verified" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-verification-method`} className="h-9"><SelectValue placeholder="Not yet verified" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Not yet verified</SelectItem>
                   {VERIFICATION_METHOD_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
@@ -575,13 +577,13 @@ export default function EmployeeCredentials() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Last Verified Date</Label>
-              <Input type="date" value={form.lastVerifiedDate} onChange={(e) => field("lastVerifiedDate", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-last-verified-date`} className="text-[13px]">Last Verified Date</Label>
+              <Input id={`${__fieldIds}-last-verified-date`} type="date" value={form.lastVerifiedDate} onChange={(e) => field("lastVerifiedDate", e.target.value)} className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Status</Label>
+              <Label htmlFor={`${__fieldIds}-status`} className="text-[13px]">Status</Label>
               <Select value={form.status} onValueChange={(v) => field("status", v as CredentialFormData["status"])}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-status`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["compliant", "due_soon", "expired", "missing", "not_applicable"].map((s) => (
                     <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
@@ -591,8 +593,8 @@ export default function EmployeeCredentials() {
               <p className="text-xs text-muted-foreground">Recalculated automatically overnight from the expiration date; set manually only to override.</p>
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Notes</Label>
-              <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
+              <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
+              <Textarea id={`${__fieldIds}-notes`} value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>
             {editing && (
               <div className="col-span-full pt-2 border-t">

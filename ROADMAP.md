@@ -1,5 +1,7 @@
 # CareMetric CareBase — App Review & Improvement Roadmap
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 *July 2026. Produced from a full codebase review (every page, hook, migration, and edge function) plus market and
 regulatory research: 55 Pa. Code Chapters 2600/2800, PA DHS BHSL enforcement data, competitor scans of the
 senior-care training and operations software markets, and operator pain-point research. Candidate features were
@@ -7,8 +9,11 @@ ranked from three perspectives — a PCH administrator, a compliance consultant/
 engineer who knows this stack — then merged and stress-tested for completeness.*
 
 > **Historical review:** This file preserves the original findings and
-> recommendation rationale. The canonical forward delivery sequence is the
-> [five-phase implementation plan](IMPLEMENTATION_PLAN.md).
+> recommendation rationale. Many of its "broken" claims are stale — several were
+> fixed and several were never true. It previously pointed at
+> [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) as the canonical forward
+> sequence; that plan is the long-horizon program, and the actual ordered list of
+> open work is [BACKLOG.md](./BACKLOG.md).
 
 ---
 

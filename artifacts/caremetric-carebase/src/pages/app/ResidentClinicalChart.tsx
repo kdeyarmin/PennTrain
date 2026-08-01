@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Activity, AlertTriangle, ArrowLeft, DatabaseZap, HeartPulse, Pill, Plus, ShieldCheck, Stethoscope } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -112,6 +112,7 @@ function titleCase(value: string): string {
 }
 
 export default function ResidentClinicalChart() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -526,9 +527,9 @@ export default function ResidentClinicalChart() {
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <Label>Observation type</Label>
+              <Label htmlFor={`${__fieldIds}-observation-type`}>Observation type</Label>
               <Select value={observationType} onValueChange={(value) => chooseType(value as ObservationType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-observation-type`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {OBSERVATION_ORDER.map((type) => (
                     <SelectItem key={type} value={type}>{OBSERVATION_CONFIG[type].label}</SelectItem>

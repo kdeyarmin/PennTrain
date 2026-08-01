@@ -196,12 +196,20 @@ export function useAcceptLearningPackage() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (input: { packageId: string; entryPoint?: string; reason: string }) => {
-      const { error } = await rpc().rpc("accept_learning_package", {
-        p_package_id: input.packageId,
-        p_entry_point: input.entryPoint ?? null,
-        p_reason: input.reason,
+      // Routes through the accept-learning-package edge function so bridge injection
+      // happens server-side (clients cannot skip it). The function downloads the zip,
+      // injects carebase/learning-runtime-bridge.js, re-uploads, and calls the RPC.
+      const { data, error } = await supabase.functions.invoke("accept-learning-package", {
+        body: {
+          package_id: input.packageId,
+          entry_point: input.entryPoint ?? null,
+          reason: input.reason,
+        },
       });
       if (error) throw new Error(error.message);
+      if (data && typeof data === "object" && "error" in data) {
+        throw new Error(String((data as Record<string, unknown>).error));
+      }
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["learning_packages"] });

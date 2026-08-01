@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QueryError } from "@/components/QueryState";
 
 const STATUS_LABELS: Record<CrosswalkStatus, string> = {
   inspection_ready: "Inspection-ready",
@@ -56,14 +57,14 @@ export default function RegulatoryCrosswalk() {
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
-  const { data: trainingRecords } = useListTrainingRecords({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
-  const { data: credentials } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
-  const { data: residentItems } = useListAllResidentComplianceItems({ facilityId: activeFacilityId || undefined });
-  const { data: incidents } = useListIncidents({ facilityId: activeFacilityId || undefined });
-  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
-  const { data: inspectionItems } = useListInspectionItems({ facilityId: activeFacilityId || undefined });
-  const { data: violations } = useListViolations({ facilityId: activeFacilityId || undefined });
-  const { data: policyDocuments } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
+  const { data: trainingRecords, ...trainingRecordsQuery } = useListTrainingRecords({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
+  const { data: credentials, ...credentialsQuery } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
+  const { data: residentItems, ...residentItemsQuery } = useListAllResidentComplianceItems({ facilityId: activeFacilityId || undefined });
+  const { data: incidents, ...incidentsQuery } = useListIncidents({ facilityId: activeFacilityId || undefined });
+  const { data: correctiveActions, ...correctiveActionsQuery } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
+  const { data: inspectionItems, ...inspectionItemsQuery } = useListInspectionItems({ facilityId: activeFacilityId || undefined });
+  const { data: violations, ...violationsQuery } = useListViolations({ facilityId: activeFacilityId || undefined });
+  const { data: policyDocuments, ...policyDocumentsQuery } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
   const { data: policyAttestations } = useListPolicyAttestations({});
   const { data: evidenceCollections } = useListEvidenceCollections({ organizationId: user?.organizationId ?? undefined });
   const governedRules = useActiveRegulatoryRules();
@@ -114,8 +115,23 @@ export default function RegulatoryCrosswalk() {
     URL.revokeObjectURL(url);
   };
 
+  // Each row claims a citation is or isn't covered, and the CSV export is handed to
+  // surveyors. A failed source query would understate coverage without saying so.
+  const crosswalkQueries = [
+    trainingRecordsQuery, credentialsQuery, residentItemsQuery, incidentsQuery,
+    correctiveActionsQuery, inspectionItemsQuery, violationsQuery, policyDocumentsQuery,
+  ];
+  const crosswalkFailure = crosswalkQueries.find((query) => query.isError);
+
   return (
     <div className="space-y-6">
+      {crosswalkFailure && (
+        <QueryError
+          what="the regulatory crosswalk sources"
+          error={crosswalkFailure.error}
+          onRetry={() => void Promise.all(crosswalkQueries.map((query) => query.refetch()))}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Chapter 2600 / 2800 Regulatory Crosswalk</h1>

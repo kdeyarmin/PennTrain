@@ -1,15 +1,19 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useId, useState, useMemo, useRef, useEffect } from "react";
 import { csvEscape } from "@/lib/csv";
-import { daysUntil, formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useListEmployees } from "@/hooks/useEmployees";
 import type { Employee } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
 import {
-  useListTrainingRecords, useCreateTrainingRecord, useUpdateTrainingRecord,
-  type TrainingRecord, type TrainingRecordInsert,
+  useCreateTrainingRecord, useUpdateTrainingRecord,
+  type TrainingRecordInsert,
 } from "@/hooks/useTrainingRecords";
+import {
+  fetchTrainingMatrixExport, useTrainingMatrixPage,
+  type TrainingMatrixFilters,
+} from "@/hooks/useTrainingMatrix";
 import { useUploadDocument } from "@/hooks/useDocuments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,11 +56,6 @@ interface MatrixTrainingType {
   applies_to_facility_type: string;
 }
 
-interface MatrixRow {
-  employee: Employee;
-  cells: MatrixCell[];
-}
-
 const STATUS_COLORS: Record<string, string> = {
   compliant: "#22c55e",
   due_soon: "#f59e0b",
@@ -64,35 +63,6 @@ const STATUS_COLORS: Record<string, string> = {
   missing: "#94a3b8",
   not_applicable: "#cbd5e1",
 };
-
-// Compliance-bearing statuses, mirroring Dashboard.tsx's computeDashboardSummary convention:
-// "not_applicable" and "pending_review" records are excluded from compliance math entirely --
-// they aren't yet (or never will be) part of the compliant/non-compliant split.
-const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
-
-// Employees routinely accumulate multiple employee_training_records rows for the same
-// training_type_id over time (e.g. complete_training_class() inserts a fresh row each renewal
-// cycle rather than updating the prior one). due_date is recalculated server-side as
-// completion_date + training_type.renewal_interval_days, so it advances forward each cycle --
-// the record with the latest due_date is the current one. Fall back to completion_date, then
-// created_at, for cases where due_date ties or is null (e.g. one-time trainings with no
-// renewal_interval_days).
-function isMoreCurrent(a: TrainingRecord, b: TrainingRecord): boolean {
-  const aDue = a.due_date ?? "";
-  const bDue = b.due_date ?? "";
-  if (aDue !== bDue) return aDue > bDue;
-  const aCompletion = a.completion_date ?? "";
-  const bCompletion = b.completion_date ?? "";
-  if (aCompletion !== bCompletion) return aCompletion > bCompletion;
-  return (a.created_at ?? "") > (b.created_at ?? "");
-}
-
-function pickCurrentRecord(records: TrainingRecord[]): TrainingRecord | null {
-  return records.reduce<TrainingRecord | null>(
-    (current, candidate) => (!current || isMoreCurrent(candidate, current) ? candidate : current),
-    null,
-  );
-}
 
 function getStatusColor(status: string | undefined): string {
   if (!status) return STATUS_COLORS.missing;
@@ -176,8 +146,9 @@ function trainerSelectionFromName(name: string | null, trainers: Employee[]): { 
 }
 
 function TrainerSelectField({
-  trainers, selection, customName, onSelectionChange, onCustomNameChange,
+  id, trainers, selection, customName, onSelectionChange, onCustomNameChange,
 }: {
+  id?: string;
   trainers: Employee[];
   selection: string;
   customName: string;
@@ -187,7 +158,7 @@ function TrainerSelectField({
   return (
     <div className="space-y-1.5">
       <Select value={selection || TRAINER_NONE} onValueChange={onSelectionChange}>
-        <SelectTrigger className="h-9"><SelectValue placeholder="Select trainer" /></SelectTrigger>
+        <SelectTrigger id={id} className="h-9"><SelectValue placeholder="Select trainer" /></SelectTrigger>
         <SelectContent>
           <SelectItem value={TRAINER_NONE}>—</SelectItem>
           {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.first_name} {t.last_name}</SelectItem>)}
@@ -221,6 +192,7 @@ function CellDetailDialog({
   canManage: boolean;
   qualifiedTrainers: Employee[];
 }) {
+  const __fieldIds = useId();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -282,20 +254,21 @@ function CellDetailDialog({
             <div className="text-sm text-muted-foreground">{employee.first_name} {employee.last_name}</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Completion Date *</Label>
-                <Input type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
+                <Label htmlFor={`${__fieldIds}-completion-date`} className="text-[13px]">Completion Date *</Label>
+                <Input id={`${__fieldIds}-completion-date`} type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Hours</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-hours`} className="text-[13px]">Hours</Label>
+                <Input id={`${__fieldIds}-hours`}
                   type="number" step="0.25" min="0" className="h-9"
                   placeholder={trainingType.required_hours != null ? String(trainingType.required_hours) : "0"}
                   value={hours} onChange={e => setHours(e.target.value)}
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-[13px]">Trainer</Label>
+                <Label htmlFor={`${__fieldIds}-trainer`} className="text-[13px]">Trainer</Label>
                 <TrainerSelectField
+                  id={`${__fieldIds}-trainer`}
                   trainers={qualifiedTrainers}
                   selection={trainerSelection}
                   customName={customTrainerName}
@@ -386,6 +359,7 @@ function RecordForMultipleDialog({
   trainingTypes: TrainingType[];
   qualifiedTrainers: Employee[];
 }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const createRecord = useCreateTrainingRecord();
@@ -546,10 +520,10 @@ function RecordForMultipleDialog({
         </DialogHeader>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           <div className="space-y-1.5">
-            <Label className="text-[13px]">Employees *</Label>
+            <Label htmlFor={`${__fieldIds}-employees`} className="text-[13px]">Employees *</Label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
+              <Input id={`${__fieldIds}-employees`} placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
             </div>
             <label className="flex items-center gap-2 px-1 pt-1 cursor-pointer">
               <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAllVisible} />
@@ -579,29 +553,30 @@ function RecordForMultipleDialog({
 
           <div className="grid grid-cols-2 gap-3 pt-2 border-t">
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Training Type *</Label>
+              <Label htmlFor={`${__fieldIds}-training-type`} className="text-[13px]">Training Type *</Label>
               <Select value={trainingTypeId} onValueChange={setTrainingTypeId}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-training-type`} className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
                 <SelectContent>
                   {sortedTrainingTypes.map(tt => <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Completion Date *</Label>
-              <Input type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-completion-date-2`} className="text-[13px]">Completion Date *</Label>
+              <Input id={`${__fieldIds}-completion-date-2`} type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Hours</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-hours-2`} className="text-[13px]">Hours</Label>
+              <Input id={`${__fieldIds}-hours-2`}
                 type="number" step="0.25" min="0" className="h-9"
                 placeholder={selectedTrainingType?.required_hours != null ? String(selectedTrainingType.required_hours) : "0"}
                 value={hours} onChange={e => setHours(e.target.value)}
               />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Trainer</Label>
+              <Label htmlFor={`${__fieldIds}-trainer`} className="text-[13px]">Trainer</Label>
               <TrainerSelectField
+                id={`${__fieldIds}-trainer`}
                 trainers={qualifiedTrainers}
                 selection={trainerSelection}
                 customName={customTrainerName}
@@ -609,8 +584,8 @@ function RecordForMultipleDialog({
                 onCustomNameChange={setCustomTrainerName}
               />
             </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Documentation Document</Label>
+            <div className="col-span-2 space-y-1.5" role="group" aria-labelledby={`${__fieldIds}-documentation-document`}>
+              <Label id={`${__fieldIds}-documentation-document`} className="text-[13px]">Documentation Document</Label>
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                   <Upload className="h-3.5 w-3.5 mr-2" /> {evidenceFile ? "Change File" : "Choose File"}
@@ -683,9 +658,9 @@ export default function TrainingMatrix() {
     return () => clearTimeout(t);
   }, [search]);
   // Resyncs the local mirror when urlState.search changes for a reason other than the commit
-  // above (browser Back/Forward, a bookmarked/deep link) -- the matrix filters off this local
-  // value directly (see filteredRows below), so without this both the input AND the filtered
-  // rows would keep showing/matching a stale search term after navigating.
+  // above (browser Back/Forward, a bookmarked/deep link). The matrix query reads
+  // urlState.search, so without this the input would keep showing a stale term while the
+  // grid showed results for the real one.
   useEffect(() => {
     setSearchInput(urlState.search);
   }, [urlState.search]);
@@ -693,38 +668,38 @@ export default function TrainingMatrix() {
   const [selectedCell, setSelectedCell] = useState<{ entry: MatrixCell; trainingType: TrainingType; employee: Employee } | null>(null);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   const { user } = useAuth();
+  const { toast } = useToast();
   const canManage = !!user && TRAINING_RECORD_MANAGE_ROLES.includes(user.role);
 
   const facilitiesQuery = useListFacilities({});
-  const employeesQuery = useListEmployees({
-    facilityId: facilityId !== "all" ? facilityId : undefined,
-    status: "active",
-  });
+  // The training type catalog stays a client-side list: it is a bounded catalog (tens of rows,
+  // not per-employee), and the record dialogs need the full row -- renewal_interval_days,
+  // warning_days_default, required_hours -- to compute a due date and status on save.
   const trainingTypesQuery = useListTrainingTypes({ isActive: true });
-
-  const employees = employeesQuery.data;
   const trainingTypes = trainingTypesQuery.data;
 
-  // Scope records to the exact active employees + active types the matrix will render.
-  // When facility is selected this is already facility-scoped via employees; when "all" it still
-  // avoids historical rows for terminated staff and inactive training types.
-  const matrixEmployeeIds = useMemo(() => (employees ?? []).map(e => e.id), [employees]);
-  const matrixTrainingTypeIds = useMemo(() => (trainingTypes ?? []).map(t => t.id), [trainingTypes]);
+  const scopedFacilityId = facilityId !== "all" ? facilityId : undefined;
+  // Filtering, sorting, paging, and the per-type summary all happen server-side. This page
+  // used to load every active employee and every training record joining them -- growing as
+  // employees x training types -- and then slice fifteen rows out of it in the browser.
+  //
+  // Note this reads urlState.search (debounced), not the raw input: each keystroke is now a
+  // request, so the 300ms commit below is what bounds it.
+  const matrixQuery = useTrainingMatrixPage({
+    facilityId: scopedFacilityId,
+    search: urlState.search || undefined,
+    statusFilter: statusFilter as TrainingMatrixFilters["statusFilter"],
+    trainerOnly,
+    medsOnly,
+    dueWithinDays: dueWindow !== "all" ? Number(dueWindow) : undefined,
+    sortField: sortField as TrainingMatrixFilters["sortField"],
+    sortDir,
+    page,
+    pageSize: PAGE_SIZE,
+  });
 
-  const trainingRecordsQuery = useListTrainingRecords(
-    {
-      facilityId: facilityId !== "all" ? facilityId : undefined,
-      employeeIds: matrixEmployeeIds,
-      trainingTypeIds: matrixTrainingTypeIds,
-    },
-    {
-      // Wait until both lists have resolved so we never fire an unscoped (or empty-in) query.
-      enabled: employeesQuery.isSuccess && trainingTypesQuery.isSuccess,
-    },
-  );
   const facilities = facilitiesQuery.data;
-  const trainingRecords = trainingRecordsQuery.data;
-  const matrixQueries = [facilitiesQuery, employeesQuery, trainingTypesQuery, trainingRecordsQuery];
+  const matrixQueries = [facilitiesQuery, trainingTypesQuery, matrixQuery];
   const matrixLoading = matrixQueries.some((query) => query.isLoading);
   const matrixError = matrixQueries.find((query) => query.isError)?.error;
   const refetchMatrix = () => {
@@ -737,70 +712,25 @@ export default function TrainingMatrix() {
   );
 
   // "Who can plausibly serve as trainer" for the Trainer Select on both the single-cell and
-  // batch record dialogs -- scoped to this page's own active/facility-filtered roster (like the
-  // matrix itself) and narrowed to employees flagged trainer_status, mirroring how
-  // Practicums.tsx builds its qualifiedObservers list. A trainer outside this list (external
-  // contractor, or simply out of the current facility filter) still has the dialogs' free-text
-  // fallback.
+  // batch record dialogs. Fetched as its own filtered query rather than sieved out of the
+  // roster, since the roster is no longer loaded in full -- and only once a dialog is open,
+  // because that is the only thing this list feeds. A trainer outside it (external
+  // contractor, or simply out of the current facility filter) still has the free-text fallback.
+  const trainersQuery = useListEmployees(
+    { facilityId: scopedFacilityId, status: "active", trainerStatus: true },
+    { enabled: !!selectedCell || showBatchDialog },
+  );
+  // "Record for Multiple" multi-selects across the roster, so it does need the whole
+  // filtered list -- but only once the dialog is open, not on every visit to the matrix.
+  const batchRosterQuery = useListEmployees(
+    { facilityId: scopedFacilityId, status: "active" },
+    { enabled: showBatchDialog },
+  );
   const qualifiedTrainers = useMemo(
-    () => (employees ?? [])
-      .filter(e => e.trainer_status)
+    () => [...(trainersQuery.data ?? [])]
       .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
-    [employees],
+    [trainersQuery.data],
   );
-
-  const facilityTypeById = useMemo(
-    () => new Map((facilities ?? []).map(f => [f.id, f.facility_type])),
-    [facilities],
-  );
-
-  const matrixRows: MatrixRow[] = useMemo(() => {
-    const emps = employees ?? [];
-    const records = trainingRecords ?? [];
-    return emps.map(emp => {
-      const empRecords = records.filter(r => r.employee_id === emp.id);
-      const empFacilityType = emp.facility_id ? facilityTypeById.get(emp.facility_id) : undefined;
-      const cells: MatrixCell[] = matrixTrainingTypes.map(tt => {
-        const record = pickCurrentRecord(empRecords.filter(r => r.training_type_id === tt.id));
-        // A training type not scoped to this employee's facility type shouldn't count as a
-        // missing requirement -- only synthesize "not_applicable" when there's no real record;
-        // an existing record (e.g. a manually-tracked one) always wins regardless of scope.
-        const applies = tt.applies_to_facility_type === "BOTH" || tt.applies_to_facility_type === empFacilityType;
-        return {
-          trainingTypeId: tt.id,
-          trainingRecordId: record?.id ?? null,
-          status: record?.status ?? (applies ? "missing" : "not_applicable"),
-          completionDate: record?.completion_date ?? null,
-          dueDate: record?.due_date ?? null,
-          trainerName: record?.trainer_name ?? null,
-          hours: record?.hours ?? null,
-        };
-      });
-      return { employee: emp, cells };
-    });
-  }, [employees, trainingRecords, matrixTrainingTypes, facilityTypeById]);
-
-  const getWorstStatus = (row: MatrixRow): string => {
-    // Exclude not_applicable/pending_review cells from classification, matching
-    // Dashboard.tsx's computeDashboardSummary convention -- those cells aren't part of the
-    // compliant/non-compliant split and shouldn't drag a row down to "missing".
-    const relevantCells = row.cells.filter(c => RELEVANT_STATUSES.has(c.status));
-    if (relevantCells.some(c => c.status === "expired")) return "expired";
-    if (relevantCells.some(c => c.status === "missing")) return "missing";
-    if (relevantCells.some(c => c.status === "due_soon")) return "due_soon";
-    if (relevantCells.length > 0 && relevantCells.every(c => c.status === "compliant")) return "compliant";
-    return "compliant";
-  };
-
-  // Compare as calendar days (daysUntil parses YYYY-MM-DD in local time) -- naive
-  // new Date("YYYY-MM-DD") parses as UTC midnight, which in US timezones lands on
-  // the previous local evening and silently drops records due today.
-  const isDueWithinWindow = (row: MatrixRow, days: number): boolean => {
-    return row.cells.some(c => {
-      const remaining = daysUntil(c.dueDate);
-      return remaining !== null && remaining >= 0 && remaining <= days;
-    });
-  };
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -818,81 +748,71 @@ export default function TrainingMatrix() {
     });
   };
 
-  const filteredRows = useMemo(() => {
-    let rows = [...matrixRows];
-    if (trainerOnly) rows = rows.filter(r => r.employee.trainer_status);
-    if (medsOnly) rows = rows.filter(r => r.employee.administers_medications);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      rows = rows.filter(r =>
-        `${r.employee.first_name} ${r.employee.last_name}`.toLowerCase().includes(q) ||
-        (r.employee.job_title?.toLowerCase() ?? "").includes(q)
-      );
-    }
-    if (statusFilter !== "all") {
-      rows = rows.filter(r => getWorstStatus(r) === statusFilter);
-    }
-    if (dueWindow !== "all") {
-      const days = Number(dueWindow);
-      rows = rows.filter(r => isDueWithinWindow(r, days));
-    }
-    rows = rows.sort((a, b) => {
-      let va = "", vb = "";
-      if (sortField === "firstName") { va = a.employee.first_name; vb = b.employee.first_name; }
-      else if (sortField === "jobTitle") { va = a.employee.job_title ?? ""; vb = b.employee.job_title ?? ""; }
-      else { va = a.employee.last_name; vb = b.employee.last_name; }
-      return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
-    });
-    return rows;
-  }, [matrixRows, trainerOnly, medsOnly, search, statusFilter, dueWindow, sortField, sortDir]);
+  const pageRows = matrixQuery.data?.rows ?? [];
+  const totalCount = matrixQuery.data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // Computed server-side over every filtered row, not just this page, so paging never moves
+  // the denominator under the summary bar.
+  const complianceSummary = matrixQuery.data?.summary ?? {};
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const pageRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const complianceSummary = useMemo(() => {
-    const summary: Record<string, { compliant: number; total: number }> = {};
-    for (const tt of matrixTrainingTypes) {
-      let compliant = 0;
-      let total = 0;
-      for (const row of filteredRows) {
-        const cell = row.cells.find(c => c.trainingTypeId === tt.id);
-        // Exclude not_applicable/pending_review cells from the denominator, matching
-        // Dashboard.tsx's computeDashboardSummary convention.
-        if (cell && RELEVANT_STATUSES.has(cell.status)) {
-          total++;
-          if (cell.status === "compliant") compliant++;
-        }
-      }
-      summary[tt.id] = { compliant, total };
-    }
-    return summary;
-  }, [matrixTrainingTypes, filteredRows]);
-
-  const handleExportCSV = () => {
-    if (matrixTrainingTypes.length === 0) return;
-    const headers = ["Employee Name", "Job Title", ...matrixTrainingTypes.map(tt => tt.code)];
-    const rows = filteredRows.map(row => {
-      const name = `${row.employee.first_name} ${row.employee.last_name}`;
-      const jobTitle = row.employee.job_title ?? "";
-      const statuses = matrixTrainingTypes.map(tt => {
-        const cell = row.cells.find(c => c.trainingTypeId === tt.id);
-        return cell ? getStatusLabel(cell.status) : "No Record";
+  // The export covers the whole filtered set, not the visible page, so it has to go back to
+  // the server -- the page only ever holds PAGE_SIZE rows now.
+  const [exporting, setExporting] = useState(false);
+  const handleExportCSV = async () => {
+    if (matrixTrainingTypes.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      const exportPage = await fetchTrainingMatrixExport({
+        facilityId: scopedFacilityId,
+        search: urlState.search || undefined,
+        statusFilter: statusFilter as TrainingMatrixFilters["statusFilter"],
+        trainerOnly,
+        medsOnly,
+        dueWithinDays: dueWindow !== "all" ? Number(dueWindow) : undefined,
+        sortField: sortField as TrainingMatrixFilters["sortField"],
+        sortDir,
       });
-      return [name, jobTitle, ...statuses];
-    });
 
-    // csvEscape also neutralizes formula injection (leading = + - @) in names/titles.
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(csvEscape).join(","))
-      .join("\n");
+      const headers = ["Employee Name", "Job Title", ...matrixTrainingTypes.map(tt => tt.code)];
+      const rows = exportPage.rows.map(row => {
+        const name = `${row.employee.first_name} ${row.employee.last_name}`;
+        const jobTitle = row.employee.job_title ?? "";
+        const statuses = matrixTrainingTypes.map(tt => {
+          const cell = row.cells.find(c => c.trainingTypeId === tt.id);
+          return cell ? getStatusLabel(cell.status) : "No Record";
+        });
+        return [name, jobTitle, ...statuses];
+      });
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "training-matrix.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+      // csvEscape also neutralizes formula injection (leading = + - @) in names/titles.
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(csvEscape).join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "training-matrix.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+
+      // Say so rather than handing over a short file that looks complete.
+      if (exportPage.totalCount > exportPage.rows.length) {
+        toast({
+          title: "Export truncated",
+          description: `Exported the first ${exportPage.rows.length} of ${exportPage.totalCount} matching employees. Narrow the filters to export the rest.`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Could not export the matrix",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -970,9 +890,15 @@ export default function TrainingMatrix() {
             Record for Multiple
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={handleExportCSV} className={`w-full sm:w-auto ${canManage ? "" : "sm:ml-auto"}`}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={exporting}
+          onClick={() => void handleExportCSV()}
+          className={`w-full sm:w-auto ${canManage ? "" : "sm:ml-auto"}`}
+        >
           <Download className="w-4 h-4 mr-2" />
-          Export CSV
+          {exporting ? "Exporting…" : "Export CSV"}
         </Button>
       </div>
 
@@ -983,7 +909,7 @@ export default function TrainingMatrix() {
               Compliance Matrix
               {!matrixError && (
                 <span className="text-sm font-normal text-muted-foreground ml-2">
-                  ({filteredRows.length} employees)
+                  ({totalCount} employees)
                 </span>
               )}
             </CardTitle>
@@ -1131,7 +1057,7 @@ export default function TrainingMatrix() {
           {!matrixError && !matrixLoading && totalPages > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
               <span className="text-sm text-muted-foreground">
-                Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filteredRows.length)} of {filteredRows.length}
+                Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
               </span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
@@ -1156,7 +1082,7 @@ export default function TrainingMatrix() {
       <RecordForMultipleDialog
         open={showBatchDialog}
         onClose={() => setShowBatchDialog(false)}
-        employees={employees ?? []}
+        employees={batchRosterQuery.data ?? []}
         trainingTypes={trainingTypes ?? []}
         qualifiedTrainers={qualifiedTrainers}
       />

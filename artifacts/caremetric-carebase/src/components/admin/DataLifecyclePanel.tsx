@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   useCreateAuditLegalHold,
   useDataLifecycleStatus,
@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Archive, Scale } from "lucide-react";
 
 export function DataLifecyclePanel() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const statusQ = useDataLifecycleStatus();
   const holdsQ = useListAuditLegalHolds();
@@ -130,18 +131,18 @@ export function DataLifecyclePanel() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
-            <Label>Organization</Label>
+            <Label htmlFor={`${__fieldIds}-organization`}>Organization</Label>
             <Select value={orgId} onValueChange={(v) => { setOrgId(v); setFacilityId("none"); }}>
-              <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-organization`}><SelectValue placeholder="Select organization" /></SelectTrigger>
               <SelectContent>
                 {(orgsQ.data ?? []).map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Facility (optional)</Label>
+            <Label htmlFor={`${__fieldIds}-facility-optional`}>Facility (optional)</Label>
             <Select value={facilityId} onValueChange={setFacilityId}>
-              <SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-facility-optional`}><SelectValue placeholder="All facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">All facilities in org</SelectItem>
                 {facilitiesForOrg.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -149,8 +150,8 @@ export function DataLifecyclePanel() {
             </Select>
           </div>
           <div className="space-y-1.5 md:col-span-2">
-            <Label>Reason</Label>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} />
+            <Label htmlFor={`${__fieldIds}-reason`}>Reason</Label>
+            <Input id={`${__fieldIds}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} />
           </div>
           <div>
             <Button onClick={() => void handleCreate()} disabled={busy}>Place hold</Button>

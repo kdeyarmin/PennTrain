@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -36,16 +36,28 @@ import { ArrowLeft, Plus, Trash2, Grid3x3, Clock, Star, ShieldCheck, UsersRound 
 import { useToast } from "@/hooks/use-toast";
 import { formatTimeLabel, WEEKDAY_LABELS } from "@/lib/scheduleDates";
 import { isSpecialCareUnit } from "@/lib/specialCareCompliance";
+import { QueryError } from "@/components/QueryState";
 
 export default function ScheduleSetup() {
+  const __fieldIds = useId();
   const [, navigate] = useLocation();
   const { user } = useAuth();
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { data: facilities } = facilitiesQuery;
   const [facilityId, setFacilityId] = useState<string>("");
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
 
   return (
     <div className="space-y-6">
+      {/* Without the facility list there is no facility to set up, and every panel below
+          would render its own empty state as if setup were simply not started yet. */}
+      {facilitiesQuery.isError && (
+        <QueryError
+          what="your facilities"
+          error={facilitiesQuery.error}
+          onRetry={() => void facilitiesQuery.refetch()}
+        />
+      )}
       <div>
         <Button variant="ghost" size="sm" className="mb-1 -ml-2" onClick={() => navigate("/app/schedule")}>
           <ArrowLeft className="h-4 w-4 mr-1" />
@@ -58,9 +70,9 @@ export default function ScheduleSetup() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Label className="text-sm text-muted-foreground shrink-0">Facility</Label>
+        <Label htmlFor={`${__fieldIds}-facility`} className="text-sm text-muted-foreground shrink-0">Facility</Label>
         <Select value={activeFacilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-64">
+          <SelectTrigger id={`${__fieldIds}-facility`} className="w-64">
             <SelectValue placeholder="Select a facility" />
           </SelectTrigger>
           <SelectContent>
@@ -116,6 +128,7 @@ function parseKeys(value: string) {
 }
 
 function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: string; organizationId: string; profileId: string }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shifts } = useListShiftDefinitions({ facilityId });
@@ -207,9 +220,9 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
         <div className="rounded-md border p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Unit</Label>
+              <Label htmlFor={`${__fieldIds}-unit`}>Unit</Label>
               <Select value={form.unitId} onValueChange={(value) => setForm((current) => ({ ...current, unitId: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-unit`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={FACILITY_WIDE}>Facility-wide</SelectItem>
                   {activeUnits.map((unit) => <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>)}
@@ -217,9 +230,9 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Shift</Label>
+              <Label htmlFor={`${__fieldIds}-shift`}>Shift</Label>
               <Select value={form.shiftDefinitionId} onValueChange={(value) => setForm((current) => ({ ...current, shiftDefinitionId: value }))}>
-                <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-shift`}><SelectValue placeholder="Select shift" /></SelectTrigger>
                 <SelectContent>
                   {activeShifts.map((shift) => <SelectItem key={shift.id} value={shift.id}>{shift.name}</SelectItem>)}
                 </SelectContent>
@@ -237,8 +250,9 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
               ["Escort reserve", "escortReserveStaff"],
             ].map(([label, key]) => (
               <div className="space-y-1" key={key}>
-                <Label className="text-xs">{label}</Label>
+                <Label htmlFor={`${__fieldIds}-${key}`} className="text-xs">{label}</Label>
                 <Input
+                  id={`${__fieldIds}-${key}`}
                   type="number"
                   min="0"
                   max="100"
@@ -257,8 +271,8 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Required qualification keys</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-required-qualification-keys`}>Required qualification keys</Label>
+              <Input id={`${__fieldIds}-required-qualification-keys`}
                 value={form.qualificationKeys}
                 onChange={(event) => setForm((current) => ({ ...current, qualificationKeys: event.target.value }))}
                 placeholder="med-admin, insulin, memory-care"
@@ -266,8 +280,8 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
               <p className="text-xs text-muted-foreground">Comma-separated; these become hard assignment requirements.</p>
             </div>
             <div className="space-y-1">
-              <Label>Required credential types</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-required-credential-types`}>Required credential types</Label>
+              <Input id={`${__fieldIds}-required-credential-types`}
                 value={form.credentialTypes}
                 onChange={(event) => setForm((current) => ({ ...current, credentialTypes: event.target.value }))}
                 placeholder="first_aid, cpr"
@@ -385,6 +399,7 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
 const COLOR_PRESETS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4"];
 
 function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organizationId: string }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const { data: shifts, isLoading } = useListShiftDefinitions({ facilityId });
   const create = useCreateShiftDefinition();
@@ -420,19 +435,19 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-end">
           <div className="space-y-1">
-            <Label className="text-xs">Name</Label>
-            <Input placeholder="e.g. Day, Evening, Night" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <Label htmlFor={`${__fieldIds}-name`} className="text-xs">Name</Label>
+            <Input id={`${__fieldIds}-name`} placeholder="e.g. Day, Evening, Night" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Start</Label>
-            <Input type="time" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
+            <Label htmlFor={`${__fieldIds}-start`} className="text-xs">Start</Label>
+            <Input id={`${__fieldIds}-start`} type="time" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">End</Label>
-            <Input type="time" value={form.endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
+            <Label htmlFor={`${__fieldIds}-end`} className="text-xs">End</Label>
+            <Input id={`${__fieldIds}-end`} type="time" value={form.endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Color</Label>
+            <p className="text-sm font-medium leading-none text-xs" >Color</p>
             <div className="flex gap-1">
               {COLOR_PRESETS.map((c) => (
                 <button
@@ -514,6 +529,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
 }
 
 function PatternsPanel({ facilityId, organizationId }: { facilityId: string; organizationId: string }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const { data: roster } = useListEmployeeFacilityAssignments({ facilityId });
   const { data: units } = useListFacilityUnits({ facilityId });
@@ -627,8 +643,8 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2 max-w-sm">
-          <Label className="text-xs">Employees ({employeeIds.size} selected)</Label>
-          <div className="border rounded-md overflow-hidden">
+          <Label id={`${__fieldIds}-employees-selected`} className="text-xs">Employees ({employeeIds.size} selected)</Label>
+          <div role="group" aria-labelledby={`${__fieldIds}-employees-selected`} className="border rounded-md overflow-hidden">
             <label className="flex items-center gap-2 px-2.5 py-1.5 text-xs border-b bg-muted/40 cursor-pointer">
               <Checkbox
                 checked={allRosterSelected ? true : someRosterSelected ? "indeterminate" : false}
@@ -655,11 +671,11 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
         {employeeIds.size > 0 && (
           <>
             <div className="rounded-md border p-4 space-y-3">
-              <Label className="text-xs">Add a pattern for {patternTargetLabel}</Label>
+              <Label htmlFor={`${__fieldIds}-add-a-pattern-for`} className="text-xs">Add a pattern for {patternTargetLabel}</Label>
               <div className="flex flex-wrap gap-3">
                 {WEEKDAY_LABELS.map((label, i) => (
                   <label key={i} className="flex items-center gap-1.5 text-sm">
-                    <Checkbox checked={selectedDays.includes(i)} onCheckedChange={() => toggleDay(i)} />
+                    <Checkbox id={`${__fieldIds}-add-a-pattern-for`} checked={selectedDays.includes(i)} onCheckedChange={() => toggleDay(i)} />
                     {label}
                   </label>
                 ))}
@@ -686,7 +702,7 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
 
             {singleEmployeeId && (
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Existing patterns</Label>
+                <p className="text-sm font-medium leading-none text-xs text-muted-foreground" >Existing patterns</p>
                 {(preferences ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
                 ) : (

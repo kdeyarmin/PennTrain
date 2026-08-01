@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { BookOpen, CheckCircle2, ExternalLink, Loader2, Play, RefreshCw } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, ExternalLink, Loader2, Play, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +73,28 @@ export function StandardsRuntimePlayer({
   // collided for exactly the burst above: same pending sequence, same millisecond, so the server
   // deduplicated a distinct commit as a replay of the previous one.
   const commitCounterRef = useRef(0);
+  /** Handshake must complete within this window or the learner sees an explicit recovery path. */
+  const HANDSHAKE_TIMEOUT_MS = 12_000;
+  const handshakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [handshakeState, setHandshakeState] = useState<"idle" | "waiting" | "connected" | "timed_out" | "error">("idle");
+  const [handshakeError, setHandshakeError] = useState<string | null>(null);
+
+  const clearHandshakeTimer = useCallback(() => {
+    if (handshakeTimerRef.current != null) {
+      clearTimeout(handshakeTimerRef.current);
+      handshakeTimerRef.current = null;
+    }
+  }, []);
+
+  const startHandshakeWatch = useCallback(() => {
+    clearHandshakeTimer();
+    setHandshakeState("waiting");
+    setHandshakeError(null);
+    handshakeTimerRef.current = setTimeout(() => {
+      setHandshakeState((prev) => (prev === "connected" ? prev : "timed_out"));
+      setStatus((prev) => (prev === "Package connected" ? prev : "Package runtime not connected"));
+    }, HANDSHAKE_TIMEOUT_MS);
+  }, [clearHandshakeTimer]);
 
   const hasPackage = (packages.data?.length ?? 0) > 0;
 
@@ -152,6 +175,9 @@ export function StandardsRuntimePlayer({
       sequenceRef.current = next.nextSequenceNumber;
       setCompleted(false);
       setProgress(0);
+      clearHandshakeTimer();
+      setHandshakeState("idle");
+      setHandshakeError(null);
       await pushXapi(next, XAPI_VERBS.initialized);
       const signed = await createPackageContentSignedUrl(next.storageBucket, next.storagePath);
       setContentUrl(signed);
@@ -194,11 +220,18 @@ export function StandardsRuntimePlayer({
       const parsed = parseRuntimeBridgeMessage(event.data, launch.launchNonce);
       if (!parsed) return;
       if (parsed.type === "ready") {
+        clearHandshakeTimer();
+        setHandshakeState("connected");
+        setHandshakeError(null);
         setStatus("Package connected");
         return;
       }
       if (parsed.type === "error") {
-        setStatus(String(parsed.payload.message ?? "Package error"));
+        clearHandshakeTimer();
+        const message = String(parsed.payload.message ?? "Package error");
+        setHandshakeState("error");
+        setHandshakeError(message);
+        setStatus(message);
         return;
       }
       if (parsed.type === "commit") {
@@ -218,7 +251,9 @@ export function StandardsRuntimePlayer({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [enqueueCommit, ingestXapi, launch, sendRuntimeInit]);
+  }, [clearHandshakeTimer, enqueueCommit, ingestXapi, launch, sendRuntimeInit]);
+
+  useEffect(() => () => clearHandshakeTimer(), [clearHandshakeTimer]);
 
   if (packages.isLoading) {
     return (
@@ -265,6 +300,48 @@ export function StandardsRuntimePlayer({
 
       {launch && (
         <>
+          {(handshakeState === "timed_out" || handshakeState === "error") && (
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>
+                {handshakeState === "timed_out"
+                  ? "Package runtime not connected"
+                  : "Package reported an error"}
+              </AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>
+                  {handshakeState === "timed_out"
+                    ? "Automatic progress may not record. The package did not complete the CareBase handshake within 12 seconds — often because the adapter was not bundled into the package or could not load on this network."
+                    : (handshakeError ?? "The package reported a runtime error.")}
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      sendRuntimeInit(launch);
+                      startHandshakeWatch();
+                      setStatus("Retrying handshake…");
+                    }}
+                  >
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" /> Retry handshake
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleLaunch()}
+                    disabled={startSession.isPending}
+                  >
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" /> Relaunch
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  You can still use Save progress / Mark package complete below — those writes go through the governed server path.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Progress</span>
@@ -282,7 +359,10 @@ export function StandardsRuntimePlayer({
               sandbox={RUNTIME_FRAME_SANDBOX}
               // Push the launch credentials as soon as the document is up. A package that registers
               // its listener later can still ask for them with a `hello` message.
-              onLoad={() => sendRuntimeInit(launch)}
+              onLoad={() => {
+                sendRuntimeInit(launch);
+                startHandshakeWatch();
+              }}
             />
           )}
 

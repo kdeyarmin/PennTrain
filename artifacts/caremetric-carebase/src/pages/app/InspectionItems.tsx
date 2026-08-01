@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   useCreateInspectionItem, useUpdateInspectionItem, useDeleteInspectionItem,
@@ -19,12 +19,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Flame, ChevronLeft, ChevronRight, Plus, Pencil, Search, Trash2, ClipboardCheck } from "lucide-react";
-import { QueryError } from "@/components/QueryState";
+import { Flame, Plus, Pencil, Search, Trash2, ClipboardCheck } from "lucide-react";
+import { DataTable } from "@/components/DataTable";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
-import { Checkbox } from "@/components/ui/checkbox";
 
 const PAGE_SIZE = 15;
 
@@ -79,6 +78,7 @@ const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>
 const INSPECTION_ITEMS_URL_DEFAULTS = { search: "", facility: "all", kind: "all", status: "all", page: "1" };
 
 export default function InspectionItems() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -143,7 +143,14 @@ export default function InspectionItems() {
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  // DataTable tracks selection as a Set; the bulk-log flow below still works from the array.
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const hasActiveFilters = urlState.facility !== "all" || urlState.kind !== "all"
+    || urlState.status !== "all" || !!urlState.search;
+  const resetFilters = () => {
+    setSearch("");
+    setUrlState({ search: "", facility: "all", kind: "all", status: "all", page: "1" });
+  };
 
   // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
   // (e.g. a facility_manager) -- saves a needless click every time. Guarded on an empty facilityId,
@@ -213,10 +220,6 @@ export default function InspectionItems() {
       onSuccess: () => { toast({ title: "Inspection item deleted" }); setDeleteTarget(null); },
       onError: (e: Error) => toast({ title: "Failed to delete item", description: e.message, variant: "destructive" }),
     });
-  };
-
-  const toggleSelected = (id: string, on: boolean) => {
-    setSelectedIds((prev) => (on ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id)));
   };
 
   const selectedItems = items.filter((i) => selectedIds.includes(i.id));
@@ -316,93 +319,92 @@ export default function InspectionItems() {
           </div>
         )}
 
-        {isError ? (
-          <div className="p-6">
-            <QueryError what="inspection items" error={error} onRetry={() => refetch()} />
-          </div>
-        ) : isLoading ? (
-          <div className="p-6 space-y-3">
-            {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
-          </div>
-        ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <Flame className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No inspection items found</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              {canManage ? "Add an item to get started." : "Try adjusting your filters."}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[720px]">
-                <thead>
-                  <tr>
-                    {canManage ? <th className="w-10" /> : null}
-                    <th>Facility</th>
-                    <th>Item</th>
-                    <th>Type</th>
-                    <th>Next Due</th>
-                    <th>Status</th>
-                    <th className="w-24" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.id}>
-                      {canManage ? (
-                        <td>
-                          <Checkbox
-                            checked={selectedIds.includes(item.id)}
-                            onCheckedChange={(v) => toggleSelected(item.id, v === true)}
-                            aria-label={`Select ${item.label}`}
-                          />
-                        </td>
-                      ) : null}
-                      <td className="text-muted-foreground">{facilityById.get(item.facility_id)?.name ?? "—"}</td>
-                      <td>
-                        <Link href={`/app/inspections/${item.id}`} className="font-medium text-primary hover:underline">{item.label}</Link>
-                      </td>
-                      <td className="text-muted-foreground">{itemTypeLabel(item.item_type)}</td>
-                      <td className="text-muted-foreground">{item.next_due_date ?? "—"}</td>
-                      <td><StatusBadge status={item.status} type="training" /></td>
-                      <td>
-                        {(canManage || canDelete) && (
-                          <div className="flex items-center gap-1">
-                            {canManage && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {canDelete && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(item)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
-              <p className="text-[13px] text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setUrlState({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+        <div className="p-4">
+          <DataTable
+            rows={items}
+            totalCount={totalCount}
+            getRowId={(item) => item.id}
+            page={page}
+            pageSize={PAGE_SIZE}
+            isLoading={isLoading}
+            error={isError ? error : null}
+            errorLabel="inspection items"
+            onRetry={() => void refetch()}
+            onPageChange={(next) => setUrlState({ page: String(next) })}
+            onResetFilters={hasActiveFilters ? resetFilters : undefined}
+            activeFilterSummary={hasActiveFilters ? "· filtered" : undefined}
+            selectedIds={canManage ? selectedIdSet : undefined}
+            onSelectedIdsChange={canManage ? (next) => setSelectedIds([...next]) : undefined}
+            emptyIcon={<Flame className="mb-3 h-10 w-10 text-muted-foreground/30" />}
+            emptyTitle="No inspection items found"
+            emptyDescription={
+              hasActiveFilters
+                ? "Try adjusting your filters."
+                : canManage
+                  ? "Add an item to get started."
+                  : "Nothing has been set up yet."
+            }
+            emptyAction={canManage && !hasActiveFilters
+              ? <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add Item</Button>
+              : undefined}
+            columns={[
+              {
+                id: "facility",
+                header: "Facility",
+                cell: (item) => <span className="text-muted-foreground">{facilityById.get(item.facility_id)?.name ?? "—"}</span>,
+              },
+              {
+                id: "label",
+                header: "Item",
+                cell: (item) => (
+                  <Link href={`/app/inspections/${item.id}`} className="font-medium text-primary hover:underline">{item.label}</Link>
+                ),
+              },
+              {
+                id: "item_type",
+                header: "Type",
+                cell: (item) => <span className="text-muted-foreground">{itemTypeLabel(item.item_type)}</span>,
+              },
+              {
+                id: "next_due_date",
+                header: "Next Due",
+                cell: (item) => <span className="text-muted-foreground">{item.next_due_date ?? "—"}</span>,
+              },
+              { id: "status", header: "Status", cell: (item) => <StatusBadge status={item.status} type="training" /> },
+              {
+                id: "actions",
+                header: "",
+                className: "w-24",
+                cell: (item) => (canManage || canDelete) ? (
+                  <div className="flex items-center gap-1">
+                    {canManage && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} aria-label={`Edit ${item.label}`}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(item)} aria-label={`Delete ${item.label}`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ) : null,
+              },
+            ]}
+            renderMobileCard={(item) => (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/app/inspections/${item.id}`} className="font-medium text-primary hover:underline">{item.label}</Link>
+                  <StatusBadge status={item.status} type="training" />
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {facilityById.get(item.facility_id)?.name ?? "—"} · {itemTypeLabel(item.item_type)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Next due {item.next_due_date ?? "—"}</p>
+              </>
+            )}
+          />
+        </div>
       </div>
 
       <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
@@ -410,16 +412,16 @@ export default function InspectionItems() {
           <DialogHeader><DialogTitle>{editing ? "Edit Inspection Item" : "Add Inspection Item"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Facility *</Label>
+              <Label htmlFor={`${__fieldIds}-facility`} className="text-[13px]">Facility *</Label>
               <Select value={form.facilityId} onValueChange={(v) => field("facilityId", v)} disabled={!!editing}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-facility`} className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                 <SelectContent>
                   {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Type *</Label>
+              <Label htmlFor={`${__fieldIds}-type`} className="text-[13px]">Type *</Label>
               <Select
                 value={form.itemType}
                 onValueChange={(v) => {
@@ -428,43 +430,43 @@ export default function InspectionItems() {
                   if (defaultDays && !editing) field("inspectionIntervalDays", String(defaultDays));
                 }}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ITEM_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Label *</Label>
-              <Input value={form.label} onChange={(e) => field("label", e.target.value)} placeholder="e.g. Extinguisher — 2nd Floor Hallway" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-label`} className="text-[13px]">Label *</Label>
+              <Input id={`${__fieldIds}-label`} value={form.label} onChange={(e) => field("label", e.target.value)} placeholder="e.g. Extinguisher — 2nd Floor Hallway" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Location</Label>
-              <Input value={form.locationDetail} onChange={(e) => field("locationDetail", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-location`} className="text-[13px]">Location</Label>
+              <Input id={`${__fieldIds}-location`} value={form.locationDetail} onChange={(e) => field("locationDetail", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Inspection Interval (days) *</Label>
-              <Input type="number" min={1} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-inspection-interval-days`} className="text-[13px]">Inspection Interval (days) *</Label>
+              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Manufacturer</Label>
-              <Input value={form.manufacturer} onChange={(e) => field("manufacturer", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-manufacturer`} className="text-[13px]">Manufacturer</Label>
+              <Input id={`${__fieldIds}-manufacturer`} value={form.manufacturer} onChange={(e) => field("manufacturer", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Model Number</Label>
-              <Input value={form.modelNumber} onChange={(e) => field("modelNumber", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-model-number`} className="text-[13px]">Model Number</Label>
+              <Input id={`${__fieldIds}-model-number`} value={form.modelNumber} onChange={(e) => field("modelNumber", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Serial Number</Label>
-              <Input value={form.serialNumber} onChange={(e) => field("serialNumber", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-serial-number`} className="text-[13px]">Serial Number</Label>
+              <Input id={`${__fieldIds}-serial-number`} value={form.serialNumber} onChange={(e) => field("serialNumber", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Install Date</Label>
-              <Input type="date" value={form.installDate} onChange={(e) => field("installDate", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-install-date`} className="text-[13px]">Install Date</Label>
+              <Input id={`${__fieldIds}-install-date`} type="date" value={form.installDate} onChange={(e) => field("installDate", e.target.value)} className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Notes</Label>
-              <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
+              <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
+              <Textarea id={`${__fieldIds}-notes`} value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>
           </div>
           <DialogFooter>
@@ -486,9 +488,9 @@ export default function InspectionItems() {
               Logs the same result for {bulkEligible.length} item(s). Fire-drill programs are skipped (they need shift/route details on the item page).
             </p>
             <div className="space-y-1.5">
-              <Label>Result</Label>
+              <Label htmlFor={`${__fieldIds}-result`}>Result</Label>
               <Select value={bulkResult} onValueChange={(v) => setBulkResult(v as typeof bulkResult)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-result`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pass">Pass</SelectItem>
                   <SelectItem value="fail">Fail</SelectItem>
@@ -497,8 +499,8 @@ export default function InspectionItems() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Notes (optional)</Label>
-              <Textarea value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-notes-optional`}>Notes (optional)</Label>
+              <Textarea id={`${__fieldIds}-notes-optional`} value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} />
             </div>
           </div>
           <DialogFooter>

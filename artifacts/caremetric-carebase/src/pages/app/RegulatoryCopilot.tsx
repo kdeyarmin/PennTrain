@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useId, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, Bot, CheckCircle2, ClipboardList, ExternalLink, FileSearch, History, Loader2, LockKeyhole, Mic, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreateCopilotActionDraft } from "@/hooks/useProductValueOperatingSystem";
 import { VoiceAssistantPanel } from "@/components/voice/VoiceAssistantPanel";
 import { voiceAssistantEnabled } from "@/lib/voice/voiceGatewayConfig";
+import { QueryError } from "@/components/QueryState";
 
 const INTENTS: Array<{ value: CopilotIntent; label: string; question: string; help: string }> = [
   { value: "employee_blocked", label: "Why is this employee blocked?", question: "Explain the latest recorded scheduling eligibility decision for this employee.", help: "Uses recorded blocks, warnings, overrides, and decision checksum only." },
@@ -102,6 +103,7 @@ function displayDate(value: string | null | undefined) {
 }
 
 export default function RegulatoryCopilot() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const [facilityId, setFacilityId] = useState("");
@@ -120,7 +122,8 @@ export default function RegulatoryCopilot() {
   const [citationQuery, setCitationQuery] = useState("");
   const [asOfDate, setAsOfDate] = useState(facilityToday());
 
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { data: facilities } = facilitiesQuery;
   // facilities_select RLS is org-wide, but the copilot's/voice assistant's
   // underlying data tables are ASSIGNMENT-scoped for facility_manager: an
   // unassigned facility would answer with confident zeros ("nothing due")
@@ -128,15 +131,18 @@ export default function RegulatoryCopilot() {
   // to assigned facilities for that role; org_admin / auditor /
   // platform_admin read org-wide and keep the full list.
   const isFacilityManager = user?.role === "facility_manager";
-  const { data: myAssignments } = useListMyFacilityAssignments(user?.id, isFacilityManager);
+  const myAssignmentsQuery = useListMyFacilityAssignments(user?.id, isFacilityManager);
+  const { data: myAssignments } = myAssignmentsQuery;
   const selectableFacilities = useMemo(() => {
     if (!isFacilityManager) return facilities ?? [];
     const assignedIds = new Set((myAssignments ?? []).map((assignment) => assignment.facility_id));
     return (facilities ?? []).filter((facility) => assignedIds.has(facility.id));
   }, [facilities, isFacilityManager, myAssignments]);
   const activeFacilityId = facilityId || selectableFacilities[0]?.id || "";
-  const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined });
-  const { data: violations } = useListViolations({ facilityId: activeFacilityId || undefined });
+  const employeesQuery = useListEmployees({ facilityId: activeFacilityId || undefined });
+  const { data: employees } = employeesQuery;
+  const violationsQuery = useListViolations({ facilityId: activeFacilityId || undefined });
+  const { data: violations } = violationsQuery;
   const history = useComplianceCopilotHistory(activeFacilityId || undefined);
   const dispositions = useCopilotDispositions(activeFacilityId || undefined);
   const ask = useAskComplianceCopilot();
@@ -168,8 +174,21 @@ export default function RegulatoryCopilot() {
     onError: (error: Error) => toast({ title: "Compliance copilot could not answer", description: error.message, variant: "destructive" }),
   });
 
+  // Same hazard the facility-scoping comment above describes: if the context these
+  // pickers are built from fails to load, the copilot answers from a narrower world
+  // than the user thinks and reads as confident zeros.
+  const contextQueries = [facilitiesQuery, myAssignmentsQuery, employeesQuery, violationsQuery];
+  const contextFailure = contextQueries.find((query) => query.isError);
+
   return (
     <div className="space-y-6">
+      {contextFailure && (
+        <QueryError
+          what="the copilot's facility context"
+          error={contextFailure.error}
+          onRetry={() => void Promise.all(contextQueries.map((query) => query.refetch()))}
+        />
+      )}
       <div>
         <div className="flex items-center gap-2"><Bot className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Citation-Backed Regulatory Copilot</h1></div>
         <p className="text-muted-foreground">Read-only synthesis over governed rule versions and facility-scoped CareBase documentation. Every answer carries its source, effective date, rule-pack version, documentation links, gaps, and authority label.</p>
@@ -187,13 +206,13 @@ export default function RegulatoryCopilot() {
           <Card>
             <CardHeader><CardTitle>Grounded question</CardTitle><CardDescription>{selectedIntent.help}</CardDescription></CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2"><Label>Facility</Label><Select value={activeFacilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{selectableFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>As-of date</Label><Input type="date" value={asOfDate} max={facilityToday()} onChange={(event) => setAsOfDate(event.target.value)} /></div>
-              <div className="space-y-2 md:col-span-2"><Label>Supported question</Label><Select value={intent} onValueChange={(value) => { setIntent(value as CopilotIntent); ask.reset(); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{INTENTS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
-              {intent === "employee_blocked" && <div className="space-y-2 md:col-span-2"><Label>Employee</Label><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{(employees ?? []).map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} — {employee.job_title}</SelectItem>)}</SelectContent></Select></div>}
-              {intent === "draft_plan_of_correction" && <div className="space-y-2 md:col-span-2"><Label>Verified finding / violation</Label><Select value={violationId} onValueChange={setViolationId}><SelectTrigger><SelectValue placeholder="Select violation" /></SelectTrigger><SelectContent>{(violations ?? []).map((violation) => <SelectItem key={violation.id} value={violation.id}>{violation.citation_ref ?? "Unnumbered finding"} — {violation.description.slice(0, 90)}</SelectItem>)}</SelectContent></Select></div>}
-              {intent === "citation_evidence" && <div className="space-y-2 md:col-span-2"><Label>Citation or regulatory topic</Label><Input value={citationQuery} onChange={(event) => setCitationQuery(event.target.value)} placeholder="Example: 2600.227 or resident support plan" /></div>}
-              <div className="space-y-2 md:col-span-2"><Label>Question</Label><Textarea rows={4} value={question} maxLength={2000} onChange={(event) => setQuestion(event.target.value)} /></div>
+              <div className="space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={activeFacilityId} onValueChange={setFacilityId}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{selectableFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label htmlFor={`${__fieldIds}-as-of-date`}>As-of date</Label><Input id={`${__fieldIds}-as-of-date`} type="date" value={asOfDate} max={facilityToday()} onChange={(event) => setAsOfDate(event.target.value)} /></div>
+              <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-supported-question`}>Supported question</Label><Select value={intent} onValueChange={(value) => { setIntent(value as CopilotIntent); ask.reset(); }}><SelectTrigger id={`${__fieldIds}-supported-question`}><SelectValue /></SelectTrigger><SelectContent>{INTENTS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+              {intent === "employee_blocked" && <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-employee`}>Employee</Label><Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger id={`${__fieldIds}-employee`}><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{(employees ?? []).map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} — {employee.job_title}</SelectItem>)}</SelectContent></Select></div>}
+              {intent === "draft_plan_of_correction" && <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-verified-finding-violation`}>Verified finding / violation</Label><Select value={violationId} onValueChange={setViolationId}><SelectTrigger id={`${__fieldIds}-verified-finding-violation`}><SelectValue placeholder="Select violation" /></SelectTrigger><SelectContent>{(violations ?? []).map((violation) => <SelectItem key={violation.id} value={violation.id}>{violation.citation_ref ?? "Unnumbered finding"} — {violation.description.slice(0, 90)}</SelectItem>)}</SelectContent></Select></div>}
+              {intent === "citation_evidence" && <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-citation-or-regulatory-topic`}>Citation or regulatory topic</Label><Input id={`${__fieldIds}-citation-or-regulatory-topic`} value={citationQuery} onChange={(event) => setCitationQuery(event.target.value)} placeholder="Example: 2600.227 or resident support plan" /></div>}
+              <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-question`}>Question</Label><Textarea id={`${__fieldIds}-question`} rows={4} value={question} maxLength={2000} onChange={(event) => setQuestion(event.target.value)} /></div>
               <div className="md:col-span-2"><Button onClick={submit} disabled={!activeFacilityId || needsContext || question.trim().length < 3 || ask.isPending}>{ask.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Grounding and validating…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate grounded response</>}</Button></div>
             </CardContent>
           </Card>

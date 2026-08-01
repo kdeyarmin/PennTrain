@@ -187,8 +187,6 @@ test.describe("authenticated role journeys", () => {
       }
 
       for (const step of JOURNEYS[role]) {
-        await gotoAppRoute(page, step.path);
-
         // MfaPolicyGate renders its children while the policy query is still unresolved
         // (`mustVerify` is falsy until `policy.data` arrives), so on a privileged route the page
         // content paints first and the MFA screen replaces it a moment later. Checking the gate
@@ -196,7 +194,15 @@ test.describe("authenticated role journeys", () => {
         // navigation only narrows the window rather than closing it.
         //
         // Waiting for *either* outcome closes it: the route's h1, or the gate's own level-1
-        // heading. Whichever settles is the real state of the page.
+        // heading. Whichever settles is the real state of the page. gotoAppRoute applies the same
+        // rule to the shell itself and reports which one it found, so a policy that resolves
+        // during navigation is handled there rather than timing out on a shell the app unmounted.
+        const { mfaGated } = await gotoAppRoute(page, step.path);
+        if (mfaGated) {
+          await expect(mfaGate).toBeVisible();
+          return;
+        }
+
         const routeHeading = page.locator("h1").first();
         await expect(routeHeading.or(mfaGate)).toBeVisible({ timeout: 20_000 });
         if (await mfaGate.isVisible().catch(() => false)) {

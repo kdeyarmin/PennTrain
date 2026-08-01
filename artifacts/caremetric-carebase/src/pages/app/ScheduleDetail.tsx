@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useId, lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useLocation } from "wouter";
 
 // Lazy: the acuity engine and its weight tables are only meaningful on this page, and the schedule
@@ -83,6 +83,7 @@ function eligibilityBadge(candidate: EligibilityCandidate) {
 const NON_OVERRIDABLE_BLOCKS = new Set(["lifecycle_inactive", "confirmed_exclusion", "facility_not_assigned", "schedule_conflict"]);
 
 export default function ScheduleDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -764,8 +765,8 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Employees * ({addEmployeeIds.size} selected)</Label>
-              <div className="border rounded-md overflow-hidden">
+              <Label id={`${__fieldIds}-employees-selected`}>Employees * ({addEmployeeIds.size} selected)</Label>
+              <div role="group" aria-labelledby={`${__fieldIds}-employees-selected`} className="border rounded-md overflow-hidden">
                 <label className="flex items-center gap-2 px-2.5 py-1.5 text-xs border-b bg-muted/40 cursor-pointer">
                   <Checkbox
                     checked={allAddEmployeesSelected ? true : someAddEmployeesSelected ? "indeterminate" : false}
@@ -824,9 +825,9 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               <p className="text-xs text-muted-foreground">Blocked employees cannot be selected. Every accepted assignment stores the eligibility decision used.</p>
             </div>
             <div className="space-y-2">
-              <Label>Shift *</Label>
+              <Label htmlFor={`${__fieldIds}-shift`}>Shift *</Label>
               <Select value={addForm.shiftDefinitionId} onValueChange={(v) => setAddForm((f) => ({ ...f, shiftDefinitionId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Select shift" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-shift`}><SelectValue placeholder="Select shift" /></SelectTrigger>
                 <SelectContent>
                   {activeShiftDefs.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
@@ -837,8 +838,8 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea rows={2} value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} />
+              <Label htmlFor={`${__fieldIds}-notes`}>Notes</Label>
+              <Textarea id={`${__fieldIds}-notes`} rows={2} value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
@@ -867,16 +868,16 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               This override applies only to the selected shift type and expires automatically. Employment inactivity, confirmed exclusions, facility assignment, and overlap blocks cannot be overridden.
             </div>
             <div className="space-y-2">
-              <Label>Reason *</Label>
-              <Textarea rows={3} value={overrideForm.reason} onChange={(event) => setOverrideForm((form) => ({ ...form, reason: event.target.value }))} placeholder="Why is this exception safe and necessary?" />
+              <Label htmlFor={`${__fieldIds}-reason`}>Reason *</Label>
+              <Textarea id={`${__fieldIds}-reason`} rows={3} value={overrideForm.reason} onChange={(event) => setOverrideForm((form) => ({ ...form, reason: event.target.value }))} placeholder="Why is this exception safe and necessary?" />
             </div>
             <div className="space-y-2">
-              <Label>Authority reference *</Label>
-              <Input value={overrideForm.authorityReference} onChange={(event) => setOverrideForm((form) => ({ ...form, authorityReference: event.target.value }))} placeholder="Policy, approval, or incident reference" />
+              <Label htmlFor={`${__fieldIds}-authority-reference`}>Authority reference *</Label>
+              <Input id={`${__fieldIds}-authority-reference`} value={overrideForm.authorityReference} onChange={(event) => setOverrideForm((form) => ({ ...form, authorityReference: event.target.value }))} placeholder="Policy, approval, or incident reference" />
             </div>
             <div className="space-y-2">
-              <Label>Expires *</Label>
-              <Input type="datetime-local" value={overrideForm.expiresAt} onChange={(event) => setOverrideForm((form) => ({ ...form, expiresAt: event.target.value }))} />
+              <Label htmlFor={`${__fieldIds}-expires`}>Expires *</Label>
+              <Input id={`${__fieldIds}-expires`} type="datetime-local" value={overrideForm.expiresAt} onChange={(event) => setOverrideForm((form) => ({ ...form, expiresAt: event.target.value }))} />
             </div>
             <p className="text-xs text-muted-foreground">Your profile is recorded as the approver. Current workforce-administration identity assurance is required.</p>
           </div>
@@ -904,9 +905,9 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Unit</Label>
+                <Label htmlFor={`${__fieldIds}-unit`}>Unit</Label>
                 <Select value={editForm.unitId} onValueChange={(v) => setEditForm((f) => ({ ...f, unitId: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-unit`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                     {activeUnits.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
@@ -914,9 +915,9 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Shift</Label>
+                <Label htmlFor={`${__fieldIds}-shift-2`}>Shift</Label>
                 <Select value={editForm.shiftDefinitionId} onValueChange={(v) => setEditForm((f) => ({ ...f, shiftDefinitionId: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-shift-2`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {activeShiftDefs.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
@@ -924,9 +925,9 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label htmlFor={`${__fieldIds}-status`}>Status</Label>
               <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SHIFT_STATUS_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
@@ -935,8 +936,8 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea rows={2} value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
+              <Label htmlFor={`${__fieldIds}-notes-2`}>Notes</Label>
+              <Textarea id={`${__fieldIds}-notes-2`} rows={2} value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter className="flex items-center sm:justify-between">

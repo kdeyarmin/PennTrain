@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useId, useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { CheckCircle2, FileSignature, Fingerprint, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
@@ -29,6 +29,7 @@ const blankResponse = (signerRole = "designated_person") => ({
 });
 
 export default function ResidentAgreementGuestPortal() {
+  const __fieldIds = useId();
   const { token: routeToken } = useParams<{ token?: string }>();
   const [token] = useState(() => consumePublicAccessToken(
     routeToken,
@@ -86,14 +87,14 @@ export default function ResidentAgreementGuestPortal() {
   </div>
 
   <Dialog open={!!selected} onOpenChange={open => !open && setSelected(null)}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Respond to {selected?.title}</DialogTitle><DialogDescription>Your response will be permanently bound to version {selected?.versionLabel} and its displayed content digest.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
-    <div><Label>Response</Label><Input readOnly value="Sign electronically" /></div>
-    <div><Label>Signer role</Label><Input readOnly value={humanize(response.signerRole)} /></div>
-    <div><Label>Full legal name *</Label><Input value={response.signerName} onChange={event => setResponse(current => ({ ...current, signerName: event.target.value }))} /></div>
-    <div><Label>Relationship *</Label><Input value={response.relationship} onChange={event => setResponse(current => ({ ...current, relationship: event.target.value }))} /></div>
-    <div className="sm:col-span-2"><Label>Legal authority</Label><Input value={response.legalAuthority} onChange={event => setResponse(current => ({ ...current, legalAuthority: event.target.value }))} placeholder="Designated person, guardian order, power of attorney, or other authority" /></div>
-    <div className="sm:col-span-2"><Label>Attestation *</Label><Textarea value={response.attestation} onChange={event => setResponse(current => ({ ...current, attestation: event.target.value }))} placeholder="I reviewed and electronically sign this exact agreement version." /></div>
-    <div><Label>Witness name</Label><Input value={response.witnessName} onChange={event => setResponse(current => ({ ...current, witnessName: event.target.value }))} /></div>
-    <div><Label>Witness relationship</Label><Input value={response.witnessRelationship} onChange={event => setResponse(current => ({ ...current, witnessRelationship: event.target.value }))} /></div>
+    <div><Label htmlFor={`${__fieldIds}-response`}>Response</Label><Input id={`${__fieldIds}-response`} readOnly value="Sign electronically" /></div>
+    <div><Label htmlFor={`${__fieldIds}-signer-role`}>Signer role</Label><Input id={`${__fieldIds}-signer-role`} readOnly value={humanize(response.signerRole)} /></div>
+    <div><Label htmlFor={`${__fieldIds}-full-legal-name`}>Full legal name *</Label><Input id={`${__fieldIds}-full-legal-name`} value={response.signerName} onChange={event => setResponse(current => ({ ...current, signerName: event.target.value }))} /></div>
+    <div><Label htmlFor={`${__fieldIds}-relationship`}>Relationship *</Label><Input id={`${__fieldIds}-relationship`} value={response.relationship} onChange={event => setResponse(current => ({ ...current, relationship: event.target.value }))} /></div>
+    <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-legal-authority`}>Legal authority</Label><Input id={`${__fieldIds}-legal-authority`} value={response.legalAuthority} onChange={event => setResponse(current => ({ ...current, legalAuthority: event.target.value }))} placeholder="Designated person, guardian order, power of attorney, or other authority" /></div>
+    <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-attestation`}>Attestation *</Label><Textarea id={`${__fieldIds}-attestation`} value={response.attestation} onChange={event => setResponse(current => ({ ...current, attestation: event.target.value }))} placeholder="I reviewed and electronically sign this exact agreement version." /></div>
+    <div><Label htmlFor={`${__fieldIds}-witness-name`}>Witness name</Label><Input id={`${__fieldIds}-witness-name`} value={response.witnessName} onChange={event => setResponse(current => ({ ...current, witnessName: event.target.value }))} /></div>
+    <div><Label htmlFor={`${__fieldIds}-witness-relationship`}>Witness relationship</Label><Input id={`${__fieldIds}-witness-relationship`} value={response.witnessRelationship} onChange={event => setResponse(current => ({ ...current, witnessRelationship: event.target.value }))} /></div>
     <Alert className="sm:col-span-2"><Fingerprint className="h-4 w-4" /><AlertTitle>Authentication documentation</AlertTitle><AlertDescription>This response uses the accepted expiring link as its authentication method. Device documentation is hashed before storage; raw device text is not retained.</AlertDescription></Alert>
     {respond.isError && <p className="text-sm text-destructive sm:col-span-2">{respond.error.message}</p>}
   </div><DialogFooter><Button variant="outline" onClick={() => setSelected(null)}>Cancel</Button><Button disabled={respond.isPending || response.signerName.trim().length < 2 || response.relationship.trim().length < 2 || response.attestation.trim().length < 5} onClick={submit}>{respond.isPending ? "Recording…" : "Sign electronically"}</Button></DialogFooter></DialogContent></Dialog>

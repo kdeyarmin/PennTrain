@@ -13,6 +13,7 @@ import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
 import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeSupportTicketAnalytics } from "@/lib/supportTicketAnalytics";
+import { QueryError } from "@/components/QueryState";
 
 type StatusFilter = "all" | "open" | "in_progress" | "resolved" | "closed";
 
@@ -54,7 +55,7 @@ export default function SupportTickets() {
     return () => clearTimeout(t);
   }, [urlState.search]);
 
-  const { data: ticketsData, isLoading } = useListSupportTickets({
+  const ticketsQuery = useListSupportTickets({
     status: statusFilter !== "all" ? statusFilter : undefined,
     search: debouncedSearch || undefined,
   });
@@ -65,6 +66,7 @@ export default function SupportTickets() {
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: profileNameMap } = useProfileNameMap();
 
+  const { data: ticketsData, isLoading } = ticketsQuery;
   const tickets = ticketsData ?? [];
   const openCount = openTicketsData?.length ?? 0;
   const supportSummary = useMemo(() => summarizeSupportTicketAnalytics(
@@ -147,7 +149,9 @@ export default function SupportTickets() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {ticketsQuery.isError ? (
+            <QueryError what="support tickets" error={ticketsQuery.error} onRetry={() => void ticketsQuery.refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
             </div>

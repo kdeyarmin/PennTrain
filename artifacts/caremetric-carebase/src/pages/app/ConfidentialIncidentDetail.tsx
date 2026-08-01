@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
@@ -60,6 +60,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function ConfidentialIncidentDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -248,8 +249,8 @@ export default function ConfidentialIncidentDetail() {
             ) : null}
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1.5 grow max-w-md">
-                <Label className="text-[13px]">Why escalate *</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-why-escalate`} className="text-[13px]">Why escalate *</Label>
+                <Input id={`${__fieldIds}-why-escalate`}
                   value={escalationReason}
                   onChange={(e) => setEscalationReason(e.target.value)}
                   placeholder="e.g. Need protected narrative for unit follow-up"
@@ -308,8 +309,8 @@ export default function ConfidentialIncidentDetail() {
             ) : (
               <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1.5 grow max-w-md">
-                  <Label className="text-[13px]">Purpose of review *</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-purpose-of-review`} className="text-[13px]">Purpose of review *</Label>
+                  <Input id={`${__fieldIds}-purpose-of-review`}
                     value={detailsPurpose}
                     onChange={e => setDetailsPurpose(e.target.value)}
                     placeholder="e.g. Triaging newly submitted report"
@@ -342,9 +343,9 @@ export default function ConfidentialIncidentDetail() {
             ) : (
               <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">New status</Label>
+                  <Label htmlFor={`${__fieldIds}-new-status`} className="text-[13px]">New status</Label>
                   <Select value={statusTarget} onValueChange={setStatusTarget}>
-                    <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-new-status`} className="h-9 w-44"><SelectValue placeholder="Select status" /></SelectTrigger>
                     <SelectContent>
                       {allowedTargets.map(s => (
                         <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
@@ -353,8 +354,8 @@ export default function ConfidentialIncidentDetail() {
                   </Select>
                 </div>
                 <div className="space-y-1.5 grow max-w-md">
-                  <Label className="text-[13px]">Reason *</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-reason`} className="text-[13px]">Reason *</Label>
+                  <Input id={`${__fieldIds}-reason`}
                     value={statusReason}
                     onChange={e => setStatusReason(e.target.value)}
                     placeholder="e.g. Investigation assigned to administrator"
@@ -406,8 +407,8 @@ export default function ConfidentialIncidentDetail() {
             ) : (
               <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1.5 grow max-w-md">
-                  <Label className="text-[13px]">Purpose of reveal *</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-purpose-of-reveal`} className="text-[13px]">Purpose of reveal *</Label>
+                  <Input id={`${__fieldIds}-purpose-of-reveal`}
                     value={identityPurpose}
                     onChange={e => setIdentityPurpose(e.target.value)}
                     placeholder="e.g. Regulatory follow-up requires reporter contact"

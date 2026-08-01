@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { buildMedicationSafetySummary } from "@/lib/medicationSafetyAnalytics";
 import { facilityToday } from "@/lib/dateUtils";
 import { Pill, CheckCircle2, XCircle, Droplet, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { QueryError } from "@/components/QueryState";
 
 // "Authorized today" reads compliant OR due_soon as still-currently-valid -- due_soon means
 // "expiring within the warning window", not "already expired". Only missing/expired disqualify.
@@ -36,14 +37,16 @@ export default function MedAdminRoster() {
   const [facilityId, setFacilityId] = useState<string>("all");
   const currentYear = new Date().getFullYear();
 
-  const { data: facilities } = useListFacilities();
+  const facilitiesQuery = useListFacilities();
+  const { data: facilities } = facilitiesQuery;
   // Push the facility filter into the query so selecting a site does not download the whole
   // active roster first and then slice client-side.
-  const { data: employeesAll } = useListEmployees({
+  const { data: employeesAll, ...employeesQuery } = useListEmployees({
     status: "active",
     facilityId: facilityId !== "all" ? facilityId : undefined,
   });
-  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
+  const trainingTypesQuery = useListTrainingTypes({ isActive: true });
+  const { data: trainingTypes } = trainingTypesQuery;
 
   const medInitTypeId = useMemo(() => trainingTypes?.find(t => t.code === "MED-INIT")?.id, [trainingTypes]);
   const medRenewTypeId = useMemo(() => trainingTypes?.find(t => t.code === "MED-RENEW")?.id, [trainingTypes]);
@@ -66,7 +69,7 @@ export default function MedAdminRoster() {
 
   // Only the three med-relevant training types for the (already facility-scoped) med-admin staff.
   // Avoids the previous full-tenant training_records download on every visit to this page.
-  const { data: trainingRecords } = useListTrainingRecords(
+  const { data: trainingRecords, ...trainingRecordsQuery } = useListTrainingRecords(
     {
       employeeIds: medAdminEmployeeIds,
       trainingTypeIds: medTrainingTypeIds,
@@ -75,10 +78,13 @@ export default function MedAdminRoster() {
       enabled: medAdminEmployeeIds.length > 0 && medTrainingTypeIds.length > 0,
     },
   );
-  const { data: practicums } = useListPracticums({ year: currentYear });
+  const practicumsQuery = useListPracticums({ year: currentYear });
+  const { data: practicums } = practicumsQuery;
   const incidentFacilityId = facilityId !== "all" ? facilityId : undefined;
-  const { data: incidents } = useListIncidents({ facilityId: incidentFacilityId });
-  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: incidentFacilityId });
+  const incidentsQuery = useListIncidents({ facilityId: incidentFacilityId });
+  const { data: incidents } = incidentsQuery;
+  const correctiveActionsQuery = useListCorrectiveActions({ facilityId: incidentFacilityId });
+  const { data: correctiveActions } = correctiveActionsQuery;
 
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
@@ -109,8 +115,24 @@ export default function MedAdminRoster() {
   const authorizedCount = rows.filter(r => r.authorizedToday).length;
   const medicationSafety = useMemo(() => buildMedicationSafetySummary({ incidents: incidents ?? [], correctiveActions: correctiveActions ?? [], today: facilityToday() }), [incidents, correctiveActions]);
 
+  // This roster answers "is this person authorized to pass meds right now". A missing
+  // training record must never quietly read as "not authorized" (or worse, a missing
+  // corrective action as "clear") because a fetch failed.
+  const rosterQueries = [
+    facilitiesQuery, employeesQuery, trainingTypesQuery, trainingRecordsQuery,
+    practicumsQuery, incidentsQuery, correctiveActionsQuery,
+  ];
+  const rosterFailure = rosterQueries.find((query) => query.isError);
+
   return (
     <div className="space-y-6">
+      {rosterFailure && (
+        <QueryError
+          what="the medication-administration roster"
+          error={rosterFailure.error}
+          onRetry={() => void Promise.all(rosterQueries.map((query) => query.refetch()))}
+        />
+      )}
       <div>
         <h1 className="text-2xl font-bold">Who Can Pass Meds Today</h1>
         <p className="text-muted-foreground">

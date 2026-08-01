@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
@@ -58,6 +58,7 @@ function EnrollCohortDialog({
   onOpenChange: (open: boolean) => void;
   facility: FacilityRetrainingStatus | null;
 }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const enroll = useEnrollRetrainingCohort();
   const classes = useListTrainingClasses({
@@ -127,8 +128,8 @@ function EnrollCohortDialog({
 
         {!facility ? null : (
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Scheduled class</Label>
+            <div className="space-y-2" role="group" aria-labelledby={`${__fieldIds}-scheduled-class`}>
+              <Label id={`${__fieldIds}-scheduled-class`}>Scheduled class</Label>
               {classes.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading classes…</p>
               ) : (classes.data ?? []).length === 0 ? (
@@ -162,7 +163,7 @@ function EnrollCohortDialog({
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label>Staff needing action ({candidates.length})</Label>
+                <p className="text-sm font-medium leading-none">Staff needing action ({candidates.length})</p>
                 <div className="flex gap-2">
                   <Button
                     type="button"

@@ -1,5 +1,7 @@
 # PennTrain / CareMetric CareBase comprehensive review — 2026-07-21
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Reviewed commit:** `b23f154d19b7d6707b76fb6cd87926188ecbb49b` on `claude/code-review-report-og4a11`.
 **Baseline:** prior review at `e027aef3a1fbafc4c6449a1d7dbe8358f8e4dc74`.
 **Primary delta:** #226 added the 2026-07-20 reports, #225 was an empty merge, #227 added product-module entitlements, and #228 added configurable hybrid subscription billing.

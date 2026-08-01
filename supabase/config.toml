@@ -344,3 +344,17 @@ verify_jwt = true
 
 [functions.survey-packet-guest-download]
 verify_jwt = false
+
+# Durable data-import claim worker. Platform cron and the system-jobs control plane call it
+# without a user JWT, so verify_jwt stays false; the handler rejects anything that is not a
+# service-role Bearer or a matching X-Cron-Secret -- the same boundary as the other cron workers.
+[functions.process-data-import-jobs]
+verify_jwt = false
+
+# Server-side SCORM/xAPI package acceptance: downloads the registered zip, injects
+# carebase/learning-runtime-bridge.js into the entry HTML, re-uploads the modified zip,
+# updates content_sha256, and calls accept_learning_package as the authenticated caller.
+# Using an edge function keeps the injection server-side so clients cannot skip it.
+# Requires an active session (trainer / facility_manager / org_admin / platform_admin).
+[functions.accept-learning-package]
+verify_jwt = true

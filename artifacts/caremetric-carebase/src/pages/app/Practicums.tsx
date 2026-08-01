@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { usePaginatedPracticums, useCreatePracticum, useUpdatePracticum, type Practicum, type PracticumInsert } from "@/hooks/usePracticums";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -113,6 +113,7 @@ function practicumToForm(p: Practicum): PracticumFormState {
 }
 
 export default function Practicums() {
+  const __fieldIds = useId();
   const [facilityId, setFacilityId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const currentYear = new Date().getFullYear();
@@ -403,9 +404,9 @@ export default function Practicums() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Employee *</Label>
+                <Label htmlFor={`${__fieldIds}-employee`} className="text-[13px]">Employee *</Label>
                 <Select value={form.employeeId} onValueChange={v => setForm(f => ({ ...f, employeeId: v }))}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-employee`} className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
                   <SelectContent>
                     {employees?.map(e => (
                       <SelectItem key={e.id} value={e.id}>
@@ -419,40 +420,40 @@ export default function Practicums() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Practicum Year *</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-practicum-year`} className="text-[13px]">Practicum Year *</Label>
+                <Input id={`${__fieldIds}-practicum-year`}
                   type="number" min="2000" max="2100" className="h-9"
                   value={form.practicumYear}
                   onChange={e => setForm(f => ({ ...f, practicumYear: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Reminder Window (days)</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-reminder-window-days`} className="text-[13px]">Reminder Window (days)</Label>
+                <Input id={`${__fieldIds}-reminder-window-days`}
                   type="number" min="0" className="h-9"
                   value={form.reminderDays}
                   onChange={e => setForm(f => ({ ...f, reminderDays: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Completion Date</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-completion-date`} className="text-[13px]">Completion Date</Label>
+                <Input id={`${__fieldIds}-completion-date`}
                   type="date" className="h-9"
                   value={form.completionDate}
                   onChange={e => setForm(f => ({ ...f, completionDate: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Due Date</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-due-date`} className="text-[13px]">Due Date</Label>
+                <Input id={`${__fieldIds}-due-date`}
                   type="date" className="h-9"
                   value={form.dueDate}
                   onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-[13px]">Observed By</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-observed-by`} className="text-[13px]">Observed By</Label>
+                <Input id={`${__fieldIds}-observed-by`}
                   className="h-9" placeholder="Name of observer (optional)"
                   value={form.observedBy}
                   onChange={e => setForm(f => ({ ...f, observedBy: e.target.value }))}
@@ -472,17 +473,18 @@ export default function Practicums() {
                   <p className="text-xs font-medium text-muted-foreground">{w.label}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">Direct Observation Date</Label>
+                      <Label htmlFor={`${__fieldIds}-${w.obsDate}`} className="text-xs">Direct Observation Date</Label>
                       <Input
+                        id={`${__fieldIds}-${w.obsDate}`}
                         type="date" className="h-8 text-sm"
                         value={form[w.obsDate]}
                         onChange={e => setForm(f => ({ ...f, [w.obsDate]: e.target.value }))}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Observed By</Label>
+                      <Label htmlFor={`${__fieldIds}-${w.obsBy}`} className="text-xs">Observed By</Label>
                       <Select value={form[w.obsBy] || "none"} onValueChange={v => setForm(f => ({ ...f, [w.obsBy]: v === "none" ? "" : v }))}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select observer" /></SelectTrigger>
+                        <SelectTrigger id={`${__fieldIds}-${w.obsBy}`} className="h-8 text-sm"><SelectValue placeholder="Select observer" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">—</SelectItem>
                           {qualifiedObservers.map(o => (
@@ -492,17 +494,18 @@ export default function Practicums() {
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">MAR Review Date</Label>
+                      <Label htmlFor={`${__fieldIds}-${w.marDate}`} className="text-xs">MAR Review Date</Label>
                       <Input
+                        id={`${__fieldIds}-${w.marDate}`}
                         type="date" className="h-8 text-sm"
                         value={form[w.marDate]}
                         onChange={e => setForm(f => ({ ...f, [w.marDate]: e.target.value }))}
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Reviewed By</Label>
+                      <Label htmlFor={`${__fieldIds}-${w.marBy}`} className="text-xs">Reviewed By</Label>
                       <Select value={form[w.marBy] || "none"} onValueChange={v => setForm(f => ({ ...f, [w.marBy]: v === "none" ? "" : v }))}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select reviewer" /></SelectTrigger>
+                        <SelectTrigger id={`${__fieldIds}-${w.marBy}`} className="h-8 text-sm"><SelectValue placeholder="Select reviewer" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">—</SelectItem>
                           {qualifiedObservers.map(o => (
@@ -528,8 +531,8 @@ export default function Practicums() {
 
             {form.remediationRequired && (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Remediation Notes</Label>
-                <Textarea
+                <Label htmlFor={`${__fieldIds}-remediation-notes`} className="text-[13px]">Remediation Notes</Label>
+                <Textarea id={`${__fieldIds}-remediation-notes`}
                   rows={2}
                   value={form.remediationNotes}
                   onChange={e => setForm(f => ({ ...f, remediationNotes: e.target.value }))}
@@ -539,8 +542,8 @@ export default function Practicums() {
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Notes</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
+              <Textarea id={`${__fieldIds}-notes`}
                 rows={2}
                 value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}

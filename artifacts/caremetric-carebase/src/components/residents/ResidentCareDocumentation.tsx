@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { CheckCircle2, ClipboardList, FilePenLine, Lock, NotebookPen, Plus, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ function noteBadgeVariant(status: string): "outline" | "secondary" | "destructiv
 }
 
 export function ResidentCareDocumentation({ residentId, canChart }: { residentId: string; canChart: boolean }) {
+  const __fieldIds = useId();
   const care = useResidentClinicalCare(residentId);
   const { toast } = useToast();
 
@@ -156,9 +157,9 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
             <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><NotebookPen className="h-4 w-4" />New progress note</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap items-end gap-3">
-                <div className="w-48 space-y-1"><Label>Note type</Label>
+                <div className="w-48 space-y-1"><Label htmlFor={`${__fieldIds}-note-type`}>Note type</Label>
                   <Select value={noteType} onValueChange={(value) => setNoteType(value as ProgressNoteType)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-note-type`}><SelectValue /></SelectTrigger>
                     <SelectContent>{NOTE_TYPES.map((type) => <SelectItem key={type} value={type}>{human(type)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
@@ -200,15 +201,15 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
           <Card>
             <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="h-4 w-4" />Record assessment</CardTitle></CardHeader>
             <CardContent className="flex flex-wrap items-end gap-3">
-              <div className="w-44 space-y-1"><Label>Instrument</Label>
+              <div className="w-44 space-y-1"><Label htmlFor={`${__fieldIds}-instrument`}>Instrument</Label>
                 <Select value={assessmentType} onValueChange={(value) => setAssessmentType(value as AssessmentType)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-instrument`}><SelectValue /></SelectTrigger>
                   <SelectContent>{ASSESSMENT_TYPES.map((type) => <SelectItem key={type} value={type}>{human(type)}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              {assessmentType === "custom" && <div className="w-44 space-y-1"><Label>Label</Label><Input value={assessmentLabel} onChange={(event) => setAssessmentLabel(event.target.value)} /></div>}
-              <div className="w-24 space-y-1"><Label>Score</Label><Input inputMode="decimal" value={assessmentScore} onChange={(event) => setAssessmentScore(event.target.value)} /></div>
-              <div className="w-36 space-y-1"><Label>Risk band</Label><Input value={assessmentRisk} onChange={(event) => setAssessmentRisk(event.target.value)} placeholder="e.g. moderate" /></div>
+              {assessmentType === "custom" && <div className="w-44 space-y-1"><Label htmlFor={`${__fieldIds}-label`}>Label</Label><Input id={`${__fieldIds}-label`} value={assessmentLabel} onChange={(event) => setAssessmentLabel(event.target.value)} /></div>}
+              <div className="w-24 space-y-1"><Label htmlFor={`${__fieldIds}-score`}>Score</Label><Input id={`${__fieldIds}-score`} inputMode="decimal" value={assessmentScore} onChange={(event) => setAssessmentScore(event.target.value)} /></div>
+              <div className="w-36 space-y-1"><Label htmlFor={`${__fieldIds}-risk-band`}>Risk band</Label><Input id={`${__fieldIds}-risk-band`} value={assessmentRisk} onChange={(event) => setAssessmentRisk(event.target.value)} placeholder="e.g. moderate" /></div>
               <Button disabled={recordAssessment.isPending || (assessmentType === "custom" && assessmentLabel.trim().length < 1)} onClick={() => void submitAssessment()}><Plus className="mr-2 h-4 w-4" />Record</Button>
             </CardContent>
           </Card>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ const EMPTY_FORM: WizardFormState = {
 };
 
 export default function AiCourseWizard() {
+  const __fieldIds = useId();
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -183,9 +184,9 @@ export default function AiCourseWizard() {
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-[13px]">What do you want to create?</Label>
+              <Label htmlFor={`${__fieldIds}-what-do-you-want-to-create`} className="text-[13px]">What do you want to create?</Label>
               <Select value={form.generationMode} onValueChange={v => field("generationMode", v as WizardFormState["generationMode"])}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-what-do-you-want-to-create`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="course">One individual course</SelectItem>
                   <SelectItem value="training_plan">Multi-course training plan</SelectItem>
@@ -196,17 +197,17 @@ export default function AiCourseWizard() {
             {form.generationMode === "training_plan" && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-lg border bg-muted/30 p-4">
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-[13px]">Plan Name</Label>
-                  <Input value={form.planName} onChange={e => field("planName", e.target.value)} placeholder="New Hire Onboarding Path" className="h-9" />
+                  <Label htmlFor={`${__fieldIds}-plan-name`} className="text-[13px]">Plan Name</Label>
+                  <Input id={`${__fieldIds}-plan-name`} value={form.planName} onChange={e => field("planName", e.target.value)} placeholder="New Hire Onboarding Path" className="h-9" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]"># Courses</Label>
-                  <Input type="number" min="2" value={form.courseCount} onChange={e => field("courseCount", e.target.value)} className="h-9" />
+                  <Label htmlFor={`${__fieldIds}-courses`} className="text-[13px]"># Courses</Label>
+                  <Input id={`${__fieldIds}-courses`} type="number" min="2" value={form.courseCount} onChange={e => field("courseCount", e.target.value)} className="h-9" />
                 </div>
                 <div className="space-y-1.5 sm:col-span-3">
-                  <Label className="text-[13px]">Owning Organization *</Label>
+                  <Label htmlFor={`${__fieldIds}-owning-organization`} className="text-[13px]">Owning Organization *</Label>
                   <Select value={form.organizationId} onValueChange={v => field("organizationId", v)}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Choose organization" /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-owning-organization`} className="h-9"><SelectValue placeholder="Choose organization" /></SelectTrigger>
                     <SelectContent>
                       {(organizations ?? []).map(org => <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>)}
                     </SelectContent>
@@ -217,8 +218,8 @@ export default function AiCourseWizard() {
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Working Title / Topic</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-working-title-topic`} className="text-[13px]">Working Title / Topic</Label>
+              <Input id={`${__fieldIds}-working-title-topic`}
                 value={form.titleHint}
                 onChange={e => field("titleHint", e.target.value)}
                 placeholder="Fall Prevention Basics"
@@ -228,13 +229,13 @@ export default function AiCourseWizard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Category</Label>
-                <Input value={form.category} onChange={e => field("category", e.target.value)} placeholder="Annual In-Service" className="h-9" />
+                <Label htmlFor={`${__fieldIds}-category`} className="text-[13px]">Category</Label>
+                <Input id={`${__fieldIds}-category`} value={form.category} onChange={e => field("category", e.target.value)} placeholder="Annual In-Service" className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Training Requirement Type</Label>
+                <Label htmlFor={`${__fieldIds}-training-requirement-type`} className="text-[13px]">Training Requirement Type</Label>
                 <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-training-requirement-type`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
                     {(trainingTypes ?? []).map(tt => (
@@ -251,8 +252,8 @@ export default function AiCourseWizard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Desired Module Count</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-desired-module-count`} className="text-[13px]">Desired Module Count</Label>
+                <Input id={`${__fieldIds}-desired-module-count`}
                   type="number"
                   min="1"
                   value={form.desiredModuleCount}
@@ -262,8 +263,8 @@ export default function AiCourseWizard() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Desired Duration (minutes)</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-desired-duration-minutes`} className="text-[13px]">Desired Duration (minutes)</Label>
+                <Input id={`${__fieldIds}-desired-duration-minutes`}
                   type="number"
                   min="1"
                   value={form.desiredDurationMinutes}
@@ -275,8 +276,8 @@ export default function AiCourseWizard() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Source Material</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-source-material`} className="text-[13px]">Source Material</Label>
+              <Textarea id={`${__fieldIds}-source-material`}
                 value={form.sourceMaterial}
                 onChange={e => field("sourceMaterial", e.target.value)}
                 placeholder="Paste the relevant policy, regulation, or reference text you want this course grounded in. The more specific, the less the AI has to guess."
@@ -289,8 +290,8 @@ export default function AiCourseWizard() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Notes / Instructions</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-notes-instructions`} className="text-[13px]">Notes / Instructions</Label>
+              <Textarea id={`${__fieldIds}-notes-instructions`}
                 value={form.notes}
                 onChange={e => field("notes", e.target.value)}
                 placeholder="Anything else the AI should know -- tone, audience, what to emphasize or avoid, etc."

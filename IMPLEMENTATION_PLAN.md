@@ -1,5 +1,7 @@
 # CareMetric CareBase — Five-Phase Implementation Plan
 
+> **Not the backlog.** This is the long-horizon five-phase program; it stays current and is worth reading. What is actually open, and in what order, lives in [BACKLOG.md](./BACKLOG.md).
+
 - **Status:** Canonical program plan
 - **Baseline:** main at 2874ee2, reviewed July 11, 2026
 - **Scope:** 29 approved recommendations from the ranked product review

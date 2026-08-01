@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, ClipboardList } from "lucide-react";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName } from "@/lib/residentCompliance";
+import { QueryError } from "@/components/QueryState";
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -23,9 +24,11 @@ export default function ResidentComplianceReport() {
   const [status, setStatus] = useState<string>("open");
   const [itemType, setItemType] = useState<string>("all");
 
-  const { data: facilities } = useListFacilities();
-  const { data: residents } = useListResidents();
-  const { data: items, isLoading } = useListAllResidentComplianceItems({
+  const facilitiesQuery = useListFacilities();
+  const residentsQuery = useListResidents();
+  const { data: facilities } = facilitiesQuery;
+  const { data: residents } = residentsQuery;
+  const { data: items, isLoading, ...itemsQuery } = useListAllResidentComplianceItems({
     facilityId: facilityId !== "all" ? facilityId : undefined,
     status: status === "open" ? OPEN_STATUSES : status !== "all" ? [status] : undefined,
     itemType: itemType !== "all" ? itemType : undefined,
@@ -36,8 +39,20 @@ export default function ResidentComplianceReport() {
 
   const rows = items ?? [];
 
+  // Every row here is a regulatory deadline. A partially-loaded report that still renders
+  // as a complete one is the failure mode this banner exists to prevent.
+  const reportQueries = [facilitiesQuery, residentsQuery, itemsQuery];
+  const reportFailure = reportQueries.find((query) => query.isError);
+
   return (
     <div className="space-y-6">
+      {reportFailure && (
+        <QueryError
+          what="the resident compliance report"
+          error={reportFailure.error}
+          onRetry={() => void Promise.all(reportQueries.map((query) => query.refetch()))}
+        />
+      )}
       <div>
         <h1 className="text-2xl font-bold">Resident Compliance</h1>
         <p className="text-muted-foreground">
