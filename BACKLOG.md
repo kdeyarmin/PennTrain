@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `67506b1` (2026-08-01) — UI/UX debt wave
+**Last verified against main:** `a3dec68` (2026-08-01) — UI/UX debt wave
 **Owner:** product + engineering
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -152,7 +152,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (stored CSV, resume after browser close) | M | in_progress | #355 landed the claim/lease layer: `claimed_at`/`claimed_by`/`claim_expires_at`, `claim_data_import_jobs`, `release_data_import_job_claim`, `process-data-import-jobs`. The worker reads no stored file, so a closed browser still loses the CSV — the actual promise of this row |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Employee-domain durable apply now runs in `process-data-import-jobs` from `data_import_rows` (`normalized_row`/`proposed_action`/`before_snapshot`) under service-role org scope; non-employee domains still release to `ready` until their applicators are added |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
 
