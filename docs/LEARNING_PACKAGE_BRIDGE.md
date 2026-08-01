@@ -55,11 +55,19 @@ it; messages carrying the previous nonce are rejected from that point.
 
 ## Using the reference adapter
 
-The adapter is served from the app's own routing space, so the URL must include the deployment's
-`BASE_PATH` when one is set (`DEPLOYMENT.md`; e.g. `/train/`). Deployed at a subpath, a bare
-`/learning-runtime-bridge.js` is outside the app's routing space and 404s — the script then never
-defines `CareBaseLearningRuntime`, and the handshake silently never begins. Served from the root,
-the path below is correct as written.
+**Prefer bundling this file inside the package** over fetching it from the app. The package frame
+has an opaque origin, and browsers restrict what such a document may fetch: Chrome's Private
+Network Access rules block an opaque-origin document from reaching a private or loopback address
+with `Permission was denied for this request to access the 'unknown' address space`. Any deployment
+where the app is reachable on a private network — a facility LAN, a VPN-only install, a developer's
+localhost — can therefore fail to load the adapter over the network, and the failure is silent from
+the learner's side: no `CareBaseLearningRuntime`, no handshake, no error in the app. `learning-bridge-browser.spec.ts`
+hits exactly this and serves the file to the frame directly for that reason.
+
+If you do fetch it, the URL must include the deployment's `BASE_PATH` when one is set
+(`DEPLOYMENT.md`; e.g. `/train/`). Deployed at a subpath, a bare `/learning-runtime-bridge.js` is
+outside the app's routing space and 404s — again with no visible error. Served from the root, the
+path below is correct as written.
 
 ```html
 <!-- root deployment; with BASE_PATH=/train/ use https://<host>/train/learning-runtime-bridge.js -->
@@ -110,11 +118,19 @@ commit as a replay.
   the host helpers. Covers handshake, ready, commit, pre-init buffering, relaunch re-signing, and
   rejection of malformed `init`s. This is what catches the two halves drifting apart.
 
+- `artifacts/caremetric-carebase/e2e/learning-bridge-browser.spec.ts` — the handshake in a **real
+  browser**, across a genuinely sandboxed opaque-origin iframe. Asserts what only a browser can:
+  that the frame's origin really is `null`, that `event.source` identifies it across two documents,
+  that `targetOrigin: "*"` reaches it, and that a commit issued before `init` survives buffering
+  and arrives carrying a nonce it could not have known at the time. Runs without Supabase
+  credentials, so it is exercised on every CI run rather than only on authenticated ones.
+
 Not covered, and worth doing before relying on the automatic flow in production:
 
-- **A real SCORM package in a real browser.** The integration test stubs the frame, so it exercises
-  the protocol but not iframe sandbox behavior — opaque origin, `event.source` identity across
-  documents, or the `load`-time push racing a package's own setup.
 - **Whether real authoring tools call these entry points at the right moments.** Content exported
   from Storyline/Captivate/etc. drives its own SCORM API surface; mapping that onto this bridge is
-  a per-tool integration that has not been attempted yet.
+  a per-tool integration that has not been attempted yet. The fixture package exercises the
+  contract, not any vendor's runtime.
+- **Delivery of the adapter to the frame.** The browser test serves it directly, so the network
+  path a real package would use is deliberately not under test — see the bundling note above for
+  why fetching it is the fragile option.
