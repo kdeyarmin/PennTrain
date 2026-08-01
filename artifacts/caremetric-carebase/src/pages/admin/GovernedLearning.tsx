@@ -7,6 +7,7 @@ import {
   useQuarantineLearningPackage,
 } from "@/hooks/useLearningRuntime";
 import { useToast } from "@/hooks/use-toast";
+import { QuarantinePackageDialog } from "@/components/learning/QuarantinePackageDialog";
 import type { EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ function StandardsPackagesPanel() {
   const quarantine = useQuarantineLearningPackage();
   const { toast } = useToast();
   const rows = packages.data ?? [];
+  const [quarantineTarget, setQuarantineTarget] = useState<{ id: string; path: string } | null>(null);
 
   return (
     <div className="space-y-4">
@@ -48,7 +50,7 @@ function StandardsPackagesPanel() {
         <CardHeader>
           <CardTitle className="text-base">Learning packages</CardTitle>
           <CardDescription>
-            Register SCORM/xAPI packages from course authoring, then accept after structural review. Accepted packages are immutable and launchable by the standards runtime.
+            Register SCORM/xAPI packages from course authoring, then accept after structural review. Accepted packages are immutable and launchable by the standards runtime. Quarantined packages are hidden from learners — re-upload a fixed zip on the course to register a new package for accept.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -67,7 +69,7 @@ function StandardsPackagesPanel() {
                 <Badge variant={pkg.validation_status === "accepted" ? "default" : pkg.validation_status === "quarantined" ? "destructive" : "secondary"}>
                   {pkg.validation_status}
                 </Badge>
-                {pkg.validation_status !== "accepted" && (
+                {pkg.validation_status !== "accepted" && pkg.validation_status !== "quarantined" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -89,16 +91,7 @@ function StandardsPackagesPanel() {
                     size="sm"
                     variant="ghost"
                     disabled={quarantine.isPending}
-                    onClick={async () => {
-                      const reason = window.prompt("Quarantine reason (min 8 characters)", "Package quarantined from governed learning console");
-                      if (!reason || reason.trim().length < 8) return;
-                      try {
-                        await quarantine.mutateAsync({ packageId: pkg.id, reason: reason.trim() });
-                        toast({ title: "Package quarantined" });
-                      } catch (e) {
-                        toast({ title: "Quarantine blocked", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-                      }
-                    }}
+                    onClick={() => setQuarantineTarget({ id: pkg.id, path: pkg.storage_path })}
                   >
                     Quarantine
                   </Button>
@@ -108,6 +101,31 @@ function StandardsPackagesPanel() {
           ))}
         </CardContent>
       </Card>
+
+      <QuarantinePackageDialog
+        open={quarantineTarget != null}
+        packagePath={quarantineTarget?.path}
+        pending={quarantine.isPending}
+        onOpenChange={(open) => {
+          if (!open) setQuarantineTarget(null);
+        }}
+        onConfirm={(reason) => {
+          if (!quarantineTarget) return;
+          void quarantine
+            .mutateAsync({ packageId: quarantineTarget.id, reason })
+            .then(() => {
+              toast({ title: "Package quarantined" });
+              setQuarantineTarget(null);
+            })
+            .catch((e: unknown) => {
+              toast({
+                title: "Quarantine blocked",
+                description: e instanceof Error ? e.message : String(e),
+                variant: "destructive",
+              });
+            });
+        }}
+      />
     </div>
   );
 }
