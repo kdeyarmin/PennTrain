@@ -360,6 +360,28 @@ async function revParse(ref) {
   }
 }
 
+/**
+ * True when this working copy is a shallow clone.
+ *
+ * The freshness rule reads history: it resolves the declared baseline commit and walks
+ * `baseline..HEAD`. A shallow checkout has neither, so the rule cannot be evaluated —
+ * and a shallow clone is the normal case for most CI jobs (`actions/checkout` defaults to
+ * fetch-depth 1). Reporting "that is not a commit in this repository" there would be a
+ * false accusation about a stamp that is perfectly correct.
+ *
+ * This is a skip, not a bypass: it triggers only on a genuinely shallow repository. In a
+ * full clone -- every developer machine, and the dedicated `planning-registers` CI job,
+ * which checks out with fetch-depth 0 -- a bogus or stale stamp still fails. The banner
+ * and singularity rules are pure filesystem checks and run either way.
+ */
+async function isShallowRepository() {
+  try {
+    return (await git(["rev-parse", "--is-shallow-repository"])) === "true";
+  } catch {
+    return false;
+  }
+}
+
 async function isAncestor(ancestor, descendant) {
   try {
     await git(["merge-base", "--is-ancestor", ancestor, descendant]);
@@ -417,6 +439,16 @@ async function checkFreshness(baseRef) {
 
   const declaredSha = await revParse(declared);
   if (!declaredSha) {
+    // Order matters: only an *unresolvable* stamp gets the shallow excuse. A shallow
+    // clone that still contains the baseline commit is fully checkable, and most are --
+    // truncated history is not the same as no history.
+    if (await isShallowRepository()) {
+      console.log(
+        `Freshness rule skipped: \`${declared}\` is beyond this shallow clone's history. ` +
+          "The planning-registers CI job checks out with fetch-depth 0 and is the real gate.",
+      );
+      return problems;
+    }
     return [
       `${CANONICAL_REGISTER} is stamped against \`${declared}\`, which is not a commit in this repository.`,
       "  Re-verify the register against a real commit and update the stamp.",
