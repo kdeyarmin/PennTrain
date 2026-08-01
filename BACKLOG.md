@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `0932ac0` (2026-08-01) — D3 employee apply-from-ledger
+**Last verified against main:** `2951ab8` (2026-08-01) — marketing suite documentation terminology + Landing design fidelity (#377)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -131,6 +131,13 @@ exact class of problem for migrations (`deploy-migrations.yml` waits on a valida
 SHA; see `MIGRATION_DEPLOYMENT_AUDIT.md`) and never applied it to the application deploy.
 The build command now runs the unit suite and the startup check.
 
+Closed this pass: **Marketing suite documentation terminology + Landing design fidelity (#377).**
+Public marketing surfaces (Landing.tsx, Features, FAQ) now exclusively use “documentation” /
+“documentation rooms” / “Survey documentation” (never “evidence”). Landing restored to
+CareBase Landing v2 design fidelity (Prove the work., Education spend, Guest documentation
+portals) with regression test; pricing remains single-source from marketingPricing.ts;
+self-serve CTAs preserved. Internal product routes unchanged.
+
 ---
 
 ## Snapshot (what is true on main today)
@@ -150,6 +157,7 @@ The build command now runs the unit suite and the startup check.
 - Clinical/EHR hybrid (native chart + FHIR ingest), opt-in — `docs/HIPAA_CLINICAL_DATA.md`
 - Dense ops surface: Survey Day, Work Queue, Training Matrix, Today, binder, evidence
   room, lifecycle cases, invitations
+- Marketing public suite: documentation terminology lock + Landing design fidelity (#377)
 
 ### Still open (highest risk first)
 

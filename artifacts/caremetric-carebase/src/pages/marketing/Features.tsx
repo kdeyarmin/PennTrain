@@ -146,7 +146,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
     title: "Access, portals & onboarding",
     items: [
       "Six database-enforced roles",
-      "Guest portals (move-in, agreements, designated person, evidence)",
+      "Guest portals (move-in, agreements, designated person, documentation)",
       "Public certificate verification links",
       "Bulk CSV employee import",
       "Email, SMS & in-app alerts with escalation",

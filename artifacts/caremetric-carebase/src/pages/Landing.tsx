@@ -95,7 +95,7 @@ const HERO_METRICS: HeroMetric[] = [
   },
   {
     value: "Ch. 2600 + 2800",
-    label: "PA regulations matched to the records that prove them",
+    label: "PA regulations crosswalked to the records that prove them",
   },
   { value: "60+", label: "survey-ready form templates included" },
   {
@@ -115,9 +115,9 @@ const PLAIN_ENGLISH: PlainEnglishCard[] = [
   },
   {
     number: "02",
-    eyebrow: "Training costs",
-    title: "Spend less on required training",
-    copy: "The course builder, AI courses built from your own policies, live QR-code classes, and certificates are all included — so you can stop paying per-person LMS fees and yearly content libraries for the same required topics.",
+    eyebrow: "Education spend",
+    title: "Spend less on required education",
+    copy: "The course builder, AI-generated courses grounded in your own policies, live QR-code classes, and certificates are all included — so you can stop paying per-seat LMS fees and yearly content libraries for the same required topics.",
     href: "/savings",
     link: "See where the money comes from →",
   },
@@ -141,10 +141,10 @@ const PERSONAS: Persona[] = [
   },
   {
     chapter: "55 Pa. Code Chapter 2800",
-    title: "I run an assisted living facility",
+    title: "I run an Assisted Living Facility (ALF)",
     copy: "You carry the heavier load: 16 hours a year per direct care worker (§2800.65), separate dementia training that doesn't count toward the 16 (§2800.69), special-care-unit add-ons, and ASP assessments — each with its own due date.",
     warning:
-      "Those separate dementia hours are where assisted living facilities get cited. CareBase tracks them apart from the 16 so nothing is counted twice.",
+      "Those separate dementia hours are where Assisted Living Facilities (ALFs) get cited. CareBase tracks them apart from the 16 so nothing is counted twice.",
     tags: ["16 hrs applied automatically", "Dementia hrs tracked separately", "Ch. 2800 mapped for you"],
     cta: "Set up your ALF in minutes →",
   },
@@ -218,7 +218,7 @@ const DOMAINS: Domain[] = [
       "Grounded compliance copilot",
       "Ch. 2600 / 2800 crosswalk",
       "Time-limited documentation rooms",
-      "Guest evidence portals",
+      "Guest documentation portals",
       "Immutable audit trail",
     ],
     note: "60+ printable survey-readiness forms included, adapted from a real PA survey readiness binder. Survey Day Mode pins the entrance conference, binder, on-shift roster, and documentation rooms on one screen.",
@@ -377,7 +377,7 @@ const FAQS: Faq[] = [
   {
     question: "What is CareBase?",
     answer:
-      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and assisted living facilities — with a built-in resident clinical record (native charting plus FHIR for medications, allergies, and diagnoses), Survey Day Mode, and a grounded compliance copilot.",
+      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and Assisted Living Facilities (ALFs) — with a built-in resident clinical record (native charting plus FHIR for medications, allergies, and diagnoses), Survey Day Mode, and a grounded compliance copilot.",
   },
   {
     question: "How much does it cost?",
@@ -397,7 +397,7 @@ const FAQS: Faq[] = [
   {
     question: "Can a surveyor or auditor get access?",
     answer:
-      "Yes — Survey Day Mode for the entrance conference, a read-only auditor role, and time-limited documentation rooms (or guest evidence portals) scoped to exactly what was requested.",
+      "Yes — Survey Day Mode for the entrance conference, a read-only auditor role, and time-limited documentation rooms (or guest documentation portals) scoped to exactly what was requested.",
   },
   {
     question: "How fast can we start?",
@@ -665,11 +665,11 @@ export default function Landing() {
             <h1 className="text-balance text-[clamp(2.75rem,8vw,3.625rem)] font-extrabold leading-[1.05] tracking-[-0.02em]">
               <span className="block">Run the facility. </span>
               <span className="block">See the risk. </span>
-              <span className="block text-[#8ec8ff]">Stay survey-ready.</span>
+              <span className="block text-[#8ec8ff]">Prove the work.</span>
             </h1>
             <Reveal delay={0.08}>
               <p className="max-w-[34ch] text-[19px] leading-[1.5] text-white/85">
-                Know you're ready for your next survey — without running your facility out of spreadsheets, binders, and one person's memory.
+                Know you're survey-ready before the knock — without running your facility out of spreadsheets, binders, and one person's memory.
               </p>
             </Reveal>
             <Reveal delay={0.14} className="flex flex-wrap items-center gap-3">
