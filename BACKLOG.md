@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `a511bc1` (2026-08-01) — durable import worker now applies rooms / credentials / residents from ledger
+**Last verified against main:** `74a3af4` (2026-08-01) — durable import worker now applies rooms / credentials / residents from ledger
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
