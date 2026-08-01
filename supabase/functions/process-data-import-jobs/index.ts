@@ -170,10 +170,19 @@ function isSupportedDurableDomain(domain: string): domain is typeof DURABLE_IMPO
 }
 
 function getPendingDurableReason(domain: string): string | null {
-  if (domain === "incidents" && PENDING_DURABLE_DOMAINS.has(domain)) {
-    return "Durable apply for incidents is pending: create_incident_atomic requires auth.uid(); durable service-role path cannot call it without a schema change.";
+  if (!PENDING_DURABLE_DOMAINS.has(domain)) return null;
+  switch (domain) {
+    case "rooms":
+      return "Durable apply for rooms is pending: create_room_with_beds requires authenticated admission manager and is not granted to service_role.";
+    case "credentials":
+      return "Durable apply for credentials is pending: save_employee_credential requires auth.uid()/current_org_id and is granted only to authenticated.";
+    case "training_records":
+      return "Durable apply for training_records is pending: save_training_record requires auth.uid()/current_org_id and is granted only to authenticated.";
+    case "incidents":
+      return "Durable apply for incidents is pending: create_incident_atomic requires auth.uid(); durable service-role path cannot call it without a schema change.";
+    default:
+      return `Durable apply for ${domain} is pending: apply RPC requires authenticated caller.`;
   }
-  return null;
 }
 
 async function recountAndPersistJobCounters(
@@ -450,240 +459,6 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
   };
 }
 
-async function processRoomJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
-  const { data: rows, error: rowsErr } = await supabase
-    .from("data_import_rows")
-    .select("id,row_number,normalized_row,proposed_action,target_id")
-    .eq("job_id", job.id)
-    .eq("status", "valid")
-    .order("row_number", { ascending: true })
-    .limit(DOMAIN_BATCH_SIZE);
-  if (rowsErr) throw rowsErr;
-
-  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
-  const facilityCache = new Map<string, boolean>();
-
-  for (const row of ledgerRows) {
-    const payload = buildRoomPayload(row.normalized_row);
-    const facilityId = asStringOrNull(payload.facility_id);
-    if (!facilityId || !UUID_PATTERN.test(facilityId)) {
-      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: facility_id is missing or invalid`);
-      continue;
-    }
-    if (!asStringOrNull(payload.room_number)) {
-      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: room_number is required`);
-      continue;
-    }
-
-    try {
-      const isInScope = await ensureFacilityInOrganization(supabase, facilityCache, facilityId, job.organization_id);
-      if (!isInScope) {
-        await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: facility_id is not in the job organization`);
-        continue;
-      }
-    } catch (facilityErr) {
-      const message = facilityErr instanceof Error ? facilityErr.message : String(facilityErr);
-      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: failed to verify facility scope (${message})`);
-      continue;
-    }
-
-    const action = normalizeAction(row.proposed_action);
-    if (action === "skip") {
-      await markLedgerRowStatus(supabase, row, {
-        status: "skipped",
-        targetTable: ROOM_TARGET_TABLE,
-        targetId: row.target_id,
-      });
-      continue;
-    }
-
-    if (action === "update") {
-      if (!row.target_id || !UUID_PATTERN.test(row.target_id)) {
-        await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
-        continue;
-      }
-      const { data: existingRoom, error: existingRoomErr } = await supabase
-        .from("facility_rooms")
-        .select("id,facility_id")
-        .eq("id", row.target_id)
-        .maybeSingle();
-      if (existingRoomErr || !existingRoom) {
-        await markLedgerRowFailureForTable(
-          supabase,
-          row,
-          ROOM_TARGET_TABLE,
-          `Row ${row.row_number}: ${existingRoomErr?.message ?? "room target was not found"}`,
-        );
-        continue;
-      }
-      try {
-        const roomInScope = await ensureFacilityInOrganization(supabase, facilityCache, String(existingRoom.facility_id), job.organization_id);
-        if (!roomInScope) {
-          await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: room target is not in the job organization`);
-          continue;
-        }
-      } catch (facilityErr) {
-        const message = facilityErr instanceof Error ? facilityErr.message : String(facilityErr);
-        await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: failed to verify room target scope (${message})`);
-        continue;
-      }
-    }
-
-    const { data, error } = await supabase.rpc("create_room_with_beds", {
-      p_facility_id: facilityId,
-      p_building_name: payload.building_name,
-      p_unit_name: payload.unit_name,
-      p_room_number: payload.room_number,
-      p_room_type: payload.room_type,
-      p_bed_count: payload.bed_count,
-      p_gender_restriction: "none",
-    });
-    if (error) {
-      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: ${error.message}`);
-      continue;
-    }
-
-    const recordId = asStringOrNull(data) ?? row.target_id;
-    if (!payload.is_active && recordId) {
-      const { error: inactiveErr } = await supabase
-        .from("facility_rooms")
-        .update({ is_active: false })
-        .eq("id", recordId);
-      if (inactiveErr) {
-        await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: ${inactiveErr.message}`);
-        continue;
-      }
-    }
-
-    await markLedgerRowStatus(supabase, row, {
-      status: "applied",
-      targetTable: ROOM_TARGET_TABLE,
-      targetId: recordId,
-    });
-  }
-
-  return finalizeAndReleaseJob(supabase, job.id);
-}
-
-async function processCredentialJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
-  const { data: rows, error: rowsErr } = await supabase
-    .from("data_import_rows")
-    .select("id,row_number,normalized_row,proposed_action,target_id")
-    .eq("job_id", job.id)
-    .eq("status", "valid")
-    .order("row_number", { ascending: true })
-    .limit(DOMAIN_BATCH_SIZE);
-  if (rowsErr) throw rowsErr;
-
-  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
-  const facilityCache = new Map<string, boolean>();
-  const employeeCache = new Map<string, { id: string; organization_id: string; facility_id: string | null } | null>();
-
-  for (const row of ledgerRows) {
-    const payload = buildCredentialPayload(row.normalized_row, job.organization_id);
-    const employeeId = asStringOrNull(payload.employee_id);
-    if (!employeeId || !UUID_PATTERN.test(employeeId)) {
-      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: employee_id is missing or invalid`);
-      continue;
-    }
-    if (!payload.credential_type) {
-      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: credential_type is required`);
-      continue;
-    }
-
-    if (!employeeCache.has(employeeId)) {
-      const { data: employee, error: employeeErr } = await supabase
-        .from("employees")
-        .select("id,organization_id,facility_id")
-        .eq("id", employeeId)
-        .maybeSingle();
-      if (employeeErr) {
-        await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: failed to verify employee scope (${employeeErr.message})`);
-        continue;
-      }
-      employeeCache.set(employeeId, employee ? {
-        id: String(employee.id),
-        organization_id: String(employee.organization_id),
-        facility_id: asStringOrNull(employee.facility_id),
-      } : null);
-    }
-
-    const employee = employeeCache.get(employeeId);
-    if (!employee || employee.organization_id !== job.organization_id) {
-      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: employee is not in the job organization`);
-      continue;
-    }
-    if (!employee.facility_id || !UUID_PATTERN.test(employee.facility_id)) {
-      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: employee facility is missing or invalid`);
-      continue;
-    }
-
-    try {
-      const facilityInScope = await ensureFacilityInOrganization(supabase, facilityCache, employee.facility_id, job.organization_id);
-      if (!facilityInScope) {
-        await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: employee facility is not in the job organization`);
-        continue;
-      }
-    } catch (facilityErr) {
-      const message = facilityErr instanceof Error ? facilityErr.message : String(facilityErr);
-      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: failed to verify facility scope (${message})`);
-      continue;
-    }
-
-    const action = normalizeAction(row.proposed_action);
-    if (action === "skip") {
-      await markLedgerRowStatus(supabase, row, {
-        status: "skipped",
-        targetTable: CREDENTIAL_TARGET_TABLE,
-        targetId: row.target_id,
-      });
-      continue;
-    }
-
-    if (action === "update") {
-      if (!row.target_id || !UUID_PATTERN.test(row.target_id)) {
-        await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
-        continue;
-      }
-      const { data: existingCredential, error: existingCredentialErr } = await supabase
-        .from("employee_credentials")
-        .select("id,organization_id")
-        .eq("id", row.target_id)
-        .eq("organization_id", job.organization_id)
-        .maybeSingle();
-      if (existingCredentialErr || !existingCredential) {
-        await markLedgerRowFailureForTable(
-          supabase,
-          row,
-          CREDENTIAL_TARGET_TABLE,
-          `Row ${row.row_number}: ${existingCredentialErr?.message ?? "credential target was not found in the job organization"}`,
-        );
-        continue;
-      }
-    }
-
-    const rpcPayload = { ...payload, facility_id: employee.facility_id, employee_id: employee.id, organization_id: job.organization_id };
-    const { data, error } = await supabase.rpc("save_employee_credential", {
-      p_credential_id: action === "update" ? row.target_id : undefined,
-      p_payload: rpcPayload,
-    });
-    if (error) {
-      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: ${error.message}`);
-      continue;
-    }
-
-    const createdData = asRecord(data);
-    const recordId = asStringOrNull(createdData.id) ?? asStringOrNull(data) ?? row.target_id;
-    await markLedgerRowStatus(supabase, row, {
-      status: "applied",
-      targetTable: CREDENTIAL_TARGET_TABLE,
-      targetId: recordId,
-    });
-  }
-
-  return finalizeAndReleaseJob(supabase, job.id);
-}
-
 async function processResidentJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
   const { data: rows, error: rowsErr } = await supabase
     .from("data_import_rows")
@@ -788,111 +563,6 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
       status: "applied",
       targetTable: RESIDENT_TARGET_TABLE,
       targetId: asStringOrNull(createdResident?.id),
-    });
-  }
-
-  return finalizeAndReleaseJob(supabase, job.id);
-}
-
-async function processTrainingRecordJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
-  const { data: rows, error: rowsErr } = await supabase
-    .from("data_import_rows")
-    .select("id,row_number,normalized_row,proposed_action,target_id")
-    .eq("job_id", job.id)
-    .eq("status", "valid")
-    .order("row_number", { ascending: true })
-    .limit(DOMAIN_BATCH_SIZE);
-  if (rowsErr) throw rowsErr;
-
-  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
-  const employeeCache = new Map<string, { id: string; organization_id: string } | null>();
-
-  for (const row of ledgerRows) {
-    const payload = buildTrainingRecordPayload(row.normalized_row);
-    const employeeId = asStringOrNull(payload.employee_id);
-    if (!employeeId || !UUID_PATTERN.test(employeeId)) {
-      await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: employee_id is missing or invalid`);
-      continue;
-    }
-
-    if (!employeeCache.has(employeeId)) {
-      const { data: employee, error: employeeErr } = await supabase
-        .from("employees")
-        .select("id,organization_id")
-        .eq("id", employeeId)
-        .maybeSingle();
-      if (employeeErr) {
-        await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: failed to verify employee scope (${employeeErr.message})`);
-        continue;
-      }
-      employeeCache.set(employeeId, employee ? {
-        id: String(employee.id),
-        organization_id: String(employee.organization_id),
-      } : null);
-    }
-
-    const employee = employeeCache.get(employeeId);
-    if (!employee || employee.organization_id !== job.organization_id) {
-      await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: employee is not in the job organization`);
-      continue;
-    }
-
-    const action = normalizeAction(row.proposed_action);
-    if (action === "skip") {
-      await markLedgerRowStatus(supabase, row, {
-        status: "skipped",
-        targetTable: TRAINING_RECORD_TARGET_TABLE,
-        targetId: row.target_id,
-      });
-      continue;
-    }
-
-    if (action === "update") {
-      if (!row.target_id || !UUID_PATTERN.test(row.target_id)) {
-        await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
-        continue;
-      }
-      const { data: existingRecord, error: existingRecordErr } = await supabase
-        .from("employee_training_records")
-        .select("id,organization_id,employee_id")
-        .eq("id", row.target_id)
-        .eq("organization_id", job.organization_id)
-        .maybeSingle();
-      if (existingRecordErr || !existingRecord) {
-        await markLedgerRowFailureForTable(
-          supabase,
-          row,
-          TRAINING_RECORD_TARGET_TABLE,
-          `Row ${row.row_number}: ${existingRecordErr?.message ?? "training record target was not found in the job organization"}`,
-        );
-        continue;
-      }
-      if (asStringOrNull(existingRecord.employee_id) !== employeeId) {
-        await markLedgerRowFailureForTable(
-          supabase,
-          row,
-          TRAINING_RECORD_TARGET_TABLE,
-          `Row ${row.row_number}: training record target is not in employee scope`,
-        );
-        continue;
-      }
-    }
-
-    const { data, error } = await supabase.rpc("save_training_record", {
-      p_record_id: action === "update" ? row.target_id : null,
-      p_payload: payload,
-    });
-    if (error) {
-      await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: ${error.message}`);
-      continue;
-    }
-
-    const savedRecord = asRecord(data);
-    const recordId = asStringOrNull(savedRecord.id) ?? asStringOrNull(data) ?? row.target_id;
-    await markLedgerRowStatus(supabase, row, {
-      status: "applied",
-      targetTable: TRAINING_RECORD_TARGET_TABLE,
-      targetId: recordId,
     });
   }
 
@@ -1147,87 +817,6 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
   return finalizeAndReleaseJob(supabase, job.id);
 }
 
-async function processIncidentJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
-  const { data: rows, error: rowsErr } = await supabase
-    .from("data_import_rows")
-    .select("id,row_number,normalized_row,proposed_action,target_id")
-    .eq("job_id", job.id)
-    .eq("status", "valid")
-    .order("row_number", { ascending: true })
-    .limit(DOMAIN_BATCH_SIZE);
-  if (rowsErr) throw rowsErr;
-
-  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
-  const facilityCache = new Map<string, boolean>();
-
-  for (const row of ledgerRows) {
-    const payload = buildIncidentPayload(row.normalized_row);
-    if (payload.organization_id !== job.organization_id) {
-      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: organization_id is outside the job organization`);
-      continue;
-    }
-
-    const facilityId = asStringOrNull(payload.facility_id);
-    if (!facilityId || !UUID_PATTERN.test(facilityId)) {
-      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: facility_id is missing or invalid`);
-      continue;
-    }
-
-    try {
-      const inScope = await ensureFacilityInOrganization(supabase, facilityCache, facilityId, job.organization_id);
-      if (!inScope) {
-        await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: facility_id is not in the job organization`);
-        continue;
-      }
-    } catch (facilityErr) {
-      const message = facilityErr instanceof Error ? facilityErr.message : String(facilityErr);
-      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: failed to verify facility scope (${message})`);
-      continue;
-    }
-
-    const action = normalizeAction(row.proposed_action);
-    if (action === "skip") {
-      await markLedgerRowStatus(supabase, row, {
-        status: "skipped",
-        targetTable: INCIDENT_TARGET_TABLE,
-        targetId: row.target_id,
-      });
-      continue;
-    }
-    if (action === "update") {
-      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: incidents are create-only on import`);
-      continue;
-    }
-
-    const { data, error } = await supabase.rpc("create_incident_atomic", {
-      p_organization_id: job.organization_id,
-      p_facility_id: facilityId,
-      p_incident_type: payload.incident_type,
-      p_occurred_at: payload.occurred_at,
-      p_resident_id: payload.resident_id,
-      p_resident_identifier_snapshot: payload.resident_identifier_snapshot,
-      p_location_detail: payload.location_detail,
-      p_narrative: payload.narrative,
-      p_severity: payload.severity,
-      p_idempotency_key: `import:${job.id}:${row.row_number}`,
-    });
-    if (error) {
-      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: ${error.message}`);
-      continue;
-    }
-
-    const createdIncident = asRecord(data);
-    const recordId = asStringOrNull(createdIncident.id) ?? asStringOrNull(data) ?? row.target_id;
-    await markLedgerRowStatus(supabase, row, {
-      status: "applied",
-      targetTable: INCIDENT_TARGET_TABLE,
-      targetId: recordId,
-    });
-  }
-
-  return finalizeAndReleaseJob(supabase, job.id);
-}
-
 Deno.serve(async (req) => {
   const authError = requireCronRequest(req, HEADERS);
   if (authError) return authError;
@@ -1301,14 +890,8 @@ Deno.serve(async (req) => {
       try {
         const workerResult = job.domain === "employees"
           ? await processEmployeeJob(supabase, job)
-          : job.domain === "rooms"
-          ? await processRoomJob(supabase, job)
-          : job.domain === "credentials"
-          ? await processCredentialJob(supabase, job)
           : job.domain === "residents"
           ? await processResidentJob(supabase, job)
-          : job.domain === "training_records"
-          ? await processTrainingRecordJob(supabase, job)
           : job.domain === "resident_contacts"
           ? await processResidentContactJob(supabase, job)
           : job.domain === "assessments"
