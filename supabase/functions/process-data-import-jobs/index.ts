@@ -23,6 +23,20 @@ const RESIDENT_TARGET_TABLE = "residents";
 const CONTACT_TARGET_TABLE = "resident_contacts";
 const TRAINING_TARGET_TABLE = "employee_training_records";
 const ASSESSMENT_TARGET_TABLE = "resident_assessment_forms";
+const RESIDENT_CONTACT_TYPES = new Set([
+  "emergency_contact",
+  "designated_person",
+  "guardian",
+  "power_of_attorney",
+  "primary_care_provider",
+  "dentist",
+  "pharmacy",
+  "case_manager",
+  "hospice_agency",
+  "home_health_agency",
+  "insurer",
+  "other",
+]);
 // incidents remains pending: create_incident_atomic is security invoker and requires auth.uid()
 const PENDING_DURABLE_DOMAINS = new Set(["incidents"]);
 
@@ -114,6 +128,7 @@ function buildResidentPayload(normalizedRow: unknown, organizationId: string) {
 function buildContactPayload(normalizedRow: unknown, organizationId: string) {
   const row = asRecord(normalizedRow);
   const isPrimary = asBoolean(row.is_primary, false);
+  const contactType = asStringOrNull(row.contact_type)?.toLowerCase();
   return {
     organization_id: organizationId,
     facility_id: asStringOrNull(row.facility_id),
@@ -123,7 +138,7 @@ function buildContactPayload(normalizedRow: unknown, organizationId: string) {
     email: asStringOrNull(row.email)?.toLowerCase() ?? null,
     phone: asStringOrNull(row.phone),
     is_primary: isPrimary,
-    contact_type: asStringOrNull(row.contact_type) ?? (isPrimary ? "primary" : "family"),
+    contact_type: contactType && RESIDENT_CONTACT_TYPES.has(contactType) ? contactType : (isPrimary ? "emergency_contact" : "other"),
     active: asBoolean(row.active, true),
   };
 }
@@ -381,9 +396,9 @@ async function processResidentContactsJob(supabase: ReturnType<typeof createClie
     if (action === "skip") { await markLedgerRowStatus(supabase, row, { status: "skipped", targetTable: CONTACT_TARGET_TABLE, targetId: row.target_id }); continue; }
     if (action === "update") {
       if (!row.target_id || !UUID_PATTERN.test(row.target_id)) { await markLedgerRowFailureForTable(supabase, row, CONTACT_TARGET_TABLE, `Row ${row.row_number}: update missing target_id`); continue; }
-      const { error: updErr } = await supabase.from("resident_contacts").update({ name: payload.name, relationship: payload.relationship, email: payload.email, phone: payload.phone, is_primary: payload.is_primary, contact_type: payload.contact_type, active: payload.active }).eq("id", row.target_id).eq("organization_id", job.organization_id);
-      if (updErr) { await markLedgerRowFailureForTable(supabase, row, CONTACT_TARGET_TABLE, `Row ${row.row_number}: ${updErr.message}`); continue; }
-      await markLedgerRowStatus(supabase, row, { status: "applied", targetTable: CONTACT_TARGET_TABLE, targetId: row.target_id }); continue;
+      const { data: updated, error: updErr } = await supabase.from("resident_contacts").update({ name: payload.name, relationship: payload.relationship, email: payload.email, phone: payload.phone, is_primary: payload.is_primary, contact_type: payload.contact_type, active: payload.active }).eq("id", row.target_id).eq("organization_id", job.organization_id).eq("resident_id", residentId).select("id").maybeSingle();
+      if (updErr || !updated) { await markLedgerRowFailureForTable(supabase, row, CONTACT_TARGET_TABLE, `Row ${row.row_number}: ${updErr?.message ?? "contact target was not found in resident scope"}`); continue; }
+      await markLedgerRowStatus(supabase, row, { status: "applied", targetTable: CONTACT_TARGET_TABLE, targetId: asStringOrNull(updated.id) ?? row.target_id }); continue;
     }
     const { data: created, error: createErr } = await supabase.from("resident_contacts").insert(payload).select("id").single();
     if (createErr) { await markLedgerRowFailureForTable(supabase, row, CONTACT_TARGET_TABLE, `Row ${row.row_number}: ${createErr.message}`); continue; }
@@ -410,9 +425,9 @@ async function processTrainingRecordsJob(supabase: ReturnType<typeof createClien
     if (action === "skip") { await markLedgerRowStatus(supabase, row, { status: "skipped", targetTable: TRAINING_TARGET_TABLE, targetId: row.target_id }); continue; }
     if (action === "update") {
       if (!row.target_id || !UUID_PATTERN.test(row.target_id)) { await markLedgerRowFailureForTable(supabase, row, TRAINING_TARGET_TABLE, `Row ${row.row_number}: update missing target_id`); continue; }
-      const { error: updErr } = await supabase.from("employee_training_records").update({ completion_date: payload.completion_date, due_date: payload.due_date, status: payload.status, completion_method: payload.completion_method, training_provider: payload.training_provider, notes: payload.notes, document_required: payload.document_required, approval_status: payload.approval_status }).eq("id", row.target_id).eq("organization_id", job.organization_id);
-      if (updErr) { await markLedgerRowFailureForTable(supabase, row, TRAINING_TARGET_TABLE, `Row ${row.row_number}: ${updErr.message}`); continue; }
-      await markLedgerRowStatus(supabase, row, { status: "applied", targetTable: TRAINING_TARGET_TABLE, targetId: row.target_id }); continue;
+      const { data: updated, error: updErr } = await supabase.from("employee_training_records").update({ completion_date: payload.completion_date, due_date: payload.due_date, status: payload.status, completion_method: payload.completion_method, training_provider: payload.training_provider, notes: payload.notes, document_required: payload.document_required, approval_status: payload.approval_status }).eq("id", row.target_id).eq("organization_id", job.organization_id).eq("employee_id", employeeId).select("id").maybeSingle();
+      if (updErr || !updated) { await markLedgerRowFailureForTable(supabase, row, TRAINING_TARGET_TABLE, `Row ${row.row_number}: ${updErr?.message ?? "training target was not found in employee scope"}`); continue; }
+      await markLedgerRowStatus(supabase, row, { status: "applied", targetTable: TRAINING_TARGET_TABLE, targetId: asStringOrNull(updated.id) ?? row.target_id }); continue;
     }
     const { data: created, error: createErr } = await supabase.from("employee_training_records").insert(payload).select("id").single();
     if (createErr) { await markLedgerRowFailureForTable(supabase, row, TRAINING_TARGET_TABLE, `Row ${row.row_number}: ${createErr.message}`); continue; }
@@ -437,9 +452,9 @@ async function processAssessmentsJob(supabase: ReturnType<typeof createClient>, 
     if (action === "skip") { await markLedgerRowStatus(supabase, row, { status: "skipped", targetTable: ASSESSMENT_TARGET_TABLE, targetId: row.target_id }); continue; }
     if (action === "update") {
       if (!row.target_id || !UUID_PATTERN.test(row.target_id)) { await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: update missing target_id`); continue; }
-      const { error: updErr } = await supabase.from("resident_assessment_forms").update({ reason: payload.reason, prepared_date: payload.prepared_date, content: payload.content }).eq("id", row.target_id).eq("organization_id", job.organization_id);
-      if (updErr) { await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: ${updErr.message}`); continue; }
-      await markLedgerRowStatus(supabase, row, { status: "applied", targetTable: ASSESSMENT_TARGET_TABLE, targetId: row.target_id }); continue;
+      const { data: updated, error: updErr } = await supabase.from("resident_assessment_forms").update({ reason: payload.reason, prepared_date: payload.prepared_date, content: payload.content }).eq("id", row.target_id).eq("organization_id", job.organization_id).eq("resident_id", residentId).select("id").maybeSingle();
+      if (updErr || !updated) { await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: ${updErr?.message ?? "assessment target was not found in resident scope"}`); continue; }
+      await markLedgerRowStatus(supabase, row, { status: "applied", targetTable: ASSESSMENT_TARGET_TABLE, targetId: asStringOrNull(updated.id) ?? row.target_id }); continue;
     }
     const { data: created, error: createErr } = await supabase.from("resident_assessment_forms").insert(payload).select("id").single();
     if (createErr) { await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: ${createErr.message}`); continue; }
