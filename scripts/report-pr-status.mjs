@@ -56,6 +56,7 @@ function summarizeChecks(runs) {
     const run = byName.get(name);
     if (!run) {
       lines.push(`${name}: (missing)`);
+      pending = true;
       continue;
     }
     const status = run.status === "completed" ? (run.conclusion ?? "unknown") : run.status;
