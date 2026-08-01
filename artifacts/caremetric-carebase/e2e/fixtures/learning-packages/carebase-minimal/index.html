@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"/><title>CareBase minimal package</title></head>
+<body>
+  <h1>CareBase minimal SCORM-shaped package</h1>
+  <p id="status">Waiting for CareBase init…</p>
+  <script src="./carebase/learning-runtime-bridge.js"></script>
+  <script>
+    CareBaseLearningRuntime.onReady(function () {
+      document.getElementById("status").textContent = "Connected";
+      CareBaseLearningRuntime.commit({ progress: 0.5, completionStatus: "incomplete" });
+      CareBaseLearningRuntime.complete({ successStatus: "passed" });
+    });
+  </script>
+</body>
+</html>
