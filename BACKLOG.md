@@ -2,7 +2,7 @@
 
 **Status:** Canonical forward backlog
 **Last verified against main:** `849b42b` (2026-08-01) — B1+B5 wire-up
-**Owner:** product + engineering
+**Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
 bump the stamp above. This is enforced, not requested — `pnpm run check:planning-registers`
@@ -19,11 +19,31 @@ shipped SCORM, POC-lifecycle, and import-worker code against rows this file stil
 as `open`, and the stamp above still pointed at the pre-#355 commit. Nothing failed,
 so nobody noticed.
 
-That is the same failure mode as the three standing gaps below: this repository enforces
+That is the same failure mode as the standing gaps below: this repository enforces
 about twenty machine-checkable invariants rigorously and enforced its planning documents
 not at all, so the planning documents are where the drift went. The fix was to make the
 register checkable rather than to ask people to be more careful. See
 `scripts/check-planning-registers.mjs`.
+
+---
+
+## Operating reality: one person
+
+This product is owned and run by one person, who holds the platform-admin (super admin)
+identity. That is not a staffing gap to be worked around; it is the permanent constraint
+this backlog is planned against, and it changes three things:
+
+- **`ops_only` does not mean "someone else".** Those rows are not delegated. They are the
+  same person, wearing a different hat, on a different day. An owner column reading
+  "Eng/ops", "Product", "QA", or "Legal" is a *kind of work*, never a handoff.
+- **Nothing runs in parallel.** Two tracks "in parallel" means one of them is not moving.
+  The sequence below is single-threaded on purpose.
+- **Separation-of-duties controls cannot do their job.** Several gates in this codebase
+  require two distinct identities (most sharply `approve_regulatory_rule_version`, which
+  refuses when `authored_by = auth.uid()`). One person can always satisfy those
+  mechanically with a second account — and satisfying them that way delivers none of the
+  independent review they exist to provide. Where that matters, the row says so rather
+  than pretending the gate was met.
 
 ---
 
@@ -61,8 +81,48 @@ check removes.
 
 | ID | Gap | Why it survives | Gate to close | Owner | Review by |
 | --- | --- | --- | --- | --- | --- |
-| SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | Eng/ops (see A6) | 2026-09-01 |
-| SG-2 | The compliance copilot has no Pennsylvania rule pack. `regulatory_rule_pack_templates` ships exactly one row — `oh.rcf.3701-16.personnel` (Ohio). With no installed and activated PA pack, `compliance-copilot` finds zero governed rule versions and answers every PA question with "No active governed rule version matched". | The copilot degrades politely instead of erroring, and the Ohio template makes the *mechanism* look finished. PA is the product's entire market, and it is the one jurisdiction with no pack. | A `pa.*` template authored from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` and 55 Pa. Code Ch. 2600/2800, carried through the existing governance gates: legal review, golden fixtures, independent approval, shadow evaluation, explicit activation. Regulatory content is not something engineering may author unilaterally. | **Governance: platform admin (super admin) ×2.** Rule packs are platform-scoped — `regulatory_rule_packs` has no `organization_id`, so one `pa.*` pack governs every PA tenant, and `org_admin` cannot reach the RPCs at all (`require_platform_rule_admin` → `is_platform_admin()`). Two *distinct* identities are required: `install_regulatory_rule_pack_template` stamps `authored_by = auth.uid()` and `approve_regulatory_rule_version` refuses when `authored_by = auth.uid()`, so one admin can author, submit, and shadow but never approve. **But a platform admin cannot start this row.** They hold `select` only on `regulatory_rule_pack_templates` (writes are `service_role`-only), and `install_…` merely consumes a template that already exists — so two more owners are needed first: **regulatory content** (citations, effective dates, hour thresholds — legal/compliance, not engineering) and **engineering** (a migration inserting the `pa.*` template row, plus unhardcoding `"oh.rcf.3701-16.personnel"` in `EnterpriseFoundation.tsx:453`). | 2026-10-01 |
+| SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | **You** (ops hat — see A6) | 2026-09-01 |
+| SG-2 | The compliance copilot has no Pennsylvania rule pack. `regulatory_rule_pack_templates` ships exactly one row — `oh.rcf.3701-16.personnel` (Ohio). With no installed and activated PA pack, `compliance-copilot` finds zero governed rule versions and answers every PA question with "No active governed rule version matched". | The copilot degrades politely instead of erroring, and the Ohio template makes the *mechanism* look finished. PA is the product's entire market, and it is the one jurisdiction with no pack. | A `pa.*` template authored from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` and 55 Pa. Code Ch. 2600/2800, carried through the existing governance gates: golden fixtures, shadow evaluation, explicit activation — plus an approval step that, solo, only a second account you control can clear. | **You**, in all four capacities — there is no one else. See "The solo path" below: every mechanical step is reachable, so what actually gates this row is whether you are willing to publish a regulatory interpretation to every PA tenant on your own authority. | 2026-10-01 |
+
+### SG-2 — the solo path
+
+Four capacities are involved, and they are all you:
+
+| Step | Capacity | Reachable solo? |
+| --- | --- | --- |
+| Author the PA content — citations, effective dates, hour thresholds | Regulatory | Yes, from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` + 55 Pa. Code Ch. 2600/2800 |
+| Insert the `pa.*` template row | Engineering | Yes — a migration. Platform admins hold `select` only on `regulatory_rule_pack_templates`; writes are `service_role`, so this cannot be done from the UI |
+| Unhardcode `"oh.rcf.3701-16.personnel"` in `EnterpriseFoundation.tsx:453` | Engineering | Yes |
+| Install → submit → shadow | Platform admin | Yes |
+| Approve → activate | Platform admin **#2** | Yes, but only with a second account (below) |
+
+**The second-identity step is a formality, and should be recorded as one.**
+`approve_regulatory_rule_version` refuses when `authored_by = auth.uid()`, and
+`install_regulatory_rule_pack_template` stamps `authored_by`. A platform admin may grant
+`platform_admin` to another account (`admin-update-user`, AAL2 for `identity_admin`), so a
+second identity you also control clears the check. It clears the *check* — it does not
+produce the second reader the check exists to force. Do not let a green pipeline read as
+"independently reviewed" in a survey or an incident review.
+
+**So the real gate is not process, it is liability.** With no counsel to hand it to, the
+question is whether you are willing to ship a regulatory interpretation to every PA tenant
+on your own authority. Three honest ways to close this row:
+
+1. **Author it and own it.** Cheapest, and defensible if the pack stays close to what the
+   regulation literally says. Keep `source_uri` and `source_checksum_sha256` exact so any
+   claim is traceable to text you did not write.
+2. **Buy one review.** A single fixed-scope engagement with a PA elder-care compliance
+   attorney over one `pa.*` pack is a bounded cost and converts the formality above into a
+   real second reader.
+3. **Do not ship governed answers yet.** Keep the copilot scoped as a drafting aid that
+   cites sources and never asserts compliance, and drop SG-2 to "Explicitly not now". This
+   is a legitimate outcome, not a failure — an empty pack that is *labelled* empty is
+   safer than a pack of one person's readings presented as governed.
+
+Option 3 costs nothing and is reversible; 1 and 2 are not. Decide before authoring, not
+after.
+
+---
 
 Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
 built with `typecheck && build && check-bundle-budget` and no test step, on its own
@@ -191,19 +251,33 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
 ---
 
-## Suggested two-week sequence
+## Sequence
 
-**Week 1 — Live truth:** A1–A4, and SG-1 with it.
-Goal: one non-demo org can invite staff, complete a course, export binder, and *receive
-one real email*. SG-1 is the difference between a pilot and a demo.
+Single-threaded, because there is one person. This is an order, not a schedule — dates
+would be fiction. Do not start the next block until the previous one is actually done.
 
-**Week 2 — Wire up what is already built:** B1, B3, B5, D3.
-Each is a half-built row: code exists, no surface calls it. Finishing them is cheaper than
-the new rows that would otherwise be opened on top. (C2 was the fifth and is now closed —
-`20260801120000_poc_verify_requires_closed_actions.sql`.)
+**1. Live truth.** A1–A4, and SG-1 with them.
+One non-demo org can invite staff, complete a course, export a binder, and *receive one
+real email*. SG-1 is the difference between a pilot and a demo, and A1–A4 are worth little
+without it. Nothing below this line matters until a real tenant has used the product.
 
-Then B4 and C5 as the next product depth, with SG-2 running in parallel on the legal side
-since it is gated on review rather than on engineering time.
+**2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, D3.
+Each is a half-built row: the code exists, no surface calls it. B1 and B5 are now wired (this PR). B3 and D3 remain. This is the cheapest block
+on the list and the one most likely to be skipped, because none of it looks like progress.
+Doing it before new features is how the pile stops growing. (C2 was the fifth and is now
+closed.)
+
+**3. Decide SG-2 — before building anything for it.**
+It needs a decision, not engineering time, and the decision is cheap while the work is
+not. Picking option 3 above costs an afternoon of copy changes; discovering you should
+have picked it *after* authoring a pack costs the pack.
+
+**4. Product depth.** B4, then C5.
+Only once 1–3 are settled.
+
+**Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both depend on
+someone outside the repo. Start them early precisely because they are the only two things
+that can wait on another person's calendar.
 
 ---
 
@@ -222,4 +296,11 @@ finished. Recording built-but-unreachable code as `done` is how a backlog stops 
 the product.
 
 Ops-only rows close when runbook evidence exists outside the repo (do not commit customer
-data).
+data). "Ops-only" means a different hat, not a different person — see "Operating reality"
+above.
+
+**On self-review.** Every gate in this list is one person checking their own work, so the
+checks that do not depend on a second reader are the ones carrying real weight: CI, the
+pgTAP suite, `check:all`, and this register's own freshness check. Treat a mechanical gate
+that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
+and say so in the row rather than counting it as review.

@@ -43,7 +43,13 @@ const budgets = {
   // a lazy chunk (HeroOverviewVideo) and adds only ~0.2 KiB of eager glue, which
   // tipped the already-maxed metric; this restores ~10% headroom over the 510.2
   // KiB measurement rather than shaving the budget to the feature.
-  largestJavaScript: 570 * 1024,
+  // Raised 570 -> 620 on the ui-ux-debt branch. main already measured 511.7 KiB
+  // (89.8%, a hair under the warning line) before that work; adopting the
+  // previously-unused DataTable put it in the shared chunk and the branch measured
+  // 520.7 KiB (91.3%), tipping an already-maxed metric. Both figures are from
+  // building each ref the same way. Restores ~19% headroom over the 520.7 KiB
+  // measurement so the next few branches do not each re-raise it.
+  largestJavaScript: 620 * 1024,
   // Measured 2811.9 KiB when this headroom policy was adopted; raised 3250 -> 3300
   // when the dietary food-safety operations and document-analyzer branches merged
   // together. Raised 3300 -> 3650 with the lucide-react tree-shaking change (icons
@@ -66,7 +72,11 @@ const budgets = {
   // buildCommand ends with this script (railway.json), so the first component that added a few
   // KiB of CSS would have failed the production build and blocked the deploy, not just a branch.
   // Restores ~12% headroom over the 156.1 KiB measurement rather than shaving to it.
-  totalCss: 176 * 1024,
+  // Raised 176 -> 190 on the ui-ux-debt branch: main measured 156.3 KiB (88.8%) and the branch
+  // 159.1 KiB (90.4%), the +2.8 KiB being DataTable's utility classes now that two pages render
+  // through it. Because this budget gates Railway's production build rather than only a branch,
+  // it is raised to ~19% headroom instead of the bare ~10%.
+  totalCss: 190 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.
   initialShell: 1250 * 1024,
 };
