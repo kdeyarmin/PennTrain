@@ -8,7 +8,6 @@ import {
   buildResidentContactPayload,
   buildTrainingRecordPayload,
   DURABLE_IMPORT_DOMAINS,
-  PENDING_DURABLE_DOMAINS,
 } from "./helpers.ts";
 
 const HEADERS = withCronCorsHeader({
@@ -167,22 +166,6 @@ function buildResidentPayload(normalizedRow: unknown, organizationId: string) {
 
 function isSupportedDurableDomain(domain: string): domain is typeof DURABLE_IMPORT_DOMAINS[number] {
   return DURABLE_IMPORT_DOMAINS.includes(domain as typeof DURABLE_IMPORT_DOMAINS[number]);
-}
-
-function getPendingDurableReason(domain: string): string | null {
-  if (!PENDING_DURABLE_DOMAINS.has(domain)) return null;
-  switch (domain) {
-    case "rooms":
-      return "Durable apply for rooms is pending: create_room_with_beds requires authenticated admission manager and is not granted to service_role.";
-    case "credentials":
-      return "Durable apply for credentials is pending: save_employee_credential requires auth.uid()/current_org_id and is granted only to authenticated.";
-    case "training_records":
-      return "Durable apply for training_records is pending: save_training_record requires auth.uid()/current_org_id and is granted only to authenticated.";
-    case "incidents":
-      return "Durable apply for incidents is pending: create_incident_atomic requires auth.uid(); durable service-role path cannot call it without a schema change.";
-    default:
-      return `Durable apply for ${domain} is pending: apply RPC requires authenticated caller.`;
-  }
 }
 
 async function recountAndPersistJobCounters(
@@ -817,6 +800,275 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
   return finalizeAndReleaseJob(supabase, job.id);
 }
 
+async function processRoomJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
+  const { data: rows, error: rowsErr } = await supabase
+    .from("data_import_rows")
+    .select("id,row_number,normalized_row,proposed_action,target_id")
+    .eq("job_id", job.id)
+    .eq("status", "valid")
+    .order("row_number", { ascending: true })
+    .limit(DOMAIN_BATCH_SIZE);
+  if (rowsErr) throw rowsErr;
+
+  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
+
+  for (const row of ledgerRows) {
+    const payload = buildRoomPayload(row.normalized_row);
+    const action = normalizeAction(row.proposed_action);
+
+    if (action === "update") {
+      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: update action is not supported for rooms; use create to upsert by room_number`);
+      continue;
+    }
+
+    if (action === "skip") {
+      await markLedgerRowStatus(supabase, row, {
+        status: "skipped",
+        targetTable: ROOM_TARGET_TABLE,
+        targetId: row.target_id,
+      });
+      continue;
+    }
+
+    const facilityId = asStringOrNull(payload.facility_id);
+    if (!facilityId || !UUID_PATTERN.test(facilityId)) {
+      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: facility_id is missing or invalid`);
+      continue;
+    }
+
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_room_with_beds", {
+      p_organization_id: job.organization_id,
+      p_facility_id: facilityId,
+      p_building_name: payload.building_name,
+      p_unit_name: payload.unit_name,
+      p_room_number: payload.room_number ?? "",
+      p_room_type: payload.room_type,
+      p_bed_count: payload.bed_count,
+      p_gender_restriction: "none",
+    });
+    if (rpcErr) {
+      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
+      continue;
+    }
+    await markLedgerRowStatus(supabase, row, {
+      status: "applied",
+      targetTable: ROOM_TARGET_TABLE,
+      targetId: asStringOrNull(rpcResult),
+    });
+  }
+
+  return finalizeAndReleaseJob(supabase, job.id);
+}
+
+async function processCredentialJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
+  const { data: rows, error: rowsErr } = await supabase
+    .from("data_import_rows")
+    .select("id,row_number,normalized_row,proposed_action,target_id")
+    .eq("job_id", job.id)
+    .eq("status", "valid")
+    .order("row_number", { ascending: true })
+    .limit(DOMAIN_BATCH_SIZE);
+  if (rowsErr) throw rowsErr;
+
+  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
+
+  for (const row of ledgerRows) {
+    const payload = buildCredentialPayload(row.normalized_row, job.organization_id);
+    const action = normalizeAction(row.proposed_action);
+
+    if (action === "skip") {
+      await markLedgerRowStatus(supabase, row, {
+        status: "skipped",
+        targetTable: CREDENTIAL_TARGET_TABLE,
+        targetId: row.target_id,
+      });
+      continue;
+    }
+
+    const employeeId = asStringOrNull(payload.employee_id);
+    if (!employeeId || !UUID_PATTERN.test(employeeId)) {
+      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: employee_id is missing or invalid`);
+      continue;
+    }
+
+    if (action === "update") {
+      if (!row.target_id || !UUID_PATTERN.test(row.target_id)) {
+        await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
+        continue;
+      }
+      const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_employee_credential", {
+        p_organization_id: job.organization_id,
+        p_credential_id: row.target_id,
+        p_payload: payload,
+      });
+      if (rpcErr) {
+        await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
+        continue;
+      }
+      await markLedgerRowStatus(supabase, row, {
+        status: "applied",
+        targetTable: CREDENTIAL_TARGET_TABLE,
+        targetId: asStringOrNull((rpcResult as { id?: string } | null)?.id),
+      });
+      continue;
+    }
+
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_employee_credential", {
+      p_organization_id: job.organization_id,
+      p_credential_id: null,
+      p_payload: payload,
+    });
+    if (rpcErr) {
+      await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
+      continue;
+    }
+    await markLedgerRowStatus(supabase, row, {
+      status: "applied",
+      targetTable: CREDENTIAL_TARGET_TABLE,
+      targetId: asStringOrNull((rpcResult as { id?: string } | null)?.id),
+    });
+  }
+
+  return finalizeAndReleaseJob(supabase, job.id);
+}
+
+async function processTrainingRecordJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
+  const { data: rows, error: rowsErr } = await supabase
+    .from("data_import_rows")
+    .select("id,row_number,normalized_row,proposed_action,target_id")
+    .eq("job_id", job.id)
+    .eq("status", "valid")
+    .order("row_number", { ascending: true })
+    .limit(DOMAIN_BATCH_SIZE);
+  if (rowsErr) throw rowsErr;
+
+  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
+
+  for (const row of ledgerRows) {
+    const payload = buildTrainingRecordPayload(row.normalized_row);
+    const action = normalizeAction(row.proposed_action);
+
+    if (action === "skip") {
+      await markLedgerRowStatus(supabase, row, {
+        status: "skipped",
+        targetTable: TRAINING_RECORD_TARGET_TABLE,
+        targetId: row.target_id,
+      });
+      continue;
+    }
+
+    const employeeId = asStringOrNull(payload.employee_id);
+    if (!employeeId || !UUID_PATTERN.test(employeeId)) {
+      await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: employee_id is missing or invalid`);
+      continue;
+    }
+
+    if (action === "update") {
+      if (!row.target_id || !UUID_PATTERN.test(row.target_id)) {
+        await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
+        continue;
+      }
+      const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_training_record", {
+        p_organization_id: job.organization_id,
+        p_record_id: row.target_id,
+        p_payload: payload,
+      });
+      if (rpcErr) {
+        await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
+        continue;
+      }
+      await markLedgerRowStatus(supabase, row, {
+        status: "applied",
+        targetTable: TRAINING_RECORD_TARGET_TABLE,
+        targetId: asStringOrNull((rpcResult as { id?: string } | null)?.id),
+      });
+      continue;
+    }
+
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_training_record", {
+      p_organization_id: job.organization_id,
+      p_record_id: null,
+      p_payload: payload,
+    });
+    if (rpcErr) {
+      await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
+      continue;
+    }
+    await markLedgerRowStatus(supabase, row, {
+      status: "applied",
+      targetTable: TRAINING_RECORD_TARGET_TABLE,
+      targetId: asStringOrNull((rpcResult as { id?: string } | null)?.id),
+    });
+  }
+
+  return finalizeAndReleaseJob(supabase, job.id);
+}
+
+async function processIncidentJob(supabase: ReturnType<typeof createClient>, job: ClaimedJob) {
+  const { data: rows, error: rowsErr } = await supabase
+    .from("data_import_rows")
+    .select("id,row_number,normalized_row,proposed_action,target_id")
+    .eq("job_id", job.id)
+    .eq("status", "valid")
+    .order("row_number", { ascending: true })
+    .limit(DOMAIN_BATCH_SIZE);
+  if (rowsErr) throw rowsErr;
+
+  const ledgerRows = (rows ?? []) as ImportLedgerRow[];
+
+  for (const row of ledgerRows) {
+    const payload = buildIncidentPayload(row.normalized_row);
+    const action = normalizeAction(row.proposed_action);
+
+    if (action === "update") {
+      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: update action is not supported for incidents`);
+      continue;
+    }
+
+    if (action === "skip") {
+      await markLedgerRowStatus(supabase, row, {
+        status: "skipped",
+        targetTable: INCIDENT_TARGET_TABLE,
+        targetId: row.target_id,
+      });
+      continue;
+    }
+
+    const facilityId = asStringOrNull(payload.facility_id);
+    if (!facilityId || !UUID_PATTERN.test(facilityId)) {
+      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: facility_id is missing or invalid`);
+      continue;
+    }
+
+    // Use row id as idempotency key when not provided
+    const idempotencyKey = `import:${job.id}:row:${row.id}`;
+
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_incident", {
+      p_organization_id: job.organization_id,
+      p_facility_id: facilityId,
+      p_incident_type: asStringOrNull(payload.incident_type) ?? "other",
+      p_occurred_at: asStringOrNull(payload.occurred_at),
+      p_resident_id: asStringOrNull(payload.resident_id),
+      p_resident_identifier_snapshot: asStringOrNull(payload.resident_identifier_snapshot),
+      p_location_detail: asStringOrNull(payload.location_detail),
+      p_narrative: asStringOrNull(payload.narrative) ?? "",
+      p_severity: asStringOrNull(payload.severity) ?? "low",
+      p_idempotency_key: idempotencyKey,
+    });
+    if (rpcErr) {
+      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
+      continue;
+    }
+    await markLedgerRowStatus(supabase, row, {
+      status: "applied",
+      targetTable: INCIDENT_TARGET_TABLE,
+      targetId: asStringOrNull((rpcResult as { id?: string } | null)?.id),
+    });
+  }
+
+  return finalizeAndReleaseJob(supabase, job.id);
+}
+
 Deno.serve(async (req) => {
   const authError = requireCronRequest(req, HEADERS);
   if (authError) return authError;
@@ -854,23 +1106,6 @@ Deno.serve(async (req) => {
     }> = [];
 
     for (const job of jobs) {
-      const pendingReason = getPendingDurableReason(job.domain);
-      if (pendingReason) {
-        const { error: releaseErr } = await supabase.rpc("release_data_import_job_claim", {
-          p_job_id: job.id,
-          p_status: "ready",
-          p_last_error: pendingReason,
-        });
-        results.push({
-          jobId: job.id,
-          domain: job.domain,
-          ok: !releaseErr,
-          releasedTo: "ready",
-          error: releaseErr?.message ?? pendingReason,
-        });
-        continue;
-      }
-
       if (!isSupportedDurableDomain(job.domain)) {
         const { error: releaseErr } = await supabase.rpc("release_data_import_job_claim", {
           p_job_id: job.id,
@@ -896,6 +1131,14 @@ Deno.serve(async (req) => {
           ? await processResidentContactJob(supabase, job)
           : job.domain === "assessments"
           ? await processAssessmentJob(supabase, job)
+          : job.domain === "rooms"
+          ? await processRoomJob(supabase, job)
+          : job.domain === "credentials"
+          ? await processCredentialJob(supabase, job)
+          : job.domain === "training_records"
+          ? await processTrainingRecordJob(supabase, job)
+          : job.domain === "incidents"
+          ? await processIncidentJob(supabase, job)
           : (() => {
             throw new Error(`Unsupported durable import domain: ${job.domain}`);
           })();
