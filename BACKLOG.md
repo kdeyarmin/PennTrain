@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `00b0faa` (2026-08-01) — enhancement wave PR #355
+**Last verified against main:** `67506b1` (2026-08-01) — UI/UX debt wave
 **Owner:** product + engineering
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -59,10 +59,10 @@ until someone closes the row, moves it to "Explicitly not now", or deliberately 
 — which puts a person on record for the decision. Letting it sit quietly is the option the
 check removes.
 
-| ID | Gap | Why it survives | Gate to close | Review by |
-| --- | --- | --- | --- | --- |
-| SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | 2026-09-01 |
-| SG-2 | The compliance copilot has no Pennsylvania rule pack. `regulatory_rule_pack_templates` ships exactly one row — `oh.rcf.3701-16.personnel` (Ohio). With no installed and activated PA pack, `compliance-copilot` finds zero governed rule versions and answers every PA question with "No active governed rule version matched". | The copilot degrades politely instead of erroring, and the Ohio template makes the *mechanism* look finished. PA is the product's entire market, and it is the one jurisdiction with no pack. | A `pa.*` template authored from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` and 55 Pa. Code Ch. 2600/2800, carried through the existing governance gates: legal review, golden fixtures, independent approval, shadow evaluation, explicit activation. Regulatory content is not something engineering may author unilaterally — this row needs a named legal owner before it can move. | 2026-10-01 |
+| ID | Gap | Why it survives | Gate to close | Owner | Review by |
+| --- | --- | --- | --- | --- | --- |
+| SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | Eng/ops (see A6) | 2026-09-01 |
+| SG-2 | The compliance copilot has no Pennsylvania rule pack. `regulatory_rule_pack_templates` ships exactly one row — `oh.rcf.3701-16.personnel` (Ohio). With no installed and activated PA pack, `compliance-copilot` finds zero governed rule versions and answers every PA question with "No active governed rule version matched". | The copilot degrades politely instead of erroring, and the Ohio template makes the *mechanism* look finished. PA is the product's entire market, and it is the one jurisdiction with no pack. | A `pa.*` template authored from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` and 55 Pa. Code Ch. 2600/2800, carried through the existing governance gates: legal review, golden fixtures, independent approval, shadow evaluation, explicit activation. Regulatory content is not something engineering may author unilaterally. | **Governance: platform admin (super admin) ×2.** Rule packs are platform-scoped — `regulatory_rule_packs` has no `organization_id`, so one `pa.*` pack governs every PA tenant, and `org_admin` cannot reach the RPCs at all (`require_platform_rule_admin` → `is_platform_admin()`). Two *distinct* identities are required: `install_regulatory_rule_pack_template` stamps `authored_by = auth.uid()` and `approve_regulatory_rule_version` refuses when `authored_by = auth.uid()`, so one admin can author, submit, and shadow but never approve. **But a platform admin cannot start this row.** They hold `select` only on `regulatory_rule_pack_templates` (writes are `service_role`-only), and `install_…` merely consumes a template that already exists — so two more owners are needed first: **regulatory content** (citations, effective dates, hour thresholds — legal/compliance, not engineering) and **engineering** (a migration inserting the `pa.*` template row, plus unhardcoding `"oh.rcf.3701-16.personnel"` in `EnterpriseFoundation.tsx:453`). | 2026-10-01 |
 
 Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
 built with `typecheck && build && check-bundle-budget` and no test step, on its own
@@ -97,7 +97,7 @@ The build command now runs the unit suite and the startup check.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM production hardening: adapter injection wired into the accept path, real vendor packages
-5. POC effectiveness gate blocking on task completion, not just reviewer notes
+5. Trainer quarantine UX reachable from a surface (dialog built, nothing imports it — B5)
 6. Durable import worker that survives a closed browser (claim layer exists; stored file does not)
 7. Home IA density (too many "homes")
 8. PA rule pack for the copilot — **SG-2**
@@ -132,7 +132,7 @@ Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCT
 | B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
 | B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
 | B4 | Bridge SCORM complete → training record / hour bucket | M | open | Credibility for §2600.65 |
-| B5 | Trainer package quarantine UX (reject reason + re-upload) | S | open | Accept/quarantine RPCs exist |
+| B5 | Trainer package quarantine UX (reject reason + re-upload) | S | in_progress | `QuarantinePackageDialog.tsx` exists; nothing imports it, so no trainer can reach it. Same shape as B1 — a built component that is not wired to a surface |
 
 ### Tier C — Plan of Correction depth
 
@@ -141,7 +141,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
 | C1 | Immutable POC versions on submit (append-only history) | M | done | #355. `plan_of_correction_versions` + `submit_plan_of_correction` + `list_plan_of_correction_versions` |
-| C2 | Effectiveness gate before `verified` | M | in_progress | #355 `verify_plan_of_correction` requires `corrected` first and ≥12 chars of effectiveness notes. It does **not** block on corrective-action completion, which was the other half of this row |
+| C2 | Effectiveness gate before `verified` | M | done | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
 | C3 | Auto work_items from open corrective actions | S | done | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day |
 | C4 | POC due-date escalation into manager digest / SMS | S | blocked | Blocked on SG-1 — no delivery rail for real orgs |
 | C5 | Entrance-conference ordered packet by reg number | M | open | Survey Day companion |
@@ -197,9 +197,10 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 Goal: one non-demo org can invite staff, complete a course, export binder, and *receive
 one real email*. SG-1 is the difference between a pilot and a demo.
 
-**Week 2 — Finish what #355 started:** B1, B3, C2, D3.
-Each of those is a half-built row today. Finishing them is cheaper than the three new
-rows that would otherwise be opened on top.
+**Week 2 — Wire up what is already built:** B1, B3, B5, D3.
+Each is a half-built row: code exists, no surface calls it. Finishing them is cheaper than
+the new rows that would otherwise be opened on top. (C2 was the fifth and is now closed —
+`20260801120000_poc_verify_requires_closed_actions.sql`.)
 
 Then B4 and C5 as the next product depth, with SG-2 running in parallel on the legal side
 since it is gated on review rather than on engineering time.
@@ -213,9 +214,12 @@ since it is gated on review rather than on engineering time.
 3. If user-visible: pilot or demo org exercise recorded
 4. This file updated in the same change set — enforced by `check:planning-registers`
 
-A row is `in_progress`, not `done`, when the mechanism exists but nothing calls it. #355
-produced four such rows (B1, B3, C2, D3); recording them as `done` is how a backlog stops
-describing the product.
+A row is `in_progress`, not `done`, when the mechanism exists but nothing calls it. This is
+the most common way this register goes wrong: #355 produced four such rows at the time
+(B1, B3, C2, D3), and the very next commit added a fifth by shipping
+`QuarantinePackageDialog.tsx` with no importer (B5). Of those, only C2 has since been
+finished. Recording built-but-unreachable code as `done` is how a backlog stops describing
+the product.
 
 Ops-only rows close when runbook evidence exists outside the repo (do not commit customer
 data).

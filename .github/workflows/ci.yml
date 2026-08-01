@@ -338,8 +338,14 @@ jobs:
   # changes without the register moving too — tests, fixtures, generated types, and docs
   # are exempt, so docs-only and test-only PRs never see it. Not path-filtered: the check
   # decides for itself whether the diff is register-affecting, and it takes seconds.
+  # Runs on pushes to main as well as pull requests, and that is not redundant. Gating
+  # only pull requests left main unprotected twice over: this job never fired for a direct
+  # push, and the tree-mode copy inside `application`'s check:all cannot help either
+  # because that job checks out shallow and the freshness rule skips itself when it cannot
+  # resolve the baseline commit. Four register-affecting commits reached main through that
+  # gap within hours of the check landing. Here the checkout is deep, so on main the tree
+  # mode runs for real and a drifted stamp turns the branch red.
   planning-registers:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -347,7 +353,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
-          # Diffs merge-base(base, HEAD)..HEAD, so it needs history and the base branch.
+          # PR mode diffs merge-base(base, HEAD)..HEAD and tree mode walks baseline..HEAD;
+          # both need real history, which is exactly what the shallow default cannot give.
           fetch-depth: 0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -355,7 +362,16 @@ jobs:
           node-version-file: .node-version
 
       - name: Fail if shipped work leaves the living backlog behind
-        run: node scripts/check-planning-registers.mjs --base "origin/${GITHUB_BASE_REF}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Did this change ship work without re-verifying the register?
+            node scripts/check-planning-registers.mjs --base "origin/${GITHUB_BASE_REF}"
+          else
+            # Is the stamp on main still true?
+            node scripts/check-planning-registers.mjs
+          fi
 
   secret-scan:
     runs-on: ubuntu-latest
