@@ -164,7 +164,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Access & security",
     question: "Are there guest portals for families and admissions?",
     answer:
-      "Yes. Time-limited guest links cover move-in packages, resident-agreement signing, designated-person access, and documentation-room evidence review — each scoped to exactly what you share, without creating a full user account.",
+      "Yes. Time-limited guest links cover move-in packages, resident-agreement signing, designated-person access, and documentation-room review — each scoped to exactly what you share, without creating a full user account.",
   },
   {
     category: "The questions owners actually ask",
