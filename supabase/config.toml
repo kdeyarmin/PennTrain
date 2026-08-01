@@ -335,3 +335,12 @@ verify_jwt = false
 # CRON_SHARED_SECRET Edge Function secret -- the same boundary as dispatch-notifications.
 [functions.send-regulatory-digest]
 verify_jwt = false
+
+[functions.bulk-import-assessments]
+verify_jwt = true
+
+[functions.package-survey-evidence-packet]
+verify_jwt = true
+
+[functions.survey-packet-guest-download]
+verify_jwt = false

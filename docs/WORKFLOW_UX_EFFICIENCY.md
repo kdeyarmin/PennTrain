@@ -127,3 +127,16 @@ Migration: `20260731220000_training_records_import_rollback.sql`.
 | **Survey evidence packet selection** | Packet item ledger + assemble manifest on Survey Day binder section. |
 
 Migrations: `20260731230000_residual_product_gaps_wave2.sql`.
+
+
+## Residual gaps complete (same day, follow-on)
+
+| Gap | What shipped |
+|---|---|
+| **Assessments import** | `bulk-import-assessments` active; dry-run/apply + 24h draft rollback |
+| **Survey packet zip + guest** | `package-survey-evidence-packet` builds zip; `issue_survey_packet_guest_grant` + guest download worker |
+| **SCORM register on upload** | CourseDetail SCORM zip → `learning-packages` + `register_learning_package` |
+| **Credential OCR** | Structured tool extraction when BAA+key set; 10-min cron; SLA queue already live |
+| **Pilot enroll** | Org search, optional enrollment expiry, enrollment filter |
+
+Migration: `20260731240000_residual_gaps_complete.sql`.

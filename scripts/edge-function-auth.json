@@ -202,5 +202,11 @@
       "user-jwt"
     ],
     "rationale": "Dual surface: OCR cron worker (pg_net, no JWT) and platform_admin kick whose JWT is verified inside the function."
+  },
+  "survey-packet-guest-download": {
+    "gates": [
+      "guest-token"
+    ],
+    "rationale": "Surveyors and inspectors download packaged survey evidence with a per-grant token; no account. The token is validated via resolve_survey_packet_guest_token (service-role)."
   }
 }
