@@ -1,5 +1,7 @@
 # CareBase platform enhancements — consolidated report
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 A comprehensive enhancement of CareMetric CareBase as the compliance, resident-care, and operations
 **command center** for Pennsylvania Personal Care Homes (PCH) and Assisted Living Facilities (ALF) —
 the system that *surrounds* the pharmacy eMAR rather than becoming one. No eMAR / medication

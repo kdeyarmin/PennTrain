@@ -1,5 +1,7 @@
 # Resident 360 Operating-Core Program Plan
 
+> **Not the backlog.** This is the Resident 360 program design; it stays current and is worth reading. What is actually open, and in what order, lives in [BACKLOG.md](./BACKLOG.md).
+
 - **Status:** Proposed program plan (not yet approved)
 - **Baseline:** `claude/resident-360-redesign-kq8udx` at `cb56f75`, reviewed July 25, 2026
 - **Scope:** the 25-item request to make Resident 360 the center of the application and finish the

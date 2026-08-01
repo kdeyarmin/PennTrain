@@ -1,5 +1,7 @@
 # Compliance Command Center
 
+> **Not the backlog.** This is the Command Center surface design; it stays current and is worth reading. What is actually open, and in what order, lives in [BACKLOG.md](./BACKLOG.md).
+
 A generic, user-definable facility **compliance requirement register** for CareMetric CareBase —
 the "compliance command center" that surrounds the pharmacy eMAR rather than duplicating it. This
 document is the Area 1 feature reference; the branch-wide consolidated report for all ten enhancement

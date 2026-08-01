@@ -123,14 +123,27 @@ select is(
 -- The anon-reachable SECURITY DEFINER surface is the guest/portal API. It is legitimate, but it
 -- bypasses RLS by definition, so it must not GROW without someone deciding to grow it. A count is
 -- the ratchet; adding a guest endpoint means updating this number deliberately.
+--
+-- 20260801065214 shrank this from 29 to 20: nine functions had no business holding the anon grant
+-- at all -- trigger functions (notify_support_ticket_message, notify_support_ticket_status_change,
+-- protect_background_check_profile_scope, protect_incident_creation_state,
+-- protect_incident_notification_completion, stamp_scope_from_credential,
+-- stamp_support_ticket_message, touch_support_ticket_on_message,
+-- validate_incident_staff_employee_scope) that only ever fire via the trigger mechanism and were
+-- never meant to be directly RPC-callable, plus admin/ticket-owner RPCs
+-- (admin_emergency_update_course_block, assert_course_version_publish_ready,
+-- get_course_version_publish_issues, publish_course_version, get_organization_billing_usage,
+-- save_enterprise_analytics_snapshot, close_own_support_ticket, reopen_own_support_ticket) that
+-- should only be reachable by `authenticated`. None are token-gated guest/portal flows, so the 29
+-- was never the correct ratchet value for the intended surface -- it just hadn't been caught yet.
 select is(
   (select count(*)::int
    from pg_catalog.pg_proc p
    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.prosecdef
      and has_function_privilege('anon', p.oid, 'execute')),
-  29,
-  'the anon-reachable SECURITY DEFINER surface is exactly the 29 known guest/portal entry points (includes resolve_safety_report_facility)'
+  20,
+  'the anon-reachable SECURITY DEFINER surface is exactly the 20 known guest/portal entry points (includes resolve_safety_report_facility)'
 );
 
 -- A SECURITY DEFINER function without a pinned search_path resolves unqualified names against the

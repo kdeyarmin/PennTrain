@@ -332,6 +332,31 @@ jobs:
       - name: Fail if an already-deployed migration file is edited
         run: node scripts/check-migration-immutability.mjs --base "origin/${GITHUB_BASE_REF}"
 
+  # BACKLOG.md is the single living register, and it went stale two commits after it was
+  # created because "please update it in the same PR" was a convention with nothing behind
+  # it. In PR mode this fails when application source, a migration, or an edge function
+  # changes without the register moving too — tests, fixtures, generated types, and docs
+  # are exempt, so docs-only and test-only PRs never see it. Not path-filtered: the check
+  # decides for itself whether the diff is register-affecting, and it takes seconds.
+  planning-registers:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          # Diffs merge-base(base, HEAD)..HEAD, so it needs history and the base branch.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Fail if shipped work leaves the living backlog behind
+        run: node scripts/check-planning-registers.mjs --base "origin/${GITHUB_BASE_REF}"
+
   secret-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -357,6 +382,7 @@ jobs:
       - application
       - database
       - migration-immutability
+      - planning-registers
       - secret-scan
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -370,10 +396,11 @@ jobs:
           app="${{ needs.application.result }}"
           db="${{ needs.database.result }}"
           mig="${{ needs.migration-immutability.result }}"
+          reg="${{ needs.planning-registers.result }}"
           sec="${{ needs.secret-scan.result }}"
           chg="${{ needs.changes.result }}"
 
-          echo "changes=$chg application=$app database=$db migration-immutability=$mig secret-scan=$sec"
+          echo "changes=$chg application=$app database=$db migration-immutability=$mig planning-registers=$reg secret-scan=$sec"
 
           if [ "$chg" != "success" ]; then
             echo "::error::changes job did not succeed ($chg)"
@@ -384,7 +411,7 @@ jobs:
             exit 1
           fi
 
-          for name_and_result in "application:$app" "database:$db" "migration-immutability:$mig"; do
+          for name_and_result in "application:$app" "database:$db" "migration-immutability:$mig" "planning-registers:$reg"; do
             name="${name_and_result%%:*}"
             result="${name_and_result##*:}"
             case "$result" in

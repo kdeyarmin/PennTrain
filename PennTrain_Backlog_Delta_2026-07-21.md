@@ -1,5 +1,7 @@
 # PennTrain backlog delta — 2026-07-21
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Companion report:** `PennTrain_Comprehensive_Review_2026-07-21.md`
 **Scope:** new work only. PT-001..PT-034 remain in the 2026-07-20 backlog and are not restated here. Follow-up commits on this branch fix prior PT-001, PT-004, PT-005, and PT-006A; those statuses are summarized in the companion report.
 

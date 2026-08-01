@@ -1,5 +1,7 @@
 # PennTrain / CareMetric CareBase comprehensive review
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Repository:** [kdeyarmin/PennTrain](https://github.com/kdeyarmin/PennTrain)<br>
 **Reviewed branch and commit:** `main` at `e027aef3a1fbafc4c6449a1d7dbe8358f8e4dc74`<br>
 **Review date:** July 20, 2026<br>

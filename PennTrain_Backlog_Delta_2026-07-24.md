@@ -1,5 +1,7 @@
 # PennTrain backlog delta — 2026-07-24
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Companion report:** `PennTrain_Comprehensive_Review_2026-07-24.md`
 **Scope:** new work only. PT-001..PT-050 remain in the prior backlogs; statuses for previously-open items are in the companion report. Numbering continues from PT-050.
 **Overlap notice:** open draft PR #265 independently fixes parts of PT-051 (migration rename) and several appendix nits; reconcile before starting work.

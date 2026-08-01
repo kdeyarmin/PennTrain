@@ -1,5 +1,7 @@
 # PennTrain feature backlog delta — 2026-07-21
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Companion report:** `PennTrain_Feature_Review_2026-07-21.md`
 **Scope:** new work only. PT-001..PT-034 remain in `PennTrain_Execution_Backlog_2026-07-20.md` (the **canonical PT registry** — see the companion report's erratum), PT-035..PT-042 remain in `PennTrain_Backlog_Delta_2026-07-21.md`, and E1..E29 remain in `ENHANCEMENT_REPORT.md`. None are restated here.
 **Conventions:** priorities (P0/P1/P2/P3) and effort (S/M/L) inherit the 2026-07-20 triage rules. Paths beginning with `src/` are beneath `artifacts/caremetric-carebase/`. Every item carries a `Prior art` line naming the nearest existing item and why this is not a duplicate.

@@ -1,5 +1,7 @@
 # CareBase Activation Wave — Delivery Progress
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Branch:** `codex/carebase-wave-b-activation`  
 **Base:** `codex/carebase-25-improvement-program`  
 **Updated:** July 29, 2026
