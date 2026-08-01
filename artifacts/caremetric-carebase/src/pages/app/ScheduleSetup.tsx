@@ -36,17 +36,28 @@ import { ArrowLeft, Plus, Trash2, Grid3x3, Clock, Star, ShieldCheck, UsersRound 
 import { useToast } from "@/hooks/use-toast";
 import { formatTimeLabel, WEEKDAY_LABELS } from "@/lib/scheduleDates";
 import { isSpecialCareUnit } from "@/lib/specialCareCompliance";
+import { QueryError } from "@/components/QueryState";
 
 export default function ScheduleSetup() {
   const __fieldIds = useId();
   const [, navigate] = useLocation();
   const { user } = useAuth();
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { data: facilities } = facilitiesQuery;
   const [facilityId, setFacilityId] = useState<string>("");
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
 
   return (
     <div className="space-y-6">
+      {/* Without the facility list there is no facility to set up, and every panel below
+          would render its own empty state as if setup were simply not started yet. */}
+      {facilitiesQuery.isError && (
+        <QueryError
+          what="your facilities"
+          error={facilitiesQuery.error}
+          onRetry={() => void facilitiesQuery.refetch()}
+        />
+      )}
       <div>
         <Button variant="ghost" size="sm" className="mb-1 -ml-2" onClick={() => navigate("/app/schedule")}>
           <ArrowLeft className="h-4 w-4 mr-1" />

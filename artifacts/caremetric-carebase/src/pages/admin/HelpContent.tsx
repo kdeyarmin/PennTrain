@@ -21,6 +21,7 @@ import {
 import type { Json } from "@/lib/database.types";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { QueryError } from "@/components/QueryState";
 
 type ArticleType = "faq" | "job_aide";
 
@@ -99,7 +100,7 @@ export default function HelpContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [tab, setTab] = useState<ArticleType>("faq");
-  const { data, isLoading } = useListHelpArticles(tab);
+  const { data, isLoading, isError, error, refetch } = useListHelpArticles(tab);
   const articles = data ?? [];
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -203,7 +204,9 @@ export default function HelpContent() {
         <TabsContent value={tab} className="mt-4">
           <Card>
             <CardContent className="pt-6">
-              {isLoading ? (
+              {isError ? (
+                <QueryError what="help articles" error={error} onRetry={() => void refetch()} />
+              ) : isLoading ? (
                 <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>
               ) : !articles.length ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No articles yet.</p>

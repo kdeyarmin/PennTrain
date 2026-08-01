@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 
 const today = () => facilityToday();
 const ago = () => toLocalIsoDate(new Date(Date.now() - 30 * 864e5));
@@ -66,6 +67,10 @@ export default function QapiDashboard() {
     facilityId: fac || undefined,
   });
   const metrics = useQapiSourceMetrics(fac, ago(), today());
+  // The facility picker, project list, and source metrics all render from these. Any of them
+  // failing would otherwise show as "no facilities" / "no projects" / zeroed metrics.
+  const dataQueries = [facilities, profiles, projects, metrics];
+  const loadFailure = dataQueries.find((query) => query.isError);
   const create = useCreateQapiProject();
   const [title, setTitle] = useState(""),
     [problem, setProblem] = useState(""),
@@ -125,6 +130,13 @@ export default function QapiDashboard() {
           New QAPI project
         </Button>
       </div>
+      {loadFailure && (
+        <QueryError
+          what="QAPI projects and source metrics"
+          error={loadFailure.error}
+          onRetry={() => void Promise.all(dataQueries.map((query) => query.refetch()))}
+        />
+      )}
       <Card>
         <CardContent className="pt-6">
           <Select value={fac} onValueChange={setFac}>

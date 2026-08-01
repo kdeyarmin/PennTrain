@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useTrainingTypes";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { QueryError } from "@/components/QueryState";
 
 const FACILITY_SCOPE_OPTIONS = [
   { value: "BOTH", label: "All facility types" },
@@ -59,7 +60,7 @@ export default function TrainingTypes() {
   // catalog, same pattern as Settings.tsx.
   const canManage = user?.role === "org_admin";
 
-  const { data: trainingTypes, isLoading } = useListTrainingTypes();
+  const { data: trainingTypes, isLoading, isError, error, refetch } = useListTrainingTypes();
   const createType = useCreateTrainingType();
   const updateType = useUpdateTrainingType();
 
@@ -170,7 +171,9 @@ export default function TrainingTypes() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="your training types" error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
             <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
           ) : orgTypes.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
@@ -189,7 +192,9 @@ export default function TrainingTypes() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="the system training types" error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
             <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
           ) : (
             <div className="space-y-2">{systemTypes.map(t => renderRow(t, false))}</div>

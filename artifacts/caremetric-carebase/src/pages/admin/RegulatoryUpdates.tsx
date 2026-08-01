@@ -33,6 +33,7 @@ import {
   type AdminRegulatoryUpdate,
   type RegulatoryUpdateInput,
 } from "@/hooks/useRegulatoryUpdates";
+import { QueryError } from "@/components/QueryState";
 
 interface FormState {
   slug: string;
@@ -119,7 +120,7 @@ const STATUS_BADGE_VARIANT: Record<RegulatoryUpdateStatus, "default" | "outline"
 export default function RegulatoryUpdates() {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data, isLoading } = useAdminRegulatoryUpdates();
+  const { data, isLoading, isError, error, refetch } = useAdminRegulatoryUpdates();
   const updates = data ?? [];
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -220,7 +221,9 @@ export default function RegulatoryUpdates() {
 
       <Card>
         <CardContent className="pt-6">
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="regulatory updates" error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}</div>
           ) : !updates.length ? (
             <p className="text-sm text-muted-foreground text-center py-8">No regulatory updates yet. Create the first one.</p>

@@ -10,10 +10,13 @@ import { useListIncidents } from "@/hooks/useIncidents";
 import { useListResidentChangeEvents } from "@/hooks/useResidentChangeEvents";
 import { humanize } from "@/lib/utils";
 import type { ResidentTabProps } from "./types";
+import { QueryError } from "@/components/QueryState";
 
 export default function IncidentsChangesTab({ resident, canManage, isTrackedFacilityType }: ResidentTabProps) {
-  const { data: incidents, isLoading: incidentsLoading } = useListIncidents({ residentId: resident.id });
-  const { data: changeEvents, isLoading: changesLoading } = useListResidentChangeEvents({ residentId: resident.id });
+  const incidentsQuery = useListIncidents({ residentId: resident.id });
+  const changeEventsQuery = useListResidentChangeEvents({ residentId: resident.id });
+  const { data: incidents, isLoading: incidentsLoading } = incidentsQuery;
+  const { data: changeEvents, isLoading: changesLoading } = changeEventsQuery;
   const [showChangeDialog, setShowChangeDialog] = useState(false);
 
   return (
@@ -33,7 +36,9 @@ export default function IncidentsChangesTab({ resident, canManage, isTrackedFaci
           </div>
         </CardHeader>
         <CardContent>
-          {changesLoading ? (
+          {changeEventsQuery.isError ? (
+            <QueryError what="condition changes" error={changeEventsQuery.error} onRetry={() => void changeEventsQuery.refetch()} />
+          ) : changesLoading ? (
             <Skeleton className="h-10" />
           ) : !changeEvents?.length ? (
             <p className="text-sm text-muted-foreground">No condition changes recorded for this resident.</p>
@@ -62,7 +67,9 @@ export default function IncidentsChangesTab({ resident, canManage, isTrackedFaci
           <CardDescription>Reportable events recorded against this resident.</CardDescription>
         </CardHeader>
         <CardContent>
-          {incidentsLoading ? (
+          {incidentsQuery.isError ? (
+            <QueryError what="this resident's incidents" error={incidentsQuery.error} onRetry={() => void incidentsQuery.refetch()} />
+          ) : incidentsLoading ? (
             <Skeleton className="h-10" />
           ) : !incidents?.length ? (
             <p className="text-sm text-muted-foreground">No incidents recorded for this resident.</p>

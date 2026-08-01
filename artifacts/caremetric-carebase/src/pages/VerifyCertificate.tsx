@@ -2,12 +2,13 @@ import { useParams } from "wouter";
 import { useVerifyCertificate } from "@/hooks/useCertificates";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, ShieldX, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RefreshCw, ShieldCheck, ShieldX, XCircle } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 
 export default function VerifyCertificate() {
   const { slug } = useParams<{ slug: string }>();
-  const { data: result, isLoading } = useVerifyCertificate(slug);
+  const { data: result, isLoading, isError, refetch } = useVerifyCertificate(slug);
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
@@ -32,6 +33,25 @@ export default function VerifyCertificate() {
               <div className="h-6 bg-muted animate-pulse rounded w-2/3 mx-auto" />
               <div className="h-4 bg-muted animate-pulse rounded w-1/2 mx-auto" />
               <div className="h-4 bg-muted animate-pulse rounded w-1/3 mx-auto" />
+            </CardContent>
+          ) : isError ? (
+            // Never fall through to "not found" on a fetch failure -- telling a member of the
+            // public that a real certificate does not exist is worse than saying we couldn't check.
+            <CardContent className="py-10">
+              <div className="flex flex-col items-center text-center gap-3" role="alert">
+                <AlertCircle className="h-10 w-10 text-destructive" />
+                <div>
+                  <p className="font-semibold text-foreground">Couldn't verify this certificate</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    We couldn't reach the verification service. This does not mean the certificate is
+                    invalid — check your connection and try again.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  Try again
+                </Button>
+              </div>
             </CardContent>
           ) : !result ? (
             <CardContent className="py-10">

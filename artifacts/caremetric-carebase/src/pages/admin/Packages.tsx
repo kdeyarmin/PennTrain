@@ -43,6 +43,7 @@ import {
   isFlatBillingPrice,
   selectPrimaryBillingPrice,
 } from "@/lib/billingCatalog";
+import { QueryError } from "@/components/QueryState";
 
 // Expand a package's explicitly enabled modules so the all-inclusive CareBase bundle implies its
 // bundled operational pillars, mirroring withModuleDependencies used by the runtime access layer.
@@ -215,8 +216,10 @@ function metricIcon(metric: string) {
 export default function Packages() {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: packages, isLoading } = useListPackages();
-  const { data: prices, isLoading: pricesLoading } = useListPackageBillingPrices();
+  const packagesQuery = useListPackages();
+  const pricesQuery = useListPackageBillingPrices();
+  const { data: packages, isLoading } = packagesQuery;
+  const { data: prices, isLoading: pricesLoading } = pricesQuery;
   const { mutate: createPackage, isPending: creating } = useCreatePackage();
   const { mutate: updatePackage, isPending: updating } = useUpdatePackage();
   const { mutate: deletePackage, isPending: deleting } = useDeletePackage();
@@ -451,7 +454,9 @@ export default function Packages() {
       <Card>
         <CardHeader><CardTitle>Subscription packages</CardTitle></CardHeader>
         <CardContent>
-          {isLoading ? (
+          {packagesQuery.isError ? (
+            <QueryError what="subscription packages" error={packagesQuery.error} onRetry={() => void packagesQuery.refetch()} />
+          ) : isLoading ? (
             <div className="space-y-3">{[...Array(3)].map((_, index) => <div key={index} className="h-14 animate-pulse rounded-md bg-muted" />)}</div>
           ) : !packages?.length ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -518,7 +523,9 @@ export default function Packages() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {pricesLoading ? <div className="h-24 animate-pulse rounded-md bg-muted" /> : !prices?.length ? (
+          {pricesQuery.isError ? (
+            <QueryError what="billing configurations" error={pricesQuery.error} onRetry={() => void pricesQuery.refetch()} />
+          ) : pricesLoading ? <div className="h-24 animate-pulse rounded-md bg-muted" /> : !prices?.length ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No billing configurations yet.</p>
           ) : (
             <Table>

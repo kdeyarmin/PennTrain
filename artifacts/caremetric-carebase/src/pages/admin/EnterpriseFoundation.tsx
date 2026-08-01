@@ -38,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ENTERPRISE_OPERATION_GUARDRAILS, summarizeSetupProgress, type GuidedSetupItem } from "@/lib/enterpriseOperations";
+import { QueryError } from "@/components/QueryState";
 
 function isScalar(value: EnterpriseJson): value is string | number | boolean | null {
   return value === null || ["string", "number", "boolean"].includes(typeof value);
@@ -470,7 +471,9 @@ function RegulatoryExpansionPanel() {
         </div>
         <div>
           <p className="mb-2 text-sm font-medium">Detected official-source changes</p>
-          {proposals.isLoading ? <p className="text-sm text-muted-foreground">Loading source feed...</p> : proposals.data?.length ? (
+          {proposals.isError ? (
+            <QueryError what="detected source changes" error={proposals.error} onRetry={() => void proposals.refetch()} />
+          ) : proposals.isLoading ? <p className="text-sm text-muted-foreground">Loading source feed...</p> : proposals.data?.length ? (
             <div className="space-y-2">{proposals.data.map((proposal) => {
               const snapshot = proposal.regulatory_source_snapshots as { fetched_at?: string; regulatory_update_sources?: { source_key?: string; source_uri?: string } | null } | null;
               const summary = proposal.change_summary as {
@@ -1227,9 +1230,13 @@ export default function EnterpriseFoundation() {
       )}
 
       {!data ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {TABS.map((tab) => <div key={tab.value} className="h-32 animate-pulse rounded-xl bg-muted" />)}
-        </div>
+        // The alert above already explains a failure; keeping the shimmer running underneath
+        // it reads as "still loading" and invites an indefinite wait.
+        foundation.isError ? null : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {TABS.map((tab) => <div key={tab.value} className="h-32 animate-pulse rounded-xl bg-muted" />)}
+          </div>
+        )
       ) : (
         <Tabs defaultValue="scope" className="space-y-5">
           <TabsList className="h-auto flex-wrap justify-start">

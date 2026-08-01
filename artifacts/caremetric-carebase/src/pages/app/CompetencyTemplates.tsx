@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck, Search, Plus, Pencil, Trash2, ListChecks, ArrowUp, ArrowDown, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { QueryError } from "@/components/QueryState";
 
 interface TemplateFormData {
   name: string;
@@ -47,7 +48,7 @@ function ManageItemsDialog({ template, onClose }: { template: CompetencyTemplate
   const [deleteItem, setDeleteItem] = useState<CompetencyTemplateItem | null>(null);
   const [reordering, setReordering] = useState(false);
 
-  const { data: items, isLoading } = useListCompetencyTemplateItems(template?.id);
+  const { data: items, isLoading, isError, error, refetch } = useListCompetencyTemplateItems(template?.id);
   const { mutate: addItem, isPending: adding } = useAddCompetencyTemplateItem();
   const { mutateAsync: updateItem } = useUpdateCompetencyTemplateItem();
   const { mutate: removeItem, isPending: removing } = useRemoveCompetencyTemplateItem();
@@ -101,7 +102,9 @@ function ManageItemsDialog({ template, onClose }: { template: CompetencyTemplate
           <DialogTitle>Checklist Items — {template?.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          {isLoading ? (
+          {isError ? (
+            <QueryError what="this checklist" error={error} onRetry={() => void refetch()} />
+          ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
             </div>
@@ -203,7 +206,8 @@ export default function CompetencyTemplates() {
   // page (see App.tsx's ORG_ROLES) but is read-only here, same as on Courses.
   const canManage = user?.role === "org_admin" || user?.role === "trainer";
 
-  const { data: templates, isLoading } = useListCompetencyTemplates();
+  const templatesQuery = useListCompetencyTemplates();
+  const { data: templates, isLoading } = templatesQuery;
   const { mutate: createTemplate, isPending: creating } = useCreateCompetencyTemplate();
   const { mutate: updateTemplate, isPending: updatingTemplate } = useUpdateCompetencyTemplate();
   const { mutate: deleteTemplateMutate, isPending: deleting } = useDeleteCompetencyTemplate();
@@ -286,7 +290,15 @@ export default function CompetencyTemplates() {
           </div>
         </div>
 
-        {isLoading ? (
+        {templatesQuery.isError ? (
+          <div className="p-6">
+            <QueryError
+              what="competency templates"
+              error={templatesQuery.error}
+              onRetry={() => void templatesQuery.refetch()}
+            />
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>

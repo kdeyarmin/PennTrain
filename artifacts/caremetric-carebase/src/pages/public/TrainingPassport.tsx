@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
+import { QueryError } from "@/components/QueryState";
 
 export default function TrainingPassport() {
   const { slug } = useParams<{ slug: string }>();
@@ -21,7 +22,12 @@ export default function TrainingPassport() {
     <div className="min-h-screen bg-slate-50 px-4 py-8 print:bg-white">
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden"><div className="flex items-center gap-3"><LogoMark className="h-12 w-12" /><div><BrandName className="font-bold" /><p className="text-sm text-muted-foreground">Portable training passport</p></div></div><Button onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Save as PDF</Button></div>
-        {passport.isLoading ? <Card><CardContent className="py-16 text-center text-muted-foreground">Loading passport…</CardContent></Card> : !passport.data ? (
+        {passport.isLoading ? <Card><CardContent className="py-16 text-center text-muted-foreground">Loading passport…</CardContent></Card> : passport.isError ? (
+          // "Revoked, replaced, or does not exist" is a claim about the link. A failed fetch
+          // is a claim about us -- saying the first when the second happened sends the holder
+          // back to their employer for a replacement they don't need.
+          <Card><CardContent className="py-10"><QueryError what="this training passport" error={passport.error} onRetry={() => void passport.refetch()} /></CardContent></Card>
+        ) : !passport.data ? (
           <Card><CardContent className="flex flex-col items-center gap-3 py-16 text-center"><ShieldX className="h-10 w-10 text-muted-foreground" /><h1 className="text-xl font-semibold">Passport unavailable</h1><p className="max-w-md text-sm text-muted-foreground">This link was revoked, replaced, or does not exist.</p></CardContent></Card>
         ) : (
           <>

@@ -22,6 +22,7 @@ import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/li
 import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { supabase } from "@/lib/supabase";
+import { QueryError } from "@/components/QueryState";
 
 const CE_SOURCE_OPTIONS = ["In-Service", "Conference", "Webinar", "Online Course", "Other"];
 const ROLLING_WINDOW_HOURS_REQUIRED = 24;
@@ -88,12 +89,20 @@ function DocumentUploadRow({
 function AdministratorProfileEditor({ profileId, organizationId }: { profileId: string; organizationId: string }) {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: profile } = useGetAdministratorProfileByProfileId(profileId);
+  const profileQuery = useGetAdministratorProfileByProfileId(profileId);
+  const { data: profile } = profileQuery;
   const { mutateAsync: upsertProfile, isPending: savingProfile } = useUpsertAdministratorProfile();
-  const { data: ceEntries } = useListAdministratorCeEntries(profile?.id);
+  const ceEntriesQuery = useListAdministratorCeEntries(profile?.id);
+  const { data: ceEntries } = ceEntriesQuery;
   const { mutateAsync: addCeEntry, isPending: addingCe } = useAddAdministratorCeEntry();
   const { mutateAsync: deleteCeEntry } = useDeleteAdministratorCeEntry();
-  const { data: facilities } = useListFacilities();
+  const facilitiesQuery = useListFacilities();
+  const { data: facilities } = facilitiesQuery;
+  // The rule-pack badge reports whether the administrator meets PCH/ALF qualification.
+  // Missing CE hours because of a failed fetch would render as "not ready" and send
+  // someone chasing training that is already on file.
+  const qualificationQueries = [profileQuery, ceEntriesQuery, facilitiesQuery];
+  const qualificationFailure = qualificationQueries.find((query) => query.isError);
 
   const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "" });
   const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
@@ -166,6 +175,13 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
 
   return (
     <div className="space-y-6">
+      {qualificationFailure && (
+        <QueryError
+          what="this administrator's qualification record"
+          error={qualificationFailure.error}
+          onRetry={() => void Promise.all(qualificationQueries.map((query) => query.refetch()))}
+        />
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3 flex-wrap">

@@ -19,6 +19,7 @@ import { ResidentAdministrativeMaster } from "@/components/residents/ResidentAdm
 import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
 import { formatDateOnly, getComplianceFormLabel } from "@/lib/residentCompliance";
 import type { ResidentTabProps } from "./types";
+import { QueryError } from "@/components/QueryState";
 
 type SupportRow = Partial<Pick<ResidentInformalSupport, "id">> & { name: string; relationship: string; phone: string };
 
@@ -27,10 +28,18 @@ const emptySupportRow = (): SupportRow => ({ name: "", relationship: "", phone: 
 export default function OverviewTab({ resident, facility, canManage, canDelete, isTrackedFacilityType }: ResidentTabProps) {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: items } = useListResidentComplianceItems(resident.id);
-  const { data: documents } = useListResidentDocuments(resident.id);
-  const { data: informalSupports, isLoading: informalSupportsLoading } = useListResidentInformalSupports(resident.id);
-  const { data: administrativeMaster } = useResidentAdministrativeMaster(resident.id);
+  const itemsQuery = useListResidentComplianceItems(resident.id);
+  const documentsQuery = useListResidentDocuments(resident.id);
+  const informalSupportsQuery = useListResidentInformalSupports(resident.id);
+  const administrativeMasterQuery = useResidentAdministrativeMaster(resident.id);
+  const { data: items } = itemsQuery;
+  const { data: documents } = documentsQuery;
+  const { data: informalSupports, isLoading: informalSupportsLoading } = informalSupportsQuery;
+  const { data: administrativeMaster } = administrativeMasterQuery;
+  // The move-in readiness packet counts blockers from these lists. A failed load looks
+  // identical to "nothing on file", which would read as blockers that aren't real.
+  const overviewQueries = [itemsQuery, documentsQuery, informalSupportsQuery, administrativeMasterQuery];
+  const overviewFailure = overviewQueries.find((query) => query.isError);
   const upsertSupport = useUpsertResidentInformalSupport();
   const deleteSupport = useDeleteResidentInformalSupport();
   const saveAdministrativeMaster = useSaveResidentAdministrativeMaster();
@@ -147,6 +156,13 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
 
   return (
     <div className="space-y-6">
+      {overviewFailure && (
+        <QueryError
+          what="this resident's overview"
+          error={overviewFailure.error}
+          onRetry={() => void Promise.all(overviewQueries.map((query) => query.refetch()))}
+        />
+      )}
       {isTrackedFacilityType && (
         <Card>
           <CardHeader>

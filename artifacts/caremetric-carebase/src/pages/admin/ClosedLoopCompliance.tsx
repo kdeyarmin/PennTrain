@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
+import { QueryError } from "@/components/QueryState";
 
 const label = (value: string) =>
   value.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\w/g, character => character.toUpperCase());
@@ -56,11 +57,20 @@ export default function ClosedLoopCompliance() {
   if (query.isLoading) {
     return <div className="flex min-h-[45vh] items-center justify-center"><RefreshCw className="h-6 w-6 animate-spin" /></div>;
   }
+  if (query.isError) {
+    return (
+      <QueryError
+        what="the closed-loop compliance control plane"
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
+    );
+  }
   if (!query.data) {
     return (
-      <Alert variant="destructive">
+      <Alert>
         <AlertTitle>Control plane unavailable</AlertTitle>
-        <AlertDescription>{query.error instanceof Error ? query.error.message : "Unable to load."}</AlertDescription>
+        <AlertDescription>No closed-loop compliance snapshot was returned for this tenant.</AlertDescription>
       </Alert>
     );
   }

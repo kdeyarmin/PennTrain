@@ -8,6 +8,7 @@ import {
 } from "@/hooks/useLearningRuntime";
 import { useToast } from "@/hooks/use-toast";
 import type { EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
+import { QueryError } from "@/components/QueryState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,8 +54,11 @@ function StandardsPackagesPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {packages.isError && (
+            <QueryError what="learning packages" error={packages.error} onRetry={() => void packages.refetch()} />
+          )}
           {packages.isLoading && <p className="text-sm text-muted-foreground">Loading packages…</p>}
-          {!packages.isLoading && rows.length === 0 && (
+          {!packages.isLoading && !packages.isError && rows.length === 0 && (
             <p className="text-sm text-muted-foreground">No packages registered yet. Upload a SCORM zip on a course block, then register/accept it here or via course authoring.</p>
           )}
           {rows.map((pkg) => (

@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreateCopilotActionDraft } from "@/hooks/useProductValueOperatingSystem";
 import { VoiceAssistantPanel } from "@/components/voice/VoiceAssistantPanel";
 import { voiceAssistantEnabled } from "@/lib/voice/voiceGatewayConfig";
+import { QueryError } from "@/components/QueryState";
 
 const INTENTS: Array<{ value: CopilotIntent; label: string; question: string; help: string }> = [
   { value: "employee_blocked", label: "Why is this employee blocked?", question: "Explain the latest recorded scheduling eligibility decision for this employee.", help: "Uses recorded blocks, warnings, overrides, and decision checksum only." },
@@ -121,7 +122,8 @@ export default function RegulatoryCopilot() {
   const [citationQuery, setCitationQuery] = useState("");
   const [asOfDate, setAsOfDate] = useState(facilityToday());
 
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { data: facilities } = facilitiesQuery;
   // facilities_select RLS is org-wide, but the copilot's/voice assistant's
   // underlying data tables are ASSIGNMENT-scoped for facility_manager: an
   // unassigned facility would answer with confident zeros ("nothing due")
@@ -129,15 +131,18 @@ export default function RegulatoryCopilot() {
   // to assigned facilities for that role; org_admin / auditor /
   // platform_admin read org-wide and keep the full list.
   const isFacilityManager = user?.role === "facility_manager";
-  const { data: myAssignments } = useListMyFacilityAssignments(user?.id, isFacilityManager);
+  const myAssignmentsQuery = useListMyFacilityAssignments(user?.id, isFacilityManager);
+  const { data: myAssignments } = myAssignmentsQuery;
   const selectableFacilities = useMemo(() => {
     if (!isFacilityManager) return facilities ?? [];
     const assignedIds = new Set((myAssignments ?? []).map((assignment) => assignment.facility_id));
     return (facilities ?? []).filter((facility) => assignedIds.has(facility.id));
   }, [facilities, isFacilityManager, myAssignments]);
   const activeFacilityId = facilityId || selectableFacilities[0]?.id || "";
-  const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined });
-  const { data: violations } = useListViolations({ facilityId: activeFacilityId || undefined });
+  const employeesQuery = useListEmployees({ facilityId: activeFacilityId || undefined });
+  const { data: employees } = employeesQuery;
+  const violationsQuery = useListViolations({ facilityId: activeFacilityId || undefined });
+  const { data: violations } = violationsQuery;
   const history = useComplianceCopilotHistory(activeFacilityId || undefined);
   const dispositions = useCopilotDispositions(activeFacilityId || undefined);
   const ask = useAskComplianceCopilot();
@@ -169,8 +174,21 @@ export default function RegulatoryCopilot() {
     onError: (error: Error) => toast({ title: "Compliance copilot could not answer", description: error.message, variant: "destructive" }),
   });
 
+  // Same hazard the facility-scoping comment above describes: if the context these
+  // pickers are built from fails to load, the copilot answers from a narrower world
+  // than the user thinks and reads as confident zeros.
+  const contextQueries = [facilitiesQuery, myAssignmentsQuery, employeesQuery, violationsQuery];
+  const contextFailure = contextQueries.find((query) => query.isError);
+
   return (
     <div className="space-y-6">
+      {contextFailure && (
+        <QueryError
+          what="the copilot's facility context"
+          error={contextFailure.error}
+          onRetry={() => void Promise.all(contextQueries.map((query) => query.refetch()))}
+        />
+      )}
       <div>
         <div className="flex items-center gap-2"><Bot className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Citation-Backed Regulatory Copilot</h1></div>
         <p className="text-muted-foreground">Read-only synthesis over governed rule versions and facility-scoped CareBase documentation. Every answer carries its source, effective date, rule-pack version, documentation links, gaps, and authority label.</p>
