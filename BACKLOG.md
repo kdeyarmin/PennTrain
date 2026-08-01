@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `2951ab8` (2026-08-01) — marketing suite documentation terminology + Landing design fidelity (#377)
+**Last verified against main:** `74a3af4` (2026-08-01) — durable import worker now applies rooms / credentials / residents from ledger
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -138,6 +138,11 @@ CareBase Landing v2 design fidelity (Prove the work., Education spend, Guest doc
 portals) with regression test; pricing remains single-source from marketingPricing.ts;
 self-serve CTAs preserved. Internal product routes unchanged.
 
+Closed this pass: **Durable import worker expanded beyond employees.** `process-data-import-jobs`
+now applies `rooms`, `credentials`, and `residents` from `data_import_rows` under service-role
+scope validation, while `resident_contacts`, `training_records`, `assessments`, and `incidents`
+remain explicitly pending durable applicators and still release claims to `ready`.
+
 ---
 
 ## Snapshot (what is true on main today)
@@ -165,7 +170,7 @@ self-serve CTAs preserved. Internal product routes unchanged.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM production hardening: real vendor packages (B3); adapter injection is now wired
-5. Durable import worker — employee domain applies from ledger; other domains pending
+5. Durable import worker — employees/rooms/credentials/residents apply from ledger; 4 domains still pending
 6. Home IA density (too many "homes")
 7. PA rule pack for the copilot — **SG-2**
 8. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
@@ -219,7 +224,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Employee-domain durable apply now runs in `process-data-import-jobs` from `data_import_rows` (`normalized_row`/`proposed_action`) under service-role org scope; non-employee domains still release to `ready` until their applicators are added |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Durable apply now runs for `employees`, `rooms`, `credentials`, and `residents` from `data_import_rows` (`normalized_row` / `proposed_action`) under service-role org scope. Pending durable domains still released to `ready`: `resident_contacts`, `training_records`, `assessments`, `incidents`. |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
 
