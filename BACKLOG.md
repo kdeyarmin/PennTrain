@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `0932ac0` (2026-08-01) — D3 employee apply-from-ledger
+**Last verified against main:** `c50e80b` (2026-08-01) — fix: paginate open PR listing in status report script
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
