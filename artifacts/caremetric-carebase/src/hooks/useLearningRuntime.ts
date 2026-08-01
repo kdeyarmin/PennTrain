@@ -130,6 +130,27 @@ export function useIngestXapiStatement() {
   });
 }
 
+export function useBridgeLearningRuntimeCompletion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      const { data, error } = await rpc().rpc("bridge_learning_runtime_completion", {
+        p_runtime_session_id: sessionId,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      void queryClient.invalidateQueries({ queryKey: ["course_progress"] });
+      void queryClient.invalidateQueries({ queryKey: ["certificates"] });
+      void queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      void queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
+      void queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+  });
+}
+
 /** Best-effort signed URL for the package object (zip or entry asset). */
 export async function createPackageContentSignedUrl(
   bucket: string,

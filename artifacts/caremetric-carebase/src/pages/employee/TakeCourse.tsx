@@ -539,6 +539,12 @@ useEffect(() => {
     });
   };
 
+  const handleRuntimeCompleted = () => {
+    toast({ title: "Training completed", description: "Certificate issued -- nice work!" });
+    setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
+    setShowRatingPrompt(true);
+  };
+
   const handleSkipRating = () => {
     setShowRatingPrompt(false);
     setLocation(postCompleteDestination);
@@ -882,6 +888,7 @@ useEffect(() => {
                   courseVersionId={assignment?.course_version_id ?? undefined}
                   blockId={currentBlock.id}
                   fallback={<DocumentBlockLink documentId={currentBlock.document_id} />}
+                  onCompleted={handleRuntimeCompleted}
                 />
               )}
 

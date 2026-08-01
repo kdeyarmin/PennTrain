@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import {
+  useBridgeLearningRuntimeCompletion,
   createPackageContentSignedUrl,
   useAcceptedLearningPackages,
   useCommitLearningRuntimeState,
@@ -54,6 +55,7 @@ export function StandardsRuntimePlayer({
   const packages = useAcceptedLearningPackages(courseVersionId);
   const startSession = useStartLearningRuntimeSession();
   const commitState = useCommitLearningRuntimeState();
+  const bridgeCompletion = useBridgeLearningRuntimeCompletion();
   const ingestXapi = useIngestXapiStatement();
 
   const [launch, setLaunch] = useState<LaunchSession | null>(null);
@@ -76,6 +78,7 @@ export function StandardsRuntimePlayer({
   /** Handshake must complete within this window or the learner sees an explicit recovery path. */
   const HANDSHAKE_TIMEOUT_MS = 12_000;
   const handshakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionBridgeStartedRef = useRef(false);
   const [handshakeState, setHandshakeState] = useState<"idle" | "waiting" | "connected" | "timed_out" | "error">("idle");
   const [handshakeError, setHandshakeError] = useState<string | null>(null);
 
@@ -128,12 +131,28 @@ export function StandardsRuntimePlayer({
       if (normalized.progress != null) setProgress(Math.round(normalized.progress * 100));
       if (isCompletedCommit(normalized)) {
         setCompleted(true);
-        setStatus("Completed — progress saved");
+        setStatus("Completing training…");
         await pushXapi(session, normalized.successStatus === "failed" ? XAPI_VERBS.failed : XAPI_VERBS.completed, {
           score: normalized.scoreRaw,
           completion: true,
         });
-        onCompleted?.(normalized);
+        if (!completionBridgeStartedRef.current) {
+          completionBridgeStartedRef.current = true;
+          try {
+            await bridgeCompletion.mutateAsync(session.sessionId);
+            onCompleted?.(normalized);
+          } catch (bridgeError) {
+            completionBridgeStartedRef.current = false;
+            setStatus("Package completed, but final course completion failed");
+            toast({
+              title: "Could not finalize training completion",
+              description: bridgeError instanceof Error ? bridgeError.message : String(bridgeError),
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+        setStatus("Completed — progress saved");
       } else {
         setStatus("Progress saved");
         await pushXapi(session, XAPI_VERBS.progressed, { progress: normalized.progress });
@@ -145,7 +164,7 @@ export function StandardsRuntimePlayer({
         variant: "destructive",
       });
     }
-  }, [commitState, onCompleted, pushXapi, toast]);
+  }, [bridgeCompletion, commitState, onCompleted, pushXapi, toast]);
 
   /**
    * Serialize a commit behind any still in flight, so each one sees the sequence number the
@@ -175,6 +194,7 @@ export function StandardsRuntimePlayer({
       sequenceRef.current = next.nextSequenceNumber;
       setCompleted(false);
       setProgress(0);
+      completionBridgeStartedRef.current = false;
       clearHandshakeTimer();
       setHandshakeState("idle");
       setHandshakeError(null);

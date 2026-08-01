@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `d40c8ff` (2026-08-01) — marketing suite documentation terminology + Landing design fidelity (#377)
+**Last verified against main:** `2951ab8` (2026-08-01) — learning runtime completion bridge + PA facility-day completion dates
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -198,7 +198,7 @@ Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCT
 | B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | in_progress | `accept-learning-package` edge function created; `useAcceptLearningPackage` now invokes it server-side. Bridge injected via fflate at accept time; `content_sha256` updated. Real vendor packages (B3) and production storage policy still needed for full confidence |
 | B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
 | B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
-| B4 | Bridge SCORM complete → training record / hour bucket | M | open | Credibility for §2600.65 |
+| B4 | Bridge SCORM complete → training record / hour bucket | M | done | Completed runtime sessions now finalize `complete_course_assignment()` through `bridge_learning_runtime_completion`, so certificates, training records, and annual-hours credits all land on the same idempotent path with PA facility-day dates |
 | B5 | Trainer package quarantine UX (reject reason + re-upload) | S | done | `QuarantinePackageDialog` imported into `GovernedLearning.tsx`; replaces `window.prompt`. Trainer can now reach quarantine from the Standards tab |
 
 ### Tier C — Plan of Correction depth

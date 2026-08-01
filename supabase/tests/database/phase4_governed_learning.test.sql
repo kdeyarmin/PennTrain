@@ -1,5 +1,5 @@
 begin;
-select plan(32);
+select plan(38);
 
 select has_table('public','governed_content_revisions','governed revisions exist');
 select has_table('public','policy_audience_rules','effective policy audiences exist');
@@ -11,6 +11,7 @@ select has_table('public','learning_path_transition_events','adaptive transition
 select has_table('public','offline_sync_receipts','offline sync receipts exist');
 select has_function('public','sync_offline_learning_action',array['uuid','uuid','text','integer','integer','text','timestamp with time zone','jsonb'],'offline sync is a server command');
 select ok(not has_function_privilege('anon','public.commit_learning_runtime_state(uuid,text,integer,jsonb)','EXECUTE'),'anonymous runtime commits are closed');
+select ok(has_function_privilege('authenticated','public.bridge_learning_runtime_completion(uuid)','EXECUTE'),'authenticated callers can finalize their own completed runtime sessions');
 select ok(not exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in('governed_content_assets','governed_content_revisions','learning_packages','learning_runtime_sessions','learning_runtime_commits','xapi_statements','lti_tool_registrations','learning_path_definitions','learning_path_versions','learning_path_assignments','offline_device_registrations','offline_content_manifests','offline_sync_receipts') and not c.relrowsecurity),'all Phase 4 exposed tables enable RLS');
 
 insert into public.organizations(id,name,slug) values('44000000-0000-4000-8000-000000000001','Phase 4 Org','phase4-org');
@@ -59,14 +60,22 @@ select is((select count(*)::integer from public.governed_content_publication_eve
 reset role;
 insert into public.learning_packages(id,organization_id,course_version_id,standard_type,storage_path,content_sha256,compressed_bytes,expanded_bytes,entry_point,validation_status,validation_results,validated_at,immutable_at) values('44000000-0000-4000-8000-000000000501','44000000-0000-4000-8000-000000000001','44000000-0000-4000-8000-000000000302','scorm_2004_4th','phase4/package.zip',repeat('a',64),1000,5000,'index.html','accepted','[]',now(),now());
 insert into public.learning_runtime_sessions(id,organization_id,package_id,assignment_id,employee_id,registration_key,runtime_standard,launch_nonce_sha256,expires_at) values('44000000-0000-4000-8000-000000000502','44000000-0000-4000-8000-000000000001','44000000-0000-4000-8000-000000000501','44000000-0000-4000-8000-000000000303','44000000-0000-4000-8000-000000000201','phase4-registration','scorm_2004_4th',repeat('b',64),now()+interval '2 hours');
+insert into public.course_progress(assignment_id,organization_id,employee_id,started_at,last_activity_at,percent_complete) values('44000000-0000-4000-8000-000000000303','44000000-0000-4000-8000-000000000001','44000000-0000-4000-8000-000000000201',now()-interval '2 hours',now()-interval '1 hour',50);
 
 select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 insert into p4_ids values('commit',public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0001',1,'{"progress":0.5,"completionStatus":"incomplete","successStatus":"unknown","suspendData":"bookmark","sessionTimeSeconds":60}'::jsonb));
 select is(public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0001',1,'{"progress":0.5,"completionStatus":"incomplete","successStatus":"unknown"}'::jsonb),(select id from p4_ids where key='commit'),'SCORM replay returns canonical commit');
 select is((select count(*)::integer from public.learning_runtime_commits where runtime_session_id='44000000-0000-4000-8000-000000000502'),1,'SCORM replay cannot duplicate progress');
 select throws_ok($$select public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0002',3,'{"progress":0.6}'::jsonb)$$,'40001',null,'out-of-order SCORM commits conflict');
+select throws_ok($$select public.bridge_learning_runtime_completion('44000000-0000-4000-8000-000000000502')$$,'55000',null,'runtime completion bridge rejects an in-progress session');
+insert into p4_ids values('complete_commit',public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0002',2,'{"progress":1,"completionStatus":"completed","successStatus":"passed","sessionTimeSeconds":120}'::jsonb));
+select is(public.bridge_learning_runtime_completion('44000000-0000-4000-8000-000000000502'),'44000000-0000-4000-8000-000000000303'::uuid,'runtime completion bridge returns the completed assignment id');
+select is((select status from public.course_assignments where id='44000000-0000-4000-8000-000000000303'),'completed','runtime completion bridge finalizes the assignment');
+select is((select count(*)::integer from public.certificates where course_assignment_id='44000000-0000-4000-8000-000000000303'),1,'runtime completion bridge issues exactly one certificate');
 select is(public.ingest_xapi_statement('44000000-0000-4000-8000-000000000511','44000000-0000-4000-8000-000000000502','44000000-0000-4000-8000-000000000201','https://adlnet.gov/expapi/verbs/progressed','https://cmcarebase.com/course/governed','{}','{}',now()),public.ingest_xapi_statement('44000000-0000-4000-8000-000000000511','44000000-0000-4000-8000-000000000502','44000000-0000-4000-8000-000000000201','https://adlnet.gov/expapi/verbs/progressed','https://cmcarebase.com/course/governed','{}','{}',now()),'xAPI statement replay is idempotent');
 select throws_ok($$select public.ingest_xapi_statement(gen_random_uuid(),'44000000-0000-4000-8000-000000000502','44000000-0000-4000-8000-000000000999','https://example.com/verb','https://example.com/object','{}','{}',now())$$,'42501',null,'xAPI actor must match runtime registration');
+select pg_temp.act_as('44000000-0000-4000-8000-000000000102');
+select throws_ok($$select public.bridge_learning_runtime_completion('44000000-0000-4000-8000-000000000502')$$,'42501',null,'runtime completion bridge refuses a same-tenant non-learner caller');
 
 reset role;
 insert into public.learning_path_definitions(id,organization_id,name,status) values('44000000-0000-4000-8000-000000000601','44000000-0000-4000-8000-000000000001','Medication Path','published');
