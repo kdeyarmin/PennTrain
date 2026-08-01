@@ -8,22 +8,21 @@ import {
   PENDING_DURABLE_DOMAINS,
 } from "./helpers.ts";
 
-Deno.test("durable import domains are only direct-table service-role safe paths", () => {
+Deno.test("durable import domains cover all 8 service-role-safe paths", () => {
   assertEquals(DURABLE_IMPORT_DOMAINS, [
     "employees",
+    "rooms",
+    "credentials",
     "residents",
+    "training_records",
     "resident_contacts",
     "assessments",
+    "incidents",
   ]);
 });
 
-Deno.test("pending durable domains cover RPC auth barriers", () => {
-  assertEquals(Array.from(PENDING_DURABLE_DOMAINS).sort(), [
-    "credentials",
-    "incidents",
-    "rooms",
-    "training_records",
-  ]);
+Deno.test("pending durable domains is empty — all domains use import_apply_* RPCs or direct table", () => {
+  assertEquals(Array.from(PENDING_DURABLE_DOMAINS).sort(), []);
 });
 
 Deno.test("buildTrainingRecordPayload normalizes optional fields", () => {

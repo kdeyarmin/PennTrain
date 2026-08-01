@@ -1,22 +1,19 @@
 export const DURABLE_IMPORT_DOMAINS = [
   "employees",
+  "rooms",
+  "credentials",
   "residents",
+  "training_records",
   "resident_contacts",
   "assessments",
+  "incidents",
 ] as const;
 
 /**
- * Domains whose apply path requires an authenticated caller
- * (auth.uid / current_org_id / role-gated RPCs granted only to authenticated).
- * The durable service-role cron worker cannot call those RPCs without a
- * schema change; jobs for these domains are released back to ready.
+ * All 8 domains are now durable under service-role via import_apply_* RPCs
+ * (or direct table inserts for the 4 that used direct-table paths before).
  */
-export const PENDING_DURABLE_DOMAINS = new Set([
-  "rooms",
-  "credentials",
-  "training_records",
-  "incidents",
-]);
+export const PENDING_DURABLE_DOMAINS = new Set<string>();
 
 const RESIDENT_CONTACT_TYPES = new Set([
   "emergency_contact",
