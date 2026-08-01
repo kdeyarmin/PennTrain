@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -65,6 +65,7 @@ function fromRequirement(r: ComplianceRequirement | null | undefined, defaultFac
 }
 
 export function RequirementEditorDialog({ open, onOpenChange, requirement, isTemplate = false, defaultFacilityId = "" }: Props) {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: facilities } = useListFacilities();
@@ -154,18 +155,18 @@ export function RequirementEditorDialog({ open, onOpenChange, requirement, isTem
           {!effectiveTemplate && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
-                <Label>Facility</Label>
+                <Label htmlFor={`${__fieldIds}-facility`}>Facility</Label>
                 <Select value={form.facilityId} onValueChange={(v) => { update("facilityId", v); update("buildingId", ""); }} disabled={editing}>
-                  <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Building <span className="text-muted-foreground">(optional)</span></Label>
+                <Label htmlFor={`${__fieldIds}-building`}>Building <span className="text-muted-foreground">(optional)</span></Label>
                 <Select value={form.buildingId || NONE} onValueChange={(v) => update("buildingId", v === NONE ? "" : v)} disabled={!form.facilityId}>
-                  <SelectTrigger><SelectValue placeholder="Whole facility" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-building`}><SelectValue placeholder="Whole facility" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>Whole facility</SelectItem>
                     {(buildings ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
@@ -177,18 +178,18 @@ export function RequirementEditorDialog({ open, onOpenChange, requirement, isTem
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Category</Label>
+              <Label htmlFor={`${__fieldIds}-category`}>Category</Label>
               <Select value={form.category} onValueChange={(v) => update("category", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-category`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {COMPLIANCE_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Responsible person <span className="text-muted-foreground">(optional)</span></Label>
+              <Label htmlFor={`${__fieldIds}-responsible-person`}>Responsible person <span className="text-muted-foreground">(optional)</span></Label>
               <Select value={form.responsibleProfileId || NONE} onValueChange={(v) => update("responsibleProfileId", v === NONE ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-responsible-person`}><SelectValue placeholder="Unassigned" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>Unassigned</SelectItem>
                   {orgProfiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}
@@ -203,9 +204,9 @@ export function RequirementEditorDialog({ open, onOpenChange, requirement, isTem
               <Input id="cc-reg" value={form.regulationCitation} onChange={(e) => update("regulationCitation", e.target.value)} placeholder="e.g. 55 Pa. Code § 2600.132" />
             </div>
             <div className="grid gap-2">
-              <Label>Regulation chapter</Label>
+              <Label htmlFor={`${__fieldIds}-regulation-chapter`}>Regulation chapter</Label>
               <Select value={form.regulationChapter || NONE} onValueChange={(v) => update("regulationChapter", v === NONE ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-regulation-chapter`}><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
                   {CHAPTER_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -221,9 +222,9 @@ export function RequirementEditorDialog({ open, onOpenChange, requirement, isTem
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="grid gap-2">
-              <Label>Cadence</Label>
+              <Label htmlFor={`${__fieldIds}-cadence`}>Cadence</Label>
               <Select value={form.recurrence} onValueChange={(v) => update("recurrence", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-cadence`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {RECURRENCE_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                 </SelectContent>

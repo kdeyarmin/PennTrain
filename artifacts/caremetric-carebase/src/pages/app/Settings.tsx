@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw, Database, FlaskConical, LockKeyhole, PanelLeftClose, Download, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,7 @@ function parseDefaultWarningDays(json: unknown): number {
 }
 
 export default function Settings() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -230,7 +231,7 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Organization Logo</Label>
+                <Label htmlFor={`${__fieldIds}-organization-logo`} className="text-[13px]">Organization Logo</Label>
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-16 rounded-lg border border-border bg-muted flex items-center justify-center overflow-hidden shrink-0">
                     {logoUrl ? (
@@ -251,7 +252,7 @@ export default function Settings() {
                         <Upload className="mr-2 h-3.5 w-3.5" />
                         {logoUploading ? "Uploading..." : "Upload Logo"}
                       </Button>
-                      <input
+                      <input id={`${__fieldIds}-organization-logo`}
                         ref={fileInputRef}
                         type="file"
                         className="hidden"
@@ -435,9 +436,9 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-1.5 max-w-xs">
-                <Label className="text-[13px]">Default Warning Days</Label>
+                <Label htmlFor={`${__fieldIds}-default-warning-days`} className="text-[13px]">Default Warning Days</Label>
                 <div className="flex items-center gap-2">
-                  <Input
+                  <Input id={`${__fieldIds}-default-warning-days`}
                     type="number"
                     min={1}
                     max={365}
@@ -455,9 +456,9 @@ export default function Settings() {
 
               <div className="mt-5 pt-4 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">OAPSA Provisional Period — PA Resident</Label>
+                  <Label htmlFor={`${__fieldIds}-oapsa-provisional-period-pa-resident`} className="text-[13px]">OAPSA Provisional Period — PA Resident</Label>
                   <div className="flex items-center gap-2">
-                    <Input
+                    <Input id={`${__fieldIds}-oapsa-provisional-period-pa-resident`}
                       type="number" min={1} max={365}
                       value={form.oapsaProvisionalDaysResident}
                       onChange={(e) => field("oapsaProvisionalDaysResident", e.target.value)}
@@ -468,9 +469,9 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">OAPSA Provisional Period — Non-Resident</Label>
+                  <Label htmlFor={`${__fieldIds}-oapsa-provisional-period-non-resident`} className="text-[13px]">OAPSA Provisional Period — Non-Resident</Label>
                   <div className="flex items-center gap-2">
-                    <Input
+                    <Input id={`${__fieldIds}-oapsa-provisional-period-non-resident`}
                       type="number" min={1} max={365}
                       value={form.oapsaProvisionalDaysNonresident}
                       onChange={(e) => field("oapsaProvisionalDaysNonresident", e.target.value)}

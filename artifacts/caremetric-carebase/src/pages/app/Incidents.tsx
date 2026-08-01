@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
@@ -95,6 +95,7 @@ interface NotificationRow { notificationType: (typeof NOTIFICATION_TYPE_OPTIONS)
 const INCIDENTS_URL_DEFAULTS = { search: "", facility: "all", resident: "all", severity: "all", status: "all", page: "1" };
 
 export default function Incidents() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
@@ -459,8 +460,8 @@ export default function Incidents() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-[13px]">Resident</Label>
+              <div className="space-y-1.5" role="group" aria-labelledby={`${__fieldIds}-resident`}>
+                <Label id={`${__fieldIds}-resident`} className="text-[13px]">Resident</Label>
                 {form.residentId === RESIDENT_OTHER ? (
                   <div className="flex items-center gap-1.5">
                     <Input
@@ -499,8 +500,8 @@ export default function Incidents() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Location</Label>
-                <Input value={form.locationDetail} onChange={(e) => setForm((f) => ({ ...f, locationDetail: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-location`} className="text-[13px]">Location</Label>
+                <Input id={`${__fieldIds}-location`} value={form.locationDetail} onChange={(e) => setForm((f) => ({ ...f, locationDetail: e.target.value }))} className="h-9" />
               </div>
               <div className="col-span-full space-y-1.5">
                 <Label htmlFor="incident-narrative" className="text-[13px]">Narrative *</Label>
@@ -510,7 +511,7 @@ export default function Incidents() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-[13px]">Staff Involved</Label>
+                <p className="text-sm font-medium leading-none text-[13px]" >Staff Involved</p>
                 <Button variant="outline" size="sm" onClick={() => setStaffRows((r) => [...r, { employeeId: "", involvementType: "witness" }])}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> Add
                 </Button>
@@ -539,7 +540,7 @@ export default function Incidents() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-[13px]">Additional Notifications</Label>
+                  <p className="text-sm font-medium leading-none text-[13px]" >Additional Notifications</p>
                   <p className="text-xs text-muted-foreground">
                     The state-hotline/law-enforcement notification this incident type requires is added automatically on save. Add any others here (e.g. family/guardian).
                   </p>

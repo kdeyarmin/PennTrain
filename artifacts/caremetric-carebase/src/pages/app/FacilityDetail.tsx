@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +65,7 @@ const EMPTY_FORM: FacilityFormData = {
 const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
 
 export default function FacilityDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { user } = useAuth();
@@ -773,18 +774,18 @@ export default function FacilityDetail() {
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Facility Name *</Label>
-              <Input value={form.name} onChange={e => field("name", e.target.value)} placeholder="Sunrise Manor" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-facility-name`} className="text-[13px]">Facility Name *</Label>
+              <Input id={`${__fieldIds}-facility-name`} value={form.name} onChange={e => field("name", e.target.value)} placeholder="Sunrise Manor" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Type *</Label>
+              <Label htmlFor={`${__fieldIds}-type`} className="text-[13px]">Type *</Label>
               <Select
                 value={form.facilityType}
                 // Resets defaultCareResponsibleParty -- its option list is type-specific (e.g. ASP-only
                 // "SHCP"), so a value picked under the old type could be invalid for the new one.
                 onValueChange={v => setForm(f => ({ ...f, facilityType: v as FacilityType, defaultCareResponsibleParty: "" }))}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {FACILITY_TYPES.map(t => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
@@ -793,41 +794,41 @@ export default function FacilityDetail() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">License Number</Label>
-              <Input value={form.licenseNumber} onChange={e => field("licenseNumber", e.target.value)} placeholder="LIC-0001" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-license-number`} className="text-[13px]">License Number</Label>
+              <Input id={`${__fieldIds}-license-number`} value={form.licenseNumber} onChange={e => field("licenseNumber", e.target.value)} placeholder="LIC-0001" className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Address</Label>
-              <Input value={form.address} onChange={e => field("address", e.target.value)} placeholder="123 Main St" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-address`} className="text-[13px]">Address</Label>
+              <Input id={`${__fieldIds}-address`} value={form.address} onChange={e => field("address", e.target.value)} placeholder="123 Main St" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">City</Label>
-              <Input value={form.city} onChange={e => field("city", e.target.value)} placeholder="Philadelphia" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-city`} className="text-[13px]">City</Label>
+              <Input id={`${__fieldIds}-city`} value={form.city} onChange={e => field("city", e.target.value)} placeholder="Philadelphia" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">State</Label>
-              <Input value={form.state} onChange={e => field("state", e.target.value)} placeholder="PA" maxLength={2} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-state`} className="text-[13px]">State</Label>
+              <Input id={`${__fieldIds}-state`} value={form.state} onChange={e => field("state", e.target.value)} placeholder="PA" maxLength={2} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">ZIP</Label>
-              <Input value={form.zip} onChange={e => field("zip", e.target.value)} placeholder="19103" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-zip`} className="text-[13px]">ZIP</Label>
+              <Input id={`${__fieldIds}-zip`} value={form.zip} onChange={e => field("zip", e.target.value)} placeholder="19103" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Phone</Label>
-              <Input value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-phone`} className="text-[13px]">Phone</Label>
+              <Input id={`${__fieldIds}-phone`} value={form.phone} onChange={e => field("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Administrator Name</Label>
-              <Input value={form.administratorName} onChange={e => field("administratorName", e.target.value)} placeholder="Jane Smith" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-administrator-name`} className="text-[13px]">Administrator Name</Label>
+              <Input id={`${__fieldIds}-administrator-name`} value={form.administratorName} onChange={e => field("administratorName", e.target.value)} placeholder="Jane Smith" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Administrator Email</Label>
-              <Input value={form.administratorEmail} onChange={e => field("administratorEmail", e.target.value)} placeholder="admin@facility.com" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-administrator-email`} className="text-[13px]">Administrator Email</Label>
+              <Input id={`${__fieldIds}-administrator-email`} value={form.administratorEmail} onChange={e => field("administratorEmail", e.target.value)} placeholder="admin@facility.com" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Status</Label>
+              <Label htmlFor={`${__fieldIds}-status`} className="text-[13px]">Status</Label>
               <Select value={form.isActive ? "active" : "inactive"} onValueChange={v => field("isActive", v === "active")}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-status`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
@@ -837,14 +838,14 @@ export default function FacilityDetail() {
             {PCH_ALR_ONLY_FACILITY_TYPES.includes(form.facilityType) && (
               <>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Default Care Responsible Party</Label>
+                  <Label htmlFor={`${__fieldIds}-default-care-responsible-party`} className="text-[13px]">Default Care Responsible Party</Label>
                   {/* "none" is a sentinel -- Radix SelectItem values can't be "", so a real "clear
                       this default" choice has to use a stand-in value and translate it back. */}
                   <Select
                     value={form.defaultCareResponsibleParty || "none"}
                     onValueChange={v => field("defaultCareResponsibleParty", v === "none" ? "" : v)}
                   >
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-default-care-responsible-party`} className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
                       {responsiblePartyOptions(getComplianceFormLabel(form.facilityType) === "ASP" ? "ASP" : "RASP").map(o => (
@@ -855,12 +856,12 @@ export default function FacilityDetail() {
                   <p className="text-[11px] text-muted-foreground">Pre-fills every item on new RASP/ASP forms for this facility.</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Default Care Frequency</Label>
+                  <Label htmlFor={`${__fieldIds}-default-care-frequency`} className="text-[13px]">Default Care Frequency</Label>
                   <Select
                     value={form.defaultCareFrequency || "none"}
                     onValueChange={v => field("defaultCareFrequency", v === "none" ? "" : v)}
                   >
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-default-care-frequency`} className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
                       {FREQUENCY_OPTIONS.map(o => (

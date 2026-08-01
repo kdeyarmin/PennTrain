@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { useId, Fragment, useMemo, useState } from "react";
 import {
   useListTrainingPlans,
   useCreateTrainingPlan,
@@ -298,6 +298,7 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
 // Expanded plan detail: items list + add/remove/reorder + apply action.
 // ---------------------------------------------------------------------------
 function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canManage: boolean }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
 
   const { data: items, isLoading } = useListTrainingPlanItems(plan.id);
@@ -460,12 +461,12 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
           <DialogHeader><DialogTitle>Add Plan Item</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Item Type</Label>
+              <Label htmlFor={`${__fieldIds}-item-type`} className="text-[13px]">Item Type</Label>
               <Select
                 value={addItemForm.targetType}
                 onValueChange={(v) => setAddItemForm((f) => ({ ...f, targetType: v as AddItemFormData["targetType"], targetId: "" }))}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-item-type`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="course">Online training content</SelectItem>
                   <SelectItem value="training_type">Training Type (legacy)</SelectItem>
@@ -474,9 +475,9 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
             </div>
             {addItemForm.targetType === "course" ? (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Training content *</Label>
+                <Label htmlFor={`${__fieldIds}-training-content`} className="text-[13px]">Training content *</Label>
                 <Select value={addItemForm.targetId} onValueChange={(v) => setAddItemForm((f) => ({ ...f, targetId: v }))}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select training content" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-training-content`} className="h-9"><SelectValue placeholder="Select training content" /></SelectTrigger>
                   <SelectContent>
                     {(courses ?? []).map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.title}{c.status !== "published" ? ` (${c.status})` : ""}</SelectItem>
@@ -486,9 +487,9 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
               </div>
             ) : (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Training Type *</Label>
+                <Label htmlFor={`${__fieldIds}-training-type`} className="text-[13px]">Training Type *</Label>
                 <Select value={addItemForm.targetId} onValueChange={(v) => setAddItemForm((f) => ({ ...f, targetId: v }))}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-training-type`} className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
                   <SelectContent>
                     {(trainingTypes ?? []).map((t) => (
                       <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -540,6 +541,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
 }
 
 export default function TrainingPlans() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -754,8 +756,8 @@ export default function TrainingPlans() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Name *</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-name`} className="text-[13px]">Name *</Label>
+              <Input id={`${__fieldIds}-name`}
                 value={planForm.name}
                 onChange={(e) => setPlanForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="New Hire Onboarding"
@@ -763,8 +765,8 @@ export default function TrainingPlans() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Description</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-description`} className="text-[13px]">Description</Label>
+              <Textarea id={`${__fieldIds}-description`}
                 value={planForm.description}
                 onChange={(e) => setPlanForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="What this plan covers and who it's for"

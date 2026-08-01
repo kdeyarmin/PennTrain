@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
@@ -63,6 +63,7 @@ function grantState(grant: EvidenceGuestGrant): { label: string; className: stri
 }
 
 export default function EvidenceCollectionDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -590,11 +591,11 @@ export default function EvidenceCollectionDetail() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Shared artifacts</Label>
+                  <Label htmlFor={`${__fieldIds}-shared-artifacts`}>Shared artifacts</Label>
                   <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-3">
                     {activeArtifacts.map((a) => (
                       <label key={a.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox
+                        <Checkbox id={`${__fieldIds}-shared-artifacts`}
                           checked={selectedArtifactIds.includes(a.id)}
                           onCheckedChange={(checked) =>
                             setSelectedArtifactIds((prev) =>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import {
   useListCompetencyRecords,
   useCreateCompetencyRecord,
@@ -154,6 +154,7 @@ function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | nu
 }
 
 export default function CompetencyRecords() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -432,9 +433,9 @@ export default function CompetencyRecords() {
                 placeholder="Select employee"
               />
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Template *</Label>
+                <Label htmlFor={`${__fieldIds}-template`} className="text-[13px]">Template *</Label>
                 <Select value={form.templateId} onValueChange={(v) => setForm((f) => ({ ...f, templateId: v }))}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select template" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-template`} className="h-9"><SelectValue placeholder="Select template" /></SelectTrigger>
                   <SelectContent>
                     {(templates ?? []).map((t) => (
                       <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -443,13 +444,13 @@ export default function CompetencyRecords() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Evaluation Date *</Label>
-                <Input type="date" value={form.evaluationDate} onChange={(e) => setForm((f) => ({ ...f, evaluationDate: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-evaluation-date`} className="text-[13px]">Evaluation Date *</Label>
+                <Input id={`${__fieldIds}-evaluation-date`} type="date" value={form.evaluationDate} onChange={(e) => setForm((f) => ({ ...f, evaluationDate: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Overall Result *</Label>
+                <Label htmlFor={`${__fieldIds}-overall-result`} className="text-[13px]">Overall Result *</Label>
                 <Select value={form.overallResult} onValueChange={(v) => setForm((f) => ({ ...f, overallResult: v as OverallResult }))}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-overall-result`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {OVERALL_RESULT_OPTIONS.map((o) => (
                       <SelectItem key={o} value={o}>{humanize(o)}</SelectItem>
@@ -460,8 +461,8 @@ export default function CompetencyRecords() {
             </div>
 
             {form.templateId && (
-              <div className="space-y-2">
-                <Label className="text-[13px]">Checklist</Label>
+              <div className="space-y-2" role="group" aria-labelledby={`${__fieldIds}-checklist`}>
+                <Label id={`${__fieldIds}-checklist`} className="text-[13px]">Checklist</Label>
                 {!templateItems ? (
                   <div className="space-y-2">
                     {[...Array(2)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}

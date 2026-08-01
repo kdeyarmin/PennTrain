@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { BookCheck, GitBranch, PackageCheck, RefreshCw, ShieldCheck, WifiOff } from "lucide-react";
 import { useGovernedLearning, useGovernedLearningCommand } from "@/hooks/useGovernedLearning";
 import {
@@ -24,10 +24,11 @@ function Metrics({ title, description, values }: { title: string; description: s
 }
 
 function ReviewCommand() {
+  const __fieldIds = useId();
   const command = useGovernedLearningCommand(); const { toast } = useToast();
   const [revisionId, setRevisionId] = useState(""); const [decision, setDecision] = useState("approve"); const [reason, setReason] = useState("");
   const submit = async () => { try { await command.mutateAsync({ rpc: "review_governed_content_revision", args: { p_revision_id: revisionId, p_decision: decision, p_reason: reason } }); toast({ title: "Independent review recorded" }); setReason(""); } catch (error) { toast({ title: "Review blocked", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" }); } };
-  return <Card><CardHeader><CardTitle>Independent content review</CardTitle><CardDescription>Authors cannot approve their own protected publication. Validation and exact snapshot hashes remain attached.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><div className="space-y-2 md:col-span-2"><Label htmlFor="p4-revision">Revision ID</Label><Input id="p4-revision" value={revisionId} onChange={(e) => setRevisionId(e.target.value)} /></div><div className="space-y-2"><Label>Decision</Label><Select value={decision} onValueChange={setDecision}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="approve">Approve</SelectItem><SelectItem value="request_changes">Request changes</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="p4-reason">Reason</Label><Textarea id="p4-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></div><div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!revisionId || reason.trim().length < 5 || command.isPending}>Record review</Button></div></CardContent></Card>;
+  return <Card><CardHeader><CardTitle>Independent content review</CardTitle><CardDescription>Authors cannot approve their own protected publication. Validation and exact snapshot hashes remain attached.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><div className="space-y-2 md:col-span-2"><Label htmlFor="p4-revision">Revision ID</Label><Input id="p4-revision" value={revisionId} onChange={(e) => setRevisionId(e.target.value)} /></div><div className="space-y-2"><Label htmlFor={`${__fieldIds}-decision`}>Decision</Label><Select value={decision} onValueChange={setDecision}><SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="approve">Approve</SelectItem><SelectItem value="request_changes">Request changes</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="p4-reason">Reason</Label><Textarea id="p4-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></div><div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!revisionId || reason.trim().length < 5 || command.isPending}>Record review</Button></div></CardContent></Card>;
 }
 
 function StandardsPackagesPanel() {

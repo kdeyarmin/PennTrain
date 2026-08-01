@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -52,6 +52,7 @@ const localDateTime = () => {
 const accountabilityStatuses = ["present", "evacuated", "relocated", "sheltering", "not_present", "unaccounted"];
 
 export default function EmergencyEventDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -239,10 +240,10 @@ export default function EmergencyEventDetail() {
 
       <Card>
         <CardContent className="grid gap-4 pt-6 md:grid-cols-4">
-          <div><Label>Situation</Label><p>{event.summary}</p></div>
-          <div><Label>Location</Label><p>{event.location_description || "—"}</p></div>
-          <div><Label>Assembly point</Label><p>{event.assembly_point || "—"}</p></div>
-          <div><Label>Incident commander</Label><p>{event.commander ? `${event.commander.first_name} ${event.commander.last_name}` : "Not assigned"}</p></div>
+          <div><p className="text-sm font-medium leading-none">Situation</p><p>{event.summary}</p></div>
+          <div><p className="text-sm font-medium leading-none">Location</p><p>{event.location_description || "—"}</p></div>
+          <div><p className="text-sm font-medium leading-none">Assembly point</p><p>{event.assembly_point || "—"}</p></div>
+          <div><p className="text-sm font-medium leading-none">Incident commander</p><p>{event.commander ? `${event.commander.first_name} ${event.commander.last_name}` : "Not assigned"}</p></div>
         </CardContent>
       </Card>
 
@@ -337,7 +338,7 @@ export default function EmergencyEventDetail() {
                 {eventQuery.data?.communications.map((communication) => (
                   <div key={communication.id} className="rounded border p-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><p className="font-medium">{communication.recipient_name_snapshot || human(communication.audience)}</p><div className="flex gap-1"><Badge variant="outline">{human(communication.channel)}</Badge><Badge>{human(communication.delivery_status)}</Badge></div></div><p>{communication.message}</p><p className="text-xs text-muted-foreground">{communication.recipient_contact_snapshot || "No contact snapshot"} · {new Date(communication.occurred_at).toLocaleString()}</p></div>
                 ))}
-                {canManage && !["closed", "canceled"].includes(event.status) && <div className="space-y-2 border-t pt-3 print:hidden"><Label>Family/designated-person mass notification</Label><div className="flex gap-2"><Select value={massChannel} onValueChange={setMassChannel}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="phone">Phone</SelectItem><SelectItem value="sms">SMS queue</SelectItem><SelectItem value="email">Email queue</SelectItem></SelectContent></Select><Input placeholder="Notification message" value={massMessage} onChange={(e) => setMassMessage(e.target.value)} /></div><Button variant="outline" disabled={!massMessage} onClick={() => queueMass.mutate({ eventId: id, message: massMessage, channel: massChannel }, { onSuccess: (result) => toast({ title: "Notification batch queued", description: `${(result as { recipientCount?: number } | null)?.recipientCount ?? 0} contacts recorded.` }), onError: mutationError("Could not queue notification batch") })}>Queue designated-person batch</Button><div className="grid gap-2 sm:grid-cols-2"><Select value={audience} onValueChange={setAudience}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["family","designated_person","staff","resident","vendor","utility","emergency_services","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Select value={deliveryStatus} onValueChange={setDeliveryStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["queued","attempted","sent","confirmed","failed","not_required"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input placeholder="Recipient name" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} /><Input placeholder="Contact" value={recipientContact} onChange={(e) => setRecipientContact(e.target.value)} /><Select value={channel} onValueChange={setChannel}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["phone","sms","email","in_person","radio","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select></div><Textarea placeholder="Communication message" value={communicationMessage} onChange={(e) => setCommunicationMessage(e.target.value)} /><Button disabled={!communicationMessage} onClick={submitCommunication}>Log communication</Button></div>}
+                {canManage && !["closed", "canceled"].includes(event.status) && <div className="space-y-2 border-t pt-3 print:hidden"><Label id={`${__fieldIds}-family-designated-person-mass-notificati`}>Family/designated-person mass notification</Label><div role="group" aria-labelledby={`${__fieldIds}-family-designated-person-mass-notificati`} className="flex gap-2"><Select value={massChannel} onValueChange={setMassChannel}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="phone">Phone</SelectItem><SelectItem value="sms">SMS queue</SelectItem><SelectItem value="email">Email queue</SelectItem></SelectContent></Select><Input placeholder="Notification message" value={massMessage} onChange={(e) => setMassMessage(e.target.value)} /></div><Button variant="outline" disabled={!massMessage} onClick={() => queueMass.mutate({ eventId: id, message: massMessage, channel: massChannel }, { onSuccess: (result) => toast({ title: "Notification batch queued", description: `${(result as { recipientCount?: number } | null)?.recipientCount ?? 0} contacts recorded.` }), onError: mutationError("Could not queue notification batch") })}>Queue designated-person batch</Button><div className="grid gap-2 sm:grid-cols-2"><Select value={audience} onValueChange={setAudience}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["family","designated_person","staff","resident","vendor","utility","emergency_services","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Select value={deliveryStatus} onValueChange={setDeliveryStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["queued","attempted","sent","confirmed","failed","not_required"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input placeholder="Recipient name" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} /><Input placeholder="Contact" value={recipientContact} onChange={(e) => setRecipientContact(e.target.value)} /><Select value={channel} onValueChange={setChannel}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["phone","sms","email","in_person","radio","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select></div><Textarea placeholder="Communication message" value={communicationMessage} onChange={(e) => setCommunicationMessage(e.target.value)} /><Button disabled={!communicationMessage} onClick={submitCommunication}>Log communication</Button></div>}
               </CardContent>
             </Card>
           </div>
@@ -347,12 +348,12 @@ export default function EmergencyEventDetail() {
           <Card>
             <CardHeader><CardTitle>After-action review</CardTitle><CardDescription>Approval is required before formal event closure.</CardDescription></CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1"><Label>Status</Label><Select value={reviewStatus} onValueChange={setReviewStatus} disabled={!canManage}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["draft","submitted","approved"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1 md:col-span-2"><Label>Response summary</Label><Textarea value={responseSummary} onChange={(e) => setResponseSummary(e.target.value)} readOnly={!canManage} /></div>
-              <div className="space-y-1"><Label>Strengths</Label><Textarea value={strengths} onChange={(e) => setStrengths(e.target.value)} readOnly={!canManage} /></div>
-              <div className="space-y-1"><Label>Gaps identified</Label><Textarea value={gaps} onChange={(e) => setGaps(e.target.value)} readOnly={!canManage} /></div>
-              <div className="space-y-1"><Label>Lessons learned</Label><Textarea value={lessons} onChange={(e) => setLessons(e.target.value)} readOnly={!canManage} /></div>
-              <div className="space-y-1"><Label>Corrective-action plan</Label><Textarea value={correctivePlan} onChange={(e) => setCorrectivePlan(e.target.value)} readOnly={!canManage} /></div>
+              <div className="space-y-1"><Label htmlFor={`${__fieldIds}-status`}>Status</Label><Select value={reviewStatus} onValueChange={setReviewStatus} disabled={!canManage}><SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger><SelectContent>{["draft","submitted","approved"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1 md:col-span-2"><Label htmlFor={`${__fieldIds}-response-summary`}>Response summary</Label><Textarea id={`${__fieldIds}-response-summary`} value={responseSummary} onChange={(e) => setResponseSummary(e.target.value)} readOnly={!canManage} /></div>
+              <div className="space-y-1"><Label htmlFor={`${__fieldIds}-strengths`}>Strengths</Label><Textarea id={`${__fieldIds}-strengths`} value={strengths} onChange={(e) => setStrengths(e.target.value)} readOnly={!canManage} /></div>
+              <div className="space-y-1"><Label htmlFor={`${__fieldIds}-gaps-identified`}>Gaps identified</Label><Textarea id={`${__fieldIds}-gaps-identified`} value={gaps} onChange={(e) => setGaps(e.target.value)} readOnly={!canManage} /></div>
+              <div className="space-y-1"><Label htmlFor={`${__fieldIds}-lessons-learned`}>Lessons learned</Label><Textarea id={`${__fieldIds}-lessons-learned`} value={lessons} onChange={(e) => setLessons(e.target.value)} readOnly={!canManage} /></div>
+              <div className="space-y-1"><Label htmlFor={`${__fieldIds}-corrective-action-plan`}>Corrective-action plan</Label><Textarea id={`${__fieldIds}-corrective-action-plan`} value={correctivePlan} onChange={(e) => setCorrectivePlan(e.target.value)} readOnly={!canManage} /></div>
               {canManage && <Button className="md:col-span-2 print:hidden" disabled={!responseSummary} onClick={submitReview}>Save / approve after-action review</Button>}
             </CardContent>
           </Card>

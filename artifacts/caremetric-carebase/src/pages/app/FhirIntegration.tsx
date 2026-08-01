@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, DatabaseZap, Link2, RefreshCw, Settings2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,7 @@ function sourceFreshness(source: FhirSource) {
 }
 
 export default function FhirIntegration() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
@@ -175,9 +176,9 @@ export default function FhirIntegration() {
       <Card>
         <CardContent className="p-4">
           <div className="max-w-sm space-y-2">
-            <Label>Facility</Label>
+            <Label htmlFor={`${__fieldIds}-facility`}>Facility</Label>
             <Select value={facilityId} onValueChange={(value) => { setSelectedFacilityId(value); residentContext.setFacilityId(value); }}>
-              <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
+              <SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger>
               <SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
@@ -285,7 +286,7 @@ export default function FhirIntegration() {
             <div className="space-y-2"><Label htmlFor="fhir-external-facility">External facility ID</Label><Input id="fhir-external-facility" value={externalFacilityId} onChange={(event) => setExternalFacilityId(event.target.value)} /></div>
             <div className="space-y-2"><Label htmlFor="fhir-freshness">Freshness target (minutes)</Label><Input id="fhir-freshness" type="number" min="5" max="1440" value={freshnessMinutes} onChange={(event) => setFreshnessMinutes(event.target.value)} /></div>
             <div className="space-y-2 sm:col-span-2"><Label htmlFor="fhir-base-url">FHIR base URL</Label><Input id="fhir-base-url" value={fhirBaseUrl} onChange={(event) => setFhirBaseUrl(event.target.value)} placeholder="https://fhir.example.org/r4 (optional)" /></div>
-            <div className="space-y-2 sm:col-span-2"><Label>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => setCredentialId(value === unboundCredentialValue ? "" : value)}><SelectTrigger aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{commandCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded.</p> : commandCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active commands:write credentials. Issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div>
+            <div className="space-y-2 sm:col-span-2"><Label htmlFor={`${__fieldIds}-integration-credential`}>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => setCredentialId(value === unboundCredentialValue ? "" : value)}><SelectTrigger id={`${__fieldIds}-integration-credential`} aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{commandCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded.</p> : commandCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active commands:write credentials. Issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSourceDialogOpen(false)}>Cancel</Button>
@@ -299,9 +300,9 @@ export default function FhirIntegration() {
           <DialogHeader><DialogTitle>Map FHIR patient to resident</DialogTitle><DialogDescription>Matching stays a deliberate human step. Confirm the external FHIR patient identifier corresponds to this resident.</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2"><Label htmlFor="fhir-map-patient-id">FHIR patient id</Label><Input id="fhir-map-patient-id" value={mappingFhirPatientId} onChange={(event) => setMappingFhirPatientId(event.target.value)} /></div>
-            <div className="space-y-2"><Label>Resident</Label>
+            <div className="space-y-2"><Label htmlFor={`${__fieldIds}-resident`}>Resident</Label>
               <Select value={mappingResidentId} onValueChange={setMappingResidentId}>
-                <SelectTrigger><SelectValue placeholder="Select resident" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-resident`}><SelectValue placeholder="Select resident" /></SelectTrigger>
                 <SelectContent>{(residents.data ?? []).map((resident) => <SelectItem key={resident.id} value={resident.id}>{resident.last_name}, {resident.first_name}{resident.room ? ` · Room ${resident.room}` : ""}</SelectItem>)}</SelectContent>
               </Select>
             </div>
@@ -317,9 +318,9 @@ export default function FhirIntegration() {
         <DialogContent>
           <DialogHeader><DialogTitle>Review FHIR integration exception</DialogTitle><DialogDescription>Record the operational disposition. Clinical correction remains in the external source system.</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2"><Label>Disposition</Label>
+            <div className="space-y-2"><Label htmlFor={`${__fieldIds}-disposition`}>Disposition</Label>
               <Select value={resolutionStatus} onValueChange={(value) => setResolutionStatus(value as typeof resolutionStatus)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-disposition`}><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="acknowledged">Acknowledged / working</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="dismissed">Dismissed with reason</SelectItem></SelectContent>
               </Select>
             </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -18,6 +18,7 @@ import { addDaysIso, formatDateLabel, startOfWeekIso, todayIso } from "@/lib/sch
 import { QueryError, QueryLoading } from "@/components/QueryState";
 
 export default function Schedule() {
+  const __fieldIds = useId();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -100,8 +101,8 @@ export default function Schedule() {
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-2">
-                  <Label>Title (optional)</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Week of Jul 6" />
+                  <Label htmlFor={`${__fieldIds}-title-optional`}>Title (optional)</Label>
+                  <Input id={`${__fieldIds}-title-optional`} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Week of Jul 6" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -109,9 +110,9 @@ export default function Schedule() {
                     <Input id="periodStart" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Length</Label>
+                    <Label htmlFor={`${__fieldIds}-length`}>Length</Label>
                     <Select value={periodLength} onValueChange={(v) => setPeriodLength(v as "7" | "14")}>
-                      <SelectTrigger>
+                      <SelectTrigger id={`${__fieldIds}-length`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -145,9 +146,9 @@ export default function Schedule() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Label className="text-sm text-muted-foreground shrink-0">Facility</Label>
+        <Label htmlFor={`${__fieldIds}-facility`} className="text-sm text-muted-foreground shrink-0">Facility</Label>
         <Select value={activeFacilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-64">
+          <SelectTrigger id={`${__fieldIds}-facility`} className="w-64">
             <SelectValue placeholder="Select a facility" />
           </SelectTrigger>
           <SelectContent>

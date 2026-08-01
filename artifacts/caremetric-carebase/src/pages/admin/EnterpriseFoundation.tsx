@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
@@ -127,6 +127,7 @@ function ControlPlanePanel({
 }
 
 function LifecycleCommand() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const previewCommand = useEnterpriseRpcCommand();
   const applyCommand = useEnterpriseRpcCommand();
@@ -201,9 +202,9 @@ function LifecycleCommand() {
           <Input id="phase2-employee-id" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="Employee UUID" />
         </div>
         <div className="space-y-1.5">
-          <Label>Transition</Label>
+          <Label htmlFor={`${__fieldIds}-transition`}>Transition</Label>
           <Select value={transition} onValueChange={setTransition}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-transition`}><SelectValue /></SelectTrigger>
             <SelectContent>
               {['hire', 'rehire', 'leave', 'return', 'transfer', 'terminate', 'suspend_access', 'restore_access'].map((value) => (
                 <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>
@@ -243,6 +244,7 @@ function LifecycleCommand() {
 }
 
 function ScopeGrantCommand() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
   const [profileId, setProfileId] = useState("");
@@ -290,9 +292,9 @@ function ScopeGrantCommand() {
           <Input id="phase2-role-template" value={roleTemplateId} onChange={(event) => setRoleTemplateId(event.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>Scope type</Label>
+          <Label htmlFor={`${__fieldIds}-scope-type`}>Scope type</Label>
           <Select value={scopeType} onValueChange={setScopeType}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-scope-type`}><SelectValue /></SelectTrigger>
             <SelectContent>
               {['portfolio', 'region', 'organization', 'facility'].map((value) => <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>)}
             </SelectContent>
@@ -366,6 +368,7 @@ function ComplianceProfileAssignmentCommand() {
 }
 
 function RegulatoryRuleCommand() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
   const [versionId, setVersionId] = useState("");
@@ -405,9 +408,9 @@ function RegulatoryRuleCommand() {
           <Input id="phase2-rule-version" value={versionId} onChange={(event) => setVersionId(event.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>Action</Label>
+          <Label htmlFor={`${__fieldIds}-action`}>Action</Label>
           <Select value={action} onValueChange={setAction}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-action`}><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="submit">Submit for review</SelectItem>
               <SelectItem value="approve">Approve</SelectItem>
@@ -638,6 +641,7 @@ function IdentityDomainRevocationCommand() {
 }
 
 function SsoConnectionCommand() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const insert = useEnterpriseTableInsert("organization_sso_connections");
@@ -699,16 +703,16 @@ function SsoConnectionCommand() {
           <Input id="phase2-sso-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Company SSO" />
         </div>
         <div className="space-y-1.5">
-          <Label>Initial status</Label>
+          <Label htmlFor={`${__fieldIds}-initial-status`}>Initial status</Label>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-initial-status`}><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="pilot">Pilot</SelectItem><SelectItem value="active">Active</SelectItem></SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>JIT default role</Label>
+          <Label htmlFor={`${__fieldIds}-jit-default-role`}>JIT default role</Label>
           <Select value={defaultRole} onValueChange={setDefaultRole}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-jit-default-role`}><SelectValue /></SelectTrigger>
             <SelectContent>
               {['employee', 'trainer', 'facility_manager', 'auditor', 'org_admin'].map((value) => <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>)}
             </SelectContent>
@@ -855,6 +859,7 @@ function SessionRevocationCommand() {
 }
 
 function EntitlementCommand() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
@@ -910,9 +915,9 @@ function EntitlementCommand() {
           <Input id="phase2-feature-key" value={featureKey} onChange={(event) => setFeatureKey(event.target.value)} placeholder="enterprise.sso" />
         </div>
         <div className="space-y-1.5">
-          <Label>Decision</Label>
+          <Label htmlFor={`${__fieldIds}-decision`}>Decision</Label>
           <Select value={decision} onValueChange={setDecision}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="grant">Grant</SelectItem><SelectItem value="override">Override value</SelectItem><SelectItem value="deny">Deny</SelectItem></SelectContent>
           </Select>
         </div>
@@ -933,6 +938,7 @@ function EntitlementCommand() {
 }
 
 function BillingOverrideCommand() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
   const [organizationId, setOrganizationId] = useState("");
@@ -974,9 +980,9 @@ function BillingOverrideCommand() {
           <Input id="phase2-billing-override-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>Override state</Label>
+          <Label htmlFor={`${__fieldIds}-override-state`}>Override state</Label>
           <Select value={overrideState} onValueChange={setOverrideState}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-override-state`}><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="comped">Comped</SelectItem><SelectItem value="suspended">Suspended</SelectItem><SelectItem value="provider">Restore provider state</SelectItem></SelectContent>
           </Select>
         </div>
@@ -995,6 +1001,7 @@ function BillingOverrideCommand() {
 }
 
 function IntegrationProvisioningCommand() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
@@ -1051,9 +1058,9 @@ function IntegrationProvisioningCommand() {
           <Input id="phase2-integration-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>Integration type</Label>
+          <Label htmlFor={`${__fieldIds}-integration-type`}>Integration type</Label>
           <Select value={kind} onValueChange={(value) => { setKind(value as "api" | "webhook"); setIssuedSecret(null); }}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger id={`${__fieldIds}-integration-type`}><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="api">Inbound API credential</SelectItem><SelectItem value="webhook">Outbound webhook</SelectItem></SelectContent>
           </Select>
         </div>

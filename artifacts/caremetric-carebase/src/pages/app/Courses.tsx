@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useListCourses, useCreateCourse, type Course } from "@/hooks/useCourses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ function formatDuration(minutes: number | null): string {
 }
 
 export default function Courses() {
+  const __fieldIds = useId();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [category, setCategory] = useState<string>("all");
@@ -295,21 +296,21 @@ export default function Courses() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Title *</Label>
-              <Input value={form.title} onChange={e => field("title", e.target.value)} placeholder="Medication Administration Basics" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-title`} className="text-[13px]">Title *</Label>
+              <Input id={`${__fieldIds}-title`} value={form.title} onChange={e => field("title", e.target.value)} placeholder="Medication Administration Basics" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Description</Label>
-              <Textarea value={form.description} onChange={e => field("description", e.target.value)} placeholder="Brief overview of what this training content covers" />
+              <Label htmlFor={`${__fieldIds}-description`} className="text-[13px]">Description</Label>
+              <Textarea id={`${__fieldIds}-description`} value={form.description} onChange={e => field("description", e.target.value)} placeholder="Brief overview of what this training content covers" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Category</Label>
-                <Input value={form.category} onChange={e => field("category", e.target.value)} placeholder="Annual In-Service" className="h-9" />
+                <Label htmlFor={`${__fieldIds}-category`} className="text-[13px]">Category</Label>
+                <Input id={`${__fieldIds}-category`} value={form.category} onChange={e => field("category", e.target.value)} placeholder="Annual In-Service" className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Estimated Duration (minutes)</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-estimated-duration-minutes`} className="text-[13px]">Estimated Duration (minutes)</Label>
+                <Input id={`${__fieldIds}-estimated-duration-minutes`}
                   type="number"
                   min="0"
                   value={form.estimatedDurationMinutes}
@@ -320,9 +321,9 @@ export default function Courses() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Training Requirement Type</Label>
+              <Label htmlFor={`${__fieldIds}-training-requirement-type`} className="text-[13px]">Training Requirement Type</Label>
               <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-training-requirement-type`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
                   {(trainingTypes ?? []).map(tt => (

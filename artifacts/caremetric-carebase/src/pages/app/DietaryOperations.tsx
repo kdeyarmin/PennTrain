@@ -37,7 +37,7 @@ const commaList = (value: string) => value.split(",").map((item) => item.trim())
 const futureDate = (days: number) => toLocalIsoDate(new Date(Date.now() + days * 86_400_000));
 
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
-  return <div className={`space-y-1 ${className}`}><Label>{label}</Label>{children}</div>;
+  return <div className={`space-y-1 ${className}`}><p className="text-sm font-medium leading-none">{label}</p>{children}</div>;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetInspectionItem, useUpdateInspectionItem } from "@/hooks/useInspectionItems";
 import { useListInspectionEvents, useCreateInspectionEvent } from "@/hooks/useInspectionEvents";
@@ -83,6 +83,7 @@ function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; 
 }
 
 export default function InspectionItemDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -281,8 +282,8 @@ export default function InspectionItemDetail() {
           <CardHeader><CardTitle>Details</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Notes</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
+              <Textarea id={`${__fieldIds}-notes`}
                 defaultValue={item.notes ?? ""}
                 onBlur={(e) => { if (e.target.value !== (item.notes ?? "")) updateItem({ id: item.id, notes: e.target.value || null }); }}
                 placeholder="Optional notes"
@@ -424,21 +425,21 @@ export default function InspectionItemDetail() {
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Date *</Label>
-              <Input type="date" value={performedDate} onChange={(e) => setPerformedDate(e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-date`} className="text-[13px]">Date *</Label>
+              <Input id={`${__fieldIds}-date`} type="date" value={performedDate} onChange={(e) => setPerformedDate(e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Performed By *</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-performed-by`} className="text-[13px]">Performed By *</Label>
+              <Input id={`${__fieldIds}-performed-by`}
                 value={performedBy} onChange={(e) => setPerformedBy(e.target.value)} placeholder="Staff name or vendor"
                 className={cn("h-9", showValidation && errorFieldClass(fieldErrors.performedBy))}
               />
               {showValidation && <FieldError message={fieldErrors.performedBy} />}
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Result *</Label>
+              <Label htmlFor={`${__fieldIds}-result`} className="text-[13px]">Result *</Label>
               <Select value={result} onValueChange={(v) => setResult(v as typeof result)}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-result`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["pass", "fail", "deficiency_noted"].map((r) => <SelectItem key={r} value={r}>{humanize(r)}</SelectItem>)}
                 </SelectContent>
@@ -446,8 +447,8 @@ export default function InspectionItemDetail() {
             </div>
             {result !== "pass" && (
               <div className="col-span-full space-y-1.5">
-                <Label className="text-[13px]">Deficiency Notes</Label>
-                <Textarea value={deficiencyNotes} onChange={(e) => setDeficiencyNotes(e.target.value)} placeholder="What was found" />
+                <Label htmlFor={`${__fieldIds}-deficiency-notes`} className="text-[13px]">Deficiency Notes</Label>
+                <Textarea id={`${__fieldIds}-deficiency-notes`} value={deficiencyNotes} onChange={(e) => setDeficiencyNotes(e.target.value)} placeholder="What was found" />
               </div>
             )}
 
@@ -457,66 +458,66 @@ export default function InspectionItemDetail() {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">DHS Fire Drill Record Fields</p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Time</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-time`} className="text-[13px]">Time</Label>
+                  <Input id={`${__fieldIds}-time`}
                     type="time" value={drillTime} onChange={(e) => setDrillTime(e.target.value)}
                     className={cn("h-9", showValidation && errorFieldClass(fieldErrors.drillTime))}
                   />
                   {showValidation && <FieldError message={fieldErrors.drillTime} />}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Shift</Label>
+                  <Label htmlFor={`${__fieldIds}-shift`} className="text-[13px]">Shift</Label>
                   <Select value={shift} onValueChange={(v) => setShift(v as typeof shift)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-shift`} className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {SHIFT_OPTIONS.map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Evacuation Duration (min)</Label>
-                  <Input type="number" min={0} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} className="h-9" />
+                  <Label htmlFor={`${__fieldIds}-evacuation-duration-min`} className="text-[13px]">Evacuation Duration (min)</Label>
+                  <Input id={`${__fieldIds}-evacuation-duration-min`} type="number" min={0} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} className="h-9" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Duration (sec)</Label>
-                  <Input type="number" min={0} max={59} value={durationSeconds} onChange={(e) => setDurationSeconds(e.target.value)} className="h-9" />
+                  <Label htmlFor={`${__fieldIds}-duration-sec`} className="text-[13px]">Duration (sec)</Label>
+                  <Input id={`${__fieldIds}-duration-sec`} type="number" min={0} max={59} value={durationSeconds} onChange={(e) => setDurationSeconds(e.target.value)} className="h-9" />
                 </div>
                 <div className="col-span-2 space-y-1.5">
-                  <Label className="text-[13px]">Exit Route Used</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-exit-route-used`} className="text-[13px]">Exit Route Used</Label>
+                  <Input id={`${__fieldIds}-exit-route-used`}
                     value={exitRouteUsed} onChange={(e) => setExitRouteUsed(e.target.value)} placeholder="e.g. East stairwell to rear parking lot"
                     className={cn("h-9", showValidation && errorFieldClass(fieldErrors.exitRouteUsed))}
                   />
                   {showValidation && <FieldError message={fieldErrors.exitRouteUsed} />}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Residents Present</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-residents-present`} className="text-[13px]">Residents Present</Label>
+                  <Input id={`${__fieldIds}-residents-present`}
                     type="number" min={0} value={residentsPresent} onChange={(e) => setResidentsPresent(e.target.value)}
                     className={cn("h-9", showValidation && errorFieldClass(fieldErrors.residentsPresent))}
                   />
                   {showValidation && <FieldError message={fieldErrors.residentsPresent} />}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Residents Evacuated</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-residents-evacuated`} className="text-[13px]">Residents Evacuated</Label>
+                  <Input id={`${__fieldIds}-residents-evacuated`}
                     type="number" min={0} value={residentsEvacuated} onChange={(e) => setResidentsEvacuated(e.target.value)}
                     className={cn("h-9", showValidation && errorFieldClass(fieldErrors.residentsEvacuated))}
                   />
                   {showValidation && <FieldError message={fieldErrors.residentsEvacuated} />}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Staff Participating</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-staff-participating`} className="text-[13px]">Staff Participating</Label>
+                  <Input id={`${__fieldIds}-staff-participating`}
                     type="number" min={0} value={staffParticipating} onChange={(e) => setStaffParticipating(e.target.value)}
                     className={cn("h-9", showValidation && errorFieldClass(fieldErrors.staffParticipating))}
                   />
                   {showValidation && <FieldError message={fieldErrors.staffParticipating} />}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[13px]">Alarm/Detector Operative</Label>
+                  <Label htmlFor={`${__fieldIds}-alarm-detector-operative`} className="text-[13px]">Alarm/Detector Operative</Label>
                   <Select value={alarmOperative} onValueChange={setAlarmOperative}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-alarm-detector-operative`} className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="yes">Yes</SelectItem>
                       <SelectItem value="no">No</SelectItem>
@@ -533,8 +534,8 @@ export default function InspectionItemDetail() {
                   </Label>
                 </div>
                 <div className="col-span-2 space-y-1.5">
-                  <Label className="text-[13px]">Problems Encountered</Label>
-                  <Textarea
+                  <Label htmlFor={`${__fieldIds}-problems-encountered`} className="text-[13px]">Problems Encountered</Label>
+                  <Textarea id={`${__fieldIds}-problems-encountered`}
                     value={problemsEncountered} onChange={(e) => setProblemsEncountered(e.target.value)}
                     placeholder="Required field on the DHS form -- enter &quot;None&quot; if the drill went smoothly"
                     className={showValidation ? errorFieldClass(fieldErrors.problemsEncountered) : undefined}

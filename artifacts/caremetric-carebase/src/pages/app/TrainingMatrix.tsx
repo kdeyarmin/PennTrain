@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useId, useState, useMemo, useRef, useEffect } from "react";
 import { csvEscape } from "@/lib/csv";
 import { daysUntil, formatDateForDisplay } from "@/lib/dateUtils";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -176,8 +176,9 @@ function trainerSelectionFromName(name: string | null, trainers: Employee[]): { 
 }
 
 function TrainerSelectField({
-  trainers, selection, customName, onSelectionChange, onCustomNameChange,
+  id, trainers, selection, customName, onSelectionChange, onCustomNameChange,
 }: {
+  id?: string;
   trainers: Employee[];
   selection: string;
   customName: string;
@@ -187,7 +188,7 @@ function TrainerSelectField({
   return (
     <div className="space-y-1.5">
       <Select value={selection || TRAINER_NONE} onValueChange={onSelectionChange}>
-        <SelectTrigger className="h-9"><SelectValue placeholder="Select trainer" /></SelectTrigger>
+        <SelectTrigger id={id} className="h-9"><SelectValue placeholder="Select trainer" /></SelectTrigger>
         <SelectContent>
           <SelectItem value={TRAINER_NONE}>—</SelectItem>
           {trainers.map(t => <SelectItem key={t.id} value={t.id}>{t.first_name} {t.last_name}</SelectItem>)}
@@ -221,6 +222,7 @@ function CellDetailDialog({
   canManage: boolean;
   qualifiedTrainers: Employee[];
 }) {
+  const __fieldIds = useId();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -282,20 +284,21 @@ function CellDetailDialog({
             <div className="text-sm text-muted-foreground">{employee.first_name} {employee.last_name}</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Completion Date *</Label>
-                <Input type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
+                <Label htmlFor={`${__fieldIds}-completion-date`} className="text-[13px]">Completion Date *</Label>
+                <Input id={`${__fieldIds}-completion-date`} type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Hours</Label>
-                <Input
+                <Label htmlFor={`${__fieldIds}-hours`} className="text-[13px]">Hours</Label>
+                <Input id={`${__fieldIds}-hours`}
                   type="number" step="0.25" min="0" className="h-9"
                   placeholder={trainingType.required_hours != null ? String(trainingType.required_hours) : "0"}
                   value={hours} onChange={e => setHours(e.target.value)}
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-[13px]">Trainer</Label>
+                <Label htmlFor={`${__fieldIds}-trainer`} className="text-[13px]">Trainer</Label>
                 <TrainerSelectField
+                  id={`${__fieldIds}-trainer`}
                   trainers={qualifiedTrainers}
                   selection={trainerSelection}
                   customName={customTrainerName}
@@ -386,6 +389,7 @@ function RecordForMultipleDialog({
   trainingTypes: TrainingType[];
   qualifiedTrainers: Employee[];
 }) {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const createRecord = useCreateTrainingRecord();
@@ -546,10 +550,10 @@ function RecordForMultipleDialog({
         </DialogHeader>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           <div className="space-y-1.5">
-            <Label className="text-[13px]">Employees *</Label>
+            <Label htmlFor={`${__fieldIds}-employees`} className="text-[13px]">Employees *</Label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
+              <Input id={`${__fieldIds}-employees`} placeholder="Search employees..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
             </div>
             <label className="flex items-center gap-2 px-1 pt-1 cursor-pointer">
               <Checkbox checked={allVisibleSelected} onCheckedChange={toggleSelectAllVisible} />
@@ -579,29 +583,30 @@ function RecordForMultipleDialog({
 
           <div className="grid grid-cols-2 gap-3 pt-2 border-t">
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Training Type *</Label>
+              <Label htmlFor={`${__fieldIds}-training-type`} className="text-[13px]">Training Type *</Label>
               <Select value={trainingTypeId} onValueChange={setTrainingTypeId}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-training-type`} className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
                 <SelectContent>
                   {sortedTrainingTypes.map(tt => <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Completion Date *</Label>
-              <Input type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-completion-date-2`} className="text-[13px]">Completion Date *</Label>
+              <Input id={`${__fieldIds}-completion-date-2`} type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Hours</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-hours-2`} className="text-[13px]">Hours</Label>
+              <Input id={`${__fieldIds}-hours-2`}
                 type="number" step="0.25" min="0" className="h-9"
                 placeholder={selectedTrainingType?.required_hours != null ? String(selectedTrainingType.required_hours) : "0"}
                 value={hours} onChange={e => setHours(e.target.value)}
               />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Trainer</Label>
+              <Label htmlFor={`${__fieldIds}-trainer`} className="text-[13px]">Trainer</Label>
               <TrainerSelectField
+                id={`${__fieldIds}-trainer`}
                 trainers={qualifiedTrainers}
                 selection={trainerSelection}
                 customName={customTrainerName}
@@ -609,8 +614,8 @@ function RecordForMultipleDialog({
                 onCustomNameChange={setCustomTrainerName}
               />
             </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Documentation Document</Label>
+            <div className="col-span-2 space-y-1.5" role="group" aria-labelledby={`${__fieldIds}-documentation-document`}>
+              <Label id={`${__fieldIds}-documentation-document`} className="text-[13px]">Documentation Document</Label>
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                   <Upload className="h-3.5 w-3.5 mr-2" /> {evidenceFile ? "Change File" : "Choose File"}

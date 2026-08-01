@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -60,6 +60,7 @@ function taskReady(task: MoveInTaskWithOwner): boolean {
 }
 
 export default function MoveInWorkspaceDetail() {
+  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -269,7 +270,7 @@ export default function MoveInWorkspaceDetail() {
         <Card className="border-emerald-300">
           <CardHeader><CardTitle className="flex items-center gap-2"><UserRoundCheck className="h-5 w-5 text-emerald-600" />One-click admission</CardTitle><CardDescription>Atomically activates census, occupies the reserved bed, completes the workspace, and preserves the readiness snapshot.</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[280px] grow space-y-1"><Label>Admission decision reason *</Label><Input value={admitReason} onChange={event => setAdmitReason(event.target.value)} placeholder="All admission requirements verified" /></div>
+            <div className="min-w-[280px] grow space-y-1"><Label htmlFor={`${__fieldIds}-admission-decision-reason`}>Admission decision reason *</Label><Input id={`${__fieldIds}-admission-decision-reason`} value={admitReason} onChange={event => setAdmitReason(event.target.value)} placeholder="All admission requirements verified" /></div>
             <Button disabled={admitReason.trim().length < 5 || admit.isPending} onClick={() => admit.mutate({ workspaceId: data.id, reason: admitReason }, { onSuccess: residentId => { toast({ title: "Resident admitted to active census" }); window.location.href = `/app/residents/${residentId}`; }, onError: (error: Error) => toast({ title: "Couldn't complete admission", description: error.message, variant: "destructive" }) })}>{admit.isPending ? "Admitting..." : "Admit resident"}</Button>
           </CardContent>
         </Card>
@@ -279,18 +280,18 @@ export default function MoveInWorkspaceDetail() {
         <DialogContent>
           <DialogHeader><DialogTitle>{selectedTask?.title}</DialogTitle><DialogDescription>Attach documentation, capture a staff-assisted signature, document an exception, or advance the task.</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1"><Label>New state</Label><Select value={targetState} onValueChange={setTargetState}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TASK_STATES.map(state => <SelectItem key={state} value={state}>{humanize(state)}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-new-state`}>New state</Label><Select value={targetState} onValueChange={setTargetState}><SelectTrigger id={`${__fieldIds}-new-state`}><SelectValue /></SelectTrigger><SelectContent>{TASK_STATES.map(state => <SelectItem key={state} value={state}>{humanize(state)}</SelectItem>)}</SelectContent></Select></div>
             {selectedTask?.requires_document && (
               <div className="space-y-2">
-                <Label>Required document</Label>
-                <Select value={documentId} onValueChange={setDocumentId}><SelectTrigger><SelectValue placeholder="Select existing document" /></SelectTrigger><SelectContent><SelectItem value="none">No document selected</SelectItem>{documents?.map(document => <SelectItem key={document.id} value={document.id}>{document.document_label ?? document.file_name}</SelectItem>)}</SelectContent></Select>
+                <Label htmlFor={`${__fieldIds}-required-document`}>Required document</Label>
+                <Select value={documentId} onValueChange={setDocumentId}><SelectTrigger id={`${__fieldIds}-required-document`}><SelectValue placeholder="Select existing document" /></SelectTrigger><SelectContent><SelectItem value="none">No document selected</SelectItem>{documents?.map(document => <SelectItem key={document.id} value={document.id}>{document.document_label ?? document.file_name}</SelectItem>)}</SelectContent></Select>
                 <div className="flex gap-2"><Input type="file" onChange={event => setUploadFile(event.target.files?.[0] ?? null)} /><Button variant="outline" disabled={!uploadFile || uploadDocument.isPending} onClick={uploadAndLink}>Upload</Button></div>
               </div>
             )}
             {selectedTask?.requires_signature && (
-              <div className="grid gap-2 sm:grid-cols-2"><div className="space-y-1"><Label>Signer name</Label><Input value={signatureName} onChange={event => setSignatureName(event.target.value)} /></div><div className="space-y-1"><Label>Relationship / authority</Label><Input value={signatureRelationship} onChange={event => setSignatureRelationship(event.target.value)} /></div></div>
+              <div className="grid gap-2 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor={`${__fieldIds}-signer-name`}>Signer name</Label><Input id={`${__fieldIds}-signer-name`} value={signatureName} onChange={event => setSignatureName(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-relationship-authority`}>Relationship / authority</Label><Input id={`${__fieldIds}-relationship-authority`} value={signatureRelationship} onChange={event => setSignatureRelationship(event.target.value)} /></div></div>
             )}
-            <div className="space-y-1"><Label>Reason / notes {targetState === "exception" ? "*" : ""}</Label><Textarea value={reason} onChange={event => setReason(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-reason-notes`}>Reason / notes {targetState === "exception" ? "*" : ""}</Label><Textarea id={`${__fieldIds}-reason-notes`} value={reason} onChange={event => setReason(event.target.value)} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setSelectedTask(null)}>Cancel</Button><Button disabled={updateTask.isPending || (targetState === "exception" && reason.trim().length < 5)} onClick={saveTask}>{updateTask.isPending ? "Saving..." : "Update task"}</Button></DialogFooter>
         </DialogContent>
@@ -300,9 +301,9 @@ export default function MoveInWorkspaceDetail() {
         <DialogContent>
           <DialogHeader><DialogTitle>Create guest signing link</DialogTitle><DialogDescription>Select only the tasks this guest may view or sign.</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1"><Label>Guest label</Label><Input value={guestLabel} onChange={event => setGuestLabel(event.target.value)} /></div>
-            <div className="space-y-2"><Label>Allowed tasks</Label>{tasks.filter(task => task.requires_signature || task.requires_document).map(task => <label key={task.id} className="flex items-center gap-2 rounded-md border p-2 text-sm"><Checkbox checked={guestTaskIds.includes(task.id)} onCheckedChange={checked => setGuestTaskIds(current => checked ? [...current, task.id] : current.filter(id => id !== task.id))} />{task.title}</label>)}</div>
-            <div className="space-y-1"><Label>Expires in days</Label><Input type="number" min={1} max={30} value={guestDays} onChange={event => setGuestDays(event.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-guest-label`}>Guest label</Label><Input id={`${__fieldIds}-guest-label`} value={guestLabel} onChange={event => setGuestLabel(event.target.value)} /></div>
+            <div className="space-y-2" role="group" aria-labelledby={`${__fieldIds}-allowed-tasks`}><Label id={`${__fieldIds}-allowed-tasks`}>Allowed tasks</Label>{tasks.filter(task => task.requires_signature || task.requires_document).map(task => <label key={task.id} className="flex items-center gap-2 rounded-md border p-2 text-sm"><Checkbox checked={guestTaskIds.includes(task.id)} onCheckedChange={checked => setGuestTaskIds(current => checked ? [...current, task.id] : current.filter(id => id !== task.id))} />{task.title}</label>)}</div>
+            <div className="space-y-1"><Label htmlFor={`${__fieldIds}-expires-in-days`}>Expires in days</Label><Input id={`${__fieldIds}-expires-in-days`} type="number" min={1} max={30} value={guestDays} onChange={event => setGuestDays(event.target.value)} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setGuestOpen(false)}>Cancel</Button><Button disabled={!guestLabel.trim() || !guestTaskIds.length || issueGrant.isPending} onClick={createGuestLink}>{issueGrant.isPending ? "Creating..." : "Create link"}</Button></DialogFooter>
         </DialogContent>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,7 @@ const EMPTY_FORM: TypeFormData = {
 };
 
 export default function TrainingTypes() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   // Matches training_types_insert/_update/_delete RLS -- only org_admin (or platform_admin,
@@ -203,17 +204,17 @@ export default function TrainingTypes() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Name *</Label>
-              <Input value={form.name} onChange={e => field("name", e.target.value)} placeholder="e.g. Facility-Specific Fall Prevention" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-name`} className="text-[13px]">Name *</Label>
+              <Input id={`${__fieldIds}-name`} value={form.name} onChange={e => field("name", e.target.value)} placeholder="e.g. Facility-Specific Fall Prevention" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Category *</Label>
-              <Input value={form.category} onChange={e => field("category", e.target.value)} placeholder="e.g. Resident Safety" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-category`} className="text-[13px]">Category *</Label>
+              <Input id={`${__fieldIds}-category`} value={form.category} onChange={e => field("category", e.target.value)} placeholder="e.g. Resident Safety" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Applies To</Label>
+              <Label htmlFor={`${__fieldIds}-applies-to`} className="text-[13px]">Applies To</Label>
               <Select value={form.appliesToFacilityType} onValueChange={v => field("appliesToFacilityType", v)}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-applies-to`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {FACILITY_SCOPE_OPTIONS.map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -222,20 +223,20 @@ export default function TrainingTypes() {
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Description</Label>
-              <Textarea rows={2} value={form.description} onChange={e => field("description", e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-description`} className="text-[13px]">Description</Label>
+              <Textarea id={`${__fieldIds}-description`} rows={2} value={form.description} onChange={e => field("description", e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Required Hours</Label>
-              <Input type="number" step="0.25" min="0" value={form.requiredHours} onChange={e => field("requiredHours", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-required-hours`} className="text-[13px]">Required Hours</Label>
+              <Input id={`${__fieldIds}-required-hours`} type="number" step="0.25" min="0" value={form.requiredHours} onChange={e => field("requiredHours", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Renewal Interval (days)</Label>
-              <Input type="number" min="0" value={form.renewalIntervalDays} onChange={e => field("renewalIntervalDays", e.target.value)} placeholder="Blank = one-time" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-renewal-interval-days`} className="text-[13px]">Renewal Interval (days)</Label>
+              <Input id={`${__fieldIds}-renewal-interval-days`} type="number" min="0" value={form.renewalIntervalDays} onChange={e => field("renewalIntervalDays", e.target.value)} placeholder="Blank = one-time" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Warning Days</Label>
-              <Input type="number" min="0" value={form.warningDaysDefault} onChange={e => field("warningDaysDefault", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-warning-days`} className="text-[13px]">Warning Days</Label>
+              <Input id={`${__fieldIds}-warning-days`} type="number" min="0" value={form.warningDaysDefault} onChange={e => field("warningDaysDefault", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5 flex items-end">
               <label className="flex items-center gap-2 cursor-pointer pb-2">
@@ -254,8 +255,8 @@ export default function TrainingTypes() {
               </label>
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label className="text-[13px]">Citation / Note</Label>
-              <Textarea rows={2} value={form.citationNote} onChange={e => field("citationNote", e.target.value)} placeholder="Optional regulatory citation or internal note" />
+              <Label htmlFor={`${__fieldIds}-citation-note`} className="text-[13px]">Citation / Note</Label>
+              <Textarea id={`${__fieldIds}-citation-note`} rows={2} value={form.citationNote} onChange={e => field("citationNote", e.target.value)} placeholder="Optional regulatory citation or internal note" />
             </div>
           </div>
           <DialogFooter>

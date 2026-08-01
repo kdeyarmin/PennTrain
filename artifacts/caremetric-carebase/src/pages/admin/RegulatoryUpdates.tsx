@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +117,7 @@ const STATUS_BADGE_VARIANT: Record<RegulatoryUpdateStatus, "default" | "outline"
 };
 
 export default function RegulatoryUpdates() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const { data, isLoading } = useAdminRegulatoryUpdates();
   const updates = data ?? [];
@@ -274,12 +275,12 @@ export default function RegulatoryUpdates() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input value={form.title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. PCH annual training stays at 12 hours" />
+              <Label htmlFor={`${__fieldIds}-title`}>Title</Label>
+              <Input id={`${__fieldIds}-title`} value={form.title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. PCH annual training stays at 12 hours" />
             </div>
             <div className="space-y-1.5">
-              <Label>Slug</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-slug`}>Slug</Label>
+              <Input id={`${__fieldIds}-slug`}
                 value={form.slug}
                 onChange={(e) => { setSlugTouched(true); setForm({ ...form, slug: e.target.value }); }}
                 placeholder="pch-annual-training-12-hours"
@@ -287,19 +288,19 @@ export default function RegulatoryUpdates() {
               <p className="text-xs text-muted-foreground">Lowercase letters, numbers, and hyphens. Stable identifier — avoid changing it after publishing.</p>
             </div>
             <div className="space-y-1.5">
-              <Label>Summary</Label>
-              <Textarea rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="One or two sentences shown in the feed and email." />
+              <Label htmlFor={`${__fieldIds}-summary`}>Summary</Label>
+              <Textarea id={`${__fieldIds}-summary`} rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} placeholder="One or two sentences shown in the feed and email." />
             </div>
             <div className="space-y-1.5">
-              <Label>Body (optional)</Label>
-              <Textarea rows={6} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Full explanation. Separate paragraphs with a blank line." />
+              <Label htmlFor={`${__fieldIds}-body-optional`}>Body (optional)</Label>
+              <Textarea id={`${__fieldIds}-body-optional`} rows={6} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Full explanation. Separate paragraphs with a blank line." />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Category</Label>
+                <Label htmlFor={`${__fieldIds}-category`}>Category</Label>
                 <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-category`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {REGULATORY_CATEGORIES.map((c) => (
                       <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
@@ -308,9 +309,9 @@ export default function RegulatoryUpdates() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Status</Label>
+                <Label htmlFor={`${__fieldIds}-status`}>Status</Label>
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as RegulatoryUpdateStatus })}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-status`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(Object.keys(STATUS_LABELS) as RegulatoryUpdateStatus[]).map((s) => (
                       <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
@@ -321,11 +322,11 @@ export default function RegulatoryUpdates() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Facility types</Label>
+              <Label htmlFor={`${__fieldIds}-facility-types`}>Facility types</Label>
               <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {FACILITY_TYPES.map((ft) => (
                   <label key={ft.value} className="flex items-center gap-2 text-sm">
-                    <Checkbox
+                    <Checkbox id={`${__fieldIds}-facility-types`}
                       checked={form.facilityTypes.includes(ft.value)}
                       onCheckedChange={(checked) => toggleFacilityType(ft.value, checked === true)}
                     />
@@ -338,34 +339,34 @@ export default function RegulatoryUpdates() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Citation (optional)</Label>
-                <Input value={form.citation} onChange={(e) => setForm({ ...form, citation: e.target.value })} placeholder="55 Pa. Code § 2600.65" />
+                <Label htmlFor={`${__fieldIds}-citation-optional`}>Citation (optional)</Label>
+                <Input id={`${__fieldIds}-citation-optional`} value={form.citation} onChange={(e) => setForm({ ...form, citation: e.target.value })} placeholder="55 Pa. Code § 2600.65" />
               </div>
               <div className="space-y-1.5">
-                <Label>Effective date (optional)</Label>
-                <Input type="date" value={form.effectiveDate} onChange={(e) => setForm({ ...form, effectiveDate: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Source name (optional)</Label>
-                <Input value={form.sourceName} onChange={(e) => setForm({ ...form, sourceName: e.target.value })} placeholder="PA Department of Human Services" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Source URL (optional)</Label>
-                <Input value={form.sourceUri} onChange={(e) => setForm({ ...form, sourceUri: e.target.value })} placeholder="https://www.pacodeandbulletin.gov/..." />
+                <Label htmlFor={`${__fieldIds}-effective-date-optional`}>Effective date (optional)</Label>
+                <Input id={`${__fieldIds}-effective-date-optional`} type="date" value={form.effectiveDate} onChange={(e) => setForm({ ...form, effectiveDate: e.target.value })} />
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>State</Label>
-                <Input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-source-name-optional`}>Source name (optional)</Label>
+                <Input id={`${__fieldIds}-source-name-optional`} value={form.sourceName} onChange={(e) => setForm({ ...form, sourceName: e.target.value })} placeholder="PA Department of Human Services" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`${__fieldIds}-source-url-optional`}>Source URL (optional)</Label>
+                <Input id={`${__fieldIds}-source-url-optional`} value={form.sourceUri} onChange={(e) => setForm({ ...form, sourceUri: e.target.value })} placeholder="https://www.pacodeandbulletin.gov/..." />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor={`${__fieldIds}-state`}>State</Label>
+                <Input id={`${__fieldIds}-state`} value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
               </div>
               <div className="flex items-center gap-2 pt-6">
-                <Switch checked={form.isFeatured} onCheckedChange={(v) => setForm({ ...form, isFeatured: v })} />
-                <Label>Feature at top of feed</Label>
+                <Switch id={`${__fieldIds}-feature-at-top-of-feed`} checked={form.isFeatured} onCheckedChange={(v) => setForm({ ...form, isFeatured: v })} />
+                <Label htmlFor={`${__fieldIds}-feature-at-top-of-feed`}>Feature at top of feed</Label>
               </div>
             </div>
           </div>

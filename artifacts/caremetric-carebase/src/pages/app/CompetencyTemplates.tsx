@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   useListCompetencyTemplates,
   useCreateCompetencyTemplate,
@@ -186,6 +186,7 @@ function ManageItemsDialog({ template, onClose }: { template: CompetencyTemplate
 }
 
 export default function CompetencyTemplates() {
+  const __fieldIds = useId();
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editTemplate, setEditTemplate] = useState<CompetencyTemplate | null>(null);
@@ -360,8 +361,8 @@ export default function CompetencyTemplates() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Name *</Label>
-              <Input
+              <Label htmlFor={`${__fieldIds}-name`} className="text-[13px]">Name *</Label>
+              <Input id={`${__fieldIds}-name`}
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Medication Administration Competency"
@@ -369,8 +370,8 @@ export default function CompetencyTemplates() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Description</Label>
-              <Textarea
+              <Label htmlFor={`${__fieldIds}-description`} className="text-[13px]">Description</Label>
+              <Textarea id={`${__fieldIds}-description`}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="What this checklist verifies and when it should be used"

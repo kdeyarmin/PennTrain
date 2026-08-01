@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -75,40 +76,41 @@ export interface EmployeeFormFieldsProps {
 }
 
 export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMode }: EmployeeFormFieldsProps) {
+  const __fieldIds = useId();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
       <div className="space-y-1.5">
-        <Label className="text-[13px]">First Name *</Label>
-        <Input value={form.firstName} onChange={e => onChange("firstName", e.target.value)} placeholder="Jane" className="h-9" />
+        <Label htmlFor={`${__fieldIds}-first-name`} className="text-[13px]">First Name *</Label>
+        <Input id={`${__fieldIds}-first-name`} value={form.firstName} onChange={e => onChange("firstName", e.target.value)} placeholder="Jane" className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Last Name *</Label>
-        <Input value={form.lastName} onChange={e => onChange("lastName", e.target.value)} placeholder="Smith" className="h-9" />
+        <Label htmlFor={`${__fieldIds}-last-name`} className="text-[13px]">Last Name *</Label>
+        <Input id={`${__fieldIds}-last-name`} value={form.lastName} onChange={e => onChange("lastName", e.target.value)} placeholder="Smith" className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Email</Label>
-        <Input type="email" value={form.email} onChange={e => onChange("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
+        <Label htmlFor={`${__fieldIds}-email`} className="text-[13px]">Email</Label>
+        <Input id={`${__fieldIds}-email`} type="email" value={form.email} onChange={e => onChange("email", e.target.value)} placeholder="jane@example.com" className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Phone</Label>
-        <Input value={form.phone} onChange={e => onChange("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
+        <Label htmlFor={`${__fieldIds}-phone`} className="text-[13px]">Phone</Label>
+        <Input id={`${__fieldIds}-phone`} value={form.phone} onChange={e => onChange("phone", e.target.value)} placeholder="(215) 555-0100" className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Job Title</Label>
-        <Input value={form.jobTitle} onChange={e => onChange("jobTitle", e.target.value)} placeholder="Medication Aide" className="h-9" />
+        <Label htmlFor={`${__fieldIds}-job-title`} className="text-[13px]">Job Title</Label>
+        <Input id={`${__fieldIds}-job-title`} value={form.jobTitle} onChange={e => onChange("jobTitle", e.target.value)} placeholder="Medication Aide" className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Department</Label>
-        <Input value={form.department} onChange={e => onChange("department", e.target.value)} placeholder="Nursing" className="h-9" />
+        <Label htmlFor={`${__fieldIds}-department`} className="text-[13px]">Department</Label>
+        <Input id={`${__fieldIds}-department`} value={form.department} onChange={e => onChange("department", e.target.value)} placeholder="Nursing" className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Employee Number</Label>
-        <Input value={form.employeeNumber} onChange={e => onChange("employeeNumber", e.target.value)} placeholder="EMP-001" className="h-9" />
+        <Label htmlFor={`${__fieldIds}-employee-number`} className="text-[13px]">Employee Number</Label>
+        <Input id={`${__fieldIds}-employee-number`} value={form.employeeNumber} onChange={e => onChange("employeeNumber", e.target.value)} placeholder="EMP-001" className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Facility{facilityFieldMode === "create" && " *"}</Label>
+        <Label htmlFor={`${__fieldIds}-facility`} className="text-[13px]">Facility{facilityFieldMode === "create" && " *"}</Label>
         <Select value={form.facilityId} onValueChange={v => onChange("facilityId", v)}>
-          <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
+          <SelectTrigger id={`${__fieldIds}-facility`} className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
           <SelectContent>
             {facilityFieldMode === "edit-keep-current" && <SelectItem value="none">Keep current</SelectItem>}
             {facilities?.map(f => (
@@ -118,12 +120,12 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
         </Select>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Hire Date</Label>
-        <Input type="date" value={form.hireDate} onChange={e => onChange("hireDate", e.target.value)} className="h-9" />
+        <Label htmlFor={`${__fieldIds}-hire-date`} className="text-[13px]">Hire Date</Label>
+        <Input id={`${__fieldIds}-hire-date`} type="date" value={form.hireDate} onChange={e => onChange("hireDate", e.target.value)} className="h-9" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Scheduled Hours / Week</Label>
-        <Input
+        <Label htmlFor={`${__fieldIds}-scheduled-hours-week`} className="text-[13px]">Scheduled Hours / Week</Label>
+        <Input id={`${__fieldIds}-scheduled-hours-week`}
           type="number" min="1" step="0.5" value={form.scheduledHoursPerWeek}
           onChange={e => onChange("scheduledHoursPerWeek", e.target.value)}
           placeholder="e.g. 32" className="h-9"
@@ -131,9 +133,9 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
         <p className="text-xs text-muted-foreground">Drives the 40-scheduled-hour orientation deadline.</p>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Worker Type</Label>
+        <Label htmlFor={`${__fieldIds}-worker-type`} className="text-[13px]">Worker Type</Label>
         <Select value={form.workerType} onValueChange={v => onChange("workerType", v as EmpFormData["workerType"])}>
-          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+          <SelectTrigger id={`${__fieldIds}-worker-type`} className="h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="regular">Regular</SelectItem>
             <SelectItem value="agency">Agency</SelectItem>
@@ -144,9 +146,9 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
         <p className="text-xs text-muted-foreground">Agency/substitute/volunteer get the rapid-orientation checklist.</p>
       </div>
       <div className="space-y-1.5">
-        <Label className="text-[13px]">Status</Label>
+        <Label htmlFor={`${__fieldIds}-status`} className="text-[13px]">Status</Label>
         <Select value={form.status} onValueChange={v => onChange("status", v as EmpFormData["status"])}>
-          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+          <SelectTrigger id={`${__fieldIds}-status`} className="h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>
@@ -176,8 +178,8 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
         </label>
       </div>
       <div className="col-span-full space-y-1.5">
-        <Label className="text-[13px]">Notes</Label>
-        <Textarea value={form.notes} onChange={e => onChange("notes", e.target.value)} placeholder="Optional notes" className="min-h-20" />
+        <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
+        <Textarea id={`${__fieldIds}-notes`} value={form.notes} onChange={e => onChange("notes", e.target.value)} placeholder="Optional notes" className="min-h-20" />
       </div>
     </div>
   );

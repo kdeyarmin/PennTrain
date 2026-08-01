@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { CalendarDays, Clock, MapPin, RefreshCw, Repeat2, Umbrella } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -42,6 +42,7 @@ interface UpcomingShiftRow {
 }
 
 export default function MySchedule() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
@@ -238,7 +239,7 @@ export default function MySchedule() {
         <DialogContent>
           <DialogHeader><DialogTitle>Request a shift swap</DialogTitle><DialogDescription>Your shift {selectedShift ? `on ${formatDateLabel(selectedShift.shift_date, { month: "short", day: "numeric" })}` : ""} will remain assigned until a manager approves the swap after rechecking both employees.</DialogDescription></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2"><Label>Swap with</Label><Select value={swapTargetId} onValueChange={setSwapTargetId}><SelectTrigger><SelectValue placeholder={candidates.isLoading ? "Loading eligible options..." : "Select a coworker's shift"} /></SelectTrigger><SelectContent>{(candidates.data ?? []).map((candidate) => <SelectItem key={candidate.assignment_id} value={candidate.assignment_id}>{candidate.employee_name} · {formatDateLabel(candidate.shift_date, { month: "short", day: "numeric" })} · {formatTimeLabel(candidate.start_time)}–{formatTimeLabel(candidate.end_time)}</SelectItem>)}</SelectContent></Select>{candidates.isError ? <p className="text-sm text-destructive">{candidates.error instanceof Error ? candidates.error.message : "Could not load candidates."}</p> : null}{!candidates.isLoading && (candidates.data?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No candidate shifts are currently available at this facility.</p> : null}</div>
+            <div className="space-y-2"><Label htmlFor={`${__fieldIds}-swap-with`}>Swap with</Label><Select value={swapTargetId} onValueChange={setSwapTargetId}><SelectTrigger id={`${__fieldIds}-swap-with`}><SelectValue placeholder={candidates.isLoading ? "Loading eligible options..." : "Select a coworker's shift"} /></SelectTrigger><SelectContent>{(candidates.data ?? []).map((candidate) => <SelectItem key={candidate.assignment_id} value={candidate.assignment_id}>{candidate.employee_name} · {formatDateLabel(candidate.shift_date, { month: "short", day: "numeric" })} · {formatTimeLabel(candidate.start_time)}–{formatTimeLabel(candidate.end_time)}</SelectItem>)}</SelectContent></Select>{candidates.isError ? <p className="text-sm text-destructive">{candidates.error instanceof Error ? candidates.error.message : "Could not load candidates."}</p> : null}{!candidates.isLoading && (candidates.data?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No candidate shifts are currently available at this facility.</p> : null}</div>
             <div className="space-y-2"><Label htmlFor="swap-reason">Reason</Label><Textarea id="swap-reason" value={swapReason} onChange={(event) => setSwapReason(event.target.value)} maxLength={1000} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setSwapAssignmentId(null)}>Cancel</Button><Button onClick={() => void submitSwapRequest()} disabled={!swapTargetId || swapReason.trim().length < 5 || requestSwap.isPending}>Submit swap</Button></DialogFooter>

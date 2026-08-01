@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useId, memo, useEffect, useMemo, useRef, useState } from "react";
 import { facilityToday } from "@/lib/dateUtils";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetResident } from "@/hooks/useResidents";
@@ -112,15 +112,16 @@ function DegreeSelect({
   onAllOtherChange: (v: string) => void;
   scale: { value: string; label: string }[];
 }) {
+  const __fieldIds = useId();
   if (formType === "ASP") {
     return (
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-[11px] text-muted-foreground">
+          <Label htmlFor={`${__fieldIds}-preliminary`} className="text-[11px] text-muted-foreground">
             Preliminary
           </Label>
           <Select value={value} onValueChange={onChange}>
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger id={`${__fieldIds}-preliminary`} className="h-8 text-xs">
               <SelectValue placeholder="Degree" />
             </SelectTrigger>
             <SelectContent>
@@ -133,9 +134,9 @@ function DegreeSelect({
           </Select>
         </div>
         <div>
-          <Label className="text-[11px] text-muted-foreground">All Other</Label>
+          <Label htmlFor={`${__fieldIds}-all-other`} className="text-[11px] text-muted-foreground">All Other</Label>
           <Select value={allOtherValue} onValueChange={onAllOtherChange}>
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger id={`${__fieldIds}-all-other`} className="h-8 text-xs">
               <SelectValue placeholder="Degree" />
             </SelectTrigger>
             <SelectContent>
@@ -170,12 +171,14 @@ function DegreeSelect({
 // into a plain-text field the user can still hand-edit afterward, not to represent that field's
 // current state (unlike every other Select in this file, which is bound to the field it controls).
 function QuickFillSelect({
+  id,
   options,
   onPick,
   placeholder,
   className,
   disabled,
 }: {
+  id?: string;
   options: { value: string; label: string }[];
   onPick: (v: string) => void;
   placeholder: string;
@@ -184,7 +187,7 @@ function QuickFillSelect({
 }) {
   return (
     <Select value="" onValueChange={onPick} disabled={disabled}>
-      <SelectTrigger className={className}>
+      <SelectTrigger id={id} className={className}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -421,6 +424,7 @@ const DegreeItemEditor = memo(function DegreeItemEditor({
   scale: { value: string; label: string }[];
   readOnly: boolean;
 }) {
+  const __fieldIds = useId();
   return (
     <div className="border rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -442,12 +446,13 @@ const DegreeItemEditor = memo(function DegreeItemEditor({
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
             <Checkbox
+              id={`${__fieldIds}-service-need-na`}
               checked={answer.serviceNeedNotApplicable}
               onCheckedChange={(c) =>
                 onChange({ ...answer, serviceNeedNotApplicable: !!c })
               }
             />
-            <Label className="text-xs">Assessment: not applicable</Label>
+            <Label htmlFor={`${__fieldIds}-service-need-na`} className="text-xs">Assessment: not applicable</Label>
           </div>
           {!answer.serviceNeedNotApplicable && (
             <Textarea
@@ -463,12 +468,13 @@ const DegreeItemEditor = memo(function DegreeItemEditor({
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
             <Checkbox
+              id={`${__fieldIds}-plan-na`}
               checked={answer.planNotApplicable}
               onCheckedChange={(c) =>
                 onChange({ ...answer, planNotApplicable: !!c })
               }
             />
-            <Label className="text-xs">Support plan: not applicable</Label>
+            <Label htmlFor={`${__fieldIds}-plan-na`} className="text-xs">Support plan: not applicable</Label>
           </div>
           {!answer.planNotApplicable && (
             <>
@@ -522,16 +528,18 @@ const SimpleNeedEditor = memo(function SimpleNeedEditor({
   onChange: (next: SimpleNeedAnswer) => void;
   readOnly: boolean;
 }) {
+  const __fieldIds = useId();
   return (
     <div className="border rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium">{item.label}</p>
         <fieldset disabled={readOnly} className="flex items-center gap-1.5">
           <Checkbox
+            id={`${__fieldIds}-applicable`}
             checked={answer.applicable}
             onCheckedChange={(c) => onChange({ ...answer, applicable: !!c })}
           />
-          <Label className="text-xs">Applicable</Label>
+          <Label htmlFor={`${__fieldIds}-applicable`} className="text-xs">Applicable</Label>
         </fieldset>
       </div>
       {answer.applicable && (
@@ -619,16 +627,17 @@ function DiagnosisRowsEditor({
   formType: FormType;
   planDefaults?: FacilityCareDefaults;
 }) {
+  const __fieldIds = useId();
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">{title}</p>
         <fieldset disabled={readOnly} className="flex items-center gap-1.5">
-          <Checkbox
+          <Checkbox id={`${__fieldIds}-none`}
             checked={noneChecked}
             onCheckedChange={(c) => onNoneChange(!!c)}
           />
-          <Label className="text-xs">None</Label>
+          <Label htmlFor={`${__fieldIds}-none`} className="text-xs">None</Label>
         </fieldset>
       </div>
       {!noneChecked && (
@@ -719,6 +728,7 @@ function DiagnosisRowsEditor({
 }
 
 export default function ResidentAssessmentFormEditor() {
+  const __fieldIds = useId();
   const { residentId, formId } = useParams<{ residentId: string; formId: string }>();
   const [location] = useLocation();
   const { user } = useAuth();
@@ -1423,7 +1433,7 @@ ${text}` : text;
                 className="grid sm:grid-cols-2 gap-4"
               >
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Reason for Assessment</Label>
+                  <Label htmlFor={`${__fieldIds}-reason-for-assessment`} className="text-xs">Reason for Assessment</Label>
                   <Select
                     value={content.assessmentInfo.assessmentReason}
                     onValueChange={(v) =>
@@ -1437,7 +1447,7 @@ ${text}` : text;
                       })
                     }
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger id={`${__fieldIds}-reason-for-assessment`} className="h-9">
                       <SelectValue placeholder="Select reason" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1450,7 +1460,7 @@ ${text}` : text;
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Reason for Support Plan</Label>
+                  <Label htmlFor={`${__fieldIds}-reason-for-support-plan`} className="text-xs">Reason for Support Plan</Label>
                   <Select
                     value={content.assessmentInfo.supportPlanReason}
                     onValueChange={(v) =>
@@ -1464,7 +1474,7 @@ ${text}` : text;
                       })
                     }
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger id={`${__fieldIds}-reason-for-support-plan`} className="h-9">
                       <SelectValue placeholder="Select reason" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1477,8 +1487,8 @@ ${text}` : text;
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Last Assessment Date</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-last-assessment-date`} className="text-xs">Last Assessment Date</Label>
+                  <Input id={`${__fieldIds}-last-assessment-date`}
                     type="date"
                     className="h-9"
                     value={content.assessmentInfo.lastAssessmentDate}
@@ -1494,8 +1504,8 @@ ${text}` : text;
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Last Support Plan Date</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-last-support-plan-date`} className="text-xs">Last Support Plan Date</Label>
+                  <Input id={`${__fieldIds}-last-support-plan-date`}
                     type="date"
                     className="h-9"
                     value={content.assessmentInfo.lastSupportPlanDate}
@@ -1515,10 +1525,10 @@ ${text}` : text;
                   content.assessmentInfo.supportPlanReason ===
                     "significant_change") && (
                   <div className="space-y-1.5 sm:col-span-2">
-                    <Label className="text-xs">
+                    <Label htmlFor={`${__fieldIds}-description-of-significant-change`} className="text-xs">
                       Description of Significant Change
                     </Label>
-                    <Textarea
+                    <Textarea id={`${__fieldIds}-description-of-significant-change`}
                       value={content.assessmentInfo.changeDescription}
                       onChange={(e) =>
                         update({
@@ -1533,10 +1543,10 @@ ${text}` : text;
                   </div>
                 )}
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-xs">
+                  <Label htmlFor={`${__fieldIds}-comments-or-related-information`} className="text-xs">
                     Comments or Related Information
                   </Label>
-                  <Textarea
+                  <Textarea id={`${__fieldIds}-comments-or-related-information`}
                     value={content.residentInfo.comments}
                     onChange={(e) =>
                       update({
@@ -1580,12 +1590,12 @@ ${text}` : text;
                       });
                     return (
                       <div key={key} className="space-y-1.5">
-                        <Label className="text-xs capitalize">{key}</Label>
+                        <Label htmlFor={`${__fieldIds}-section1-${key}`} className="text-xs capitalize">{key}</Label>
                         <Select
                           value={s.level}
                           onValueChange={(v) => updateField({ level: v })}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger id={`${__fieldIds}-section1-${key}`} className="h-8 text-xs">
                             <SelectValue placeholder="Degree" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1963,9 +1973,9 @@ ${text}` : text;
             <CardContent>
               <fieldset disabled={isReadOnly}>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <Label className="text-xs">
+                  <p className="text-sm font-medium leading-none text-xs" >
                     Summary of Resident's Overall Wellness
-                  </Label>
+                  </p>
                   {!isReadOnly && (
                     <Button
                       type="button"
@@ -2089,7 +2099,7 @@ ${text}` : text;
               >
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <Label className="text-xs">Assessor's Printed Name</Label>
+                    <p className="text-sm font-medium leading-none text-xs" >Assessor's Printed Name</p>
                     {!isReadOnly && user && (
                       <Button
                         type="button"
@@ -2126,8 +2136,9 @@ ${text}` : text;
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Assessor's Title</Label>
+                  <Label htmlFor={`${__fieldIds}-assessor-title`} className="text-xs">Assessor's Title</Label>
                   <QuickFillSelect
+                    id={`${__fieldIds}-assessor-title`}
                     className="h-9"
                     placeholder="Quick fill…"
                     options={ASSESSOR_TITLE_OPTIONS}
@@ -2157,8 +2168,8 @@ ${text}` : text;
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Date Signed</Label>
-                  <Input
+                  <Label htmlFor={`${__fieldIds}-date-signed`} className="text-xs">Date Signed</Label>
+                  <Input id={`${__fieldIds}-date-signed`}
                     type="date"
                     className="h-9"
                     value={content.participation.assessorSignedDate}
@@ -2193,8 +2204,9 @@ ${text}` : text;
                     <div key={i} className="border rounded-lg p-2 space-y-2">
                       <div className="grid sm:grid-cols-4 gap-2 items-start">
                         <div className="space-y-1">
-                          <Label className="text-[11px]">Name</Label>
+                          <Label htmlFor={`${__fieldIds}-participant-${i}-name`} className="text-[11px]">Name</Label>
                           <Input
+                            id={`${__fieldIds}-participant-${i}-name`}
                             className="h-8 text-xs"
                             value={p.name}
                             disabled={isReadOnly}
@@ -2203,8 +2215,8 @@ ${text}` : text;
                             }
                           />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-[11px]">Relationship</Label>
+                        <div className="space-y-1" role="group" aria-labelledby={`${__fieldIds}-participant-${i}-relationship`}>
+                          <Label id={`${__fieldIds}-participant-${i}-relationship`} className="text-[11px]">Relationship</Label>
                           <QuickFillSelect
                             className="h-8 text-xs"
                             placeholder="Quick fill…"
@@ -2227,8 +2239,9 @@ ${text}` : text;
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[11px]">Date Signed</Label>
+                          <Label htmlFor={`${__fieldIds}-participant-${i}-signed-date`} className="text-[11px]">Date Signed</Label>
                           <Input
+                            id={`${__fieldIds}-participant-${i}-signed-date`}
                             type="date"
                             className="h-8 text-xs"
                             value={p.signedDate}
@@ -2269,15 +2282,16 @@ ${text}` : text;
                       >
                         <div className="flex items-center gap-1.5">
                           <Checkbox
+                            id={`${__fieldIds}-participant-${i}-copy-requested`}
                             checked={!!p.copyRequested}
                             onCheckedChange={(c) =>
                               updateParticipant({ copyRequested: !!c })
                             }
                           />
-                          <Label className="text-[11px]">Copy Requested</Label>
+                          <Label htmlFor={`${__fieldIds}-participant-${i}-copy-requested`} className="text-[11px]">Copy Requested</Label>
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[11px]">Copy Provided</Label>
+                          <Label htmlFor={`${__fieldIds}-participant-${i}-copy-provided`} className="text-[11px]">Copy Provided</Label>
                           <Select
                             value={p.copyProvided || "na"}
                             onValueChange={(v) =>
@@ -2287,7 +2301,7 @@ ${text}` : text;
                               })
                             }
                           >
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger id={`${__fieldIds}-participant-${i}-copy-provided`} className="h-8 text-xs">
                               <SelectValue placeholder="Copy provided?" />
                             </SelectTrigger>
                             <SelectContent>
@@ -2300,8 +2314,8 @@ ${text}` : text;
                           </Select>
                         </div>
                         {!p.signedDate && (
-                          <div className="space-y-1">
-                            <Label className="text-[11px]">
+                          <div className="space-y-1" role="group" aria-labelledby={`${__fieldIds}-participant-${i}-no-signature-reason`}>
+                            <Label id={`${__fieldIds}-participant-${i}-no-signature-reason`} className="text-[11px]">
                               Reason Not Signed
                             </Label>
                             <Select

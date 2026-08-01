@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useListEmployeesPaginated, type Employee } from "@/hooks/useEmployees";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +52,7 @@ export function EmployeeSearchSelect({
   disabled = false,
   selectedLabel,
 }: EmployeeSearchSelectProps) {
+  const __fieldIds = useId();
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
 
@@ -86,8 +87,12 @@ export function EmployeeSearchSelect({
   };
 
   return (
-    <div className={className ?? "space-y-1.5"}>
-      {label ? <Label className="text-[13px]">{label}{required ? " *" : ""}</Label> : null}
+    <div
+      className={className ?? "space-y-1.5"}
+      role={label ? "group" : undefined}
+      aria-labelledby={label ? `${__fieldIds}-label` : undefined}
+    >
+      {label ? <Label id={`${__fieldIds}-label`} className="text-[13px]">{label}{required ? " *" : ""}</Label> : null}
       {!disabled && (
         <Input
           className="h-9"

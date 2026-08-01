@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -78,6 +78,7 @@ const EMPLOYEES_URL_DEFAULTS = {
 };
 
 export default function Employees() {
+  const __fieldIds = useId();
   const [urlState, setUrlState] = useUrlState(EMPLOYEES_URL_DEFAULTS);
   const facilityId = urlState.facilityId;
   const status = urlState.status;
@@ -651,8 +652,8 @@ export default function Employees() {
               hire_date, status, administers_medications, trainer_status. Up to 1,000 rows per file.
             </p>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">CSV File</Label>
-              <input
+              <Label htmlFor={`${__fieldIds}-csv-file`} className="text-[13px]">CSV File</Label>
+              <input id={`${__fieldIds}-csv-file`}
                 type="file"
                 accept=".csv"
                 onChange={e => { setBulkFile(e.target.files?.[0] ?? null); setBulkResult(null); setBulkError(null); }}
@@ -692,7 +693,7 @@ export default function Employees() {
                 </div>
                 {bulkResult.failed > 0 && (
                   <div className="space-y-1.5">
-                    <Label className="text-[13px]">Row Errors</Label>
+                    <p className="text-sm font-medium leading-none text-[13px]" >Row Errors</p>
                     <ScrollArea className="h-40 rounded-md border">
                       <div className="p-3 space-y-2">
                         {bulkResult.results.filter(r => !r.success).map(r => (

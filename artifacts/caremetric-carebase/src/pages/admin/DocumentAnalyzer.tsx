@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   AlertCircle,
@@ -103,6 +103,7 @@ function isApplicableSuggestion(issue: { field: string; suggested_value: string 
 }
 
 export default function DocumentAnalyzer() {
+  const __fieldIds = useId();
   const { toast } = useToast();
   const { data: facilities } = useListFacilities();
   const { data: analyzerEnabled, isLoading: isEnabledLoading } = useAnalyzerEnabled();
@@ -564,18 +565,18 @@ export default function DocumentAnalyzer() {
               {selectedJob && canReview && (
                 <>
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2"><Label>Resident name</Label><Input value={draft.residentName} onChange={(event) => setDraft((d) => ({ ...d, residentName: event.target.value }))} /></div>
-                    <div className="space-y-2"><Label>State form template</Label><Input value={draft.stateFormTemplate} onChange={(event) => setDraft((d) => ({ ...d, stateFormTemplate: event.target.value }))} /></div>
-                    <div className="space-y-2"><Label>Facility name from form</Label><Input value={draft.facilityName} onChange={(event) => setDraft((d) => ({ ...d, facilityName: event.target.value }))} /></div>
-                    <div className="space-y-2"><Label>System facility for resident chart</Label><Select value={draft.facilityId || "unassigned"} onValueChange={(value) => setDraft((d) => ({ ...d, facilityId: value === "unassigned" ? "" : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unassigned">Choose facility before creating chart</SelectItem>{(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
-                    <div className="space-y-2"><Label>Review due date</Label><Input value={draft.reviewDueDate} onChange={(event) => setDraft((d) => ({ ...d, reviewDueDate: event.target.value }))} /></div>
-                    <div className="space-y-2"><Label>Admission date for resident chart</Label><Input type="date" value={draft.admissionDate} onChange={(event) => setDraft((d) => ({ ...d, admissionDate: event.target.value }))} /></div>
-                    <div className="space-y-2"><Label>Extraction confidence</Label><Input value={selectedJob.confidence !== null ? `${selectedJob.confidence}%` : "—"} readOnly /></div>
-                    <div className="space-y-2"><Label>Export approval</Label><Input value={selectedJob.approved_for_export ? "Approved" : "Pending super admin approval"} readOnly /></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-resident-name`}>Resident name</Label><Input id={`${__fieldIds}-resident-name`} value={draft.residentName} onChange={(event) => setDraft((d) => ({ ...d, residentName: event.target.value }))} /></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-state-form-template`}>State form template</Label><Input id={`${__fieldIds}-state-form-template`} value={draft.stateFormTemplate} onChange={(event) => setDraft((d) => ({ ...d, stateFormTemplate: event.target.value }))} /></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-facility-name-from-form`}>Facility name from form</Label><Input id={`${__fieldIds}-facility-name-from-form`} value={draft.facilityName} onChange={(event) => setDraft((d) => ({ ...d, facilityName: event.target.value }))} /></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-system-facility-for-resident-chart`}>System facility for resident chart</Label><Select value={draft.facilityId || "unassigned"} onValueChange={(value) => setDraft((d) => ({ ...d, facilityId: value === "unassigned" ? "" : value }))}><SelectTrigger id={`${__fieldIds}-system-facility-for-resident-chart`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unassigned">Choose facility before creating chart</SelectItem>{(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-review-due-date`}>Review due date</Label><Input id={`${__fieldIds}-review-due-date`} value={draft.reviewDueDate} onChange={(event) => setDraft((d) => ({ ...d, reviewDueDate: event.target.value }))} /></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-admission-date-for-resident-chart`}>Admission date for resident chart</Label><Input id={`${__fieldIds}-admission-date-for-resident-chart`} type="date" value={draft.admissionDate} onChange={(event) => setDraft((d) => ({ ...d, admissionDate: event.target.value }))} /></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-extraction-confidence`}>Extraction confidence</Label><Input id={`${__fieldIds}-extraction-confidence`} value={selectedJob.confidence !== null ? `${selectedJob.confidence}%` : "—"} readOnly /></div>
+                    <div className="space-y-2"><Label htmlFor={`${__fieldIds}-export-approval`}>Export approval</Label><Input id={`${__fieldIds}-export-approval`} value={selectedJob.approved_for_export ? "Approved" : "Pending super admin approval"} readOnly /></div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Transferred handwritten notes and corrections</Label>
-                    <Textarea value={draft.notes} onChange={(event) => setDraft((d) => ({ ...d, notes: event.target.value }))} rows={7} />
+                    <Label htmlFor={`${__fieldIds}-transferred-handwritten-notes-and-correc`}>Transferred handwritten notes and corrections</Label>
+                    <Textarea id={`${__fieldIds}-transferred-handwritten-notes-and-correc`} value={draft.notes} onChange={(event) => setDraft((d) => ({ ...d, notes: event.target.value }))} rows={7} />
                     <div className="flex flex-wrap gap-2">
                       <Button variant="outline" onClick={() => saveDraft(() => toast({ title: "Corrections saved" }))} disabled={!dirty || updateDraft.isPending}>
                         {updateDraft.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PencilLine className="mr-2 h-4 w-4" />} Save corrections

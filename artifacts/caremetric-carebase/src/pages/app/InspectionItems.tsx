@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   useCreateInspectionItem, useUpdateInspectionItem, useDeleteInspectionItem,
@@ -79,6 +79,7 @@ const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>
 const INSPECTION_ITEMS_URL_DEFAULTS = { search: "", facility: "all", kind: "all", status: "all", page: "1" };
 
 export default function InspectionItems() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -410,16 +411,16 @@ export default function InspectionItems() {
           <DialogHeader><DialogTitle>{editing ? "Edit Inspection Item" : "Add Inspection Item"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Facility *</Label>
+              <Label htmlFor={`${__fieldIds}-facility`} className="text-[13px]">Facility *</Label>
               <Select value={form.facilityId} onValueChange={(v) => field("facilityId", v)} disabled={!!editing}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-facility`} className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                 <SelectContent>
                   {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Type *</Label>
+              <Label htmlFor={`${__fieldIds}-type`} className="text-[13px]">Type *</Label>
               <Select
                 value={form.itemType}
                 onValueChange={(v) => {
@@ -428,43 +429,43 @@ export default function InspectionItems() {
                   if (defaultDays && !editing) field("inspectionIntervalDays", String(defaultDays));
                 }}
               >
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ITEM_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Label *</Label>
-              <Input value={form.label} onChange={(e) => field("label", e.target.value)} placeholder="e.g. Extinguisher — 2nd Floor Hallway" className="h-9" />
+              <Label htmlFor={`${__fieldIds}-label`} className="text-[13px]">Label *</Label>
+              <Input id={`${__fieldIds}-label`} value={form.label} onChange={(e) => field("label", e.target.value)} placeholder="e.g. Extinguisher — 2nd Floor Hallway" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Location</Label>
-              <Input value={form.locationDetail} onChange={(e) => field("locationDetail", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-location`} className="text-[13px]">Location</Label>
+              <Input id={`${__fieldIds}-location`} value={form.locationDetail} onChange={(e) => field("locationDetail", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Inspection Interval (days) *</Label>
-              <Input type="number" min={1} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-inspection-interval-days`} className="text-[13px]">Inspection Interval (days) *</Label>
+              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Manufacturer</Label>
-              <Input value={form.manufacturer} onChange={(e) => field("manufacturer", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-manufacturer`} className="text-[13px]">Manufacturer</Label>
+              <Input id={`${__fieldIds}-manufacturer`} value={form.manufacturer} onChange={(e) => field("manufacturer", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Model Number</Label>
-              <Input value={form.modelNumber} onChange={(e) => field("modelNumber", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-model-number`} className="text-[13px]">Model Number</Label>
+              <Input id={`${__fieldIds}-model-number`} value={form.modelNumber} onChange={(e) => field("modelNumber", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Serial Number</Label>
-              <Input value={form.serialNumber} onChange={(e) => field("serialNumber", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-serial-number`} className="text-[13px]">Serial Number</Label>
+              <Input id={`${__fieldIds}-serial-number`} value={form.serialNumber} onChange={(e) => field("serialNumber", e.target.value)} className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px]">Install Date</Label>
-              <Input type="date" value={form.installDate} onChange={(e) => field("installDate", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-install-date`} className="text-[13px]">Install Date</Label>
+              <Input id={`${__fieldIds}-install-date`} type="date" value={form.installDate} onChange={(e) => field("installDate", e.target.value)} className="h-9" />
             </div>
             <div className="col-span-full space-y-1.5">
-              <Label className="text-[13px]">Notes</Label>
-              <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
+              <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
+              <Textarea id={`${__fieldIds}-notes`} value={form.notes} onChange={(e) => field("notes", e.target.value)} placeholder="Optional notes" />
             </div>
           </div>
           <DialogFooter>
@@ -486,9 +487,9 @@ export default function InspectionItems() {
               Logs the same result for {bulkEligible.length} item(s). Fire-drill programs are skipped (they need shift/route details on the item page).
             </p>
             <div className="space-y-1.5">
-              <Label>Result</Label>
+              <Label htmlFor={`${__fieldIds}-result`}>Result</Label>
               <Select value={bulkResult} onValueChange={(v) => setBulkResult(v as typeof bulkResult)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-result`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pass">Pass</SelectItem>
                   <SelectItem value="fail">Fail</SelectItem>
@@ -497,8 +498,8 @@ export default function InspectionItems() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Notes (optional)</Label>
-              <Textarea value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} />
+              <Label htmlFor={`${__fieldIds}-notes-optional`}>Notes (optional)</Label>
+              <Textarea id={`${__fieldIds}-notes-optional`} value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} />
             </div>
           </div>
           <DialogFooter>

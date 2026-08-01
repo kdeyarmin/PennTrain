@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,6 +95,7 @@ function formToContent(form: ArticleFormState): FaqContent | JobAideContent {
 }
 
 export default function HelpContent() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const [tab, setTab] = useState<ArticleType>("faq");
@@ -255,45 +256,45 @@ export default function HelpContent() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Category</Label>
-              <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Getting Started & Roles" />
+              <Label htmlFor={`${__fieldIds}-category`}>Category</Label>
+              <Input id={`${__fieldIds}-category`} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Getting Started & Roles" />
             </div>
             <div className="space-y-1.5">
-              <Label>{form.articleType === "faq" ? "Question" : "Title"}</Label>
-              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              <Label htmlFor={`${__fieldIds}-field`}>{form.articleType === "faq" ? "Question" : "Title"}</Label>
+              <Input id={`${__fieldIds}-field`} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
 
             {form.articleType === "faq" ? (
               <div className="space-y-1.5">
-                <Label>Answer</Label>
-                <Textarea rows={5} value={form.answer} onChange={(e) => setForm({ ...form, answer: e.target.value })} />
+                <Label htmlFor={`${__fieldIds}-answer`}>Answer</Label>
+                <Textarea id={`${__fieldIds}-answer`} rows={5} value={form.answer} onChange={(e) => setForm({ ...form, answer: e.target.value })} />
               </div>
             ) : (
               <>
                 <div className="space-y-1.5">
-                  <Label>Summary</Label>
-                  <Textarea rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} />
+                  <Label htmlFor={`${__fieldIds}-summary`}>Summary</Label>
+                  <Textarea id={`${__fieldIds}-summary`} rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Audience (comma-separated roles)</Label>
-                  <Input value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} placeholder="org_admin, facility_manager" />
+                  <Label htmlFor={`${__fieldIds}-audience-comma-separated-roles`}>Audience (comma-separated roles)</Label>
+                  <Input id={`${__fieldIds}-audience-comma-separated-roles`} value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} placeholder="org_admin, facility_manager" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Steps (one per line)</Label>
-                  <Textarea rows={6} value={form.steps} onChange={(e) => setForm({ ...form, steps: e.target.value })} />
+                  <Label htmlFor={`${__fieldIds}-steps-one-per-line`}>Steps (one per line)</Label>
+                  <Textarea id={`${__fieldIds}-steps-one-per-line`} rows={6} value={form.steps} onChange={(e) => setForm({ ...form, steps: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Tips (one per line, optional)</Label>
-                  <Textarea rows={3} value={form.tips} onChange={(e) => setForm({ ...form, tips: e.target.value })} />
+                  <Label htmlFor={`${__fieldIds}-tips-one-per-line-optional`}>Tips (one per line, optional)</Label>
+                  <Textarea id={`${__fieldIds}-tips-one-per-line-optional`} rows={3} value={form.tips} onChange={(e) => setForm({ ...form, tips: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label>Related Link Label (optional)</Label>
-                    <Input value={form.relatedLabel} onChange={(e) => setForm({ ...form, relatedLabel: e.target.value })} placeholder="Go to Employees" />
+                    <Label htmlFor={`${__fieldIds}-related-link-label-optional`}>Related Link Label (optional)</Label>
+                    <Input id={`${__fieldIds}-related-link-label-optional`} value={form.relatedLabel} onChange={(e) => setForm({ ...form, relatedLabel: e.target.value })} placeholder="Go to Employees" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Related Link Path (optional)</Label>
-                    <Input value={form.relatedHref} onChange={(e) => setForm({ ...form, relatedHref: e.target.value })} placeholder="/app/employees" />
+                    <Label htmlFor={`${__fieldIds}-related-link-path-optional`}>Related Link Path (optional)</Label>
+                    <Input id={`${__fieldIds}-related-link-path-optional`} value={form.relatedHref} onChange={(e) => setForm({ ...form, relatedHref: e.target.value })} placeholder="/app/employees" />
                   </div>
                 </div>
               </>
@@ -301,12 +302,12 @@ export default function HelpContent() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Sort Order</Label>
-                <Input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })} />
+                <Label htmlFor={`${__fieldIds}-sort-order`}>Sort Order</Label>
+                <Input id={`${__fieldIds}-sort-order`} type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })} />
               </div>
               <div className="flex items-center gap-2 pt-6">
-                <Switch checked={form.isPublished} onCheckedChange={(v) => setForm({ ...form, isPublished: v })} />
-                <Label>Published</Label>
+                <Switch id={`${__fieldIds}-published`} checked={form.isPublished} onCheckedChange={(v) => setForm({ ...form, isPublished: v })} />
+                <Label htmlFor={`${__fieldIds}-published`}>Published</Label>
               </div>
             </div>
           </div>

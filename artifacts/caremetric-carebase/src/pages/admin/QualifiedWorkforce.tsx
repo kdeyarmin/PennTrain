@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AlertTriangle, Award, CalendarCheck, FileScan, RefreshCw, UserCheck, UsersRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -87,13 +87,14 @@ function HrisCommands() {
 }
 
 function QualificationCommand() {
+  const __fieldIds = useId();
   const [qualificationId, setQualificationId] = useState("");
   const [state, setState] = useState("suspended");
   const [reason, setReason] = useState("");
   return (
     <div className="space-y-4">
       <div className="space-y-2"><Label htmlFor="phase3-qualification">Qualification ID</Label><Input id="phase3-qualification" value={qualificationId} onChange={(e) => setQualificationId(e.target.value)} /></div>
-      <div className="space-y-2"><Label>Resulting state</Label><Select value={state} onValueChange={setState}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["active", "suspended", "revoked"].map((value) => <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>)}</SelectContent></Select></div>
+      <div className="space-y-2"><Label htmlFor={`${__fieldIds}-resulting-state`}>Resulting state</Label><Select value={state} onValueChange={setState}><SelectTrigger id={`${__fieldIds}-resulting-state`}><SelectValue /></SelectTrigger><SelectContent>{["active", "suspended", "revoked"].map((value) => <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>)}</SelectContent></Select></div>
       <div className="space-y-2"><Label htmlFor="phase3-qualification-reason">Reason</Label><Textarea id="phase3-qualification-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Documentation-backed reason" /></div>
       <CommandCard title="Qualification lifecycle" description="Records an append-only lifecycle event. Revocation is terminal." rpc="set_employee_qualification_state" args={{ p_qualification_id: qualificationId, p_state: state, p_reason: reason }} disabled={!qualificationId || reason.trim().length < 5} buttonLabel="Record state change" />
     </div>
@@ -190,6 +191,7 @@ function personName(value: unknown) {
 }
 
 function WorkforceSelfServiceQueue() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const [facilityId, setFacilityId] = useState("all");
@@ -222,7 +224,7 @@ function WorkforceSelfServiceQueue() {
     <div className="space-y-4">
       <Card>
         <CardHeader><CardTitle>Employee self-service decisions</CardTitle><CardDescription>Approve or deny time off, open-shift claims, and shift swaps with an auditable reason. Eligibility is rechecked before schedule-changing approvals.</CardDescription></CardHeader>
-        <CardContent className="max-w-sm space-y-2"><Label>Facility</Label><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All assigned facilities</SelectItem>{(facilities.data ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></CardContent>
+        <CardContent className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All assigned facilities</SelectItem>{(facilities.data ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></CardContent>
       </Card>
       {queues.isError ? <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Queue unavailable</AlertTitle><AlertDescription>{queues.error instanceof Error ? queues.error.message : "Could not load the queue."}</AlertDescription></Alert> : null}
       {queues.isLoading ? <div className="flex justify-center p-8"><RefreshCw className="h-5 w-5 animate-spin" /></div> : (

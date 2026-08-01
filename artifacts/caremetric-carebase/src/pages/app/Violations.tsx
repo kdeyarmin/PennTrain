@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { useCreateViolation, type Violation, type ViolationInsert } from "@/hooks/useViolations";
 import { usePaginatedViolations } from "@/hooks/usePaginatedDomainLists";
@@ -61,6 +61,7 @@ const EMPTY_FORM: ViolationFormData = {
 const VIOLATIONS_URL_DEFAULTS = { search: "", facility: "all", status: "all", page: "1" };
 
 export default function Violations() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -303,7 +304,7 @@ export default function Violations() {
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Facility *</Label>
+                <Label htmlFor={`${__fieldIds}-facility`} className="text-[13px]">Facility *</Label>
                 <Select
                   value={form.facilityId}
                   onValueChange={(v) => {
@@ -314,18 +315,18 @@ export default function Violations() {
                     setSourceInspectionEventId(null);
                   }}
                 >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-facility`} className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
                     {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Inspection Date *</Label>
-                <Input type="date" value={form.inspectionDate} onChange={(e) => setForm((f) => ({ ...f, inspectionDate: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-inspection-date`} className="text-[13px]">Inspection Date *</Label>
+                <Input id={`${__fieldIds}-inspection-date`} type="date" value={form.inspectionDate} onChange={(e) => setForm((f) => ({ ...f, inspectionDate: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Citation Topic</Label>
+                <Label htmlFor={`${__fieldIds}-citation-topic`} className="text-[13px]">Citation Topic</Label>
                 <Select
                   value={form.citationTopicId}
                   onValueChange={(v) => {
@@ -337,36 +338,36 @@ export default function Violations() {
                     }));
                   }}
                 >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Select topic (optional)" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-citation-topic`} className="h-9"><SelectValue placeholder="Select topic (optional)" /></SelectTrigger>
                   <SelectContent>
                     {citationTopics?.map((t) => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Citation Reference</Label>
-                <Input value={form.citationRef} onChange={(e) => setForm((f) => ({ ...f, citationRef: e.target.value }))} placeholder="e.g. 55 Pa. Code 2600.42(a)" className="h-9" />
+                <Label htmlFor={`${__fieldIds}-citation-reference`} className="text-[13px]">Citation Reference</Label>
+                <Input id={`${__fieldIds}-citation-reference`} value={form.citationRef} onChange={(e) => setForm((f) => ({ ...f, citationRef: e.target.value }))} placeholder="e.g. 55 Pa. Code 2600.42(a)" className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Surveyor Name</Label>
-                <Input value={form.surveyorName} onChange={(e) => setForm((f) => ({ ...f, surveyorName: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-surveyor-name`} className="text-[13px]">Surveyor Name</Label>
+                <Input id={`${__fieldIds}-surveyor-name`} value={form.surveyorName} onChange={(e) => setForm((f) => ({ ...f, surveyorName: e.target.value }))} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Severity</Label>
+                <Label htmlFor={`${__fieldIds}-severity`} className="text-[13px]">Severity</Label>
                 <Select value={form.severity} onValueChange={(v) => setForm((f) => ({ ...f, severity: v as ViolationFormData["severity"] }))}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-severity`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["low", "moderate", "high"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Plan of Correction Due Date</Label>
-                <Input type="date" value={form.pocDueDate} onChange={(e) => setForm((f) => ({ ...f, pocDueDate: e.target.value }))} className="h-9" />
+                <Label htmlFor={`${__fieldIds}-plan-of-correction-due-date`} className="text-[13px]">Plan of Correction Due Date</Label>
+                <Input id={`${__fieldIds}-plan-of-correction-due-date`} type="date" value={form.pocDueDate} onChange={(e) => setForm((f) => ({ ...f, pocDueDate: e.target.value }))} className="h-9" />
               </div>
               <div className="col-span-full space-y-1.5">
-                <Label className="text-[13px]">Violation Description *</Label>
-                <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="What the surveyor cited, quoted or paraphrased from the inspection report" rows={4} />
+                <Label htmlFor={`${__fieldIds}-violation-description`} className="text-[13px]">Violation Description *</Label>
+                <Textarea id={`${__fieldIds}-violation-description`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="What the surveyor cited, quoted or paraphrased from the inspection report" rows={4} />
               </div>
             </div>
           </div>

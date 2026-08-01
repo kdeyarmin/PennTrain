@@ -141,19 +141,19 @@ export default function QapiProjectDetail() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div>
-            <Label>Problem statement</Label>
+            <p className="text-sm font-medium leading-none">Problem statement</p>
             <p>{p.problem_statement}</p>
           </div>
           <div>
-            <Label>Source of concern</Label>
+            <p className="text-sm font-medium leading-none">Source of concern</p>
             <p>{p.source_of_concern}</p>
           </div>
           <div>
-            <Label>Baseline</Label>
+            <p className="text-sm font-medium leading-none">Baseline</p>
             <p>{p.baseline_data || "—"}</p>
           </div>
           <div>
-            <Label>Measurable objective / target</Label>
+            <p className="text-sm font-medium leading-none">Measurable objective / target</p>
             <p>
               {p.measurable_objective || "—"} · {p.target_description || "—"}
             </p>

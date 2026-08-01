@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -54,6 +54,7 @@ const JOB_STATUSES = [
 ] as const;
 
 export default function DataImportCenter() {
+  const __fieldIds = useId();
   const [domainFilter, setDomainFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -185,7 +186,7 @@ export default function DataImportCenter() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-[180px_1fr_200px_auto] md:items-end">
             <div className="space-y-2">
-              <Label>Domain</Label>
+              <Label htmlFor={`${__fieldIds}-domain`}>Domain</Label>
               <Select
                 value={uploadDomain}
                 onValueChange={(value) => {
@@ -194,7 +195,7 @@ export default function DataImportCenter() {
                   setPreview(null);
                 }}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-domain`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {IMPORT_DOMAIN_DEFINITIONS.filter((d) => d.availability === "active").map((d) => (
                     <SelectItem key={d.domain} value={d.domain}>{label(d.domain)}</SelectItem>
@@ -215,7 +216,7 @@ export default function DataImportCenter() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Duplicate strategy</Label>
+              <Label htmlFor={`${__fieldIds}-duplicate-strategy`}>Duplicate strategy</Label>
               <Select
                 value={strategy}
                 onValueChange={(value) => {
@@ -223,7 +224,7 @@ export default function DataImportCenter() {
                   setPreview(null);
                 }}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-duplicate-strategy`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="create">Create (reject duplicates)</SelectItem>
                   <SelectItem value="skip">Skip duplicates</SelectItem>

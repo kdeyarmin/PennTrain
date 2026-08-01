@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   AlertTriangle,
@@ -80,6 +80,7 @@ function billingFailureDescription(copy: BillingSessionErrorCopy) {
 }
 
 export function BillingPlanSelector() {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
   const session = useCreateBillingSession();
@@ -252,9 +253,9 @@ export function BillingPlanSelector() {
         <CardContent className="space-y-5">
           {isPlatformAdmin ? (
             <div className="max-w-xl space-y-1.5">
-              <Label>Organization</Label>
+              <Label htmlFor={`${__fieldIds}-organization`}>Organization</Label>
               <Select value={selectedOrganizationId} onValueChange={setSelectedOrganizationId}>
-                <SelectTrigger><SelectValue placeholder="Select an organization" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-organization`}><SelectValue placeholder="Select an organization" /></SelectTrigger>
                 <SelectContent>
                   {(organizationsQuery.data ?? []).map((organization) => (
                     <SelectItem key={organization.id} value={organization.id}>{organization.name}</SelectItem>
