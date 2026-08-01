@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `849b42b` (2026-08-01) — register gate on main pushes
+**Last verified against main:** `08d9df4` (2026-08-01) — D3 employee apply-from-ledger
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -158,7 +158,7 @@ The build command now runs the unit suite and the startup check.
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM production hardening: adapter injection wired into the accept path, real vendor packages
 5. Trainer quarantine UX reachable from a surface (dialog built, nothing imports it — B5)
-6. Durable import worker that survives a closed browser (claim layer exists; stored file does not)
+6. Durable import worker that survives a closed browser (employee domain now applies from ledger; other domains pending)
 7. Home IA density (too many "homes")
 8. PA rule pack for the copilot — **SG-2**
 9. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
@@ -212,7 +212,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (stored CSV, resume after browser close) | M | in_progress | #355 landed the claim/lease layer: `claimed_at`/`claimed_by`/`claim_expires_at`, `claim_data_import_jobs`, `release_data_import_job_claim`, `process-data-import-jobs`. The worker reads no stored file, so a closed browser still loses the CSV — the actual promise of this row |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Employee-domain durable apply now runs in `process-data-import-jobs` from `data_import_rows` (`normalized_row`/`proposed_action`) under service-role org scope; non-employee domains still release to `ready` until their applicators are added |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
 
