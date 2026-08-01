@@ -1,14 +1,14 @@
 export const DURABLE_IMPORT_DOMAINS = [
   "employees",
-  "rooms",
-  "credentials",
   "residents",
-  "training_records",
   "resident_contacts",
   "assessments",
 ] as const;
 
 export const PENDING_DURABLE_DOMAINS = new Set([
+  "rooms",
+  "credentials",
+  "training_records",
   "incidents",
 ]);
 

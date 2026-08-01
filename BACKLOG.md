@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `c30a095` (2026-08-01) — D5 ImportSampleDownloads wired into DataImportCenter; D3 durable import worker covers 7 domains with org/resident/employee update scoping, incidents remain pending (auth.uid barrier)
+**Last verified against main:** `28dcb36` (2026-08-01) — D3 honesty fix: durable import worker now covers only 4 service-role-safe domains (employees, residents, resident_contacts, assessments); rooms/credentials/training_records/incidents are pending (apply RPCs require authenticated caller / auth.uid, not granted to service_role)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -138,6 +138,16 @@ CareBase Landing v2 design fidelity (Prove the work., Education spend, Guest doc
 portals) with regression test; pricing remains single-source from marketingPricing.ts;
 self-serve CTAs preserved. Internal product routes unchanged.
 
+Closed this pass: **D3 honesty fix — restrict durable import to service-role-safe domains only.**
+`process-data-import-jobs` now applies only the four domains whose paths are direct table
+operations under service-role: `employees`, `residents`, `resident_contacts`, `assessments`.
+`rooms`, `credentials`, `training_records`, and `incidents` are moved to
+`PENDING_DURABLE_DOMAINS` and released back to `ready` immediately: their apply RPCs
+(`create_room_with_beds`, `save_employee_credential`, `save_training_record`,
+`create_incident_atomic`) each require `auth.uid()` / `current_org_id()` and are not
+granted to `service_role`. Widening those grants is a separate product decision and
+requires a schema migration.
+
 Closed this pass: **Residual durable import expansion (D3, safe domains only).**
 `process-data-import-jobs` now durably applies `training_records`, `resident_contacts`, and
 `assessments` from `data_import_rows` under service-role org scope. `incidents` remains
@@ -183,7 +193,7 @@ dry-run practice. Column order matches `importTemplate()`.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Durable import worker — 7 domains apply from ledger durably; incidents still pending
+5. Durable import worker — 4 safe domains apply from ledger durably; rooms/credentials/training_records/incidents pending (RPC auth.uid barrier)
 6. Home IA density (too many "homes")
 7. PA rule pack for the copilot — **SG-2**
 8. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
@@ -237,7 +247,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Durable apply now runs for 7 import domains from `data_import_rows` (`normalized_row` / `proposed_action`) under service-role org scope, including `training_records`, `resident_contacts`, and `assessments`. `incidents` remains pending because `create_incident_atomic` requires `auth.uid()`, which is null on the durable service-role cron path without a schema change. |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Durable apply runs for 4 service-role-safe domains: `employees`, `residents`, `resident_contacts`, `assessments` (direct table ops under service-role org scope). `rooms`, `credentials`, `training_records`, and `incidents` are pending: their apply RPCs (`create_room_with_beds`, `save_employee_credential`, `save_training_record`, `create_incident_atomic`) require `auth.uid()` / `current_org_id()` and are not granted to `service_role`; claimed jobs for these domains are released back to `ready` immediately. Widening grants requires a schema migration and is a separate product decision. |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | done | Sample employee / training-record / credential CSVs under `public/import-samples/` with `importSamples.ts` registry and `ImportSampleDownloads` component. Column order matches `importTemplate()`. Component is now rendered on `DataImportCenter` (after domain-templates card) so samples are reachable from the UI. |
 

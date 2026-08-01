@@ -170,10 +170,20 @@ function isSupportedDurableDomain(domain: string): domain is typeof DURABLE_IMPO
 }
 
 function getPendingDurableReason(domain: string): string | null {
-  if (domain === "incidents" && PENDING_DURABLE_DOMAINS.has(domain)) {
+  if (!PENDING_DURABLE_DOMAINS.has(domain)) return null;
+  if (domain === "rooms") {
+    return "Durable apply for rooms is pending: create_room_with_beds requires auth.uid() (calls assert_admission_manager); GRANT execute is to authenticated only, not service_role.";
+  }
+  if (domain === "credentials") {
+    return "Durable apply for credentials is pending: save_employee_credential requires auth.uid() / current_org_id(); GRANT execute is to authenticated only, not service_role.";
+  }
+  if (domain === "training_records") {
+    return "Durable apply for training_records is pending: save_training_record requires auth.uid() (stamps verified_by_profile_id); GRANT execute is to authenticated only, not service_role.";
+  }
+  if (domain === "incidents") {
     return "Durable apply for incidents is pending: create_incident_atomic requires auth.uid(); durable service-role path cannot call it without a schema change.";
   }
-  return null;
+  return `Durable apply for ${domain} is pending: apply RPC requires authenticated caller and is not granted to service_role.`;
 }
 
 async function recountAndPersistJobCounters(
@@ -1301,20 +1311,14 @@ Deno.serve(async (req) => {
       try {
         const workerResult = job.domain === "employees"
           ? await processEmployeeJob(supabase, job)
-          : job.domain === "rooms"
-          ? await processRoomJob(supabase, job)
-          : job.domain === "credentials"
-          ? await processCredentialJob(supabase, job)
           : job.domain === "residents"
           ? await processResidentJob(supabase, job)
-          : job.domain === "training_records"
-          ? await processTrainingRecordJob(supabase, job)
           : job.domain === "resident_contacts"
           ? await processResidentContactJob(supabase, job)
           : job.domain === "assessments"
           ? await processAssessmentJob(supabase, job)
           : (() => {
-            throw new Error(`Unsupported durable import domain: ${job.domain}`);
+            throw new Error(`Unsupported durable import domain: ${job.domain}. Domains that require an authenticated RPC (rooms, credentials, training_records, incidents) must be released as pending, not routed here.`);
           })();
         results.push({
           jobId: job.id,

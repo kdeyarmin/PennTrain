@@ -8,20 +8,17 @@ import {
   PENDING_DURABLE_DOMAINS,
 } from "./helpers.ts";
 
-Deno.test("durable import domains include all ledger-backed processors", () => {
+Deno.test("durable import domains include only service-role-safe direct-table processors", () => {
   assertEquals(DURABLE_IMPORT_DOMAINS, [
     "employees",
-    "rooms",
-    "credentials",
     "residents",
-    "training_records",
     "resident_contacts",
     "assessments",
   ]);
 });
 
-Deno.test("pending durable domains include incidents auth.uid barrier path", () => {
-  assertEquals(Array.from(PENDING_DURABLE_DOMAINS), ["incidents"]);
+Deno.test("pending durable domains include all domains whose apply RPC requires auth.uid / authenticated grant", () => {
+  assertEquals(Array.from(PENDING_DURABLE_DOMAINS), ["rooms", "credentials", "training_records", "incidents"]);
 });
 
 Deno.test("buildTrainingRecordPayload normalizes optional fields", () => {
