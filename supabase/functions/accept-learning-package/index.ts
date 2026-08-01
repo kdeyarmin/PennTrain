@@ -4,10 +4,8 @@ import { strFromU8, strToU8, unzipSync, zipSync } from "npm:fflate@0.8.2";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { LEARNING_RUNTIME_BRIDGE_SOURCE } from "../_shared/learningPackageBridge.ts";
 
-/** Path inside the package zip where the adapter is placed. */
+/** Relative path segment for the adapter inside the package zip (placed alongside the HTML). */
 const BRIDGE_PATH = "carebase/learning-runtime-bridge.js";
-/** Relative script tag injected before </body>. */
-const BRIDGE_SCRIPT_TAG = `<script src="./${BRIDGE_PATH}"></script>`;
 /** Maximum accepted package size: 50 MB. */
 const MAX_ZIP_BYTES = 50 * 1024 * 1024;
 
@@ -16,13 +14,13 @@ function isInjectableHtml(content: string): boolean {
   return lower.includes("<html") || lower.includes("<body") || lower.includes("<!doctype");
 }
 
-function injectBridgeScriptTag(html: string): string {
+function injectBridgeScriptTag(html: string, scriptTag: string): string {
   if (html.includes(BRIDGE_PATH)) return html;
   const bodyClose = /<\/body>/i;
   if (bodyClose.test(html)) {
-    return html.replace(bodyClose, `  ${BRIDGE_SCRIPT_TAG}\n</body>`);
+    return html.replace(bodyClose, `  ${scriptTag}\n</body>`);
   }
-  return `${html}\n${BRIDGE_SCRIPT_TAG}\n`;
+  return `${html}\n${scriptTag}\n`;
 }
 
 function json(req: Request, body: unknown, status = 200) {
@@ -100,44 +98,61 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: `Zip parse error: ${e instanceof Error ? e.message : String(e)}` }, 422);
   }
 
-  // Reject hostile zip entries
+  // Reject hostile zip entries — normalize Windows separators first so that
+  // ..\\ traversal and absolute Windows paths are caught alongside Unix-style ones.
   for (const name of Object.keys(files)) {
-    if (name.includes("..") || name.startsWith("/")) {
+    const normalized = name.replace(/\\/g, "/");
+    const segments = normalized.split("/");
+    if (
+      normalized.startsWith("/") ||
+      /^[a-zA-Z]:/.test(normalized) ||
+      segments.includes("..")
+    ) {
       return json(req, { error: `Rejected hostile zip entry: ${name}` }, 422);
     }
   }
 
-  // 4. Inject the CareBase runtime bridge
-  files[BRIDGE_PATH] = strToU8(LEARNING_RUNTIME_BRIDGE_SOURCE);
+  // 4. Choose a single HTML to inject into; fail fast if none is injectable
+  const candidateEntry = body.entry_point ?? pkg.entry_point ?? "index.html";
+  let chosenEntryPath: string | null = null;
 
-  // Inject script tag into the entry HTML (configured entry_point or any discoverable HTML)
-  const entryPoint = body.entry_point ?? pkg.entry_point ?? "index.html";
-  let injected = false;
-  const entryBytes = files[entryPoint];
-  if (entryBytes) {
-    const html = strFromU8(entryBytes);
-    if (isInjectableHtml(html)) {
-      files[entryPoint] = strToU8(injectBridgeScriptTag(html));
-      injected = true;
+  if (files[candidateEntry]) {
+    const html = strFromU8(files[candidateEntry]);
+    if (isInjectableHtml(html)) chosenEntryPath = candidateEntry;
+  }
+  if (!chosenEntryPath) {
+    for (const path of Object.keys(files)) {
+      if (!/\.html?$/i.test(path)) continue;
+      const html = strFromU8(files[path]);
+      if (isInjectableHtml(html)) { chosenEntryPath = path; break; }
     }
   }
-  if (!injected) {
-    for (const [path, bytes] of Object.entries(files)) {
-      if (!/\.html?$/i.test(path) || path === BRIDGE_PATH) continue;
-      const html = strFromU8(bytes);
-      if (!isInjectableHtml(html)) continue;
-      files[path] = strToU8(injectBridgeScriptTag(html));
-      injected = true;
-      break;
-    }
+  if (!chosenEntryPath) {
+    return json(req, { error: "No injectable HTML file found in package" }, 422);
   }
 
-  // 5. Rezip (level 0 = store, avoids recompressing vendor binary assets)
-  const zippable: Record<string, [Uint8Array, { level: 0 }]> = {};
+  // Place the bridge file alongside the chosen HTML so the relative <script src> resolves
+  const htmlDir = chosenEntryPath.includes("/")
+    ? chosenEntryPath.slice(0, chosenEntryPath.lastIndexOf("/") + 1)
+    : "";
+  const resolvedBridgePath = `${htmlDir}${BRIDGE_PATH}`;
+  const bridgeScriptTag = `<script src="${BRIDGE_PATH}"></script>`;
+
+  files[resolvedBridgePath] = strToU8(LEARNING_RUNTIME_BRIDGE_SOURCE);
+  files[chosenEntryPath] = strToU8(
+    injectBridgeScriptTag(strFromU8(files[chosenEntryPath]), bridgeScriptTag),
+  );
+  const entryPoint = chosenEntryPath;
+
+  // 5. Rezip with default compression and enforce size cap on the new zip
+  const zippable: Record<string, Uint8Array> = {};
   for (const [name, data] of Object.entries(files)) {
-    zippable[name] = [data, { level: 0 }];
+    zippable[name] = data;
   }
   const newZipBytes = zipSync(zippable);
+  if (newZipBytes.byteLength > MAX_ZIP_BYTES) {
+    return json(req, { error: "Re-zipped package exceeds 50 MB size limit" }, 413);
+  }
 
   // 6. Re-hash
   const newHash = await sha256Hex(newZipBytes);
@@ -151,10 +166,13 @@ Deno.serve(async (req: Request) => {
   }
 
   // 8. Update content_sha256 to reflect the modified package
-  await admin
+  const { error: hashUpdateError } = await admin
     .from("learning_packages")
     .update({ content_sha256: newHash })
     .eq("id", pkg.id);
+  if (hashUpdateError) {
+    return json(req, { error: `Failed to update content hash: ${hashUpdateError.message}` }, 502);
+  }
 
   // 9. Mark accepted via RPC (uses the caller JWT so auth.uid() is correct in audit log)
   const reason = (body.reason ?? "").trim().length >= 8
@@ -167,5 +185,5 @@ Deno.serve(async (req: Request) => {
   });
   if (rpcError) return json(req, { error: rpcError.message }, 400);
 
-  return json(req, { success: true, injected, contentSha256: newHash, entryPoint });
+  return json(req, { success: true, contentSha256: newHash, entryPoint });
 });
