@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"/><title>Storyline-shaped fixture</title></head>
+<body>
+  <h1>Storyline-shaped runtime</h1>
+  <p id="status">Booting…</p>
+  <script src="./carebase/learning-runtime-bridge.js"></script>
+  <script>
+    window.API = {
+      LMSInitialize: function () { return "true"; },
+      LMSFinish: function () { return "true"; },
+      LMSGetValue: function () { return ""; },
+      LMSSetValue: function (k, v) { window.__last = { k: k, v: v }; return "true"; },
+      LMSCommit: function () { return "true"; },
+      LMSGetLastError: function () { return "0"; },
+      LMSGetErrorString: function () { return "No error"; },
+      LMSGetDiagnostic: function () { return ""; }
+    };
+    CareBaseLearningRuntime.onReady(function () {
+      document.getElementById("status").textContent = "Storyline-shaped connected";
+      CareBaseLearningRuntime.commit({ "cmi.core.lesson_status": "incomplete", progress: 0.4 });
+      CareBaseLearningRuntime.complete({ "cmi.core.lesson_status": "passed", progress: 1, successStatus: "passed" });
+    });
+  </script>
+</body>
+</html>
