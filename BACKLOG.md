@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `9b13879` (2026-08-01) — D3 durable import applicators complete
+**Last verified against main:** `18512b3` (2026-08-01) — D3 durable import applicators complete
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
