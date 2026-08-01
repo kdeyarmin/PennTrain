@@ -1,3 +1,4 @@
+// @ts-nocheck -- Deno typecheck: esm/jsr supabase client + ledger apply helpers
 /** Durable import claim loop (BACKLOG D3). Auth: the shared cron secret, like the other workers. */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
