@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `d40c8ff` (2026-08-01) — marketing suite documentation terminology + Landing design fidelity (#377)
+**Last verified against main:** `2951ab8` (2026-08-01) — B4 SCORM→training-record bridge via trigger (20260801160000) on post-#377 main
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -138,6 +138,12 @@ CareBase Landing v2 design fidelity (Prove the work., Education spend, Guest doc
 portals) with regression test; pricing remains single-source from marketingPricing.ts;
 self-serve CTAs preserved. Internal product routes unchanged.
 
+Closed this pass: **B4 SCORM/xAPI completion → training record / hour bucket (trigger-based).**
+AFTER UPDATE OF state on learning_runtime_sessions fires internal `bridge_learning_runtime_completion`
+when state first becomes completed (quiz blocks still gate; `pa_today()`; privileged_write;
+upsert employee_training_records + recalculate_compliance_core). Original commit_learning_runtime_state
+body left untouched to preserve phase4_governed_learning pgTAP.
+
 ---
 
 ## Snapshot (what is true on main today)
@@ -158,13 +164,14 @@ self-serve CTAs preserved. Internal product routes unchanged.
 - Dense ops surface: Survey Day, Work Queue, Training Matrix, Today, binder, evidence
   room, lifecycle cases, invitations
 - Marketing public suite: documentation terminology lock + Landing design fidelity (#377)
+- SCORM/xAPI runtime completion bridges to assignment + training records / hour buckets (B4)
 
 ### Still open (highest risk first)
 
 1. Live pilot evidence against a non-demo org (runbook + manifest)
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
-4. SCORM production hardening: real vendor packages (B3); adapter injection is now wired
+4. SCORM real vendor packages (B3); B1/B4/B5 shipped
 5. Durable import worker — employee domain applies from ledger; other domains pending
 6. Home IA density (too many "homes")
 7. PA rule pack for the copilot — **SG-2**
@@ -198,7 +205,7 @@ Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCT
 | B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | in_progress | `accept-learning-package` edge function created; `useAcceptLearningPackage` now invokes it server-side. Bridge injected via fflate at accept time; `content_sha256` updated. Real vendor packages (B3) and production storage policy still needed for full confidence |
 | B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
 | B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
-| B4 | Bridge SCORM complete → training record / hour bucket | M | open | Credibility for §2600.65 |
+| B4 | Bridge SCORM complete → training record / hour bucket | M | done | Trigger on learning_runtime_sessions.state → completed calls internal bridge_learning_runtime_completion; assignment + training_records + hour buckets when training_type_id set; quiz blocks still gate; pa_today(); original commit function untouched |
 | B5 | Trainer package quarantine UX (reject reason + re-upload) | S | done | `QuarantinePackageDialog` imported into `GovernedLearning.tsx`; replaces `window.prompt`. Trainer can now reach quarantine from the Standards tab |
 
 ### Tier C — Plan of Correction depth
@@ -279,7 +286,7 @@ It needs a decision, not engineering time, and the decision is cheap while the w
 not. Picking option 3 above costs an afternoon of copy changes; discovering you should
 have picked it *after* authoring a pack costs the pack.
 
-**4. Product depth.** B4, then C5.
+**4. Product depth.** ~~B4~~ done, then C5.
 Only once 1–3 are settled.
 
 **Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both depend on
@@ -311,3 +318,5 @@ checks that do not depend on a second reader are the ones carrying real weight: 
 pgTAP suite, `check:all`, and this register's own freshness check. Treat a mechanical gate
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
+
+<!-- Register verified with B4 trigger migration 20260801160000 on enhancement/b4-scorm-bridge-trigger -->
