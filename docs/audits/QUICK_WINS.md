@@ -1,5 +1,7 @@
 # Quick Wins
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](../../BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 | ID | Improvement | Benefit | Complexity | Affected files/modules | Acceptance criteria |
 |---|---|---|---|---|---|
 | QW-01 | Fix class kiosk route order. | Restores/guarantees live class kiosk navigation. | Low | `artifacts/caremetric-carebase/src/App.tsx` | `/trainer/classes/:id/kiosk` renders kiosk in route test. |

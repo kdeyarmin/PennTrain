@@ -1,5 +1,7 @@
 # Improvement Backlog
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](../../BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 ## P0: Critical defects, security, or data-integrity risks
 
 | ID | Recommendation | Category | Severity | User value | Business value | Complexity | Affected files/modules | Dependencies | Acceptance criteria | Order |

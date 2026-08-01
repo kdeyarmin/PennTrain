@@ -2,7 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build && node scripts/check-bundle-budget.mjs",
+    "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run test && pnpm --filter @workspace/caremetric-carebase run build && node scripts/check-bundle-budget.mjs",
     "watchPatterns": [
       "artifacts/caremetric-carebase/**",
       "package.json",

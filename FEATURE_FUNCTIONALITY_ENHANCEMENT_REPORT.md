@@ -1,5 +1,7 @@
 # CareMetric CareBase Feature and Functionality Enhancement Report
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 Date: July 16, 2026
 Reviewed baseline: `kdeyarmin/penntrain` at `113748e` (`main`)
 

@@ -1,5 +1,7 @@
 # Required annual training course matrix
 
+> **Not the backlog.** This is the PA DHS training requirement matrix; it stays current and is worth reading. What is actually open, and in what order, lives in [BACKLOG.md](./BACKLOG.md).
+
 Last reviewed: July 24, 2026
 
 ## Scope and product rules

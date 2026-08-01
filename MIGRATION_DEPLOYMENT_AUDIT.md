@@ -1,5 +1,7 @@
 # Migration deployment audit
 
+> **Not the backlog.** This is the migration-deploy root-cause record; it stays current and is worth reading. What is actually open, and in what order, lives in [BACKLOG.md](./BACKLOG.md).
+
 **Date:** 2026-07-23
 **Project audited:** `xsqobvvreaovwibxwyvv` (Supabase, region `us-west-2`, Postgres 17) — the
 project referenced by `supabase/config.toml` (`project_id`) and `DEPLOYMENT.md`.
