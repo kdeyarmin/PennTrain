@@ -69,8 +69,14 @@ function summarizeChecks(runs) {
 }
 
 async function main() {
-  const pulls = await gh(`/repos/${OWNER}/${REPO}/pulls?state=open&per_page=30`);
-  if (!Array.isArray(pulls) || pulls.length === 0) {
+  const pulls = [];
+  for (let page = 1; ; page += 1) {
+    const batch = await gh(`/repos/${OWNER}/${REPO}/pulls?state=open&per_page=100&page=${page}`);
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    pulls.push(...batch);
+    if (batch.length < 100) break;
+  }
+  if (pulls.length === 0) {
     console.log(`No open PRs on ${OWNER}/${REPO}`);
     return;
   }
