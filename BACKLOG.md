@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `67506b1` (2026-08-01) — UI/UX debt wave
+**Last verified against main:** `67506b1` (2026-08-01) — B5 quarantine dialog wired (this PR)
 **Owner:** product + engineering
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -90,6 +90,7 @@ The build command now runs the unit suite and the startup check.
 - Clinical/EHR hybrid (native chart + FHIR ingest), opt-in — `docs/HIPAA_CLINICAL_DATA.md`
 - Dense ops surface: Survey Day, Work Queue, Training Matrix, Today, binder, evidence
   room, lifecycle cases, invitations
+- Trainer package quarantine UX (reject reason dialog + re-upload guidance) on Governed Learning
 
 ### Still open (highest risk first)
 
@@ -97,11 +98,10 @@ The build command now runs the unit suite and the startup check.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM production hardening: adapter injection wired into the accept path, real vendor packages
-5. Trainer quarantine UX reachable from a surface (dialog built, nothing imports it — B5)
-6. Durable import worker that survives a closed browser (claim layer exists; stored file does not)
-7. Home IA density (too many "homes")
-8. PA rule pack for the copilot — **SG-2**
-9. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+5. Durable import worker that survives a closed browser (claim layer exists; apply-from-ledger still missing)
+6. Home IA density (too many "homes")
+7. PA rule pack for the copilot — **SG-2**
+8. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
 
 ---
 
@@ -132,7 +132,7 @@ Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCT
 | B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
 | B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
 | B4 | Bridge SCORM complete → training record / hour bucket | M | open | Credibility for §2600.65 |
-| B5 | Trainer package quarantine UX (reject reason + re-upload) | S | in_progress | `QuarantinePackageDialog.tsx` exists; nothing imports it, so no trainer can reach it. Same shape as B1 — a built component that is not wired to a surface |
+| B5 | Trainer package quarantine UX (reject reason + re-upload) | S | done | `QuarantinePackageDialog` wired into `GovernedLearning` Standards panel (replaces `window.prompt`). Trainers can record a reject reason and see re-upload guidance |
 
 ### Tier C — Plan of Correction depth
 
@@ -152,7 +152,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (stored CSV, resume after browser close) | M | in_progress | #355 landed the claim/lease layer: `claimed_at`/`claimed_by`/`claim_expires_at`, `claim_data_import_jobs`, `release_data_import_job_claim`, `process-data-import-jobs`. The worker reads no stored file, so a closed browser still loses the CSV — the actual promise of this row |
+| D3 | Durable import worker (apply-from-ledger after browser close) | M | in_progress | Claim/lease layer exists. Validate already persists `normalized_row` + `proposed_action` into `data_import_rows`. Worker still only claim→release-to-ready; server-side apply-from-ledger is the remaining work |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
 
@@ -197,10 +197,9 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 Goal: one non-demo org can invite staff, complete a course, export binder, and *receive
 one real email*. SG-1 is the difference between a pilot and a demo.
 
-**Week 2 — Wire up what is already built:** B1, B3, B5, D3.
-Each is a half-built row: code exists, no surface calls it. Finishing them is cheaper than
-the new rows that would otherwise be opened on top. (C2 was the fifth and is now closed —
-`20260801120000_poc_verify_requires_closed_actions.sql`.)
+**Week 2 — Wire up what is already built:** B1, B3, D3.
+Each is a half-built row: code exists, no surface (or no apply loop) calls it. Finishing them is cheaper than
+the new rows that would otherwise be opened on top. (C2 and B5 have since been closed.)
 
 Then B4 and C5 as the next product depth, with SG-2 running in parallel on the legal side
 since it is gated on review rather than on engineering time.
@@ -216,10 +215,9 @@ since it is gated on review rather than on engineering time.
 
 A row is `in_progress`, not `done`, when the mechanism exists but nothing calls it. This is
 the most common way this register goes wrong: #355 produced four such rows at the time
-(B1, B3, C2, D3), and the very next commit added a fifth by shipping
-`QuarantinePackageDialog.tsx` with no importer (B5). Of those, only C2 has since been
-finished. Recording built-but-unreachable code as `done` is how a backlog stops describing
-the product.
+(B1, B3, C2, D3), and a follow-on shipped `QuarantinePackageDialog.tsx` with no importer (B5).
+Of those, C2 and B5 are now finished. Recording built-but-unreachable code as `done` is how a
+backlog stops describing the product.
 
 Ops-only rows close when runbook evidence exists outside the repo (do not commit customer
 data).
