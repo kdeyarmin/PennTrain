@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { ImportSampleDownloads } from "@/components/import/ImportSampleDownloads";
 import {
   IMPORT_DOMAIN_DEFINITIONS,
   IMPORT_DOMAINS,
@@ -171,6 +172,8 @@ export default function DataImportCenter() {
           ))}
         </CardContent>
       </Card>
+
+      <ImportSampleDownloads />
 
       <Card>
         <CardHeader>

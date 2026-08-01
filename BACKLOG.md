@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `d222987` (2026-08-01) — D3 durable import worker covers 7 domains with org/resident/employee update scoping; incidents remain pending (auth.uid barrier)
+**Last verified against main:** `c30a095` (2026-08-01) — D5 ImportSampleDownloads wired into DataImportCenter; D3 durable import worker covers 7 domains with org/resident/employee update scoping, incidents remain pending (auth.uid barrier)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -150,6 +150,11 @@ when first completed commit arrives (quiz blocks still gate; `pa_today()`; privi
 upsert employee_training_records + recalculate_compliance_core). Leaves commit_learning_runtime_state
 untouched so existing pgTAP remains green.
 
+Closed this pass: **D5 sample CSVs reachable from Import Center.** `ImportSampleDownloads` is
+now rendered on `DataImportCenter` (after the domain-templates card). Sample employee /
+training-record / credential CSVs under `public/import-samples/` are downloadable for
+dry-run practice. Column order matches `importTemplate()`.
+
 ---
 
 ## Snapshot (what is true on main today)
@@ -234,7 +239,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
 | D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Durable apply now runs for 7 import domains from `data_import_rows` (`normalized_row` / `proposed_action`) under service-role org scope, including `training_records`, `resident_contacts`, and `assessments`. `incidents` remains pending because `create_incident_atomic` requires `auth.uid()`, which is null on the durable service-role cron path without a schema change. |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
-| D5 | Sample realistic PA facility CSVs in Help / Import Center | S | in_progress | Sample employee / training-record / credential CSVs shipped under `public/import-samples/` with a `importSamples.ts` registry and an `ImportSampleDownloads` component. Column order matches `importTemplate()`. The component is **not yet rendered** on `DataImportCenter` — wiring it is the remaining work |
+| D5 | Sample realistic PA facility CSVs in Help / Import Center | S | done | Sample employee / training-record / credential CSVs under `public/import-samples/` with `importSamples.ts` registry and `ImportSampleDownloads` component. Column order matches `importTemplate()`. Component is now rendered on `DataImportCenter` (after domain-templates card) so samples are reachable from the UI. |
 
 ### Tier E — Daily operations wedges
 
@@ -281,8 +286,8 @@ One non-demo org can invite staff, complete a course, export a binder, and *rece
 real email*. SG-1 is the difference between a pilot and a demo, and A1–A4 are worth little
 without it. Nothing below this line matters until a real tenant has used the product.
 
-**2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, D3.
-Each is a half-built row: the code exists, no surface calls it. B1 and B5 are now wired. B3 and D3 remain. This is the cheapest block
+**2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, D3, ~~D5~~.
+Each is a half-built row: the code exists, no surface calls it. B1, B5, and D5 are now wired. B3 and D3 remain. This is the cheapest block
 on the list and the one most likely to be skipped, because none of it looks like progress.
 Doing it before new features is how the pile stops growing. (C2 was the fifth and is now
 closed.)
@@ -325,4 +330,4 @@ pgTAP suite, `check:all`, and this register's own freshness check. Treat a mecha
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
 
-<!-- Register verified with B4 trigger migration 20260801160000 on enhancement/b4-scorm-bridge-trigger-20260801 -->
+<!-- Register verified with D5 ImportSampleDownloads wiring on enhancement/d5-wire-import-samples-20260801 -->
