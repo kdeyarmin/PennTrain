@@ -10,7 +10,10 @@ import { surveyEvidencePacketManifest } from "@/lib/surveyEvidencePacket";
 import {
   useAddSurveyEvidencePacketItem,
   useAssembleSurveyEvidencePacket,
+  useIssueSurveyPacketGuestGrant,
+  usePackageSurveyEvidencePacket,
   useRemoveSurveyEvidencePacketItem,
+  useSurveyEvidencePacketExports,
   useSurveyEvidencePacketItems,
 } from "@/hooks/useSurveyEvidencePacket";
 import { facilityTypeLabel } from "@/lib/facilityTypes";
@@ -394,12 +397,21 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
     surveyDaySessionId: sessionId,
     binderExportJobId: pinnedBinderJobId,
   });
+  const packetExports = useSurveyEvidencePacketExports({
+    surveyDaySessionId: sessionId,
+    binderExportJobId: pinnedBinderJobId,
+  });
   const addPacketItem = useAddSurveyEvidencePacketItem();
   const removePacketItem = useRemoveSurveyEvidencePacketItem();
   const assemblePacket = useAssembleSurveyEvidencePacket();
+  const packagePacket = usePackageSurveyEvidencePacket();
+  const issueGuest = useIssueSurveyPacketGuestGrant();
   const [packetNote, setPacketNote] = useState("");
   const [assembledManifest, setAssembledManifest] = useState<Record<string, unknown> | null>(null);
+  const [guestLabel, setGuestLabel] = useState("Surveyor packet access");
+  const [lastGuestToken, setLastGuestToken] = useState<string | null>(null);
   const packetManifest = pinned ? surveyEvidencePacketManifest(pinned) : null;
+  const latestExport = (packetExports.data ?? [])[0] ?? null;
 
   return (
     <Card>
@@ -448,8 +460,8 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
                 <div className="mt-4 space-y-3 border-t pt-3">
                   <p className="text-sm font-medium">Selected evidence for this survey packet</p>
                   <p className="text-xs text-muted-foreground">
-                    Add binder export, notes, or other evidence. Assemble records an immutable selection
-                    manifest (guest access still goes through Evidence Room grants).
+                    Add binder export or notes, assemble a selection manifest, then package a downloadable zip.
+                    Issue a time-limited surveyor guest link for that package only.
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -513,7 +525,71 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
                     >
                       Assemble packet manifest
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={packagePacket.isPending || (packetItems.data?.length ?? 0) === 0}
+                      onClick={() => {
+                        void packagePacket.mutateAsync({
+                          surveyDaySessionId: sessionId,
+                          binderExportJobId: pinnedBinderJobId,
+                          facilityId,
+                        }).then((result) => {
+                          toast({
+                            title: "Survey packet packaged",
+                            description: `${result.itemCount} item(s) · ${(result.byteSize / 1024).toFixed(0)} KB`,
+                          });
+                          if (result.downloadUrl) window.open(result.downloadUrl, "_blank", "noopener");
+                        }).catch((e: Error) => {
+                          toast({ title: "Package failed", description: e.message, variant: "destructive" });
+                        });
+                      }}
+                    >
+                      Package zip
+                    </Button>
                   </div>
+                  {latestExport && (
+                    <div className="rounded border bg-background p-2 text-xs space-y-2">
+                      <p className="font-medium text-sm">Latest package</p>
+                      <p className="text-muted-foreground">
+                        {new Date(latestExport.created_at).toLocaleString()} · {latestExport.item_count} items ·
+                        {" "}{latestExport.content_sha256.slice(0, 12)}…
+                      </p>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <Input
+                          className="max-w-xs h-8"
+                          value={guestLabel}
+                          onChange={(e) => setGuestLabel(e.target.value)}
+                          placeholder="Guest label"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={issueGuest.isPending || guestLabel.trim().length < 2}
+                          onClick={() => {
+                            const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                            void issueGuest.mutateAsync({
+                              packetExportId: latestExport.id,
+                              guestLabel: guestLabel.trim(),
+                              expiresAt: expires,
+                            }).then((grant) => {
+                              setLastGuestToken(grant.token);
+                              toast({ title: "Guest grant issued", description: "Copy the token now — it is shown once." });
+                            }).catch((e: Error) => {
+                              toast({ title: "Guest grant failed", description: e.message, variant: "destructive" });
+                            });
+                          }}
+                        >
+                          Issue surveyor guest link
+                        </Button>
+                      </div>
+                      {lastGuestToken && (
+                        <p className="break-all font-mono text-[11px] text-amber-800 bg-amber-50 p-2 rounded">
+                          Token (copy now): {lastGuestToken}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <ul className="space-y-1 text-sm">
                     {(packetItems.data ?? []).map((item) => (
                       <li key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1">

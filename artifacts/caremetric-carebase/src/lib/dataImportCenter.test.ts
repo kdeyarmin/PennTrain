@@ -7,9 +7,8 @@ describe("data import center", () => {
     for (const domain of IMPORT_DOMAINS) expect(importTemplate(domain)).toMatch(/.+,.+\n$/);
   });
 
-  it("activates processors for migration domains except assessments", () => {
+  it("activates processors for all migration domains including assessments", () => {
     expect(IMPORT_DOMAIN_DEFINITIONS).toHaveLength(IMPORT_DOMAINS.length);
-    // Order follows IMPORT_DOMAINS (assessments stays template-only).
     const active = IMPORT_DOMAIN_DEFINITIONS.filter(({ availability }) => availability === "active").map(({ domain }) => domain);
     expect(active).toEqual([
       "employees",
@@ -18,14 +17,16 @@ describe("data import center", () => {
       "residents",
       "resident_contacts",
       "rooms",
+      "assessments",
       "incidents",
     ]);
     expect(canUploadImportDomain("employees")).toBe(true);
     expect(canUploadImportDomain("credentials")).toBe(true);
-    expect(canUploadImportDomain("assessments")).toBe(false);
+    expect(canUploadImportDomain("assessments")).toBe(true);
     expect(importProcessorFunction("credentials")).toBe("bulk-import-credentials");
-    expect(importProcessorFunction("assessments")).toBeNull();
+    expect(importProcessorFunction("assessments")).toBe("bulk-import-assessments");
     expect(canRollbackImportDomain("credentials")).toBe(true);
+    expect(canRollbackImportDomain("assessments")).toBe(true);
     expect(canRollbackImportDomain("incidents")).toBe(false);
   });
 

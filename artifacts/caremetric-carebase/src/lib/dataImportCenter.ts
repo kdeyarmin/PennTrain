@@ -22,6 +22,7 @@ const ACTIVE_IMPORT_DOMAINS: readonly ImportDomain[] = [
   "rooms",
   "residents",
   "resident_contacts",
+  "assessments",
   "incidents",
 ];
 
@@ -54,6 +55,7 @@ const PROCESSOR_BY_DOMAIN: Partial<Record<ImportDomain, string>> = {
   residents: "bulk-import-residents",
   resident_contacts: "bulk-import-resident-contacts",
   incidents: "bulk-import-incidents",
+  assessments: "bulk-import-assessments",
 };
 
 export function importProcessorFunction(domain: ImportDomain): string | null {
@@ -68,6 +70,7 @@ export function canRollbackImportDomain(domain: string): boolean {
     || domain === "rooms"
     || domain === "residents"
     || domain === "resident_contacts"
+    || domain === "assessments"
   );
 }
 
@@ -78,7 +81,7 @@ const columns: Record<ImportDomain, readonly string[]> = {
   residents: ["external_id", "first_name", "last_name", "date_of_birth", "facility", "room"],
   resident_contacts: ["resident_external_id", "name", "relationship", "email", "phone", "is_primary"],
   rooms: ["facility", "room_number", "unit", "capacity", "status"],
-  assessments: ["resident_external_id", "assessment_type", "assessment_date", "status", "source_reference"],
+  assessments: ["resident_external_id", "assessment_type", "assessment_date", "status", "reason", "source_reference"],
   incidents: ["resident_external_id", "facility", "occurred_at", "incident_type", "severity", "summary"],
 };
 

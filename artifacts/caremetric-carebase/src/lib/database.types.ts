@@ -31943,6 +31943,89 @@ export type Database = {
           },
         ]
       }
+      survey_evidence_packet_exports: {
+        Row: {
+          binder_export_job_id: string | null
+          byte_size: number
+          content_sha256: string
+          created_at: string
+          created_by: string | null
+          facility_id: string | null
+          id: string
+          item_count: number
+          last_error: string | null
+          manifest: Json
+          organization_id: string
+          status: string
+          storage_bucket: string
+          storage_path: string
+          survey_day_session_id: string | null
+        }
+        Insert: {
+          binder_export_job_id?: string | null
+          byte_size: number
+          content_sha256: string
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string | null
+          id?: string
+          item_count?: number
+          last_error?: string | null
+          manifest?: Json
+          organization_id: string
+          status?: string
+          storage_bucket?: string
+          storage_path: string
+          survey_day_session_id?: string | null
+        }
+        Update: {
+          binder_export_job_id?: string | null
+          byte_size?: number
+          content_sha256?: string
+          created_at?: string
+          created_by?: string | null
+          facility_id?: string | null
+          id?: string
+          item_count?: number
+          last_error?: string | null
+          manifest?: Json
+          organization_id?: string
+          status?: string
+          storage_bucket?: string
+          storage_path?: string
+          survey_day_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_evidence_packet_exports_binder_export_job_id_fkey"
+            columns: ["binder_export_job_id"]
+            isOneToOne: false
+            referencedRelation: "binder_export_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_evidence_packet_exports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_evidence_packet_exports_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_evidence_packet_exports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       survey_evidence_packet_items: {
         Row: {
           binder_export_job_id: string | null
@@ -32013,6 +32096,93 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_packet_guest_grants: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          download_count: number
+          expires_at: string
+          facility_id: string | null
+          guest_label: string
+          id: string
+          last_downloaded_at: string | null
+          organization_id: string
+          packet_export_id: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          token_sha256: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          download_count?: number
+          expires_at: string
+          facility_id?: string | null
+          guest_label: string
+          id?: string
+          last_downloaded_at?: string | null
+          organization_id: string
+          packet_export_id: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          token_sha256: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          download_count?: number
+          expires_at?: string
+          facility_id?: string | null
+          guest_label?: string
+          id?: string
+          last_downloaded_at?: string | null
+          organization_id?: string
+          packet_export_id?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          token_sha256?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_packet_guest_grants_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_packet_guest_grants_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_packet_guest_grants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_packet_guest_grants_packet_export_id_fkey"
+            columns: ["packet_export_id"]
+            isOneToOne: false
+            referencedRelation: "survey_evidence_packet_exports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_packet_guest_grants_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -38082,6 +38252,14 @@ export type Database = {
         }
         Returns: Json
       }
+      issue_survey_packet_guest_grant: {
+        Args: {
+          p_expires_at: string
+          p_guest_label: string
+          p_packet_export_id: string
+        }
+        Returns: Json
+      }
       link_sso_identity_subject: {
         Args: {
           p_link_method?: string
@@ -38213,6 +38391,35 @@ export type Database = {
           start_time: string
           unit_name: string
         }[]
+      }
+      list_survey_evidence_packet_exports: {
+        Args: {
+          p_binder_export_job_id?: string
+          p_survey_day_session_id?: string
+        }
+        Returns: {
+          binder_export_job_id: string | null
+          byte_size: number
+          content_sha256: string
+          created_at: string
+          created_by: string | null
+          facility_id: string | null
+          id: string
+          item_count: number
+          last_error: string | null
+          manifest: Json
+          organization_id: string
+          status: string
+          storage_bucket: string
+          storage_path: string
+          survey_day_session_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "survey_evidence_packet_exports"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       list_survey_evidence_packet_items: {
         Args: {
@@ -39252,6 +39459,19 @@ export type Database = {
         }
         Returns: string
       }
+      record_survey_evidence_packet_export: {
+        Args: {
+          p_binder_export_job_id: string
+          p_byte_size: number
+          p_content_sha256: string
+          p_facility_id: string
+          p_item_count: number
+          p_manifest: Json
+          p_storage_path: string
+          p_survey_day_session_id: string
+        }
+        Returns: string
+      }
       record_survey_rehearsal_item_result: {
         Args: { p_finding?: string; p_item_id: string; p_result: string }
         Returns: boolean
@@ -39593,6 +39813,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      resolve_survey_packet_guest_token: {
+        Args: { p_token: string }
+        Returns: Json
+      }
       respond_resident_portal_schedule_event: {
         Args: {
           p_calendar_event_id: string
@@ -39799,6 +40023,10 @@ export type Database = {
       revoke_resident_portal_grant: {
         Args: { p_grant_id: string; p_reason: string }
         Returns: undefined
+      }
+      revoke_survey_packet_guest_grant: {
+        Args: { p_grant_id: string; p_reason: string }
+        Returns: boolean
       }
       revoke_user_invitation: {
         Args: { p_invitation_id: string; p_reason: string }

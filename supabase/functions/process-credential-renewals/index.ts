@@ -4,12 +4,50 @@ import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 const BATCH = 10;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
   });
+}
+
+function emptyExtraction(notes: string) {
+  return {
+    fields: {
+      issuingAuthority: "",
+      expirationDate: "",
+      issueDate: "",
+      credentialNumber: "",
+      credentialLabel: "",
+      notes,
+    },
+    confidence: {
+      overall: 0,
+      source: "scan_only",
+      reason: "Extraction deferred — human review required for credential fields",
+    },
+  };
+}
+
+function sanitizeDate(value: unknown): string {
+  const s = typeof value === "string" ? value.trim().slice(0, 32) : "";
+  if (!s) return "";
+  if (DATE_PATTERN.test(s)) return s;
+  // Accept common MM/DD/YYYY → YYYY-MM-DD when unambiguous
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    const mm = m[1].padStart(2, "0");
+    const dd = m[2].padStart(2, "0");
+    return `${m[3]}-${mm}-${dd}`;
+  }
+  return "";
+}
+
+function sanitizeField(value: unknown, max: number): string {
+  if (typeof value !== "string") return value == null ? "" : String(value).slice(0, max);
+  return value.trim().slice(0, max);
 }
 
 /**
@@ -26,7 +64,6 @@ Deno.serve(async (req: Request) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
-  // Auth: cron secret OR platform_admin JWT
   let authorized = false;
   if (req.headers.has(CRON_SECRET_HEADER)) {
     const denied = requireCronRequest(req, corsHeadersForRequest(req));
@@ -46,7 +83,6 @@ Deno.serve(async (req: Request) => {
   }
   if (!authorized) return json(req, { error: "Unauthorized" }, 401);
 
-  // Claim uploaded submissions
   const { data: claimed, error: claimError } = await admin.rpc("claim_credential_renewal_submissions", {
     p_limit: BATCH,
   });
@@ -59,6 +95,8 @@ Deno.serve(async (req: Request) => {
 
   let processed = 0;
   let failed = 0;
+  let extracted = 0;
+  const extractionErrors: string[] = [];
 
   for (const sub of submissions) {
     try {
@@ -69,23 +107,13 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (docError || !doc) throw new Error(docError?.message ?? "Credential document not found");
 
-      // Lightweight malware/size gate: trust create RPC MIME/size; record clean scan.
-      // Full antivirus integration is a follow-on; extraction fields stay empty so humans review.
-      const extractedFields = {
-        issuingAuthority: "",
-        expirationDate: "",
-        issueDate: "",
-        credentialNumber: "",
-        credentialLabel: "",
-        notes: "OCR worker recorded a clean scan. Human review must confirm issuer and expiration.",
-      };
-      const confidence = {
-        overall: 0,
-        source: "scan_only",
-        reason: "Extraction deferred — human review required for credential fields",
-      };
+      let { fields: extractedFields, confidence } = emptyExtraction(
+        "OCR worker recorded a clean scan. Human review must confirm issuer and expiration.",
+      );
+      let extractionProvider = "none";
+      let extractionModel = "none";
+      let extractionAttemptError: string | null = null;
 
-      // Optional Anthropic path when BAA + key present
       const baa = Deno.env.get("ANTHROPIC_BAA_CONFIRMED") === "true";
       const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
       if (baa && apiKey && doc.storage_path) {
@@ -93,86 +121,152 @@ Deno.serve(async (req: Request) => {
           const { data: fileBlob, error: dlError } = await admin.storage
             .from(doc.storage_bucket || "credential-documents")
             .download(doc.storage_path);
-          if (!dlError && fileBlob) {
-            const bytes = new Uint8Array(await fileBlob.arrayBuffer());
-            if (bytes.byteLength > 0 && bytes.byteLength <= 10 * 1024 * 1024) {
-              const mediaType = (doc.file_type || "application/pdf").includes("png")
-                ? "image/png"
-                : (doc.file_type || "").includes("jpeg") || (doc.file_type || "").includes("jpg")
-                  ? "image/jpeg"
-                  : "application/pdf";
-              // base64 encode in chunks
-              let binary = "";
-              const chunk = 0x8000;
-              for (let i = 0; i < bytes.length; i += chunk) {
-                binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-              }
-              const b64 = btoa(binary);
-              const model = Deno.env.get("ANTHROPIC_DOCUMENT_ANALYZER_MODEL") || "claude-sonnet-4-20250514";
-              const controller = new AbortController();
-              const timer = setTimeout(() => controller.abort(), 60_000);
-              try {
-                const resp = await fetch("https://api.anthropic.com/v1/messages", {
-                  method: "POST",
-                  headers: {
-                    "content-type": "application/json",
-                    "x-api-key": apiKey,
-                    "anthropic-version": "2023-06-01",
+          if (dlError || !fileBlob) throw new Error(dlError?.message ?? "Document download failed");
+          const bytes = new Uint8Array(await fileBlob.arrayBuffer());
+          if (bytes.byteLength === 0) throw new Error("Document is empty");
+          if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("Document exceeds 10MB OCR limit");
+
+          const mediaType = (doc.file_type || "application/pdf").includes("png")
+            ? "image/png"
+            : (doc.file_type || "").includes("jpeg") || (doc.file_type || "").includes("jpg")
+              ? "image/jpeg"
+              : "application/pdf";
+          let binary = "";
+          const chunk = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+          }
+          const b64 = btoa(binary);
+          const model = Deno.env.get("ANTHROPIC_DOCUMENT_ANALYZER_MODEL")
+            || Deno.env.get("ANTHROPIC_CREDENTIAL_RENEWAL_MODEL")
+            || "claude-sonnet-4-20250514";
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 60_000);
+          try {
+            const resp = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+              },
+              signal: controller.signal,
+              body: JSON.stringify({
+                model,
+                max_tokens: 1024,
+                tools: [
+                  {
+                    name: "emit_credential_fields",
+                    description: "Emit extracted credential fields from a license or certification scan. Use empty strings when unclear — never invent values.",
+                    input_schema: {
+                      type: "object",
+                      properties: {
+                        issuingAuthority: { type: "string" },
+                        expirationDate: { type: "string", description: "YYYY-MM-DD or empty" },
+                        issueDate: { type: "string", description: "YYYY-MM-DD or empty" },
+                        credentialNumber: { type: "string" },
+                        credentialLabel: { type: "string" },
+                        confidence: { type: "integer", description: "0-100 overall confidence" },
+                      },
+                      required: [
+                        "issuingAuthority",
+                        "expirationDate",
+                        "issueDate",
+                        "credentialNumber",
+                        "credentialLabel",
+                        "confidence",
+                      ],
+                    },
                   },
-                  signal: controller.signal,
-                  body: JSON.stringify({
-                    model,
-                    max_tokens: 1024,
-                    system:
-                      "Extract credential fields from a scanned professional license or certification. Return JSON only with keys issuingAuthority, expirationDate (YYYY-MM-DD or empty), issueDate (YYYY-MM-DD or empty), credentialNumber, credentialLabel. Never invent values — use empty string when unclear.",
-                    messages: [
+                ],
+                tool_choice: { type: "tool", name: "emit_credential_fields" },
+                messages: [
+                  {
+                    role: "user",
+                    content: [
+                      { type: "document", source: { type: "base64", media_type: mediaType, data: b64 } },
                       {
-                        role: "user",
-                        content: [
-                          { type: "document", source: { type: "base64", media_type: mediaType, data: b64 } },
-                          { type: "text", text: "Extract credential fields as JSON only." },
-                        ],
+                        type: "text",
+                        text: "Extract professional credential fields. Call emit_credential_fields. Never invent values.",
                       },
                     ],
-                  }),
-                });
-                if (resp.ok) {
-                  const payload = await resp.json();
-                  const text = (payload.content ?? [])
-                    .filter((b: any) => b.type === "text")
-                    .map((b: any) => b.text)
-                    .join("\n");
-                  const match = text.match(/\{[\s\S]*\}/);
-                  if (match) {
-                    const parsed = JSON.parse(match[0]);
-                    extractedFields.issuingAuthority = String(parsed.issuingAuthority ?? "").slice(0, 200);
-                    extractedFields.expirationDate = String(parsed.expirationDate ?? "").slice(0, 32);
-                    extractedFields.issueDate = String(parsed.issueDate ?? "").slice(0, 32);
-                    extractedFields.credentialNumber = String(parsed.credentialNumber ?? "").slice(0, 100);
-                    extractedFields.credentialLabel = String(parsed.credentialLabel ?? "").slice(0, 200);
-                    extractedFields.notes = "OCR extraction present — independent human must confirm before approve.";
-                    confidence.overall = 40;
-                    confidence.source = "anthropic";
-                    confidence.reason = "Model extraction with mandatory human confirmation";
-                  }
-                }
-              } finally {
-                clearTimeout(timer);
-              }
+                  },
+                ],
+              }),
+            });
+            if (!resp.ok) {
+              const errText = await resp.text().catch(() => "");
+              throw new Error(`Anthropic ${resp.status}: ${errText.slice(0, 200)}`);
             }
+            const payload = await resp.json();
+            const toolBlock = (payload.content ?? []).find((b: any) => b.type === "tool_use" && b.name === "emit_credential_fields");
+            let parsed: Record<string, unknown> | null = toolBlock?.input ?? null;
+            if (!parsed) {
+              const text = (payload.content ?? [])
+                .filter((b: any) => b.type === "text")
+                .map((b: any) => b.text)
+                .join("\n");
+              const match = text.match(/\{[\s\S]*\}/);
+              if (match) parsed = JSON.parse(match[0]);
+            }
+            if (!parsed) throw new Error("Model returned no structured credential fields");
+
+            const overall = Math.max(0, Math.min(100, Number(parsed.confidence ?? 40) || 40));
+            extractedFields = {
+              issuingAuthority: sanitizeField(parsed.issuingAuthority, 200),
+              expirationDate: sanitizeDate(parsed.expirationDate),
+              issueDate: sanitizeDate(parsed.issueDate),
+              credentialNumber: sanitizeField(parsed.credentialNumber, 100),
+              credentialLabel: sanitizeField(parsed.credentialLabel, 200),
+              notes: "Structured OCR extraction present — independent human must confirm before approve.",
+            };
+            confidence = {
+              overall,
+              source: "anthropic",
+              reason: "Structured tool extraction with mandatory human confirmation",
+              fieldPresence: {
+                issuingAuthority: Boolean(extractedFields.issuingAuthority),
+                expirationDate: Boolean(extractedFields.expirationDate),
+                issueDate: Boolean(extractedFields.issueDate),
+                credentialNumber: Boolean(extractedFields.credentialNumber),
+              },
+            };
+            extractionProvider = "anthropic";
+            extractionModel = model;
+            extracted += 1;
+          } finally {
+            clearTimeout(timer);
           }
-        } catch {
-          // Fall through to clean scan + empty fields
+        } catch (e) {
+          extractionAttemptError = String((e as Error)?.message ?? e).slice(0, 400);
+          extractionErrors.push(`${sub.id.slice(0, 8)}: ${extractionAttemptError}`);
+          // Fall through to clean scan + empty fields; surface error in notes for the reviewer
+          extractedFields.notes =
+            `OCR extraction failed (${extractionAttemptError}). Human review must enter fields manually.`;
+          confidence = {
+            overall: 0,
+            source: "scan_only",
+            reason: "Extraction failed; scan marked clean for human review",
+            extractionError: extractionAttemptError,
+          };
         }
+      } else if (!baa || !apiKey) {
+        extractedFields.notes =
+          "Scan-only mode (ANTHROPIC_BAA_CONFIRMED + ANTHROPIC_API_KEY not both set). Human review required.";
+        confidence.reason = "No BAA-confirmed extraction provider configured";
       }
 
       const { error: recError } = await admin.rpc("record_credential_renewal_extraction", {
         p_submission_id: sub.id,
         p_scan_status: "clean",
         p_scan_provider: "carebase-renewal-worker",
-        p_scan_evidence: { scanned_at: new Date().toISOString(), method: "mime_size_gate" },
-        p_extraction_provider: confidence.source === "anthropic" ? "anthropic" : "none",
-        p_extraction_model: confidence.source === "anthropic" ? (Deno.env.get("ANTHROPIC_DOCUMENT_ANALYZER_MODEL") || "claude") : "none",
+        p_scan_evidence: {
+          scanned_at: new Date().toISOString(),
+          method: "mime_size_gate",
+          extraction_error: extractionAttemptError,
+        },
+        p_extraction_provider: extractionProvider,
+        p_extraction_model: extractionModel,
         p_extracted_fields: extractedFields,
         p_confidence: confidence,
       });
@@ -198,5 +292,7 @@ Deno.serve(async (req: Request) => {
     claimed: submissions.length,
     processed,
     failed,
+    extracted,
+    extractionErrors: extractionErrors.slice(0, 10),
   });
 });

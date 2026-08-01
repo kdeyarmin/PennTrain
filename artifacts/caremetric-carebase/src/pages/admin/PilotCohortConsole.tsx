@@ -56,6 +56,9 @@ export default function PilotCohortConsole() {
   const [orgId, setOrgId] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<PilotFeatureKey[]>([...PILOT_FEATURE_KEYS]);
   const [enrollReason, setEnrollReason] = useState("Pilot enrollment from operator console");
+  const [orgFilter, setOrgFilter] = useState("");
+  const [expiresAt, setExpiresAt] = useState(""); // optional YYYY-MM-DD
+  const [membershipFilter, setMembershipFilter] = useState("");
   const [flagReason, setFlagReason] = useState("Operator release change from pilot console");
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -78,7 +81,26 @@ export default function PilotCohortConsole() {
     return set;
   }, [killsQ.data]);
 
-  const membershipRows = membershipsQ.data ?? [];
+  const membershipRowsAll = membershipsQ.data ?? [];
+  const membershipRows = useMemo(() => {
+    const q = membershipFilter.trim().toLowerCase();
+    if (!q) return membershipRowsAll;
+    return membershipRowsAll.filter((row) =>
+      (row.organization?.name ?? "").toLowerCase().includes(q)
+      || row.feature_key.toLowerCase().includes(q)
+      || row.organization_id.toLowerCase().includes(q)
+    );
+  }, [membershipRowsAll, membershipFilter]);
+  const filteredOrgs = useMemo(() => {
+    const rows = orgsQ.data ?? [];
+    const q = orgFilter.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((o) =>
+      o.name.toLowerCase().includes(q)
+      || (o.slug ?? "").toLowerCase().includes(q)
+      || o.id.toLowerCase().includes(q)
+    );
+  }, [orgsQ.data, orgFilter]);
 
   const anyError = cohortsQ.isError || flagsQ.isError || membershipsQ.isError || orgsQ.isError;
   const firstError =
@@ -116,6 +138,7 @@ export default function PilotCohortConsole() {
           cohortId: pilotCohort.id,
           featureKey: key,
           reason: enrollReason.trim(),
+          expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59.000Z`).toISOString() : null,
         });
       }
       toast({ title: "Organization enrolled", description: `${selectedKeys.length} feature key(s) assigned to the pilot cohort.` });
@@ -337,21 +360,35 @@ export default function PilotCohortConsole() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
+              <Label>Filter organizations</Label>
+              <Input
+                value={orgFilter}
+                onChange={(e) => setOrgFilter(e.target.value)}
+                placeholder="Search by name, slug, or id"
+              />
+            </div>
+            <div className="space-y-1.5">
               <Label>Organization</Label>
               <Select value={orgId} onValueChange={setOrgId}>
                 <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
                 <SelectContent>
-                  {(orgsQ.data ?? []).map((org) => (
+                  {filteredOrgs.map((org) => (
                     <SelectItem key={org.id} value={org.id}>
                       {org.name}{org.is_demo ? " (demo)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">{filteredOrgs.length} match(es)</p>
             </div>
             <div className="space-y-1.5">
               <Label>Reason</Label>
               <Input value={enrollReason} onChange={(e) => setEnrollReason(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Enrollment expires (optional)</Label>
+              <Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Leave blank for open-ended pilot membership.</p>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -380,6 +417,13 @@ export default function PilotCohortConsole() {
           <CardDescription>Who is in {PILOT_COHORT_KEY} for which feature.</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-3 max-w-sm">
+            <Input
+              value={membershipFilter}
+              onChange={(e) => setMembershipFilter(e.target.value)}
+              placeholder="Filter enrollments by org or feature"
+            />
+          </div>
           {membershipsQ.isLoading ? (
             <div className="h-24 animate-pulse rounded bg-muted" />
           ) : !membershipRows.length ? (

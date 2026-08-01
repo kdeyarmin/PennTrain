@@ -40,9 +40,11 @@ import {
 } from "@/hooks/useCourseVideoGeneration";
 import { useRegenerateCourseBlock, useListCourseAiGenerations, useMarkAiGenerationReviewed } from "@/hooks/useAiCourseGeneration";
 import { useListDocuments, useUploadDocument, type TrainingDocument } from "@/hooks/useDocuments";
+import { useRegisterLearningPackage } from "@/hooks/useLearningRuntime";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import { coursesListPath, quizBuilderPath } from "@/lib/courseRoutes";
 import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
 
@@ -290,6 +292,7 @@ export default function CourseDetail() {
     canManage && !!course,
   );
   const uploadCourseDocument = useUploadDocument();
+  const registerLearningPackage = useRegisterLearningPackage();
   const courseDocumentInputRef = useRef<HTMLInputElement | null>(null);
   const courseDocumentById = useMemo(
     () => new Map((courseDocuments ?? []).map(document => [document.id, document])),
@@ -569,7 +572,45 @@ export default function CourseDetail() {
         storagePrefix: courseDocumentPrefix,
       });
       setBlockForm(f => ({ ...f, documentId: document.id }));
-      toast({ title: "Document uploaded", description: `${document.file_name} is attached to this block.` });
+
+      // SCORM/xAPI zips also register into the governed learning package control plane so
+      // Accept/Quarantine on Governed Learning can make them launchable.
+      if (blockForm.block_type === "scorm" && selectedVersion && file.name.toLowerCase().endsWith(".zip")) {
+        try {
+          const buf = await file.arrayBuffer();
+          const digest = await crypto.subtle.digest("SHA-256", buf);
+          const sha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+          const orgId = course.organization_id ?? courseDocumentUploadFacility.organization_id;
+          const packagePath = `${orgId}/${selectedVersion.id}/${sha}.zip`;
+          const { error: pkgUploadError } = await supabase.storage
+            .from("learning-packages")
+            .upload(packagePath, file, { contentType: "application/zip", upsert: false });
+          if (pkgUploadError && !String(pkgUploadError.message).toLowerCase().includes("already exists")) {
+            throw pkgUploadError;
+          }
+          await registerLearningPackage.mutateAsync({
+            courseVersionId: selectedVersion.id,
+            standardType: "scorm_1_2",
+            storagePath: packagePath,
+            contentSha256: sha,
+            compressedBytes: file.size,
+            entryPoint: "index.html",
+          });
+          toast({
+            title: "SCORM package registered",
+            description: `${file.name} is pending accept on Governed Learning → Standards.`,
+          });
+        } catch (regErr) {
+          toast({
+            title: "Document attached; package register incomplete",
+            description: (regErr as Error).message,
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        toast({ title: "Document uploaded", description: `${document.file_name} is attached to this block.` });
+      }
     } catch (e) {
       toast({ title: "Failed to upload document", description: (e as Error).message, variant: "destructive" });
     }
