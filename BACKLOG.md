@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `c30a095` (2026-08-01) — D5 ImportSampleDownloads wired into DataImportCenter; D3 durable import worker covers 7 domains with org/resident/employee update scoping, incidents remain pending (auth.uid barrier)
+**Last verified against main:** `c30a095` (2026-08-01) + fix/d3-service-role-safe-durable-domains (#411) — D3 durable apply restricted to 4 runtime-safe direct-table domains (employees, residents, resident_contacts, assessments); rooms/credentials/training_records/incidents moved to PENDING with barrier reasons (RPC auth.uid / current_org barrier)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -144,6 +144,13 @@ Closed this pass: **Residual durable import expansion (D3, safe domains only).**
 pending and intentionally releases claims back to `ready`: `create_incident_atomic`
 requires `auth.uid()`, and the durable service-role path cannot call it without a schema change.
 
+Closed this pass: **D3 durable-import domain correctness restriction (#411).** Removed
+broken durable-apply claims for `rooms`, `credentials`, `training_records`, and `incidents`.
+`DURABLE_IMPORT_DOMAINS` is now restricted to the 4 domains whose apply path is a direct
+table write under service-role (`employees`, `residents`, `resident_contacts`, `assessments`).
+The other 4 domains remain `PENDING` with explicit barrier reasons (RPC requires `auth.uid()` /
+`current_org`); a schema change or direct-table writer is needed before they can be durably applied.
+
 Closed this pass: **B4 SCORM/xAPI completion → training record / hour bucket (trigger-based).**
 AFTER INSERT on learning_runtime_commits calls internal bridge_learning_runtime_completion
 when first completed commit arrives (quiz blocks still gate; `pa_today()`; privileged_write;
@@ -237,7 +244,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Durable apply now runs for 7 import domains from `data_import_rows` (`normalized_row` / `proposed_action`) under service-role org scope, including `training_records`, `resident_contacts`, and `assessments`. `incidents` remains pending because `create_incident_atomic` requires `auth.uid()`, which is null on the durable service-role cron path without a schema change. |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Durable apply is runtime-safe under service-role for 4 direct-table domains only: employees, residents, resident_contacts, assessments. rooms, credentials, training_records, and incidents remain pending because their apply RPCs (create_room_with_beds, save_employee_credential, save_training_record, create_incident_atomic) require an authenticated caller (auth.uid / current_org) and are not granted to service_role. Schema change or direct-table writers needed to finish. |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | done | Sample employee / training-record / credential CSVs under `public/import-samples/` with `importSamples.ts` registry and `ImportSampleDownloads` component. Column order matches `importTemplate()`. Component is now rendered on `DataImportCenter` (after domain-templates card) so samples are reachable from the UI. |
 
