@@ -18,7 +18,7 @@ describe("Landing marketing copy", () => {
     expect(landingSource).toContain("Guest documentation portals");
     expect(landingSource).toContain("time-limited documentation rooms (or guest documentation portals)");
     expect(landingSource).not.toContain("SEE_LOCAL_FILE");
-    expect(landingSource).not.toContain("evidence");
+    expect(landingSource.toLowerCase()).not.toContain("evidence");
   });
 
   it("keeps the existing self-serve pricing and product messaging markers", () => {

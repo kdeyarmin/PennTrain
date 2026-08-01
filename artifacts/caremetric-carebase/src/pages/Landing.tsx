@@ -141,10 +141,10 @@ const PERSONAS: Persona[] = [
   },
   {
     chapter: "55 Pa. Code Chapter 2800",
-    title: "I run an assisted living facility",
+    title: "I run an Assisted Living Facility (ALF)",
     copy: "You carry the heavier load: 16 hours a year per direct care worker (§2800.65), separate dementia training that doesn't count toward the 16 (§2800.69), special-care-unit add-ons, and ASP assessments — each with its own due date.",
     warning:
-      "Those separate dementia hours are where assisted living facilities get cited. CareBase tracks them apart from the 16 so nothing is counted twice.",
+      "Those separate dementia hours are where Assisted Living Facilities (ALFs) get cited. CareBase tracks them apart from the 16 so nothing is counted twice.",
     tags: ["16 hrs applied automatically", "Dementia hrs tracked separately", "Ch. 2800 mapped for you"],
     cta: "Set up your ALF in minutes →",
   },
@@ -377,7 +377,7 @@ const FAQS: Faq[] = [
   {
     question: "What is CareBase?",
     answer:
-      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and assisted living facilities — with a built-in resident clinical record (native charting plus FHIR for medications, allergies, and diagnoses), Survey Day Mode, and a grounded compliance copilot.",
+      "It's the operations, staff-compliance, and survey-readiness software for Pennsylvania personal care homes and Assisted Living Facilities (ALFs) — with a built-in resident clinical record (native charting plus FHIR for medications, allergies, and diagnoses), Survey Day Mode, and a grounded compliance copilot.",
   },
   {
     question: "How much does it cost?",
