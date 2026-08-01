@@ -1,5 +1,7 @@
 # CareBase Product Value Operating System
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 This release turns the product review recommendations into connected, tenant-scoped workflows. It reuses CareBase's existing compliance, work-item, evidence, admissions, staffing, portal, medication, learning, integration, notification, and audit foundations rather than creating parallel systems of record.
 
 ## Implemented capabilities

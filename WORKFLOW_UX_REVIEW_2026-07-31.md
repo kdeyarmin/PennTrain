@@ -1,5 +1,7 @@
 # CareBase workflow UX review — 2026-07-31
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 Whole-product review of every role workflow for efficiency, logic, and ease of use.
 Code baseline: `main` @ `78f7085` (+ this change set).
 

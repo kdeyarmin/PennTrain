@@ -1,7 +1,11 @@
 # CareBase completion program — 2026-07-31
 
-This is the authoritative completion register. Older audit inventories remain
-historical evidence and are superseded when they conflict with this file.
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](../../BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
+This *was* written as the authoritative completion register, which is exactly the problem
+the banner above records: it is one of several documents that each claimed to be the live
+list. Read it as a dated snapshot of verified state on 2026-07-31, not as an instruction
+about what to build.
 
 ## Baseline and repository verification
 

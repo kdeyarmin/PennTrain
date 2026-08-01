@@ -1,5 +1,7 @@
 # Implementation Roadmap
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](../../BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 ## Phase 0: Critical stabilization
 
 Goals: remove likely route breakage, harden public-token surfaces, prove environment readiness, and make automation failures visible.

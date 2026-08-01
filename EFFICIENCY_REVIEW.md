@@ -1,5 +1,7 @@
 # CareMetric CareBase — Efficiency & Usability Review
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 *July 2026. A follow-up to `ROADMAP.md`'s full-codebase review — that review covered feature completeness,
 correctness, and security, and its entire Tier 1–3 backlog has since shipped. This review assumes every feature
 works as designed and asks a narrower question: for the person actually doing this job today, is each workflow

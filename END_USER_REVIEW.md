@@ -1,5 +1,7 @@
 # CareMetric CareBase — End-User Experience Review
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 *July 2026. A whole-codebase review asking one question: what would most improve this app for the
 people who use it — org admins, facility managers, trainers, employees taking training, and
 auditors? Produced from three parallel deep reads (the React frontend, the Supabase backend and

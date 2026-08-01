@@ -1,5 +1,7 @@
 # PennTrain / CareMetric CareBase comprehensive review — 2026-07-24
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Reviewed commit:** `710342c3a1366bc40a9b22900c1244e5e1ae2ed4` on `claude/app-wide-review-1ytnek` (same tree as `main`).
 **Baseline:** prior review at `2a7340d` (2026-07-21).
 **Primary delta:** ~36 commits: Stripe billing go-live (#263) and pillar-module package catalog (#262), the shared AI voice gateway + phone front door (#256 and follow-ups), the marketing site redesign and lead funnel (#243–#254), Resident 360 / Work Queue / Survey packet / routing hardening (#238), Survey Day follow-ups (#234), representative-payee profiles (#232), atomic monthly charge posting (#231), four PCH/ALF training courses with the HeyGen video pipeline (#264), and the migration deployment audit (#255).

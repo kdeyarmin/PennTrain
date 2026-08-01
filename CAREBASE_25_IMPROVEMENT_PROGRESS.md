@@ -1,5 +1,7 @@
 # CareBase 25-Improvement Program — Delivery Progress
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Updated:** July 29, 2026  
 **Program branch:** `codex/carebase-25-improvement-program`
 

@@ -1,5 +1,7 @@
 # CareMetric CareBase — 25-Improvement Delivery Program
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Program branch:** `codex/carebase-25-improvement-program`  
 **Prepared:** July 29, 2026  
 **Scope:** CareBase application, Supabase schema/RPCs, Edge Functions, PWA, tests, and operating documentation

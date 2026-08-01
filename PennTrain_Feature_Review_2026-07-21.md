@@ -1,5 +1,7 @@
 # PennTrain / CareMetric CareBase feature review — 2026-07-21
 
+> **Superseded as a planning source.** Open work lives in [BACKLOG.md](./BACKLOG.md). This file is kept as dated evidence of what was believed at the time -- do not plan from it, and do not update it to reflect new work.
+
 **Reviewed commit:** `20f75b2` on `claude/app-review-improvements-3gdfhr` (identical to `origin/main` after #229 merged).
 **Baselines:** `PennTrain_Comprehensive_Review_2026-07-20.md` + `PennTrain_Execution_Backlog_2026-07-20.md` (PT-001..PT-034), `PennTrain_Comprehensive_Review_2026-07-21.md` + `PennTrain_Backlog_Delta_2026-07-21.md` (PT-035..PT-042), `ENHANCEMENT_REPORT.md` (E1..E29), `IMPLEMENTATION_PLAN.md` (29 approved improvements, 5 phases).
 **Scope:** feature-level product review of the whole application surface — what exists, how mature it is, and whether the product's claims match its code. This review does not restate PT-001..042 or E1..E29 findings; prior items appear only in the prior-art ledger and status confirmations.
