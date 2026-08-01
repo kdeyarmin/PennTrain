@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `74a3af4` (2026-08-01) — durable import worker now applies rooms / credentials / residents from ledger
+**Last verified against main:** `9633bdc` (2026-08-01) — D5 sample PA facility import CSVs + ImportSampleDownloads component
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -226,7 +226,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
 | D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Durable apply now runs for `employees`, `rooms`, `credentials`, and `residents` from `data_import_rows` (`normalized_row` / `proposed_action`) under service-role org scope. Pending durable domains still released to `ready`: `resident_contacts`, `training_records`, `assessments`, `incidents`. |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
-| D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
+| D5 | Sample realistic PA facility CSVs in Help / Import Center | S | in_progress | Sample employee / training-record / credential CSVs shipped under `public/import-samples/` with a `importSamples.ts` registry and an `ImportSampleDownloads` component. Column order matches `importTemplate()`. The component is **not yet rendered** on `DataImportCenter` — wiring it is the remaining work |
 
 ### Tier E — Daily operations wedges
 
