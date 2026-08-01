@@ -1,142 +1,159 @@
 # CareMetric CareBase — Living Backlog
 
-**Status:** Canonical forward backlog
-**Last verified against main:** `d40c8ff` (2026-08-01) — marketing suite documentation terminology + Landing design fidelity (#377)
-**Owner:** the owner-operator (single person, platform admin)
+**Status:** Canonical forward backlog **Last verified against main:** `63a6414`
+(2026-08-01) — durable import worker domain expansion + Tier A/B3 readiness
+notes **Owner:** the owner-operator (single person, platform admin)
 
-**How to update:** edit this file in the same change set that ships or retires work, and
-bump the stamp above. This is enforced, not requested — `pnpm run check:planning-registers`
-fails when application source, a migration, or an edge function moves without this file
-moving with it. Do not create a parallel planning register; the same check rejects new
-root-level review markdown.
+**How to update:** edit this file in the same change set that ships or retires
+work, and bump the stamp above. This is enforced, not requested —
+`pnpm run check:planning-registers` fails when application source, a migration,
+or an edge function moves without this file moving with it. Do not create a
+parallel planning register; the same check rejects new root-level review
+markdown.
 
 ---
 
 ## Why this file is enforced
 
-It was created as "the single living backlog" and was wrong two commits later. PR #355
-shipped SCORM, POC-lifecycle, and import-worker code against rows this file still listed
-as `open`, and the stamp above still pointed at the pre-#355 commit. Nothing failed,
-so nobody noticed.
+It was created as "the single living backlog" and was wrong two commits later.
+PR #355 shipped SCORM, POC-lifecycle, and import-worker code against rows this
+file still listed as `open`, and the stamp above still pointed at the pre-#355
+commit. Nothing failed, so nobody noticed.
 
-That is the same failure mode as the standing gaps below: this repository enforces
-about twenty machine-checkable invariants rigorously and enforced its planning documents
-not at all, so the planning documents are where the drift went. The fix was to make the
-register checkable rather than to ask people to be more careful. See
-`scripts/check-planning-registers.mjs`.
+That is the same failure mode as the standing gaps below: this repository
+enforces about twenty machine-checkable invariants rigorously and enforced its
+planning documents not at all, so the planning documents are where the drift
+went. The fix was to make the register checkable rather than to ask people to be
+more careful. See `scripts/check-planning-registers.mjs`.
 
 ---
 
 ## Operating reality: one person
 
-This product is owned and run by one person, who holds the platform-admin (super admin)
-identity. That is not a staffing gap to be worked around; it is the permanent constraint
-this backlog is planned against, and it changes three things:
+This product is owned and run by one person, who holds the platform-admin (super
+admin) identity. That is not a staffing gap to be worked around; it is the
+permanent constraint this backlog is planned against, and it changes three
+things:
 
-- **`ops_only` does not mean "someone else".** Those rows are not delegated. They are the
-  same person, wearing a different hat, on a different day. An owner column reading
-  "Eng/ops", "Product", "QA", or "Legal" is a *kind of work*, never a handoff.
-- **Nothing runs in parallel.** Two tracks "in parallel" means one of them is not moving.
-  The sequence below is single-threaded on purpose.
-- **Separation-of-duties controls cannot do their job.** Several gates in this codebase
-  require two distinct identities (most sharply `approve_regulatory_rule_version`, which
-  refuses when `authored_by = auth.uid()`). One person can always satisfy those
-  mechanically with a second account — and satisfying them that way delivers none of the
-  independent review they exist to provide. Where that matters, the row says so rather
-  than pretending the gate was met.
+- **`ops_only` does not mean "someone else".** Those rows are not delegated.
+  They are the same person, wearing a different hat, on a different day. An
+  owner column reading "Eng/ops", "Product", "QA", or "Legal" is a _kind of
+  work_, never a handoff.
+- **Nothing runs in parallel.** Two tracks "in parallel" means one of them is
+  not moving. The sequence below is single-threaded on purpose.
+- **Separation-of-duties controls cannot do their job.** Several gates in this
+  codebase require two distinct identities (most sharply
+  `approve_regulatory_rule_version`, which refuses when
+  `authored_by = auth.uid()`). One person can always satisfy those mechanically
+  with a second account — and satisfying them that way delivers none of the
+  independent review they exist to provide. Where that matters, the row says so
+  rather than pretending the gate was met.
 
 ---
 
 ## Register map
 
-One canonical list. Everything else is labelled in its own first lines, and the label is
-checked.
+One canonical list. Everything else is labelled in its own first lines, and the
+label is checked.
 
-| Document | Role |
-| --- | --- |
-| **BACKLOG.md** (this file) | **Canonical.** Open work, ordered by pilot readiness |
-| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Reference — long-horizon five-phase program |
-| [RESIDENT_360_PROGRAM_PLAN.md](RESIDENT_360_PROGRAM_PLAN.md) | Reference — Resident 360 program design |
-| [CONTROLLED_PILOT_RUNBOOK.md](CONTROLLED_PILOT_RUNBOOK.md) | Reference — live pilot evidence procedure |
-| [SURVEY_DAY_MODE_SPEC.md](SURVEY_DAY_MODE_SPEC.md) | Reference — Survey Day mode spec |
-| [PA_DHS_ANNUAL_TRAINING_MATRIX.md](PA_DHS_ANNUAL_TRAINING_MATRIX.md) | Reference — PA DHS requirement matrix |
-| [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md) | Reference — Plan-of-Correction design |
-| [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCTION_HARDENING.md) | Reference — SCORM production PR plan |
-| [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md) | Reference — ops-only Tier A rows |
+| Document                                                                                                                                                                                    | Role                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **BACKLOG.md** (this file)                                                                                                                                                                  | **Canonical.** Open work, ordered by pilot readiness        |
+| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)                                                                                                                                            | Reference — long-horizon five-phase program                 |
+| [RESIDENT_360_PROGRAM_PLAN.md](RESIDENT_360_PROGRAM_PLAN.md)                                                                                                                                | Reference — Resident 360 program design                     |
+| [CONTROLLED_PILOT_RUNBOOK.md](CONTROLLED_PILOT_RUNBOOK.md)                                                                                                                                  | Reference — live pilot evidence procedure                   |
+| [SURVEY_DAY_MODE_SPEC.md](SURVEY_DAY_MODE_SPEC.md)                                                                                                                                          | Reference — Survey Day mode spec                            |
+| [PA_DHS_ANNUAL_TRAINING_MATRIX.md](PA_DHS_ANNUAL_TRAINING_MATRIX.md)                                                                                                                        | Reference — PA DHS requirement matrix                       |
+| [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)                                                                                                                                | Reference — Plan-of-Correction design                       |
+| [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCTION_HARDENING.md)                                                                                                      | Reference — SCORM production PR plan                        |
+| [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md)                                                                                                            | Reference — ops-only Tier A rows                            |
 | ROADMAP.md, WORKFLOW_UX_REVIEW_2026-07-31.md, docs/audits/\*, CAREBASE_25_\*, EFFICIENCY_REVIEW.md, END_USER_REVIEW.md, ENHANCEMENT_REPORT.md, PLATFORM_ENHANCEMENTS.md, root `PennTrain_*` | **Superseded.** Dated evidence only — do not plan from them |
 
-Six of those superseded documents still read as live registers before this pass, and two
-claimed authority in their own opening paragraph. If any of them contradicts this file or
-code on `main`, **trust code and this file.**
+Six of those superseded documents still read as live registers before this pass,
+and two claimed authority in their own opening paragraph. If any of them
+contradicts this file or code on `main`, **trust code and this file.**
 
 ---
 
 ## Standing gaps
 
-Accepted, unfixed problems that survive review cycles *because nothing fails while they
-are open*. Each row has a review date. When it passes, `check:planning-registers` goes red
-until someone closes the row, moves it to "Explicitly not now", or deliberately re-dates it
-— which puts a person on record for the decision. Letting it sit quietly is the option the
-check removes.
+Accepted, unfixed problems that survive review cycles _because nothing fails
+while they are open_. Each row has a review date. When it passes,
+`check:planning-registers` goes red until someone closes the row, moves it to
+"Explicitly not now", or deliberately re-dates it — which puts a person on
+record for the decision. Letting it sit quietly is the option the check removes.
 
-| ID | Gap | Why it survives | Gate to close | Owner | Review by |
-| --- | --- | --- | --- | --- | --- |
-| SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | **You** (ops hat — see A6) | 2026-09-01 |
-| SG-2 | The compliance copilot has no Pennsylvania rule pack. `regulatory_rule_pack_templates` ships exactly one row — `oh.rcf.3701-16.personnel` (Ohio). With no installed and activated PA pack, `compliance-copilot` finds zero governed rule versions and answers every PA question with "No active governed rule version matched". | The copilot degrades politely instead of erroring, and the Ohio template makes the *mechanism* look finished. PA is the product's entire market, and it is the one jurisdiction with no pack. | A `pa.*` template authored from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` and 55 Pa. Code Ch. 2600/2800, carried through the existing governance gates: golden fixtures, shadow evaluation, explicit activation — plus an approval step that, solo, only a second account you control can clear. | **You**, in all four capacities — there is no one else. See "The solo path" below: every mechanical step is reachable, so what actually gates this row is whether you are willing to publish a regulatory interpretation to every PA tenant on your own authority. | 2026-10-01 |
+| ID   | Gap                                                                                                                                                                                                                                                                                                                                                             | Why it survives                                                                                                                                                                               | Gate to close                                                                                                                                                                                                                                                                             | Owner                                                                                                                                                                                                                                                              | Review by  |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs _do_ get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet.                                      | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration.                            | **You** (ops hat — see A6)                                                                                                                                                                                                                                         | 2026-09-01 |
+| SG-2 | The compliance copilot has no Pennsylvania rule pack. `regulatory_rule_pack_templates` ships exactly one row — `oh.rcf.3701-16.personnel` (Ohio). With no installed and activated PA pack, `compliance-copilot` finds zero governed rule versions and answers every PA question with "No active governed rule version matched".                                 | The copilot degrades politely instead of erroring, and the Ohio template makes the _mechanism_ look finished. PA is the product's entire market, and it is the one jurisdiction with no pack. | A `pa.*` template authored from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` and 55 Pa. Code Ch. 2600/2800, carried through the existing governance gates: golden fixtures, shadow evaluation, explicit activation — plus an approval step that, solo, only a second account you control can clear. | **You**, in all four capacities — there is no one else. See "The solo path" below: every mechanical step is reachable, so what actually gates this row is whether you are willing to publish a regulatory interpretation to every PA tenant on your own authority. | 2026-10-01 |
 
 ### SG-2 — the solo path
 
 Four capacities are involved, and they are all you:
 
-| Step | Capacity | Reachable solo? |
-| --- | --- | --- |
-| Author the PA content — citations, effective dates, hour thresholds | Regulatory | Yes, from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` + 55 Pa. Code Ch. 2600/2800 |
-| Insert the `pa.*` template row | Engineering | Yes — a migration. Platform admins hold `select` only on `regulatory_rule_pack_templates`; writes are `service_role`, so this cannot be done from the UI |
-| Unhardcode `"oh.rcf.3701-16.personnel"` in `EnterpriseFoundation.tsx:453` | Engineering | Yes |
-| Install → submit → shadow | Platform admin | Yes |
-| Approve → activate | Platform admin **#2** | Yes, but only with a second account (below) |
+| Step                                                                      | Capacity              | Reachable solo?                                                                                                                                          |
+| ------------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Author the PA content — citations, effective dates, hour thresholds       | Regulatory            | Yes, from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` + 55 Pa. Code Ch. 2600/2800                                                                                 |
+| Insert the `pa.*` template row                                            | Engineering           | Yes — a migration. Platform admins hold `select` only on `regulatory_rule_pack_templates`; writes are `service_role`, so this cannot be done from the UI |
+| Unhardcode `"oh.rcf.3701-16.personnel"` in `EnterpriseFoundation.tsx:453` | Engineering           | Yes                                                                                                                                                      |
+| Install → submit → shadow                                                 | Platform admin        | Yes                                                                                                                                                      |
+| Approve → activate                                                        | Platform admin **#2** | Yes, but only with a second account (below)                                                                                                              |
 
 **The second-identity step is a formality, and should be recorded as one.**
 `approve_regulatory_rule_version` refuses when `authored_by = auth.uid()`, and
-`install_regulatory_rule_pack_template` stamps `authored_by`. A platform admin may grant
-`platform_admin` to another account (`admin-update-user`, AAL2 for `identity_admin`), so a
-second identity you also control clears the check. It clears the *check* — it does not
-produce the second reader the check exists to force. Do not let a green pipeline read as
-"independently reviewed" in a survey or an incident review.
+`install_regulatory_rule_pack_template` stamps `authored_by`. A platform admin
+may grant `platform_admin` to another account (`admin-update-user`, AAL2 for
+`identity_admin`), so a second identity you also control clears the check. It
+clears the _check_ — it does not produce the second reader the check exists to
+force. Do not let a green pipeline read as "independently reviewed" in a survey
+or an incident review.
 
-**So the real gate is not process, it is liability.** With no counsel to hand it to, the
-question is whether you are willing to ship a regulatory interpretation to every PA tenant
-on your own authority. Three honest ways to close this row:
+**So the real gate is not process, it is liability.** With no counsel to hand it
+to, the question is whether you are willing to ship a regulatory interpretation
+to every PA tenant on your own authority. Three honest ways to close this row:
 
-1. **Author it and own it.** Cheapest, and defensible if the pack stays close to what the
-   regulation literally says. Keep `source_uri` and `source_checksum_sha256` exact so any
-   claim is traceable to text you did not write.
-2. **Buy one review.** A single fixed-scope engagement with a PA elder-care compliance
-   attorney over one `pa.*` pack is a bounded cost and converts the formality above into a
-   real second reader.
-3. **Do not ship governed answers yet.** Keep the copilot scoped as a drafting aid that
-   cites sources and never asserts compliance, and drop SG-2 to "Explicitly not now". This
-   is a legitimate outcome, not a failure — an empty pack that is *labelled* empty is
-   safer than a pack of one person's readings presented as governed.
+1. **Author it and own it.** Cheapest, and defensible if the pack stays close to
+   what the regulation literally says. Keep `source_uri` and
+   `source_checksum_sha256` exact so any claim is traceable to text you did not
+   write.
+2. **Buy one review.** A single fixed-scope engagement with a PA elder-care
+   compliance attorney over one `pa.*` pack is a bounded cost and converts the
+   formality above into a real second reader.
+3. **Do not ship governed answers yet.** Keep the copilot scoped as a drafting
+   aid that cites sources and never asserts compliance, and drop SG-2 to
+   "Explicitly not now". This is a legitimate outcome, not a failure — an empty
+   pack that is _labelled_ empty is safer than a pack of one person's readings
+   presented as governed.
 
-Option 3 costs nothing and is reversible; 1 and 2 are not. Decide before authoring, not
-after.
+Option 3 costs nothing and is reversible; 1 and 2 are not. Decide before
+authoring, not after.
 
 ---
 
-Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
-built with `typecheck && build && check-bundle-budget` and no test step, on its own
-push-triggered pipeline — so a red suite still shipped. The repo had already solved this
-exact class of problem for migrations (`deploy-migrations.yml` waits on a validated CI
-SHA; see `MIGRATION_DEPLOYMENT_AUDIT.md`) and never applied it to the application deploy.
+Closed this pass: **Railway deployed rebuilds whose tests never ran.**
+`railway.json` built with `typecheck && build && check-bundle-budget` and no
+test step, on its own push-triggered pipeline — so a red suite still shipped.
+The repo had already solved this exact class of problem for migrations
+(`deploy-migrations.yml` waits on a validated CI SHA; see
+`MIGRATION_DEPLOYMENT_AUDIT.md`) and never applied it to the application deploy.
 The build command now runs the unit suite and the startup check.
 
-Closed this pass: **Marketing suite documentation terminology + Landing design fidelity (#377).**
-Public marketing surfaces (Landing.tsx, Features, FAQ) now exclusively use “documentation” /
-“documentation rooms” / “Survey documentation” (never “evidence”). Landing restored to
-CareBase Landing v2 design fidelity (Prove the work., Education spend, Guest documentation
-portals) with regression test; pricing remains single-source from marketingPricing.ts;
-self-serve CTAs preserved. Internal product routes unchanged.
+Closed this pass: **Marketing suite documentation terminology + Landing design
+fidelity (#377).** Public marketing surfaces (Landing.tsx, Features, FAQ) now
+exclusively use “documentation” / “documentation rooms” / “Survey documentation”
+(never “evidence”). Landing restored to CareBase Landing v2 design fidelity
+(Prove the work., Education spend, Guest documentation portals) with regression
+test; pricing remains single-source from marketingPricing.ts; self-serve CTAs
+preserved. Internal product routes unchanged.
+
+Closed this pass: **D3 durable import worker expanded beyond employees.**
+`process-data-import-jobs` now applies ledger rows for all active Data Import
+Center domains: employees, training_records, credentials, residents,
+resident_contacts, rooms, assessments, and incidents. Durable processing now
+performs org-scoped writes from `normalized_row`, honors `proposed_action`,
+updates ledger outcomes, recounts counters, and releases claims to `applying` /
+`applied` / `failed`.
 
 ---
 
@@ -144,147 +161,155 @@ self-serve CTAs preserved. Internal product routes unchanged.
 
 ### Shipped and credible (do not re-litigate)
 
-- Multi-tenant CareBase SPA + Supabase (RLS, Auth, Storage, Edge Functions, pg_cron)
+- Multi-tenant CareBase SPA + Supabase (RLS, Auth, Storage, Edge Functions,
+  pg_cron)
 - Flat billing model (Train / CareBase); Stripe qty=1 intent
 - Pilot cohort console + release flags / kill switches
-- Learning package runtime bridge (opaque iframe, nonce, `event.source`, commit sequencing)
-  with unit, integration, and Chromium e2e proof
+- Learning package runtime bridge (opaque iframe, nonce, `event.source`, commit
+  sequencing) with unit, integration, and Chromium e2e proof
 - Multi-domain Data Import Center: all 8 domains active
 - Survey evidence packet zip + guest download path
 - Credential OCR structured extraction path
-- Violations → corrective actions → retraining assignment → POC PDF → status ladder,
-  now with immutable POC versions and auto-created corrective-action work items (#355)
-- Clinical/EHR hybrid (native chart + FHIR ingest), opt-in — `docs/HIPAA_CLINICAL_DATA.md`
-- Dense ops surface: Survey Day, Work Queue, Training Matrix, Today, binder, evidence
-  room, lifecycle cases, invitations
-- Marketing public suite: documentation terminology lock + Landing design fidelity (#377)
+- Violations → corrective actions → retraining assignment → POC PDF → status
+  ladder, now with immutable POC versions and auto-created corrective-action
+  work items (#355)
+- Clinical/EHR hybrid (native chart + FHIR ingest), opt-in —
+  `docs/HIPAA_CLINICAL_DATA.md`
+- Dense ops surface: Survey Day, Work Queue, Training Matrix, Today, binder,
+  evidence room, lifecycle cases, invitations
+- Marketing public suite: documentation terminology lock + Landing design
+  fidelity (#377)
 
 ### Still open (highest risk first)
 
 1. Live pilot evidence against a non-demo org (runbook + manifest)
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
-4. SCORM production hardening: real vendor packages (B3); adapter injection is now wired
-5. Durable import worker — employee domain applies from ledger; other domains pending
-6. Home IA density (too many "homes")
-7. PA rule pack for the copilot — **SG-2**
-8. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+4. SCORM production hardening: real vendor packages (B3); adapter injection is
+   now wired
+5. Home IA density (too many "homes")
+6. PA rule pack for the copilot — **SG-2**
+7. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board,
+   offline drafts
 
 ---
 
 ## Ticket register
 
-Status values: `open` · `in_progress` · `blocked` · `done` · `ops_only`
-Size: `S` days · `M` 1–2 weeks · `L` multi-week
+Status values: `open` · `in_progress` · `blocked` · `done` · `ops_only` Size:
+`S` days · `M` 1–2 weeks · `L` multi-week
 
 ### Tier A — Pilot / revenue locks (do first)
 
-Ops-only rows are tracked in [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md).
+Ops-only rows are tracked in
+[docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md).
 
-| ID | Ticket | Size | Status | Notes |
-| --- | --- | --- | --- | --- |
-| A1 | Deploy residual migrations + edge functions; verify migration stamp | S | ops_only | Code on main; production apply is ops |
-| A2 | Map flat Stripe Prices; internal checkout smoke with qty=1 | S | ops_only | See BILLING_MODEL.md launch checklist |
-| A3 | Enroll one real pilot org; enable cohort flags deliberately | S | ops_only | Includes the SG-1 notification flags |
-| A4 | Run controlled pilot journeys; fill evidence JSON | M | ops_only | CONTROLLED_PILOT_RUNBOOK.md |
-| A5 | BAAs / HIPAA-eligible tiers confirmed for live pilot path | S | ops_only | Partial; clinical path needs legal confirm |
+| ID | Ticket                                                              | Size | Status   | Notes                                      |
+| -- | ------------------------------------------------------------------- | ---- | -------- | ------------------------------------------ |
+| A1 | Deploy residual migrations + edge functions; verify migration stamp | S    | ops_only | Code on main; production apply is ops      |
+| A2 | Map flat Stripe Prices; internal checkout smoke with qty=1          | S    | ops_only | See BILLING_MODEL.md launch checklist      |
+| A3 | Enroll one real pilot org; enable cohort flags deliberately         | S    | ops_only | Includes the SG-1 notification flags       |
+| A4 | Run controlled pilot journeys; fill evidence JSON                   | M    | ops_only | CONTROLLED_PILOT_RUNBOOK.md                |
+| A5 | BAAs / HIPAA-eligible tiers confirmed for live pilot path           | S    | ops_only | Partial; clinical path needs legal confirm |
 
 ### Tier B — SCORM production hardening
 
-Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCTION_HARDENING.md)
+Full plan:
+[docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCTION_HARDENING.md)
 
-| ID | Ticket | Size | Status | Notes |
-| --- | --- | --- | --- | --- |
-| B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | in_progress | `accept-learning-package` edge function created; `useAcceptLearningPackage` now invokes it server-side. Bridge injected via fflate at accept time; `content_sha256` updated. Real vendor packages (B3) and production storage policy still needed for full confidence |
-| B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
-| B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
-| B4 | Bridge SCORM complete → training record / hour bucket | M | open | Credibility for §2600.65 |
-| B5 | Trainer package quarantine UX (reject reason + re-upload) | S | done | `QuarantinePackageDialog` imported into `GovernedLearning.tsx`; replaces `window.prompt`. Trainer can now reach quarantine from the Standards tab |
+| ID | Ticket                                                                       | Size | Status      | Notes                                                                                                                                                                                                                                                                 |
+| -- | ---------------------------------------------------------------------------- | ---- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M    | in_progress | `accept-learning-package` edge function created; `useAcceptLearningPackage` now invokes it server-side. Bridge injected via fflate at accept time; `content_sha256` updated. Real vendor packages (B3) and production storage policy still needed for full confidence |
+| B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer`     | S    | done        | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery                                                                                                                                                                                |
+| B3 | One Storyline + one Captivate golden fixture package in repo                 | M    | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed                                                    |
+| B4 | Bridge SCORM complete → training record / hour bucket                        | M    | open        | Credibility for §2600.65                                                                                                                                                                                                                                              |
+| B5 | Trainer package quarantine UX (reject reason + re-upload)                    | S    | done        | `QuarantinePackageDialog` imported into `GovernedLearning.tsx`; replaces `window.prompt`. Trainer can now reach quarantine from the Standards tab                                                                                                                     |
 
 ### Tier C — Plan of Correction depth
 
 Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
-| ID | Ticket | Size | Status | Notes |
-| --- | --- | --- | --- | --- |
-| C1 | Immutable POC versions on submit (append-only history) | M | done | #355. `plan_of_correction_versions` + `submit_plan_of_correction` + `list_plan_of_correction_versions` |
-| C2 | Effectiveness gate before `verified` | M | done | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
-| C3 | Auto work_items from open corrective actions | S | done | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day |
-| C4 | POC due-date escalation into manager digest / SMS | S | blocked | Blocked on SG-1 — no delivery rail for real orgs |
-| C5 | Entrance-conference ordered packet by reg number | M | open | Survey Day companion |
+| ID | Ticket                                                 | Size | Status  | Notes                                                                                                                                                                                                                                  |
+| -- | ------------------------------------------------------ | ---- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1 | Immutable POC versions on submit (append-only history) | M    | done    | #355. `plan_of_correction_versions` + `submit_plan_of_correction` + `list_plan_of_correction_versions`                                                                                                                                 |
+| C2 | Effectiveness gate before `verified`                   | M    | done    | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
+| C3 | Auto work_items from open corrective actions           | S    | done    | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day                                                                                                                 |
+| C4 | POC due-date escalation into manager digest / SMS      | S    | blocked | Blocked on SG-1 — no delivery rail for real orgs                                                                                                                                                                                       |
+| C5 | Entrance-conference ordered packet by reg number       | M    | open    | Survey Day companion                                                                                                                                                                                                                   |
 
 ### Tier D — Delivery & imports
 
-| ID | Ticket | Size | Status | Notes |
-| --- | --- | --- | --- | --- |
-| D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
-| D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (apply from ledger, resume after browser close) | M | in_progress | Employee-domain durable apply now runs in `process-data-import-jobs` from `data_import_rows` (`normalized_row`/`proposed_action`) under service-role org scope; non-employee domains still release to `ready` until their applicators are added |
-| D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
-| D5 | Sample realistic PA facility CSVs in Help / Import Center | S | open | Onboarding friction |
+| ID | Ticket                                                                | Size | Status  | Notes                                                                                                                                                                                                  |
+| -- | --------------------------------------------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D1 | Monday manager digest email for pilot orgs                            | S    | blocked | Blocked on SG-1                                                                                                                                                                                        |
+| D2 | Turn on due/overdue/approval notifications for pilot cohort           | S    | blocked | This _is_ SG-1                                                                                                                                                                                         |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M    | done    | Durable applicators now ship for employees, training_records, credentials, residents, resident_contacts, rooms, assessments, and incidents. Pending domains in the current active import surface: none |
+| D4 | Column mapping UI for non-canonical CSVs                              | M    | open    | Optional after D3                                                                                                                                                                                      |
+| D5 | Sample realistic PA facility CSVs in Help / Import Center             | S    | open    | Onboarding friction                                                                                                                                                                                    |
 
 ### Tier E — Daily operations wedges
 
-| ID | Ticket | Size | Status | Notes |
-| --- | --- | --- | --- | --- |
-| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | open | Reduce "which dashboard?" |
-| E2 | Med-admin "who can pass meds today" board on Schedule | M | open | MedAdminRoster × schedule join |
-| E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | open | #5 PCH / #3 ALF citation |
-| E4 | Policy campaign center (version pin, targets, knowledge check) | L | open | MedTrainer deal-breaker |
-| E5 | Offline service documentation drafts (IndexedDB) + conflict rules | L | open | Floor staff |
+| ID | Ticket                                                               | Size | Status | Notes                          |
+| -- | -------------------------------------------------------------------- | ---- | ------ | ------------------------------ |
+| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S    | open   | Reduce "which dashboard?"      |
+| E2 | Med-admin "who can pass meds today" board on Schedule                | M    | open   | MedAdminRoster × schedule join |
+| E3 | Fire drill DHS 9-field form + monthly tracker PDF                    | M    | open   | #5 PCH / #3 ALF citation       |
+| E4 | Policy campaign center (version pin, targets, knowledge check)       | L    | open   | MedTrainer deal-breaker        |
+| E5 | Offline service documentation drafts (IndexedDB) + conflict rules    | L    | open   | Floor staff                    |
 
 ### Tier F — Engineering hygiene
 
-| ID | Ticket | Size | Status | Notes |
-| --- | --- | --- | --- | --- |
-| F1 | Split pages >40 KB before feature work (`CourseDetail`, `ResidentFinancialOperations`, `ResidentAssessmentFormEditor`) | M | open | Velocity insurance |
-| F2 | Finish route-manifest ownership of sidebar/search/modules | M | open | Partial today |
-| F3 | Replace root README marketing handoff with product + agent runbook | S | open | AGENTS.md already good for agents |
-| F4 | Banner stale root reviews as historical | S | done | 29 documents bannered; `check:planning-registers` keeps them that way |
+| ID | Ticket                                                                                                                 | Size | Status | Notes                                                                 |
+| -- | ---------------------------------------------------------------------------------------------------------------------- | ---- | ------ | --------------------------------------------------------------------- |
+| F1 | Split pages >40 KB before feature work (`CourseDetail`, `ResidentFinancialOperations`, `ResidentAssessmentFormEditor`) | M    | open   | Velocity insurance                                                    |
+| F2 | Finish route-manifest ownership of sidebar/search/modules                                                              | M    | open   | Partial today                                                         |
+| F3 | Replace root README marketing handoff with product + agent runbook                                                     | S    | open   | AGENTS.md already good for agents                                     |
+| F4 | Banner stale root reviews as historical                                                                                | S    | done   | 29 documents bannered; `check:planning-registers` keeps them that way |
 
 ---
 
 ## Explicitly not now
 
-| Item | Why |
-| --- | --- |
-| Capability bundles / config release envelope | Enterprise; post-portfolio |
-| Vendor external portal | Until maintenance is top pilot pain |
-| Full Spanish i18n retrofit | After SMS + mobile proven |
-| Multi-state rule packs | PA must be proven first — and PA itself is SG-2 |
-| Expanding Essentials/Pro SKUs | Need conversion data |
-| Competing on pharmacy eMAR network | Multi-year moat elsewhere |
-| New root "comprehensive review" markdown | Update **this** file instead; the check rejects it |
+| Item                                         | Why                                                |
+| -------------------------------------------- | -------------------------------------------------- |
+| Capability bundles / config release envelope | Enterprise; post-portfolio                         |
+| Vendor external portal                       | Until maintenance is top pilot pain                |
+| Full Spanish i18n retrofit                   | After SMS + mobile proven                          |
+| Multi-state rule packs                       | PA must be proven first — and PA itself is SG-2    |
+| Expanding Essentials/Pro SKUs                | Need conversion data                               |
+| Competing on pharmacy eMAR network           | Multi-year moat elsewhere                          |
+| New root "comprehensive review" markdown     | Update **this** file instead; the check rejects it |
 
 ---
 
 ## Sequence
 
-Single-threaded, because there is one person. This is an order, not a schedule — dates
-would be fiction. Do not start the next block until the previous one is actually done.
+Single-threaded, because there is one person. This is an order, not a schedule —
+dates would be fiction. Do not start the next block until the previous one is
+actually done.
 
-**1. Live truth.** A1–A4, and SG-1 with them.
-One non-demo org can invite staff, complete a course, export a binder, and *receive one
-real email*. SG-1 is the difference between a pilot and a demo, and A1–A4 are worth little
-without it. Nothing below this line matters until a real tenant has used the product.
+**1. Live truth.** A1–A4, and SG-1 with them. One non-demo org can invite staff,
+complete a course, export a binder, and _receive one real email_. SG-1 is the
+difference between a pilot and a demo, and A1–A4 are worth little without it.
+Nothing below this line matters until a real tenant has used the product.
 
-**2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, D3.
-Each is a half-built row: the code exists, no surface calls it. B1 and B5 are now wired. B3 and D3 remain. This is the cheapest block
-on the list and the one most likely to be skipped, because none of it looks like progress.
-Doing it before new features is how the pile stops growing. (C2 was the fifth and is now
+**2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, ~~D3~~. Each is a
+half-built row: the code exists, no surface calls it. B1, B5, and D3 are now
+wired. B3 remains. This is the cheapest block on the list and the one most
+likely to be skipped, because none of it looks like progress. Doing it before
+new features is how the pile stops growing. (C2 was the fifth and is now
 closed.)
 
-**3. Decide SG-2 — before building anything for it.**
-It needs a decision, not engineering time, and the decision is cheap while the work is
-not. Picking option 3 above costs an afternoon of copy changes; discovering you should
-have picked it *after* authoring a pack costs the pack.
+**3. Decide SG-2 — before building anything for it.** It needs a decision, not
+engineering time, and the decision is cheap while the work is not. Picking
+option 3 above costs an afternoon of copy changes; discovering you should have
+picked it _after_ authoring a pack costs the pack.
 
-**4. Product depth.** B4, then C5.
-Only once 1–3 are settled.
+**4. Product depth.** B4, then C5. Only once 1–3 are settled.
 
-**Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both depend on
-someone outside the repo. Start them early precisely because they are the only two things
-that can wait on another person's calendar.
+**Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both
+depend on someone outside the repo. Start them early precisely because they are
+the only two things that can wait on another person's calendar.
 
 ---
 
@@ -293,21 +318,23 @@ that can wait on another person's calendar.
 1. Code on `main` (or a merged PR linked in the row notes)
 2. Relevant unit / edge / e2e tests pass in CI
 3. If user-visible: pilot or demo org exercise recorded
-4. This file updated in the same change set — enforced by `check:planning-registers`
+4. This file updated in the same change set — enforced by
+   `check:planning-registers`
 
-A row is `in_progress`, not `done`, when the mechanism exists but nothing calls it. This is
-the most common way this register goes wrong: #355 produced four such rows at the time
-(B1, B3, C2, D3), and the very next commit added a fifth by shipping
-`QuarantinePackageDialog.tsx` with no importer (B5). Of those, only C2 has since been
-finished. Recording built-but-unreachable code as `done` is how a backlog stops describing
-the product.
+A row is `in_progress`, not `done`, when the mechanism exists but nothing calls
+it. This is the most common way this register goes wrong: #355 produced four
+such rows at the time (B1, B3, C2, D3), and the very next commit added a fifth
+by shipping `QuarantinePackageDialog.tsx` with no importer (B5). Of those, only
+C2 has since been finished. Recording built-but-unreachable code as `done` is
+how a backlog stops describing the product.
 
-Ops-only rows close when runbook evidence exists outside the repo (do not commit customer
-data). "Ops-only" means a different hat, not a different person — see "Operating reality"
-above.
+Ops-only rows close when runbook evidence exists outside the repo (do not commit
+customer data). "Ops-only" means a different hat, not a different person — see
+"Operating reality" above.
 
-**On self-review.** Every gate in this list is one person checking their own work, so the
-checks that do not depend on a second reader are the ones carrying real weight: CI, the
-pgTAP suite, `check:all`, and this register's own freshness check. Treat a mechanical gate
-that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
-and say so in the row rather than counting it as review.
+**On self-review.** Every gate in this list is one person checking their own
+work, so the checks that do not depend on a second reader are the ones carrying
+real weight: CI, the pgTAP suite, `check:all`, and this register's own freshness
+check. Treat a mechanical gate that a second account merely unlocked
+(`approve_regulatory_rule_version`) as unverified, and say so in the row rather
+than counting it as review.
