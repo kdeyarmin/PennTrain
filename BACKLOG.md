@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `6107113` (2026-08-01) — D3 complete: all 8 durable import domains under service-role via import_apply_* RPCs (rooms/credentials/training_records/incidents) or direct table (employees/residents/resident_contacts/assessments); PENDING_DURABLE_DOMAINS is now empty
+**Last verified against main:** `35a80f0` (2026-08-01) — D3 complete via #413: all 8 durable import domains under service-role (import_apply_* RPCs for rooms/credentials/training_records/incidents; direct table for employees/residents/resident_contacts/assessments); PENDING_DURABLE_DOMAINS empty
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -138,20 +138,12 @@ CareBase Landing v2 design fidelity (Prove the work., Education spend, Guest doc
 portals) with regression test; pricing remains single-source from marketingPricing.ts;
 self-serve CTAs preserved. Internal product routes unchanged.
 
-Closed this pass: **D3 service-role-safe durable domain restriction.** Durable apply is
-runtime-safe only for direct-table domains under the service-role cron worker:
-`employees`, `residents`, `resident_contacts`, `assessments`. `rooms`, `credentials`,
-`training_records`, and `incidents` are released to `ready` with explicit barrier
-messages — their apply RPCs require an authenticated caller (`auth.uid` / `current_org_id`)
-and are not granted to service_role. A durable path that always raises is worse than
-honest pending. Schema change required to finish the remaining four.
-
-Closed this pass: **D3 durable import apply RPCs — all 8 domains complete.** Dedicated
+Closed this pass: **D3 durable import apply RPCs — all 8 domains complete (#413).** Dedicated
 SECURITY DEFINER RPCs (`import_apply_training_record`, `import_apply_employee_credential`,
 `import_apply_room_with_beds`, `import_apply_incident`) granted only to service_role mirror
 the interactive RPC business rules but replace `auth.uid()` with NULL (system-applied import,
-no human reviewer). `PENDING_DURABLE_DOMAINS` is now empty; the worker dispatches all 8
-domains. No table-level INSERT/UPDATE grants widened on incidents or employee_credentials;
+no human reviewer). `PENDING_DURABLE_DOMAINS` is empty; the worker dispatches all 8 domains.
+No table-level INSERT/UPDATE grants widened on incidents or employee_credentials;
 interactive RPCs for authenticated callers unchanged.
 
 Closed this pass: **B4 SCORM/xAPI completion → training record / hour bucket (trigger-based).**
@@ -177,6 +169,7 @@ dry-run practice. Column order matches `importTemplate()`.
 - Learning package runtime bridge (opaque iframe, nonce, `event.source`, commit sequencing)
   with unit, integration, and Chromium e2e proof
 - Multi-domain Data Import Center: all 8 domains active
+- Durable import worker: all 8 domains apply from ledger under service-role (direct table or import_apply_* SECURITY DEFINER RPCs)
 - Survey evidence packet zip + guest download path
 - Credential OCR structured extraction path
 - Violations → corrective actions → retraining assignment → POC PDF → status ladder,
@@ -193,10 +186,9 @@ dry-run practice. Column order matches `importTemplate()`.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Durable import worker — 4 domains runtime-safe under service-role; 4 pending (RPC auth barriers)
-6. Home IA density (too many "homes")
-7. PA rule pack for the copilot — **SG-2**
-8. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+5. Home IA density (too many "homes")
+6. PA rule pack for the copilot — **SG-2**
+7. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
 
 ---
 
@@ -211,7 +203,7 @@ Ops-only rows are tracked in [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/T
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| A1 | Deploy residual migrations + edge functions; verify migration stamp | S | ops_only | Code on main; production apply is ops |
+| A1 | Deploy residual migrations + edge functions; verify migration stamp | S | ops_only | Code on main; production apply is ops — includes `20260801220000_durable_import_apply_rpcs.sql` from #413 |
 | A2 | Map flat Stripe Prices; internal checkout smoke with qty=1 | S | ops_only | See BILLING_MODEL.md launch checklist |
 | A3 | Enroll one real pilot org; enable cohort flags deliberately | S | ops_only | Includes the SG-1 notification flags |
 | A4 | Run controlled pilot journeys; fill evidence JSON | M | ops_only | CONTROLLED_PILOT_RUNBOOK.md |
@@ -247,7 +239,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
-| D3 | Durable import worker (apply from ledger, resume after browser close) | M | done | All 8 domains durable under service-role: `employees`, `residents`, `resident_contacts`, `assessments` via direct table; `rooms`, `credentials`, `training_records`, `incidents` via dedicated `import_apply_*` SECURITY DEFINER RPCs granted only to service_role. No table-level INSERT/UPDATE grants widened on restricted tables. |
+| D3 | Durable import worker (apply from ledger, resume after browser close) | M | done | All 8 domains durable under service-role: `employees`, `residents`, `resident_contacts`, `assessments` via direct table; `rooms`, `credentials`, `training_records`, `incidents` via dedicated `import_apply_*` SECURITY DEFINER RPCs granted only to service_role (#413). No table-level INSERT/UPDATE grants widened on restricted tables. |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | done | Sample employee / training-record / credential CSVs under `public/import-samples/` with `importSamples.ts` registry and `ImportSampleDownloads` component. Column order matches `importTemplate()`. Component is now rendered on `DataImportCenter` (after domain-templates card) so samples are reachable from the UI. |
 
@@ -296,11 +288,11 @@ One non-demo org can invite staff, complete a course, export a binder, and *rece
 real email*. SG-1 is the difference between a pilot and a demo, and A1–A4 are worth little
 without it. Nothing below this line matters until a real tenant has used the product.
 
-**2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, D3, ~~D5~~.
-Each is a half-built row: the code exists, no surface calls it. B1, B5, and D5 are now wired. B3 and D3 remain. This is the cheapest block
-on the list and the one most likely to be skipped, because none of it looks like progress.
-Doing it before new features is how the pile stops growing. (C2 was the fifth and is now
-closed.)
+**2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, ~~D3~~, ~~D5~~.
+Each is a half-built row: the code exists, no surface calls it. B1, B5, D3, and D5 are now
+wired. B3 remains (real vendor packages). This is the cheapest block on the list and the one
+most likely to be skipped, because none of it looks like progress. Doing it before new
+features is how the pile stops growing. (C2 was the fifth and is now closed.)
 
 **3. Decide SG-2 — before building anything for it.**
 It needs a decision, not engineering time, and the decision is cheap while the work is
@@ -326,7 +318,7 @@ that can wait on another person's calendar.
 A row is `in_progress`, not `done`, when the mechanism exists but nothing calls it. This is
 the most common way this register goes wrong: #355 produced four such rows at the time
 (B1, B3, C2, D3), and the very next commit added a fifth by shipping
-`QuarantinePackageDialog.tsx` with no importer (B5). Of those, only C2 has since been
+`QuarantinePackageDialog.tsx` with no importer (B5). Of those, C2 and D3 have since been
 finished. Recording built-but-unreachable code as `done` is how a backlog stops describing
 the product.
 
@@ -340,4 +332,4 @@ pgTAP suite, `check:all`, and this register's own freshness check. Treat a mecha
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
 
-<!-- Register verified with D3 service-role-safe durable restriction on fix/d3-service-role-safe-durable-domains -->
+<!-- Register verified post-#413: D3 complete (all 8 durable domains) on fix/backlog-d3-honesty-post-413 -->
