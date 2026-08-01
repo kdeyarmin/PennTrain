@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `d40c8ff` (2026-08-01) — marketing suite documentation terminology + Landing design fidelity (#377)
+**Last verified against main:** `2951ab8` (2026-08-01) — marketing suite documentation terminology + Landing design fidelity (#377)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
