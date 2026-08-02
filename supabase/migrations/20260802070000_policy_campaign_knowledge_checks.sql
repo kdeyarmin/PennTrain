@@ -17,9 +17,15 @@
 -- nothing -- anyone can read it out of the network tab. policy_campaign_questions is therefore
 -- readable only by the administrators who author it; the employee taking the check reads questions
 -- through get_policy_knowledge_check() (which omits correct_choice_index entirely) and submits
--- through submit_policy_knowledge_check() (which grades server-side). The answer key has no path to
--- an employee session at all -- not a filtered column, not a nullable field, simply absent from
--- every shape an employee can reach.
+-- through submit_policy_knowledge_check() (which grades server-side). The key is not a filtered
+-- column or a nullable field -- it is absent from every shape an employee can reach, and redacted
+-- out of the audit log besides (section 6).
+--
+-- It is NOT, however, unknowable. Reporting a score at all leaks it slowly: a learner can submit a
+-- baseline, change one choice, and read the delta. Returning the score is a deliberate product
+-- choice (someone who fails should know how close they were), so the leak is bounded rather than
+-- closed -- see the attempt cap in submit_policy_knowledge_check(). Claiming otherwise in this
+-- header would be the more dangerous error, because the next person would build on it.
 --
 -- WHY QUESTIONS FREEZE ONCE SOMEONE HAS PASSED. Same reasoning as lock_published_policy_version:
 -- if the questions can change after an attestation is on record, that record no longer describes
@@ -51,10 +57,24 @@ comment on function public.policy_choices_are_valid(jsonb) is
   'True when a knowledge-check question''s choices are 2-6 non-empty strings. IMMUTABLE so it can be '
   'used from policy_campaign_questions'' CHECK constraint, which cannot hold a subquery itself.';
 
+-- The composite target the questions table needs below. id is already the primary key, so this adds
+-- no new restriction -- it exists so a child row can be tied to (campaign, organization) as one
+-- fact rather than two independent references. Mirrors policy_documents_id_org_uk.
+alter table public.policy_attestation_campaigns
+  add constraint policy_attestation_campaigns_id_org_uk unique (id, organization_id);
+
 create table public.policy_campaign_questions (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   campaign_id uuid not null references public.policy_attestation_campaigns(id) on delete cascade,
+  -- Independent FKs on organization_id and campaign_id would let an administrator supply their own
+  -- organization (which the write policy checks) alongside ANOTHER tenant's campaign id (which it
+  -- does not) -- and since employee reads and the attest gate both select purely by campaign_id,
+  -- that is cross-tenant question injection: attacker-controlled questions blocking or altering a
+  -- different tenant's attestations. This composite FK makes the pair itself the enforced fact.
+  constraint policy_campaign_questions_campaign_org_fk
+    foreign key (campaign_id, organization_id)
+    references public.policy_attestation_campaigns(id, organization_id) on delete cascade,
   display_order integer not null,
   prompt text not null check (length(btrim(prompt)) between 1 and 2000),
   -- jsonb array of 2..6 non-empty strings. Kept as jsonb rather than a child table because a
@@ -232,20 +252,27 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
-declare v_campaign uuid;
+declare v_campaigns uuid[];
 begin
   -- NEW is unassigned on DELETE and OLD is unassigned on INSERT; referencing the wrong one raises
   -- rather than yielding null, so branch on TG_OP instead of coalescing across them.
+  --
+  -- On UPDATE both sides matter, and checking only NEW would miss the sharper case: moving a
+  -- question OUT of a campaign that already has a passing attempt. The destination is unfrozen so
+  -- it passes, while the source silently loses a question its existing attestations were graded
+  -- against -- exactly the evidence drift this trigger exists to prevent.
   if tg_op = 'DELETE' then
-    v_campaign := old.campaign_id;
+    v_campaigns := array[old.campaign_id];
+  elsif tg_op = 'UPDATE' then
+    v_campaigns := array[new.campaign_id, old.campaign_id];
   else
-    v_campaign := new.campaign_id;
+    v_campaigns := array[new.campaign_id];
   end if;
   if exists (
     select 1
     from public.policy_knowledge_check_attempts a
     join public.policy_attestations pa on pa.id = a.attestation_id
-    where pa.campaign_id = v_campaign and a.passed
+    where pa.campaign_id = any(v_campaigns) and a.passed
   ) then
     raise exception 'Knowledge check questions cannot change after someone has passed this campaign''s check.'
       using errcode = 'check_violation';
@@ -272,15 +299,21 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare v_campaign uuid;
+declare v_campaign uuid; v_org uuid;
 begin
-  select pa.campaign_id into v_campaign
+  select pa.campaign_id, pa.organization_id into v_campaign, v_org
   from public.policy_attestations pa
   join public.employees e on e.id = pa.employee_id
   where pa.id = p_attestation_id and e.profile_id = auth.uid();
 
   if v_campaign is null then
     raise exception 'Attestation not found for this user' using errcode = '42501';
+  end if;
+  -- SECURITY DEFINER bypasses the restrictive product_module_entitlement policy on the tables this
+  -- reads, so the entitlement has to be asserted here or an organization that lost the Compliance
+  -- module keeps working through this RPC while ordinary table access and the route are closed.
+  if not app_private.has_product_module('modules.compliance') then
+    raise exception 'Compliance module is not enabled for this organization' using errcode = '42501';
   end if;
 
   return query
@@ -324,8 +357,29 @@ begin
   if v_attestation.id is null then
     raise exception 'Attestation not found for this user' using errcode = '42501';
   end if;
+  -- Same reason as get_policy_knowledge_check: SECURITY DEFINER bypasses the restrictive
+  -- product_module_entitlement policy, so it has to be asserted explicitly here.
+  if not app_private.has_product_module('modules.compliance') then
+    raise exception 'Compliance module is not enabled for this organization' using errcode = '42501';
+  end if;
   if v_attestation.status <> 'pending' then
     raise exception 'This policy has already been attested' using errcode = '55000';
+  end if;
+
+  -- Attempt cap. Returning correctCount is a deliberate product choice (a learner who fails should
+  -- know how close they were), but a score plus unlimited retries is an answer-key oracle: submit a
+  -- baseline, change one choice, read the delta, repeat. Capping attempts per rolling day makes
+  -- systematically mapping a quiz take days instead of minutes, and every probe is a row in an
+  -- append-only table administrators and auditors can see -- so the cheap covert attack becomes a
+  -- slow conspicuous one. This bounds the oracle rather than eliminating it; eliminating it while
+  -- still reporting a score is not possible, and the score was worth keeping.
+  if (
+    select count(*) from public.policy_knowledge_check_attempts a
+    where a.attestation_id = v_attestation.id
+      and a.created_at > now() - interval '24 hours'
+  ) >= 5 then
+    raise exception 'Too many knowledge check attempts for this policy today. Try again tomorrow.'
+      using errcode = '53400';
   end if;
 
   select count(*)::int into v_total
@@ -419,3 +473,69 @@ on conflict (table_name) do update set
   contains_regulated_data = excluded.contains_regulated_data,
   rationale = excluded.rationale,
   updated_at = now();
+
+-- ---------------------------------------------------------------------------
+-- 6. Keep the answer key out of the audit log
+-- ---------------------------------------------------------------------------
+--
+-- policy_campaign_questions carries the generic audit_log_trigger, which serializes the whole row
+-- into audit_logs.old_values/new_values -- correct_choice_index included. audit_logs_select gives
+-- same-organization auditors org-wide read, and this migration deliberately keeps auditors OUT of
+-- policy_campaign_questions precisely so the answer key stays hidden from them. Without this, the
+-- key is recoverable from the audit trail by exactly the role the select policy excludes.
+--
+-- Redacting the value rather than dropping the trigger is the better trade: who changed a question
+-- and when is the thing a challenged attestation would actually be examined against, so the trail
+-- is worth keeping. Only the answer itself has to go.
+--
+-- Extending the shared redactor (rather than special-casing this table) means any future table that
+-- names a column correct_choice_index inherits the same protection. Existing rows are not rewritten
+-- -- redaction applies to new evidence from this point, the same caveat the original redactor
+-- documents for its own key list.
+create or replace function app_private.redact_audit_json(p_value jsonb)
+returns jsonb
+language plpgsql
+immutable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_result jsonb;
+begin
+  if p_value is null then
+    return null;
+  end if;
+
+  if jsonb_typeof(p_value) = 'object' then
+    select coalesce(
+      jsonb_object_agg(
+        e.key,
+        case
+          when lower(e.key) ~ '(^|_)(password|secret|auth_token|access_token|refresh_token|token_hash|checkin_pin_hash|api_key|encrypted_password|credential_hash|verification_challenge|salt|correct_choice_index)($|_)'
+            then '"[REDACTED]"'::jsonb
+          else app_private.redact_audit_json(e.value)
+        end
+      ),
+      '{}'::jsonb
+    )
+    into v_result
+    from jsonb_each(p_value) as e;
+    return v_result;
+  end if;
+
+  if jsonb_typeof(p_value) = 'array' then
+    select coalesce(
+      jsonb_agg(app_private.redact_audit_json(a.value) order by a.ordinality),
+      '[]'::jsonb
+    )
+    into v_result
+    from jsonb_array_elements(p_value) with ordinality as a(value, ordinality);
+    return v_result;
+  end if;
+
+  return p_value;
+end;
+$$;
+
+revoke all on function app_private.redact_audit_json(jsonb)
+  from public, anon, authenticated;

@@ -1,12 +1,18 @@
 begin;
-select plan(16);
+select plan(23);
 
 -- Knowledge checks for policy attestation campaigns (BACKLOG.md E4).
 --
--- The property this file exists to protect: the answer key must have no path to an employee
--- session. Not "is filtered out by the client", not "is null for employees" -- absent from every
--- shape an employee can reach. Several assertions below therefore act AS the employee and prove a
--- direct read fails, rather than only checking the happy-path RPC.
+-- The property this file exists to protect: the answer key is absent from every shape an employee
+-- can reach -- not filtered client-side, not nulled, and not recoverable from the audit log.
+-- Several assertions therefore act AS the employee and prove a direct read fails, rather than only
+-- checking the happy-path RPC.
+--
+-- It is deliberately NOT claimed to be unknowable: reporting a score leaks it slowly by design (see
+-- the attempt cap). These tests cover the boundaries that ARE absolute, and one of them exists
+-- purely to stop the others passing for the wrong reason -- if the restrictive entitlement policy
+-- blocked everyone, "the employee sees nothing" would read as a pass while the feature was broken
+-- for its administrators too.
 
 insert into public.organizations (id, name, slug)
 values ('92000000-0000-4000-8000-000000000001', 'Knowledge Check Org', 'knowledge-check-org');
@@ -272,5 +278,96 @@ select throws_ok(
   'Knowledge check questions cannot change after someone has passed this campaign''s check.',
   'questions freeze once an attempt has passed, so a signed record still describes what was asked'
 );
+
+-- ---------------------------------------------------------------------------
+-- Review findings (PR #433): tenant binding, freeze on move-out, attempt cap
+-- ---------------------------------------------------------------------------
+
+reset role;
+
+-- Guards the "employee sees nothing" assertion above from passing for the WRONG reason. If the
+-- restrictive product_module_entitlement policy were blocking everyone, that test would still read
+-- 0 rows and look correct while the feature was entirely broken for its administrators too.
+select pg_temp.act_as('92000000-0000-4000-8000-000000000101', 'aal2');
+select is(
+  (select count(*)::int from public.policy_campaign_questions),
+  2,
+  'the authoring facility_manager CAN read the questions -- the employee result above is a real boundary, not a dead policy'
+);
+reset role;
+
+-- Cross-tenant question injection: own organization_id, another tenant's campaign_id.
+insert into public.organizations (id, name, slug)
+values ('92000000-0000-4000-8000-000000000002', 'Other Tenant', 'kc-other-tenant');
+insert into public.facilities (id, organization_id, name, facility_type)
+values ('92000000-0000-4000-8000-000000000012', '92000000-0000-4000-8000-000000000002', 'Other PCH', 'PCH');
+insert into public.policy_documents (id, organization_id, title)
+values ('92000000-0000-4000-8000-000000000302', '92000000-0000-4000-8000-000000000002', 'Other Policy');
+insert into public.policy_document_versions (
+  id, policy_document_id, organization_id, version_number, storage_path,
+  file_name, file_type, content_hash, status, published_at
+) values (
+  '92000000-0000-4000-8000-000000000312', '92000000-0000-4000-8000-000000000302',
+  '92000000-0000-4000-8000-000000000002', 1, 'other/v1.pdf',
+  'other.pdf', 'application/pdf', repeat('b', 64), 'published', now()
+);
+insert into public.policy_attestation_campaigns (
+  id, organization_id, policy_document_id, policy_document_version_id, name
+) values (
+  '92000000-0000-4000-8000-000000000402', '92000000-0000-4000-8000-000000000002',
+  '92000000-0000-4000-8000-000000000302', '92000000-0000-4000-8000-000000000312', 'Other campaign'
+);
+
+select throws_ok(
+  $$ insert into public.policy_campaign_questions (
+       organization_id, campaign_id, display_order, prompt, choices, correct_choice_index
+     ) values (
+       '92000000-0000-4000-8000-000000000001',
+       '92000000-0000-4000-8000-000000000402',
+       9, 'Injected question', '["a","b"]'::jsonb, 0
+     ) $$,
+  '23503',
+  NULL,
+  'a question cannot bind this org to another tenant''s campaign'
+);
+
+-- Freeze must also protect the campaign a question is moved OUT of, not just the destination.
+insert into public.policy_attestation_campaigns (
+  id, organization_id, policy_document_id, policy_document_version_id, name
+) values (
+  '92000000-0000-4000-8000-000000000403', '92000000-0000-4000-8000-000000000001',
+  '92000000-0000-4000-8000-000000000301', '92000000-0000-4000-8000-000000000311', 'Unpassed campaign'
+);
+select throws_ok(
+  $$ update public.policy_campaign_questions
+     set campaign_id = '92000000-0000-4000-8000-000000000403'
+     where id = '92000000-0000-4000-8000-000000000601' $$,
+  '23514',
+  NULL,
+  'a question cannot be moved out of a campaign whose check someone has already passed'
+);
+
+-- Entitlement is asserted inside the SECURITY DEFINER RPCs, which bypass the restrictive policy.
+select has_function('public', 'get_policy_knowledge_check', array['uuid'],
+  'the employee-facing question read exists');
+select has_function('public', 'submit_policy_knowledge_check', array['uuid','jsonb'],
+  'the employee-facing grading RPC exists');
+
+-- The answer key must not be recoverable from the audit trail by the auditors the select policy
+-- deliberately excludes.
+select is(
+  (select count(*)::int from public.audit_logs
+   where entity_type = 'policy_campaign_questions'
+     and (new_values ? 'correct_choice_index')
+     and new_values ->> 'correct_choice_index' <> '[REDACTED]'),
+  0,
+  'no audit row exposes a real correct_choice_index'
+);
+
+select ok(
+  (select count(*) from public.audit_logs where entity_type = 'policy_campaign_questions') > 0,
+  'the audit trail itself is still written -- who changed a question and when survives redaction'
+);
+
 
 rollback;
