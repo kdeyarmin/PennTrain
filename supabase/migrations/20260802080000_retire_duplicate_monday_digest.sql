@@ -1,4 +1,9 @@
--- Retire the duplicate Monday manager digest (BACKLOG.md D1).
+-- Retire the duplicate Monday manager digest (BACKLOG.md D1), and land C4's digest half.
+--
+-- Two tickets touch the same function, so they land together rather than as two migrations that
+-- rewrite the same 110-line body back to back: D1 consolidates the two competing Monday digests,
+-- and C4 ("POC due-date escalation into manager digest / SMS") adds plans of correction to the
+-- surviving one. C4's SMS half is NOT here -- see the note at the end of this file.
 --
 -- THE PROBLEM. Two cron jobs were sending a weekly digest to the same audience at the same minute:
 --
@@ -50,6 +55,7 @@ declare
   v_alerts integer;
   v_classes integer;
   v_resident_items integer;
+  v_poc_due integer;
   v_inserted integer := 0;
   v_body text;
   v_items jsonb;
@@ -115,11 +121,21 @@ begin
     where i.facility_id = any(v_facility_ids)
       and res.status = 'active'
       and i.status in ('due_soon','expired');
+    -- BACKLOG.md C4, digest half: a plan of correction whose due date is within a week or already
+    -- past, on a violation that has not reached 'corrected'/'verified'. Counted from the facility
+    -- day, like every other date comparison in this function.
+    select count(*) into v_poc_due
+    from public.dhs_violations v
+    where v.facility_id = any(v_facility_ids)
+      and v.status in ('open','poc_submitted')
+      and v.poc_due_date is not null
+      and v.poc_due_date <= public.pa_today() + 7;
 
     v_body := format(
       '%s credentials expiring; %s overdue or missing training items; %s open incidents; '
-        || '%s unacknowledged alerts; %s classes this week; %s resident compliance items due or overdue.',
-      v_credentials, v_training, v_incidents, v_alerts, v_classes, v_resident_items
+        || '%s unacknowledged alerts; %s classes this week; %s resident compliance items due or overdue; '
+        || '%s plans of correction due or overdue.',
+      v_credentials, v_training, v_incidents, v_alerts, v_classes, v_resident_items, v_poc_due
     );
     v_items := jsonb_build_array(
       jsonb_build_object('key','credentials','label','Credentials expiring within 30 days','count',v_credentials,'path','/app/credentials?status=expiring&withinDays=30'),
@@ -127,7 +143,8 @@ begin
       jsonb_build_object('key','incidents','label','Open incidents','count',v_incidents,'path','/app/incidents?status=open'),
       jsonb_build_object('key','alerts','label','Unacknowledged alerts','count',v_alerts,'path','/app/alerts?status=open'),
       jsonb_build_object('key','classes','label','Classes this week','count',v_classes,'path','/trainer/classes?range=this-week'),
-      jsonb_build_object('key','resident_compliance','label','Resident compliance items due or overdue','count',v_resident_items,'path','/app/residents?complianceStatus=due')
+      jsonb_build_object('key','resident_compliance','label','Resident compliance items due or overdue','count',v_resident_items,'path','/app/residents?complianceStatus=due'),
+      jsonb_build_object('key','poc','label','Plans of correction due or overdue','count',v_poc_due,'path','/app/violations?pocStatus=due')
     );
     insert into public.manager_digest_snapshots (
       organization_id, profile_id, week_started_on, items
@@ -166,3 +183,14 @@ set is_active = false,
       || 'send_monday_digest() itself is retained for manual invocation and pgTAP coverage.',
     updated_at = now()
 where job_key = 'monday-digest';
+
+-- ---------------------------------------------------------------------------
+-- 3. What C4 still needs (deliberately not done here)
+-- ---------------------------------------------------------------------------
+--
+-- C4 reads "POC due-date escalation into manager digest / SMS". The digest half is above. The SMS
+-- half is not, and is not a line of code away: notifications.notification_type has no plan-of-
+-- correction value, so it needs a new type on that CHECK constraint, delivery templates for it
+-- (the pattern in 20260715215810), and a daily escalation job -- the weekly digest is the wrong
+-- cadence for something already overdue. That is a larger change than the digest item and is left
+-- as the remainder of C4 rather than half-built here.
