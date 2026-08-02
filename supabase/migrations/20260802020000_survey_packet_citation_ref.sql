@@ -208,7 +208,7 @@ begin
   insert into public.audit_logs (
     organization_id, actor_profile_id, entity_type, entity_id, action, new_values
   ) values (
-    v_org, auth.uid(), 'survey_evidence_packet', coalesce(p_survey_day_session_id, p_binder_export_job_id, gen_random_uuid())::text,
+    v_org, auth.uid(), 'survey_evidence_packet', coalesce(p_survey_day_session_id, p_binder_export_job_id, extensions.gen_random_uuid())::text,
     'packet_assembled', v_manifest
   );
 
