@@ -56,8 +56,20 @@ export function VersionsCard({
             {versions.map(v => (
               <div
                 key={v.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={v.id === selectedVersionId}
                 className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${v.id === selectedVersionId ? "border-primary bg-primary/5" : "hover:bg-muted/30"}`}
                 onClick={() => setSelectedVersionId(v.id)}
+                onKeyDown={(e) => {
+                  // Nested Publish button/tooltip trigger already stopPropagation() their own
+                  // clicks; guard here so their keydown bubbling doesn't also select the row.
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedVersionId(v.id);
+                  }
+                }}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
