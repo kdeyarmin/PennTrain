@@ -55,9 +55,9 @@ select results_eq(
   $$ select label from public.list_survey_evidence_packet_items('5e000000-0000-4000-8000-000000000031', null) $$,
   $$ values
     ('Fire extinguisher records'),
+    ('2800.64 Label-only fallback row'),
     ('Fire drill logs'),
     ('Follow-up note'),
-    ('2800.64 Label-only fallback row'),
     ('Second document'),
     ('First document'),
     ('General packet note') $$,
@@ -67,9 +67,9 @@ select results_eq(
   $$ select value->>'label' from jsonb_array_elements(public.assemble_survey_evidence_packet_manifest('5e000000-0000-4000-8000-000000000031', null)->'items') $$,
   $$ values
     ('Fire extinguisher records'),
+    ('2800.64 Label-only fallback row'),
     ('Fire drill logs'),
     ('Follow-up note'),
-    ('2800.64 Label-only fallback row'),
     ('Second document'),
     ('First document'),
     ('General packet note') $$,
