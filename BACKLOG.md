@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `1c42c61` (2026-08-02) — E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
+**Last verified against main:** `03fe017` (2026-08-02) — E3 fire drill monthly tracker PDF (done); E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -86,6 +86,14 @@ check removes.
 | SG-2 | Counsel cleared option 2 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded `pa.pch.2600.65.personnel` and `pa.alf.2800.65.personnel`, but no active PA governed version exists yet. Until one of those drafts completes install → review → shadow → activate, the copilot remains a drafting aid for Pennsylvania. | The templates now exist and are installable, so the product can look "done" before any PA governed version is actually active. | Install one PA draft, complete the guarded workflow, and activate a PA governed version with evidence. | **You** (product/ops/legal coordination) | 2026-09-01 |
 
 ---
+
+Closed this pass: **E3 fire drill DHS monthly tracker PDF.** The 9-field form and per-drill print
+view already existed; added the missing rollup — `generate-fire-drill-tracker-pdf` edge function
+(facility + month, all 9 DHS fields, mirrors `generate-incident-report-pdf`'s auth/RLS pattern) and
+a "Download Monthly Fire Drill Tracker" action on `InspectionItems.tsx`. New private
+`fire-drill-tracker-exports` storage bucket, write via service-role only, read scoped by org +
+facility assignment. Verified against the local Supabase stack: 2782/2782 pgTAP including
+`tenant_isolation_invariants`; `db lint`/`db advisors` clean. No new route.
 
 Closed this pass: **F3 root README replaced with product + agent runbook.** Root `README.md`
 was a marketing-site-redesign handoff doc; that content moved to
@@ -194,7 +202,7 @@ dry-run practice. Column order matches `importTemplate()`.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, offline drafts
+5. Wave 3/4 verticals: policy campaigns, offline drafts
 
 ---
 
@@ -255,7 +263,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | --- | --- | --- | --- | --- |
 | E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | done | Sidebar + primary surface titles/subtitles now read as Today = action, Compliance scorecard = health/trends, Inspection Readiness / Survey Day = survey prep / live entrance conference. |
 | E2 | Med-admin "who can pass meds today" board on Schedule | M | done | `useMedAdminAuthorization` shared hook; per-employee badge + no-one-authorized gap banner on `ScheduleDetail.tsx` |
-| E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | open | #5 PCH / #3 ALF citation |
+| E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | done | `generate-fire-drill-tracker-pdf` + `InspectionItems.tsx` action; #5 PCH / #3 ALF citation |
 | E4 | Policy campaign center (version pin, targets, knowledge check) | L | open | MedTrainer deal-breaker |
 | E5 | Offline service documentation drafts (IndexedDB) + conflict rules | L | open | Floor staff |
 
