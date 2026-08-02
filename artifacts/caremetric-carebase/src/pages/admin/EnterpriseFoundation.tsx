@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
@@ -437,6 +437,7 @@ function RegulatoryExpansionPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [installingTemplateKey, setInstallingTemplateKey] = useState<string | null>(null);
+  const installInFlightRef = useRef(false);
   const proposals = useQuery({
     queryKey: ["regulatory-change-proposals"],
     queryFn: async () => {
@@ -448,6 +449,8 @@ function RegulatoryExpansionPanel() {
     },
   });
   const installTemplate = async (templateKey: string, label: string) => {
+    if (installInFlightRef.current) return;
+    installInFlightRef.current = true;
     setInstallingTemplateKey(templateKey);
     try {
       const { data, error } = await supabase.rpc("install_regulatory_rule_pack_template", { p_template_key: templateKey });
@@ -456,7 +459,10 @@ function RegulatoryExpansionPanel() {
       await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
     } catch (error) {
       toast({ title: `${label} could not be installed`, description: error instanceof Error ? error.message : String(error), variant: "destructive" });
-    } finally { setInstallingTemplateKey(null); }
+    } finally {
+      installInFlightRef.current = false;
+      setInstallingTemplateKey(null);
+    }
   };
   return (
     <Card>

@@ -24,7 +24,7 @@ describe("SG-2 activation messaging", () => {
     expect(enterpriseFoundationSource).toContain("Install PA PCH draft");
     expect(enterpriseFoundationSource).toContain("Install PA ALF draft");
     expect(enterpriseFoundationSource).toContain("Install for mechanism demo only; it does not cover Pennsylvania.");
-    expect(enterpriseFoundationSource).toContain('variant="outline"');
+    expect(enterpriseFoundationSource).toContain('variant="outline" onClick={() => void installTemplate("oh.rcf.3701-16.personnel"');
   });
 
   it("describes the copilot as a drafting aid until a PA pack is activated", () => {
