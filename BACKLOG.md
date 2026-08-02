@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `04a12e2` (2026-08-02) — SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA copy/nav clarity done; C5 citation-aware packet ordering in progress; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify
+**Last verified against main:** `cda0446` (2026-08-02) — SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -128,6 +128,11 @@ skipped. Org-scoped storage policies on the `learning-packages` bucket ship in
 `20260731230000_residual_product_gaps_wave2.sql`. Residual market confidence is B3 (real
 vendor packages); production apply of migrations remains A1 ops.
 
+Closed this pass: **C5 first-class citation_ref on survey evidence packets.**
+`survey_evidence_packet_items.citation_ref` is a first-class column; add/list/assemble RPCs prefer it for
+regulation order (label parse remains the fallback); Survey Day packet UI accepts an explicit citation
+and shows a badge from the stored field.
+
 Closed this pass: **E1 Home IA density.** Primary navigation and page copy now separate the three
 roles cleanly: **Today** = action / due work, **Compliance scorecard** = health / trends, and
 **Inspection Readiness / Survey Day** = survey prep / live entrance conference.
@@ -167,6 +172,7 @@ dry-run practice. Column order matches `importTemplate()`.
 - Marketing public suite: documentation terminology lock + Landing design fidelity (#377)
 - SCORM/xAPI runtime completion bridges to assignment + training records / hour buckets (B4)
 - SG-2 counsel-cleared install path exists for PA personnel templates; activation still pending — [SG2_DECISION.md](docs/ops/SG2_DECISION.md)
+- Survey evidence packet first-class `citation_ref` + regulation-ordered list/manifest (C5)
 
 ### Still open (highest risk first)
 
@@ -174,8 +180,7 @@ dry-run practice. Column order matches `importTemplate()`.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Entrance-conference packet order by regulation number (C5 still partial — structured citation fields not yet first-class)
-6. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+5. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
 
 ---
 
@@ -218,7 +223,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | C2 | Effectiveness gate before `verified` | M | done | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
 | C3 | Auto work_items from open corrective actions | S | done | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day |
 | C4 | POC due-date escalation into manager digest / SMS | S | blocked | Blocked on SG-1 — no delivery rail for real orgs |
-| C5 | Entrance-conference ordered packet by reg number | M | in_progress | Survey Day packet list + assembled manifest now sort citation-prefixed labels by regulation key, then `sort_order`, then `created_at`, and the packet panel tells operators to prefix labels like `2800.64` when they want entrance-conference order. Still missing first-class structured citation fields / non-note sources. |
+| C5 | Entrance-conference ordered packet by reg number | M | done | First-class `citation_ref` on `survey_evidence_packet_items` + `p_citation_ref` on `add_survey_evidence_packet_item`; list/assemble order prefer `citation_ref` then label parse; Survey Day UI citation input + badge; pgTAP covers structured citation preference. Label-parse fallback remains for older rows. |
 
 ### Tier D — Delivery & imports
 
@@ -288,10 +293,9 @@ in Enterprise Foundation. Next step is not more debate; it is to install a PA dr
 guarded review/shadow, and activate a governed version. Until that evidence exists, the
 copilot remains a drafting aid for Pennsylvania.
 
-**4. Product depth.** ~~B4~~ done, ~~E1~~ done, then C5.
-The first durable slice of C5 is in: Survey Day packet list/manifest now honor citation-prefixed
-labels by regulation number, but broader structured citation capture still needs a deliberate
-follow-up if the owner wants more than this minimal path. Only once 1–3 are settled.
+**4. Product depth.** ~~B4~~ done, ~~E1~~ done, ~~C5~~ done.
+C5 is complete: first-class `citation_ref` on packet items, RPC/UI wired, regulation order prefers
+structured citation then label parse. Only once 1–3 are settled for live use.
 
 **Deliberately not in this list:** A5 (BAAs), because it depends on someone outside the
 repo. Start it early precisely because it is the only thing here that can wait on another
@@ -323,4 +327,4 @@ pgTAP suite, `check:all`, and this register's own freshness check. Treat a mecha
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
 
-<!-- Register verified: SG-2 counsel-cleared option 2; PA templates seeded; activation gap remains; B1 done; B3 owner drop-path documented -->
+<!-- Register verified: SG-2 counsel-cleared option 2; PA templates seeded; activation gap remains; C5 citation_ref done; B1 done; B3 owner drop-path documented -->
