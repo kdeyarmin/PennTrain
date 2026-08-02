@@ -447,16 +447,19 @@ function RegulatoryExpansionPanel() {
       return data;
     },
   });
-  const installOhio = async () => {
+  const installTemplate = async (p_template_key: string, name: string) => {
     setInstalling(true);
     try {
-      const { data, error } = await supabase.rpc("install_regulatory_rule_pack_template", { p_template_key: "oh.rcf.3701-16.personnel" });
+      const { data, error } = await supabase.rpc("install_regulatory_rule_pack_template", { p_template_key });
       if (error) throw error;
-      toast({ title: "Ohio rule pack installed as a draft", description: `Version ${data} must complete fixture, independent review, shadow, and activation gates.` });
+      toast({ title: `${name} installed as a draft`, description: `Version ${data} must complete fixture, independent review, shadow, and activation gates.` });
       await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
     } catch (error) {
-      toast({ title: "Ohio draft could not be installed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      toast({ title: `${name} draft could not be installed`, description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     } finally { setInstalling(false); }
+  };
+  const installOhio = async () => {
+    await installTemplate("oh.rcf.3701-16.personnel", "Ohio rule pack");
   };
   return (
     <Card>
@@ -465,8 +468,21 @@ function RegulatoryExpansionPanel() {
         <CardDescription>Templates and automated source changes create drafts only. The guarded workflow above remains the only activation path.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div>
+          <p className="mb-2 text-sm font-medium">PA rule packs — counsel-cleared SG-2</p>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+              <div><p className="font-medium">PA PCH personnel rule pack</p><p className="text-xs text-muted-foreground">55 Pa. Code Chapter 2600 — personal care home personnel training requirements.</p></div>
+              <Button variant="outline" onClick={() => void installTemplate("pa.pch.2600.65.personnel", "PA PCH personnel rule pack")} disabled={installing}>{installing ? "Installing draft..." : "Install PA PCH draft"}</Button>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+              <div><p className="font-medium">PA ALF personnel rule pack</p><p className="text-xs text-muted-foreground">55 Pa. Code Chapter 2800 — assisted living facility personnel training requirements.</p></div>
+              <Button variant="outline" onClick={() => void installTemplate("pa.alf.2800.65.personnel", "PA ALF personnel rule pack")} disabled={installing}>{installing ? "Installing draft..." : "Install PA ALF draft"}</Button>
+            </div>
+          </div>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-          <div><p className="font-medium">Ohio residential care facility personnel training</p><p className="text-xs text-muted-foreground">Ohio Admin. Code 3701-16-06, effective July 12, 2024. Install for legal and operational validation.</p></div>
+          <div><p className="font-medium">Ohio residential care facility personnel training</p><p className="text-xs text-muted-foreground">Ohio Admin. Code 3701-16-06, effective July 12, 2024. Install for mechanism demo only; it does not cover Pennsylvania.</p></div>
           <Button onClick={() => void installOhio()} disabled={installing}>{installing ? "Installing draft..." : "Install Ohio draft"}</Button>
         </div>
         <div>
