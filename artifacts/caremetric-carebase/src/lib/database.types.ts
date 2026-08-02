@@ -38348,6 +38348,162 @@ export type Database = {
         Args: { p_operation: string }
         Returns: boolean
       }
+      import_apply_employee_credential: {
+        Args: {
+          p_credential_id: string
+          p_organization_id: string
+          p_payload: Json
+        }
+        Returns: {
+          citation_topic_id: string | null
+          created_at: string
+          credential_label: string | null
+          credential_number: string | null
+          credential_type: string
+          employee_id: string
+          expiration_date: string | null
+          facility_id: string
+          id: string
+          issue_date: string | null
+          issuing_authority: string | null
+          last_verified_date: string | null
+          notes: string | null
+          organization_id: string
+          status: string
+          updated_at: string
+          verification_method: string | null
+          verified_at: string | null
+          verified_by_profile_id: string | null
+          warning_days: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_credentials"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      import_apply_incident: {
+        Args: {
+          p_facility_id: string
+          p_idempotency_key: string
+          p_incident_type: string
+          p_location_detail: string
+          p_narrative: string
+          p_occurred_at: string
+          p_organization_id: string
+          p_resident_id: string
+          p_resident_identifier_snapshot: string
+          p_severity: string
+        }
+        Returns: {
+          administrator_approval_note: string | null
+          administrator_approved_at: string | null
+          administrator_approved_by: string | null
+          closed_at: string | null
+          closed_by_profile_id: string | null
+          created_at: string
+          facility_id: string
+          final_report_document_id: string | null
+          final_report_submitted_at: string | null
+          id: string
+          idempotency_key: string | null
+          immediate_response: string | null
+          incident_type: string
+          investigation_findings: string | null
+          investigation_started_at: string | null
+          investigator_name: string | null
+          investigator_profile_id: string | null
+          location_detail: string | null
+          narrative: string
+          occurred_at: string
+          organization_id: string
+          pathway_answers: Json
+          pathway_completed_at: string | null
+          pathway_key: string | null
+          pathway_version: number | null
+          qapi_consideration: string
+          qapi_project_id: string | null
+          report_pdf_storage_bucket: string | null
+          report_pdf_storage_path: string | null
+          reportability_determined_at: string | null
+          reportability_determined_by: string | null
+          reportability_rationale: string | null
+          reportability_status: string
+          reported_at: string
+          reported_by_profile_id: string | null
+          resident_id: string | null
+          resident_identifier: string | null
+          resident_identifier_snapshot: string | null
+          root_cause: string | null
+          root_cause_method: string | null
+          severity: string
+          state_form_pdf_generated_at: string | null
+          state_form_pdf_storage_bucket: string | null
+          state_form_pdf_storage_path: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "incidents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      import_apply_room_with_beds: {
+        Args: {
+          p_bed_count: number
+          p_building_name: string
+          p_facility_id: string
+          p_gender_restriction?: string
+          p_organization_id: string
+          p_room_number: string
+          p_room_type: string
+          p_unit_name: string
+        }
+        Returns: string
+      }
+      import_apply_training_record: {
+        Args: {
+          p_organization_id: string
+          p_payload: Json
+          p_record_id: string
+        }
+        Returns: {
+          approval_status: string | null
+          audience_decision_at: string | null
+          certificate_number: string | null
+          completion_date: string | null
+          completion_method: string | null
+          created_at: string
+          document_required: boolean
+          due_date: string | null
+          employee_id: string
+          external_certificate_document_id: string | null
+          facility_id: string
+          hours: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          review_comments: string | null
+          score: number | null
+          status: string
+          trainer_credentials: string | null
+          trainer_name: string | null
+          training_provider: string | null
+          training_type_id: string
+          updated_at: string
+          verified_at: string | null
+          verified_by_profile_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_training_records"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       ingest_xapi_statement: {
         Args: {
           p_actor_employee_id: string
