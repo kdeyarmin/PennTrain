@@ -274,7 +274,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| D1 | Monday manager digest email | S | open | No longer blocked — SG-1 closed, the delivery rail now reaches every org; the digest itself is still not built |
+| D1 | Monday manager digest email | S | done | The digest **was already built and scheduled** — `queue_manager_weekly_digests()` on `manager-weekly-digest` (Mon 12:00 UTC), with `manager_digest_snapshots`, a rendered page, and registered email/push templates. The row's previous note ("the digest itself is still not built") was wrong. What SG-1's closure exposed was a *duplicate*: `send-monday-digest` fired the same minute to the same audience, so every manager got two. `20260802080000` retires that schedule and folds its resident-compliance counts (the one thing it reported and the survivor didn't) into the manager digest |
 | D2 | Turn on due/overdue/approval notifications for all organizations | S | done | This *was* SG-1 — closed by `20260802030000_remove_pilot_program.sql`, which set the release flags to `global` |
 | D3 | Durable import worker (apply from ledger, resume after browser close) | M | done | All 8 domains durable under service-role: `employees`, `residents`, `resident_contacts`, `assessments` via direct table; `rooms`, `credentials`, `training_records`, `incidents` via dedicated `import_apply_*` SECURITY DEFINER RPCs granted only to service_role (#413). No table-level INSERT/UPDATE grants widened on restricted tables. |
 | D4 | Column mapping UI for non-canonical CSVs | M | done | Client-side relabel; `importColumnMapping.ts` + `ImportColumnMapping.tsx` |

@@ -340,6 +340,10 @@ select is(
 
 -- 23 -> 45 when 20260726250000 registered the 22 scheduled jobs that had no definition row.
 -- 45 -> 46 when 20260731240000 registered process-credential-renewals OCR worker.
+-- 46 -> 45 when 20260802080000 retired the duplicate monday-digest schedule. The definition row is
+--   still there (system_job_runs references it ON DELETE RESTRICT) but is_active is now false, and
+--   get_system_job_control_plane filters on is_active -- so the control plane correctly stops
+--   listing a job that no longer runs. 46 definitions, 45 active.
 --
 -- The old message claimed this proved the control plane "registers every platform job". It did not,
 -- and could not: a bare count over system_job_definitions cannot notice a cron job that is missing
@@ -350,8 +354,8 @@ select is(
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  46::bigint,
-  'the control plane returns one row per registered job definition'
+  45::bigint,
+  'the control plane returns one row per active registered job definition'
 );
 
 create temporary table phase1_hold_ids as
