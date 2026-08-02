@@ -170,7 +170,8 @@ reset role;
 select set_config(
   'request.jwt.claims',
   json_build_object(
-    'sub', '11000000-0000-0000-0000-000000000010', 'role', 'authenticated', 'aal', 'aal2'
+    'sub', '11000000-0000-0000-0000-000000000010', 'role', 'authenticated', 'aal', 'aal2',
+    'iat', extract(epoch from now())::bigint
   )::text,
   true
 );
