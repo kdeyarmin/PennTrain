@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `07b22a3` (2026-08-01) — SG-2 decided option 3 (drafting aid only → Explicitly not now); B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify
+**Last verified against main:** `0f2c7f9` (2026-08-02) — SG-2 counsel-cleared option 2; templates seeded; activation remains; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -63,7 +63,7 @@ checked.
 | [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md) | Reference — Plan-of-Correction design |
 | [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCTION_HARDENING.md) | Reference — SCORM production PR plan |
 | [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md) | Reference — ops-only Tier A rows |
-| [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md) | Reference — SG-2 option 3 decision (2026-08-01) |
+| [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md) | Reference — SG-2 counsel-cleared option 2 record; activation follow-up remains (2026-08-02) |
 | ROADMAP.md, WORKFLOW_UX_REVIEW_2026-07-31.md, docs/audits/\*, CAREBASE_25_\*, EFFICIENCY_REVIEW.md, END_USER_REVIEW.md, ENHANCEMENT_REPORT.md, PLATFORM_ENHANCEMENTS.md, root `PennTrain_*` | **Superseded.** Dated evidence only — do not plan from them |
 
 Six of those superseded documents still read as live registers before this pass, and two
@@ -83,20 +83,15 @@ check removes.
 | ID | Gap | Why it survives | Gate to close | Owner | Review by |
 | --- | --- | --- | --- | --- | --- |
 | SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | **You** (ops hat — see A6) | 2026-09-01 |
-
-### SG-2 closed by decision (2026-08-01)
-
-**Option 3 chosen:** keep the compliance copilot as a drafting aid; do **not** ship a
-governed `pa.*` pack on solo authority. Full record: [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md).
-
-SG-2 is no longer a standing gap. It lives under **Explicitly not now**. Reopening requires
-an explicit register edit (option 1 author-and-own, or option 2 counsel review) — not silent
-pack engineering.
+| SG-2 | Counsel cleared option 2 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded `pa.pch.2600.65.personnel` and `pa.alf.2800.65.personnel`, but no active PA governed version exists yet. Until one of those drafts completes install → review → shadow → activate, the copilot remains a drafting aid for Pennsylvania. | The templates now exist and are installable, so the product can look "done" before any PA governed version is actually active. | Install one PA draft, complete the guarded workflow, and activate a PA governed version with evidence. | **You** (product/ops/legal coordination) | 2026-09-01 |
 
 ---
 
-Closed this pass: **SG-2 → Explicitly not now (option 3).** Decision: drafting aid only;
-no governed PA pack without independent review. Ohio template remains mechanism demo only.
+Closed this pass: **SG-2 liability gate cleared by counsel; PA personnel templates seeded.**
+Option 2 is now counsel-cleared in [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md),
+and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded
+`pa.pch.2600.65.personnel` plus `pa.alf.2800.65.personnel`. SG-2 remains open as an
+activation gap until a PA governed version is actually active.
 
 Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
 built with `typecheck && build && check-bundle-budget` and no test step, on its own
@@ -161,7 +156,7 @@ dry-run practice. Column order matches `importTemplate()`.
   room, lifecycle cases, invitations
 - Marketing public suite: documentation terminology lock + Landing design fidelity (#377)
 - SCORM/xAPI runtime completion bridges to assignment + training records / hour buckets (B4)
-- SG-2 decided: copilot is drafting aid only (no governed PA pack) — [SG2_DECISION.md](docs/ops/SG2_DECISION.md)
+- SG-2 counsel-cleared install path exists for PA personnel templates; activation still pending — [SG2_DECISION.md](docs/ops/SG2_DECISION.md)
 
 ### Still open (highest risk first)
 
@@ -251,11 +246,10 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
 | Item | Why |
 | --- | --- |
-| **SG-2 PA governed rule pack** | **Option 3 (2026-08-01):** drafting aid only until counsel or deliberate author-and-own. See [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md). Reopen only with explicit register edit. |
 | Capability bundles / config release envelope | Enterprise; post-portfolio |
 | Vendor external portal | Until maintenance is top pilot pain |
 | Full Spanish i18n retrofit | After SMS + mobile proven |
-| Multi-state rule packs | PA itself is Explicitly not now under SG-2 option 3 |
+| Multi-state rule packs | Finish Pennsylvania install → activate first, then decide where expansion actually matters |
 | Expanding Essentials/Pro SKUs | Need conversion data |
 | Competing on pharmacy eMAR network | Multi-year moat elsewhere |
 | New root "comprehensive review" markdown | Update **this** file instead; the check rejects it |
@@ -279,17 +273,18 @@ block on the list and the one most likely to be skipped, because none of it look
 progress. Doing it before new features is how the pile stops growing. (C2 was the fifth
 and is now closed.)
 
-**3. ~~Decide SG-2~~ — decided option 3 (2026-08-01).**
-Drafting aid only; SG-2 → Explicitly not now. Record: [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md).
-Do not author a pack under this decision.
+**3. Finish SG-2 install → activate.**
+Counsel cleared option 2 and the PA personnel templates are seeded. Next step is not more
+debate; it is to install a PA draft, complete guarded review/shadow, and activate a governed
+version. Until that evidence exists, the copilot remains a drafting aid for Pennsylvania.
 
 **4. Product depth.** ~~B4~~ done, then C5 + E1 (batched).
 Only once 1–3 are settled. C5 (ordered entrance-conference packet) and E1 (Home IA roles)
 are the next in-repo product depth slices.
 
-**Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both depend on
-someone outside the repo. Start them early precisely because they are the only two things
-that can wait on another person's calendar.
+**Deliberately not in this list:** A5 (BAAs), because it depends on someone outside the
+repo. Start it early precisely because it is the only thing here that can wait on another
+person's calendar.
 
 ---
 
@@ -317,4 +312,4 @@ pgTAP suite, `check:all`, and this register's own freshness check. Treat a mecha
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
 
-<!-- Register verified: SG-2 option 3 (drafting aid); B1 done; B3 owner drop-path documented -->
+<!-- Register verified: SG-2 counsel-cleared option 2; PA templates seeded; activation gap remains; B1 done; B3 owner drop-path documented -->
