@@ -5,6 +5,7 @@ import {
   emptyDraftQuestion,
   MAX_CHOICES,
   MIN_CHOICES,
+  normalizeDraftQuestion,
   type DraftQuestion,
 } from "./CampaignQuestionsEditor";
 
@@ -79,5 +80,40 @@ describe("emptyDraftQuestion", () => {
 
   it("is not valid until filled in", () => {
     expect(draftQuestionProblems(emptyDraftQuestion()).length).toBeGreaterThan(0);
+  });
+});
+
+describe("normalizeDraftQuestion", () => {
+  it("leaves a clean question untouched", () => {
+    expect(normalizeDraftQuestion(question({ choices: ["Always", "Never"], correctIndex: 1 })))
+      .toEqual({ choices: ["Always", "Never"], correctIndex: 1 });
+  });
+
+  it("trims surrounding whitespace off every choice", () => {
+    expect(normalizeDraftQuestion(question({ choices: ["  Always ", "Never  "], correctIndex: 0 })))
+      .toEqual({ choices: ["Always", "Never"], correctIndex: 0 });
+  });
+
+  // The regression this function exists for. Dropping the leading blank without remapping would
+  // move correctIndex 1 from "Always" onto "Never" -- storing the wrong answer key, so every
+  // employee who answered correctly would be marked wrong.
+  it("re-points the correct index when a blank choice precedes it", () => {
+    expect(normalizeDraftQuestion(question({ choices: ["", "Always", "Never"], correctIndex: 1 })))
+      .toEqual({ choices: ["Always", "Never"], correctIndex: 0 });
+  });
+
+  it("re-points across several preceding blanks", () => {
+    expect(normalizeDraftQuestion(question({ choices: ["", "  ", "Always", "Never"], correctIndex: 3 })))
+      .toEqual({ choices: ["Always", "Never"], correctIndex: 1 });
+  });
+
+  it("leaves the index alone when the blanks come after it", () => {
+    expect(normalizeDraftQuestion(question({ choices: ["Always", "Never", ""], correctIndex: 0 })))
+      .toEqual({ choices: ["Always", "Never"], correctIndex: 0 });
+  });
+
+  it("clamps an out-of-range index instead of emitting one the DB constraint would reject", () => {
+    expect(normalizeDraftQuestion(question({ choices: ["Always", "Never"], correctIndex: 99 })))
+      .toEqual({ choices: ["Always", "Never"], correctIndex: 0 });
   });
 });

@@ -32,6 +32,7 @@ export function PolicyKnowledgeCheck({
   const { mutateAsync: submit, isPending } = useSubmitPolicyKnowledgeCheck();
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<KnowledgeCheckResult | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -58,9 +59,16 @@ export function PolicyKnowledgeCheck({
   const allAnswered = questions.every((q) => answers[q.question_id] !== undefined);
 
   const handleSubmit = async () => {
-    const outcome = await submit({ attestationId, answers });
-    setResult(outcome);
-    if (outcome.passed) onPassed();
+    setSubmitError(null);
+    try {
+      const outcome = await submit({ attestationId, answers });
+      setResult(outcome);
+      if (outcome.passed) onPassed();
+    } catch (error) {
+      // A failed submission is not a failed attempt -- nothing was graded, so leave `result` alone
+      // and let the reader retry with the answers they already selected.
+      setSubmitError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   return (
@@ -115,6 +123,14 @@ export function PolicyKnowledgeCheck({
               </RadioGroup>
             </div>
           ))}
+
+          {submitError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Couldn't submit your answers</AlertTitle>
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
 
           {result && !result.passed && (
             <Alert variant="destructive">

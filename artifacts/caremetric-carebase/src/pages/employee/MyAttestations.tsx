@@ -63,10 +63,17 @@ export default function MyAttestations() {
   // Same query key as the PolicyKnowledgeCheck component below, so react-query serves both from one
   // fetch. Read here only to know *whether* a check applies -- the questions themselves are rendered
   // by that component.
-  const { data: knowledgeCheckQuestions } = usePolicyKnowledgeCheck(
-    reviewing?.status === "pending" ? reviewing?.id : undefined,
-  );
-  const requiresKnowledgeCheck = (knowledgeCheckQuestions?.length ?? 0) > 0;
+  const {
+    data: knowledgeCheckQuestions,
+    isLoading: knowledgeCheckLoading,
+    isError: knowledgeCheckError,
+  } = usePolicyKnowledgeCheck(reviewing?.status === "pending" ? reviewing?.id : undefined);
+  // Fail closed while the answer is unknown. Treating "not loaded yet" as "no check required" would
+  // enable the attest button for a moment on every open, and clicking in that window earns a 403
+  // from the server-side gate -- while PolicyKnowledgeCheck is simultaneously telling the reader it
+  // can't be attested right now.
+  const requiresKnowledgeCheck =
+    knowledgeCheckLoading || knowledgeCheckError || (knowledgeCheckQuestions?.length ?? 0) > 0;
 
   const campaignById = useMemo(() => new Map((campaigns ?? []).map((c) => [c.id, c])), [campaigns]);
   const documentById = useMemo(() => new Map((documents ?? []).map((d) => [d.id, d])), [documents]);

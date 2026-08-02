@@ -197,7 +197,6 @@ export interface KnowledgeCheckResult {
 // reports back the score. It deliberately does not learn which individual answers were wrong;
 // repeated attempts would otherwise reconstruct the answer key without reading the policy.
 export function useSubmitPolicyKnowledgeCheck() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params: { attestationId: string; answers: Record<string, number> }) => {
       const { data, error } = await supabase.rpc("submit_policy_knowledge_check", {
@@ -207,9 +206,9 @@ export function useSubmitPolicyKnowledgeCheck() {
       if (error) throw error;
       return data as unknown as KnowledgeCheckResult;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["policy_knowledge_check_attempts"] });
-    },
+    // Deliberately no invalidation. Nothing in the app caches attempts, and the questions
+    // (["policy_knowledge_check", attestationId]) do not change when one is graded -- refetching
+    // them would only re-request the same rows. The result is returned to the caller directly.
   });
 }
 

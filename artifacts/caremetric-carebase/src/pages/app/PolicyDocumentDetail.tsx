@@ -12,7 +12,7 @@ import {
   useCreateCampaignQuestions,
 } from "@/hooks/usePolicyAttestations";
 import {
-  CampaignQuestionsEditor, draftQuestionsAreValid, type DraftQuestion,
+  CampaignQuestionsEditor, draftQuestionsAreValid, normalizeDraftQuestion, type DraftQuestion,
 } from "@/components/policies/CampaignQuestionsEditor";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { summarizePolicyLifecycle } from "@/lib/policyLifecycle";
@@ -291,15 +291,20 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
         // below, since silently dropping the knowledge check would be the worst outcome: the
         // campaign would look complete and gate nothing.
         await createQuestions(
-          questions.map((question, index) => ({
-            organization_id: user.organizationId!,
-            campaign_id: campaign.id,
-            display_order: index + 1,
-            prompt: question.prompt.trim(),
-            choices: question.choices.map((choice) => choice.trim()).filter((choice) => choice.length > 0),
-            correct_choice_index: question.correctIndex,
-            created_by: user.id,
-          })),
+          questions.map((question, index) => {
+            // Blank choices are dropped here, so the correct index has to move with them --
+            // see normalizeDraftQuestion for what going without it silently stores.
+            const { choices, correctIndex } = normalizeDraftQuestion(question);
+            return {
+              organization_id: user.organizationId!,
+              campaign_id: campaign.id,
+              display_order: index + 1,
+              prompt: question.prompt.trim(),
+              choices,
+              correct_choice_index: correctIndex,
+              created_by: user.id,
+            };
+          }),
         );
       }
       toast({

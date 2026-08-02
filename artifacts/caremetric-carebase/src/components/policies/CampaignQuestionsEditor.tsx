@@ -39,6 +39,30 @@ export function draftQuestionsAreValid(questions: DraftQuestion[]): boolean {
   return questions.every((q) => draftQuestionProblems(q).length === 0);
 }
 
+/**
+ * Trims choices, drops blank ones, and re-points correctIndex at the choice it was pointing at
+ * BEFORE the blanks were removed.
+ *
+ * Dropping the blanks without remapping is silently wrong, and wrong in the worst direction: for
+ * ["", "Always", "Never"] with "Always" marked correct, filtering yields ["Always", "Never"] while
+ * correctIndex stays 1 -- so the stored answer key becomes "Never", and every employee who answers
+ * correctly is marked wrong. It passes validation too, since the marked choice is itself non-empty
+ * and two choices survive. Always build the insert payload through this.
+ */
+export function normalizeDraftQuestion(question: DraftQuestion): { choices: string[]; correctIndex: number } {
+  const trimmed = question.choices.map((choice) => choice.trim());
+  const choices = trimmed.filter((choice) => choice.length > 0);
+  // How many blanks sat before the marked choice -- that is exactly how far its index shifts left.
+  const blanksBefore = trimmed.slice(0, question.correctIndex).filter((choice) => choice.length === 0).length;
+  const correctIndex = question.correctIndex - blanksBefore;
+  return {
+    choices,
+    // Clamp defensively: a caller that skipped validation could point past the surviving choices,
+    // and an out-of-range index would fail the DB constraint rather than store something wrong.
+    correctIndex: correctIndex >= 0 && correctIndex < choices.length ? correctIndex : 0,
+  };
+}
+
 export function CampaignQuestionsEditor({
   questions,
   onChange,
