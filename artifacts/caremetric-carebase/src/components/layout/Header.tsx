@@ -243,8 +243,8 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
 
   const rootTitles: Record<string, string> = {
     "/admin": "Dashboard",
-    "/app": "Dashboard",
-    "/app/today": "Home",
+    "/app": "Compliance scorecard",
+    "/app/today": "Today",
     "/trainer": "Dashboard",
     "/me": "My day",
   };

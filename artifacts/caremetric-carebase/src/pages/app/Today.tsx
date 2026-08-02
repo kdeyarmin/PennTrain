@@ -49,9 +49,9 @@ function storeFacilityId(facilityId: string): void {
 }
 
 /**
- * Home -- the daily command centre (program plan Phase 7b, request item 16).
+ * Today -- the daily command centre (program plan Phase 7b, request item 16).
  *
- * WHY THIS IS STILL /app/today. The plan called for a new Home route with redirects from the old
+ * WHY THIS IS STILL /app/today. The plan called for a new Today route with redirects from the old
  * ones. Reusing this route does the same job better: every existing link, sidebar entry, saved
  * navigation favourite, and user bookmark keeps working with no redirect hop and no chance of one
  * being missed. The surface is renamed; the address is not.
@@ -139,7 +139,7 @@ export default function Today() {
     .sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at))
     .slice(0, 8);
 
-  // The queue defaults to "My work". Home's figures are not owner-filtered, so a card linking
+  // The queue defaults to "My work". Today's figures are not owner-filtered, so a card linking
   // through without a scope would land on a list that disagrees with the number just clicked.
   const scopedHref = (href: string) => {
     if (!href.startsWith("/app/work")) return href;
@@ -163,12 +163,12 @@ export default function Today() {
           <Badge variant="secondary">Start here</Badge>
           <span className="text-xs text-muted-foreground">Refreshed {formatTimestampLabel(refreshedAt)}</span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">Home</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Today</h1>
         <p className="text-muted-foreground">
           Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {user?.firstName}.
           {next
             ? ` Start with ${next.label.toLowerCase()}.`
-            : " Nothing is overdue or urgent right now."}
+            : " Nothing is overdue or urgent right now."} This surface owns action, due work, and manager decisions.
         </p>
         <p className="mt-1 text-xs text-muted-foreground">Every figure below covers {scopeLabel}.</p>
       </div>
@@ -198,7 +198,7 @@ export default function Today() {
       </div>
     </div>
 
-    <SurfacePurpose purpose="Today = do the work. Compliance scorecard = scores and trends. Survey Day = surveyor is here." />
+    <SurfacePurpose purpose="Today = action and due work. Compliance scorecard = health and trends. Inspection Readiness = prep. Survey Day = the live entrance conference." />
 
     {/* A brand-new organization has no facility and no roster, so every card below reads
         zero and the daily quick start points at pages that are all empty. This is the
@@ -341,7 +341,7 @@ export default function Today() {
         <div className="flex gap-3">
           <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div>
-            <p className="font-medium">How to use Home</p>
+            <p className="font-medium">How to use Today</p>
             <p className="text-sm text-muted-foreground">
               Clear the red cards first, then work the soonest-due list. Hover any figure to see
               exactly what it counts.

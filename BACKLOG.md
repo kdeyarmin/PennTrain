@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `07b22a3` (2026-08-01) — SG-2 counsel-cleared option 2; templates seeded; activation remains; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify
+**Last verified against main:** `04a12e2` (2026-08-02) — SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA copy/nav clarity done; C5 citation-aware packet ordering in progress; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -93,6 +93,12 @@ and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded
 `pa.pch.2600.65.personnel` plus `pa.alf.2800.65.personnel`. SG-2 remains open as an
 activation gap until a PA governed version is actually active.
 
+Closed this pass: **PA rule pack install UI wired.** Enterprise Foundation's regulatory
+expansion panel now offers install buttons for both seeded PA templates
+(`pa.pch.2600.65.personnel`, `pa.alf.2800.65.personnel`) alongside the Ohio mechanism
+demo, and the Regulatory Copilot empty-state / alert copy directs operators to install
+and activate a PA pack instead of describing PA coverage as permanently out of scope.
+
 Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
 built with `typecheck && build && check-bundle-budget` and no test step, on its own
 push-triggered pipeline — so a red suite still shipped. The repo had already solved this
@@ -121,6 +127,10 @@ and updates `content_sha256`. Client routes through the edge function so injecti
 skipped. Org-scoped storage policies on the `learning-packages` bucket ship in
 `20260731230000_residual_product_gaps_wave2.sql`. Residual market confidence is B3 (real
 vendor packages); production apply of migrations remains A1 ops.
+
+Closed this pass: **E1 Home IA density.** Primary navigation and page copy now separate the three
+roles cleanly: **Today** = action / due work, **Compliance scorecard** = health / trends, and
+**Inspection Readiness / Survey Day** = survey prep / live entrance conference.
 
 Closed this pass: **B4 SCORM/xAPI completion → training record / hour bucket (trigger-based).**
 AFTER INSERT on learning_runtime_commits calls internal bridge_learning_runtime_completion
@@ -164,9 +174,8 @@ dry-run practice. Column order matches `importTemplate()`.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Home IA density (too many "homes")
+5. Entrance-conference packet order by regulation number (C5 still partial — structured citation fields not yet first-class)
 6. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
-7. Entrance-conference ordered packet by reg number (C5)
 
 ---
 
@@ -209,7 +218,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | C2 | Effectiveness gate before `verified` | M | done | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
 | C3 | Auto work_items from open corrective actions | S | done | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day |
 | C4 | POC due-date escalation into manager digest / SMS | S | blocked | Blocked on SG-1 — no delivery rail for real orgs |
-| C5 | Entrance-conference ordered packet by reg number | M | open | Survey Day companion |
+| C5 | Entrance-conference ordered packet by reg number | M | in_progress | Survey Day packet list + assembled manifest now sort citation-prefixed labels by regulation key, then `sort_order`, then `created_at`, and the packet panel tells operators to prefix labels like `2800.64` when they want entrance-conference order. Still missing first-class structured citation fields / non-note sources. |
 
 ### Tier D — Delivery & imports
 
@@ -225,7 +234,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | open | Reduce "which dashboard?" |
+| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | done | Sidebar + primary surface titles/subtitles now read as Today = action, Compliance scorecard = health/trends, Inspection Readiness / Survey Day = survey prep / live entrance conference. |
 | E2 | Med-admin "who can pass meds today" board on Schedule | M | open | MedAdminRoster × schedule join |
 | E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | open | #5 PCH / #3 ALF citation |
 | E4 | Policy campaign center (version pin, targets, knowledge check) | L | open | MedTrainer deal-breaker |
@@ -274,13 +283,15 @@ progress. Doing it before new features is how the pile stops growing. (C2 was th
 and is now closed.)
 
 **3. Finish SG-2 install → activate.**
-Counsel cleared option 2 and the PA personnel templates are seeded. Next step is not more
-debate; it is to install a PA draft, complete guarded review/shadow, and activate a governed
-version. Until that evidence exists, the copilot remains a drafting aid for Pennsylvania.
+Counsel cleared option 2 and the PA personnel templates are seeded, with the install UI wired
+in Enterprise Foundation. Next step is not more debate; it is to install a PA draft, complete
+guarded review/shadow, and activate a governed version. Until that evidence exists, the
+copilot remains a drafting aid for Pennsylvania.
 
-**4. Product depth.** ~~B4~~ done, then C5 + E1 (batched).
-Only once 1–3 are settled. C5 (ordered entrance-conference packet) and E1 (Home IA roles)
-are the next in-repo product depth slices.
+**4. Product depth.** ~~B4~~ done, ~~E1~~ done, then C5.
+The first durable slice of C5 is in: Survey Day packet list/manifest now honor citation-prefixed
+labels by regulation number, but broader structured citation capture still needs a deliberate
+follow-up if the owner wants more than this minimal path. Only once 1–3 are settled.
 
 **Deliberately not in this list:** A5 (BAAs), because it depends on someone outside the
 repo. Start it early precisely because it is the only thing here that can wait on another

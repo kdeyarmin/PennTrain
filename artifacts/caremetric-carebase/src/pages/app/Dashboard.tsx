@@ -308,10 +308,10 @@ export default function OrgDashboard() {
     return (
       <div className="space-y-8">
         <div className="page-header">
-          <h1>Compliance Dashboard</h1>
-          <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
+          <h1>Compliance scorecard</h1>
+          <p>Welcome back, {user?.firstName}. Here is your compliance health, trend, and outlier overview.</p>
         </div>
-        <SurfacePurpose purpose="Today is for clearing work; this scorecard is for compliance scores, trends, and facility outliers." />
+        <SurfacePurpose purpose="Today is for clearing work; this scorecard is for compliance health, trends, and facility outliers." />
         <QueryError what="your compliance overview" error={error} onRetry={() => refetch()} />
       </div>
     );
@@ -324,8 +324,8 @@ export default function OrgDashboard() {
           <Badge variant="outline">Executive overview</Badge>
           {lastUpdatedLabel && <span className="text-xs text-muted-foreground">Updated {lastUpdatedLabel}</span>}
         </div>
-        <h1>Compliance Dashboard</h1>
-        <p>Welcome back, {user?.firstName}. Here's your compliance overview.</p>
+        <h1>Compliance scorecard</h1>
+        <p>Welcome back, {user?.firstName}. Here is your compliance health, trend, and outlier overview.</p>
       </div>
 
       {["org_admin", "facility_manager"].includes(user?.role ?? "") ? (

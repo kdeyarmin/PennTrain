@@ -198,7 +198,7 @@ export default function ComplianceCommandCenter() {
           <p className="text-muted-foreground">
             One register for every recurring facility obligation — by facility, building, category, and regulation — tracked to completion with evidence, review, and history.
           </p>
-          <SurfacePurpose purpose="Command Center tracks recurring facility obligations (drills, postings, renewals). It is not Survey Day or the daily Home queue." />
+          <SurfacePurpose purpose="Command Center tracks recurring facility obligations (drills, postings, renewals). It is not Survey Day or the daily Today queue." />
         </div>
         {canManage && (
           <div className="flex flex-wrap items-center gap-2">
