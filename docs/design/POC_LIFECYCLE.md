@@ -147,7 +147,7 @@ Do not rewrite the page. Extend in place; keep CorrectiveActionForm.
 1. C1 schema + submit RPC + versions UI
 2. C2 effectiveness gate
 3. C3 work_items link
-4. C4 depends on notification pilot flags (Tier D)
+4. C4 needs its own escalation logic; the notification delivery rail it depends on is already released to every organization
 5. C5 can parallel once Survey Day packet ordering is touched
 
 ---

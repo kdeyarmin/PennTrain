@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `32ef325` (2026-08-02) — SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
+**Last verified against main:** `fab343a` (2026-08-02) — **pilot program removed** (Pilot Cohort Console + controlled-pilot evidence gate deleted; the four previously cohort-gated release flags are now `global`, non-expiring, for every organization; self-service signup now initializes `organization_settings` with notifications on; `/admin/release-flags` replaces the console for flags/kill switches only, closing SG-1); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -54,10 +54,9 @@ checked.
 
 | Document | Role |
 | --- | --- |
-| **BACKLOG.md** (this file) | **Canonical.** Open work, ordered by pilot readiness |
+| **BACKLOG.md** (this file) | **Canonical.** Open work, ordered by launch readiness |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Reference — long-horizon five-phase program |
 | [RESIDENT_360_PROGRAM_PLAN.md](RESIDENT_360_PROGRAM_PLAN.md) | Reference — Resident 360 program design |
-| [CONTROLLED_PILOT_RUNBOOK.md](CONTROLLED_PILOT_RUNBOOK.md) | Reference — live pilot evidence procedure |
 | [SURVEY_DAY_MODE_SPEC.md](SURVEY_DAY_MODE_SPEC.md) | Reference — Survey Day mode spec |
 | [PA_DHS_ANNUAL_TRAINING_MATRIX.md](PA_DHS_ANNUAL_TRAINING_MATRIX.md) | Reference — PA DHS requirement matrix |
 | [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md) | Reference — Plan-of-Correction design |
@@ -82,12 +81,24 @@ check removes.
 
 | ID | Gap | Why it survives | Gate to close | Owner | Review by |
 | --- | --- | --- | --- | --- | --- |
-| SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | **You** (ops hat — see A6) | 2026-09-01 |
 | SG-2 | Counsel cleared option 2 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded `pa.pch.2600.65.personnel` and `pa.alf.2800.65.personnel`, but no active PA governed version exists yet. Until one of those drafts completes install → review → shadow → activate, the copilot remains a drafting aid for Pennsylvania. | The templates now exist and are installable, so the product can look "done" before any PA governed version is actually active. | Install one PA draft, complete the guarded workflow, and activate a PA governed version with evidence. | **You** (product/ops/legal coordination) | 2026-09-01 |
 
 ---
 
-Closed this pass: **SG-2 liability gate cleared by counsel; PA personnel templates seeded.**
+Closed this pass: **SG-1 pilot-cohort notification gate removed; SG-2 liability gate cleared
+by counsel; PA personnel templates seeded.** SG-1 was closed by deleting the pilot program
+outright rather than by enrolling a pilot org: `20260802030000_remove_pilot_program.sql`
+set `notifications.expanded_delivery_types` and `notifications.critical_multichannel` (plus
+`screening.on_hire_exclusion` and `learning.video_watch_gate`) to `global`, non-expiring, for
+every organization — no console, no manual enrollment, no separate gate. Review caught a
+second, independent gate behind it: `record_organization_signup` never created an
+`organization_settings` row, and that table defaults both notification switches to `false`,
+so a real signup still received nothing even with the flags global.
+`20260802040000_signup_creates_organization_settings.sql` closes that too, so a real signup
+now gets email/SMS delivery the same way a demo org always did. Deleting the Pilot Cohort
+Console also removed the only in-app UI for `set_release_flag`/`set_feature_kill_switch`;
+`/admin/release-flags` (`ReleaseFlags.tsx`) replaces it with a minimal, non-pilot surface —
+flags and kill switches only, no cohort enrollment.
 Option 2 is now counsel-cleared in [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md),
 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded
 `pa.pch.2600.65.personnel` plus `pa.alf.2800.65.personnel`. SG-2 remains open as an
@@ -156,7 +167,7 @@ dry-run practice. Column order matches `importTemplate()`.
 
 - Multi-tenant CareBase SPA + Supabase (RLS, Auth, Storage, Edge Functions, pg_cron)
 - Flat billing model (Train / CareBase); Stripe qty=1 intent
-- Pilot cohort console + release flags / kill switches
+- Release flags / kill switches (global rollout; no pilot-cohort gate)
 - Learning package runtime bridge (opaque iframe, nonce, `event.source`, commit sequencing)
   with unit, integration, and Chromium e2e proof
 - Accept-time bridge bundling into package zips (B1) + org-scoped `learning-packages` storage policies
@@ -176,11 +187,9 @@ dry-run practice. Column order matches `importTemplate()`.
 
 ### Still open (highest risk first)
 
-1. Live pilot evidence against a non-demo org (runbook + manifest)
-2. Stripe Prices mapped and internal checkout smoke
-3. Notification rail proven on a real org — **SG-1**
-4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+1. Stripe Prices mapped and internal checkout smoke
+2. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
+3. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
 
 ---
 
@@ -189,7 +198,7 @@ dry-run practice. Column order matches `importTemplate()`.
 Status values: `open` · `in_progress` · `blocked` · `done` · `ops_only`
 Size: `S` days · `M` 1–2 weeks · `L` multi-week
 
-### Tier A — Pilot / revenue locks (do first)
+### Tier A — Launch / revenue locks (do first)
 
 Ops-only rows are tracked in [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md).
 
@@ -197,9 +206,7 @@ Ops-only rows are tracked in [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/T
 | --- | --- | --- | --- | --- |
 | A1 | Deploy residual migrations + edge functions; verify migration stamp | S | ops_only | Code on main; production apply is ops — includes `20260801220000_durable_import_apply_rpcs.sql` from #413 |
 | A2 | Map flat Stripe Prices; internal checkout smoke with qty=1 | S | ops_only | See BILLING_MODEL.md launch checklist |
-| A3 | Enroll one real pilot org; enable cohort flags deliberately | S | ops_only | Includes the SG-1 notification flags |
-| A4 | Run controlled pilot journeys; fill evidence JSON | M | ops_only | CONTROLLED_PILOT_RUNBOOK.md |
-| A5 | BAAs / HIPAA-eligible tiers confirmed for live pilot path | S | ops_only | Partial; clinical path needs legal confirm |
+| A5 | BAAs / HIPAA-eligible tiers confirmed for the live customer path | S | ops_only | Partial; clinical path needs legal confirm |
 
 ### Tier B — SCORM production hardening
 
@@ -222,15 +229,15 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | C1 | Immutable POC versions on submit (append-only history) | M | done | #355. `plan_of_correction_versions` + `submit_plan_of_correction` + `list_plan_of_correction_versions` |
 | C2 | Effectiveness gate before `verified` | M | done | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
 | C3 | Auto work_items from open corrective actions | S | done | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day |
-| C4 | POC due-date escalation into manager digest / SMS | S | blocked | Blocked on SG-1 — no delivery rail for real orgs |
+| C4 | POC due-date escalation into manager digest / SMS | S | open | No longer blocked — SG-1 closed, the delivery rail now reaches every org; the escalation logic itself is still not built |
 | C5 | Entrance-conference ordered packet by reg number | M | done | First-class `citation_ref` on `survey_evidence_packet_items` + `p_citation_ref` on `add_survey_evidence_packet_item`; list/assemble order prefer `citation_ref` then label parse; Survey Day UI citation input + badge; pgTAP covers structured citation preference. Label-parse fallback remains for older rows. |
 
 ### Tier D — Delivery & imports
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
-| D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
+| D1 | Monday manager digest email | S | open | No longer blocked — SG-1 closed, the delivery rail now reaches every org; the digest itself is still not built |
+| D2 | Turn on due/overdue/approval notifications for all organizations | S | done | This *was* SG-1 — closed by `20260802030000_remove_pilot_program.sql`, which set the release flags to `global` |
 | D3 | Durable import worker (apply from ledger, resume after browser close) | M | done | All 8 domains durable under service-role: `employees`, `residents`, `resident_contacts`, `assessments` via direct table; `rooms`, `credentials`, `training_records`, `incidents` via dedicated `import_apply_*` SECURITY DEFINER RPCs granted only to service_role (#413). No table-level INSERT/UPDATE grants widened on restricted tables. |
 | D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | done | Sample employee / training-record / credential CSVs under `public/import-samples/` with `importSamples.ts` registry and `ImportSampleDownloads` component. Column order matches `importTemplate()`. Component is now rendered on `DataImportCenter` (after domain-templates card) so samples are reachable from the UI. |
@@ -261,7 +268,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | Item | Why |
 | --- | --- |
 | Capability bundles / config release envelope | Enterprise; post-portfolio |
-| Vendor external portal | Until maintenance is top pilot pain |
+| Vendor external portal | Until maintenance is the top customer pain |
 | Full Spanish i18n retrofit | After SMS + mobile proven |
 | Multi-state rule packs | Finish Pennsylvania install → activate first, then decide where expansion actually matters |
 | Expanding Essentials/Pro SKUs | Need conversion data |
@@ -275,10 +282,11 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 Single-threaded, because there is one person. This is an order, not a schedule — dates
 would be fiction. Do not start the next block until the previous one is actually done.
 
-**1. Live truth.** A1–A4, and SG-1 with them.
-One non-demo org can invite staff, complete a course, export a binder, and *receive one
-real email*. SG-1 is the difference between a pilot and a demo, and A1–A4 are worth little
-without it. Nothing below this line matters until a real tenant has used the product.
+**1. Live truth.** ~~SG-1~~ closed — A1, A2, A5 remain (ops-only).
+A real signup now gets full functionality the moment it signs up — invite staff, complete
+a course, export a binder, and *receive real email/SMS* — with no separate pilot-enrollment
+step in the way. What is left in this block is ordinary launch operations (live Stripe
+pricing, a signed BAA), not a product gate.
 
 **2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, ~~D3~~, ~~D5~~.
 Each is a half-built row: the code exists, no surface calls it. B1, B5, D3, and D5 are now
@@ -307,7 +315,7 @@ person's calendar.
 
 1. Code on `main` (or a merged PR linked in the row notes)
 2. Relevant unit / edge / e2e tests pass in CI
-3. If user-visible: pilot or demo org exercise recorded
+3. If user-visible: real or demo org exercise recorded
 4. This file updated in the same change set — enforced by `check:planning-registers`
 
 A row is `in_progress`, not `done`, when the mechanism exists but nothing calls it. This is

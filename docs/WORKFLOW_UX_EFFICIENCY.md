@@ -1,5 +1,13 @@
 # Workflow & UI efficiency implementation (July 2026)
 
+> **Update (2026-08-02):** The pilot-cohort gate described in "Backend / pilot flags" and
+> "Follow-on: residual ops console" below was retired by
+> `20260802030000_remove_pilot_program.sql`, and the Pilot Cohort Console
+> (`/admin/pilot-cohorts`) was deleted. The four features listed below are now released in
+> `global` mode to every organization — no cohort enrollment, console, or manual operator
+> step required. The rest of this document is kept as a historical record of what shipped
+> on 2026-07-31.
+
 Implements the product workflow/UI efficiency recommendations for PA PCH/ALF daily ops.
 
 ## Four product wins
@@ -99,7 +107,6 @@ pnpm --filter @workspace/caremetric-carebase typecheck
 
 | Surface | Purpose |
 |---|---|
-| `/admin/pilot-cohorts` | Enroll/unenroll orgs in `carebase-pilot-2026`, set release flags, kill switches (AAL2) |
 | Security & Governance | Data lifecycle status, place/release audit legal holds, run lifecycle policies |
 | My Credentials | Employee **Submit renewal** (upload PDF/JPEG/PNG → create renewal submission) |
 | Inspections list | Bulk log inspection on selected equipment/procedural items |

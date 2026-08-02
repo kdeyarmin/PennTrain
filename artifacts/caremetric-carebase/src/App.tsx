@@ -51,7 +51,7 @@ const ClosedLoopCompliance = lazy(() => import("@/pages/admin/ClosedLoopComplian
 const SafetyReport = lazy(() => import("@/pages/public/SafetyReport"));
 const PlatformSettings = lazy(() => import("@/pages/admin/PlatformSettings"));
 const SecurityGovernance = lazy(() => import("@/pages/admin/SecurityGovernance"));
-const PilotCohortConsole = lazy(() => import("@/pages/admin/PilotCohortConsole"));
+const ReleaseFlags = lazy(() => import("@/pages/admin/ReleaseFlags"));
 const AdminSupportTickets = lazy(() => import("@/pages/admin/SupportTickets"));
 const AdminSupportTicketDetail = lazy(() => import("@/pages/admin/SupportTicketDetail"));
 const AdminHelpContent = lazy(() => import("@/pages/admin/HelpContent"));
@@ -585,8 +585,8 @@ function Router() {
       <Route path="/admin/security">
         {() => <ProtectedRoute component={SecurityGovernance} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
-      <Route path="/admin/pilot-cohorts">
-        {() => <ProtectedRoute component={PilotCohortConsole} allowedRoles={PLATFORM_ADMIN} />}
+      <Route path="/admin/release-flags">
+        {() => <ProtectedRoute component={ReleaseFlags} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/support-tickets">
         {() => <ProtectedRoute component={AdminSupportTickets} allowedRoles={PLATFORM_ADMIN} />}
