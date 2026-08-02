@@ -9,7 +9,7 @@
 > root**, not to this file's location under `docs/marketing/`.
 
 ## Overview
-A complete redesign of the CareMetric CareBase marketing site (currently in `artifacts/caremetric-carebase/src/pages/Landing.tsx` and `src/pages/marketing/`) for the PennTrain repo. Eight pages targeting Pennsylvania personal care home (PCH) and assisted living residence (ALR) owners: an owner-outcome-focused landing page, a Features index, Security, FAQ, a PA training-requirements SEO guide, About/pilot program, and Privacy/Terms.
+A complete redesign of the CareMetric CareBase marketing site (currently in `artifacts/caremetric-carebase/src/pages/Landing.tsx` and `src/pages/marketing/`) for the PennTrain repo. Eight pages targeting Pennsylvania personal care home (PCH) and Assisted Living Facility (ALF) owners: an owner-outcome-focused landing page, a Features index, Security, FAQ, a PA training-requirements SEO guide, About/pilot program, and Privacy/Terms.
 
 ## About the Design Files
 The files in `designs/` are **design references created in HTML** — prototypes showing intended look, copy, and behavior. They are NOT production code to copy directly. The task is to **recreate these designs in the existing React + Vite + Tailwind codebase** (`artifacts/caremetric-carebase/`), using its established patterns: `MarketingLayout`, `PageHero`, the `marketing/primitives` components, React Router routes in `publicPaths.ts`, and the shared `content.ts` single-source-of-content pattern.
