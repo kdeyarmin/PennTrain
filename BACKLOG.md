@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `35a80f0` (2026-08-01) — D3 complete via #413: all 8 durable import domains under service-role (import_apply_* RPCs for rooms/credentials/training_records/incidents; direct table for employees/residents/resident_contacts/assessments); PENDING_DURABLE_DOMAINS empty
+**Last verified against main:** `261898f` (2026-08-01) — B1 complete (accept-time bridge bundling + learning-packages storage policies); residual SCORM confidence is B3 (real vendor packages) + A1 production verify; D3 complete via #413 (all 8 durable domains)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -146,6 +146,13 @@ no human reviewer). `PENDING_DURABLE_DOMAINS` is empty; the worker dispatches al
 No table-level INSERT/UPDATE grants widened on incidents or employee_credentials;
 interactive RPCs for authenticated callers unchanged.
 
+Closed this pass: **B1 accept-time bridge bundling.** `accept-learning-package` edge function
+injects `carebase/learning-runtime-bridge.js` into the package zip at accept time, re-hashes,
+and updates `content_sha256`. Client routes through the edge function so injection cannot be
+skipped. Org-scoped storage policies on the `learning-packages` bucket ship in
+`20260731230000_residual_product_gaps_wave2.sql`. Residual market confidence is B3 (real
+vendor packages); production apply of migrations remains A1 ops.
+
 Closed this pass: **B4 SCORM/xAPI completion → training record / hour bucket (trigger-based).**
 AFTER INSERT on learning_runtime_commits calls internal bridge_learning_runtime_completion
 when first completed commit arrives (quiz blocks still gate; `pa_today()`; privileged_write;
@@ -168,6 +175,7 @@ dry-run practice. Column order matches `importTemplate()`.
 - Pilot cohort console + release flags / kill switches
 - Learning package runtime bridge (opaque iframe, nonce, `event.source`, commit sequencing)
   with unit, integration, and Chromium e2e proof
+- Accept-time bridge bundling into package zips (B1) + org-scoped `learning-packages` storage policies
 - Multi-domain Data Import Center: all 8 domains active
 - Durable import worker: all 8 domains apply from ledger under service-role (direct table or import_apply_* SECURITY DEFINER RPCs)
 - Survey evidence packet zip + guest download path
@@ -215,9 +223,9 @@ Full plan: [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCT
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | in_progress | `accept-learning-package` edge function created; `useAcceptLearningPackage` now invokes it server-side. Bridge injected via fflate at accept time; `content_sha256` updated. Real vendor packages (B3) and production storage policy still needed for full confidence |
+| B1 | Bundle `learning-runtime-bridge.js` into accepted package zip at accept time | M | done | `accept-learning-package` edge injects bridge via fflate, re-hashes, updates `content_sha256`; client cannot skip. Storage bucket + org-scoped policies in `20260731230000`. Residual market confidence is B3; production verify is A1. |
 | B2 | Handshake timeout + learner-visible recovery in `StandardsRuntimePlayer` | S | done | #355. 12s watchdog, `idle→waiting→connected/timed_out/error`, learner-visible recovery |
-| B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | #355 added `storyline-shaped` / `captivate-shaped` e2e fixtures — API-shaped, hand-built, no Articulate or Adobe involved. They prove the contract; they do not prove the market. Real vendor exports still needed |
+| B3 | One Storyline + one Captivate golden fixture package in repo | M | in_progress | Contract fixtures (`storyline-shaped` / `captivate-shaped`) prove the API. Real vendor exports are owner-gated — see fixtures README owner drop-path. |
 | B4 | Bridge SCORM complete → training record / hour bucket | M | done | Trigger on first completed learning_runtime_commits row → bridge_learning_runtime_completion; assignment + training_records + hour buckets when courses.training_type_id set; quiz blocks still gate; pa_today(); internal-only |
 | B5 | Trainer package quarantine UX (reject reason + re-upload) | S | done | `QuarantinePackageDialog` imported into `GovernedLearning.tsx`; replaces `window.prompt`. Trainer can now reach quarantine from the Standards tab |
 
@@ -290,9 +298,10 @@ without it. Nothing below this line matters until a real tenant has used the pro
 
 **2. Wire up what is already built.** ~~B1~~, B3, ~~B5~~, ~~D3~~, ~~D5~~.
 Each is a half-built row: the code exists, no surface calls it. B1, B5, D3, and D5 are now
-wired. B3 remains (real vendor packages). This is the cheapest block on the list and the one
-most likely to be skipped, because none of it looks like progress. Doing it before new
-features is how the pile stops growing. (C2 was the fifth and is now closed.)
+wired and done. B3 remains (real vendor packages — owner drop-path). This is the cheapest
+block on the list and the one most likely to be skipped, because none of it looks like
+progress. Doing it before new features is how the pile stops growing. (C2 was the fifth
+and is now closed.)
 
 **3. Decide SG-2 — before building anything for it.**
 It needs a decision, not engineering time, and the decision is cheap while the work is
@@ -318,9 +327,9 @@ that can wait on another person's calendar.
 A row is `in_progress`, not `done`, when the mechanism exists but nothing calls it. This is
 the most common way this register goes wrong: #355 produced four such rows at the time
 (B1, B3, C2, D3), and the very next commit added a fifth by shipping
-`QuarantinePackageDialog.tsx` with no importer (B5). Of those, C2 and D3 have since been
-finished. Recording built-but-unreachable code as `done` is how a backlog stops describing
-the product.
+`QuarantinePackageDialog.tsx` with no importer (B5). Of those, B1, C2, and D3 have since
+been finished. Recording built-but-unreachable code as `done` is how a backlog stops
+describing the product.
 
 Ops-only rows close when runbook evidence exists outside the repo (do not commit customer
 data). "Ops-only" means a different hat, not a different person — see "Operating reality"
@@ -332,4 +341,4 @@ pgTAP suite, `check:all`, and this register's own freshness check. Treat a mecha
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
 
-<!-- Register verified post-#413: D3 complete (all 8 durable domains) on fix/backlog-d3-honesty-post-413 -->
+<!-- Register verified: B1 done (accept-time bundling + storage policies); B3 owner drop-path documented -->
