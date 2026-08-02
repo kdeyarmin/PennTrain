@@ -222,3 +222,5 @@ revoke all on function public.assemble_survey_evidence_packet_manifest(uuid, uui
 grant execute on function public.add_survey_evidence_packet_item(text, text, uuid, uuid, uuid, uuid, text, integer, text) to authenticated;
 grant execute on function public.list_survey_evidence_packet_items(uuid, uuid) to authenticated;
 grant execute on function public.assemble_survey_evidence_packet_manifest(uuid, uuid) to authenticated;
+
+grant all on public.survey_evidence_packet_items to service_role;
