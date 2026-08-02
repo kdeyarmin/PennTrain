@@ -27,6 +27,33 @@ function pickCurrentRecord(records: TrainingRecord[]): TrainingRecord | undefine
   });
 }
 
+// Practicums get their own picker rather than reusing pickCurrentRecord above: the ranking is a
+// different order (completion_date outranks due_date, not the other way around) and adds a
+// missing-last/id tie-break that pickCurrentRecord doesn't have. Mirrors the canonical
+// `current_practicums` CTE in get_org_dashboard_summary() (see
+// supabase/migrations/20260727010100_the_facility_day_is_not_the_utc_day.sql, and originally
+// supabase/migrations/20260724161000_..._count_current_training_records.sql): within a year, a row
+// with actual completion evidence must outrank the rulepack engine's auto-instantiated 'missing'
+// placeholder -- the schema permits both to exist for the same employee/year at once (save_practicum
+// inserts a new row rather than upserting, and there is no unique(employee_id, practicum_year)
+// constraint), so a plain `.find()` over an array that's merely due_date-ordered (useListPracticums)
+// can hand back the placeholder instead of the completed row. The trailing missing-then-id tie-break
+// keeps the pick fully deterministic even on a complete tie, same as the SQL.
+function pickCurrentPracticum(records: Practicum[]): Practicum | undefined {
+  if (records.length === 0) return undefined;
+  return records.reduce((current, candidate) => {
+    const cComp = candidate.completion_date ?? "", curComp = current.completion_date ?? "";
+    if (cComp !== curComp) return cComp > curComp ? candidate : current;
+    const cDue = candidate.due_date ?? "", curDue = current.due_date ?? "";
+    if (cDue !== curDue) return cDue > curDue ? candidate : current;
+    const cCreated = candidate.created_at ?? "", curCreated = current.created_at ?? "";
+    if (cCreated !== curCreated) return cCreated > curCreated ? candidate : current;
+    const cMissing = candidate.status === "missing", curMissing = current.status === "missing";
+    if (cMissing !== curMissing) return curMissing ? candidate : current;
+    return candidate.id < current.id ? candidate : current;
+  });
+}
+
 export interface MedAdminAuthorization {
   employeeId: string;
   /** Mirrors employees.administers_medications. Staff not flagged here were never in scope for
@@ -81,7 +108,7 @@ export function computeMedAdminAuthorization(
     const certRecord = renewRecord && renewRecord.status !== "missing" ? renewRecord : (initRecord ?? renewRecord);
     const certStatus = certRecord?.status ?? "missing";
 
-    const practicum = practicums.find((p) => p.employee_id === emp.id);
+    const practicum = pickCurrentPracticum(practicums.filter((p) => p.employee_id === emp.id));
     const practicumStatus = practicum?.status ?? "missing";
 
     const diabetesRecord = diabetesEduTypeId

@@ -133,6 +133,36 @@ describe("summarizeMedAdminCoverage", () => {
     expect(result.gaps).toEqual([{ date: "2026-07-10", shiftName: "Shift", scheduledStaff: 1 }]);
   });
 
+  it("keeps two shift_definition_id-less shifts separate when they resolve to different names/times", () => {
+    const assignments = [
+      // Two custom/legacy shifts on the same date, neither backed by a shift_definitions row, so
+      // the caller falls back to a formatted start time for each (see ScheduleDetail.tsx). Only the
+      // 7:00 AM shift has an authorized employee.
+      { employee_id: "authorized-e1", shift_date: "2026-07-10", status: "scheduled", shift_definition_id: null, shift_name: "7:00 AM" },
+      { employee_id: "unauthorized-e2", shift_date: "2026-07-10", status: "scheduled", shift_definition_id: null, shift_name: "3:00 PM" },
+    ];
+    const result = summarizeMedAdminCoverage({
+      assignments,
+      dates: ["2026-07-10"],
+      isAuthorized: authorizedOnly(["authorized-e1"]),
+    });
+    // Before the fix both rows shared the "__unspecified__" bucket, so the 7:00 AM employee's
+    // authorization made the 3:00 PM shift look covered too. They must be reported separately.
+    expect(result.gaps).toEqual([{ date: "2026-07-10", shiftName: "3:00 PM", scheduledStaff: 1 }]);
+  });
+
+  it("still groups shift_definition_id-less assignments together when they resolve to the same name", () => {
+    const assignments = [
+      { employee_id: "e1", shift_date: "2026-07-10", status: "scheduled", shift_definition_id: null, shift_name: "7:00 AM" },
+      { employee_id: "e2", shift_date: "2026-07-10", status: "scheduled", shift_definition_id: null, shift_name: "7:00 AM" },
+    ];
+    // Same fallback name (same start time) -- genuinely one shift, so one authorized employee on it
+    // still counts as covering the other; the fix must not fragment every nameless assignment into
+    // its own group.
+    const result = summarizeMedAdminCoverage({ assignments, dates: ["2026-07-10"], isAuthorized: authorizedOnly(["e2"]) });
+    expect(result.gaps).toEqual([]);
+  });
+
   it("sorts gaps by date then shift name and dedupes datesWithGaps", () => {
     const assignments = [
       { employee_id: "e1", shift_date: "2026-07-11", status: "scheduled", shift_definition_id: "night", shift_name: "Night" },

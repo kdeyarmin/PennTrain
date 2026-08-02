@@ -90,7 +90,29 @@ const NON_OVERRIDABLE_BLOCKS = new Set(["lifecycle_inactive", "confirmed_exclusi
 // never in scope for med-admin certification at all (e.g. a cook or housekeeper on the same shift).
 // Same green/red "Authorized Today" vocabulary as MedAdminRoster.tsx for a consistent signal across
 // both pages.
-function MedAdminAuthorizationIndicator({ authorized }: { authorized: boolean }) {
+//
+// isLoading/isError mirror the same medAuthLoading/medAuthIsError the coverage banner above already
+// gates on: useMedAdminAuthorization computes authorizedToday: false the instant training records or
+// practicums are still loading (or their query failed), because the pure computation just treats
+// not-yet-arrived data as an empty array -- so without this, a qualified employee flashes the red
+// "not currently authorized" badge on every slow load, and stays on it if the query then fails.
+function MedAdminAuthorizationIndicator({ authorized, isLoading, isError }: { authorized: boolean; isLoading: boolean; isError: boolean }) {
+  if (isLoading) {
+    return (
+      <span className="inline-flex shrink-0 text-muted-foreground" title="Checking medication-administration authorization...">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        <span className="sr-only">Checking medication-administration authorization...</span>
+      </span>
+    );
+  }
+  if (isError) {
+    return (
+      <span className="inline-flex shrink-0 text-muted-foreground" title="Medication-administration authorization status unavailable">
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="sr-only">Medication-administration authorization status unavailable</span>
+      </span>
+    );
+  }
   const label = authorized ? "Authorized to pass medications today" : "Not currently authorized to pass medications";
   const Icon = authorized ? CheckCircle2 : XCircle;
   return (
@@ -770,7 +792,13 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                                   <button type="button" onClick={() => openEditDialog(a)} className="w-full text-left block">
                                     <div className="font-medium truncate flex items-center gap-1">
                                       <span className="truncate min-w-0">{a.employees?.first_name} {a.employees?.last_name}</span>
-                                      {auth?.administersMedications && <MedAdminAuthorizationIndicator authorized={auth.authorizedToday} />}
+                                      {auth?.administersMedications && (
+                                        <MedAdminAuthorizationIndicator
+                                          authorized={auth.authorizedToday}
+                                          isLoading={medAuthLoading}
+                                          isError={medAuthIsError}
+                                        />
+                                      )}
                                     </div>
                                   </button>
                                   <div className="text-xs text-muted-foreground flex items-center justify-between gap-1">
