@@ -209,7 +209,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | C2 | Effectiveness gate before `verified` | M | done | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
 | C3 | Auto work_items from open corrective actions | S | done | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day |
 | C4 | POC due-date escalation into manager digest / SMS | S | blocked | Blocked on SG-1 — no delivery rail for real orgs |
-| C5 | Entrance-conference ordered packet by reg number | M | open | Survey Day companion — in flight with E1 batch |
+| C5 | Entrance-conference ordered packet by reg number | M | open | Survey Day companion |
 
 ### Tier D — Delivery & imports
 
@@ -225,7 +225,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | open | Reduce "which dashboard?" — in flight with C5 batch |
+| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | open | Reduce "which dashboard?" |
 | E2 | Med-admin "who can pass meds today" board on Schedule | M | open | MedAdminRoster × schedule join |
 | E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | open | #5 PCH / #3 ALF citation |
 | E4 | Policy campaign center (version pin, targets, knowledge check) | L | open | MedTrainer deal-breaker |
