@@ -32148,6 +32148,7 @@ export type Database = {
       survey_evidence_packet_items: {
         Row: {
           binder_export_job_id: string | null
+          citation_ref: string | null
           created_at: string
           created_by: string | null
           facility_id: string | null
@@ -32162,6 +32163,7 @@ export type Database = {
         }
         Insert: {
           binder_export_job_id?: string | null
+          citation_ref?: string | null
           created_at?: string
           created_by?: string | null
           facility_id?: string | null
@@ -32176,6 +32178,7 @@ export type Database = {
         }
         Update: {
           binder_export_job_id?: string | null
+          citation_ref?: string | null
           created_at?: string
           created_by?: string | null
           facility_id?: string | null
@@ -35599,6 +35602,7 @@ export type Database = {
       add_survey_evidence_packet_item: {
         Args: {
           p_binder_export_job_id?: string
+          p_citation_ref?: string
           p_facility_id?: string
           p_label: string
           p_notes?: string
@@ -38819,6 +38823,7 @@ export type Database = {
         }
         Returns: {
           binder_export_job_id: string | null
+          citation_ref: string | null
           created_at: string
           created_by: string | null
           facility_id: string | null
