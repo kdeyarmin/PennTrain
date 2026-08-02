@@ -349,10 +349,15 @@ begin
       using errcode = '22023';
   end if;
 
+  -- FOR UPDATE OF pa serializes concurrent submissions for the same attestation. Without it the
+  -- attempt cap below is a check-then-act race: five parallel requests all count 0 before any of
+  -- them inserts, all pass, and the cap -- the only thing bounding the score oracle -- does nothing
+  -- against exactly the automated probing it exists to slow down.
   select pa.* into v_attestation
   from public.policy_attestations pa
   join public.employees e on e.id = pa.employee_id
-  where pa.id = p_attestation_id and e.profile_id = auth.uid();
+  where pa.id = p_attestation_id and e.profile_id = auth.uid()
+  for update of pa;
 
   if v_attestation.id is null then
     raise exception 'Attestation not found for this user' using errcode = '42501';
