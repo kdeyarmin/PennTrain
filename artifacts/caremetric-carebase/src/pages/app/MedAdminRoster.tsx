@@ -1,9 +1,7 @@
 import { useMemo, useState } from "react";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
-import { useListPracticums } from "@/hooks/usePracticums";
-import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useMedAdminAuthorization } from "@/hooks/useMedAdminAuthorization";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useListCorrectiveActions } from "@/hooks/useCorrectiveActions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,24 +12,6 @@ import { buildMedicationSafetySummary } from "@/lib/medicationSafetyAnalytics";
 import { facilityToday } from "@/lib/dateUtils";
 import { Pill, CheckCircle2, XCircle, Droplet, AlertTriangle, ClipboardCheck } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
-
-// "Authorized today" reads compliant OR due_soon as still-currently-valid -- due_soon means
-// "expiring within the warning window", not "already expired". Only missing/expired disqualify.
-const CURRENTLY_VALID_STATUSES = new Set(["compliant", "due_soon"]);
-
-// Same "most recent by due_date, then completion_date, then created_at" ordering used by
-// findCurrentRecord/pickCurrentRecord elsewhere (EmployeeDetail.tsx, TrainingMatrix.tsx,
-// PendingApprovals.tsx) -- picks the current row when more than one exists for a training_type.
-function pickCurrentRecord(records: TrainingRecord[]): TrainingRecord | undefined {
-  if (records.length === 0) return undefined;
-  return records.reduce((current, candidate) => {
-    const cDue = candidate.due_date ?? "", curDue = current.due_date ?? "";
-    if (cDue !== curDue) return cDue > curDue ? candidate : current;
-    const cComp = candidate.completion_date ?? "", curComp = current.completion_date ?? "";
-    if (cComp !== curComp) return cComp > curComp ? candidate : current;
-    return (candidate.created_at ?? "") > (current.created_at ?? "") ? candidate : current;
-  });
-}
 
 export default function MedAdminRoster() {
   const [facilityId, setFacilityId] = useState<string>("all");
@@ -45,12 +25,6 @@ export default function MedAdminRoster() {
     status: "active",
     facilityId: facilityId !== "all" ? facilityId : undefined,
   });
-  const trainingTypesQuery = useListTrainingTypes({ isActive: true });
-  const { data: trainingTypes } = trainingTypesQuery;
-
-  const medInitTypeId = useMemo(() => trainingTypes?.find(t => t.code === "MED-INIT")?.id, [trainingTypes]);
-  const medRenewTypeId = useMemo(() => trainingTypes?.find(t => t.code === "MED-RENEW")?.id, [trainingTypes]);
-  const diabetesEduTypeId = useMemo(() => trainingTypes?.find(t => t.code === "DIABETES-EDU")?.id, [trainingTypes]);
 
   const medAdminEmployees = useMemo(
     () =>
@@ -61,25 +35,15 @@ export default function MedAdminRoster() {
     [employeesAll],
   );
 
-  const medAdminEmployeeIds = useMemo(() => medAdminEmployees.map(e => e.id), [medAdminEmployees]);
-  const medTrainingTypeIds = useMemo(
-    () => [medInitTypeId, medRenewTypeId, diabetesEduTypeId].filter((id): id is string => Boolean(id)),
-    [medInitTypeId, medRenewTypeId, diabetesEduTypeId],
-  );
+  // Shared with the Schedule views (ScheduleDetail.tsx) so both pages answer "is this employee
+  // authorized to pass meds right now" identically -- see useMedAdminAuthorization.ts.
+  const {
+    byEmployeeId: medAuthByEmployeeId,
+    isError: medAuthIsError,
+    error: medAuthError,
+    refetch: refetchMedAuth,
+  } = useMedAdminAuthorization(medAdminEmployees);
 
-  // Only the three med-relevant training types for the (already facility-scoped) med-admin staff.
-  // Avoids the previous full-tenant training_records download on every visit to this page.
-  const { data: trainingRecords, ...trainingRecordsQuery } = useListTrainingRecords(
-    {
-      employeeIds: medAdminEmployeeIds,
-      trainingTypeIds: medTrainingTypeIds,
-    },
-    {
-      enabled: medAdminEmployeeIds.length > 0 && medTrainingTypeIds.length > 0,
-    },
-  );
-  const practicumsQuery = useListPracticums({ year: currentYear });
-  const { data: practicums } = practicumsQuery;
   const incidentFacilityId = facilityId !== "all" ? facilityId : undefined;
   const incidentsQuery = useListIncidents({ facilityId: incidentFacilityId });
   const { data: incidents } = incidentsQuery;
@@ -88,41 +52,15 @@ export default function MedAdminRoster() {
 
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
-  const rows = useMemo(() => {
-    const records = trainingRecords ?? [];
-    const practicumRows = practicums ?? [];
-    return medAdminEmployees.map(emp => {
-      const empRecords = records.filter(r => r.employee_id === emp.id);
-      // Prefer the renewal record once one exists; an employee who has only ever completed the
-      // initial certification is still tracked against MED-INIT.
-      const renewRecord = medRenewTypeId ? pickCurrentRecord(empRecords.filter(r => r.training_type_id === medRenewTypeId)) : undefined;
-      const initRecord = medInitTypeId ? pickCurrentRecord(empRecords.filter(r => r.training_type_id === medInitTypeId)) : undefined;
-      const certRecord = (renewRecord && renewRecord.status !== "missing") ? renewRecord : (initRecord ?? renewRecord);
-      const certStatus = certRecord?.status ?? "missing";
-
-      const practicum = practicumRows.find(p => p.employee_id === emp.id);
-      const practicumStatus = practicum?.status ?? "missing";
-
-      const diabetesRecord = diabetesEduTypeId ? pickCurrentRecord(empRecords.filter(r => r.training_type_id === diabetesEduTypeId)) : undefined;
-      const insulinAuthorized = CURRENTLY_VALID_STATUSES.has(diabetesRecord?.status ?? "");
-
-      const authorizedToday = CURRENTLY_VALID_STATUSES.has(certStatus) && CURRENTLY_VALID_STATUSES.has(practicumStatus);
-
-      return { employee: emp, certStatus, practicumStatus, insulinAuthorized, authorizedToday };
-    });
-  }, [medAdminEmployees, trainingRecords, practicums, medRenewTypeId, medInitTypeId, diabetesEduTypeId]);
-
-  const authorizedCount = rows.filter(r => r.authorizedToday).length;
+  const authorizedCount = medAdminEmployees.filter((e) => medAuthByEmployeeId.get(e.id)?.authorizedToday).length;
   const medicationSafety = useMemo(() => buildMedicationSafetySummary({ incidents: incidents ?? [], correctiveActions: correctiveActions ?? [], today: facilityToday() }), [incidents, correctiveActions]);
 
   // This roster answers "is this person authorized to pass meds right now". A missing
   // training record must never quietly read as "not authorized" (or worse, a missing
   // corrective action as "clear") because a fetch failed.
-  const rosterQueries = [
-    facilitiesQuery, employeesQuery, trainingTypesQuery, trainingRecordsQuery,
-    practicumsQuery, incidentsQuery, correctiveActionsQuery,
-  ];
-  const rosterFailure = rosterQueries.find((query) => query.isError);
+  const rosterQueries = [facilitiesQuery, employeesQuery, incidentsQuery, correctiveActionsQuery];
+  const rosterFailure = rosterQueries.find((query) => query.isError)
+    ?? (medAuthIsError ? { isError: true as const, error: medAuthError } : undefined);
 
   return (
     <div className="space-y-6">
@@ -130,7 +68,10 @@ export default function MedAdminRoster() {
         <QueryError
           what="the medication-administration roster"
           error={rosterFailure.error}
-          onRetry={() => void Promise.all(rosterQueries.map((query) => query.refetch()))}
+          onRetry={() => {
+            void Promise.all(rosterQueries.map((query) => query.refetch()));
+            refetchMedAuth();
+          }}
         />
       )}
       <div>
@@ -202,11 +143,11 @@ export default function MedAdminRoster() {
             Medication Administration Roster
           </CardTitle>
           <CardDescription>
-            {authorizedCount} of {rows.length} medication-administering staff are currently authorized.
+            {authorizedCount} of {medAdminEmployees.length} medication-administering staff are currently authorized.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          {medAdminEmployees.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Pill className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">No medication-administering staff found</p>
@@ -228,34 +169,41 @@ export default function MedAdminRoster() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ employee, certStatus, practicumStatus, insulinAuthorized, authorizedToday }) => (
-                    <tr key={employee.id}>
-                      <td className="font-medium">{employee.first_name} {employee.last_name}</td>
-                      <td className="text-muted-foreground">{facilityNameById.get(employee.facility_id) ?? "—"}</td>
-                      <td><StatusBadge status={certStatus} /></td>
-                      <td><StatusBadge status={practicumStatus} /></td>
-                      <td>
-                        {insulinAuthorized ? (
-                          <Badge variant="outline" className="bg-info text-info-foreground">
-                            <Droplet className="h-3 w-3 mr-1" /> Authorized
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td>
-                        {authorizedToday ? (
-                          <Badge className="bg-success text-success-foreground hover:bg-success/80">
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Yes
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> No
-                          </Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {medAdminEmployees.map((employee) => {
+                    const auth = medAuthByEmployeeId.get(employee.id);
+                    const certStatus = auth?.certStatus ?? "missing";
+                    const practicumStatus = auth?.practicumStatus ?? "missing";
+                    const insulinAuthorized = auth?.insulinAuthorized ?? false;
+                    const authorizedToday = auth?.authorizedToday ?? false;
+                    return (
+                      <tr key={employee.id}>
+                        <td className="font-medium">{employee.first_name} {employee.last_name}</td>
+                        <td className="text-muted-foreground">{facilityNameById.get(employee.facility_id) ?? "—"}</td>
+                        <td><StatusBadge status={certStatus} /></td>
+                        <td><StatusBadge status={practicumStatus} /></td>
+                        <td>
+                          {insulinAuthorized ? (
+                            <Badge variant="outline" className="bg-info text-info-foreground">
+                              <Droplet className="h-3 w-3 mr-1" /> Authorized
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td>
+                          {authorizedToday ? (
+                            <Badge className="bg-success text-success-foreground hover:bg-success/80">
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Yes
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">
+                              <XCircle className="h-3.5 w-3.5 mr-1" /> No
+                            </Badge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

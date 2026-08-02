@@ -180,3 +180,68 @@ export function summarizeStaffingRatios({
     daysBelowMinimumStaffing,
   };
 }
+
+export interface MedAdminCoverageAssignment {
+  employee_id: string;
+  shift_date: string;
+  status: string;
+  shift_definition_id: string | null;
+  /** Resolved display name for the shift (shift_definitions.name, falling back to a formatted
+   *  start time) -- computed by the caller, same as ScheduleAnalyticsAssignment.employees above. */
+  shift_name: string | null;
+}
+
+export interface MedAdminCoverageGap {
+  date: string;
+  shiftName: string;
+  /** Distinct active (non called_off/no_show) staff scheduled for this date+shift -- scheduled but
+   *  none of them are currently authorized to pass medications. */
+  scheduledStaff: number;
+}
+
+export interface MedAdminCoverageSummary {
+  /** (date, shift) pairs with active staff scheduled but zero of them currently authorized to pass
+   *  medications. Sorted by date, then shift name. A date with multiple shifts can appear more than
+   *  once (e.g. night shift uncovered while day shift is fine) -- that is the point: a facility-wide
+   *  "some coverage today" rollup would hide exactly the gap this is meant to catch. */
+  gaps: MedAdminCoverageGap[];
+  /** Distinct dates represented in `gaps` -- convenience for a one-line summary count. */
+  datesWithGaps: string[];
+}
+
+// Does NOT flag a (date, shift) with zero staff scheduled at all -- that is the existing, separate
+// unitDayCoverageGaps / daysBelowMinimumStaffing signal above. This only flags shifts that DO have
+// staff, but none of the staff scheduled are currently authorized to pass medications -- the
+// specific, actionable compliance gap "who can pass meds today" is asking about.
+export function summarizeMedAdminCoverage({
+  assignments,
+  dates,
+  isAuthorized,
+}: {
+  assignments: MedAdminCoverageAssignment[];
+  dates: string[];
+  isAuthorized: (employeeId: string) => boolean;
+}): MedAdminCoverageSummary {
+  const dateSet = new Set(dates);
+  // Match staffing-ratio logic: called_off and no_show do not staff a shift.
+  const activeAssignments = assignments.filter(
+    (a) => dateSet.has(a.shift_date) && a.status !== "called_off" && a.status !== "no_show",
+  );
+
+  const byShift = new Map<string, { date: string; shiftName: string; employeeIds: Set<string> }>();
+  for (const a of activeAssignments) {
+    const key = `${a.shift_date}|${a.shift_definition_id ?? "__unspecified__"}`;
+    const entry = byShift.get(key) ?? { date: a.shift_date, shiftName: a.shift_name ?? "Shift", employeeIds: new Set<string>() };
+    entry.employeeIds.add(a.employee_id);
+    byShift.set(key, entry);
+  }
+
+  const gaps = [...byShift.values()]
+    .filter((entry) => ![...entry.employeeIds].some((employeeId) => isAuthorized(employeeId)))
+    .map((entry) => ({ date: entry.date, shiftName: entry.shiftName, scheduledStaff: entry.employeeIds.size }))
+    .sort((a, b) => (a.date === b.date ? a.shiftName.localeCompare(b.shiftName) : a.date.localeCompare(b.date)));
+
+  const datesWithGaps = [...new Set(gaps.map((gap) => gap.date))].sort();
+
+  return { gaps, datesWithGaps };
+}
