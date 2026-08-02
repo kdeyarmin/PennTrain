@@ -12,7 +12,8 @@ import { isDefinitiveProfileAbsence } from "@/lib/authProfileErrors";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
 import {
-  shouldWipeOfflineServiceDraftData, type OfflineServiceDraftIdentitySnapshot,
+  isOfflineServiceDraftIdentityPending, shouldWipeOfflineServiceDraftData,
+  type OfflineServiceDraftIdentitySnapshot,
 } from "@/lib/offlineServiceDraftSafety";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
@@ -282,7 +283,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // the other half -- a profile/org/role change, or deactivation, observed while the session itself
   // stays signed in (e.g. an admin changes this person's role or facility mid-shift). Proactive, not
   // lazy: the wipe fires here rather than waiting for the offline store to next be opened.
+  //
+  // Codex review finding: `user` is derived from the profile query below and reads null any time
+  // that query has no data yet -- not just on a real sign-out. A session that stays valid can still
+  // pass through that state, e.g. right after the SIGNED_IN handler above calls queryClient.clear()
+  // and the profile is being fetched again, or during a transient offline/network retry (see the
+  // profile query's own retry comment). Treating a still-valid session's momentarily-unresolved
+  // profile the same as a genuine identity change would wipe unsynced care notes for no reason.
+  // Skip the comparison until the profile fetch actually settles for a session that exists; a
+  // session-bearing profile that resolves to a genuinely different identity (or an inactive one)
+  // still compares normally below once it does. A DEFINITIVE missing profile still ends in a wipe --
+  // the effect further down signs that session out, which reaches the explicit SIGNED_OUT wipe path
+  // above -- so this effect doesn't need to duplicate that case. See
+  // isOfflineServiceDraftIdentityPending's own comment for why this is a caller-side guard rather
+  // than a change to shouldWipeOfflineServiceDraftData itself.
   useEffect(() => {
+    if (isOfflineServiceDraftIdentityPending(!!session, !!user)) return;
     const current = user
       ? { profileId: user.id, organizationId: user.organizationId ?? "", role: user.role, active: user.isActive }
       : null;
@@ -292,7 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     lastOfflineServiceDraftIdentityRef.current = current
       ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
       : null;
-  }, [user?.id, user?.organizationId, user?.role, user?.isActive]);
+  }, [user?.id, user?.organizationId, user?.role, user?.isActive, session]);
 
   useEffect(() => {
     if (!isLoading && !session && !isError) {

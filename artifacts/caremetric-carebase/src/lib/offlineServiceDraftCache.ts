@@ -176,6 +176,15 @@ export async function saveOfflineFloorDeviceId(deviceId: string): Promise<void> 
 // Drafts
 // ---------------------------------------------------------------------------
 
+// Codex review finding: awaiting only the `put` request's onsuccess (via the `request()` helper
+// above) resolves as soon as IndexedDB has queued the write against the transaction's in-memory
+// view -- it does NOT mean the transaction went on to commit. A transaction can still abort after
+// every request in it has already reported success (e.g. a QuotaExceededError surfacing only at
+// flush time), in which case the request never fires a second, later error -- only the
+// transaction's own onabort does. This is the sole persistence path for an offline care note, so
+// resolve only once the transaction itself completes, exactly like the other multi-store writes in
+// this module (initializeOfflineFloorDevice, clearDatabase, purgeExpiredServiceDrafts) already key
+// off transaction.oncomplete rather than the individual request.
 export async function saveServiceDraft(draft: OfflineServiceDraft): Promise<OfflineServiceDraft> {
   assertServiceDraftAllowed(draft);
   const db = await openDatabase();
@@ -184,7 +193,13 @@ export async function saveServiceDraft(draft: OfflineServiceDraft): Promise<Offl
   const record: StoredDraftRecord = {
     draftId: draft.draftId, taskId: draft.taskId, syncState: draft.syncState, createdAt: draft.createdAt, envelope,
   };
-  await request(db.transaction(DRAFT_STORE, "readwrite").objectStore(DRAFT_STORE).put(record));
+  const transaction = db.transaction(DRAFT_STORE, "readwrite");
+  transaction.objectStore(DRAFT_STORE).put(record);
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Offline service draft save failed"));
+    transaction.onabort = () => reject(transaction.error ?? new Error("Offline service draft save was aborted"));
+  });
   return draft;
 }
 

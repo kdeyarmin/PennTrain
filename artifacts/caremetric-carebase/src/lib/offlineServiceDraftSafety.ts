@@ -138,3 +138,46 @@ export function shouldWipeOfflineServiceDraftData(
     || previous.organizationId !== current.organizationId
     || previous.role !== current.role;
 }
+
+/**
+ * Codex review finding: a `null` current identity is not always a real sign-out. The resolved-
+ * profile effect in auth.tsx derives `current` from the profile query, which reads as no-data (and
+ * therefore `user === null`) any time a still-valid session's profile hasn't resolved yet -- e.g.
+ * right after the SIGNED_IN handler there clears the React Query cache and the profile is being
+ * fetched again, or during a transient offline/network retry (see that query's own retry comment).
+ * shouldWipeOfflineServiceDraftData itself is correct as written: given a real `null` it must treat
+ * that as "no identity" and wipe if one was previously recorded -- that is exactly right for an
+ * actual sign-out, and SIGNED_OUT already calls it that way directly. The bug is calling it AT ALL
+ * with a `current` that is null only because the profile hasn't resolved for an existing session.
+ * This is the caller-side guard for that: true while a session exists but nothing has resolved
+ * either way (found, or -- via the definitive-absence effect signing the session out, which reaches
+ * the explicit SIGNED_OUT wipe path -- absent) yet, so the wipe comparison should be skipped rather
+ * than run with a misleadingly-empty `current`.
+ */
+export function isOfflineServiceDraftIdentityPending(hasSession: boolean, hasResolvedUser: boolean): boolean {
+  return hasSession && !hasResolvedUser;
+}
+
+/**
+ * Codex review finding: `navigator.onLine` only reflects whether the device has a link-layer
+ * connection, not whether Supabase is actually reachable -- a LAN with no route out, a bad DNS
+ * resolver, a captive portal, or Supabase itself being down all commonly leave it `true`. Documenting
+ * care must not silently fail in exactly those cases, so DocumentCareDialog falls back to an offline
+ * draft when the online mutation fails this way too -- but only this way; a real server rejection
+ * (wrong role, task already documented, plan changed) must still reach the user, not vanish into a
+ * silent draft.
+ *
+ * @supabase/postgrest-js sets `code` to `""` in exactly one place: the client-side catch around the
+ * fetch call itself, before any HTTP response exists (DNS/connection failure, a captive portal
+ * intercepting the request, CORS, etc. -- see its own PostgrestBuilder comment, "we don't populate
+ * code/hint for client-side network errors since those fields are meant for upstream service
+ * errors"). Every response PostgREST/Postgres actually sends back -- including this app's RPC
+ * functions' own authorization (42501) and validation errors -- carries a real, non-empty error
+ * code, so checking for the empty string distinguishes "never reached the server" from "the server
+ * answered and said no" without guessing from message text.
+ */
+export function isNetworkLevelSupabaseError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  if (!("code" in error)) return false;
+  return (error as { code?: unknown }).code === "";
+}

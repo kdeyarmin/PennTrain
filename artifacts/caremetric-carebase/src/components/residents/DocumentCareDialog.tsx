@@ -18,6 +18,7 @@ import {
 import {
   followUpFieldsFor, validateFollowUp, type FollowUpAnswers, type FollowUpField,
 } from "@/lib/serviceExceptionFollowUp";
+import { isNetworkLevelSupabaseError } from "@/lib/offlineServiceDraftSafety";
 import type { Json } from "@/lib/database.types";
 
 function FollowUpControl({ field, value, onChange }: { field: FollowUpField; value: unknown; onChange: (value: unknown) => void }) {
@@ -122,30 +123,37 @@ export function DocumentCareDialog({
       setShowIssues(true);
       return;
     }
+
+    const saveDraftLocally = async () => {
+      await saveOfflineDraft.mutateAsync({
+        taskId: task.id,
+        residentId: task.residentId,
+        residentDisplayLabel: task.room ? `${task.residentName} · Room ${task.room}` : task.residentName,
+        organizationId: task.organizationId,
+        facilityId: task.facilityId,
+        serviceName: task.serviceName,
+        scheduledStart: task.scheduledStart,
+        scheduledEnd: task.scheduledEnd,
+        taskKind: task.taskKind ?? "scheduled_care",
+        acceptableResponses: responses as CompletionResponse[],
+        refusalHandling: task.refusalHandling ?? null,
+        response: chosen as CompletionResponse,
+        exceptionDetails: answers,
+      });
+      toast({
+        title: "Saved on this device",
+        description: "Will sync when you're back online. This isn't in the official record yet.",
+      });
+      onOpenChange(false);
+    };
+
     // The highest-frequency, safety-critical path in the app: online submission below is untouched.
-    // This is the ONLY branch point, decided fresh at submit time rather than from render state.
+    // This proactive branch is decided fresh at submit time rather than from render state, same as
+    // before -- it's no longer the ONLY branch into the offline-draft path, though: see the
+    // network-failure fallback in the online path's catch below for the case navigator.onLine misses.
     if (navigator.onLine === false) {
       try {
-        await saveOfflineDraft.mutateAsync({
-          taskId: task.id,
-          residentId: task.residentId,
-          residentDisplayLabel: task.room ? `${task.residentName} · Room ${task.room}` : task.residentName,
-          organizationId: task.organizationId,
-          facilityId: task.facilityId,
-          serviceName: task.serviceName,
-          scheduledStart: task.scheduledStart,
-          scheduledEnd: task.scheduledEnd,
-          taskKind: task.taskKind ?? "scheduled_care",
-          acceptableResponses: responses as CompletionResponse[],
-          refusalHandling: task.refusalHandling ?? null,
-          response: chosen as CompletionResponse,
-          exceptionDetails: answers,
-        });
-        toast({
-          title: "Saved on this device",
-          description: "Will sync when you're back online. This isn't in the official record yet.",
-        });
-        onOpenChange(false);
+        await saveDraftLocally();
       } catch (error) {
         toast({
           title: "Could not save this offline",
@@ -164,6 +172,24 @@ export function DocumentCareDialog({
       toast({ title: "Recorded", description: COMPLETION_RESPONSE_LABELS[chosen as CompletionResponse] ?? chosen });
       onOpenChange(false);
     } catch (error) {
+      // Codex review finding: navigator.onLine can still read `true` with a LAN link but no working
+      // route to Supabase (bad DNS, a captive portal, a route/service outage), so the branch above
+      // alone misses that case and the mutation above fails having never reached the server. Fall
+      // back to the same offline-draft path then -- but only for that specific failure shape; a real
+      // server rejection (authorization, validation, a plan/business rule) must still surface to the
+      // user rather than disappear into a silent draft. See isNetworkLevelSupabaseError.
+      if (isNetworkLevelSupabaseError(error)) {
+        try {
+          await saveDraftLocally();
+        } catch (draftError) {
+          toast({
+            title: "Could not save this offline",
+            description: draftError instanceof Error ? draftError.message : String(draftError),
+            variant: "destructive",
+          });
+        }
+        return;
+      }
       toast({
         title: "Could not record this",
         description: error instanceof Error ? error.message : String(error),
