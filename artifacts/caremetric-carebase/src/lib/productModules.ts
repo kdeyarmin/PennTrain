@@ -78,7 +78,10 @@ const INTERNAL_APP_PREFIXES = ["/account", "/admin", "/app", "/trainer", "/me"] 
 // resident *directory table* is shared core at the database layer (see the migration) so Compliance-
 // and Billing-tier pages can join resident context; that data-layer decision does not make the
 // resident routes core.
-const CORE_PATHS = [
+// Exported so route-manifest coverage tests can verify these classifier entries reference real
+// App.tsx routes -- see routeRegistration.test.ts. ("/account" is the one intentional exception:
+// a route-tree prefix for the shared /account/* pages rather than a page of its own.)
+export const CORE_PATHS = [
   "/account",
   "/admin",
   "/app/facilities",
@@ -91,7 +94,7 @@ const CORE_PATHS = [
   "/me/help",
 ] as const;
 
-const TRAIN_PATHS = [
+export const TRAIN_PATHS = [
   "/app/training-matrix",
   "/app/training-types",
   "/app/courses",
@@ -108,7 +111,7 @@ const TRAIN_PATHS = [
 ] as const;
 
 // Staff credentialing, competency, screening, scheduling, and practicum operations.
-const WORKFORCE_PATHS = [
+export const WORKFORCE_PATHS = [
   "/app/credentials",
   "/app/competency-records",
   "/app/competency-templates",
@@ -129,7 +132,7 @@ const WORKFORCE_PATHS = [
 
 // Regulatory readiness: inspections, survey day, violations, complaints, forms, evidence, QAPI,
 // policies, and the regulatory copilot.
-const COMPLIANCE_PATHS = [
+export const COMPLIANCE_PATHS = [
   "/app/compliance-command-center",
   "/app/inspections",
   "/app/inspection-readiness",
@@ -152,7 +155,7 @@ const COMPLIANCE_PATHS = [
 ] as const;
 
 // Resident financial operations.
-const BILLING_PATHS = ["/app/resident-finance"] as const;
+export const BILLING_PATHS = ["/app/resident-finance"] as const;
 
 function stripPathSuffix(path: string): string {
   return path.match(/^([^?#]*)/)?.[1] || "/";
