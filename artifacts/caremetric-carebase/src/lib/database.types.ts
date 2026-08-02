@@ -20337,6 +20337,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "policy_campaign_questions_campaign_org_fk"
+            columns: ["campaign_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
             foreignKeyName: "policy_campaign_questions_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
