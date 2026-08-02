@@ -304,5 +304,14 @@
   },
   "20260724053705": {
     "reason": "PT-051 reconciliation (2026-07-24): recovered from production statements with a provenance header, and replay-adapted because the committed seed already ships the corrected block-4 text."
+  },
+  "20260801065028": {
+    "reason": "Ledger divergence after recent apply: the DO existence-guard for the out-of-band app_private.exclusion_list_entries_dedup_backup_20260712 table (plus surrounding comments) was recorded differently from the committed file. Live catalog matches this file's intent (RLS enabled on the 7 tables; the guard is a no-op where the table is absent). No runtime change."
+  },
+  "20260801220000": {
+    "reason": "Ledger divergence after recent apply of the four D3 import_apply_* SECURITY DEFINER RPCs. Local file is the reviewed source; production functions match the committed bodies (org-scoped validation, service_role-only, verified_by null for system apply). Divergence is in recorded statements vs file, not live behavior."
+  },
+  "20260802010000": {
+    "reason": "Ledger divergence after recent apply of the SG-2 PA 2600/2800 regulatory_rule_pack_templates seed. Local file is the counsel-cleared source; live templates match (template_key, fixtures, calculation_parameters). Divergence is in recorded statements vs file."
   }
 }
