@@ -1,5 +1,7 @@
 # SG-2 decision record
 
+> **Not the backlog.** See [BACKLOG.md](../../BACKLOG.md) for open work. This record documents the SG-2 counsel-cleared path and activation follow-up only.
+
 **First decision:** 2026-08-01 — option 3 (drafting aid only)  
 **Revised:** 2026-08-01 — **option 2 path, counsel-cleared**  
 **Decision:** Counsel has reviewed and approved. Proceed to ship a governed **`pa.*`** rule pack through the existing install → fixture → shadow → approve → activate gates. SG-2 is **in_progress**, not Explicitly not now.
