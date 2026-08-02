@@ -12,6 +12,7 @@ export interface SurveyEvidencePacketItem {
   label: string;
   notes: string | null;
   sort_order: number;
+  citation_ref: string | null;
   created_at: string;
 }
 
@@ -50,6 +51,7 @@ export function useAddSurveyEvidencePacketItem() {
       surveyDaySessionId?: string | null;
       binderExportJobId?: string | null;
       notes?: string | null;
+      citationRef?: string | null;
     }) => {
       const { data, error } = await rpc().rpc("add_survey_evidence_packet_item", {
         p_source_type: input.sourceType,
@@ -60,6 +62,7 @@ export function useAddSurveyEvidencePacketItem() {
         p_binder_export_job_id: input.binderExportJobId ?? null,
         p_notes: input.notes ?? null,
         p_sort_order: 0,
+        p_citation_ref: input.citationRef ?? null,
       });
       if (error) throw new Error(error.message);
       return data as string;

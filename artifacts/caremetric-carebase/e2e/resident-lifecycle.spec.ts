@@ -1180,7 +1180,7 @@ test.describe("resident lifecycle journey", () => {
 
     await signIn(page);
     await page.goto(`/app/survey-day?facility=${facilityId}`);
-    await expect(page.getByRole("heading", { name: "Survey Day Mode" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Survey Day", level: 1 })).toBeVisible();
 
     // Report the gate rather than time out on a missing control: when Survey Day is not enabled the
     // page renders an explanatory card instead of the activation button, and "button never appeared"

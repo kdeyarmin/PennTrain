@@ -49,6 +49,7 @@ export default function SurveyDayPacketSection({
   const packagePacket = usePackageSurveyEvidencePacket();
   const issueGuest = useIssueSurveyPacketGuestGrant();
   const [packetNote, setPacketNote] = useState("");
+  const [packetCitation, setPacketCitation] = useState("");
   const [assembledManifest, setAssembledManifest] = useState<Record<string, unknown> | null>(null);
   const [guestLabel, setGuestLabel] = useState("Surveyor packet access");
   const [lastGuestToken, setLastGuestToken] = useState<string | null>(null);
@@ -110,8 +111,8 @@ export default function SurveyDayPacketSection({
         <p className="text-sm font-medium">Selected evidence for this survey packet</p>
         <p className="text-xs text-muted-foreground">
           Add binder export or notes, assemble a selection manifest, then package a downloadable zip.
-          Labels with a citation prefix (for example 2800.64) sort first by regulation number, then by
-          manual order and time added. Issue a time-limited surveyor guest link for that package only.
+          Prefer the citation field (for example 2800.64) for entrance-conference order; labels still
+          parse as a fallback. Issue a time-limited surveyor guest link for that package only.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -136,8 +137,15 @@ export default function SurveyDayPacketSection({
             Include binder
           </Button>
           <Input
+            className="max-w-[9rem]"
+            placeholder="Citation e.g. 2800.64"
+            value={packetCitation}
+            onChange={(e) => setPacketCitation(e.target.value)}
+            aria-label="Regulation citation"
+          />
+          <Input
             className="max-w-xs"
-            placeholder="Optional note label (prefix 2800.64 to pin order)"
+            placeholder="Note label"
             value={packetNote}
             onChange={(e) => setPacketNote(e.target.value)}
           />
@@ -146,6 +154,7 @@ export default function SurveyDayPacketSection({
             variant="outline"
             disabled={packetNote.trim().length < 2 || addPacketItem.isPending}
             onClick={() => {
+              const citation = packetCitation.trim() || extractSurveyEvidencePacketCitation(packetNote.trim()) || null;
               void addPacketItem
                 .mutateAsync({
                   sourceType: "note",
@@ -153,8 +162,12 @@ export default function SurveyDayPacketSection({
                   facilityId,
                   surveyDaySessionId: sessionId,
                   binderExportJobId: pinnedBinderJobId,
+                  citationRef: citation,
                 })
-                .then(() => setPacketNote(""))
+                .then(() => {
+                  setPacketNote("");
+                  setPacketCitation("");
+                })
                 .catch((e: Error) => {
                   toast({ title: "Could not add note", description: e.message, variant: "destructive" });
                 });
@@ -258,7 +271,7 @@ export default function SurveyDayPacketSection({
         )}
         <ul className="space-y-1 text-sm">
           {(packetItems.data ?? []).map((item) => {
-            const citation = extractSurveyEvidencePacketCitation(item.label);
+            const citation = item.citation_ref ?? extractSurveyEvidencePacketCitation(item.label);
             return (
               <li key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
                 <span className="flex flex-wrap items-center gap-2">
