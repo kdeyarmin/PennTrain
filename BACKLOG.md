@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `261898f` (2026-08-01) — B1 complete (accept-time bridge bundling + learning-packages storage policies); residual SCORM confidence is B3 (real vendor packages) + A1 production verify; D3 complete via #413 (all 8 durable domains)
+**Last verified against main:** `07b22a3` (2026-08-01) — SG-2 counsel-cleared option 2; templates seeded; activation remains; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -63,6 +63,7 @@ checked.
 | [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md) | Reference — Plan-of-Correction design |
 | [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCTION_HARDENING.md) | Reference — SCORM production PR plan |
 | [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md) | Reference — ops-only Tier A rows |
+| [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md) | Reference — SG-2 counsel-cleared option 2 record; activation follow-up remains (2026-08-02) |
 | ROADMAP.md, WORKFLOW_UX_REVIEW_2026-07-31.md, docs/audits/\*, CAREBASE_25_\*, EFFICIENCY_REVIEW.md, END_USER_REVIEW.md, ENHANCEMENT_REPORT.md, PLATFORM_ENHANCEMENTS.md, root `PennTrain_*` | **Superseded.** Dated evidence only — do not plan from them |
 
 Six of those superseded documents still read as live registers before this pass, and two
@@ -82,47 +83,15 @@ check removes.
 | ID | Gap | Why it survives | Gate to close | Owner | Review by |
 | --- | --- | --- | --- | --- | --- |
 | SG-1 | Notification delivery reaches demo organizations only. `20260731180000_workflow_ux_efficiency_rollout.sql` auto-enrols the pilot cohort into `notifications.expanded_delivery_types` and `notifications.critical_multichannel` `where o.is_demo is true`; both `feature_definitions` default to `false`. A real pilot org therefore receives nothing, silently. | Demo orgs *do* get notifications, so every demo and screenshot looks correct. The failure is only visible to a real tenant that nobody has enrolled yet. | One non-demo pilot org enrolled via `assign_organization_release_cohort` (Pilot Cohort Console), with a delivered email and SMS recorded in `notification_delivery_attempts`. Flags stay default-off; enrolment is a deliberate operator act, not a migration. | **You** (ops hat — see A6) | 2026-09-01 |
-| SG-2 | The compliance copilot has no Pennsylvania rule pack. `regulatory_rule_pack_templates` ships exactly one row — `oh.rcf.3701-16.personnel` (Ohio). With no installed and activated PA pack, `compliance-copilot` finds zero governed rule versions and answers every PA question with "No active governed rule version matched". | The copilot degrades politely instead of erroring, and the Ohio template makes the *mechanism* look finished. PA is the product's entire market, and it is the one jurisdiction with no pack. | A `pa.*` template authored from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` and 55 Pa. Code Ch. 2600/2800, carried through the existing governance gates: golden fixtures, shadow evaluation, explicit activation — plus an approval step that, solo, only a second account you control can clear. | **You**, in all four capacities — there is no one else. See "The solo path" below: every mechanical step is reachable, so what actually gates this row is whether you are willing to publish a regulatory interpretation to every PA tenant on your own authority. | 2026-10-01 |
-
-### SG-2 — the solo path
-
-Four capacities are involved, and they are all you:
-
-| Step | Capacity | Reachable solo? |
-| --- | --- | --- |
-| Author the PA content — citations, effective dates, hour thresholds | Regulatory | Yes, from `PA_DHS_ANNUAL_TRAINING_MATRIX.md` + 55 Pa. Code Ch. 2600/2800 |
-| Insert the `pa.*` template row | Engineering | Yes — a migration. Platform admins hold `select` only on `regulatory_rule_pack_templates`; writes are `service_role`, so this cannot be done from the UI |
-| Unhardcode `"oh.rcf.3701-16.personnel"` in `EnterpriseFoundation.tsx:453` | Engineering | Yes |
-| Install → submit → shadow | Platform admin | Yes |
-| Approve → activate | Platform admin **#2** | Yes, but only with a second account (below) |
-
-**The second-identity step is a formality, and should be recorded as one.**
-`approve_regulatory_rule_version` refuses when `authored_by = auth.uid()`, and
-`install_regulatory_rule_pack_template` stamps `authored_by`. A platform admin may grant
-`platform_admin` to another account (`admin-update-user`, AAL2 for `identity_admin`), so a
-second identity you also control clears the check. It clears the *check* — it does not
-produce the second reader the check exists to force. Do not let a green pipeline read as
-"independently reviewed" in a survey or an incident review.
-
-**So the real gate is not process, it is liability.** With no counsel to hand it to, the
-question is whether you are willing to ship a regulatory interpretation to every PA tenant
-on your own authority. Three honest ways to close this row:
-
-1. **Author it and own it.** Cheapest, and defensible if the pack stays close to what the
-   regulation literally says. Keep `source_uri` and `source_checksum_sha256` exact so any
-   claim is traceable to text you did not write.
-2. **Buy one review.** A single fixed-scope engagement with a PA elder-care compliance
-   attorney over one `pa.*` pack is a bounded cost and converts the formality above into a
-   real second reader.
-3. **Do not ship governed answers yet.** Keep the copilot scoped as a drafting aid that
-   cites sources and never asserts compliance, and drop SG-2 to "Explicitly not now". This
-   is a legitimate outcome, not a failure — an empty pack that is *labelled* empty is
-   safer than a pack of one person's readings presented as governed.
-
-Option 3 costs nothing and is reversible; 1 and 2 are not. Decide before authoring, not
-after.
+| SG-2 | Counsel cleared option 2 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded `pa.pch.2600.65.personnel` and `pa.alf.2800.65.personnel`, but no active PA governed version exists yet. Until one of those drafts completes install → review → shadow → activate, the copilot remains a drafting aid for Pennsylvania. | The templates now exist and are installable, so the product can look "done" before any PA governed version is actually active. | Install one PA draft, complete the guarded workflow, and activate a PA governed version with evidence. | **You** (product/ops/legal coordination) | 2026-09-01 |
 
 ---
+
+Closed this pass: **SG-2 liability gate cleared by counsel; PA personnel templates seeded.**
+Option 2 is now counsel-cleared in [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md),
+and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded
+`pa.pch.2600.65.personnel` plus `pa.alf.2800.65.personnel`. SG-2 remains open as an
+activation gap until a PA governed version is actually active.
 
 Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
 built with `typecheck && build && check-bundle-budget` and no test step, on its own
@@ -187,6 +156,7 @@ dry-run practice. Column order matches `importTemplate()`.
   room, lifecycle cases, invitations
 - Marketing public suite: documentation terminology lock + Landing design fidelity (#377)
 - SCORM/xAPI runtime completion bridges to assignment + training records / hour buckets (B4)
+- SG-2 counsel-cleared install path exists for PA personnel templates; activation still pending — [SG2_DECISION.md](docs/ops/SG2_DECISION.md)
 
 ### Still open (highest risk first)
 
@@ -195,8 +165,8 @@ dry-run practice. Column order matches `importTemplate()`.
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
 5. Home IA density (too many "homes")
-6. PA rule pack for the copilot — **SG-2**
-7. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+6. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
+7. Entrance-conference ordered packet by reg number (C5)
 
 ---
 
@@ -279,7 +249,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | Capability bundles / config release envelope | Enterprise; post-portfolio |
 | Vendor external portal | Until maintenance is top pilot pain |
 | Full Spanish i18n retrofit | After SMS + mobile proven |
-| Multi-state rule packs | PA must be proven first — and PA itself is SG-2 |
+| Multi-state rule packs | Finish Pennsylvania install → activate first, then decide where expansion actually matters |
 | Expanding Essentials/Pro SKUs | Need conversion data |
 | Competing on pharmacy eMAR network | Multi-year moat elsewhere |
 | New root "comprehensive review" markdown | Update **this** file instead; the check rejects it |
@@ -303,17 +273,18 @@ block on the list and the one most likely to be skipped, because none of it look
 progress. Doing it before new features is how the pile stops growing. (C2 was the fifth
 and is now closed.)
 
-**3. Decide SG-2 — before building anything for it.**
-It needs a decision, not engineering time, and the decision is cheap while the work is
-not. Picking option 3 above costs an afternoon of copy changes; discovering you should
-have picked it *after* authoring a pack costs the pack.
+**3. Finish SG-2 install → activate.**
+Counsel cleared option 2 and the PA personnel templates are seeded. Next step is not more
+debate; it is to install a PA draft, complete guarded review/shadow, and activate a governed
+version. Until that evidence exists, the copilot remains a drafting aid for Pennsylvania.
 
-**4. Product depth.** ~~B4~~ done, then C5.
-Only once 1–3 are settled.
+**4. Product depth.** ~~B4~~ done, then C5 + E1 (batched).
+Only once 1–3 are settled. C5 (ordered entrance-conference packet) and E1 (Home IA roles)
+are the next in-repo product depth slices.
 
-**Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both depend on
-someone outside the repo. Start them early precisely because they are the only two things
-that can wait on another person's calendar.
+**Deliberately not in this list:** A5 (BAAs), because it depends on someone outside the
+repo. Start it early precisely because it is the only thing here that can wait on another
+person's calendar.
 
 ---
 
@@ -341,4 +312,4 @@ pgTAP suite, `check:all`, and this register's own freshness check. Treat a mecha
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
 
-<!-- Register verified: B1 done (accept-time bundling + storage policies); B3 owner drop-path documented -->
+<!-- Register verified: SG-2 counsel-cleared option 2; PA templates seeded; activation gap remains; B1 done; B3 owner drop-path documented -->

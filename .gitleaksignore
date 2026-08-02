@@ -2,3 +2,9 @@
 # was replaced with a zero-entropy value in a follow-up commit, this entry clears the
 # already-immutable historical commit for history-wide scans.
 d3f81bd91acb577a13d9d5f74c65ea091e20077c:supabase/functions/_shared/marketingEmails.test.ts:generic-api-key:11
+
+# regulatory_rule_pack_templates.template_key string literals ("pa.pch.2600.65.personnel",
+# "pa.alf.2800.65.personnel") -- dotted identifier strings, not credentials. Flagged purely
+# on entropy by the generic-api-key heuristic.
+6de70ec84a37c8bc48c96d518b0f459c662da12c:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:473
+6de70ec84a37c8bc48c96d518b0f459c662da12c:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:477
