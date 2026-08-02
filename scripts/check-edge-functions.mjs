@@ -5,10 +5,10 @@ import { spawn } from "node:child_process";
 // Ratcheting floor for per-function runtime test coverage (N-12a). A function counts as
 // runtime-tested when a *.test.ts sits in the same directory as its index.ts entrypoint
 // (_shared unit tests do not count -- they never exercise a handler's request path).
-// Currently runtime-tested: capture-product-event, report-client-error, run-data-lifecycle, create-billing-session, stripe-billing-webhook, sync-billing-quantities.
+// Currently runtime-tested: capture-product-event, report-client-error, run-data-lifecycle, create-billing-session, stripe-billing-webhook, sync-billing-quantities, process-data-import-jobs, generate-fire-drill-tracker-pdf.
 // Whenever a function gains its first runtime test, RAISE this floor to the new count in
 // the same PR so coverage can only ratchet up. Never lower it.
-const RUNTIME_TEST_FLOOR = 7;
+const RUNTIME_TEST_FLOOR = 8;
 
 async function findEntrypoints(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
