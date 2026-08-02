@@ -137,14 +137,21 @@ begin
         || '%s plans of correction due or overdue.',
       v_credentials, v_training, v_incidents, v_alerts, v_classes, v_resident_items, v_poc_due
     );
+    -- Paths point at pages that exist, with no query string that the destination does not parse.
+    -- The first cut used ?complianceStatus=due and ?pocStatus=due; Residents/Violations accept only
+    -- search/facility/status/page, so both silently opened an ordinary unfiltered list while looking
+    -- like a filtered one. Resident compliance items get their own report page. Violations has a
+    -- status filter, but no single value means "POC due or overdue" (the count spans open AND
+    -- poc_submitted, narrowed by due date), so a status= link would show a different set than the
+    -- number beside it -- worse than no filter.
     v_items := jsonb_build_array(
       jsonb_build_object('key','credentials','label','Credentials expiring within 30 days','count',v_credentials,'path','/app/credentials?status=expiring&withinDays=30'),
       jsonb_build_object('key','training','label','Overdue or missing training items','count',v_training,'path','/app/training-matrix?status=overdue'),
       jsonb_build_object('key','incidents','label','Open incidents','count',v_incidents,'path','/app/incidents?status=open'),
       jsonb_build_object('key','alerts','label','Unacknowledged alerts','count',v_alerts,'path','/app/alerts?status=open'),
       jsonb_build_object('key','classes','label','Classes this week','count',v_classes,'path','/trainer/classes?range=this-week'),
-      jsonb_build_object('key','resident_compliance','label','Resident compliance items due or overdue','count',v_resident_items,'path','/app/residents?complianceStatus=due'),
-      jsonb_build_object('key','poc','label','Plans of correction due or overdue','count',v_poc_due,'path','/app/violations?pocStatus=due')
+      jsonb_build_object('key','resident_compliance','label','Resident compliance items due or overdue','count',v_resident_items,'path','/app/resident-compliance'),
+      jsonb_build_object('key','poc','label','Plans of correction due or overdue','count',v_poc_due,'path','/app/violations')
     );
     insert into public.manager_digest_snapshots (
       organization_id, profile_id, week_started_on, items

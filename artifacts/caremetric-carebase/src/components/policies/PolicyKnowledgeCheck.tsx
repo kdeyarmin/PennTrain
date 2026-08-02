@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import {
+  useHasPassedKnowledgeCheck,
   usePolicyKnowledgeCheck,
   useSubmitPolicyKnowledgeCheck,
   type KnowledgeCheckResult,
@@ -16,9 +17,12 @@ import {
  * Grading is entirely server-side (submit_policy_knowledge_check). This component never sees a
  * correct answer -- the questions it renders come from get_policy_knowledge_check, whose return
  * type has no answer-key column, so there is nothing here to leak even if the markup were
- * inspected. A failed attempt reports the score but deliberately never says *which* answers were
- * wrong: repeated attempts would otherwise let someone reconstruct the key without ever reading
- * the policy, which is exactly what this check exists to prevent.
+ * inspected. A failed attempt reports the score but never says WHICH answers were wrong.
+ *
+ * That is a bound, not a seal: a score plus retries still leaks the key one choice at a time.
+ * Reporting it is a deliberate product call, so submit_policy_knowledge_check caps attempts per
+ * day and every attempt lands in an append-only table. Do not describe this as making the key
+ * unknowable.
  */
 export function PolicyKnowledgeCheck({
   attestationId,
@@ -29,10 +33,17 @@ export function PolicyKnowledgeCheck({
   onPassed: () => void;
 }) {
   const { data: questions, isLoading, isError } = usePolicyKnowledgeCheck(attestationId);
+  const { data: alreadyPassed } = useHasPassedKnowledgeCheck(attestationId);
   const { mutateAsync: submit, isPending } = useSubmitPolicyKnowledgeCheck();
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<KnowledgeCheckResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Re-arm the parent's attest button when a passing attempt already exists (dialog closed after
+  // passing, then reopened). Keyed on attestationId so switching policies re-evaluates.
+  useEffect(() => {
+    if (alreadyPassed) onPassed();
+  }, [alreadyPassed, attestationId, onPassed]);
 
   if (isLoading) {
     return (
@@ -76,18 +87,19 @@ export function PolicyKnowledgeCheck({
       <div>
         <h3 className="text-sm font-semibold">Knowledge check</h3>
         <p className="text-xs text-muted-foreground">
-          Answer every question correctly to confirm your understanding. You can retry as many times
-          as you need.
+          Answer every question correctly to confirm your understanding. You can retry, up to a few
+          times a day.
         </p>
       </div>
 
-      {result?.passed ? (
+      {result?.passed || alreadyPassed ? (
         <Alert>
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Knowledge check passed</AlertTitle>
           <AlertDescription>
-            {result.correctCount} of {result.totalCount} correct. You can now record your attestation
-            below.
+            {result
+              ? `${result.correctCount} of ${result.totalCount} correct. You can now record your attestation below.`
+              : "You already passed this knowledge check. You can record your attestation below."}
           </AlertDescription>
         </Alert>
       ) : (

@@ -265,8 +265,12 @@ function AssignCampaignDialog({
 function NewCampaignDialog({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { mutateAsync: createCampaign, isPending } = useCreatePolicyAttestationCampaign();
+  const { mutateAsync: createCampaign } = useCreatePolicyAttestationCampaign();
   const { mutateAsync: createQuestions } = useCreateCampaignQuestions();
+  // One flag for the WHOLE operation. createCampaign's own isPending goes false the moment that
+  // first mutation resolves, while this handler may still be inserting questions -- which re-enabled
+  // the button mid-flight and let a second click create a second campaign and a second question set.
+  const [isPending, setIsPending] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -276,6 +280,8 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
 
   const handleCreate = async () => {
     if (!name.trim() || !currentVersionId || !user?.organizationId || !questionsValid) return;
+    if (isPending) return;
+    setIsPending(true);
     try {
       const campaign = await createCampaign({
         organization_id: user.organizationId,
@@ -316,6 +322,8 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
       setName(""); setDueDate(""); setQuestions([]); setOpen(false);
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't create campaign", description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setIsPending(false);
     }
   };
 

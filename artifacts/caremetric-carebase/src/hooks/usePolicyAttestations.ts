@@ -186,6 +186,32 @@ export function usePolicyKnowledgeCheck(attestationId: string | undefined) {
   });
 }
 
+/**
+ * Whether this attestation already has a passing attempt on record.
+ *
+ * Without this, closing the dialog after passing but before attesting loses the fact: reopening
+ * would re-disable the attest button and demand a full retake, adding a duplicate attempt for a
+ * check the server already considers passed. RLS scopes policy_knowledge_check_attempts to the
+ * owning employee, so this is the learner reading their own record.
+ */
+export function useHasPassedKnowledgeCheck(attestationId: string | undefined) {
+  return useQuery({
+    queryKey: ["policy_knowledge_check_passed", attestationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("policy_knowledge_check_attempts")
+        .select("id")
+        .eq("attestation_id", attestationId!)
+        .eq("passed", true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: !!attestationId,
+  });
+}
+
 export interface KnowledgeCheckResult {
   attemptId: string;
   passed: boolean;
