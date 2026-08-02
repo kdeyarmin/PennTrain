@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `3febf81` (2026-08-02) — D4 CSV column-mapping UI (done); E3 fire drill monthly tracker PDF (done); E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
+**Last verified against main:** `c1bcbb9` (2026-08-02) — F1 split the three >40KB page files (done); D4 CSV column-mapping UI (done); E3 fire drill monthly tracker PDF (done); E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -86,6 +86,14 @@ check removes.
 | SG-2 | Counsel cleared option 2 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded `pa.pch.2600.65.personnel` and `pa.alf.2800.65.personnel`, but no active PA governed version exists yet. Until one of those drafts completes install → review → shadow → activate, the copilot remains a drafting aid for Pennsylvania. | The templates now exist and are installable, so the product can look "done" before any PA governed version is actually active. | Install one PA draft, complete the guarded workflow, and activate a PA governed version with evidence. | **You** (product/ops/legal coordination) | 2026-09-01 |
 
 ---
+
+Closed this pass: **F1 split the three pages over 40KB.** `CourseDetail.tsx`, `ResidentFinancialOperations.tsx`,
+and `ResidentAssessmentFormEditor.tsx` decomposed into `course-detail/`, `resident-financial-operations/`,
+and `resident-assessment-form-tabs/` (the last mirrors the existing `resident-tabs/` convention). Pure
+structural refactor, zero intended behavior change — verified per-file (typecheck immediately after each
+split, not just at the end) plus a DOM-id byte-diff against the pre-split files to catch attribute drift
+a normal diff wouldn't surface. No e2e coverage existed for any of the three pages to regression-check
+against (confirmed by route grep); unit suite (1136 tests) and production builds are the verification signal.
 
 Closed this pass: **D4 column-mapping UI for non-canonical CSVs.** All 8 `bulk-import-*` edge
 functions parse CSV by header name, not position, so a client-side relabel before the existing
@@ -278,7 +286,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| F1 | Split pages >40 KB before feature work (`CourseDetail`, `ResidentFinancialOperations`, `ResidentAssessmentFormEditor`) | M | open | Velocity insurance |
+| F1 | Split pages >40 KB before feature work (`CourseDetail`, `ResidentFinancialOperations`, `ResidentAssessmentFormEditor`) | M | done | Decomposed into `course-detail/`, `resident-financial-operations/`, `resident-assessment-form-tabs/` |
 | F2 | Finish route-manifest ownership of sidebar/search/modules | M | open | Partial today |
 | F3 | Replace root README marketing handoff with product + agent runbook | S | done | Old content relocated to `docs/marketing/MARKETING_SITE_REDESIGN_HANDOFF.md` |
 | F4 | Banner stale root reviews as historical | S | done | 29 documents bannered; `check:planning-registers` keeps them that way |
