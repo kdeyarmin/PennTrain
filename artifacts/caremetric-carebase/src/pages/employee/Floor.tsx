@@ -13,11 +13,14 @@ import { useAuth } from "@/lib/auth";
 import { useResidentServiceTaskQueue } from "@/hooks/useResidentServiceTasks";
 import { DocumentCareDialog } from "@/components/residents/DocumentCareDialog";
 import { UnscheduledServiceDialog } from "@/components/residents/UnscheduledServiceDialog";
+import { UnsyncedDraftsPanel } from "@/components/residents/UnsyncedDraftsPanel";
 import { SERVICE_TASK_KIND_LABELS, type ServiceTaskKind } from "@/lib/serviceDeliveryContract";
 
 /** Flat shape returned by get_resident_service_task_queue -- not a nested requirement object. */
 interface FloorTask {
   id: string;
+  organization_id: string;
+  facility_id: string;
   service_name: string;
   scheduled_start: string;
   scheduled_end: string;
@@ -97,6 +100,8 @@ export default function Floor() {
           {user?.firstName ? `${user.firstName}, here's your shift.` : "Here's your shift."}
         </p>
       </div>
+
+      <UnsyncedDraftsPanel />
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {ACTIONS.map((action) => (
@@ -242,6 +247,11 @@ export default function Floor() {
             acceptableResponses: documenting.acceptable_completion_responses,
             instructions: documenting.special_instructions,
             refusalHandling: documenting.refusal_handling,
+            residentId: documenting.resident_id,
+            organizationId: documenting.organization_id,
+            facilityId: documenting.facility_id,
+            scheduledStart: documenting.scheduled_start,
+            scheduledEnd: documenting.scheduled_end,
           }}
         />
       )}

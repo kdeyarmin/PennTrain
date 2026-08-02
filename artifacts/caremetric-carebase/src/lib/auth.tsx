@@ -10,6 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 import { AuthProfileError } from "@/components/AuthProfileError";
 import { isDefinitiveProfileAbsence } from "@/lib/authProfileErrors";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
+import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
+import {
+  shouldWipeOfflineServiceDraftData, type OfflineServiceDraftIdentitySnapshot,
+} from "@/lib/offlineServiceDraftSafety";
 
 export type Role = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
@@ -171,6 +175,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // clear precisely the one recovery/invite user id that belonged to the session that just ended,
   // without touching a *different* account's recovery marker some other tab may have pending.
   const lastSessionRef = useRef<Session | null>(null);
+  // Last identity the offline service-documentation draft store (BACKLOG.md E5) was observed under.
+  // Compared against the resolved profile below on every change, and against a bare logout in the
+  // auth-state-change handler immediately following, so the wipe fires proactively either way rather
+  // than waiting for the store to next be opened.
+  const lastOfflineServiceDraftIdentityRef = useRef<OfflineServiceDraftIdentitySnapshot | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -204,6 +213,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === "SIGNED_OUT") {
         clearRecoverySession(lastSessionRef.current?.user.id);
         setIsRecoverySession(false);
+        // Logout is the clearest possible identity-change signal, and does not need to wait for the
+        // (now-disabled) profile query below to settle: wipe the offline service-documentation draft
+        // store immediately.
+        void wipeOfflineServiceDrafts();
+        lastOfflineServiceDraftIdentityRef.current = null;
       } else if (isConfirmedPasswordSignIn) {
         clearRecoverySession(nextSession.user.id);
         setIsRecoverySession(false);
@@ -262,6 +276,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isActive: profile.is_active,
       }
     : null;
+
+  // Offline service-documentation drafts (BACKLOG.md E5) are bound to one signed-in employee
+  // identity. Logout is handled immediately in the SIGNED_IN/SIGNED_OUT effect above; this covers
+  // the other half -- a profile/org/role change, or deactivation, observed while the session itself
+  // stays signed in (e.g. an admin changes this person's role or facility mid-shift). Proactive, not
+  // lazy: the wipe fires here rather than waiting for the offline store to next be opened.
+  useEffect(() => {
+    const current = user
+      ? { profileId: user.id, organizationId: user.organizationId ?? "", role: user.role, active: user.isActive }
+      : null;
+    if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
+      void wipeOfflineServiceDrafts();
+    }
+    lastOfflineServiceDraftIdentityRef.current = current
+      ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
+      : null;
+  }, [user?.id, user?.organizationId, user?.role, user?.isActive]);
 
   useEffect(() => {
     if (!isLoading && !session && !isError) {

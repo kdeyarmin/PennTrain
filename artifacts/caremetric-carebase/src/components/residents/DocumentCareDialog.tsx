@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { CloudOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -8,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useRecordServiceTaskResponse } from "@/hooks/useFloorMode";
+import { useSaveOfflineServiceDraft } from "@/hooks/useOfflineServiceDrafts";
 import {
   COMPLETION_RESPONSE_LABELS, defaultResponsesForKind, isExceptionResponse,
   type CompletionResponse,
@@ -71,13 +74,22 @@ export function DocumentCareDialog({
     acceptableResponses?: string[] | null;
     instructions?: string | null;
     refusalHandling?: string | null;
+    // Needed only for the offline-draft path (BACKLOG.md E5) -- Floor already has every one of
+    // these from the task queue it already loaded, so no extra fetch is needed while offline.
+    residentId: string;
+    organizationId: string;
+    facilityId: string;
+    scheduledStart: string;
+    scheduledEnd: string;
   };
 }) {
   const { toast } = useToast();
   const record = useRecordServiceTaskResponse();
+  const saveOfflineDraft = useSaveOfflineServiceDraft();
   const [response, setResponse] = useState<string | null>(null);
   const [answers, setAnswers] = useState<FollowUpAnswers>({});
   const [showIssues, setShowIssues] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +97,17 @@ export function DocumentCareDialog({
     setAnswers({});
     setShowIssues(false);
   }, [open]);
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
 
   const responses = task.acceptableResponses?.length
     ? task.acceptableResponses
@@ -97,6 +120,39 @@ export function DocumentCareDialog({
     if (followUpIssues.length > 0) {
       setResponse(chosen);
       setShowIssues(true);
+      return;
+    }
+    // The highest-frequency, safety-critical path in the app: online submission below is untouched.
+    // This is the ONLY branch point, decided fresh at submit time rather than from render state.
+    if (navigator.onLine === false) {
+      try {
+        await saveOfflineDraft.mutateAsync({
+          taskId: task.id,
+          residentId: task.residentId,
+          residentDisplayLabel: task.room ? `${task.residentName} · Room ${task.room}` : task.residentName,
+          organizationId: task.organizationId,
+          facilityId: task.facilityId,
+          serviceName: task.serviceName,
+          scheduledStart: task.scheduledStart,
+          scheduledEnd: task.scheduledEnd,
+          taskKind: task.taskKind ?? "scheduled_care",
+          acceptableResponses: responses as CompletionResponse[],
+          refusalHandling: task.refusalHandling ?? null,
+          response: chosen as CompletionResponse,
+          exceptionDetails: answers,
+        });
+        toast({
+          title: "Saved on this device",
+          description: "Will sync when you're back online. This isn't in the official record yet.",
+        });
+        onOpenChange(false);
+      } catch (error) {
+        toast({
+          title: "Could not save this offline",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        });
+      }
       return;
     }
     try {
@@ -120,7 +176,14 @@ export function DocumentCareDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-lg">{task.serviceName}</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle className="text-lg">{task.serviceName}</DialogTitle>
+            {!isOnline && (
+              <Badge variant="outline" className="gap-1 text-xs font-normal">
+                <CloudOff className="h-3 w-3" />Offline
+              </Badge>
+            )}
+          </div>
           <DialogDescription>
             {task.residentName}{task.room ? ` · Room ${task.room}` : ""}
           </DialogDescription>
@@ -137,7 +200,7 @@ export function DocumentCareDialog({
                 key={entry}
                 variant={entry === "completed_as_planned" ? "default" : "outline"}
                 className="h-14 w-full justify-start text-base"
-                disabled={record.isPending}
+                disabled={record.isPending || saveOfflineDraft.isPending}
                 onClick={() => (isExceptionResponse(entry) ? setResponse(entry) : void submit(entry))}
               >
                 {COMPLETION_RESPONSE_LABELS[entry as CompletionResponse] ?? entry}
@@ -184,8 +247,8 @@ export function DocumentCareDialog({
         {response && (
           <DialogFooter>
             <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button className="h-12" onClick={() => void submit(response)} disabled={record.isPending}>
-              {record.isPending ? "Saving..." : "Save"}
+            <Button className="h-12" onClick={() => void submit(response)} disabled={record.isPending || saveOfflineDraft.isPending}>
+              {record.isPending || saveOfflineDraft.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         )}
