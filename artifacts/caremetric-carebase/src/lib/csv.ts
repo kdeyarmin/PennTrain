@@ -1,5 +1,8 @@
 // Shared CSV building blocks. Every exporter in the app must escape cells through
-// csvEscape so quoting and formula-injection hardening stay consistent.
+// csvEscape so quoting and formula-injection hardening stay consistent. That formula
+// hardening is spreadsheet-facing, though -- code that re-serializes CSV text for a
+// machine consumer (no spreadsheet ever opens it) should use csvQuoteField instead;
+// see its doc comment below.
 
 export interface ParsedCsv {
   headers: string[];
@@ -70,6 +73,19 @@ export function parseCsv(text: string): ParsedCsv {
   return { headers: headerRow.map((cell) => cell.trim()), rows: dataRows };
 }
 
+/**
+ * Plain RFC 4180 field quoting: wraps a field in double quotes and doubles any embedded quotes
+ * when it contains a comma, quote, or newline; otherwise returns it unchanged. No
+ * formula-injection hardening -- this is the right tool for re-serializing CSV text that only
+ * ever flows to another parser (e.g. an edge function), never opened directly in a spreadsheet.
+ * csvEscape layers spreadsheet-safety hardening on top of exactly this for user-facing exports.
+ */
+export function csvQuoteField(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
 export function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = String(value);
@@ -78,8 +94,7 @@ export function csvEscape(value: unknown): string {
   // export is opened. Prefix a quote to force text -- but leave plain numbers
   // (e.g. "-5.25") alone so numeric columns still parse as numbers.
   const needsFormulaGuard = /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text);
-  const safe = needsFormulaGuard ? `'${text}` : text;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  return csvQuoteField(needsFormulaGuard ? `'${text}` : text);
 }
 
 export function downloadCsv(filename: string, rows: Record<string, unknown>[]): void {

@@ -129,4 +129,41 @@ describe("mappedCellValue / applyColumnMapping", () => {
     expect(reparsed.headers).toEqual([...importColumns("rooms")]);
     expect(reparsed.rows).toEqual([["Sunrise House", "101", "Maple, East", "2", "available"]]);
   });
+
+  it("passes through values starting with +, @, =, or a non-numeric - verbatim, without csvEscape's formula-injection apostrophe guard", () => {
+    // Regression test for a Codex review finding on PR #431: applyColumnMapping used to reuse the
+    // export-oriented csvEscape, which prefixes an apostrophe to defend against spreadsheet formula
+    // injection. There is no spreadsheet in this pipeline -- the re-mapped CSV goes straight to a
+    // bulk-import-* edge function that only trims each field before persisting -- so that guard just
+    // corrupted legitimate values, most notably E.164 phone numbers like +15551234567.
+    const mapping: ColumnMapping = {
+      employee_number: 0, first_name: 1, last_name: 2, email: null, facility_name: 3,
+      job_title: 4, hire_date: null, department: 5, phone: 6, status: null,
+      trainer_status: null, administers_medications: null,
+    };
+    const uploadedRows = [["@EMP-4521", "Jane", "Doe", "Sunrise House", "=Director", "-Remote Team", "+15551234567"]];
+    const csv = applyColumnMapping("employees", uploadedRows, mapping);
+
+    // No apostrophe should have been introduced anywhere in the serialized CSV.
+    expect(csv).not.toContain("'");
+
+    const reparsed = parseCsv(csv);
+    const record = Object.fromEntries(reparsed.headers.map((header, i) => [header, reparsed.rows[0][i]]));
+    expect(record.employee_number).toBe("@EMP-4521");
+    expect(record.job_title).toBe("=Director");
+    expect(record.department).toBe("-Remote Team");
+    expect(record.phone).toBe("+15551234567");
+  });
+
+  it("still quotes a mapped value containing an embedded newline so it round-trips as one field", () => {
+    const mapping: ColumnMapping = {
+      resident_external_id: null, facility: 0, occurred_at: null, incident_type: null,
+      severity: null, summary: 1,
+    };
+    const summary = "Resident fell in hallway.\nStaff responded within 2 minutes.";
+    const csv = applyColumnMapping("incidents", [["Sunrise House", summary]], mapping);
+    const reparsed = parseCsv(csv);
+    expect(reparsed.rows).toHaveLength(1);
+    expect(reparsed.rows[0][reparsed.headers.indexOf("summary")]).toBe(summary);
+  });
 });

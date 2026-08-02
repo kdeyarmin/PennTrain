@@ -1,4 +1,4 @@
-import { csvEscape } from "@/lib/csv";
+import { csvQuoteField } from "@/lib/csv";
 import { importColumns, requiredImportColumns, type ImportDomain } from "@/lib/dataImportCenter";
 
 /**
@@ -167,12 +167,17 @@ export function mappedCellValue(row: string[], mapping: ColumnMapping, column: s
  * D3 dry-run/apply pipeline via runImportChunks -- the bulk-import-* edge functions parse CSV by
  * header name, so a CSV with exactly the canonical headers behaves identically whether or not
  * the source file needed mapping. No edge function, RPC, or ledger schema change is involved.
+ *
+ * Uses csvQuoteField, not csvEscape: this text only ever flows to a bulk-import-* edge function's
+ * CSV parser, never to a spreadsheet, so csvEscape's leading-apostrophe formula-injection guard
+ * would be actively wrong here -- the edge functions only trim() each field before persisting, so
+ * a guarded value like `'+15551234567` would be stored with the stray apostrophe still attached.
  */
 export function applyColumnMapping(domain: ImportDomain, uploadedRows: string[][], mapping: ColumnMapping): string {
   const canonical = importColumns(domain);
-  const headerLine = canonical.map((column) => csvEscape(column)).join(",");
+  const headerLine = canonical.map((column) => csvQuoteField(column)).join(",");
   const dataLines = uploadedRows.map((row) =>
-    canonical.map((column) => csvEscape(mappedCellValue(row, mapping, column))).join(","),
+    canonical.map((column) => csvQuoteField(mappedCellValue(row, mapping, column))).join(","),
   );
   return [headerLine, ...dataLines].join("\n") + "\n";
 }
