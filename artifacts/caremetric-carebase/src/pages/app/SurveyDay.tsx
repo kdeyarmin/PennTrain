@@ -135,7 +135,7 @@ export default function SurveyDay() {
 
       {featureBlocked ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">
-          Survey Day isn't enabled for your organization yet. Contact CareMetric to join the pilot.
+          Survey Day isn't enabled for your organization yet. Contact CareMetric to enable it.
         </CardContent></Card>
       ) : !activeFacilityId ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">Select a facility to begin.</CardContent></Card>

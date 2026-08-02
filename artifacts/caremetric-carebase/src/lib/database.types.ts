@@ -41734,15 +41734,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      unassign_organization_release_cohort: {
-        Args: {
-          p_cohort_id: string
-          p_feature_key: string
-          p_organization_id: string
-          p_reason: string
-        }
-        Returns: boolean
-      }
       unpublish_course: {
         Args: { p_course_id: string; p_reason: string }
         Returns: {

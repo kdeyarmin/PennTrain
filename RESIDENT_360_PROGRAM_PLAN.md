@@ -24,9 +24,9 @@ end-to-end journey is not a phase at the end; it is the exit criterion of every 
 
 - Phase 0 builds the journey harness *first*, because two Playwright specs
   (`e2e/public-smoke.spec.ts`, `e2e/role-routing.spec.ts`) against ~140 routes cannot gate anything.
-- Each later phase names the specific pilot journey steps it must make executable, and cannot exit
-  until those steps run green in CI against a seeded tenant **and** have been observed once in a
-  controlled pilot in the manner already established by `pilot/controlled-pilot-2026-07-24.json`.
+- Each later phase names the specific customer journey steps it must make executable, and cannot
+  exit until those steps run green in CI against a seeded tenant **and** have been observed once
+  against a real customer organization, with evidence attached to the phase's review.
 - No phase starts while its predecessor's journey steps are red.
 
 The practical effect is the same discipline item 25 asks for, without a multi-quarter freeze that
@@ -148,7 +148,7 @@ Verified against the working tree at `cb56f75`. This table is the scoping input 
 | 22 | QAPI as measurable improvement | QAPI projects, incident escalation, lead validation | No baseline/target/measurement/sustainment fields, no recommendation engine, no meeting packet |
 | 23 | Survey Day workspace | `SurveyDay.tsx` (578 lines), `SURVEY_DAY_MODE_SPEC.md`, evidence room, mock inspections, `generate-compliance-binder` | Spec exceeds implementation; selected-evidence packet builder incomplete; the binder edge function is `@ts-nocheck` and not exercised by CI |
 | 24 | Governed PA regulatory content | Regulatory engine, Copilot, crosswalk, `poll-regulatory-updates` | The Chapter 2600/2800 rule pack is not populated; no citation-level versioning, verification date, or approval record |
-| 25 | Pilot coverage | 2 Playwright specs; `pilot/controlled-pilot-2026-07-24.json` records one executed controlled pilot | No journey-level browser coverage; few component render tests; limited Edge Function runtime tests |
+| 25 | Real-customer coverage | 2 Playwright specs; one real-customer journey was manually verified once (2026-07-24) | No journey-level browser coverage; few component render tests; limited Edge Function runtime tests |
 
 ---
 

@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(13);
 
 -- Critical multi-channel delivery: the five critical notification types fan out to BOTH
 -- email and SMS behind the 'notifications.critical_multichannel' flag, but only for
@@ -9,8 +9,8 @@ select plan(12);
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'notifications.critical_multichannel' $$,
-  $$ values ('cohort'::text, true) $$,
-  'the critical-multichannel release flag is seeded cohort-on for the CareBase pilot'
+  $$ values ('global'::text, true) $$,
+  'the critical-multichannel release flag is fully released by default'
 );
 select ok(
   exists (select 1 from public.feature_definitions
@@ -75,7 +75,17 @@ begin
   set local role authenticated;
 end $$;
 
--- Flag off (default): a critical type still queues exactly one (single-channel) delivery.
+-- Disable as an AAL2 platform admin to cover the not-released path.
+select pg_temp.act_as('1a000000-0000-0000-0000-000000000020', 'aal2');
+select lives_ok(
+  $$ select public.set_release_flag(
+       'notifications.critical_multichannel', 'off', false,
+       'notifications', 'pgTAP: disable to cover the not-released path', null) $$,
+  'a platform admin with step-up can disable the flag'
+);
+reset role;
+
+-- Flag off: a critical type still queues exactly one (single-channel) delivery.
 insert into public.notifications (id, organization_id, profile_id, notification_type, title, body, link)
 values ('1a000000-0000-0000-0000-000000000101', '1a000000-0000-0000-0000-000000000001',
         '1a000000-0000-0000-0000-000000000021', 'training_expired', 'Lapsed', 'Body', '/me');
