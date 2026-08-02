@@ -27,8 +27,8 @@ function record(overrides: Partial<TrainingRecord>): TrainingRecord {
   } as TrainingRecord;
 }
 
-function practicum(employeeId: string, status: string): Practicum {
-  return { employee_id: employeeId, status } as Practicum;
+function practicum(employeeId: string, status: string, overrides: Partial<Practicum> = {}): Practicum {
+  return { employee_id: employeeId, status, ...overrides } as Practicum;
 }
 
 describe("computeMedAdminAuthorization", () => {
@@ -84,6 +84,65 @@ describe("computeMedAdminAuthorization", () => {
     );
     expect(row.authorizedToday).toBe(false);
     expect(row.practicumStatus).toBe("missing");
+  });
+
+  // The schema permits both an auto-instantiated 'missing' placeholder and a completed practicum to
+  // exist for the same employee/year at once (no unique(employee_id, practicum_year) constraint, and
+  // save_practicum() inserts rather than upserts). A bare `.find()` over useListPracticums's
+  // due_date-ascending, untie-broken array would return whichever of the two happened to sort first
+  // -- these three cases pin the canonical current_practicums-style ordering instead.
+  describe("selecting the current practicum when more than one row exists for the year", () => {
+    const trainingRecords = [record({ employee_id: "e1", training_type_id: "init-type", status: "compliant" })];
+
+    it("prefers a completed practicum over an auto-instantiated missing placeholder that sorts first", () => {
+      const [row] = computeMedAdminAuthorization(
+        [employee("e1")],
+        trainingRecords,
+        [
+          // Auto-instantiated placeholder -- due_date ties (or precedes) the completed row's, so a
+          // due_date-ascending fetch (useListPracticums) can easily place this first.
+          practicum("e1", "missing", { id: "placeholder", due_date: "2026-06-01", completion_date: null, created_at: "2026-01-01T00:00:00Z" }),
+          practicum("e1", "compliant", { id: "completed", due_date: "2026-06-01", completion_date: "2026-05-15", created_at: "2026-05-15T00:00:00Z" }),
+        ],
+        TYPE_IDS,
+      );
+      expect(row.practicumStatus).toBe("compliant");
+      expect(row.authorizedToday).toBe(true);
+    });
+
+    it("prefers the same completed practicum when it appears before the placeholder in the array", () => {
+      const [row] = computeMedAdminAuthorization(
+        [employee("e1")],
+        trainingRecords,
+        [
+          practicum("e1", "compliant", { id: "completed", due_date: "2026-06-01", completion_date: "2026-05-15", created_at: "2026-05-15T00:00:00Z" }),
+          practicum("e1", "missing", { id: "placeholder", due_date: "2026-06-01", completion_date: null, created_at: "2026-01-01T00:00:00Z" }),
+        ],
+        TYPE_IDS,
+      );
+      expect(row.practicumStatus).toBe("compliant");
+      expect(row.authorizedToday).toBe(true);
+    });
+
+    it("breaks a complete tie between practicum rows deterministically by id, independent of array order", () => {
+      // Identical completion_date/due_date/created_at and both non-missing -- only id distinguishes
+      // them, matching the canonical CTE's trailing `id` tie-break.
+      const shared = { due_date: "2026-06-01", completion_date: "2026-05-15", created_at: "2026-05-15T00:00:00Z" };
+      const forward = computeMedAdminAuthorization(
+        [employee("e1")],
+        trainingRecords,
+        [practicum("e1", "expired", { ...shared, id: "a" }), practicum("e1", "compliant", { ...shared, id: "b" })],
+        TYPE_IDS,
+      );
+      const reversed = computeMedAdminAuthorization(
+        [employee("e1")],
+        trainingRecords,
+        [practicum("e1", "compliant", { ...shared, id: "b" }), practicum("e1", "expired", { ...shared, id: "a" })],
+        TYPE_IDS,
+      );
+      expect(forward[0].practicumStatus).toBe("expired");
+      expect(reversed[0].practicumStatus).toBe("expired");
+    });
   });
 
   it("prefers a valid renewal record over the initial certification", () => {

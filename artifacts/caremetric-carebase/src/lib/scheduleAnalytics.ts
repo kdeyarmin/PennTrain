@@ -230,7 +230,14 @@ export function summarizeMedAdminCoverage({
 
   const byShift = new Map<string, { date: string; shiftName: string; employeeIds: Set<string> }>();
   for (const a of activeAssignments) {
-    const key = `${a.shift_date}|${a.shift_definition_id ?? "__unspecified__"}`;
+    // Two assignments can both have a null shift_definition_id and still be different shifts (a
+    // legacy/custom shift with no shift_definitions row) -- the caller resolves each to its own
+    // shift_name (definition name, or else a formatted start time; see ScheduleDetail.tsx), so fold
+    // that into the grouping key too. Otherwise every undefined-definition assignment on a date
+    // collapses into one "__unspecified__" bucket regardless of what time it actually is, and an
+    // authorized employee on one of those distinct shifts would wrongly cover the others.
+    const shiftKey = a.shift_definition_id ?? `unspecified:${a.shift_name ?? ""}`;
+    const key = `${a.shift_date}|${shiftKey}`;
     const entry = byShift.get(key) ?? { date: a.shift_date, shiftName: a.shift_name ?? "Shift", employeeIds: new Set<string>() };
     entry.employeeIds.add(a.employee_id);
     byShift.set(key, entry);
