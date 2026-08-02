@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `03fe017` (2026-08-02) — E3 fire drill monthly tracker PDF (done); E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
+**Last verified against main:** `3febf81` (2026-08-02) — D4 CSV column-mapping UI (done); E3 fire drill monthly tracker PDF (done); E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -86,6 +86,13 @@ check removes.
 | SG-2 | Counsel cleared option 2 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded `pa.pch.2600.65.personnel` and `pa.alf.2800.65.personnel`, but no active PA governed version exists yet. Until one of those drafts completes install → review → shadow → activate, the copilot remains a drafting aid for Pennsylvania. | The templates now exist and are installable, so the product can look "done" before any PA governed version is actually active. | Install one PA draft, complete the guarded workflow, and activate a PA governed version with evidence. | **You** (product/ops/legal coordination) | 2026-09-01 |
 
 ---
+
+Closed this pass: **D4 column-mapping UI for non-canonical CSVs.** All 8 `bulk-import-*` edge
+functions parse CSV by header name, not position, so a client-side relabel before the existing
+D3 dry-run/apply pipeline was sufficient — no edge function, RPC, or ledger change. New
+`importColumnMapping.ts` (exact/alias/fuzzy-suggested mapping, never auto-applied without user
+review) and `ImportColumnMapping.tsx` UI in `DataImportCenter.tsx`; a canonical exact-header
+upload still flows through unchanged. 27 new tests.
 
 Closed this pass: **E3 fire drill DHS monthly tracker PDF.** The 9-field form and per-drill print
 view already existed; added the missing rollup — `generate-fire-drill-tracker-pdf` edge function
@@ -254,7 +261,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | D1 | Monday manager digest email for pilot orgs | S | blocked | Blocked on SG-1 |
 | D2 | Turn on due/overdue/approval notifications for pilot cohort | S | blocked | This *is* SG-1 |
 | D3 | Durable import worker (apply from ledger, resume after browser close) | M | done | All 8 domains durable under service-role: `employees`, `residents`, `resident_contacts`, `assessments` via direct table; `rooms`, `credentials`, `training_records`, `incidents` via dedicated `import_apply_*` SECURITY DEFINER RPCs granted only to service_role (#413). No table-level INSERT/UPDATE grants widened on restricted tables. |
-| D4 | Column mapping UI for non-canonical CSVs | M | open | Optional after D3 |
+| D4 | Column mapping UI for non-canonical CSVs | M | done | Client-side relabel; `importColumnMapping.ts` + `ImportColumnMapping.tsx` |
 | D5 | Sample realistic PA facility CSVs in Help / Import Center | S | done | Sample employee / training-record / credential CSVs under `public/import-samples/` with `importSamples.ts` registry and `ImportSampleDownloads` component. Column order matches `importTemplate()`. Component is now rendered on `DataImportCenter` (after domain-templates card) so samples are reachable from the UI. |
 
 ### Tier E — Daily operations wedges
