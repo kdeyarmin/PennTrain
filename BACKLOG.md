@@ -93,6 +93,12 @@ and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded
 `pa.pch.2600.65.personnel` plus `pa.alf.2800.65.personnel`. SG-2 remains open as an
 activation gap until a PA governed version is actually active.
 
+Closed this pass: **PA rule pack install UI wired.** Enterprise Foundation's regulatory
+expansion panel now offers install buttons for both seeded PA templates
+(`pa.pch.2600.65.personnel`, `pa.alf.2800.65.personnel`) alongside the Ohio mechanism
+demo, and the Regulatory Copilot empty-state / alert copy directs operators to install
+and activate a PA pack instead of describing PA coverage as permanently out of scope.
+
 Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
 built with `typecheck && build && check-bundle-budget` and no test step, on its own
 push-triggered pipeline — so a red suite still shipped. The repo had already solved this
