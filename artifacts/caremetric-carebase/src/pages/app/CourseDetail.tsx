@@ -1,28 +1,8 @@
 import { useId, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
-import {
-  ArrowLeft, ArrowUp, ArrowDown, BookOpen, Pencil, Plus, Rocket, FileText, Video, File as FileIcon,
-  ListChecks, Trash2, Lock, Layers, Sparkles, RefreshCw, Star, Wand2, Play, Loader2, Upload,
-  Eye, CheckCircle2, CircleAlert, Archive,
-  type LucideIcon,
-} from "lucide-react";
 import {
   useGetCourse, useUpdateCourse,
   useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, usePublishCourseVersion, useUnpublishCourse,
@@ -33,165 +13,32 @@ import {
 import { useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
-import { useGetQuizByBlockId, useCreateQuiz } from "@/hooks/useQuizzes";
+import { useCreateQuiz } from "@/hooks/useQuizzes";
 import { useListCourseFeedback, summarizeCourseFeedback } from "@/hooks/useCourseFeedback";
 import {
   useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus, useAutoCheckVideoStatuses,
 } from "@/hooks/useCourseVideoGeneration";
 import { useRegenerateCourseBlock, useListCourseAiGenerations, useMarkAiGenerationReviewed } from "@/hooks/useAiCourseGeneration";
-import { useListDocuments, useUploadDocument, type TrainingDocument } from "@/hooks/useDocuments";
+import { useListDocuments, useUploadDocument } from "@/hooks/useDocuments";
 import { useRegisterLearningPackage } from "@/hooks/useLearningRuntime";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useAuth, type Role } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { coursesListPath, quizBuilderPath } from "@/lib/courseRoutes";
-import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
-
-function CourseVideoPreview({ src }: { src: string }) {
-  const resolved = useCourseVideoUrl(src);
-  if (resolved.isLoading) return <Skeleton className="aspect-video w-full" />;
-  if (!resolved.url) return <p className="p-3 text-sm text-destructive">Video unavailable: {resolved.error}</p>;
-  return <video className="aspect-video w-full bg-black" src={resolved.url} controls />;
-}
-
-interface CourseFormState {
-  title: string;
-  description: string;
-  category: string;
-  status: string;
-  trainingTypeId: string;
-}
-
-const NO_TRAINING_TYPE = "none";
-const NO_DOCUMENT = "none";
-
-interface BlockFormState {
-  block_type: "text" | "video" | "pdf" | "scorm" | "quiz";
-  title: string;
-  textContent: string;
-  videoUrl: string;
-  videoTranscript: string;
-  documentId: string;
-}
-
-const EMPTY_BLOCK_FORM: BlockFormState = {
-  block_type: "text",
-  title: "",
-  textContent: "",
-  videoUrl: "",
-  videoTranscript: "",
-  documentId: "",
-};
-
-function blockName(block: Pick<CourseBlock, "title" | "sort_order">) {
-  return block.title?.trim() || `Block ${block.sort_order + 1}`;
-}
-
-function textBodyContent(block: Pick<CourseBlock, "body">) {
-  const body = block.body;
-  if (!body || typeof body !== "object" || Array.isArray(body)) return "";
-  const content = (body as { content?: unknown }).content;
-  return typeof content === "string" ? content.trim() : "";
-}
-
-function videoTranscriptContent(block: Pick<CourseBlock, "body">) {
-  const body = block.body;
-  if (!body || typeof body !== "object" || Array.isArray(body)) return "";
-  const { transcript, script } = body as { transcript?: unknown; script?: unknown };
-  if (typeof transcript === "string" && transcript.trim()) return transcript.trim();
-  if (typeof script === "string" && script.trim()) return script.trim();
-  return "";
-}
-
-function documentDisplayName(document: Pick<TrainingDocument, "file_name" | "storage_path"> | undefined) {
-  if (!document) return "";
-  return document.file_name || document.storage_path.split("/").pop() || "Attached document";
-}
-
-interface QuizFormState {
-  title: string;
-  passingScore: string;
-  maxAttempts: string;
-}
-
-function CourseStatusBadge({ status }: { status: string }) {
-  const label = status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-  const className =
-    status === "published" ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "archived" ? "bg-muted text-muted-foreground hover:bg-muted/80"
-    : "bg-secondary text-secondary-foreground hover:bg-secondary/80";
-  return <Badge className={className} variant="outline">{label}</Badge>;
-}
-
-function VersionStatusBadge({ status }: { status: string }) {
-  const label = status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-  const className = status === "published"
-    ? "bg-success text-success-foreground hover:bg-success/80"
-    : "bg-secondary text-secondary-foreground hover:bg-secondary/80";
-  return <Badge className={className} variant="outline">{label}</Badge>;
-}
-
-const BLOCK_TYPE_META: Record<string, { label: string; icon: LucideIcon; className: string }> = {
-  text: { label: "Text", icon: FileText, className: "bg-secondary text-secondary-foreground" },
-  video: { label: "Video", icon: Video, className: "bg-info text-info-foreground" },
-  pdf: { label: "PDF", icon: FileIcon, className: "bg-muted text-muted-foreground" },
-  scorm: { label: "SCORM", icon: BookOpen, className: "bg-muted text-muted-foreground" },
-  quiz: { label: "Quiz", icon: ListChecks, className: "bg-warning text-warning-foreground" },
-};
-
-function BlockTypeBadge({ blockType }: { blockType: string }) {
-  const meta = BLOCK_TYPE_META[blockType] ?? { label: blockType, icon: Layers, className: "bg-secondary text-secondary-foreground" };
-  const Icon = meta.icon;
-  return (
-    <Badge className={meta.className} variant="outline">
-      <Icon className="h-3 w-3 mr-1" /> {meta.label}
-    </Badge>
-  );
-}
-
-function QuizBlockSummary({
-  blockId,
-  onConfigure,
-  canManage,
-  role,
-}: {
-  blockId: string;
-  onConfigure: () => void;
-  canManage: boolean;
-  role: Role | undefined;
-}) {
-  const { data: quiz, isLoading, isError } = useGetQuizByBlockId(blockId);
-
-  if (isLoading) return <p className="text-xs text-muted-foreground">Loading quiz…</p>;
-
-  if (isError || !quiz) {
-    return (
-      <div className="flex items-center gap-2">
-        <p className="text-xs text-muted-foreground italic">No quiz configured yet for this block.</p>
-        {canManage && (
-          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onConfigure}>
-            Configure quiz
-          </Button>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <p className="text-xs text-muted-foreground">
-        "{quiz.title}" — passing score {quiz.passing_score_percent}%
-        {quiz.max_attempts ? `, max ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}` : ""}
-      </p>
-      {canManage && (
-        <Link href={quizBuilderPath(quiz.id, role)} className="text-xs font-medium text-primary hover:underline">
-          Manage Questions
-        </Link>
-      )}
-    </div>
-  );
-}
+import { coursesListPath } from "@/lib/courseRoutes";
+import { textBodyContent, videoTranscriptContent } from "./course-detail/helpers";
+import { EMPTY_BLOCK_FORM, NO_TRAINING_TYPE, type BlockFormState, type CourseFormState, type QuizFormState } from "./course-detail/types";
+import { useBulkVideoGeneration } from "./course-detail/useBulkVideoGeneration";
+import { CourseOverviewSection } from "./course-detail/CourseOverviewSection";
+import { VersionsCard } from "./course-detail/VersionsCard";
+import { PrePublishSection } from "./course-detail/PrePublishSection";
+import { ContentBlocksCard } from "./course-detail/ContentBlocksCard";
+import { EditCourseDialog, UnpublishCourseDialog } from "./course-detail/CourseDialogs";
+import { NewVersionDialog, StudentPreviewDialog } from "./course-detail/VersionDialogs";
+import {
+  AddBlockDialog, QuizPromptDialog, RegenerateBlockDialog, DeleteBlockAlertDialog, DiscardConfirmAlertDialog,
+} from "./course-detail/BlockDialogs";
+import { VideoGenDialog, BulkVideoGenDialog } from "./course-detail/VideoGenDialogs";
 
 export default function CourseDetail() {
   const __fieldIds = useId();
@@ -777,108 +624,9 @@ export default function CourseDetail() {
     });
   };
 
-  // --- Bulk "Generate All Videos": one avatar/voice pick, applied to every video block in
-  // this version that doesn't have a video yet, using each block's AI-authored body.script
-  // as the narration. Blocks with no script (never AI-generated/authored) are skipped rather
-  // than guessed at -- the admin has to add a script manually first. ---
-  const eligibleVideoBlocks = (blocks ?? []).filter(b => b.block_type === "video" && !b.video_url);
-  const eligibleVideoBlocksWithScript = eligibleVideoBlocks.filter(
-    b => !!(b.body as { script?: string } | null)?.script?.trim(),
-  );
-  const eligibleVideoBlocksMissingScript = eligibleVideoBlocks.length - eligibleVideoBlocksWithScript.length;
-
-  const [showBulkVideoGen, setShowBulkVideoGen] = useState(false);
-  const [bulkVideoForm, setBulkVideoForm] = useState({ avatarId: "", voiceId: "" });
-  const { data: bulkHeygenOptions, isLoading: bulkHeygenOptionsLoading } = useListHeygenOptions(showBulkVideoGen);
-  const preferredBulkHeygenAvatar = bulkHeygenOptions?.avatars.find(a => a.is_ai_twin) ?? bulkHeygenOptions?.avatars[0];
-  const preferredBulkHeygenVoice = bulkHeygenOptions?.voices.find(v => /english|en[-_ ]?us|en[-_ ]?gb/i.test(`${v.language ?? ""} ${v.name ?? ""}`)) ?? bulkHeygenOptions?.voices[0];
-  const { mutateAsync: generateVideoAsync } = useGenerateCourseVideo();
-  // Once set, the dialog shows the per-block progress list instead of the avatar/voice form.
-  const [bulkGenBlockIds, setBulkGenBlockIds] = useState<string[] | null>(null);
-  const [bulkGenSkippedCount, setBulkGenSkippedCount] = useState(0);
-  const [bulkGenStartFailures, setBulkGenStartFailures] = useState<Set<string>>(new Set());
-  const [bulkGenStarting, setBulkGenStarting] = useState(false);
-
-  const openBulkVideoGen = () => {
-    setBulkVideoForm({ avatarId: "", voiceId: "" });
-    setBulkGenBlockIds(null);
-    setBulkGenSkippedCount(0);
-    setBulkGenStartFailures(new Set());
-    setShowBulkVideoGen(true);
-  };
-
-  useEffect(() => {
-    if (!showBulkVideoGen) return;
-    setBulkVideoForm(f => ({
-      avatarId: f.avatarId || preferredBulkHeygenAvatar?.id || "",
-      voiceId: f.voiceId || preferredBulkHeygenVoice?.voice_id || "",
-    }));
-  }, [preferredBulkHeygenAvatar?.id, preferredBulkHeygenVoice?.voice_id, showBulkVideoGen]);
-
-  const closeBulkVideoGen = () => {
-    setShowBulkVideoGen(false);
-    setBulkGenBlockIds(null);
-    setBulkGenSkippedCount(0);
-    setBulkGenStartFailures(new Set());
-  };
-
-  const handleGenerateAllVideos = async () => {
-    if (!bulkVideoForm.avatarId || !bulkVideoForm.voiceId) {
-      toast({ title: "Avatar and voice are required", variant: "destructive" });
-      return;
-    }
-    if (eligibleVideoBlocksWithScript.length === 0) return;
-
-    setBulkGenSkippedCount(eligibleVideoBlocksMissingScript);
-    setBulkGenBlockIds(eligibleVideoBlocksWithScript.map(b => b.id));
-    setBulkGenStartFailures(new Set());
-    setBulkGenStarting(true);
-
-    const results = await Promise.allSettled(
-      eligibleVideoBlocksWithScript.map(b =>
-        generateVideoAsync({
-          courseBlockId: b.id,
-          avatarId: bulkVideoForm.avatarId,
-          voiceId: bulkVideoForm.voiceId,
-          script: ((b.body as { script?: string } | null)?.script ?? "").trim(),
-          title: b.title ?? undefined,
-        }),
-      ),
-    );
-    setBulkGenStarting(false);
-
-    const failedIds = new Set(
-      eligibleVideoBlocksWithScript.filter((_, i) => results[i].status === "rejected").map(b => b.id),
-    );
-    setBulkGenStartFailures(failedIds);
-    const succeeded = results.length - failedIds.size;
-    toast({
-      title: "Bulk video generation started",
-      description: `${succeeded} of ${results.length} block${results.length === 1 ? "" : "s"} started successfully.`
-        + (failedIds.size > 0 ? ` ${failedIds.size} failed to start.` : "")
-        + " Status updates automatically as each one finishes.",
-      variant: failedIds.size > 0 && succeeded === 0 ? "destructive" : undefined,
-    });
-  };
-
-  type BulkVideoGenStatus = "queued" | "processing" | "completed" | "failed";
-
-  const getBulkVideoGenStatus = (block: CourseBlock | undefined, blockId: string): BulkVideoGenStatus => {
-    if (bulkGenStartFailures.has(blockId)) return "failed";
-    if (!block) return "queued";
-    if (block.video_url) return "completed";
-    const heygenStatus = (block.body as { heygen?: { status?: string } } | null)?.heygen?.status;
-    if (heygenStatus === "failed") return "failed";
-    if (heygenStatus && heygenStatus !== "completed") return "processing";
-    return "queued";
-  };
-
-  const BULK_STATUS_META: Record<BulkVideoGenStatus, { label: string; className: string }> = {
-    queued: { label: "Queued", className: "bg-secondary text-secondary-foreground" },
-    processing: { label: "Processing", className: "bg-info text-info-foreground" },
-    completed: { label: "Completed", className: "bg-success text-success-foreground" },
-    failed: { label: "Failed", className: "bg-destructive text-destructive-foreground" },
-  };
+  // --- Bulk "Generate All Videos" (avatar/voice picker + per-block progress) lives in
+  // useBulkVideoGeneration -- it's self-contained aside from `blocks`. ---
+  const bulkVideoGen = useBulkVideoGeneration(blocks);
 
   // --- Regenerate a content block with AI (any block type) ---
   const [regenerateBlock, setRegenerateBlock] = useState<CourseBlock | null>(null);
@@ -966,976 +714,195 @@ export default function CourseDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={coursesListPath(user?.role)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
-          </Link>
-        </Button>
-      </div>
+      <CourseOverviewSection
+        course={course}
+        userRole={user?.role}
+        selectedVersion={selectedVersion}
+        effectiveOrgId={effectiveOrgId}
+        canTakeCourse={canTakeCourse}
+        enrolling={enrolling}
+        onTakeCourse={handleTakeCourse}
+        canManage={canManage}
+        onEditCourse={openEditCourse}
+        canUnpublishCourse={canUnpublishCourse}
+        onUnpublishClick={() => setShowUnpublishCourse(true)}
+        feedbackSummary={feedbackSummary}
+      />
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-            <BookOpen className="h-7 w-7 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">{course.title}</h1>
-            <p className="text-muted-foreground">{course.category ?? "Uncategorized"}</p>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <CourseStatusBadge status={course.status} />
-              {course.organization_id === null ? (
-                <Badge variant="outline" className="text-[10px] font-medium">System Catalog</Badge>
-              ) : (
-                <Badge variant="secondary" className="text-[10px] font-medium">Org Training</Badge>
-              )}
-              {selectedVersion?.ai_generated && (
-                <Badge variant="outline" className="text-[10px] font-medium bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-50">
-                  <Sparkles className="h-3 w-3 mr-1" /> AI-Generated
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {course.status === "published" && canEnrollInCourse(course, effectiveOrgId) && (
-            <Button variant="outline" size="sm" onClick={handleTakeCourse} disabled={enrolling || !canTakeCourse}>
-              {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
-              {canTakeCourse ? "Start Training" : "Training Not Ready"}
-            </Button>
-          )}
-          {canManage && (
-            <Button variant="outline" size="sm" onClick={openEditCourse}>
-              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-            </Button>
-          )}
-          {canUnpublishCourse && (
-            <Button variant="destructive" size="sm" onClick={() => setShowUnpublishCourse(true)}>
-              <Archive className="mr-2 h-3.5 w-3.5" /> Unpublish
-            </Button>
-          )}
-        </div>
-      </div>
+      <VersionsCard
+        canManage={canManage}
+        onNewVersion={openNewVersion}
+        versionsLoading={versionsLoading}
+        versions={versions}
+        selectedVersionId={selectedVersionId}
+        setSelectedVersionId={setSelectedVersionId}
+        course={course}
+        publishingVersionId={publishingVersionId}
+        onPublish={handlePublish}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Description</p>
-            {course.description ? (
-              <p className="text-sm whitespace-pre-wrap">{course.description}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">No description on file.</p>
-            )}
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Estimated Duration</p>
-            <p className="text-sm">{course.estimated_duration_minutes ? `${course.estimated_duration_minutes} minutes` : "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Employee Rating</p>
-            {feedbackSummary.count > 0 ? (
-              <p className="text-sm flex items-center gap-1.5">
-                <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                {feedbackSummary.average} out of 5
-                <span className="text-muted-foreground">
-                  ({feedbackSummary.count} rating{feedbackSummary.count === 1 ? "" : "s"})
-                </span>
-              </p>
-            ) : (
-              <p className="text-sm text-muted-foreground">No ratings yet.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <PrePublishSection
+        canManage={canManage}
+        needsAiReview={needsAiReview}
+        reviewChecked={reviewChecked}
+        setReviewChecked={setReviewChecked}
+        markingReviewed={markingReviewed}
+        onMarkReviewed={handleMarkReviewed}
+        selectedVersion={selectedVersion}
+        onPreviewAsStudent={() => setShowStudentPreview(true)}
+        blocks={blocks}
+        prePublishChecks={prePublishChecks}
+        publishIssues={publishIssues}
+        studentPreviewChecked={studentPreviewChecked}
+        setStudentPreviewChecked={setStudentPreviewChecked}
+      />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle>Versions</CardTitle>
-            {canManage && (
-              <Button size="sm" onClick={openNewVersion}>
-                <Plus className="mr-2 h-3.5 w-3.5" /> New Version
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {versionsLoading ? (
-            <div className="space-y-2">
-              {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
-            </div>
-          ) : !versions || versions.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-muted-foreground">No versions yet.</p>
-              {canManage && (
-                <p className="text-xs text-muted-foreground/70 mt-1">Create the first draft version to start authoring this training content.</p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {versions.map(v => (
-                <div
-                  key={v.id}
-                  className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${v.id === selectedVersionId ? "border-primary bg-primary/5" : "hover:bg-muted/30"}`}
-                  onClick={() => setSelectedVersionId(v.id)}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">v{v.version_number} — {v.title}</span>
-                      <VersionStatusBadge status={v.status} />
-                      {course.current_version_id === v.id && (
-                        <Badge variant="outline" className="text-[10px] font-medium">Current</Badge>
-                      )}
-                    </div>
-                    {v.published_at && (
-                      <p className="text-xs text-muted-foreground mt-0.5">Published {new Date(v.published_at).toLocaleDateString()}</p>
-                    )}
-                  </div>
-                  {canManage && v.status === "draft" && (
-                    v.ai_generated && !v.ai_reviewed_at ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          {/* Wrapping span, not the disabled Button itself, is the trigger --
-                              disabled buttons have pointer-events:none and won't fire hover. */}
-                          <span onClick={(e) => e.stopPropagation()} className="inline-block">
-                            <Button size="sm" variant="outline" disabled>
-                              <Rocket className="mr-2 h-3.5 w-3.5" /> Publish
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          AI-generated content must be reviewed before publishing -- see the review checklist below.
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={publishingVersionId === v.id}
-                        onClick={(e) => { e.stopPropagation(); handlePublish(v); }}
-                      >
-                        <Rocket className="mr-2 h-3.5 w-3.5" />
-                        {publishingVersionId === v.id ? "Publishing..." : "Publish"}
-                      </Button>
-                    )
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ContentBlocksCard
+        selectedVersion={selectedVersion}
+        canManage={canManage}
+        onPreviewAsStudent={() => setShowStudentPreview(true)}
+        blocks={blocks}
+        isVersionLocked={isVersionLocked}
+        eligibleVideoBlockCount={bulkVideoGen.eligibleVideoBlocks.length}
+        onOpenBulkVideoGen={bulkVideoGen.openBulkVideoGen}
+        onAddBlock={openAddBlock}
+        blocksLoading={blocksLoading}
+        courseDocumentById={courseDocumentById}
+        onConfigureQuiz={openQuizPrompt}
+        userRole={user?.role}
+        reorderingBlocks={reorderingBlocks}
+        onMoveBlock={handleMoveBlock}
+        checkingVideoStatus={checkingVideoStatus}
+        onCheckVideoStatus={handleCheckVideoStatus}
+        onOpenVideoGen={openVideoGen}
+        onRegenerateBlock={openRegenerateBlock}
+        onDeleteBlock={setBlockPendingDelete}
+      />
 
-      {canManage && needsAiReview && (
-        <Alert className="border-warning/40 bg-warning/10">
-          <Sparkles className="h-4 w-4" />
-          <AlertTitle>AI-generated content needs review</AlertTitle>
-          <AlertDescription>
-            <p className="mb-3">
-              This version's content was drafted by AI and hasn't been reviewed yet. Read through each block below
-              for accuracy before publishing -- AI-authored regulatory or policy content can be wrong or outdated.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="ai-reviewed-checkbox"
-                  checked={reviewChecked}
-                  onCheckedChange={c => setReviewChecked(c === true)}
-                />
-                <Label htmlFor="ai-reviewed-checkbox" className="text-sm font-normal cursor-pointer">
-                  I've reviewed this content for accuracy
-                </Label>
-              </div>
-              <Button size="sm" disabled={!reviewChecked || markingReviewed} onClick={handleMarkReviewed}>
-                {markingReviewed ? "Marking..." : "Mark Reviewed"}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+      <EditCourseDialog
+        open={showEditCourse}
+        onClose={() => setShowEditCourse(false)}
+        courseForm={courseForm}
+        setCourseForm={setCourseForm}
+        trainingTypes={trainingTypes}
+        onSave={handleSaveCourse}
+        savingCourse={savingCourse}
+        fieldIds={__fieldIds}
+      />
 
-      {canManage && selectedVersion && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <CardTitle>Pre-Publish Checklist</CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowStudentPreview(true)}
-                disabled={!blocks || blocks.length === 0}
-              >
-                <Eye className="mr-2 h-3.5 w-3.5" /> Preview as Student
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {prePublishChecks.map(check => {
-                const Icon = check.passed ? CheckCircle2 : CircleAlert;
-                return (
-                  <div key={check.label} className="flex items-start gap-2 rounded-md border p-3">
-                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${check.passed ? "text-success" : "text-warning"}`} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{check.label}</p>
-                      <p className="text-xs text-muted-foreground">{check.detail}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {(publishIssues ?? []).length > 0 && (
-              <Alert className="border-warning/40 bg-warning/10">
-                <CircleAlert className="h-4 w-4" />
-                <AlertTitle>Publish blockers</AlertTitle>
-                <AlertDescription>
-                  <ul className="mt-2 list-disc pl-5 text-sm space-y-1">
-                    {(publishIssues ?? []).slice(0, 6).map(issue => <li key={issue}>{issue}</li>)}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="student-preview-reviewed"
-                checked={studentPreviewChecked}
-                onCheckedChange={checked => setStudentPreviewChecked(checked === true)}
-              />
-              <Label htmlFor="student-preview-reviewed" className="text-sm font-normal cursor-pointer">
-                I reviewed the student preview on an employee-sized screen
-              </Label>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <NewVersionDialog
+        open={showNewVersion}
+        onClose={() => setShowNewVersion(false)}
+        selectedVersion={selectedVersion}
+        nextVersionNumber={nextVersionNumber}
+        newVersionTitle={newVersionTitle}
+        setNewVersionTitle={setNewVersionTitle}
+        onCreate={handleCreateVersion}
+        creatingVersion={creatingVersion}
+        fieldIds={__fieldIds}
+      />
 
-      {selectedVersion && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle>
-                Content Blocks
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  (v{selectedVersion.version_number} — {selectedVersion.title})
-                </span>
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {canManage && (
-                  <Button size="sm" variant="outline" onClick={() => setShowStudentPreview(true)} disabled={!blocks || blocks.length === 0}>
-                    <Eye className="mr-2 h-3.5 w-3.5" /> Preview
-                  </Button>
-                )}
-                {canManage && !isVersionLocked && eligibleVideoBlocks.length > 0 && (
-                  <Button size="sm" variant="outline" onClick={openBulkVideoGen}>
-                    <Video className="mr-2 h-3.5 w-3.5" /> Generate All Videos
-                  </Button>
-                )}
-                {canManage && !isVersionLocked && (
-                  <Button size="sm" onClick={openAddBlock}>
-                    <Plus className="mr-2 h-3.5 w-3.5" /> Add Block
-                  </Button>
-                )}
-              </div>
-            </div>
-            {isVersionLocked && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                <Lock className="h-3 w-3" /> Published versions are locked; create a new version to make changes.
-              </p>
-            )}
-          </CardHeader>
-          <CardContent>
-            {blocksLoading ? (
-              <div className="space-y-2">
-                {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}
-              </div>
-            ) : !blocks || blocks.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">No content blocks yet.</p>
-                {canManage && !isVersionLocked && (
-                  <p className="text-xs text-muted-foreground/70 mt-1">Add one to start building this version.</p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {blocks.map((b, idx) => (
-                  <div key={b.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-muted-foreground">#{idx + 1}</span>
-                        <BlockTypeBadge blockType={b.block_type} />
-                        <span className="font-medium text-sm">{b.title ?? "Untitled block"}</span>
-                      </div>
-                      {b.block_type === "text" && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {(b.body as { content?: string } | null)?.content ?? "No content entered."}
-                        </p>
-                      )}
-                      {b.block_type === "video" && (
-                        <>
-                          <p className="text-xs text-muted-foreground mt-1 truncate">{b.video_url ?? "No video URL set."}</p>
-                          {videoTranscriptContent(b) && (
-                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                              Transcript: {videoTranscriptContent(b)}
-                            </p>
-                          )}
-                          {(() => {
-                            const job = (b.body as { heygen?: { status?: string; error?: string } } | null)?.heygen;
-                            if (!job || job.status === "completed") return null;
-                            if (job.status === "failed") {
-                              return <p className="text-xs text-destructive mt-1">AI generation failed: {job.error ?? "unknown error"}</p>;
-                            }
-                            return <p className="text-xs text-muted-foreground mt-1 italic">AI avatar video generating…</p>;
-                          })()}
-                        </>
-                      )}
-                      {(b.block_type === "pdf" || b.block_type === "scorm") && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
-                        </p>
-                      )}
-                      {b.block_type === "quiz" && (
-                        <div className="mt-1">
-                          <QuizBlockSummary
-                            blockId={b.id}
-                            onConfigure={() => openQuizPrompt(b)}
-                            canManage={canManage}
-                            role={user?.role}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    {canManage && !isVersionLocked && (
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground"
-                          disabled={idx === 0 || reorderingBlocks}
-                          onClick={() => handleMoveBlock(idx, -1)}
-                          aria-label="Move block up"
-                        >
-                          <ArrowUp className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground"
-                          disabled={idx === blocks.length - 1 || reorderingBlocks}
-                          onClick={() => handleMoveBlock(idx, 1)}
-                          aria-label="Move block down"
-                        >
-                          <ArrowDown className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
-                    {canManage && !isVersionLocked && b.block_type === "video" && (
-                      <>
-                        {(() => {
-                          const job = (b.body as { heygen?: { status?: string } } | null)?.heygen;
-                          if (!job || job.status === "completed" || job.status === "failed") return null;
-                          return (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground shrink-0"
-                              onClick={() => handleCheckVideoStatus(b)}
-                              disabled={checkingVideoStatus}
-                              aria-label="Check video generation status"
-                            >
-                              <RefreshCw className="h-3.5 w-3.5" />
-                            </Button>
-                          );
-                        })()}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground shrink-0"
-                          onClick={() => openVideoGen(b)}
-                          aria-label="Generate AI avatar video"
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
-                    )}
-                    {canManage && !isVersionLocked && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground shrink-0"
-                        onClick={() => openRegenerateBlock(b)}
-                        aria-label="Regenerate with AI"
-                      >
-                        <Wand2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {canManage && !isVersionLocked && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => setBlockPendingDelete(b)}
-                        aria-label="Delete block"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <StudentPreviewDialog
+        open={showStudentPreview}
+        onOpenChange={setShowStudentPreview}
+        course={course}
+        blocks={blocks}
+        courseDocumentById={courseDocumentById}
+        userRole={user?.role}
+        openQuizPrompt={openQuizPrompt}
+      />
 
-      {/* Edit course metadata */}
-      <Dialog open={showEditCourse} onOpenChange={o => { if (!o) setShowEditCourse(false); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Training Content</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-title`}>Title *</Label>
-              <Input id={`${__fieldIds}-title`} value={courseForm.title} onChange={e => setCourseForm(f => ({ ...f, title: e.target.value }))} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-description`}>Description</Label>
-              <Textarea id={`${__fieldIds}-description`} value={courseForm.description} onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor={`${__fieldIds}-category`}>Category</Label>
-                <Input id={`${__fieldIds}-category`} value={courseForm.category} onChange={e => setCourseForm(f => ({ ...f, category: e.target.value }))} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor={`${__fieldIds}-status`}>Status</Label>
-                <Select value={courseForm.status} onValueChange={v => setCourseForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              This is the training item's catalog status. It's independent of the per-version publish workflow below.
-            </p>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-training-requirement-type`}>Training Requirement Type</Label>
-              <Select value={courseForm.trainingTypeId} onValueChange={v => setCourseForm(f => ({ ...f, trainingTypeId: v }))}>
-                <SelectTrigger id={`${__fieldIds}-training-requirement-type`}><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
-                  {(trainingTypes ?? []).map(tt => (
-                    <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                When an employee completes this training item, it automatically records (or refreshes) their training record
-                for this requirement, so their annual-hours and due-date tracking update immediately.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditCourse(false)}>Cancel</Button>
-            <Button onClick={handleSaveCourse} disabled={savingCourse}>{savingCourse ? "Saving..." : "Save Changes"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddBlockDialog
+        open={showAddBlock}
+        onRequestClose={handleRequestCloseAddBlock}
+        onCancel={() => setShowAddBlock(false)}
+        blockForm={blockForm}
+        setBlockForm={setBlockForm}
+        courseDocumentsLoading={courseDocumentsLoading}
+        courseDocuments={courseDocuments}
+        courseDocumentInputRef={courseDocumentInputRef}
+        handleCourseDocumentUpload={handleCourseDocumentUpload}
+        uploadingDocument={uploadCourseDocument.isPending}
+        courseDocumentUploadFacility={courseDocumentUploadFacility}
+        courseDocumentById={courseDocumentById}
+        onAdd={handleAddBlock}
+        creatingBlock={creatingBlock}
+        fieldIds={__fieldIds}
+      />
 
-      {/* New version */}
-      <Dialog open={showNewVersion} onOpenChange={o => { if (!o) setShowNewVersion(false); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>New Draft Version</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              {selectedVersion
-                ? `This creates version ${nextVersionNumber} as a new draft, copying every block, quiz, question, and answer from v${selectedVersion.version_number} as a starting point. Existing published versions stay untouched and immutable.`
-                : `This creates version ${nextVersionNumber} as a new, empty draft -- this course has no existing version to copy from yet.`}
-            </p>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-title-2`}>Title</Label>
-              <Input id={`${__fieldIds}-title-2`} value={newVersionTitle} onChange={e => setNewVersionTitle(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewVersion(false)}>Cancel</Button>
-            <Button onClick={handleCreateVersion} disabled={creatingVersion}>{creatingVersion ? (selectedVersion ? "Copying..." : "Creating...") : "Create Draft"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <QuizPromptDialog
+        quizPromptBlock={quizPromptBlock}
+        onClose={() => setQuizPromptBlock(null)}
+        quizForm={quizForm}
+        setQuizForm={setQuizForm}
+        onCreate={handleCreateQuiz}
+        creatingQuiz={creatingQuiz}
+        fieldIds={__fieldIds}
+      />
 
-      {/* Student preview */}
-      <Dialog open={showStudentPreview} onOpenChange={setShowStudentPreview}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Student Preview</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="rounded-md border p-4">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-normal">Training item</p>
-              <h2 className="text-xl font-semibold">{course.title}</h2>
-              {course.description && <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{course.description}</p>}
-            </div>
-            {!blocks || blocks.length === 0 ? (
-              <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">
-                No content blocks to preview.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {blocks.map((block, index) => (
-                  <div key={block.id} className="rounded-md border p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Lesson {index + 1} of {blocks.length}</p>
-                        <h3 className="text-base font-semibold">{block.title ?? blockName(block)}</h3>
-                      </div>
-                      <BlockTypeBadge blockType={block.block_type} />
-                    </div>
+      <VideoGenDialog
+        open={!!videoGenBlock}
+        onRequestClose={handleRequestCloseVideoGen}
+        onCancel={() => setVideoGenBlock(null)}
+        videoGenForm={videoGenForm}
+        setVideoGenForm={setVideoGenForm}
+        heygenOptions={heygenOptions}
+        heygenOptionsLoading={heygenOptionsLoading}
+        onGenerate={handleGenerateVideo}
+        generatingVideo={generatingVideo}
+        fieldIds={__fieldIds}
+      />
 
-                    {block.block_type === "text" && (
-                      <p className="text-sm leading-6 whitespace-pre-wrap">
-                        {textBodyContent(block) || "No lesson text entered."}
-                      </p>
-                    )}
+      <BulkVideoGenDialog
+        open={bulkVideoGen.showBulkVideoGen}
+        onClose={bulkVideoGen.closeBulkVideoGen}
+        bulkGenBlockIds={bulkVideoGen.bulkGenBlockIds}
+        bulkVideoForm={bulkVideoGen.bulkVideoForm}
+        setBulkVideoForm={bulkVideoGen.setBulkVideoForm}
+        bulkHeygenOptions={bulkVideoGen.bulkHeygenOptions}
+        bulkHeygenOptionsLoading={bulkVideoGen.bulkHeygenOptionsLoading}
+        eligibleVideoBlocksWithScript={bulkVideoGen.eligibleVideoBlocksWithScript}
+        eligibleVideoBlocksMissingScript={bulkVideoGen.eligibleVideoBlocksMissingScript}
+        bulkGenSkippedCount={bulkVideoGen.bulkGenSkippedCount}
+        blocks={blocks}
+        getBulkVideoGenStatus={bulkVideoGen.getBulkVideoGenStatus}
+        onGenerate={bulkVideoGen.handleGenerateAllVideos}
+        bulkGenStarting={bulkVideoGen.bulkGenStarting}
+        fieldIds={__fieldIds}
+      />
 
-                    {block.block_type === "video" && (
-                      <div className="space-y-3">
-                        {block.video_url ? (
-                          <div className="overflow-hidden rounded-md border bg-muted">
-                            <CourseVideoPreview src={block.video_url} />
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No video URL set.</p>
-                        )}
-                        {videoTranscriptContent(block) ? (
-                          <div className="rounded-md bg-muted/50 p-3">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Transcript</p>
-                            <p className="text-sm whitespace-pre-wrap">{videoTranscriptContent(block)}</p>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-warning">Transcript or caption notes are missing.</p>
-                        )}
-                      </div>
-                    )}
+      <RegenerateBlockDialog
+        regenerateBlock={regenerateBlock}
+        onClose={() => setRegenerateBlock(null)}
+        regenerateFeedback={regenerateFeedback}
+        setRegenerateFeedback={setRegenerateFeedback}
+        onRegenerate={handleRegenerateBlock}
+        regeneratingBlock={regeneratingBlock}
+        fieldIds={__fieldIds}
+      />
 
-                    {(block.block_type === "pdf" || block.block_type === "scorm") && (
-                      <div className="flex items-center gap-3 rounded-md bg-muted/50 p-3">
-                        <FileIcon className="h-5 w-5 text-muted-foreground" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {block.document_id ? documentDisplayName(courseDocumentById.get(block.document_id)) || "Attached document" : "No document attached"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{block.block_type === "pdf" ? "PDF resource" : "SCORM package"}</p>
-                        </div>
-                      </div>
-                    )}
+      <UnpublishCourseDialog
+        open={showUnpublishCourse}
+        onOpenChange={setShowUnpublishCourse}
+        onClose={() => setShowUnpublishCourse(false)}
+        unpublishReason={unpublishReason}
+        setUnpublishReason={setUnpublishReason}
+        onUnpublish={handleUnpublishCourse}
+        isPending={unpublishCourse.isPending}
+      />
 
-                    {block.block_type === "quiz" && (
-                      <div className="rounded-md bg-muted/50 p-3">
-                        <QuizBlockSummary
-                          blockId={block.id}
-                          onConfigure={() => openQuizPrompt(block)}
-                          canManage={false}
-                          role={user?.role}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowStudentPreview(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteBlockAlertDialog
+        blockPendingDelete={blockPendingDelete}
+        onClose={() => setBlockPendingDelete(null)}
+        onDelete={handleDeleteBlock}
+        deletingBlock={deletingBlock}
+      />
 
-      {/* Add block */}
-      <Dialog open={showAddBlock} onOpenChange={o => { if (!o) handleRequestCloseAddBlock(); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Add Content Block</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-block-type`}>Block Type</Label>
-              <Select value={blockForm.block_type} onValueChange={v => setBlockForm(f => ({ ...f, block_type: v as BlockFormState["block_type"] }))}>
-                <SelectTrigger id={`${__fieldIds}-block-type`}><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">Text</SelectItem>
-                  <SelectItem value="video">Video</SelectItem>
-                  <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="scorm">SCORM</SelectItem>
-                  <SelectItem value="quiz">Quiz</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-title-3`}>Title</Label>
-              <Input id={`${__fieldIds}-title-3`} value={blockForm.title} onChange={e => setBlockForm(f => ({ ...f, title: e.target.value }))} placeholder="Optional block title" />
-            </div>
-            {blockForm.block_type === "text" && (
-              <div className="space-y-1">
-                <Label htmlFor={`${__fieldIds}-content`}>Content</Label>
-                <Textarea id={`${__fieldIds}-content`}
-                  value={blockForm.textContent}
-                  onChange={e => setBlockForm(f => ({ ...f, textContent: e.target.value }))}
-                  placeholder="Enter the text content for this block"
-                  rows={6}
-                />
-              </div>
-            )}
-            {blockForm.block_type === "video" && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label htmlFor={`${__fieldIds}-video-url`}>Video URL</Label>
-                  <Input id={`${__fieldIds}-video-url`} value={blockForm.videoUrl} onChange={e => setBlockForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://..." />
-                  <p className="text-xs text-muted-foreground">
-                    Leave blank if you plan to generate an AI avatar video after creating this block.
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${__fieldIds}-transcript-or-caption-notes`}>Transcript or Caption Notes</Label>
-                  <Textarea id={`${__fieldIds}-transcript-or-caption-notes`}
-                    value={blockForm.videoTranscript}
-                    onChange={e => setBlockForm(f => ({ ...f, videoTranscript: e.target.value }))}
-                    placeholder="Paste transcript text or caption notes for employees who cannot use audio"
-                    rows={4}
-                  />
-                </div>
-              </div>
-            )}
-            {(blockForm.block_type === "pdf" || blockForm.block_type === "scorm") && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label htmlFor={`${__fieldIds}-document`}>Document</Label>
-                  <Select
-                    value={blockForm.documentId || NO_DOCUMENT}
-                    onValueChange={value => setBlockForm(f => ({ ...f, documentId: value === NO_DOCUMENT ? "" : value }))}
-                    disabled={courseDocumentsLoading}
-                  >
-                    <SelectTrigger id={`${__fieldIds}-document`}>
-                      <SelectValue placeholder={courseDocumentsLoading ? "Loading documents..." : "Select a document"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_DOCUMENT}>No document attached</SelectItem>
-                      {(courseDocuments ?? []).map(document => (
-                        <SelectItem key={document.id} value={document.id}>
-                          {documentDisplayName(document)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    ref={courseDocumentInputRef}
-                    className="hidden"
-                    type="file"
-                    accept={blockForm.block_type === "pdf" ? "application/pdf,.pdf" : ".zip,application/zip,application/x-zip-compressed"}
-                    onChange={handleCourseDocumentUpload}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => courseDocumentInputRef.current?.click()}
-                    disabled={uploadCourseDocument.isPending || !courseDocumentUploadFacility}
-                  >
-                    {uploadCourseDocument.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-2 h-3.5 w-3.5" />}
-                    Upload File
-                  </Button>
-                  {blockForm.documentId && (
-                    <p className="text-xs text-muted-foreground truncate max-w-[18rem]">
-                      {documentDisplayName(courseDocumentById.get(blockForm.documentId)) || "Selected document"}
-                    </p>
-                  )}
-                </div>
-                {!courseDocumentUploadFacility && (
-                  <p className="text-xs text-muted-foreground">
-                    Uploads need a facility record to own the document metadata.
-                  </p>
-                )}
-              </div>
-            )}
-            {blockForm.block_type === "quiz" && (
-              <p className="text-xs text-muted-foreground">
-                After this block is created, you'll be prompted to configure the quiz itself (title, passing score, attempts).
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddBlock(false)}>Cancel</Button>
-            <Button onClick={handleAddBlock} disabled={creatingBlock}>{creatingBlock ? "Adding..." : "Add Block"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create quiz prompt */}
-      <Dialog open={!!quizPromptBlock} onOpenChange={o => { if (!o) setQuizPromptBlock(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Configure Quiz</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-quiz-title`}>Quiz Title *</Label>
-              <Input id={`${__fieldIds}-quiz-title`} value={quizForm.title} onChange={e => setQuizForm(f => ({ ...f, title: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label htmlFor={`${__fieldIds}-passing-score`}>Passing Score (%)</Label>
-                <Input id={`${__fieldIds}-passing-score`} type="number" min="0" max="100" value={quizForm.passingScore} onChange={e => setQuizForm(f => ({ ...f, passingScore: e.target.value }))} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor={`${__fieldIds}-max-attempts`}>Max Attempts</Label>
-                <Input id={`${__fieldIds}-max-attempts`} type="number" min="1" value={quizForm.maxAttempts} onChange={e => setQuizForm(f => ({ ...f, maxAttempts: e.target.value }))} placeholder="Unlimited" />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Questions and answers are authored separately once the quiz exists.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setQuizPromptBlock(null)}>Skip for now</Button>
-            <Button onClick={handleCreateQuiz} disabled={creatingQuiz}>{creatingQuiz ? "Creating..." : "Create Quiz"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Generate AI avatar video (HeyGen) */}
-      <Dialog open={!!videoGenBlock} onOpenChange={o => { if (!o) handleRequestCloseVideoGen(); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Generate AI Avatar Video</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-xs text-muted-foreground">
-              Generates a talking-avatar video from a script. If your HeyGen account has an AI Twin, it is sorted first
-              and preselected so high-quality course videos can be created with one click.
-            </p>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-avatar`}>Avatar *</Label>
-              <Select value={videoGenForm.avatarId} onValueChange={v => setVideoGenForm(f => ({ ...f, avatarId: v }))} disabled={heygenOptionsLoading}>
-                <SelectTrigger id={`${__fieldIds}-avatar`}><SelectValue placeholder={heygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
-                <SelectContent>
-                  {heygenOptions?.avatars.map(a => (
-                    <SelectItem key={a.id} value={a.id}>{a.is_ai_twin ? "AI Twin · " : ""}{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-voice`}>Voice *</Label>
-              <Select value={videoGenForm.voiceId} onValueChange={v => setVideoGenForm(f => ({ ...f, voiceId: v }))} disabled={heygenOptionsLoading}>
-                <SelectTrigger id={`${__fieldIds}-voice`}><SelectValue placeholder={heygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
-                <SelectContent>
-                  {heygenOptions?.voices.map(v => (
-                    <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}{v.language ? ` — ${v.language}` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-script`}>Script *</Label>
-              <Textarea id={`${__fieldIds}-script`}
-                value={videoGenForm.script}
-                onChange={e => setVideoGenForm(f => ({ ...f, script: e.target.value }))}
-                placeholder="What should the avatar say?"
-                rows={6}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setVideoGenBlock(null)}>Cancel</Button>
-            <Button onClick={handleGenerateVideo} disabled={generatingVideo}>{generatingVideo ? "Starting..." : "Generate Video"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk-generate AI avatar videos for every eligible video block in this version */}
-      <Dialog open={showBulkVideoGen} onOpenChange={o => { if (!o) closeBulkVideoGen(); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Generate All Videos</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            {!bulkGenBlockIds ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Generates an AI avatar video for every video block in this version that doesn't have one yet, using
-                  one avatar and voice for all of them. Your HeyGen AI Twin is sorted first when available, and each block uses its AI-authored narration script.
-                </p>
-                <div className="space-y-1">
-                  <Label htmlFor={`${__fieldIds}-avatar-2`}>Avatar *</Label>
-                  <Select value={bulkVideoForm.avatarId} onValueChange={v => setBulkVideoForm(f => ({ ...f, avatarId: v }))} disabled={bulkHeygenOptionsLoading}>
-                    <SelectTrigger id={`${__fieldIds}-avatar-2`}><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
-                    <SelectContent>
-                      {bulkHeygenOptions?.avatars.map(a => (
-                        <SelectItem key={a.id} value={a.id}>{a.is_ai_twin ? "AI Twin · " : ""}{a.name}{a.gender ? ` (${a.gender})` : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={`${__fieldIds}-voice-2`}>Voice *</Label>
-                  <Select value={bulkVideoForm.voiceId} onValueChange={v => setBulkVideoForm(f => ({ ...f, voiceId: v }))} disabled={bulkHeygenOptionsLoading}>
-                    <SelectTrigger id={`${__fieldIds}-voice-2`}><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
-                    <SelectContent>
-                      {bulkHeygenOptions?.voices.map(v => (
-                        <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}{v.language ? ` — ${v.language}` : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {eligibleVideoBlocksWithScript.length} block{eligibleVideoBlocksWithScript.length === 1 ? "" : "s"} will be generated.
-                </p>
-                {eligibleVideoBlocksMissingScript > 0 && (
-                  <p className="text-xs text-muted-foreground border border-warning/40 bg-warning/10 rounded px-2 py-1.5">
-                    {eligibleVideoBlocksMissingScript} block{eligibleVideoBlocksMissingScript === 1 ? "" : "s"} skipped -- no script available, add one manually first.
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Generation runs in the background and typically takes a few minutes per video -- status below
-                  updates automatically, no need to keep this dialog open.
-                </p>
-                {bulkGenSkippedCount > 0 && (
-                  <p className="text-xs text-muted-foreground border border-warning/40 bg-warning/10 rounded px-2 py-1.5">
-                    {bulkGenSkippedCount} block{bulkGenSkippedCount === 1 ? "" : "s"} skipped -- no script available, add one manually first.
-                  </p>
-                )}
-                <div className="space-y-1.5">
-                  {bulkGenBlockIds.map(blockId => {
-                    const block = blocks?.find(b => b.id === blockId);
-                    const status = getBulkVideoGenStatus(block, blockId);
-                    const meta = BULK_STATUS_META[status];
-                    return (
-                      <div key={blockId} className="flex items-center justify-between gap-2 text-sm border rounded-lg px-2.5 py-1.5">
-                        <span className="truncate">{block?.title ?? "Untitled block"}</span>
-                        <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            {!bulkGenBlockIds ? (
-              <>
-                <Button variant="outline" onClick={closeBulkVideoGen}>Cancel</Button>
-                <Button
-                  onClick={handleGenerateAllVideos}
-                  disabled={bulkGenStarting || bulkHeygenOptionsLoading || eligibleVideoBlocksWithScript.length === 0}
-                >
-                  {bulkGenStarting ? "Starting..." : "Generate"}
-                </Button>
-              </>
-            ) : (
-              <Button variant="outline" onClick={closeBulkVideoGen}>Close</Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Regenerate a block's content with AI */}
-      <Dialog open={!!regenerateBlock} onOpenChange={o => { if (!o) setRegenerateBlock(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Regenerate with AI</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <p className="text-xs text-muted-foreground">
-              Claude will rewrite this block's {regenerateBlock?.block_type === "quiz" ? "entire question set" : "content"} from
-              scratch based on your feedback, replacing what's there now.
-            </p>
-            <div className="space-y-1">
-              <Label htmlFor={`${__fieldIds}-what-should-change`}>What should change? *</Label>
-              <Textarea id={`${__fieldIds}-what-should-change`}
-                value={regenerateFeedback}
-                onChange={e => setRegenerateFeedback(e.target.value)}
-                placeholder="e.g. &quot;make this shorter and more conversational&quot; or &quot;add more detail on fall-prevention procedures&quot;"
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRegenerateBlock(null)}>Cancel</Button>
-            <Button onClick={handleRegenerateBlock} disabled={regeneratingBlock}>{regeneratingBlock ? "Generating..." : "Generate"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showUnpublishCourse} onOpenChange={setShowUnpublishCourse}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Unpublish this course?</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">
-              This archives the course for new enrollment. Multi-factor verification is required and the action is recorded in the audit log.
-            </p>
-            <div className="space-y-1.5">
-              <Label htmlFor="unpublish-reason">Reason</Label>
-              <Textarea
-                id="unpublish-reason"
-                value={unpublishReason}
-                onChange={(event) => setUnpublishReason(event.target.value)}
-                placeholder="Explain why this course must be removed (at least 8 characters)."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowUnpublishCourse(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleUnpublishCourse} disabled={unpublishCourse.isPending || unpublishReason.trim().length < 8}>
-              {unpublishCourse.isPending ? "Unpublishing..." : "Unpublish course"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete block confirmation */}
-      <AlertDialog open={!!blockPendingDelete} onOpenChange={o => { if (!o) setBlockPendingDelete(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Block</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to remove "{blockPendingDelete?.title ?? "this block"}"? This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteBlock}
-              disabled={deletingBlock}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deletingBlock ? "Removing..." : "Remove"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Discard unsaved changes -- Add Block / Generate Video dialogs (see discardConfirm) */}
-      <AlertDialog open={discardConfirm !== null} onOpenChange={o => { if (!o) setDiscardConfirm(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {discardConfirm === "block"
-                ? "This content block hasn't been saved yet. Closing now will discard what you've entered."
-                : "This video script hasn't been saved yet. Closing now will discard what you've entered."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDiscard}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Discard
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DiscardConfirmAlertDialog
+        discardConfirm={discardConfirm}
+        onClose={() => setDiscardConfirm(null)}
+        onConfirmDiscard={handleConfirmDiscard}
+      />
     </div>
   );
 }
