@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `991874d` (2026-08-02) — **pilot program removed** (Pilot Cohort Console + controlled-pilot evidence gate deleted; the four previously cohort-gated release flags are now `global`, non-expiring, for every organization, closing SG-1); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
+**Last verified against main:** `fab343a` (2026-08-02) — **pilot program removed** (Pilot Cohort Console + controlled-pilot evidence gate deleted; the four previously cohort-gated release flags are now `global`, non-expiring, for every organization; self-service signup now initializes `organization_settings` with notifications on; `/admin/release-flags` replaces the console for flags/kill switches only, closing SG-1); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -89,9 +89,16 @@ Closed this pass: **SG-1 pilot-cohort notification gate removed; SG-2 liability 
 by counsel; PA personnel templates seeded.** SG-1 was closed by deleting the pilot program
 outright rather than by enrolling a pilot org: `20260802030000_remove_pilot_program.sql`
 set `notifications.expanded_delivery_types` and `notifications.critical_multichannel` (plus
-`screening.on_hire_exclusion` and `learning.video_watch_gate`) to `global` for every
-organization, so a real signup now gets email/SMS delivery the same way a demo org always
-did — no console, no manual enrollment, no separate gate.
+`screening.on_hire_exclusion` and `learning.video_watch_gate`) to `global`, non-expiring, for
+every organization — no console, no manual enrollment, no separate gate. Review caught a
+second, independent gate behind it: `record_organization_signup` never created an
+`organization_settings` row, and that table defaults both notification switches to `false`,
+so a real signup still received nothing even with the flags global.
+`20260802040000_signup_creates_organization_settings.sql` closes that too, so a real signup
+now gets email/SMS delivery the same way a demo org always did. Deleting the Pilot Cohort
+Console also removed the only in-app UI for `set_release_flag`/`set_feature_kill_switch`;
+`/admin/release-flags` (`ReleaseFlags.tsx`) replaces it with a minimal, non-pilot surface —
+flags and kill switches only, no cohort enrollment.
 Option 2 is now counsel-cleared in [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md),
 and `20260802010000_pa_regulatory_rule_pack_templates.sql` seeded
 `pa.pch.2600.65.personnel` plus `pa.alf.2800.65.personnel`. SG-2 remains open as an

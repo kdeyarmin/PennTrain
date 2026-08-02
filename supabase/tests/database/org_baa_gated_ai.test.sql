@@ -1,5 +1,5 @@
 begin;
-select plan(39);
+select plan(40);
 
 -- PT-019: per-organization BAA-gated AI (20260725000000).
 --
@@ -194,6 +194,13 @@ select ok((select baa_accepted_at is not null and ai_features_enabled
   'signup stamps the acceptance time and leaves the AI toggle at its enabled default');
 select is(app_private.org_ai_allowed((select id from public.organizations where slug='pgtap-signup-org')),
   true,'a fresh self-service signup passes the gate from day one');
+select results_eq(
+  $$ select email_notifications_enabled, sms_notifications_enabled
+     from public.organization_settings
+     where organization_id = (select id from public.organizations where slug = 'pgtap-signup-org') $$,
+  $$ values (true, true) $$,
+  'signup creates organization_settings with notifications enabled by default'
+);
 
 select * from finish();
 rollback;
