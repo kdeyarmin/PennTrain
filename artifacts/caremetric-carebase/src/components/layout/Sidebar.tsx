@@ -165,11 +165,11 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
   } else if (role === "org_admin" || role === "facility_manager") {
     // Workflow IA: daily work first (Today only), then People / Training / Credentials /
     // Residents / Safety & survey. Advanced tools + admin collapse by default via section titles
-    // users already pin/collapse. Dashboard is reached from Today, not as a peer of Home.
+    // users already pin/collapse. The scorecard is reached from Today, not as a first-level peer.
     return [
       {
         items: [
-          { href: "/app/today", label: "Home", icon: Activity },
+          { href: "/app/today", label: "Today", icon: Activity },
         ]
       },
       {
@@ -181,7 +181,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/alerts", label: "Resolve risks", icon: ShieldAlert },
           ...(showPchAlrModules
             ? [
-                { href: "/app/inspection-readiness", label: "Survey path", icon: Radar },
+                { href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar },
                 { href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck },
               ]
             : []),
@@ -253,7 +253,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules ? [{ href: "/app/inspections", label: "Inspections & equipment", icon: Flame }] : []),
           ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance", icon: Wrench }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Survey path", icon: Radar }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
@@ -302,7 +302,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
     return [
       {
         items: [
-          { href: "/app/today", label: "Home", icon: Activity },
+          { href: "/app/today", label: "Today", icon: Activity },
         ]
       },
       {
@@ -355,7 +355,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/work", label: "Work queue", icon: ClipboardList },
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
-          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Survey path", icon: Radar }] : []),
+          ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
           ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },

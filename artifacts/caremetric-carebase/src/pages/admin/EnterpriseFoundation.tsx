@@ -465,6 +465,14 @@ function RegulatoryExpansionPanel() {
         <CardDescription>Templates and automated source changes create drafts only. The guarded workflow above remains the only activation path.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Alert>
+          <Scale className="h-4 w-4" />
+          <AlertTitle>No active PA governed rule pack</AlertTitle>
+          <AlertDescription>
+            The Ohio draft below exercises the governed workflow only. It does not cover Pennsylvania, and
+            the owner must choose an SG-2 path before any PA rule-pack engineering starts.
+          </AlertDescription>
+        </Alert>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
           <div><p className="font-medium">Ohio residential care facility personnel training</p><p className="text-xs text-muted-foreground">Ohio Admin. Code 3701-16-06, effective July 12, 2024. Install for legal and operational validation.</p></div>
           <Button onClick={() => void installOhio()} disabled={installing}>{installing ? "Installing draft..." : "Install Ohio draft"}</Button>

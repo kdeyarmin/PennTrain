@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useSurveyEvidencePacket";
 import {
   surveyEvidencePacketManifest,
+  extractSurveyEvidencePacketCitation,
   type SurveyEvidencePacketJob,
 } from "@/lib/surveyEvidencePacket";
 
@@ -109,7 +110,8 @@ export default function SurveyDayPacketSection({
         <p className="text-sm font-medium">Selected evidence for this survey packet</p>
         <p className="text-xs text-muted-foreground">
           Add binder export or notes, assemble a selection manifest, then package a downloadable zip.
-          Issue a time-limited surveyor guest link for that package only.
+          Labels with a citation prefix (for example 2800.64) sort first by regulation number, then by
+          manual order and time added. Issue a time-limited surveyor guest link for that package only.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -135,7 +137,7 @@ export default function SurveyDayPacketSection({
           </Button>
           <Input
             className="max-w-xs"
-            placeholder="Optional note label"
+            placeholder="Optional note label (prefix 2800.64 to pin order)"
             value={packetNote}
             onChange={(e) => setPacketNote(e.target.value)}
           />
@@ -255,27 +257,30 @@ export default function SurveyDayPacketSection({
           </div>
         )}
         <ul className="space-y-1 text-sm">
-          {(packetItems.data ?? []).map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
-              <span>
-                <span className="text-muted-foreground">{item.source_type}</span>
-                {" · "}
-                {item.label}
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={removePacketItem.isPending}
-                onClick={() => {
-                  void removePacketItem.mutateAsync(item.id).catch((e: Error) => {
-                    toast({ title: "Remove failed", description: e.message, variant: "destructive" });
-                  });
-                }}
-              >
-                Remove
-              </Button>
-            </li>
-          ))}
+          {(packetItems.data ?? []).map((item) => {
+            const citation = extractSurveyEvidencePacketCitation(item.label);
+            return (
+              <li key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">{item.source_type}</span>
+                  {citation && <Badge variant="outline" className="text-[11px]">{citation}</Badge>}
+                  <span>{item.label}</span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={removePacketItem.isPending}
+                  onClick={() => {
+                    void removePacketItem.mutateAsync(item.id).catch((e: Error) => {
+                      toast({ title: "Remove failed", description: e.message, variant: "destructive" });
+                    });
+                  }}
+                >
+                  Remove
+                </Button>
+              </li>
+            );
+          })}
         </ul>
         {assembledManifest && (
           <pre className="max-h-40 overflow-auto rounded bg-muted/40 p-2 text-xs">

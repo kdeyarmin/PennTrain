@@ -289,9 +289,9 @@ export default function InspectionReadiness() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Inspection Readiness</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Inspection readiness</h1>
           <p className="text-muted-foreground">
-            A live, per-facility readiness score by DHS citation topic, plus a mock entrance-conference walkthrough.
+            Survey prep for one facility: citation-topic health, a mock entrance-conference walkthrough, and the handoff into Survey Day.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -300,7 +300,7 @@ export default function InspectionReadiness() {
             <SelectContent>{(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
           </Select>
           <Button asChild variant="outline">
-            <Link href={`/app/survey-day?facility=${activeFacilityId}`}><ClipboardCheck className="mr-2 h-4 w-4" />Start Survey Day</Link>
+            <Link href={`/app/survey-day?facility=${activeFacilityId}`}><ClipboardCheck className="mr-2 h-4 w-4" />Open Survey Day</Link>
           </Button>
           <Button onClick={() => void handleRunMockInspection()} disabled={!activeFacilityId || mockInspectionRunning}>
             {mockInspectionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -310,7 +310,7 @@ export default function InspectionReadiness() {
         </div>
       </div>
 
-      <SurfacePurpose purpose="Survey path: clear readiness gaps → binder → documentation room → Survey Day when they arrive. This page owns prep; Survey Day owns the live visit." />
+      <SurfacePurpose purpose="Inspection Readiness owns survey prep: clear readiness gaps → binder → documentation room. Survey Day owns the live entrance conference once the surveyor arrives." />
 
       <SurveyPrepChecklist
         facilityId={activeFacilityId}

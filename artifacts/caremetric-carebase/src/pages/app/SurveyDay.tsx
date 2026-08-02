@@ -117,10 +117,10 @@ export default function SurveyDay() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Survey Day Mode</h1></div>
+          <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Survey Day</h1></div>
           <p className="max-w-3xl text-muted-foreground">
-            One focused workspace for when a licensing representative arrives. It composes your existing
-            entrance-conference checklist, compliance binder, staff readiness, and documentation room.
+            The live entrance-conference workspace for when a licensing representative arrives. It pins your
+            checklist, compliance binder, staff readiness, and documentation room in one place.
           </p>
           <SurfacePurpose purpose="Survey Day is the live workspace when a surveyor is on site. Prep is the one survey path: readiness → binder → documentation room → start here." />
         </div>
@@ -135,7 +135,7 @@ export default function SurveyDay() {
 
       {featureBlocked ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">
-          Survey Day Mode isn't enabled for your organization yet. Contact CareMetric to join the pilot.
+          Survey Day isn't enabled for your organization yet. Contact CareMetric to join the pilot.
         </CardContent></Card>
       ) : !activeFacilityId ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">Select a facility to begin.</CardContent></Card>

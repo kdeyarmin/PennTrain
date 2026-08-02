@@ -16,12 +16,12 @@ const ROLE_QUICK_START_ITEMS: Partial<Record<Role, RoleQuickStartItem[]>> = {
   org_admin: [
     { title: "Start with daily risk", description: "Open Today to clear urgent alerts, due work, handoffs, and coverage gaps.", href: "/app/today", cta: "Open Today" },
     { title: "Report something that happened", description: "Use one chooser for incidents, complaints, or confidential safety reports.", href: "/app/report-event", cta: "Report an event" },
-    { title: "Walk the survey path", description: "One prep path: readiness → binder → documentation room → Survey Day.", href: "/app/inspection-readiness", cta: "Open survey path" },
+    { title: "Prepare for survey day", description: "Use Inspection Readiness for survey prep: readiness → binder → documentation room → Survey Day.", href: "/app/inspection-readiness", cta: "Open inspection readiness" },
   ],
   facility_manager: [
     { title: "Clear shift-critical work", description: "Use Today to review urgent cards first, then due work and human review queues.", href: "/app/today", cta: "Open Today" },
     { title: "Fix staffing and training gaps", description: "Review employees, schedules, training matrix, and missing documents for assigned facilities.", href: "/app/employees", cta: "Review staff" },
-    { title: "Walk the survey path", description: "Prep readiness, binder, and evidence — then start Survey Day when they arrive.", href: "/app/inspection-readiness", cta: "Open survey path" },
+    { title: "Prepare for survey day", description: "Prep readiness, binder, and documentation room — then start Survey Day when they arrive.", href: "/app/inspection-readiness", cta: "Open inspection readiness" },
   ],
   trainer: [
     { title: "Check today's classes", description: "Confirm rosters, QR/kiosk check-in, and completion readiness before the session starts.", href: "/trainer", cta: "Open trainer dashboard" },

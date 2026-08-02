@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `261898f` (2026-08-01) — B1 complete (accept-time bridge bundling + learning-packages storage policies); residual SCORM confidence is B3 (real vendor packages) + A1 production verify; D3 complete via #413 (all 8 durable domains)
+**Last verified against main:** `5daa9a3` (2026-08-02) — B1 complete (accept-time bridge bundling + learning-packages storage policies); residual SCORM confidence is B3 (real vendor packages) + A1 production verify; D3 complete via #413 (all 8 durable domains); E1 copy/nav clarity shipped; C5 citation-aware packet ordering is in progress
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -122,6 +122,11 @@ on your own authority. Three honest ways to close this row:
 Option 3 costs nothing and is reversible; 1 and 2 are not. Decide before authoring, not
 after.
 
+**This pass ships the framing, not the decision.** BACKLOG and governed-surface copy now say
+plainly that there is no active PA governed rule pack today, the Ohio template does not cover
+Pennsylvania, and the owner still must explicitly choose option 1, 2, or 3 above before any
+`pa.*` pack engineering starts. SG-2 remains open until that owner decision is made.
+
 ---
 
 Closed this pass: **Railway deployed rebuilds whose tests never ran.** `railway.json`
@@ -152,6 +157,16 @@ and updates `content_sha256`. Client routes through the edge function so injecti
 skipped. Org-scoped storage policies on the `learning-packages` bucket ship in
 `20260731230000_residual_product_gaps_wave2.sql`. Residual market confidence is B3 (real
 vendor packages); production apply of migrations remains A1 ops.
+
+Closed this pass: **SG-2 decision framing (not the SG-2 decision).** BACKLOG now records that
+decision framing shipped, and governed copy in Regulatory Copilot / Enterprise Foundation says
+plainly that there is **no active PA governed rule pack** today and the Ohio template only
+proves the workflow. The owner still must explicitly choose option 1, 2, or 3 before any PA
+pack engineering starts.
+
+Closed this pass: **E1 Home IA density.** Primary navigation and page copy now separate the three
+roles cleanly: **Today** = action / due work, **Compliance scorecard** = health / trends, and
+**Inspection Readiness / Survey Day** = survey prep / live entrance conference.
 
 Closed this pass: **B4 SCORM/xAPI completion → training record / hour bucket (trigger-based).**
 AFTER INSERT on learning_runtime_commits calls internal bridge_learning_runtime_completion
@@ -194,7 +209,7 @@ dry-run practice. Column order matches `importTemplate()`.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Home IA density (too many "homes")
+5. Entrance-conference packet order by regulation number (C5 still partial)
 6. PA rule pack for the copilot — **SG-2**
 7. Wave 3/4 verticals: policy campaigns, fire-drill DHS form, med-admin board, offline drafts
 
@@ -239,7 +254,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | C2 | Effectiveness gate before `verified` | M | done | `20260801120000_poc_verify_requires_closed_actions.sql` added the missing half: verify now also counts corrective actions not in (`completed`, `cancelled`) and refuses while any remain, including actions reopened after `corrected` |
 | C3 | Auto work_items from open corrective actions | S | done | #355. `submit_plan_of_correction` inserts deduplicated `violation_corrective_action` work items on the PA facility day |
 | C4 | POC due-date escalation into manager digest / SMS | S | blocked | Blocked on SG-1 — no delivery rail for real orgs |
-| C5 | Entrance-conference ordered packet by reg number | M | open | Survey Day companion |
+| C5 | Entrance-conference ordered packet by reg number | M | in_progress | Survey Day packet list + assembled manifest now sort citation-prefixed labels by regulation key, then `sort_order`, then `created_at`, and the packet panel tells operators to prefix labels like `2800.64` when they want entrance-conference order. Still missing first-class structured citation fields / non-note sources. |
 
 ### Tier D — Delivery & imports
 
@@ -255,7 +270,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 
 | ID | Ticket | Size | Status | Notes |
 | --- | --- | --- | --- | --- |
-| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | open | Reduce "which dashboard?" |
+| E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | done | Sidebar + primary surface titles/subtitles now read as Today = action, Compliance scorecard = health/trends, Inspection Readiness / Survey Day = survey prep / live entrance conference. |
 | E2 | Med-admin "who can pass meds today" board on Schedule | M | open | MedAdminRoster × schedule join |
 | E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | open | #5 PCH / #3 ALF citation |
 | E4 | Policy campaign center (version pin, targets, knowledge check) | L | open | MedTrainer deal-breaker |
@@ -306,10 +321,13 @@ and is now closed.)
 **3. Decide SG-2 — before building anything for it.**
 It needs a decision, not engineering time, and the decision is cheap while the work is
 not. Picking option 3 above costs an afternoon of copy changes; discovering you should
-have picked it *after* authoring a pack costs the pack.
+have picked it *after* authoring a pack costs the pack. **Decision framing shipped this pass;
+the owner decision still has not.**
 
 **4. Product depth.** ~~B4~~ done, then C5.
-Only once 1–3 are settled.
+The first durable slice is in: Survey Day packet list/manifest now honor citation-prefixed
+labels by regulation number, but broader structured citation capture still needs a deliberate
+follow-up if the owner wants more than this minimal path. Only once 1–3 are settled.
 
 **Deliberately not in this list:** A5 (BAAs) and SG-2 option 2, because both depend on
 someone outside the repo. Start them early precisely because they are the only two things

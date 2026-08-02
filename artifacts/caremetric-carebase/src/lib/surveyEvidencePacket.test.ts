@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { surveyEvidencePacketManifest, type SurveyEvidencePacketJob } from "./surveyEvidencePacket";
+import {
+  extractSurveyEvidencePacketCitation,
+  surveyEvidencePacketManifest,
+  type SurveyEvidencePacketJob,
+} from "./surveyEvidencePacket";
 
 const baseJob: SurveyEvidencePacketJob = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -57,5 +61,17 @@ describe("surveyEvidencePacketManifest", () => {
     expect(manifest.errorDetail).toBe("render_timeout: Worker timed out");
     expect(manifest.checksumLabel).toBe("Not recorded");
     expect(manifest.sizeLabel).toBe("Not recorded");
+  });
+});
+
+describe("extractSurveyEvidencePacketCitation", () => {
+  it("returns the first regulation-style citation embedded in the label", () => {
+    expect(extractSurveyEvidencePacketCitation("2800.64(a)(2) Fire drill log")).toBe("2800.64(a)(2)");
+    expect(extractSurveyEvidencePacketCitation("Citation 2600.227 Resident support plan")).toBe("2600.227");
+  });
+
+  it("ignores labels that do not include a regulation-style citation", () => {
+    expect(extractSurveyEvidencePacketCitation("3-day emergency supply note")).toBeNull();
+    expect(extractSurveyEvidencePacketCitation("Pinned compliance binder")).toBeNull();
   });
 });

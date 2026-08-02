@@ -36,6 +36,13 @@ export interface SurveyEvidencePacketManifest {
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+const PACKET_CITATION_PATTERN = /([0-9]+(?:\.[0-9A-Za-z]+)+(?:\([^)]+\))*)/;
+
+export function extractSurveyEvidencePacketCitation(label: string): string | null {
+  const match = label.match(PACKET_CITATION_PATTERN);
+  return match?.[1] ?? null;
+}
+
 function formatBytes(bytes: number | null): string {
   if (bytes == null) return "Not recorded";
   if (bytes < 0) return "Not recorded";
