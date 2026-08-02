@@ -66,8 +66,8 @@ export function SurveyPrepChecklist({
 
   return (
     <JobChecklist
-      title="Survey path"
-      description="One path for survey week: readiness → binder → evidence → Survey Day. Advanced tools stay under Advanced in the nav."
+      title="Survey readiness path"
+      description="One path for survey week: inspection readiness → binder → documentation room → Survey Day. Advanced tools stay under Advanced in the nav."
       icon={ClipboardCheck}
       steps={steps}
     />
