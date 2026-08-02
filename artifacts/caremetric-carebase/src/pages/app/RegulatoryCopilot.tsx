@@ -197,7 +197,7 @@ export default function RegulatoryCopilot() {
       <Alert>
         <LockKeyhole className="h-4 w-4" />
         <AlertTitle>Drafting aid only — human confirmation remains mandatory</AlertTitle>
-        <AlertDescription>No active PA governed rule pack is installed (SG-2 option 3). The Ohio template demonstrates mechanism only and does not cover Pennsylvania. The copilot cannot close findings, approve plans, change resident records, decide incident reportability, invent citations, use superseded rules as current, or alter staffing eligibility.</AlertDescription>
+        <AlertDescription>No active PA governed rule pack is installed. PA personnel templates are counsel-cleared and installable — Install and activate a PA PCH or PA ALF pack to enable governed PA rule coverage. The Ohio template demonstrates mechanism only and does not cover Pennsylvania. The copilot cannot close findings, approve plans, change resident records, decide incident reportability, invent citations, use superseded rules as current, or alter staffing eligibility.</AlertDescription>
       </Alert>
 
       <Tabs defaultValue="ask">
