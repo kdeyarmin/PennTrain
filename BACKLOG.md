@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `c1bcbb9` (2026-08-02) — F1 split the three >40KB page files (done); D4 CSV column-mapping UI (done); E3 fire drill monthly tracker PDF (done); E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
+**Last verified against main:** `06f6e02` (2026-08-02) — F1 split the three >40KB page files (done); D4 CSV column-mapping UI (done); E3 fire drill monthly tracker PDF (done); E2 med-admin board joined onto Schedule (done); F3 root README replaced with product + agent runbook (done); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix); **E5 Tier 1 (offline service documentation draft/sync/conflict-rules for floor-queue tasks) shipped** — broader offline scope stays open
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
@@ -210,6 +210,7 @@ dry-run practice. Column order matches `importTemplate()`.
 - SCORM/xAPI runtime completion bridges to assignment + training records / hour buckets (B4)
 - SG-2 counsel-cleared install path exists for PA personnel templates; activation still pending — [SG2_DECISION.md](docs/ops/SG2_DECISION.md)
 - Survey evidence packet first-class `citation_ref` + regulation-ordered list/manifest (C5)
+- Offline documentation for one already-queued floor task when a device goes offline, Tier 1 (E5) — encrypted IndexedDB draft store, sync with block-and-flag conflict handling, proactive wipe on identity change; broader offline scope remains open
 
 ### Still open (highest risk first)
 
@@ -217,7 +218,7 @@ dry-run practice. Column order matches `importTemplate()`.
 2. Stripe Prices mapped and internal checkout smoke
 3. Notification rail proven on a real org — **SG-1**
 4. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-5. Wave 3/4 verticals: policy campaigns, offline drafts
+5. Wave 3/4 verticals: policy campaigns (E4); offline drafts beyond E5 Tier 1's single floor-queue-task scope
 
 ---
 
@@ -280,7 +281,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | E2 | Med-admin "who can pass meds today" board on Schedule | M | done | `useMedAdminAuthorization` shared hook; per-employee badge + no-one-authorized gap banner on `ScheduleDetail.tsx` |
 | E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | done | `generate-fire-drill-tracker-pdf` + `InspectionItems.tsx` action; #5 PCH / #3 ALF citation |
 | E4 | Policy campaign center (version pin, targets, knowledge check) | L | open | MedTrainer deal-breaker |
-| E5 | Offline service documentation drafts (IndexedDB) + conflict rules | L | open | Floor staff |
+| E5 | Offline service documentation drafts (IndexedDB) + conflict rules | L | in_progress | Tier 1 (MVP) done: a direct-care employee can document one already-queued floor task while offline and have it sync with block-and-flag conflict handling — new `offlineServiceDraftSafety.ts` (closed-interface draft shape, runtime value validation), `offlineServiceDraftCache.ts` (own encrypted IndexedDB store, separate from `offlineLearning.ts`), `useOfflineServiceDrafts.ts`, `UnsyncedDraftsPanel.tsx` on `Floor.tsx`; server side `sync_offline_service_task_draft` classifies applied/duplicate/conflict/stale/rejected/wipe_required against `record_service_task_response`, `offline_service_draft_receipts` append-only. Proactive wipe wired in `auth.tsx` on sign-out and identity change. Deliberately does not snapshot the full resident record or other residents' data. Full L scope (broader offline surfaces beyond one floor-queue task) remains open. |
 
 ### Tier F — Engineering hygiene
 
