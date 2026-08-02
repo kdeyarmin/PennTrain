@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(43);
 
 -- E5 Tier 1: offline service documentation drafts + conflict rules
 -- (20260802030000_offline_service_documentation_drafts.sql).
@@ -362,6 +362,151 @@ select throws_ok(
     where id = (select id from public.offline_service_draft_receipts limit 1)$$,
   '55000', null,
   'offline service draft receipts cannot be mutated after the fact'
+);
+
+-- Codex review fixes on PR #431 -----------------------------------------------------------------------------
+-- 1. Idempotent replay of a conflict/stale/rejected/wipe_required receipt must return that same outcome,
+--    not a blanket 'duplicate' (which the client treats as "recorded, delete the local draft").
+-- 2. performed_at on the official task reflects the client-supplied occurrence time on a successful sync,
+--    not the moment the device happened to reconnect.
+
+-- 1a. Replay of a conflict receipt (device-a, task2, sync-key-3 -- already revoked at this point in the
+-- file, proving the replay branch is reached and answered before the device-status check runs at all).
+select pg_temp.act_as('65000000-0000-4000-8000-000000000101');
+select is(
+  (select public.sync_offline_service_task_draft(
+    (select id from t_ids where key = 'device-a'), '65000000-0000-4000-8000-000000000502',
+    'sync-key-3', now(), 'completed_as_planned', '{}'::jsonb
+  )->>'outcome'),
+  'conflict',
+  'replaying a conflict receipt returns conflict again, not duplicate'
+);
+select is(
+  (select count(*)::int from public.offline_service_draft_receipts
+   where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-3'),
+  1,
+  'the conflict replay does not insert a second receipt row'
+);
+
+-- 1b. Replay of a stale receipt (task3, sync-key-4).
+select is(
+  (select public.sync_offline_service_task_draft(
+    (select id from t_ids where key = 'device-a'), '65000000-0000-4000-8000-000000000503',
+    'sync-key-4', now(), 'completed_as_planned', '{}'::jsonb
+  )->>'outcome'),
+  'stale',
+  'replaying a stale receipt returns stale again, not duplicate'
+);
+select is(
+  (select count(*)::int from public.offline_service_draft_receipts
+   where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-4'),
+  1,
+  'the stale replay does not insert a second receipt row'
+);
+
+-- 1c. Replay of a rejected receipt (task4, sync-key-5).
+select is(
+  (select public.sync_offline_service_task_draft(
+    (select id from t_ids where key = 'device-a'), '65000000-0000-4000-8000-000000000504',
+    'sync-key-5', now(), 'resident_refused', '{}'::jsonb
+  )->>'outcome'),
+  'rejected',
+  'replaying a rejected receipt returns rejected again, not duplicate'
+);
+select is(
+  (select count(*)::int from public.offline_service_draft_receipts
+   where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-5'),
+  1,
+  'the rejected replay does not insert a second receipt row'
+);
+
+-- 1d. Replay of a wipe_required receipt (task5, sync-key-6) -- the outcome that would be most harmful to
+-- mislabel duplicate, since the client would delete just the one local draft instead of wiping the whole
+-- store of an untrusted device.
+select is(
+  (select public.sync_offline_service_task_draft(
+    (select id from t_ids where key = 'device-a'), '65000000-0000-4000-8000-000000000505',
+    'sync-key-6', now(), 'completed_as_planned', '{}'::jsonb
+  )->>'outcome'),
+  'wipe_required',
+  'replaying a wipe_required receipt still returns wipe_required, not duplicate'
+);
+select is(
+  (select count(*)::int from public.offline_service_draft_receipts
+   where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-6'),
+  1,
+  'the wipe_required replay does not insert a second receipt row'
+);
+
+-- 2. performed_at reflects the client-supplied occurrence time, not sync time -------------------------------
+-- Back to the unrestricted fixture-setup role first -- the preceding replay block left the session
+-- impersonating worker A ('authenticated'), which (correctly) has no direct INSERT grant on
+-- resident_service_task_instances; only record_service_task_response and the generator job write it.
+reset role;
+insert into public.resident_service_task_instances(
+  id, organization_id, facility_id, resident_id, requirement_id, source_assessment_form_id,
+  source_plan_version, service_name, responsible_role, scheduled_start, scheduled_end, status
+) values
+  ('65000000-0000-4000-8000-000000000507', '65000000-0000-4000-8000-000000000001',
+   '65000000-0000-4000-8000-000000000011', '65000000-0000-4000-8000-000000000201',
+   '65000000-0000-4000-8000-000000000401', '65000000-0000-4000-8000-000000000301', 1,
+   'Bathing assistance', 'employee', now() + interval '11 hours', now() + interval '12 hours', 'scheduled'),
+  ('65000000-0000-4000-8000-000000000508', '65000000-0000-4000-8000-000000000001',
+   '65000000-0000-4000-8000-000000000011', '65000000-0000-4000-8000-000000000201',
+   '65000000-0000-4000-8000-000000000401', '65000000-0000-4000-8000-000000000301', 1,
+   'Bathing assistance', 'employee', now() + interval '13 hours', now() + interval '14 hours', 'scheduled'),
+  ('65000000-0000-4000-8000-000000000509', '65000000-0000-4000-8000-000000000001',
+   '65000000-0000-4000-8000-000000000011', '65000000-0000-4000-8000-000000000201',
+   '65000000-0000-4000-8000-000000000401', '65000000-0000-4000-8000-000000000301', 1,
+   'Bathing assistance', 'employee', now() + interval '15 hours', now() + interval '16 hours', 'scheduled');
+
+-- device-b (worker B) is still active throughout -- device-a was revoked above.
+select pg_temp.act_as('65000000-0000-4000-8000-000000000102');
+
+-- 2a. A plausible past occurrence time (device queued the draft 2 hours ago) is trusted verbatim.
+select is(
+  (select public.sync_offline_service_task_draft(
+    (select id from t_ids where key = 'device-b'), '65000000-0000-4000-8000-000000000507',
+    'sync-key-b2', now() - interval '2 hours', 'completed_as_planned', '{}'::jsonb
+  )->>'outcome'),
+  'applied',
+  'a delayed offline sync with a plausible client occurrence time still applies cleanly'
+);
+select is(
+  (select performed_at from public.resident_service_task_instances where id = '65000000-0000-4000-8000-000000000507'),
+  now() - interval '2 hours',
+  'performed_at reflects the client-supplied occurrence time, not the sync (now()) time'
+);
+
+-- 2b. An implausible future occurrence time does not block the sync, but is not trusted for performed_at.
+select is(
+  (select public.sync_offline_service_task_draft(
+    (select id from t_ids where key = 'device-b'), '65000000-0000-4000-8000-000000000508',
+    'sync-key-b3', now() + interval '10 days', 'completed_as_planned', '{}'::jsonb
+  )->>'outcome'),
+  'applied',
+  'a client occurrence time far in the future does not block the sync'
+);
+select is(
+  (select performed_at from public.resident_service_task_instances where id = '65000000-0000-4000-8000-000000000508'),
+  now(),
+  'an implausible future occurrence time is not trusted; performed_at falls back to sync time'
+);
+
+-- 2c. An implausibly old occurrence time does not block the sync, but is not trusted for performed_at
+-- either -- same reasoning, the other direction.
+select is(
+  (select public.sync_offline_service_task_draft(
+    (select id from t_ids where key = 'device-b'), '65000000-0000-4000-8000-000000000509',
+    'sync-key-b4', now() - interval '400 days', 'completed_as_planned', '{}'::jsonb
+  )->>'outcome'),
+  'applied',
+  'a client occurrence time far in the past does not block the sync'
+);
+select is(
+  (select performed_at from public.resident_service_task_instances where id = '65000000-0000-4000-8000-000000000509'),
+  now(),
+  'an implausibly old occurrence time is not trusted; performed_at falls back to sync time'
 );
 
 select * from finish();

@@ -248,6 +248,12 @@ declare
   v_task_recorded_by uuid;
   v_outcome text;
   v_error_message text;
+  -- The device's own occurrence time, once validated as plausible -- see below -- or null when it is
+  -- not to be trusted. Computed once, ahead of the record_service_task_response call, so both the
+  -- 'applied' branch (uses it) and the receipt insert (always stores the raw p_client_occurred_at
+  -- regardless, per the header note on why the receipt table does not validate its own columns) stay
+  -- in sync with the same judgment of the same input.
+  v_performed_at timestamptz;
 begin
   -- Device-ownership boundary first, and as a hard failure rather than a soft outcome: a device_id
   -- that does not exist, or exists but belongs to a different profile, is not "my device that got
@@ -262,15 +268,41 @@ begin
   -- Idempotency replay is checked before anything that would insert a second row for the same
   -- (device_id, idempotency_key) pair -- including the wipe_required branch below -- so retrying a
   -- sync whose receipt already exists can never collide with the unique constraint.
+  --
+  -- The replay must return what actually happened the first time, not assume it succeeded: if the
+  -- server committed a conflict/stale/rejected/wipe_required receipt but the response was lost before
+  -- the client received it, the client's retry has to see that same non-applied outcome again so the
+  -- draft stays block-and-flagged for a human. Returning a blanket 'duplicate' here would tell the
+  -- client the note was recorded and it would delete the only local copy of one that never actually
+  -- applied. 'duplicate' is only correct when the first attempt really did succeed (an 'applied'
+  -- receipt) or was itself already classified a duplicate.
   select * into v_existing from public.offline_service_draft_receipts
   where device_id = p_device_id and idempotency_key = p_idempotency_key;
   if found then
     return jsonb_build_object(
       'receiptId', v_existing.id,
-      'outcome', 'duplicate',
+      'outcome', case
+        when v_existing.outcome in ('applied', 'duplicate') then 'duplicate'
+        else v_existing.outcome
+      end,
       'errorMessage', v_existing.error_message
     );
   end if;
+
+  -- A client-supplied timestamp is never trusted blindly. A few minutes of future drift is normal
+  -- clock skew between an offline device and the server; anything beyond that is more likely a wrong
+  -- device clock than a real occurrence time still to come. On the other end, this store's own
+  -- unsynced-draft purge ceilings (offlineServiceDraftCache.ts UNSYNCED_PURGE_AFTER_MS /
+  -- NEEDS_REVIEW_PURGE_AFTER_MS) mean a legitimate draft is purged from the device well within 7 days,
+  -- so a value far older than that is far more likely bad input (a stuck clock, a bug, an adversarial
+  -- call) than a genuinely ancient offline queue. An implausible value simply is not trusted for
+  -- performed_at below -- it never blocks the sync itself, since the response is still real care.
+  v_performed_at := case
+    when p_client_occurred_at is not null
+      and p_client_occurred_at <= now() + interval '5 minutes'
+      and p_client_occurred_at >= now() - interval '30 days'
+    then p_client_occurred_at
+  end;
 
   if v_device.status <> 'active' or v_device.wipe_required_at is not null then
     -- This IS my device, but its offline access was turned off since the draft was queued. No
@@ -280,6 +312,21 @@ begin
   else
     begin
       perform public.record_service_task_response(p_task_id, p_response, coalesce(p_exception_details, '{}'::jsonb), null);
+      -- record_service_task_response always stamps performed_at with its own now() -- correct for the
+      -- online/Floor path it primarily serves, wrong here: a draft synced hours or days after
+      -- reconnecting would otherwise attribute care to the reconnect moment instead of when it was
+      -- actually given. resident timelines, recent-exception analytics, and service history all read
+      -- this column directly (resident_360_timeline.sql, the exceptionsLast7Days lookback in the same
+      -- migration, support_plan_service_task_automation.sql's rule lookback, ...), so getting the day
+      -- or shift wrong here is not cosmetic. Overwrite it with the device's own occurrence time --
+      -- already validated as a plausible timestamp above, into v_performed_at -- rather than
+      -- reimplementing any part of record_service_task_response's own row-lock/status-check path (see
+      -- header note).
+      if v_performed_at is not null then
+        update public.resident_service_task_instances
+        set performed_at = v_performed_at
+        where id = p_task_id;
+      end if;
       v_outcome := 'applied';
       v_error_message := null;
     exception
@@ -338,7 +385,13 @@ comment on function public.sync_offline_service_task_draft(uuid, uuid, text, tim
   'Syncs one offline service-documentation draft. Calls record_service_task_response directly and '
   'classifies its outcome -- does not reimplement its row-lock/status-check invariant. Block-and-flag: '
   'conflict/stale/rejected leave the task untouched and are returned for the client to keep locally '
-  'until a human dismisses them, never merged or retried automatically.';
+  'until a human dismisses them, never merged or retried automatically. An idempotency-key replay '
+  'returns the outcome the first attempt actually produced (conflict/stale/rejected/wipe_required '
+  'included), not a blanket duplicate -- only an originally-applied or originally-duplicate attempt '
+  'replays as duplicate. A successfully applied response has performed_at set to the device''s own '
+  '(validated-plausible) occurrence time instead of the sync-time now() record_service_task_response '
+  'stamps by default, so resident timelines and exception analytics attribute care to when it was '
+  'actually given.';
 
 revoke all on function public.sync_offline_service_task_draft(uuid, uuid, text, timestamptz, text, jsonb)
   from public, anon, authenticated, service_role;
