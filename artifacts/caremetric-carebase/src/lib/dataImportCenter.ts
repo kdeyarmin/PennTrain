@@ -89,6 +89,40 @@ export function importTemplate(domain: ImportDomain): string {
   return `${columns[domain].join(",")}\n`;
 }
 
+/** The fixed canonical column order for a domain -- what a matching CSV header row must contain. */
+export function importColumns(domain: ImportDomain): readonly string[] {
+  return columns[domain];
+}
+
+/**
+ * Columns each domain's active processor rejects the whole import for lacking (mirrors each
+ * bulk-import-* edge function's own REQUIRED_COLUMNS check -- keep both sides in sync if either
+ * changes). This list only drives client-side UX (disabling "continue" in the column-mapping
+ * step until required fields are mapped); the processor remains the actual authority and would
+ * still reject a mis-mapped upload with the same "CSV is missing required columns" error.
+ *
+ * employees lists facility_name (not the alternate raw-UUID facility_id path) because
+ * facility_name is the only facility column ever shown in the documented canonical template.
+ */
+const REQUIRED_COLUMNS: Record<ImportDomain, readonly string[]> = {
+  employees: ["first_name", "last_name", "job_title", "facility_name"],
+  training_records: ["employee_number", "course_code", "completion_date"],
+  credentials: ["employee_number", "credential_type"],
+  residents: ["first_name", "last_name", "facility"],
+  resident_contacts: ["resident_external_id", "name"],
+  rooms: ["facility", "room_number"],
+  assessments: ["resident_external_id", "assessment_type"],
+  incidents: ["facility", "occurred_at", "incident_type", "severity", "summary"],
+};
+
+export function isRequiredImportColumn(domain: ImportDomain, column: string): boolean {
+  return REQUIRED_COLUMNS[domain].includes(column);
+}
+
+export function requiredImportColumns(domain: ImportDomain): readonly string[] {
+  return REQUIRED_COLUMNS[domain];
+}
+
 export function downloadCsv(filename: string, csv: string): void {
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const anchor = document.createElement("a");
