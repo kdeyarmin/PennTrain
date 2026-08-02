@@ -120,6 +120,99 @@ export function useAssignPolicyAttestationToEmployee() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Knowledge checks (BACKLOG.md E4).
+//
+// Two deliberately separate read paths, because they are for two different
+// people. Administrators authoring a campaign read policy_campaign_questions
+// directly (RLS lets org_admin/facility_manager see the whole row, answer key
+// included). Employees never touch that table -- they go through
+// get_policy_knowledge_check, whose return type has no correct_choice_index at
+// all, so the answer key cannot reach a learner's browser even by mistake.
+// ---------------------------------------------------------------------------
+
+export type PolicyCampaignQuestion = Tables<"policy_campaign_questions">;
+export type PolicyCampaignQuestionInsert = TablesInsert<"policy_campaign_questions">;
+
+/** Admin-side read: includes the answer key, and is RLS-restricted to campaign authors. */
+export function useListCampaignQuestions(campaignId: string | undefined) {
+  return useQuery({
+    queryKey: ["policy_campaign_questions", campaignId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("policy_campaign_questions")
+        .select("*")
+        .eq("campaign_id", campaignId!)
+        .order("display_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!campaignId,
+  });
+}
+
+export function useCreateCampaignQuestions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (questions: PolicyCampaignQuestionInsert[]) => {
+      if (questions.length === 0) return [];
+      const { data, error } = await supabase.from("policy_campaign_questions").insert(questions).select();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["policy_campaign_questions"] }),
+  });
+}
+
+export interface KnowledgeCheckQuestion {
+  question_id: string;
+  display_order: number;
+  prompt: string;
+  choices: string[];
+}
+
+/** Employee-side read: the same questions, minus the answer key. */
+export function usePolicyKnowledgeCheck(attestationId: string | undefined) {
+  return useQuery({
+    queryKey: ["policy_knowledge_check", attestationId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_policy_knowledge_check", {
+        p_attestation_id: attestationId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as unknown as KnowledgeCheckQuestion[];
+    },
+    enabled: !!attestationId,
+  });
+}
+
+export interface KnowledgeCheckResult {
+  attemptId: string;
+  passed: boolean;
+  correctCount: number;
+  totalCount: number;
+}
+
+// Grading happens entirely in submit_policy_knowledge_check -- this sends the chosen indexes and
+// reports back the score. It deliberately does not learn which individual answers were wrong;
+// repeated attempts would otherwise reconstruct the answer key without reading the policy.
+export function useSubmitPolicyKnowledgeCheck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { attestationId: string; answers: Record<string, number> }) => {
+      const { data, error } = await supabase.rpc("submit_policy_knowledge_check", {
+        p_attestation_id: params.attestationId,
+        p_answers: params.answers,
+      });
+      if (error) throw error;
+      return data as unknown as KnowledgeCheckResult;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["policy_knowledge_check_attempts"] });
+    },
+  });
+}
+
 interface AttestPolicyResponse {
   success?: boolean;
   error?: string;

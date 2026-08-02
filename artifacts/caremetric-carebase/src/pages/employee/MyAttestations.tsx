@@ -5,8 +5,10 @@ import {
   useListPolicyAttestations,
   useListPolicyAttestationCampaigns,
   useAttestPolicy,
+  usePolicyKnowledgeCheck,
   type PolicyAttestation,
 } from "@/hooks/usePolicyAttestations";
+import { PolicyKnowledgeCheck } from "@/components/policies/PolicyKnowledgeCheck";
 import { useListPolicyDocuments, useListPolicyDocumentVersionsForOrg, usePolicyDocumentSignedUrl } from "@/hooks/usePolicyDocuments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +58,15 @@ export default function MyAttestations() {
   const [reviewing, setReviewing] = useState<PolicyAttestation | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [knowledgeCheckPassed, setKnowledgeCheckPassed] = useState(false);
+
+  // Same query key as the PolicyKnowledgeCheck component below, so react-query serves both from one
+  // fetch. Read here only to know *whether* a check applies -- the questions themselves are rendered
+  // by that component.
+  const { data: knowledgeCheckQuestions } = usePolicyKnowledgeCheck(
+    reviewing?.status === "pending" ? reviewing?.id : undefined,
+  );
+  const requiresKnowledgeCheck = (knowledgeCheckQuestions?.length ?? 0) > 0;
 
   const campaignById = useMemo(() => new Map((campaigns ?? []).map((c) => [c.id, c])), [campaigns]);
   const documentById = useMemo(() => new Map((documents ?? []).map((d) => [d.id, d])), [documents]);
@@ -77,6 +88,7 @@ export default function MyAttestations() {
   const openReview = async (a: PolicyAttestation) => {
     setReviewing(a);
     setPdfUrl(null);
+    setKnowledgeCheckPassed(false);
     const version = versionById.get(a.policy_document_version_id);
     if (!version) return;
     setLoadingPdf(true);
@@ -194,12 +206,25 @@ export default function MyAttestations() {
             <p className="text-sm text-muted-foreground">Document unavailable.</p>
           )}
 
+          {reviewing?.status === "pending" && (
+            <PolicyKnowledgeCheck
+              attestationId={reviewing.id}
+              onPassed={() => setKnowledgeCheckPassed(true)}
+            />
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setReviewing(null)}>Cancel</Button>
             {reviewing?.status === "pending" && (
               // The attestation is a legal signature -- never allow sign-off
-              // unless the document actually loaded and could be read.
-              <Button onClick={handleAttest} disabled={attesting || !pdfUrl}>
+              // unless the document actually loaded and could be read, and (when the campaign has
+              // one) the knowledge check has been passed. This disabled state is a courtesy, not
+              // the control: attest-policy refuses the same case server-side, so a caller that
+              // skips this UI entirely still cannot attest without a passing attempt on record.
+              <Button
+                onClick={handleAttest}
+                disabled={attesting || !pdfUrl || (requiresKnowledgeCheck && !knowledgeCheckPassed)}
+              >
                 {attesting ? "Recording..." : "I Have Read and Understood"}
               </Button>
             )}

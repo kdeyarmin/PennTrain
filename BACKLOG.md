@@ -227,7 +227,7 @@ dry-run practice. Column order matches `importTemplate()`.
 
 1. Stripe Prices mapped and internal checkout smoke
 2. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
-3. Wave 3/4 verticals: policy campaigns (E4); offline drafts beyond E5 Tier 1's single floor-queue-task scope
+3. Wave 3/4 verticals: policy campaigns beyond E4's knowledge-check slice (declarative targeting, scheduling, reminders); offline drafts beyond E5 Tier 1's single floor-queue-task scope
 
 ---
 
@@ -287,7 +287,7 @@ Full design: [docs/design/POC_LIFECYCLE.md](docs/design/POC_LIFECYCLE.md)
 | E1 | Home IA: Today = action, scorecard = health, Command Center = survey | S | done | Sidebar + primary surface titles/subtitles now read as Today = action, Compliance scorecard = health/trends, Inspection Readiness / Survey Day = survey prep / live entrance conference. |
 | E2 | Med-admin "who can pass meds today" board on Schedule | M | done | `useMedAdminAuthorization` shared hook; per-employee badge + no-one-authorized gap banner on `ScheduleDetail.tsx` |
 | E3 | Fire drill DHS 9-field form + monthly tracker PDF | M | done | `generate-fire-drill-tracker-pdf` + `InspectionItems.tsx` action; #5 PCH / #3 ALF citation |
-| E4 | Policy campaign center (version pin, targets, knowledge check) | L | open | MedTrainer deal-breaker |
+| E4 | Policy campaign center (version pin, targets, knowledge check) | L | in_progress | MedTrainer deal-breaker. **Two of the three parts already shipped in `20260705151703_policy_attestation_core` and were reachable from `PolicyDocumentDetail.tsx`** — version pin (`policy_attestation_campaigns.policy_document_version_id` is NOT NULL, published versions frozen by `lock_published_policy_version`, every attestation stores the signed `content_hash`) and targets (campaigns fan out to explicitly picked employees at assign time, the training-plan pattern the core migration chose deliberately). **Knowledge check was the genuine gap and is now done**: `policy_campaign_questions` + `policy_knowledge_check_attempts`, server-side grading via `submit_policy_knowledge_check`, questions read through `get_policy_knowledge_check` (answer key absent from its signature, not merely filtered), `attest-policy` refuses to record an attestation for a campaign with questions until a passing attempt exists. Remaining for the full L: declarative role/facility targeting that can be re-evaluated (today's targeting is a point-in-time employee pick), campaign scheduling/recurrence, and reminders — all still open |
 | E5 | Offline service documentation drafts (IndexedDB) + conflict rules | L | in_progress | Tier 1 (MVP) done: a direct-care employee can document one already-queued floor task while offline and have it sync with block-and-flag conflict handling — new `offlineServiceDraftSafety.ts` (closed-interface draft shape, runtime value validation), `offlineServiceDraftCache.ts` (own encrypted IndexedDB store, separate from `offlineLearning.ts`), `useOfflineServiceDrafts.ts`, `UnsyncedDraftsPanel.tsx` on `Floor.tsx`; server side `sync_offline_service_task_draft` classifies applied/duplicate/conflict/stale/rejected/wipe_required against `record_service_task_response`, `offline_service_draft_receipts` append-only. Proactive wipe wired in `auth.tsx` on sign-out and identity change. Deliberately does not snapshot the full resident record or other residents' data. Full L scope (broader offline surfaces beyond one floor-queue task) remains open. |
 
 ### Tier F — Engineering hygiene

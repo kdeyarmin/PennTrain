@@ -9,7 +9,11 @@ import {
 import {
   useListPolicyAttestationCampaigns, useCreatePolicyAttestationCampaign,
   useListPolicyAttestations, useAssignPolicyAttestationToEmployee, type PolicyAttestation,
+  useCreateCampaignQuestions,
 } from "@/hooks/usePolicyAttestations";
+import {
+  CampaignQuestionsEditor, draftQuestionsAreValid, type DraftQuestion,
+} from "@/components/policies/CampaignQuestionsEditor";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { summarizePolicyLifecycle } from "@/lib/policyLifecycle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -262,14 +266,18 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
   const { user } = useAuth();
   const { toast } = useToast();
   const { mutateAsync: createCampaign, isPending } = useCreatePolicyAttestationCampaign();
+  const { mutateAsync: createQuestions } = useCreateCampaignQuestions();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [questions, setQuestions] = useState<DraftQuestion[]>([]);
+
+  const questionsValid = draftQuestionsAreValid(questions);
 
   const handleCreate = async () => {
-    if (!name.trim() || !currentVersionId || !user?.organizationId) return;
+    if (!name.trim() || !currentVersionId || !user?.organizationId || !questionsValid) return;
     try {
-      await createCampaign({
+      const campaign = await createCampaign({
         organization_id: user.organizationId,
         policy_document_id: documentId,
         policy_document_version_id: currentVersionId,
@@ -277,8 +285,30 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
         due_date: dueDate || null,
         created_by: user.id,
       });
-      toast({ title: "Campaign created", description: "Now assign it to employees below." });
-      setName(""); setDueDate(""); setOpen(false);
+      if (questions.length > 0) {
+        // Questions are written after the campaign exists because they hang off its id. A failure
+        // here leaves a read-and-sign campaign rather than a half-built quiz -- surfaced explicitly
+        // below, since silently dropping the knowledge check would be the worst outcome: the
+        // campaign would look complete and gate nothing.
+        await createQuestions(
+          questions.map((question, index) => ({
+            organization_id: user.organizationId!,
+            campaign_id: campaign.id,
+            display_order: index + 1,
+            prompt: question.prompt.trim(),
+            choices: question.choices.map((choice) => choice.trim()).filter((choice) => choice.length > 0),
+            correct_choice_index: question.correctIndex,
+            created_by: user.id,
+          })),
+        );
+      }
+      toast({
+        title: "Campaign created",
+        description: questions.length
+          ? `${questions.length} knowledge-check question${questions.length === 1 ? "" : "s"} added. Now assign it to employees below.`
+          : "Now assign it to employees below.",
+      });
+      setName(""); setDueDate(""); setQuestions([]); setOpen(false);
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't create campaign", description: e instanceof Error ? e.message : String(e) });
     }
@@ -291,7 +321,7 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
           <Plus className="mr-2 h-4 w-4" /> New Campaign
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Attestation Campaign</DialogTitle>
           <DialogDescription>Targets the currently published version. Assign it to employees once created.</DialogDescription>
@@ -305,10 +335,11 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
             <Label htmlFor="campaign-due">Due date (optional)</Label>
             <Input id="campaign-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
+          <CampaignQuestionsEditor questions={questions} onChange={setQuestions} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || isPending}>{isPending ? "Creating..." : "Create"}</Button>
+          <Button onClick={handleCreate} disabled={!name.trim() || !questionsValid || isPending}>{isPending ? "Creating..." : "Create"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
