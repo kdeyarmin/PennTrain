@@ -16,6 +16,7 @@
 update public.release_flags
 set rollout_mode = 'global',
     is_enabled = true,
+    expires_at = null,
     change_reason = 'Pilot program retired; feature fully released to all organizations'
 where feature_key in (
   'notifications.expanded_delivery_types',
