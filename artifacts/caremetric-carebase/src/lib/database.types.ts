@@ -18635,6 +18635,80 @@ export type Database = {
           },
         ]
       }
+      offline_service_draft_receipts: {
+        Row: {
+          client_occurred_at: string
+          device_id: string
+          error_message: string | null
+          exception_details: Json
+          id: string
+          idempotency_key: string
+          organization_id: string
+          outcome: string
+          processed_at: string
+          profile_id: string
+          response: string
+          task_id: string
+        }
+        Insert: {
+          client_occurred_at: string
+          device_id: string
+          error_message?: string | null
+          exception_details?: Json
+          id?: string
+          idempotency_key: string
+          organization_id: string
+          outcome: string
+          processed_at?: string
+          profile_id: string
+          response: string
+          task_id: string
+        }
+        Update: {
+          client_occurred_at?: string
+          device_id?: string
+          error_message?: string | null
+          exception_details?: Json
+          id?: string
+          idempotency_key?: string
+          organization_id?: string
+          outcome?: string
+          processed_at?: string
+          profile_id?: string
+          response?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offline_service_draft_receipts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "offline_device_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_service_draft_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_service_draft_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_service_draft_receipts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "resident_service_task_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offline_sync_receipts: {
         Row: {
           action_type: string
@@ -39996,6 +40070,13 @@ export type Database = {
         }
         Returns: string
       }
+      register_offline_service_device: {
+        Args: {
+          p_device_fingerprint_sha256: string
+          p_device_public_key: string
+        }
+        Returns: string
+      }
       register_outstanding_work_items: { Args: never; Returns: Json }
       register_resident_dme_item: {
         Args: {
@@ -40480,6 +40561,10 @@ export type Database = {
       }
       revoke_my_training_passport: { Args: never; Returns: undefined }
       revoke_offline_learning_device: {
+        Args: { p_device_id: string }
+        Returns: boolean
+      }
+      revoke_offline_service_device: {
         Args: { p_device_id: string }
         Returns: boolean
       }
@@ -41604,6 +41689,17 @@ export type Database = {
           p_device_id: string
           p_idempotency_key: string
           p_payload: Json
+        }
+        Returns: Json
+      }
+      sync_offline_service_task_draft: {
+        Args: {
+          p_client_occurred_at: string
+          p_device_id: string
+          p_exception_details?: Json
+          p_idempotency_key: string
+          p_response: string
+          p_task_id: string
         }
         Returns: Json
       }

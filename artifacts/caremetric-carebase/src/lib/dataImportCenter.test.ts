@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { IMPORT_DOMAIN_DEFINITIONS, IMPORT_DOMAINS, canUploadImportDomain, importProcessorFunction, canRollbackImportDomain, importTemplate, rowsToErrorCsv } from "./dataImportCenter";
+import {
+  IMPORT_DOMAIN_DEFINITIONS,
+  IMPORT_DOMAINS,
+  canUploadImportDomain,
+  importProcessorFunction,
+  canRollbackImportDomain,
+  importColumns,
+  importTemplate,
+  isRequiredImportColumn,
+  requiredImportColumns,
+  rowsToErrorCsv,
+} from "./dataImportCenter";
 
 describe("data import center", () => {
   it("offers a versionable CSV template for every supported domain", () => {
@@ -28,6 +39,25 @@ describe("data import center", () => {
     expect(canRollbackImportDomain("credentials")).toBe(true);
     expect(canRollbackImportDomain("assessments")).toBe(true);
     expect(canRollbackImportDomain("incidents")).toBe(false);
+  });
+
+  it("exposes the canonical column order every domain's importTemplate is built from (D4 mapping UI reads this)", () => {
+    for (const domain of IMPORT_DOMAINS) {
+      expect(importTemplate(domain)).toBe(`${importColumns(domain).join(",")}\n`);
+    }
+  });
+
+  it("marks each domain's required columns as a subset of its canonical columns", () => {
+    for (const domain of IMPORT_DOMAINS) {
+      const required = requiredImportColumns(domain);
+      const canonical = importColumns(domain);
+      for (const column of required) {
+        expect(canonical).toContain(column);
+        expect(isRequiredImportColumn(domain, column)).toBe(true);
+      }
+    }
+    expect(isRequiredImportColumn("employees", "department")).toBe(false);
+    expect(requiredImportColumns("incidents")).toEqual(["facility", "occurred_at", "incident_type", "severity", "summary"]);
   });
 
   it("exports row diagnostics without allowing commas or quotes to corrupt the CSV", () => {

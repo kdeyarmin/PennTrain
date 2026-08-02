@@ -11,6 +11,8 @@ import { useGetFacility } from "@/hooks/useFacilities";
 import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListShiftDefinitions } from "@/hooks/useShiftDefinitions";
 import { useListResidents } from "@/hooks/useResidents";
+import { useListEmployeesByIds } from "@/hooks/useEmployees";
+import { useMedAdminAuthorization } from "@/hooks/useMedAdminAuthorization";
 import {
   useListShiftAssignments, useCreateShiftAssignment, useUpdateShiftAssignment, useDeleteShiftAssignment,
   type ShiftAssignmentWithDetails,
@@ -38,11 +40,11 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AlertTriangle, ArrowLeft, BarChart3, Eraser, Loader2, Plus, Send, Sparkles, Undo2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Eraser, Loader2, Pill, Plus, Send, Sparkles, Undo2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
 import { toDateTimeLocal } from "@/lib/dateUtils";
-import { summarizeScheduleAnalytics, summarizeStaffingRatios } from "@/lib/scheduleAnalytics";
+import { summarizeScheduleAnalytics, summarizeStaffingRatios, summarizeMedAdminCoverage } from "@/lib/scheduleAnalytics";
 import { QueryError } from "@/components/QueryState";
 
 const UNASSIGNED = "__unassigned__";
@@ -82,6 +84,45 @@ function eligibilityBadge(candidate: EligibilityCandidate) {
 
 const NON_OVERRIDABLE_BLOCKS = new Set(["lifecycle_inactive", "confirmed_exclusion", "facility_not_assigned", "schedule_conflict"]);
 
+// Per-employee "can this person currently pass meds" signal for the shift grid -- only rendered for
+// employees flagged as administering medications (see callers below); everyone else has nothing to
+// show here since the badge would otherwise misleadingly read as "not authorized" for staff who were
+// never in scope for med-admin certification at all (e.g. a cook or housekeeper on the same shift).
+// Same green/red "Authorized Today" vocabulary as MedAdminRoster.tsx for a consistent signal across
+// both pages.
+//
+// isLoading/isError mirror the same medAuthLoading/medAuthIsError the coverage banner above already
+// gates on: useMedAdminAuthorization computes authorizedToday: false the instant training records or
+// practicums are still loading (or their query failed), because the pure computation just treats
+// not-yet-arrived data as an empty array -- so without this, a qualified employee flashes the red
+// "not currently authorized" badge on every slow load, and stays on it if the query then fails.
+function MedAdminAuthorizationIndicator({ authorized, isLoading, isError }: { authorized: boolean; isLoading: boolean; isError: boolean }) {
+  if (isLoading) {
+    return (
+      <span className="inline-flex shrink-0 text-muted-foreground" title="Checking medication-administration authorization...">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        <span className="sr-only">Checking medication-administration authorization...</span>
+      </span>
+    );
+  }
+  if (isError) {
+    return (
+      <span className="inline-flex shrink-0 text-muted-foreground" title="Medication-administration authorization status unavailable">
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="sr-only">Medication-administration authorization status unavailable</span>
+      </span>
+    );
+  }
+  const label = authorized ? "Authorized to pass medications today" : "Not currently authorized to pass medications";
+  const Icon = authorized ? CheckCircle2 : XCircle;
+  return (
+    <span className={`inline-flex shrink-0 ${authorized ? "text-success" : "text-destructive"}`} title={label}>
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export default function ScheduleDetail() {
   const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
@@ -96,6 +137,22 @@ export default function ScheduleDetail() {
   const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
   const { data: assignments, isLoading: assignmentsLoading } = useListShiftAssignments({ scheduleId: id });
   const { data: serviceWorkload } = useScheduleServiceWorkload(id);
+
+  // Med-admin "who can pass meds today" signal, joined onto whoever is actually scheduled this
+  // period -- reuses the same hook MedAdminRoster.tsx is built on (see useMedAdminAuthorization.ts)
+  // instead of a second copy of the cert+practicum join logic.
+  const scheduledEmployeeIds = useMemo(
+    () => [...new Set((assignments ?? []).map((a) => a.employee_id))].sort(),
+    [assignments],
+  );
+  const { data: scheduledEmployees, ...scheduledEmployeesQuery } = useListEmployeesByIds(scheduledEmployeeIds);
+  const {
+    byEmployeeId: medAuthByEmployeeId,
+    isLoading: medAuthLoading,
+    isError: medAuthIsError,
+    error: medAuthError,
+    refetch: refetchMedAuth,
+  } = useMedAdminAuthorization(scheduledEmployees ?? []);
 
   const generate = useGenerateScheduleAssignments();
   const clearAutoFill = useClearAutoFilledAssignments();
@@ -178,6 +235,25 @@ export default function ScheduleDetail() {
     targetPpd,
     minimumStaffPerDay,
   }), [assignments, dates, residentsInHouse, targetPpd, minimumStaffPerDay]);
+
+  const medAdminCoverage = useMemo(() => summarizeMedAdminCoverage({
+    assignments: (assignments ?? []).map((a) => ({
+      employee_id: a.employee_id,
+      shift_date: a.shift_date,
+      status: a.status,
+      shift_definition_id: a.shift_definition_id,
+      shift_name: a.shift_definitions?.name ?? formatTimeLabel(a.start_time),
+    })),
+    dates,
+    isAuthorized: (employeeId) => medAuthByEmployeeId.get(employeeId)?.authorizedToday ?? false,
+  }), [assignments, dates, medAuthByEmployeeId]);
+  // Suppress the coverage-gap banner while any of its inputs are still loading, and never let a
+  // failed fetch masquerade as "fully covered" -- an unauthorized-looking employee because their
+  // training record request errored is not the same as one who actually lapsed.
+  const medAdminCoverageLoading = assignmentsLoading || scheduledEmployeesQuery.isLoading || medAuthLoading;
+  const medAdminCoverageFailure = scheduledEmployeesQuery.isError
+    ? scheduledEmployeesQuery.error
+    : medAuthIsError ? medAuthError : null;
 
   const isDraft = schedule?.status === "draft";
   const hasAutoFill = (assignments ?? []).some((a) => a.source === "auto_fill" && a.status === "scheduled");
@@ -484,6 +560,37 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
         </p>
       )}
 
+      {medAdminCoverageFailure ? (
+        <QueryError
+          what="medication-administration authorization for this schedule"
+          error={medAdminCoverageFailure}
+          onRetry={() => {
+            void scheduledEmployeesQuery.refetch();
+            refetchMedAuth();
+          }}
+        />
+      ) : !medAdminCoverageLoading && medAdminCoverage.gaps.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <div className="flex items-start gap-2">
+            <Pill className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-1.5">
+              <p className="font-medium">
+                {medAdminCoverage.datesWithGaps.length} day{medAdminCoverage.datesWithGaps.length === 1 ? "" : "s"} in
+                this period {medAdminCoverage.datesWithGaps.length === 1 ? "has" : "have"} a shift with no staff
+                currently authorized to pass medications.
+              </p>
+              <ul className="list-disc pl-5 text-xs space-y-0.5">
+                {medAdminCoverage.gaps.map((gap) => (
+                  <li key={`${gap.date}-${gap.shiftName}`}>
+                    {formatDateLabel(gap.date)} &middot; {gap.shiftName}: {gap.scheduledStaff} staff scheduled, none
+                    currently authorized to pass medications.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6 space-y-4">
@@ -674,63 +781,73 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                       return (
                         <td key={d} className="p-2 border-l align-top">
                           <div className="space-y-1">
-                            {cellAssignments.map((a) => (
-                              <div
-                                key={a.id}
-                                className="w-full rounded-md border px-2 py-1 hover:shadow-sm transition-shadow"
-                                style={a.shift_definitions?.color ? { borderLeftColor: a.shift_definitions.color, borderLeftWidth: 3 } : undefined}
-                              >
-                                <button type="button" onClick={() => openEditDialog(a)} className="w-full text-left block">
-                                  <div className="font-medium truncate">
-                                    {a.employees?.first_name} {a.employees?.last_name}
-                                  </div>
-                                </button>
-                                <div className="text-xs text-muted-foreground flex items-center justify-between gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditDialog(a)}
-                                    className="truncate text-left flex-1 min-w-0"
-                                    title="Edit shift"
-                                  >
-                                    {a.shift_definitions?.name ?? formatTimeLabel(a.start_time)}
+                            {cellAssignments.map((a) => {
+                              const auth = medAuthByEmployeeId.get(a.employee_id);
+                              return (
+                                <div
+                                  key={a.id}
+                                  className="w-full rounded-md border px-2 py-1 hover:shadow-sm transition-shadow"
+                                  style={a.shift_definitions?.color ? { borderLeftColor: a.shift_definitions.color, borderLeftWidth: 3 } : undefined}
+                                >
+                                  <button type="button" onClick={() => openEditDialog(a)} className="w-full text-left block">
+                                    <div className="font-medium truncate flex items-center gap-1">
+                                      <span className="truncate min-w-0">{a.employees?.first_name} {a.employees?.last_name}</span>
+                                      {auth?.administersMedications && (
+                                        <MedAdminAuthorizationIndicator
+                                          authorized={auth.authorizedToday}
+                                          isLoading={medAuthLoading}
+                                          isError={medAuthIsError}
+                                        />
+                                      )}
+                                    </div>
                                   </button>
-                                  {/* Quick status change -- the common case doesn't need the full edit modal.
-                                      Anything beyond status (notes, unit, time) still goes through openEditDialog above. */}
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <button
-                                        type="button"
-                                        disabled={quickStatusId === a.id}
-                                        className="shrink-0 rounded-sm disabled:opacity-60 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        aria-label={`Change status for ${a.employees?.first_name} ${a.employees?.last_name}`}
-                                      >
-                                        <Badge
-                                          variant={a.status === "called_off" || a.status === "no_show" ? "destructive" : "secondary"}
-                                          className="text-[10px] px-1 py-0 cursor-pointer hover:opacity-80"
+                                  <div className="text-xs text-muted-foreground flex items-center justify-between gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditDialog(a)}
+                                      className="truncate text-left flex-1 min-w-0"
+                                      title="Edit shift"
+                                    >
+                                      {a.shift_definitions?.name ?? formatTimeLabel(a.start_time)}
+                                    </button>
+                                    {/* Quick status change -- the common case doesn't need the full edit modal.
+                                        Anything beyond status (notes, unit, time) still goes through openEditDialog above. */}
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button
+                                          type="button"
+                                          disabled={quickStatusId === a.id}
+                                          className="shrink-0 rounded-sm disabled:opacity-60 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                          aria-label={`Change status for ${a.employees?.first_name} ${a.employees?.last_name}`}
                                         >
-                                          {quickStatusId === a.id ? "…" : a.status.replace("_", " ")}
-                                        </Badge>
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="min-w-36">
-                                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                                        Set status
-                                      </DropdownMenuLabel>
-                                      <DropdownMenuSeparator />
-                                      {SHIFT_STATUS_OPTIONS.map((opt) => (
-                                        <DropdownMenuItem
-                                          key={opt.value}
-                                          onClick={() => handleQuickStatusChange(a, opt.value)}
-                                          className={opt.value === a.status ? "font-semibold" : undefined}
-                                        >
-                                          {opt.label}
-                                        </DropdownMenuItem>
-                                      ))}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                          <Badge
+                                            variant={a.status === "called_off" || a.status === "no_show" ? "destructive" : "secondary"}
+                                            className="text-[10px] px-1 py-0 cursor-pointer hover:opacity-80"
+                                          >
+                                            {quickStatusId === a.id ? "…" : a.status.replace("_", " ")}
+                                          </Badge>
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="min-w-36">
+                                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                                          Set status
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {SHIFT_STATUS_OPTIONS.map((opt) => (
+                                          <DropdownMenuItem
+                                            key={opt.value}
+                                            onClick={() => handleQuickStatusChange(a, opt.value)}
+                                            className={opt.value === a.status ? "font-semibold" : undefined}
+                                          >
+                                            {opt.label}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                             {isDraft && (
                               <Button
                                 variant="ghost"

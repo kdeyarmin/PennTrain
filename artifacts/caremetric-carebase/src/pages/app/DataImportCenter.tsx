@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { ImportSampleDownloads } from "@/components/import/ImportSampleDownloads";
+import { ImportColumnMapping } from "@/components/import/ImportColumnMapping";
 import {
   IMPORT_DOMAIN_DEFINITIONS,
   IMPORT_DOMAINS,
@@ -38,6 +39,14 @@ import {
   rowsToErrorCsv,
   type ImportDomain,
 } from "@/lib/dataImportCenter";
+import { parseCsv, type ParsedCsv } from "@/lib/csv";
+import {
+  applyColumnMapping,
+  headersMatchCanonical,
+  missingRequiredColumns,
+  suggestColumnMapping,
+  type ColumnMapping,
+} from "@/lib/importColumnMapping";
 import { useDataImportJobs, useImportJobAction, useImportJobRows, useRunDomainImport } from "@/hooks/useDataImportCenter";
 import { useToast } from "@/hooks/use-toast";
 
@@ -73,6 +82,8 @@ export default function DataImportCenter() {
   const { toast } = useToast();
   const [uploadDomain, setUploadDomain] = useState<ImportDomain>("employees");
   const [file, setFile] = useState<File | null>(null);
+  const [parsedUpload, setParsedUpload] = useState<ParsedCsv | null>(null);
+  const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
   const [strategy, setStrategy] = useState<"create" | "skip" | "update">("create");
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof runImport.mutateAsync>> | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: "finalize" | "rollback"; jobId: string; summary: string } | null>(null);
@@ -81,16 +92,65 @@ export default function DataImportCenter() {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const selectedJob = jobs.data?.rows.find((job) => job.id === selected) ?? null;
 
+  // D4: a canonical upload (exact header match) flows through untouched, exactly as before D4.
+  // Anything else routes through the column-mapping step below and is re-serialized into a
+  // canonical CSV client-side before it ever reaches the D3 dry-run/apply pipeline.
+  const needsMapping = Boolean(parsedUpload && parsedUpload.headers.length > 0 && !headersMatchCanonical(parsedUpload.headers, uploadDomain));
+  const stillMissingRequired = needsMapping && columnMapping ? missingRequiredColumns(uploadDomain, columnMapping) : [];
+  const mappingReady = !needsMapping || (columnMapping !== null && stillMissingRequired.length === 0);
+  const readyToRun = Boolean(file) && parsedUpload !== null && parsedUpload.headers.length > 0 && mappingReady;
+
+  const resetUpload = () => {
+    setFile(null);
+    setParsedUpload(null);
+    setColumnMapping(null);
+    setPreview(null);
+  };
+
+  const loadFile = async (nextFile: File | null, domain: ImportDomain) => {
+    setFile(nextFile);
+    setPreview(null);
+    setParsedUpload(null);
+    setColumnMapping(null);
+    if (!nextFile) return;
+    let text: string;
+    try {
+      text = await nextFile.text();
+    } catch {
+      toast({ title: "Could not read file", description: "This file could not be opened as text.", variant: "destructive" });
+      return;
+    }
+    const parsed = parseCsv(text);
+    if (parsed.headers.length === 0) {
+      toast({ title: "CSV appears to be empty", description: "No header row was found in this file.", variant: "destructive" });
+      return;
+    }
+    setParsedUpload(parsed);
+    if (!headersMatchCanonical(parsed.headers, domain)) {
+      setColumnMapping(suggestColumnMapping(parsed.headers, domain));
+    }
+  };
+
+  // A mapping edit after a dry run changes what would actually be submitted, so the stale
+  // preview (and its job_id, which "Apply" would otherwise resume) must not survive it.
+  const updateColumnMapping = (next: ColumnMapping) => {
+    setColumnMapping(next);
+    setPreview(null);
+  };
+
   const execute = async (mode: "validate" | "apply") => {
-    if (!file) return;
+    if (!file || !parsedUpload) return;
     if (!canUploadImportDomain(uploadDomain)) {
       toast({ title: "Domain is template-only", description: "No active processor for this domain.", variant: "destructive" });
       return;
     }
+    const csv = needsMapping && columnMapping
+      ? applyColumnMapping(uploadDomain, parsedUpload.rows, columnMapping)
+      : await file.text();
     try {
       const result = await runImport.mutateAsync({
         domain: uploadDomain,
-        csv: await file.text(),
+        csv,
         fileName: file.name,
         strategy,
         mode,
@@ -182,8 +242,10 @@ export default function DataImportCenter() {
             <Badge>Active processors</Badge>
           </div>
           <CardDescription>
-            Upload a canonical template for an active domain, choose duplicate behavior, and complete a no-write dry run
-            before applying. Processing uses browser-coordinated 200-row batches — keep this page open until finished.
+            Upload a CSV for an active domain, choose duplicate behavior, and complete a no-write dry run before applying.
+            A canonical template flows straight through; a facility's own export with different column headers opens a
+            mapping step first so you can match its columns to the template before anything is validated. Processing uses
+            browser-coordinated 200-row batches — keep this page open until finished.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -194,8 +256,7 @@ export default function DataImportCenter() {
                 value={uploadDomain}
                 onValueChange={(value) => {
                   setUploadDomain(value as ImportDomain);
-                  setFile(null);
-                  setPreview(null);
+                  resetUpload();
                 }}
               >
                 <SelectTrigger id={`${__fieldIds}-domain`}><SelectValue /></SelectTrigger>
@@ -212,10 +273,7 @@ export default function DataImportCenter() {
                 id="import-file"
                 type="file"
                 accept=".csv,text/csv"
-                onChange={(event) => {
-                  setFile(event.target.files?.[0] ?? null);
-                  setPreview(null);
-                }}
+                onChange={(event) => void loadFile(event.target.files?.[0] ?? null, uploadDomain)}
               />
             </div>
             <div className="space-y-2">
@@ -235,10 +293,19 @@ export default function DataImportCenter() {
                 </SelectContent>
               </Select>
             </div>
-            <Button disabled={!file || runImport.isPending} variant="outline" onClick={() => execute("validate")}>
+            <Button disabled={!readyToRun || runImport.isPending} variant="outline" onClick={() => execute("validate")}>
               {runImport.isPending ? "Checking…" : "Run dry preview"}
             </Button>
           </div>
+          {needsMapping && parsedUpload && columnMapping && (
+            <ImportColumnMapping
+              domain={uploadDomain}
+              uploadedHeaders={parsedUpload.headers}
+              uploadedRows={parsedUpload.rows}
+              mapping={columnMapping}
+              onMappingChange={updateColumnMapping}
+            />
+          )}
           {preview && (
             <div className="rounded-lg border bg-muted/30 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">

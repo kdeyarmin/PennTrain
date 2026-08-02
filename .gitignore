@@ -56,6 +56,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Agent tool scratch worktrees (isolated per-agent checkouts, not real content)
+.claude/worktrees/
+
 # HeyGen render output (video ids get written into a migration, not committed)
 rendered-segments.json
 *-blocks.json
