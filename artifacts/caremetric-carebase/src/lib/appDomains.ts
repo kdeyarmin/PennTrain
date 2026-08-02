@@ -245,7 +245,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/help-content", label: "Help center content", domain: "support", roles: PLATFORM_ADMIN, keywords: ["articles", "knowledge base"] },
   { path: "/admin/regulatory-updates", label: "Regulatory updates", domain: "support", roles: PLATFORM_ADMIN, keywords: ["regulations", "clarifications", "guidance", "newsletter", "compliance changes"] },
   { path: "/admin/settings", label: "Platform settings", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["feature flags", "maintenance", "signup"] },
-  { path: "/admin/pilot-cohorts", label: "Pilot cohort console", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["pilot", "cohort", "release flags", "kill switch", "enroll"] },
+  { path: "/admin/release-flags", label: "Release flags", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["release flags", "kill switch", "feature flags", "emergency disable"] },
   { path: "/admin/roadmap", label: "Product roadmap", domain: "platform", roles: PLATFORM_ADMIN, keywords: ["changelog", "released", "shipped", "release flags", "what's new"] },
 
   { path: "/app", label: "Organization dashboard", domain: "tenant", roles: ORG_HOME_ROLES, keywords: ["overview", "compliance"] },

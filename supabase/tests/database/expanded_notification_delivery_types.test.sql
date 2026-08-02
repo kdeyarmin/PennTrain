@@ -1,5 +1,5 @@
 begin;
-select plan(17);
+select plan(18);
 
 -- Expanded notification delivery types: the seven assignment/expiry/incident types fan out
 -- to email/SMS only behind the 'notifications.expanded_delivery_types' release flag, with
@@ -8,8 +8,8 @@ select plan(17);
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'notifications.expanded_delivery_types' $$,
-  $$ values ('cohort'::text, true) $$,
-  'the expanded-delivery release flag is seeded cohort-on for the CareBase pilot'
+  $$ values ('global'::text, true) $$,
+  'the expanded-delivery release flag is fully released by default'
 );
 select ok(
   exists (
@@ -88,7 +88,18 @@ begin
 end;
 $$;
 
--- Flag off (default): the seven new types must not enqueue anything.
+-- Disable as an AAL2 platform admin to cover the not-released path.
+select pg_temp.act_as('12000000-0000-0000-0000-000000000020', 'aal2');
+select lives_ok(
+  $$ select public.set_release_flag(
+       'notifications.expanded_delivery_types', 'off', false,
+       'notifications', 'pgTAP: disable to cover the not-released path', null
+     ) $$,
+  'a platform admin with step-up can disable the release flag'
+);
+reset role;
+
+-- Flag off: the seven new types must not enqueue anything.
 insert into public.notifications (
   id, organization_id, profile_id, notification_type, title, body, link
 )

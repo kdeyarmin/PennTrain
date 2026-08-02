@@ -1,16 +1,16 @@
 begin;
-select plan(8);
+select plan(9);
 
 -- On-hire exclusion screening: a newly inserted active employee is matched against the
--- active local exclusion snapshots at insert time, behind the pilot cohort-on
+-- active local exclusion snapshots at insert time, behind the fully released
 -- 'screening.on_hire_exclusion' release flag. Matches land in the same pending_review
--- queue and critical alert as the monthly run. Non-cohort orgs still need explicit enable.
+-- queue and critical alert as the monthly run.
 
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'screening.on_hire_exclusion' $$,
-  $$ values ('cohort'::text, true) $$,
-  'the on-hire screening flag is seeded cohort-on for the CareBase pilot'
+  $$ values ('global'::text, true) $$,
+  'the on-hire screening flag is fully released by default'
 );
 
 insert into public.organizations(id,name,slug,subscription_status) values
@@ -43,6 +43,14 @@ select lives_ok(
 );
 
 create or replace function pg_temp.act_as(p_id uuid,p_role text default 'authenticated') returns void language plpgsql as $$begin reset role;perform set_config('request.jwt.claims',jsonb_build_object('sub',p_id,'role',p_role,'aal','aal2','iat',extract(epoch from now())::bigint)::text,true);if p_role='service_role' then set local role service_role;else set local role authenticated;end if;end$$;
+
+select pg_temp.act_as('15000000-0000-4000-8000-000000000021');
+select lives_ok(
+  $$ select public.set_release_flag(
+       'screening.on_hire_exclusion','off',false,'screening','pgTAP: disable to cover the not-released path',null) $$,
+  'a platform admin with step-up can disable on-hire screening'
+);
+reset role;
 
 -- Flag off: a matching hire is not screened at insert time.
 insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,status) values

@@ -1,5 +1,5 @@
 begin;
-select plan(64);
+select plan(65);
 
 select has_table('public', 'notification_templates', 'versioned notification templates exist');
 select has_table('public', 'notification_channel_policies', 'channel fallback policies exist');
@@ -160,6 +160,28 @@ select throws_ok(
      ) $$,
   '42501', null,
   'organization admin cannot manage another tenant template'
+);
+reset role;
+
+-- 'training_expired' below is also a critical type (see queue_notification_delivery());
+-- pin the flag off so these delivery/template assertions stay single-channel regardless
+-- of the release flag's default. Dual-channel fan-out has its own dedicated coverage in
+-- critical_multichannel_delivery.test.sql.
+select set_config(
+  'request.jwt.claims',
+  json_build_object(
+    'sub', '11000000-0000-0000-0000-000000000010', 'role', 'authenticated', 'aal', 'aal2',
+    'iat', extract(epoch from now())::bigint
+  )::text,
+  true
+);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_release_flag(
+       'notifications.critical_multichannel', 'off', false,
+       'notifications', 'pgTAP: keep single-channel for these legacy-type delivery fixtures', null
+     ) $$,
+  'a platform admin with step-up can disable critical multichannel for this fixture'
 );
 reset role;
 

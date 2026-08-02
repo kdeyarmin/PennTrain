@@ -1,5 +1,5 @@
 begin;
-select plan(7);
+select plan(8);
 
 -- Learner state on the progress row: video resume/watch data and study aids live on the
 -- learner-writable course_progress row, and the minimum-watch gate is exposed to clients
@@ -10,8 +10,8 @@ select has_column('public','course_progress','learning_tools','course progress c
 select results_eq(
   $$ select rollout_mode, is_enabled from public.release_flags
      where feature_key = 'learning.video_watch_gate' $$,
-  $$ values ('cohort'::text, true) $$,
-  'the watch-gate flag is seeded cohort-on for the CareBase pilot'
+  $$ values ('global'::text, true) $$,
+  'the watch-gate flag is fully released by default'
 );
 
 insert into public.organizations(id,name,slug,subscription_status) values
@@ -31,11 +31,19 @@ select set_config('app.privileged_write','off',true);
 
 create or replace function pg_temp.act_as(p_id uuid,p_role text default 'authenticated') returns void language plpgsql as $$begin reset role;perform set_config('request.jwt.claims',jsonb_build_object('sub',p_id,'role',p_role,'aal','aal2','iat',extract(epoch from now())::bigint)::text,true);if p_role='service_role' then set local role service_role;else set local role authenticated;end if;end$$;
 
+select pg_temp.act_as('16000000-0000-4000-8000-000000000021');
+select lives_ok(
+  $$ select public.set_release_flag(
+       'learning.video_watch_gate','off',false,'learning','pgTAP: disable to cover the not-released path',null) $$,
+  'a platform admin with step-up can disable the watch gate'
+);
+reset role;
+
 select pg_temp.act_as('16000000-0000-4000-8000-000000000022');
 select results_eq(
   $$ select public.feature_release_active('learning.video_watch_gate') $$,
   array[false],
-  'the gate reads false for an organization not enrolled in the pilot cohort'
+  'the gate reads false once explicitly disabled'
 );
 select results_eq(
   $$ select public.feature_release_active('no.such.feature') $$,

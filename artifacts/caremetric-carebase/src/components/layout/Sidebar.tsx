@@ -63,6 +63,7 @@ import {
   Search,
   ChevronDown,
   Rocket,
+  Flag,
   Star,
   Activity,
   Network,
@@ -157,7 +158,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         title: "Platform",
         items: [
           { href: "/admin/settings", label: "Settings", icon: Sliders },
-          { href: "/admin/pilot-cohorts", label: "Pilot cohorts", icon: Rocket },
+          { href: "/admin/release-flags", label: "Release flags", icon: Flag },
           { href: "/admin/roadmap", label: "Improvement Roadmap", icon: Rocket },
         ]
       }

@@ -3,25 +3,8 @@ import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 
 export type ReleaseFlag = Tables<"release_flags">;
-export type ReleaseCohort = Tables<"release_cohorts">;
-export type OrgReleaseCohort = Tables<"organization_release_cohorts">;
 export type FeatureKillSwitch = Tables<"feature_kill_switches">;
 export type FeatureDefinition = Tables<"feature_definitions">;
-
-export function useReleaseCohorts() {
-  return useQuery({
-    queryKey: ["release_cohorts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("release_cohorts")
-        .select("*")
-        .order("cohort_key");
-      if (error) throw error;
-      return data as ReleaseCohort[];
-    },
-    staleTime: 30_000,
-  });
-}
 
 export function useReleaseFlags() {
   return useQuery({
@@ -53,28 +36,6 @@ export function useFeatureDefinitions() {
   });
 }
 
-export function useOrgReleaseCohortMemberships(cohortId?: string) {
-  return useQuery({
-    queryKey: ["organization_release_cohorts", cohortId ?? "all"],
-    queryFn: async () => {
-      let query = supabase
-        .from("organization_release_cohorts")
-        .select("*, organization:organizations(id, name, is_demo, slug)")
-        .order("assigned_at", { ascending: false })
-        .limit(500);
-      if (cohortId) query = query.eq("cohort_id", cohortId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Array<
-        OrgReleaseCohort & {
-          organization: { id: string; name: string; is_demo: boolean | null; slug: string } | null;
-        }
-      >;
-    },
-    staleTime: 15_000,
-  });
-}
-
 export function useFeatureKillSwitches() {
   return useQuery({
     queryKey: ["feature_kill_switches"],
@@ -99,62 +60,12 @@ function aal2Hint(message: string): string {
   return message;
 }
 
-export function useAssignOrgToReleaseCohort() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      organizationId: string;
-      cohortId: string;
-      featureKey: string;
-      reason: string;
-      expiresAt?: string | null;
-    }) => {
-      const { data, error } = await supabase.rpc("assign_organization_release_cohort", {
-        p_organization_id: input.organizationId,
-        p_cohort_id: input.cohortId,
-        p_feature_key: input.featureKey,
-        p_reason: input.reason,
-        p_expires_at: input.expiresAt ?? undefined,
-      });
-      if (error) throw new Error(aal2Hint(error.message));
-      return data;
-    },
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["organization_release_cohorts"] });
-    },
-  });
-}
-
-export function useUnassignOrgFromReleaseCohort() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      organizationId: string;
-      cohortId: string;
-      featureKey: string;
-      reason: string;
-    }) => {
-      const { data, error } = await supabase.rpc("unassign_organization_release_cohort", {
-        p_organization_id: input.organizationId,
-        p_cohort_id: input.cohortId,
-        p_feature_key: input.featureKey,
-        p_reason: input.reason,
-      });
-      if (error) throw new Error(aal2Hint(error.message));
-      return data as boolean;
-    },
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["organization_release_cohorts"] });
-    },
-  });
-}
-
 export function useSetReleaseFlag() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       featureKey: string;
-      rolloutMode: "off" | "cohort" | "global";
+      rolloutMode: "off" | "global";
       isEnabled: boolean;
       owner: string;
       reason: string;
