@@ -1,5 +1,5 @@
 begin;
-select plan(2);
+select plan(3);
 
 insert into public.organizations(id, name, slug, subscription_status) values
   ('5e000000-0000-4000-8000-000000000001', 'Packet Ordering Org', 'packet-ordering-org', 'active');
@@ -40,37 +40,45 @@ create or replace function pg_temp.act_as(p_id uuid,p_role text default 'authent
 
 select pg_temp.act_as('5e000000-0000-4000-8000-000000000021', 'service_role');
 insert into public.survey_evidence_packet_items(
-  id, organization_id, facility_id, survey_day_session_id, source_type, source_id, label, sort_order, created_at
+  id, organization_id, facility_id, survey_day_session_id, source_type, source_id, label, citation_ref, sort_order, created_at
 ) values
-  ('5e000000-0000-4000-8000-000000000101', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'binder_export', '5e000000-0000-4000-8000-000000000201', '2800.64 Fire extinguisher records', 5, '2026-08-02T00:01:00Z'),
-  ('5e000000-0000-4000-8000-000000000102', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'incident', '5e000000-0000-4000-8000-000000000202', '2800.64(a) Fire drill logs', 50, '2026-08-02T00:02:00Z'),
-  ('5e000000-0000-4000-8000-000000000103', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'work_item', '5e000000-0000-4000-8000-000000000203', '2800.64(a)(2) Follow-up note', 0, '2026-08-02T00:03:00Z'),
-  ('5e000000-0000-4000-8000-000000000104', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'policy', '5e000000-0000-4000-8000-000000000204', '2800.101 First document', 20, '2026-08-02T00:04:00Z'),
-  ('5e000000-0000-4000-8000-000000000105', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'evidence_artifact', '5e000000-0000-4000-8000-000000000205', '2800.101 Second document', 10, '2026-08-02T00:05:00Z'),
-  ('5e000000-0000-4000-8000-000000000106', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'note', null, 'General packet note', 0, '2026-08-02T00:06:00Z');
+  ('5e000000-0000-4000-8000-000000000101', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'binder_export', '5e000000-0000-4000-8000-000000000201', 'Fire extinguisher records', '2800.64', 5, '2026-08-02T00:01:00Z'),
+  ('5e000000-0000-4000-8000-000000000102', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'incident', '5e000000-0000-4000-8000-000000000202', 'Fire drill logs', '2800.64(a)', 50, '2026-08-02T00:02:00Z'),
+  ('5e000000-0000-4000-8000-000000000103', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'work_item', '5e000000-0000-4000-8000-000000000203', 'Follow-up note', '2800.64(a)(2)', 0, '2026-08-02T00:03:00Z'),
+  ('5e000000-0000-4000-8000-000000000104', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'policy', '5e000000-0000-4000-8000-000000000204', 'First document', '2800.101', 20, '2026-08-02T00:04:00Z'),
+  ('5e000000-0000-4000-8000-000000000105', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'evidence_artifact', '5e000000-0000-4000-8000-000000000205', 'Second document', '2800.101', 10, '2026-08-02T00:05:00Z'),
+  ('5e000000-0000-4000-8000-000000000106', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'note', null, 'General packet note', null, 0, '2026-08-02T00:06:00Z'),
+  ('5e000000-0000-4000-8000-000000000107', '5e000000-0000-4000-8000-000000000001', '5e000000-0000-4000-8000-000000000011', '5e000000-0000-4000-8000-000000000031', 'note', null, '2800.64 Label-only fallback row', null, 99, '2026-08-02T00:07:00Z');
 
 select pg_temp.act_as('5e000000-0000-4000-8000-000000000021');
 select results_eq(
   $$ select label from public.list_survey_evidence_packet_items('5e000000-0000-4000-8000-000000000031', null) $$,
   $$ values
-    ('2800.64 Fire extinguisher records'),
-    ('2800.64(a) Fire drill logs'),
-    ('2800.64(a)(2) Follow-up note'),
-    ('2800.101 Second document'),
-    ('2800.101 First document'),
+    ('Fire extinguisher records'),
+    ('Fire drill logs'),
+    ('Follow-up note'),
+    ('2800.64 Label-only fallback row'),
+    ('Second document'),
+    ('First document'),
     ('General packet note') $$,
-  'packet item list orders by regulation key, then sort_order, then created_at'
+  'packet item list orders by citation_ref (or label-parse fallback), then sort_order, then created_at'
 );
 select results_eq(
   $$ select value->>'label' from jsonb_array_elements(public.assemble_survey_evidence_packet_manifest('5e000000-0000-4000-8000-000000000031', null)->'items') $$,
   $$ values
-    ('2800.64 Fire extinguisher records'),
-    ('2800.64(a) Fire drill logs'),
-    ('2800.64(a)(2) Follow-up note'),
-    ('2800.101 Second document'),
-    ('2800.101 First document'),
+    ('Fire extinguisher records'),
+    ('Fire drill logs'),
+    ('Follow-up note'),
+    ('2800.64 Label-only fallback row'),
+    ('Second document'),
+    ('First document'),
     ('General packet note') $$,
   'assembled manifest preserves the same regulation-aware packet order'
+);
+select results_eq(
+  $$ select value->>'citationRef' from jsonb_array_elements(public.assemble_survey_evidence_packet_manifest('5e000000-0000-4000-8000-000000000031', null)->'items') where value->>'label' = 'Fire extinguisher records' $$,
+  $$ values ('2800.64') $$,
+  'assembled manifest exposes first-class citationRef'
 );
 
 select * from finish();
