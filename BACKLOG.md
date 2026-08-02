@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `8f27e59` (2026-08-02) — **pilot program removed** (Pilot Cohort Console + controlled-pilot evidence gate deleted; the four previously cohort-gated release flags are now `global` for every organization, closing SG-1); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
+**Last verified against main:** `991874d` (2026-08-02) — **pilot program removed** (Pilot Cohort Console + controlled-pilot evidence gate deleted; the four previously cohort-gated release flags are now `global`, non-expiring, for every organization, closing SG-1); SG-2 counsel-cleared option 2; templates seeded; activation remains; PA install UI wired; E1 home IA done; **C5 first-class citation_ref done**; B1 complete; D3 complete; residual SCORM confidence is B3 + A1 production verify; service_role grant on survey_evidence_packet_items added (CI fix)
 **Owner:** the owner-operator (single person, platform admin)
 
 **How to update:** edit this file in the same change set that ships or retires work, and
