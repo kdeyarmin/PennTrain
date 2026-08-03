@@ -116,20 +116,25 @@ insert into public.policy_attestations (
 ------------------------------------------------------------------------------------------------
 -- Assignment notification: the link has to follow the recipient, not assume the employee portal.
 ------------------------------------------------------------------------------------------------
+-- The link deliberately encodes no role. An earlier version resolved it at INSERT time, which
+-- left two holes: the else-branch sent auditor and platform_admin somewhere the route did not
+-- admit them, and any stored path goes stale when the recipient's role changes before they click.
+-- /attestations resolves against the live session instead, so one link is correct for everyone
+-- forever. Asserting BOTH recipients get the identical link is what pins that down.
 select is(
   (select link from public.notifications
    where notification_type = 'policy_attestation_assigned'
      and profile_id = 'a1000000-0000-4000-8000-000000000101'),
-  '/me/attestations',
-  'an employee is sent to the employee portal on assignment'
+  '/attestations',
+  'an employee gets the role-neutral link on assignment'
 );
 
 select is(
   (select link from public.notifications
    where notification_type = 'policy_attestation_assigned'
      and profile_id = 'a1000000-0000-4000-8000-000000000105'),
-  '/app/my-attestations',
-  'a promoted manager still on the roster is sent somewhere their role can actually open'
+  '/attestations',
+  'and so does a promoted manager -- same link, resolved per-session at click time'
 );
 
 -- Assignment itself notifies (notify_policy_attestation_assigned). Clear that out so the counts
@@ -198,16 +203,16 @@ select is(
   (select link from public.notifications
    where notification_type = 'policy_attestation_due_soon'
      and profile_id = 'a1000000-0000-4000-8000-000000000101'),
-  '/me/attestations',
-  'the reminder link follows the recipient too -- employee portal for an employee'
+  '/attestations',
+  'the reminder uses the same role-neutral link'
 );
 
 select is(
   (select link from public.notifications
    where notification_type = 'policy_attestation_due_soon'
      and profile_id = 'a1000000-0000-4000-8000-000000000105'),
-  '/app/my-attestations',
-  'and the rostered-staff surface for the promoted manager, who cannot open /me/*'
+  '/attestations',
+  'for the promoted manager as well -- no stored path to go stale on a role change'
 );
 
 select isnt(

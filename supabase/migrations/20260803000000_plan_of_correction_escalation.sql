@@ -12,9 +12,14 @@
 --   plan_of_correction_overdue   routed through enqueue_critical_notification_delivery, which
 --                                is the email + SMS path. An escalation.
 --
--- So an SMS only ever follows a warning that already went out through the ordinary channel,
--- and only for a deadline the facility has actually missed. SMS is intrusive and metered;
--- spending it on something that is merely upcoming would train people to ignore it.
+-- The distinction is about who chooses the channel, and it is worth stating precisely because an
+-- earlier draft of this comment overstated it. A warning goes wherever that recipient asked to be
+-- reached: enqueue_preferred_notification_delivery honours profiles.preferred_notification_channel,
+-- which may itself be 'sms' for someone who opted in and consented. What the warning does NOT do
+-- is override that choice. The escalation does -- it sends email AND SMS regardless of preference,
+-- because a missed regulatory deadline is worth interrupting someone over and an approaching one
+-- is not. So "SMS is reserved for overdue" is true of SMS we impose, not of SMS a manager
+-- deliberately signed up for.
 --
 -- Neither template interpolates notification free text (allowed_variables stays '{}', matching
 -- every other global template). The in-app body carries the citation reference and the due

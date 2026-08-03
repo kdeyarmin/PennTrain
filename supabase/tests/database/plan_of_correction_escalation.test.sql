@@ -1,9 +1,10 @@
 begin;
-select plan(33);
+select plan(35);
 
--- BACKLOG.md C4, SMS half. The claim under test is narrow and worth stating plainly: an overdue
--- plan of correction reaches a manager by SMS, an upcoming one does not, and neither carries the
--- violation's free-text description off-platform.
+-- BACKLOG.md C4, SMS half. The claim under test, stated precisely: an overdue plan of correction
+-- reaches a manager on email AND SMS whether or not they asked for SMS, an upcoming one reaches
+-- them on the single channel they did ask for, a plan already submitted reaches them not at all,
+-- and none of them carries the violation's free-text description off-platform.
 --
 -- The delivery-row assertions are the ones that matter. Everything upstream of them (notification
 -- type accepted, template registered, routing branch taken) can be green while
@@ -168,6 +169,13 @@ insert into public.dhs_violations(
   ('2c000000-0000-4000-8000-000000000303', '2c000000-0000-4000-8000-000000000001',
    '2c000000-0000-4000-8000-000000000011', '2800.33(c)', public.pa_today() - 30,
    'Not yet in the warning window', 'open', public.pa_today() + 60),
+  -- V5: overdue on paper but the plan has already been SUBMITTED. poc_due_date is the deadline
+  -- to submit, so it has been met; the remaining corrective work is tracked as work items with
+  -- their own escalation. Telling this manager to "submit the plan" would be asking for something
+  -- they have done.
+  ('2c000000-0000-4000-8000-000000000305', '2c000000-0000-4000-8000-000000000001',
+   '2c000000-0000-4000-8000-000000000011', '2800.55(e)', public.pa_today() - 30,
+   'Plan already submitted', 'poc_submitted', public.pa_today() - 2),
   -- V4: overdue on paper but already corrected -- closed work is not escalated.
   ('2c000000-0000-4000-8000-000000000304', '2c000000-0000-4000-8000-000000000001',
    '2c000000-0000-4000-8000-000000000011', '2800.44(d)', public.pa_today() - 30,
@@ -290,7 +298,7 @@ insert into public.dhs_violations(
 ) values
   ('2c000000-0000-4000-8000-000000000302', '2c000000-0000-4000-8000-000000000001',
    '2c000000-0000-4000-8000-000000000011', '2800.22(b)', public.pa_today() - 30,
-   'Coming due', 'poc_submitted', public.pa_today() + 2);
+   'Coming due', 'open', public.pa_today() + 2);
 
 select is(
   (select count(*)::int from public.notifications
@@ -312,14 +320,28 @@ select is(
   'the admin and the assigned manager are warned'
 );
 
+-- The claim here is narrower than an earlier version of this suite asserted, and the narrower one
+-- is the true one. A warning goes to the recipient's PREFERRED channel, which is 'email' for these
+-- fixtures but would legitimately be SMS for a manager who opted in and consented -- so "a warning
+-- never sends SMS" was only ever true by accident of the fixture. What actually holds is that the
+-- warning sends to ONE channel and does not override anyone's choice, while the escalation above
+-- imposes both. Asserting the delivery count is what distinguishes those two.
 select is(
   (select count(*)::int from public.notification_deliveries d
    join public.notifications n on n.id = d.notification_id
    where n.notification_type = 'plan_of_correction_due_soon'
-     and d.channel = 'sms'),
-  0,
-  'a warning does NOT send SMS -- spending it on something merely upcoming trains people to '
-  'ignore the escalation that follows'
+     and d.profile_id = '2c000000-0000-4000-8000-000000000102'),
+  1,
+  'a warning reaches the manager on exactly one channel -- their preference, not an imposed pair'
+);
+
+select is(
+  (select d.channel from public.notification_deliveries d
+   join public.notifications n on n.id = d.notification_id
+   where n.notification_type = 'plan_of_correction_due_soon'
+     and d.profile_id = '2c000000-0000-4000-8000-000000000102'),
+  'email',
+  'and for a manager who never asked for SMS, that one channel is email'
 );
 
 select is(
@@ -354,6 +376,14 @@ select is(
    where body like 'Citation 2800.33(c)%' or body like 'Citation 2800.44(d)%'),
   0,
   'neither the far-out violation nor the corrected one ever notified anyone'
+);
+
+select is(
+  (select count(*)::int from public.notifications
+   where body like 'Citation 2800.55(e)%'),
+  0,
+  'and an already-submitted plan of correction was never escalated across any sweep -- its '
+  'deadline was to submit, and it was met'
 );
 
 select is(

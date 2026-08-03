@@ -50,9 +50,11 @@ const WORK_QUEUE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manag
 const EMERGENCY_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const TRAINER_ONLY: Role[] = ["trainer"];
 const EMPLOYEE_ONLY: Role[] = ["employee"];
-// Roles a person can still hold a row in `employees` under, after being promoted off the floor.
-// Excludes auditor, a read-only reviewer role rather than a rostered one. See BACKLOG.md E6.
-const ROSTERED_STAFF_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
+// Every role EXCEPT employee -- the exact complement of the employee portal. A profile can reach
+// any role while still holding a roster row (admin_update_profile severs employees.profile_id only
+// on an organization change), so a hand-picked subset just recreates the E6 bug for whichever
+// roles it leaves out. See BACKLOG.md E6.
+const ROSTERED_STAFF_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor"];
 const ANY_ROLE: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
 // Exported so route-manifest coverage tests can verify every action's `path` is actually

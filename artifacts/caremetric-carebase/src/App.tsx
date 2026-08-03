@@ -317,6 +317,14 @@ function ProtectedRoute({
     : <MainLayout>{content}</MainLayout>;
 }
 
+// Sends the signed-in user to whichever attestation surface their CURRENT role can open. The
+// employee portal for an employee, the /app-side page for everyone else -- the exact complement
+// encoded in ROSTERED_STAFF_ROLES, so the two can never disagree about where someone belongs.
+function AttestationsRedirect() {
+  const { user } = useAuth();
+  return <Redirect to={user?.role === "employee" ? "/me/attestations" : "/app/my-attestations"} />;
+}
+
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
 const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 // support_tickets_select RLS gates on created_by = auth.uid() (or platform_admin), not on role,
@@ -328,10 +336,14 @@ const SUPPORT_TICKET_DETAIL_ROLES: UserRole[] = ["org_admin", "facility_manager"
 // are the only "/me/*" self-service pages every role can reach; the rest of that prefix
 // (dashboard, schedule, credentials, etc.) stays employee-only real HR/scheduling data.
 const ANY_ROLE: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
-// Roles a person can hold while still occupying a row in `employees` -- i.e. after being promoted
-// off the floor. Deliberately excludes auditor, which is a read-only reviewer role rather than a
-// rostered one. See /app/my-attestations and BACKLOG.md E6.
-const ROSTERED_STAFF_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"];
+// Every role EXCEPT employee -- deliberately the exact complement of the employee portal, not a
+// hand-picked list. admin_update_profile severs employees.profile_id only on an organization
+// change, so a profile can reach ANY role while still holding a roster row; an earlier version of
+// this excluded auditor and platform_admin on the theory that they are not "rostered" roles, which
+// left exactly the E6 bug in place for them. AttestationsRedirect below routes employee one way
+// and everyone else here, so the two are complements by construction rather than by agreement
+// between two lists that can drift. See BACKLOG.md E6.
+const ROSTERED_STAFF_ROLES: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
@@ -728,6 +740,15 @@ function Router() {
       </Route>
       <Route path="/app/policy-documents/:id">
         {() => <ProtectedRoute component={PolicyDocumentDetail} allowedRoles={POLICY_ROLES} />}
+      </Route>
+      {/* Role-neutral entry point for "the policy attestations assigned to me".
+          Attestation notifications link HERE rather than at one of the two concrete surfaces,
+          because a notification's link is written once and read later: a manager promoted or
+          demoted between the two would otherwise be sent to a page their current role cannot
+          open, and the stored link has no way to know that. Resolving at click time from the
+          live session makes the link permanently correct. BACKLOG.md E6. */}
+      <Route path="/attestations">
+        {() => <ProtectedRoute component={AttestationsRedirect} allowedRoles={ANY_ROLE} />}
       </Route>
       {/* The same page as /me/attestations, for staff who are not in the employee portal.
           A profile keeps its employees row across a role change -- admin_update_profile severs
