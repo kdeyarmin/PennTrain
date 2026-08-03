@@ -82,12 +82,15 @@ async function verifyOrgAdminBrowserMfa(page: Page) {
   // slow-but-correct first attempt can outlast the "verified" check below, and #mfa-code is
   // disabled for the whole verify round trip then unmounted entirely on success -- so a naive
   // retry can hang trying to fill an input that is now disabled or already gone.
+  //
+  // Root cause of the previous two failed passes: isVisible({ timeout }) does not poll -- it is a
+  // single, immediate check, timeout or no. Diagnostic logging showed the "not verified yet" check
+  // firing ~12ms after the fill/click failure it followed, not anywhere near 15s later, so the loop
+  // was never actually waiting for attempt 1's still-in-flight verify+refresh round trip -- it was
+  // hammering a disabled input in a tight loop instead. waitFor({ state: "visible" }) is the
+  // locator method that actually polls.
   const verified = page.getByText(/session is already verified/i);
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    // Diagnostic pass: the last two failure signatures (a hang, then 3/3 clean rejections) each
-    // turned out to be a different bug than assumed. Logging the TOTP window, whether fill/click
-    // completed, and whatever status/toast text is visible after a failed attempt gives the next
-    // failure (if any) hard evidence instead of another guess.
     const window = Math.floor(Date.now() / 30_000);
     try {
       await code.fill(totpCode(orgAdminMfaSecret), { timeout: 5000 });
@@ -95,7 +98,8 @@ async function verifyOrgAdminBrowserMfa(page: Page) {
     } catch (error) {
       console.log(`[mfa-verify attempt=${attempt} window=${window}] fill/click did not complete: ${String(error).slice(0, 200)}`);
     }
-    if (await verified.isVisible({ timeout: 15000 }).catch(() => false)) break;
+    const succeeded = await verified.waitFor({ state: "visible", timeout: 15000 }).then(() => true).catch(() => false);
+    if (succeeded) break;
     const statusText = await page.getByRole("status").allTextContents().catch(() => []);
     console.log(`[mfa-verify attempt=${attempt} window=${window}] not verified yet; status text: ${JSON.stringify(statusText)}`);
     if (attempt === 3) await expect(verified).toBeVisible();
