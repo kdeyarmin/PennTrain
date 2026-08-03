@@ -32,7 +32,10 @@ export type OfflineDraftSyncState =
   | "applied"    // server accepted it -- deleted immediately, same session
   | "duplicate"  // server had already seen this attempt -- deleted immediately, same session
   | "conflict"   // someone else documented this task first -- kept, needs a human to dismiss
-  | "stale"      // the task is no longer active (plan changed) -- kept, needs a human to dismiss
+  // The server moved on while the device was offline and this can no longer be filed: the task is
+  // no longer active (plan changed), or the change-of-condition event was closed. Kept, needs a
+  // human -- the observation is real, it just has nowhere left to go on its own.
+  | "stale"
   | "rejected"   // the server refused it (authorization/validation) -- kept, needs a human to dismiss
   | "error";     // the sync attempt itself failed (network, etc.) -- kept, will retry
 
@@ -52,7 +55,7 @@ export const NEEDS_REVIEW_DRAFT_STATES: OfflineDraftSyncState[] = ["conflict", "
  * "service_task" rather than rejecting it. Those records sit on aides' devices holding the only
  * copy of care documentation that has not synced yet.
  */
-export type OfflineDraftKind = "service_task" | "unscheduled_service";
+export type OfflineDraftKind = "service_task" | "unscheduled_service" | "change_observation";
 
 export interface OfflineServiceDraft {
   /** Optional so drafts written before Tier 2 still parse; absent means "service_task". */
@@ -112,7 +115,41 @@ export interface OfflineUnscheduledServiceDraft {
   lastSyncError: string | null;
 }
 
-export type OfflineFloorDraft = OfflineServiceDraft | OfflineUnscheduledServiceDraft;
+/**
+ * One observation on a change-of-condition event's monitoring cadence (BACKLOG.md E5 Tier 3).
+ *
+ * Its subject is an EVENT, not a resident or a task -- which is why it is a third member of the
+ * union rather than a variant of either existing one. `residentDisplayLabel` is still carried, but
+ * only so the drafts panel can say whose observation this is; the event is what the draft is about
+ * and what its encryption scope binds to.
+ */
+export interface OfflineChangeObservationDraft {
+  kind: "change_observation";
+  draftId: string;
+  eventId: string;
+  /** Short display string (e.g. "Jamie Resident - Room 12") -- never a full resident record. */
+  residentDisplayLabel: string;
+  /** Short label for the event itself (e.g. "Mobility Decline") -- not the event's own narrative. */
+  eventLabel: string;
+  organizationId: string;
+  facilityId: string;
+  profileId: string;
+  observedAt: string;
+  observations: string;
+  actionTaken: string | null;
+  supervisorNotified: boolean;
+  idempotencyKey: string;
+  createdAt: string;
+  updatedAt: string;
+  syncState: OfflineDraftSyncState;
+  lastSyncOutcome: OfflineDraftSyncOutcome | null;
+  lastSyncError: string | null;
+}
+
+export type OfflineFloorDraft =
+  | OfflineServiceDraft
+  | OfflineUnscheduledServiceDraft
+  | OfflineChangeObservationDraft;
 
 /** Narrows without depending on the discriminator being present on legacy records. */
 export function draftKindOf(draft: OfflineFloorDraft): OfflineDraftKind {
@@ -123,6 +160,12 @@ export function isUnscheduledServiceDraft(
   draft: OfflineFloorDraft,
 ): draft is OfflineUnscheduledServiceDraft {
   return draft.kind === "unscheduled_service";
+}
+
+export function isChangeObservationDraft(
+  draft: OfflineFloorDraft,
+): draft is OfflineChangeObservationDraft {
+  return draft.kind === "change_observation";
 }
 
 const MAX_TEXT_LENGTH = 4000;
@@ -204,9 +247,35 @@ export function assertUnscheduledServiceDraftAllowed(draft: OfflineUnscheduledSe
   }
 }
 
+/**
+ * Hard gate for a monitoring observation, mirroring the other two.
+ *
+ * The three-character minimum matches add_change_event_monitoring's own floor rather than adding a
+ * second, looser opinion client-side: a draft that would come back 'rejected' for empty text is
+ * better refused at capture time, while the aide is still standing there and can type more.
+ */
+export function assertChangeObservationDraftAllowed(draft: OfflineChangeObservationDraft): void {
+  assertNonEmptyId(draft.draftId, "draftId");
+  assertNonEmptyId(draft.eventId, "eventId");
+  assertNonEmptyId(draft.organizationId, "organizationId");
+  assertNonEmptyId(draft.facilityId, "facilityId");
+  assertNonEmptyId(draft.profileId, "profileId");
+  assertNonEmptyId(draft.idempotencyKey, "idempotencyKey");
+
+  if (typeof draft.observations !== "string" || draft.observations.trim().length < 3) {
+    throw new Error("Offline change-of-condition observation needs at least a few words of observation");
+  }
+
+  assertTextWithinLimit(draft.residentDisplayLabel, "residentDisplayLabel");
+  assertTextWithinLimit(draft.eventLabel, "eventLabel");
+  assertTextWithinLimit(draft.observations, "observations");
+  assertTextWithinLimit(draft.actionTaken, "actionTaken");
+}
+
 /** Dispatches to the gate for whichever kind this is. Legacy records narrow to service_task. */
 export function assertFloorDraftAllowed(draft: OfflineFloorDraft): void {
   if (isUnscheduledServiceDraft(draft)) assertUnscheduledServiceDraftAllowed(draft);
+  else if (isChangeObservationDraft(draft)) assertChangeObservationDraftAllowed(draft);
   else assertServiceDraftAllowed(draft);
 }
 

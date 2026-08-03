@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import {
   describeDraft, formatDraftNoteForCopy, isUnsyncedDraftOverdue, NEEDS_REVIEW_DRAFT_STATES, rejectedMessage,
-  SYNC_OUTCOME_MESSAGES, UNRESOLVED_DRAFT_STATES, useDismissOfflineServiceDraft,
+  staleMessage, SYNC_OUTCOME_MESSAGES, UNRESOLVED_DRAFT_STATES, useDismissOfflineServiceDraft,
   useSyncAllOfflineServiceDrafts, useSyncOfflineServiceDraft, useUnsyncedServiceDraftEntries,
   useUnsyncedServiceDrafts,
 } from "@/hooks/useOfflineServiceDrafts";
@@ -50,15 +50,24 @@ function observationSummary(draft: OfflineObservationDraft): string {
 
 function reviewMessage(draft: OfflineFloorDraft): string {
   if (draft.syncState === "rejected") return rejectedMessage(draft.lastSyncError);
-  if (draft.syncState === "conflict" || draft.syncState === "stale") {
+  // 'stale' reads differently per kind -- a task that left the plan versus a change-of-condition
+  // event that closed with the observation still in hand. See staleMessage.
+  if (draft.syncState === "stale") return staleMessage(draft);
+  if (draft.syncState === "conflict") {
     return SYNC_OUTCOME_MESSAGES[draft.syncState as OfflineDraftSyncState & keyof typeof SYNC_OUTCOME_MESSAGES];
   }
   return "This note needs review.";
 }
 
 /**
- * Unsynced offline service-documentation drafts (BACKLOG.md E5, Tier 1). Local to Floor -- not
- * global chrome -- because these drafts are always about a task from the queue this same page shows.
+ * Unsynced offline documentation drafts (BACKLOG.md E5).
+ *
+ * This is a DEVICE-level outbox, not a page-level one: it lists every unsynced draft on this device
+ * regardless of which surface captured it. Tier 1 mounted it only on Floor, when every draft was a
+ * task from the queue that page shows. Tier 3 captures observations on ChangeOfConditionDetail, so
+ * it is mounted there too -- a draft whose only surface an aide never happens to open would sit
+ * invisible until the purge ceiling silently deleted it, which is the one failure this panel exists
+ * to prevent. It renders nothing when there is no backlog, so a second mount costs an empty render.
  *
  * Block-and-flag: a conflict/stale/rejected draft is never merged, auto-reconciled, or silently
  * retried. It stays here, clearly labeled, until a human dismisses it or the purge ceiling hits.
