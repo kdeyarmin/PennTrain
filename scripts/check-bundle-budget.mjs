@@ -65,7 +65,18 @@ const budgets = {
   // documentation, unscheduled services, change detection): measured 3790.0 KiB, which had crossed
   // the 90% warning line. Every one of those surfaces is its own lazy chunk -- the resident route
   // held at ~51 KiB across the whole program -- so this is feature count, not per-page weight.
-  totalJavaScript: 4700 * 1024,
+  // Raised 4700 -> 5200 after the compliance/notification program (plan-of-correction escalation,
+  // attestation reminders, the rostered-staff attestation surface, declarative campaign targeting
+  // and recurrence): measured 4241.2 KiB, 90.2% of the old budget and warning for several
+  // branches. Sized the same way the 4200 -> 4700 step was -- a deliberate raise on main rather
+  // than a per-feature shave -- and leaves the measurement at 81.6%.
+  //
+  // Raising the tripwire is the response this warning is designed to prompt, but it is not an
+  // answer to the underlying number: 4.2 MiB of JavaScript is a lot to push to a tablet on
+  // facility wifi, and no single route is the culprit -- the biggest audited chunk is 61.9 KiB.
+  // That is a real optimization with real user benefit and it is tracked as BACKLOG.md F5 rather
+  // than absorbed silently here.
+  totalJavaScript: 5200 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted. Raised 160 -> 176 on the
   // full-app-debugging branch: organic growth had reached 156.1 KiB, which is 97.5% of the old
   // budget and under 4 KiB of headroom. This budget is not advisory on this repo -- Railway's

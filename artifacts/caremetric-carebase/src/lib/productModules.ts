@@ -152,7 +152,12 @@ export const COMPLIANCE_PATHS = [
   "/app/resident-compliance",
   "/app/closed-loop-compliance",
   "/me/attestations",
+  "/app/my-attestations",
 ] as const;
+// "/attestations" is deliberately absent. It sits outside INTERNAL_APP_PREFIXES, so
+// productModuleForPath returns null before any of these lists are consulted -- an entry here would
+// be dead code that reads like a rule. It is a pure redirect; the Compliance gate applies at
+// whichever of the two paths above it lands on.
 
 // Resident financial operations.
 export const BILLING_PATHS = ["/app/resident-finance"] as const;

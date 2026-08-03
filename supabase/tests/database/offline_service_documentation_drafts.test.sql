@@ -1,5 +1,5 @@
 begin;
-select plan(43);
+select plan(56);
 
 -- E5 Tier 1: offline service documentation drafts + conflict rules
 -- (20260802030000_offline_service_documentation_drafts.sql).
@@ -507,6 +507,149 @@ select is(
   (select performed_at from public.resident_service_task_instances where id = '65000000-0000-4000-8000-000000000509'),
   now(),
   'an implausibly old occurrence time is not trusted; performed_at falls back to sync time'
+);
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Tier 2: unscheduled services (BACKLOG.md E5)
+--
+-- Tier 1 above can only document a task that was already queued. The care nobody else knows
+-- happened -- the unplanned kind -- had no offline path at all, which is exactly backwards.
+--
+-- These assertions live in this file rather than their own because the two tiers share one
+-- receipt ledger, and the uniqueness promise that ledger makes is only meaningful ACROSS both
+-- kinds. Splitting them would let that assertion quietly stop being tested.
+--
+-- Fresh devices: the Tier 1 section above revokes device-a and device-b to test wipe_required, so
+-- reusing them here would assert the revocation path while claiming to assert authorization.
+------------------------------------------------------------------------------------------------
+select has_function(
+  'public', 'sync_offline_unscheduled_service_draft',
+  array['uuid', 'uuid', 'text', 'timestamptz', 'text', 'integer', 'boolean', 'text'],
+  'the unscheduled-service sync exists'
+);
+
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.sync_offline_unscheduled_service_draft(uuid,uuid,text,timestamptz,text,integer,boolean,text)',
+    'EXECUTE'),
+  'and is closed to anonymous callers'
+);
+
+select pg_temp.act_as('65000000-0000-4000-8000-000000000101');
+insert into t_ids values ('device-c', public.register_offline_service_device('device-c-public-key', repeat('c', 64)));
+
+select is(
+  (select public.sync_offline_unscheduled_service_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000201',
+    'unsched-key-1', now() - interval '20 minutes', 'unscheduled_toileting', 10, false,
+    'Assisted after a fall risk moment.'
+  )->>'outcome'),
+  'applied',
+  'an aide can document unscheduled care captured offline'
+);
+
+select is(
+  (select count(*)::int from public.resident_unscheduled_services
+   where resident_id = '65000000-0000-4000-8000-000000000201'
+     and service_kind = 'unscheduled_toileting'),
+  1,
+  'and it lands as a real unscheduled service, not just a receipt'
+);
+
+select is(
+  (select occurred_at from public.resident_unscheduled_services
+   where resident_id = '65000000-0000-4000-8000-000000000201'
+     and service_kind = 'unscheduled_toileting'),
+  (select client_occurred_at from public.offline_service_draft_receipts
+   where idempotency_key = 'unsched-key-1'),
+  'recorded at the time the care happened on the device, not the time it reached the server'
+);
+
+-- The replay reports what happened the FIRST time. A blanket duplicate for a rejected first
+-- attempt would tell the client the care was recorded, and it would delete the only local copy of
+-- a note that never applied.
+select is(
+  (select public.sync_offline_unscheduled_service_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000201',
+    'unsched-key-1', now() - interval '20 minutes', 'unscheduled_toileting', 10, false,
+    'Assisted after a fall risk moment.'
+  )->>'outcome'),
+  'duplicate',
+  'replaying the same key reports duplicate rather than recording the care twice'
+);
+
+select is(
+  (select count(*)::int from public.resident_unscheduled_services
+   where resident_id = '65000000-0000-4000-8000-000000000201'
+     and service_kind = 'unscheduled_toileting'),
+  1,
+  'and really does not record it twice'
+);
+
+-- record_unscheduled_service owns the "may this caller record for this resident" rule. The
+-- property worth pinning is that the offline path DELEGATES to it rather than carrying its own
+-- copy to drift out of step with -- which is the failure this program has already hit twice with
+-- duplicated predicates. Asserted against the function body, because the fixture has a single
+-- facility and every worker in it is legitimately in scope.
+select ok(
+  pg_get_functiondef(
+    'public.sync_offline_unscheduled_service_draft(uuid,uuid,text,timestamptz,text,integer,boolean,text)'::regprocedure
+  ) like '%record_unscheduled_service%',
+  'the offline path delegates authorization instead of restating it'
+);
+
+-- A refusal must come back as a receipt the client can block-and-flag, not as an exception it
+-- would retry forever. An unrecognised service_kind is a real instance of that: the closed enum on
+-- resident_unscheduled_services rejects it inside the delegated call.
+select is(
+  (select public.sync_offline_unscheduled_service_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000201',
+    'unsched-key-4', now(), 'not_a_real_service_kind', null, false, null
+  )->>'outcome'),
+  'rejected',
+  'a refusal inside the delegated call becomes a rejected receipt, not a raised exception'
+);
+
+select ok(
+  (select error_message from public.offline_service_draft_receipts
+   where idempotency_key = 'unsched-key-4') is not null,
+  'and carries the reason, so a human reviewing the flagged draft can see why'
+);
+
+select is(
+  (select count(*)::int from public.resident_unscheduled_services
+   where resident_id = '65000000-0000-4000-8000-000000000201'),
+  1,
+  'while nothing from the rejected attempt reaches the resident record'
+);
+
+-- The reason both kinds share one ledger, asserted structurally: draft_kind is deliberately NOT
+-- part of the uniqueness key, so one device cannot reuse a key across kinds. Two tables would
+-- have given two independent uniqueness domains and a quietly weaker promise.
+select ok(
+  exists(
+    select 1 from pg_constraint
+    where conrelid = 'public.offline_service_draft_receipts'::regclass
+      and contype = 'u'
+      and pg_get_constraintdef(oid) = 'UNIQUE (device_id, idempotency_key)'
+  ),
+  'idempotency is unique per device across BOTH draft kinds, not per kind'
+);
+
+-- Dropping NOT NULL from task_id and response so the unscheduled kind can omit them must not let
+-- a service_task receipt exist with neither. Asserted from the catalogue rather than by attempting
+-- an insert: this table's RLS refuses a direct authenticated write first, so an insert test would
+-- pass on 42501 and prove nothing about the CHECK.
+select ok(
+  exists(
+    select 1 from pg_constraint
+    where conrelid = 'public.offline_service_draft_receipts'::regclass
+      and conname = 'offline_draft_receipt_kind_shape_check'
+      and pg_get_constraintdef(oid) like '%task_id IS NOT NULL%response IS NOT NULL%'
+      and pg_get_constraintdef(oid) like '%resident_id IS NOT NULL%service_kind IS NOT NULL%'
+  ),
+  'each receipt kind must still carry the columns that make it meaningful'
 );
 
 select * from finish();

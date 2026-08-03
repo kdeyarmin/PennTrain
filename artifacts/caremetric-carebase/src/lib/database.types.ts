@@ -5905,6 +5905,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null
@@ -5927,6 +5929,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date?: string | null
+          poc_due_soon_notified_at?: string | null
+          poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
           severity?: string
           source_inspection_event_id?: string | null
@@ -5949,6 +5953,8 @@ export type Database = {
           inspection_date?: string
           organization_id?: string
           poc_due_date?: string | null
+          poc_due_soon_notified_at?: string | null
+          poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
           severity?: string
           source_inspection_event_id?: string | null
@@ -18639,6 +18645,7 @@ export type Database = {
         Row: {
           client_occurred_at: string
           device_id: string
+          draft_kind: string
           error_message: string | null
           exception_details: Json
           id: string
@@ -18647,12 +18654,15 @@ export type Database = {
           outcome: string
           processed_at: string
           profile_id: string
-          response: string
-          task_id: string
+          resident_id: string | null
+          response: string | null
+          service_kind: string | null
+          task_id: string | null
         }
         Insert: {
           client_occurred_at: string
           device_id: string
+          draft_kind?: string
           error_message?: string | null
           exception_details?: Json
           id?: string
@@ -18661,12 +18671,15 @@ export type Database = {
           outcome: string
           processed_at?: string
           profile_id: string
-          response: string
-          task_id: string
+          resident_id?: string | null
+          response?: string | null
+          service_kind?: string | null
+          task_id?: string | null
         }
         Update: {
           client_occurred_at?: string
           device_id?: string
+          draft_kind?: string
           error_message?: string | null
           exception_details?: Json
           id?: string
@@ -18675,8 +18688,10 @@ export type Database = {
           outcome?: string
           processed_at?: string
           profile_id?: string
-          response?: string
-          task_id?: string
+          resident_id?: string | null
+          response?: string | null
+          service_kind?: string | null
+          task_id?: string | null
         }
         Relationships: [
           {
@@ -18698,6 +18713,20 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_service_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_service_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
             referencedColumns: ["id"]
           },
           {
@@ -20044,9 +20073,18 @@ export type Database = {
           due_date: string | null
           id: string
           name: string
+          next_occurrence_on: string | null
           organization_id: string
           policy_document_id: string
           policy_document_version_id: string
+          recurrence_months: number | null
+          recurrence_parent_id: string | null
+          target_facility_ids: string[] | null
+          target_facility_type: string | null
+          target_job_title_pattern: string | null
+          target_worker_type: string | null
+          targeting_mode: string
+          targets_last_materialized_at: string | null
         }
         Insert: {
           created_at?: string
@@ -20054,9 +20092,18 @@ export type Database = {
           due_date?: string | null
           id?: string
           name: string
+          next_occurrence_on?: string | null
           organization_id: string
           policy_document_id: string
           policy_document_version_id: string
+          recurrence_months?: number | null
+          recurrence_parent_id?: string | null
+          target_facility_ids?: string[] | null
+          target_facility_type?: string | null
+          target_job_title_pattern?: string | null
+          target_worker_type?: string | null
+          targeting_mode?: string
+          targets_last_materialized_at?: string | null
         }
         Update: {
           created_at?: string
@@ -20064,9 +20111,18 @@ export type Database = {
           due_date?: string | null
           id?: string
           name?: string
+          next_occurrence_on?: string | null
           organization_id?: string
           policy_document_id?: string
           policy_document_version_id?: string
+          recurrence_months?: number | null
+          recurrence_parent_id?: string | null
+          target_facility_ids?: string[] | null
+          target_facility_type?: string | null
+          target_job_title_pattern?: string | null
+          target_worker_type?: string | null
+          targeting_mode?: string
+          targets_last_materialized_at?: string | null
         }
         Relationships: [
           {
@@ -20106,6 +20162,13 @@ export type Database = {
             columns: ["policy_document_version_id"]
             isOneToOne: false
             referencedRelation: "policy_document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestation_campaigns_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
             referencedColumns: ["id"]
           },
         ]
@@ -36075,6 +36138,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null
@@ -37138,6 +37203,12 @@ export type Database = {
           p_policy_document_id: string
           p_policy_document_version_id: string
           p_questions?: Json
+          p_recurrence_months?: number
+          p_target_facility_ids?: string[]
+          p_target_facility_type?: string
+          p_target_job_title_pattern?: string
+          p_target_worker_type?: string
+          p_targeting_mode?: string
         }
         Returns: string
       }
@@ -39210,6 +39281,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null
@@ -39238,6 +39311,10 @@ export type Database = {
       match_exclusion_list_against_roster_core: {
         Args: { p_organization_id?: string; p_source: string }
         Returns: undefined
+      }
+      materialize_policy_campaign_targets: {
+        Args: { p_campaign_id: string }
+        Returns: number
       }
       materialize_service_requirements_from_assessment_form: {
         Args: { p_form_id: string }
@@ -40786,6 +40863,11 @@ export type Database = {
         Returns: number
       }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
+      run_plan_of_correction_escalations: {
+        Args: { p_now?: string }
+        Returns: number
+      }
+      run_policy_campaign_targeting: { Args: never; Returns: number }
       run_shift_handoff_escalations: {
         Args: { p_now?: string }
         Returns: number
@@ -41568,6 +41650,10 @@ export type Database = {
         Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }
         Returns: Json
       }
+      spawn_due_policy_campaign_cycles: {
+        Args: { p_now?: string }
+        Returns: number
+      }
       stage_hris_import_row: {
         Args: {
           p_external_employment_id: string
@@ -41851,6 +41937,19 @@ export type Database = {
           p_idempotency_key: string
           p_response: string
           p_task_id: string
+        }
+        Returns: Json
+      }
+      sync_offline_unscheduled_service_draft: {
+        Args: {
+          p_client_occurred_at: string
+          p_device_id: string
+          p_duration_minutes?: number
+          p_idempotency_key: string
+          p_note?: string
+          p_requires_two_staff?: boolean
+          p_resident_id: string
+          p_service_kind: string
         }
         Returns: Json
       }
@@ -42453,6 +42552,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null

@@ -50,6 +50,11 @@ const WORK_QUEUE_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manag
 const EMERGENCY_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 const TRAINER_ONLY: Role[] = ["trainer"];
 const EMPLOYEE_ONLY: Role[] = ["employee"];
+// Every role EXCEPT employee -- the exact complement of the employee portal. A profile can reach
+// any role while still holding a roster row (admin_update_profile severs employees.profile_id only
+// on an organization change), so a hand-picked subset just recreates the E6 bug for whichever
+// roles it leaves out. See BACKLOG.md E6.
+const ROSTERED_STAFF_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor"];
 const ANY_ROLE: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
 // Exported so route-manifest coverage tests can verify every action's `path` is actually
@@ -313,6 +318,10 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/evidence", label: "Documentation room", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "auditor", "guest access", "surveyor", "artifacts", "binder", "share", "evidence", "documentation room"] },
   { path: "/app/guest-access", label: "Guest access center", domain: "compliance", roles: REPORTING_ROLES, keywords: ["guest", "token", "external access", "revoke", "portal", "move-in", "agreement", "evidence grant", "surveyor access"] },
   { path: "/app/policy-documents", label: "Policies & procedures", domain: "documents", roles: REPORTING_ROLES, keywords: ["attestation", "campaigns"] },
+  // Deliberately not in Sidebar.tsx: most managers hold no employees row, and a permanent nav item
+  // would be an empty page for them. Registered here so the route manifest governs it and search
+  // can find it; the people who need it arrive from their attestation notification. BACKLOG.md E6.
+  { path: "/app/my-attestations", label: "My attestations", domain: "self_service", roles: ROSTERED_STAFF_ROLES, keywords: ["policies", "sign", "my own", "promoted", "rostered"] },
   { path: "/app/template-documents", label: "Template documents", domain: "documents", roles: REPORTING_ROLES, keywords: ["forms", "reference"] },
   { path: "/app/dhs-forms", label: "DHS forms library", domain: "documents", roles: REPORTING_ROLES, keywords: ["state forms", "official forms", "pch", "alf", "alr", "rasp", "asp", "dme", "reportable incident", "download", "pa.gov"] },
   { path: "/app/documents", label: "Documents", domain: "documents", roles: ORG_ROLES, keywords: ["files", "uploads"] },

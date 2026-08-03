@@ -344,6 +344,11 @@ select is(
 --   still there (system_job_runs references it ON DELETE RESTRICT) but is_active is now false, and
 --   get_system_job_control_plane filters on is_active -- so the control plane correctly stops
 --   listing a job that no longer runs. 46 definitions, 45 active.
+-- 45 -> 46 when 20260803000000 registered escalate-plans-of-correction. 47 definitions, 46 active.
+-- 46 -> 47 when 20260803050000 registered materialize-policy-campaign-targets (E4 declarative
+--   campaign targeting). 48 definitions, 47 active.
+-- 47 -> 48 when 20260803070000 registered spawn-policy-campaign-cycles (E4 recurrence).
+--   49 definitions, 48 active.
 --
 -- The old message claimed this proved the control plane "registers every platform job". It did not,
 -- and could not: a bare count over system_job_definitions cannot notice a cron job that is missing
@@ -354,7 +359,7 @@ select is(
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  45::bigint,
+  48::bigint,
   'the control plane returns one row per active registered job definition'
 );
 
