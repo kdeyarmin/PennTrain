@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import type { Tables } from "@/lib/database.types";
 
 export type ClinicalObservation = Tables<"clinical_observations">;
@@ -170,10 +171,20 @@ const CLINICAL_CHART_RESIDENT_OPTIONS_KEY = "clinical-chart-resident-options";
  * Residents the caller may open the caregiver clinical chart for -- gated by the same
  * clinical_record_visible helper as the chart RPCs above, not the base residents RLS (which has
  * no employee path). Backs the resident picker at /me/residents.
+ *
+ * The key carries the identity the roster was computed under, not just the query name. Sign-out and
+ * SIGNED_IN both call queryClient.clear(), so a bare key is safe across sessions -- but an admin
+ * moving someone to another facility or changing their role mid-shift is a supported, explicitly
+ * handled case (auth.tsx wipes the offline draft store for exactly that transition) and it does
+ * *not* clear the query cache. Without the identity in the key, that transition would keep serving
+ * the previous context's resident list until staleTime lapsed. For a roster of residents, that is a
+ * PHI boundary rather than a staleness nit.
  */
 export function useClinicalChartResidentOptions() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: [CLINICAL_CHART_RESIDENT_OPTIONS_KEY],
+    queryKey: [CLINICAL_CHART_RESIDENT_OPTIONS_KEY, user?.id, user?.organizationId, user?.role],
+    enabled: Boolean(user?.id && user?.organizationId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_clinical_chart_resident_options");
       if (error) throw error;

@@ -13,12 +13,20 @@ const SIGNED_URL_TTL_SECONDS = 15 * 60;
  * after scrolling the list costs nothing, and a facility's photos are signed in a single storage
  * round trip rather than one per row. Reading a photo is a logged PHI access like any other resident
  * document -- the gate is the storage policy in 20260803120000, not this hook.
+ *
+ * The key carries organization and role as well as the profile id, and it has to. A signed URL is
+ * bearer-authorized for its whole TTL: once minted it keeps resolving regardless of what RLS would
+ * say now. So an admin moving this employee to another facility or changing their role mid-shift --
+ * a transition auth.tsx explicitly handles by wiping the offline draft store, but which does *not*
+ * clear the query cache -- would otherwise leave the previous facility's resident photos both cached
+ * under an unchanged profile id and still resolvable. Re-keying forces a fresh sign under the new
+ * context instead.
  */
 export function useResidentPhotoUrls() {
   const { user } = useAuth();
   return useQuery({
-    queryKey: [PHOTO_KEY, user?.id],
-    enabled: Boolean(user?.id),
+    queryKey: [PHOTO_KEY, user?.id, user?.organizationId, user?.role],
+    enabled: Boolean(user?.id && user?.organizationId),
     // staleTime alone only marks data stale -- nothing re-runs, and refetchOnWindowFocus is off
     // globally (lib/queryClient.ts). A roster left open for a shift would then hand an expired URL to
     // any <img> that remounts. refetchInterval is what actually keeps them live.
