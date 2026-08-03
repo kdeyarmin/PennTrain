@@ -73,9 +73,17 @@ async function verifyOrgAdminBrowserMfa(page: Page) {
   await page.goto("/account/security");
   const code = page.getByLabel("Authenticator code");
   await expect(code).toBeVisible();
-  await code.fill(totpCode(orgAdminMfaSecret));
-  await page.getByRole("button", { name: "Verify authenticator" }).click();
-  await expect(page.getByText(/session is already verified/i)).toBeVisible();
+  // Same mitigation as e2e/resident-lifecycle.spec.ts's signIn: a TOTP code is only valid for a
+  // narrow window, and on a loaded CI runner the round trip can occasionally straddle it. Retrying
+  // with a freshly-computed code (not the same one) is the standard fix, and costs nothing when the
+  // first attempt already lands within its window.
+  const verified = page.getByText(/session is already verified/i);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await code.fill(totpCode(orgAdminMfaSecret));
+    await page.getByRole("button", { name: "Verify authenticator" }).click();
+    if (await verified.isVisible({ timeout: 5000 }).catch(() => false)) break;
+    if (attempt === 3) await expect(verified).toBeVisible();
+  }
 }
 
 function requireEnvironment() {

@@ -125,9 +125,17 @@ async function signIn(
     await page.goto("/account/security");
     const code = page.getByLabel("Authenticator code");
     await expect(code).toBeVisible();
-    await code.fill(totpCode(mfaSecret));
-    await page.getByRole("button", { name: "Verify authenticator" }).click();
-    await expect(page.getByText(/session is already verified/i)).toBeVisible();
+    // A TOTP code is only valid for a narrow window; on a loaded CI runner the round trip from
+    // "compute the code" to "the server validates it" can occasionally straddle that window, so the
+    // server sees an already-expired code. Recomputing and resubmitting a fresh code -- rather than
+    // retrying the same one -- is the standard mitigation for exactly this class of flake.
+    const verified = page.getByText(/session is already verified/i);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await code.fill(totpCode(mfaSecret));
+      await page.getByRole("button", { name: "Verify authenticator" }).click();
+      if (await verified.isVisible({ timeout: 5000 }).catch(() => false)) break;
+      if (attempt === 3) await expect(verified).toBeVisible();
+    }
     await page.goto(landsOn);
   }
 
