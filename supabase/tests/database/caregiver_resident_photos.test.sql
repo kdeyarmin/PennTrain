@@ -1,7 +1,7 @@
 begin;
 select plan(14);
 
--- The caregiver photo branch (20260803030000) widens what an `employee` may read for the first time
+-- The caregiver photo branch (20260803120000) widens what an `employee` may read for the first time
 -- since the clinical lane opened. The assertions that matter here are the ones proving how narrow it
 -- is: a photo, yes; anything else about the same resident, no; another facility's photo, no.
 

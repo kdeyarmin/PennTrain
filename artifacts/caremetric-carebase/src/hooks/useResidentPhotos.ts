@@ -12,7 +12,7 @@ const SIGNED_URL_TTL_SECONDS = 15 * 60;
  * Batched deliberately: the roster and the chart header share one query key, so opening a resident
  * after scrolling the list costs nothing, and a facility's photos are signed in a single storage
  * round trip rather than one per row. Reading a photo is a logged PHI access like any other resident
- * document -- the gate is the storage policy in 20260803030000, not this hook.
+ * document -- the gate is the storage policy in 20260803120000, not this hook.
  */
 export function useResidentPhotoUrls() {
   const { user } = useAuth();

@@ -10,7 +10,7 @@
  *
  * The sync-state vocabulary is narrower than the service lane's on purpose. A vital sign cannot be
  * documented by someone else first, and cannot be superseded by a plan revision, so there is no
- * `conflict` or `stale` -- see the header of 20260803020000_offline_clinical_observation_drafts.sql.
+ * `conflict` or `stale` -- see the header of 20260803110000_offline_clinical_observation_drafts.sql.
  */
 import type { ObservationType } from "@/hooks/useClinicalObservations";
 import { OBSERVATION_CONFIG } from "./clinicalObservations";

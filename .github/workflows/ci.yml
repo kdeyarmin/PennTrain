@@ -391,8 +391,23 @@ jobs:
   # Stable required-check target when path filters skip individual jobs.
   # Treat skipped as OK; failure/cancelled of any needed job fails the gate.
   # secret-scan must always succeed (never path-skipped).
+  #
+  # `!cancelled()` rather than `always()`, deliberately. `always()` is true even when the RUN has
+  # been cancelled, so every superseded PR run -- the concurrency block above cancels one on each
+  # new push -- still reached this job, found `database: cancelled`, and reported a failed gate for
+  # a commit that was no longer the head. That is a false alarm on every push-over-a-running-build,
+  # and a gate that cries wolf is a gate people stop reading.
+  #
+  # The trade-off, stated rather than buried: on a run cancelled by a human this job is now skipped
+  # instead of failing, and GitHub counts a skipped required check as passing. So a deliberate
+  # cancel-then-merge is no longer blocked here. That is an intentional bypass by someone with
+  # merge rights, not the accident this gate exists to catch -- and GitHub offers no way to
+  # distinguish a concurrency cancellation from a manual one inside the job.
+  #
+  # Detection of real failures is unchanged: when the run is not cancelled this job runs exactly as
+  # before, and the loop below still fails on `failure` or `cancelled` from any needed job.
   ci-result:
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - changes
       - application

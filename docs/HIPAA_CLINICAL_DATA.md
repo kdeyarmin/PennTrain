@@ -91,7 +91,7 @@ Data model (delivered in M2 — FHIR medication lane):
   counsel before it is relied on as settled.
 - **Consent / minimum-necessary.** `residents.clinical_data_consent`; employees limited to
   assigned-facility residents; capability gated by `clinical.ehr`.
-- **Resident photo (M7).** `20260803030000` adds the first `employee` branch to
+- **Resident photo (M7).** `20260803120000` adds the first `employee` branch to
   `resident_documents_select` and the `resident-documents` storage read policy, for right-patient
   verification. It is scoped to a single document per resident — the one `residents.photo_document_id`
   designates — through `app_private.resident_photo_document_visible` / `resident_photo_object_visible`,

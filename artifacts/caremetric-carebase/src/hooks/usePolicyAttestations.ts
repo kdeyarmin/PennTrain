@@ -53,6 +53,11 @@ export function useCreatePolicyAttestationCampaign() {
 // (BEFORE INSERT trigger) then unconditionally re-derives both from
 // employee_id and overwrites whatever was passed, so a caller can't put an
 // attestation in the wrong org/facility even if it got these wrong.
+//
+// The same trigger also sets due_date from the campaign, unconditionally. `dueDate` below is
+// therefore advisory: PolicyDocumentDetail passes the campaign's own due date, so it agrees, but
+// there is no way to give one employee a different deadline through this path -- a per-employee
+// due date would need the trigger to stop overwriting it.
 // ---------------------------------------------------------------------------
 
 export interface ListPolicyAttestationsFilters {
@@ -164,6 +169,17 @@ export function useCreateCampaignQuestions() {
   });
 }
 
+export interface CampaignTargeting {
+  /** `manual` keeps the pre-E4 behaviour: the campaign fans out only to explicitly picked employees. */
+  mode: "manual" | "declarative";
+  /** Named facilities. `null` means every facility in the organization, not "none". */
+  facilityIds: string[] | null;
+  facilityType: "PCH" | "ALR" | null;
+  workerType: "regular" | "agency" | "substitute" | "volunteer" | null;
+  /** ILIKE pattern against employees.job_title, the dimension compliance rules already match on. */
+  jobTitlePattern: string | null;
+}
+
 export interface CreateCampaignWithQuestionsParams {
   organizationId: string;
   policyDocumentId: string;
@@ -171,6 +187,13 @@ export interface CreateCampaignWithQuestionsParams {
   name: string;
   dueDate: string | null;
   questions: Array<{ prompt: string; choices: string[]; correct_choice_index: number }>;
+  /** Omit for a manual campaign -- the RPC defaults every targeting parameter. */
+  targeting?: CampaignTargeting;
+  /**
+   * Months between cycles, or null for a one-off campaign. The RPC derives the next occurrence
+   * from `dueDate` + this interval, so a repeating campaign must have a due date to repeat from.
+   */
+  recurrenceMonths?: number | null;
 }
 
 /**
@@ -192,6 +215,14 @@ export function useCreatePolicyCampaignWithQuestions() {
         p_name: params.name,
         p_due_date: params.dueDate ?? undefined,
         p_questions: params.questions,
+        // A declarative campaign enrols its initial roster inside the same RPC call, so the
+        // administrator sees assignments immediately rather than after the nightly sweep.
+        p_targeting_mode: params.targeting?.mode ?? "manual",
+        p_target_facility_ids: params.targeting?.facilityIds ?? undefined,
+        p_target_facility_type: params.targeting?.facilityType ?? undefined,
+        p_target_worker_type: params.targeting?.workerType ?? undefined,
+        p_target_job_title_pattern: params.targeting?.jobTitlePattern ?? undefined,
+        p_recurrence_months: params.recurrenceMonths ?? undefined,
       });
       if (error) throw error;
       return data as unknown as string;
@@ -199,6 +230,9 @@ export function useCreatePolicyCampaignWithQuestions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["policy_attestation_campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["policy_campaign_questions"] });
+      // A declarative campaign creates attestations as part of creation, so the roster view is
+      // stale the moment this resolves.
+      queryClient.invalidateQueries({ queryKey: ["policy_attestations"] });
     },
   });
 }
