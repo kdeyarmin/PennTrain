@@ -26,8 +26,9 @@ import {
 } from "@/hooks/useResidentChangeEvents";
 import { QueryError } from "@/components/QueryState";
 import { UnsyncedDraftsPanel } from "@/components/residents/UnsyncedDraftsPanel";
-import { useSaveOfflineChangeObservationDraft } from "@/hooks/useOfflineServiceDrafts";
-import { isNetworkLevelSupabaseError } from "@/lib/offlineServiceDraftSafety";
+import {
+  SYNC_OUTCOME_MESSAGES, useSaveOfflineChangeObservationDraft, useSyncOfflineServiceDraft,
+} from "@/hooks/useOfflineServiceDrafts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ export default function ChangeOfConditionDetail() {
   const recordNotification = useRecordChangeEventNotification();
   const addMonitoring = useAddChangeEventMonitoring();
   const saveOfflineObservation = useSaveOfflineChangeObservationDraft();
+  const syncOfflineObservation = useSyncOfflineServiceDraft();
   const completeFollowUp = useCompleteChangeEventFollowUp();
   const closeEvent = useCloseResidentChangeEvent();
   const isManager = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
@@ -108,19 +110,76 @@ export default function ChangeOfConditionDetail() {
 
   // Monitoring is a cadence -- "every two hours" -- walked in resident rooms and back hallways,
   // which is where the wifi is worst. An observation that cannot be filed at the bedside is either
-  // lost or written up later from memory, so this falls back to an encrypted local draft
-  // (BACKLOG.md E5 Tier 3), mirroring DocumentCareDialog and UnscheduledServiceDialog.
+  // lost or written up later from memory, so it is captured to an encrypted local draft
+  // (BACKLOG.md E5 Tier 3).
   //
-  // Employee-only, unlike those two: the offline store is scoped to employee accounts (see
-  // register_offline_service_device), and this page is shared with managers at /app. Telling a
-  // facility manager their observation "requires an active employee account" would read as a
-  // permissions problem when the actual problem is that they are offline.
+  // Employee-only: the offline store is scoped to employee accounts (see
+  // register_offline_service_device), and this page is shared with managers at /app.
   const canDraftOffline = user?.role === "employee";
+
+  const resetMonitoringForm = () => {
+    setObservations("");
+    setMonitoringAction("");
+    setSupervisorNotified(false);
+  };
 
   const submitMonitoring = async () => {
     const observedAt = new Date().toISOString();
-    const saveDraftLocally = async () => {
-      await saveOfflineObservation.mutateAsync({
+
+    // Codex review finding (P1). EVERY employee write goes through the draft + sync path, online or
+    // not -- the same rule the caregiver charting surface follows for vital signs, and for the same
+    // reason.
+    //
+    // add_change_event_monitoring takes no idempotency key and has no natural guard: calling it
+    // twice simply appends a second monitoring entry and a second immutable-history row. (Tier 1 is
+    // safe from this by accident -- record_service_task_response refuses a task that is no longer
+    // 'scheduled', so a second apply fails on its own. Nothing here does.)
+    //
+    // An online call whose HTTP response is lost in transit has already committed, but is
+    // indistinguishable client-side from one that never reached PostgreSQL: postgrest-js reports the
+    // same empty-code fetch error for both. Falling back to a NEW draft with a NEW idempotency key
+    // therefore double-charts the observation on the next sync. Minting the draft -- and therefore
+    // its key -- BEFORE the first network attempt is what closes that window: the retry carries the
+    // same key, and sync_offline_change_observation_draft's unique (device_id, idempotency_key)
+    // collapses it to 'duplicate' instead of a second entry in the resident's record.
+    const attemptDirectWrite = async () => {
+      try {
+        await addMonitoring.mutateAsync({
+          eventId: event.id,
+          observedAt,
+          observations,
+          actionTaken: monitoringAction,
+          supervisorNotified,
+        });
+        toast({ title: "Monitoring observation recorded" });
+        resetMonitoringForm();
+      } catch (error) {
+        toast({
+          title: "Couldn't record monitoring",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        });
+      }
+    };
+
+    if (!canDraftOffline) {
+      // Managers have no offline store to mint a key in, so this path keeps the direct call it has
+      // always had. The lost-response window above is not closable without one.
+      if (navigator.onLine === false) {
+        toast({
+          title: "You are offline",
+          description: "This observation can't be recorded until this device is back online.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await attemptDirectWrite();
+      return;
+    }
+
+    let draftId: string;
+    try {
+      const draft = await saveOfflineObservation.mutateAsync({
         eventId: event.id,
         residentDisplayLabel: `${event.resident?.first_name ?? ""} ${event.resident?.last_name ?? ""}`.trim()
           || "This resident",
@@ -132,61 +191,46 @@ export default function ChangeOfConditionDetail() {
         actionTaken: monitoringAction.trim() || null,
         supervisorNotified,
       });
+      draftId = draft.draftId;
+    } catch {
+      // No local store (private browsing, quota, a blocked upgrade) means no key can be minted that
+      // survives a retry, so the idempotent path is simply unavailable. Refusing the write outright
+      // would be worse than the narrow lost-response risk -- the observation is real and the aide is
+      // standing at the bedside -- so fall through to the direct call rather than losing it.
+      await attemptDirectWrite();
+      return;
+    }
+
+    // Durably on the device from here on, so the form can clear whatever the network does next.
+    resetMonitoringForm();
+
+    if (navigator.onLine === false) {
       toast({
         title: "Saved on this device",
         description: "It will sync when you are back online. It stays here until it does.",
-      });
-      setObservations("");
-      setMonitoringAction("");
-      setSupervisorNotified(false);
-    };
-
-    const offlineFallback = async () => {
-      try {
-        await saveDraftLocally();
-      } catch (draftError) {
-        toast({
-          title: "Could not save this offline",
-          description: draftError instanceof Error ? draftError.message : String(draftError),
-          variant: "destructive",
-        });
-      }
-    };
-
-    // Decided at submit time rather than from render state: an aide can walk out of signal between
-    // typing the observation and tapping the button.
-    if (navigator.onLine === false) {
-      if (canDraftOffline) { await offlineFallback(); return; }
-      toast({
-        title: "You are offline",
-        description: "This observation can't be recorded until this device is back online.",
-        variant: "destructive",
       });
       return;
     }
 
     try {
-      await addMonitoring.mutateAsync({
-        eventId: event.id,
-        observedAt,
-        observations,
-        actionTaken: monitoringAction,
-        supervisorNotified,
-      });
-      toast({ title: "Monitoring observation recorded" });
-      setObservations("");
-      setMonitoringAction("");
-      setSupervisorNotified(false);
-    } catch (error) {
-      // navigator.onLine reads true with a LAN link but no route to Supabase, so the branch above
-      // misses that and the call fails having never reached the server. Fall back only for that
-      // failure shape -- a real rejection (the event was closed, this is not your event) must still
-      // surface rather than disappear into a silent draft.
-      if (canDraftOffline && isNetworkLevelSupabaseError(error)) { await offlineFallback(); return; }
+      const outcome = await syncOfflineObservation.mutateAsync(draftId);
+      if (outcome === "applied" || outcome === "duplicate") {
+        toast({ title: "Monitoring observation recorded" });
+        return;
+      }
+      // A real refusal (the event closed, this is not your event) is block-and-flagged in the drafts
+      // panel rather than vanishing with the toast, which is the whole point of that panel.
       toast({
         title: "Couldn't record monitoring",
-        description: error instanceof Error ? error.message : String(error),
+        description: SYNC_OUTCOME_MESSAGES[outcome],
         variant: "destructive",
+      });
+    } catch {
+      // The sync itself failed to reach the server. The draft is already saved and flagged for
+      // retry, so this is a status message, not a loss.
+      toast({
+        title: "Saved on this device",
+        description: "It couldn't sync just now. It stays here and will retry.",
       });
     }
   };
@@ -253,7 +297,7 @@ export default function ChangeOfConditionDetail() {
                   <Textarea value={observations} onChange={input => setObservations(input.target.value)} placeholder="Current observable facts" />
                   <Textarea value={monitoringAction} onChange={input => setMonitoringAction(input.target.value)} placeholder="Action taken, if any" />
                   <label className="flex items-center gap-2 text-sm"><Checkbox checked={supervisorNotified} onCheckedChange={value => setSupervisorNotified(value === true)} /><BellRing className="h-4 w-4" />Supervisor notified</label>
-                  <Button disabled={observations.trim().length < 3 || addMonitoring.isPending || saveOfflineObservation.isPending} onClick={() => void submitMonitoring()}>Record observation</Button>
+                  <Button disabled={observations.trim().length < 3 || addMonitoring.isPending || saveOfflineObservation.isPending || syncOfflineObservation.isPending} onClick={() => void submitMonitoring()}>Record observation</Button>
                 </div>
               )}
               {activity.data?.monitoring.length ? activity.data.monitoring.map(entry => (

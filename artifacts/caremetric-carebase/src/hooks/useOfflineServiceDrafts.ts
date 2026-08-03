@@ -9,10 +9,10 @@ import {
 } from "@/lib/offlineServiceDraftCache";
 import {
   assertChangeObservationDraftAllowed, assertServiceDraftAllowed,
-  assertUnscheduledServiceDraftAllowed, isChangeObservationDraft, isUnscheduledServiceDraft,
-  NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
-  type OfflineChangeObservationDraft, type OfflineDraftSyncOutcome, type OfflineFloorDraft,
-  type OfflineServiceDraft, type OfflineUnscheduledServiceDraft,
+  assertUnscheduledServiceDraftAllowed, draftKindOf, isChangeObservationDraft,
+  isUnscheduledServiceDraft, NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
+  type OfflineChangeObservationDraft, type OfflineDraftKind, type OfflineDraftSyncOutcome,
+  type OfflineFloorDraft, type OfflineServiceDraft, type OfflineUnscheduledServiceDraft,
 } from "@/lib/offlineServiceDraftSafety";
 import { followUpFieldsFor } from "@/lib/serviceExceptionFollowUp";
 import type { CompletionResponse } from "@/lib/serviceDeliveryContract";
@@ -283,6 +283,39 @@ async function callSyncRpc(deviceId: string, draft: OfflineFloorDraft) {
   });
 }
 
+/**
+ * Codex review finding (P2). A synced draft changes a domain record, not just the local store, and
+ * the surface showing that record is often open at the moment the sync lands -- the drafts panel is
+ * mounted on ChangeOfConditionDetail, which renders the very monitoring history a change-observation
+ * sync just appended to. Invalidating only ["offline-service-drafts"] makes the draft disappear and
+ * the toast say "recorded" while the immutable history below it still shows nothing, until a reload
+ * or some unrelated invalidation happens by.
+ *
+ * Keyed per kind rather than invalidating everything: a service-task sync has no reason to refetch
+ * change events, and vice versa.
+ */
+// Taken from what each domain's own online mutation already invalidates (useResidentServiceTasks'
+// invalidateServiceTasks, useResidentCareDelivery's invalidateResidentCare, useResidentChangeEvents'
+// invalidateChangeEvents) rather than guessed, so the offline path refreshes exactly what the online
+// path does.
+const DOMAIN_QUERY_KEYS_BY_KIND: Record<OfflineDraftKind, string[][]> = {
+  service_task: [["resident-service-tasks"], ["service-task-alerts"], ["resident-360"], ["work-items"]],
+  unscheduled_service: [["resident-care-delivery"], ["resident-service-tasks"], ["work-items"], ["daily-operations"]],
+  change_observation: [["resident-change-events"], ["resident_compliance_items"], ["work-items"]],
+};
+
+function invalidateDomainFor(
+  queryClient: ReturnType<typeof useQueryClient>,
+  drafts: OfflineFloorDraft[],
+): void {
+  const kinds = new Set(drafts.map(draftKindOf));
+  for (const kind of kinds) {
+    for (const key of DOMAIN_QUERY_KEYS_BY_KIND[kind]) {
+      queryClient.invalidateQueries({ queryKey: key });
+    }
+  }
+}
+
 async function syncDraft(identity: OfflineFloorIdentity, draft: OfflineFloorDraft): Promise<OfflineDraftSyncOutcome> {
   const deviceId = await ensureRegisteredDeviceId(identity);
   const { data, error } = await callSyncRpc(deviceId, draft);
@@ -408,7 +441,9 @@ export function useSyncOfflineServiceDraft() {
       const draft = drafts.find((entry) => entry.draftId === draftId);
       if (!draft) throw new Error("This draft is no longer on this device.");
       try {
-        return await syncDraft(identity, draft);
+        const outcome = await syncDraft(identity, draft);
+        if (outcome === "applied") invalidateDomainFor(queryClient, [draft]);
+        return outcome;
       } catch (error) {
         await updateServiceDraft(
           draftId,
@@ -441,13 +476,16 @@ export function useSyncAllOfflineServiceDrafts() {
       const drafts = (await readAllServiceDrafts(identity))
         .filter((draft) => (UNRESOLVED_DRAFT_STATES as string[]).includes(draft.syncState));
       const result: SyncAllResult = { attempted: 0, applied: 0, needsReview: 0, wipeRequired: false, failed: 0 };
+      const applied: OfflineFloorDraft[] = [];
       for (const draft of drafts) {
         result.attempted += 1;
         try {
           const outcome = await syncDraft(identity, draft);
           if (outcome === "wipe_required") { result.wipeRequired = true; break; }
-          if (outcome === "applied" || outcome === "duplicate") result.applied += 1;
-          else result.needsReview += 1;
+          if (outcome === "applied" || outcome === "duplicate") {
+            result.applied += 1;
+            if (outcome === "applied") applied.push(draft);
+          } else result.needsReview += 1;
         } catch (error) {
           result.failed += 1;
           await updateServiceDraft(
@@ -457,6 +495,7 @@ export function useSyncAllOfflineServiceDrafts() {
           ).catch(() => undefined);
         }
       }
+      invalidateDomainFor(queryClient, applied);
       return result;
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),

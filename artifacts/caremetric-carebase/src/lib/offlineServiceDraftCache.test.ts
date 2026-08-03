@@ -303,6 +303,40 @@ describe("draft kinds share one store (BACKLOG.md E5 Tiers 2-3)", () => {
     ).rejects.toThrow();
   });
 
+  // Codex review finding (P1). The double-charting window this closes is invisible in a diff: it
+  // depends on a NEW idempotency key being minted per capture, so that a retry of a write whose
+  // response was lost carries the SAME key and collapses to a duplicate server-side rather than
+  // appending a second monitoring entry.
+  //
+  // Two properties make that work, and both live here. First, saving a draft must preserve the key
+  // it was given rather than regenerating one -- an update (the sync path rewrites syncState) must
+  // not mint a fresh key, or every retry would look new to the server.
+  it("preserves a change observation's idempotency key across a re-save", async () => {
+    const original = changeObservationDraft();
+    await saveServiceDraft(original);
+    const readBack = await readServiceDraft("obs-1", identity);
+    expect(readBack).toMatchObject({ idempotencyKey: "idem-obs-1" });
+
+    await saveServiceDraft({ ...(readBack as OfflineChangeObservationDraft), syncState: "error" });
+    await expect(readServiceDraft("obs-1", identity)).resolves.toMatchObject({
+      idempotencyKey: "idem-obs-1",
+      syncState: "error",
+    });
+  });
+
+  // Second, two separate captures must NOT share a key -- otherwise the server would collapse two
+  // genuinely different observations into one. The guarantee is per-draft, not global.
+  it("keeps two separate captures on distinct keys", async () => {
+    await saveServiceDraft(changeObservationDraft());
+    await saveServiceDraft(changeObservationDraft({
+      draftId: "obs-2", idempotencyKey: "idem-obs-2", observations: "Second round, still steady.",
+    }));
+    const first = await readServiceDraft("obs-1", identity);
+    const second = await readServiceDraft("obs-2", identity);
+    expect((first as OfflineChangeObservationDraft).idempotencyKey)
+      .not.toBe((second as OfflineChangeObservationDraft).idempotencyKey);
+  });
+
   // Three kinds now share one keyPath-"draftId" store with no secondary index, so nothing about
   // adding this one required an IndexedDB version bump -- but the three must genuinely coexist
   // rather than the last write clobbering the others.
