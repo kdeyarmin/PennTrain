@@ -1,5 +1,5 @@
 begin;
-select plan(79);
+select plan(91);
 
 -- E5 Tier 1: offline service documentation drafts + conflict rules
 -- (20260802030000_offline_service_documentation_drafts.sql).
@@ -911,6 +911,137 @@ select ok(
   'all three tiers test the same columns before trusting a device'
 );
 
+------------------------------------------------------------------------------------------------
+-- Tier 4: the vitals lane joins the ledger (BACKLOG.md open question 8, second half)
+--
+-- 20260803110000 shipped offline clinical observation drafts with their OWN receipt table -- written
+-- before the one-ledger argument landed, and a divergence all the same. 20260803150000 absorbed it.
+--
+-- Tested in this file rather than one of its own for the reason the file has now given three times:
+-- the promise the ledger makes is `unique (device_id, idempotency_key)`, and that promise is only
+-- meaningful ACROSS kinds. A separate test file would have exercised the fourth kind in isolation,
+-- which is the exact shape of the gap the merge closed.
+------------------------------------------------------------------------------------------------
+reset role;
+select hasnt_table(
+  'public', 'offline_observation_draft_receipts',
+  'the second receipt ledger is gone, not merely deprecated'
+);
+
+-- Both registries key on the table NAME, so nothing in Postgres would have complained if the drop
+-- had left them behind -- the absorbed table would simply have gone on being described by the
+-- entitlement and audit registries as a thing that exists.
+select is(
+  (select count(*)::int from app_private.product_module_resources
+   where resource_name = 'offline_observation_draft_receipts'),
+  0,
+  'and it no longer claims a modules.carebase resource that cannot be queried'
+);
+
+select is(
+  (select count(*)::int from app_private.audit_entity_manifest
+   where table_name = 'offline_observation_draft_receipts'),
+  0,
+  'nor a row in the audit manifest that get_audit_coverage would report on a dropped table'
+);
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'app_private' and p.proname = 'prevent_offline_observation_receipt_mutation'),
+  0,
+  'and the append-only guard that only that table used went with it'
+);
+
+-- The survivor still registered in both, asserted separately: "the absorbed rows are gone" and
+-- "the surviving row is there" are different claims, and a delete that took one too many would
+-- satisfy the first while quietly dropping the ledger out of governance entirely.
+select ok(
+  exists(select 1 from app_private.product_module_resources
+         where resource_schema = 'public' and resource_name = 'offline_draft_receipts')
+  and exists(select 1 from app_private.audit_entity_manifest
+             where table_name = 'offline_draft_receipts'),
+  'while the one surviving ledger is still governed by both registries'
+);
+
+-- Charting needs the org entitled to clinical.ehr and CareBase and the facility switch on. Granted
+-- here, at the point of use, rather than in the fixture block: every assertion above this line ran
+-- without them, and moving them up would quietly change what those tests were standing on.
+insert into public.organization_entitlement_grants(
+  organization_id, feature_key, decision, entitlement_value, reason
+) values
+  ('65000000-0000-4000-8000-000000000001', 'clinical.ehr', 'grant', 'true'::jsonb,
+   'pgTAP fixture for the absorbed vitals lane'),
+  ('65000000-0000-4000-8000-000000000001', 'modules.carebase', 'grant', 'true'::jsonb,
+   'pgTAP fixture for the absorbed vitals lane');
+update public.facilities set clinical_enabled = true
+where id = '65000000-0000-4000-8000-000000000011';
+
+select pg_temp.act_as('65000000-0000-4000-8000-000000000101');
+
+select is(
+  (select public.sync_offline_clinical_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000201',
+    'vitals-key-1', now() - interval '20 minutes', 'blood_pressure', now() - interval '20 minutes',
+    142, 88, null, 'mmHg'
+  )->>'outcome'),
+  'applied',
+  'a vitals draft still syncs after the merge'
+);
+
+-- THE assertion this whole migration is for. If draft_kind had been left off the retargeted insert
+-- it would have defaulted to service_task and the widened shape CHECK would have refused the row --
+-- so this pins both that the receipt lands in the shared ledger AND that it lands as itself.
+select is(
+  (select draft_kind from public.offline_draft_receipts where idempotency_key = 'vitals-key-1'),
+  'clinical_observation',
+  'and its receipt lands in the one ledger, carrying its own kind'
+);
+
+select ok(
+  (select resident_id is not null and observation_type = 'blood_pressure' and observation_id is not null
+   from public.offline_draft_receipts where idempotency_key = 'vitals-key-1'),
+  'carrying the columns the widened shape check requires, and a link to what it charted'
+);
+
+-- The cross-kind promise, extended to the fourth kind and asserted behaviourally rather than by
+-- reading the constraint text. coc-key-2 is a Tier 3 change-observation receipt on this same device;
+-- while the two ledgers were separate this key was free for the vitals lane to reuse, and a
+-- reconnect could have charted a reading under a key the ledger had already spent.
+select is(
+  (select public.sync_offline_clinical_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000201',
+    'coc-key-2', now(), 'heart_rate', now(), 78, null, null, 'bpm'
+  )->>'outcome'),
+  'duplicate',
+  'a key already spent by a change observation is spent for vitals too -- one ledger, one promise'
+);
+
+-- 'duplicate' has to mean nothing was charted, not just that the caller was told a word. A fresh
+-- key could never produce it, so this pair is what separates a real replay from a lucky string.
+select is(
+  (select count(*)::int from public.clinical_observations
+   where resident_id = '65000000-0000-4000-8000-000000000201' and observation_type = 'heart_rate'),
+  0,
+  'and the cross-kind replay charts nothing'
+);
+
+select ok(
+  (select pg_get_constraintdef(oid) from pg_constraint
+   where conrelid = 'public.offline_draft_receipts'::regclass
+     and conname = 'offline_draft_receipt_kind_shape_check')
+  like '%clinical_observation%resident_id IS NOT NULL%observation_type IS NOT NULL%',
+  'the fourth kind must carry the columns that make it meaningful, like the other three'
+);
+
+-- Same check the other three tiers get. The vitals lane was written against revoked_at alone in
+-- 20260803110000 and aligned by 20260803130000; asserted here so all four tiers are pinned in one
+-- place rather than three.
+select ok(
+  pg_get_functiondef(
+    'public.sync_offline_clinical_observation_draft(uuid,uuid,text,timestamptz,text,timestamptz,numeric,numeric,text,text,text,text,text)'::regprocedure
+  ) like '%wipe_required_at is not null%',
+  'and the fourth tier tests the same columns before trusting a device'
+);
 
 select * from finish();
 rollback;
