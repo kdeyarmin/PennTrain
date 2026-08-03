@@ -53,6 +53,11 @@ export function useCreatePolicyAttestationCampaign() {
 // (BEFORE INSERT trigger) then unconditionally re-derives both from
 // employee_id and overwrites whatever was passed, so a caller can't put an
 // attestation in the wrong org/facility even if it got these wrong.
+//
+// The same trigger also sets due_date from the campaign, unconditionally. `dueDate` below is
+// therefore advisory: PolicyDocumentDetail passes the campaign's own due date, so it agrees, but
+// there is no way to give one employee a different deadline through this path -- a per-employee
+// due date would need the trigger to stop overwriting it.
 // ---------------------------------------------------------------------------
 
 export interface ListPolicyAttestationsFilters {
