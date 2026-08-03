@@ -127,17 +127,16 @@ export default function MyResidentChart() {
       loincCode: config.loinc ?? null,
       note: note.trim() || null,
     };
+    // Only the record call itself may reach the offline fallback below. Anything that runs after it
+    // succeeds is post-charting work on a reading the server already holds, and must not be able to
+    // queue a draft of it -- that draft would sync on reconnect and chart the SAME vital sign twice,
+    // which is the one failure the idempotency key exists to prevent and cannot detect (a second
+    // draft carries a second key). refetch() does not reject in this version of react-query, so this
+    // is currently unreachable rather than live; the point is that it stays unreachable when someone
+    // adds the next await here.
+    let observationId: string;
     try {
-      const observationId = await record.mutateAsync(input);
-      setRecordOpen(false);
-      resetRecordForm();
-      toast({ title: "Observation recorded" });
-      // The abnormal flag is derived server-side, so the only honest way to know whether this
-      // reading is critical is to read back what the server actually stored -- no client-side copy
-      // of the thresholds to drift out of sync with record_clinical_observation's own logic.
-      const refreshed = await observations.refetch();
-      const created = (refreshed.data ?? []).find((entry) => entry.id === observationId);
-      if (created && isCriticalFlag(created.abnormal_flag)) setCriticalReading(created);
+      observationId = await record.mutateAsync(input);
     } catch (error) {
       // Offline / never-reached-the-server: queue it rather than losing the reading. A real server
       // rejection (wrong facility, capability disabled) still surfaces -- see
@@ -180,7 +179,21 @@ export default function MyResidentChart() {
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
+      return;
     }
+
+    // Charted. Everything below is read-back and presentation.
+    setRecordOpen(false);
+    resetRecordForm();
+    toast({ title: "Observation recorded" });
+
+    // The abnormal flag is derived server-side, so the only honest way to know whether this reading
+    // is critical is to read back what the server actually stored -- no client-side copy of the
+    // thresholds to drift out of sync with record_clinical_observation's own logic. A failed
+    // read-back costs the caregiver the critical-value prompt, never the reading itself.
+    const refreshed = await observations.refetch().catch(() => null);
+    const created = (refreshed?.data ?? []).find((entry) => entry.id === observationId);
+    if (created && isCriticalFlag(created.abnormal_flag)) setCriticalReading(created);
   };
 
   const submitRetraction = async () => {
