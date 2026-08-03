@@ -18,7 +18,11 @@ implies.
   the structured change-of-condition pattern (SELECT-only grants, all writes via SECURITY
   DEFINER RPCs, append-only history).
 
-A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both lanes read-side.
+A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both lanes read-side
+for managers/admins/auditors. Frontline `employee` staff reach the native-charting slice of the
+same data (vitals, progress notes, assessments, care plans) through a separate, lighter caregiver
+surface at `/me/residents` — same RLS/RPC authorization boundary, simpler UI scoped to what a
+caregiver charts at the bedside. _(Delivered: M7.)_
 
 ## Rollout status
 
@@ -31,6 +35,7 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
 | M4 | Native care plans, assessments, progress notes (sign-and-lock) | **Delivered** |
 | M5 | Chart consolidation, unified timeline, hardening; write-back reserved (disabled) | **Delivered** |
 | M6 | Per-facility clinical enablement; opt-in FHIR write-back (Observation); consolidated chart summary wired read-side; demo clinical seed | **Delivered** |
+| M7 | Employee caregiver charting surface (`/me/residents`) — resident picker + vitals/notes chart, same authorization boundary as the admin chart; offline-tolerant vitals capture; critical-value re-check handoff | **Delivered** |
 
 ## Data model (delivered in M0–M1)
 
@@ -71,10 +76,48 @@ Data model (delivered in M2 — FHIR medication lane):
 - **Write audit.** `public.audit_log_trigger()` on clinical tables → `public.audit_logs`.
 - **Read audit.** PHI reads route through RPCs that write `app_private.clinical_access_log` with a
   `minimum_necessary_reason` and access kind (chart/domain/export/print).
+- **Consent does not gate documentation — decided 2026-08, previously open.** `clinical_data_consent`
+  is surfaced wherever clinical data is charted and is deliberately *not* a write-block, including at
+  `revoked`. A consent posture governs **disclosure** of PHI, not whether the facility may record the
+  care it actually delivered: refusing a vital sign would put a hole in a clinical record the facility
+  is independently required to keep (55 Pa. Code Ch. 2800) and could suppress a critical reading,
+  while doing nothing for the privacy interest, which is about who the data reaches. Treatment and
+  operations uses do not turn on authorization; revocation applies to authorizations for disclosures
+  beyond them.
+  **Where it should bind instead — still open.** The disclosure paths do not consult it today: FHIR
+  write-back (`queue_clinical_observation_writeback`), organization export, and the designated-person
+  portal are all genuine outbound disclosures and none check the posture. That is the real gap, and
+  it is the one worth closing. As with the Terms language below, this reading should be confirmed by
+  counsel before it is relied on as settled.
 - **Consent / minimum-necessary.** `residents.clinical_data_consent`; employees limited to
   assigned-facility residents; capability gated by `clinical.ehr`.
+- **Resident photo (M7).** `20260803120000` adds the first `employee` branch to
+  `resident_documents_select` and the `resident-documents` storage read policy, for right-patient
+  verification. It is scoped to a single document per resident — the one `residents.photo_document_id`
+  designates, **and only if that document is an `image/*`** — through
+  `app_private.resident_photo_document_visible` / `resident_photo_object_visible`, which are SECURITY
+  DEFINER because `residents` itself has no employee-readable branch and an inline `exists` would
+  silently evaluate false. Employees still cannot read contracts, agreements, assessments, or state
+  forms, including for a resident whose photo they may see; pgTAP asserts that directly
+  (`supabase/tests/database/caregiver_resident_photos.test.sql`).
+  The MIME check is load-bearing, not defensive tidiness, and the first pass of this migration
+  shipped without it. `save_resident_administrative_master` (`20260713183435`) validates only that a
+  designated document *belongs to the resident*; it does not require an image. So an admission
+  manager could designate that resident's contract or assessment PDF as the photo through a
+  sanctioned RPC — no direct table access, no UI involvement — and the employee branch would then
+  make it readable, which is precisely the widening this migration exists to prevent. The check sits
+  on the read predicates rather than on that RPC deliberately: tightening the write path would not
+  retract a designation already stored, and the read boundary is the one actually being widened.
 - **Append-only evidence.** Amendments/corrections never destroy prior values
   (`app_private.prevent_clinical_evidence_mutation`); retractions use `entered_in_error`.
+- **Offline vitals (M7).** A reading taken without connectivity is held in the same encrypted,
+  device-keyed IndexedDB store as offline service documentation (E5) — same non-extractable AES-GCM
+  key, same identity-change wipe rules, same purge ceilings — and synced through
+  `sync_offline_clinical_observation_draft`, which calls `record_clinical_observation` rather than
+  reimplementing it, so an offline reading is flagged and authorized identically to an online one.
+  `offline_observation_draft_receipts` is append-only and its `unique (device_id, idempotency_key)`
+  is what prevents a reconnect from charting the same vital sign twice — observations have no
+  natural uniqueness the way a service task does, so idempotency is the only guard.
 - **Encryption / secrets.** Supabase Postgres is encrypted at rest by default. Any external FHIR
   endpoint secrets must be stored in Supabase **Vault** (as the integration hub already does),
   never in plaintext columns. Raw FHIR payloads (Lane A `raw_resource`, a later milestone) are kept

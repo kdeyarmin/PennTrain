@@ -71,6 +71,10 @@ const JOURNEYS: Record<Role, { path: string; heading?: RegExp }[]> = {
     { path: "/me/courses", heading: /training|course|assignment/i },
     { path: "/me/shift", heading: /shift/i },
     { path: "/me/work", heading: /work/i },
+    // Caregiver clinical charting. The employee role reaches resident data only through the
+    // clinical SECURITY DEFINER RPCs, never through residents RLS, so this route rendering at all
+    // for this role is the thing worth asserting in a browser.
+    { path: "/me/residents", heading: /resident chart/i },
   ],
 };
 

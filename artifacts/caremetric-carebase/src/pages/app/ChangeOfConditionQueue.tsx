@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   Activity,
@@ -34,7 +34,7 @@ const CATEGORIES = [
   "hospice_end_of_life_change", "other_significant_change",
 ];
 const STATUSES = ["open", "monitoring", "follow_up_due", "pending_supervisor_review", "closed"];
-const CHANGE_QUEUE_URL_DEFAULTS = { facility: "all", resident: "all", status: "active", category: "all", search: "" };
+const CHANGE_QUEUE_URL_DEFAULTS = { facility: "all", resident: "all", status: "active", category: "all", search: "", report: "" };
 const STATUS_CLASS: Record<string, string> = {
   open: "bg-blue-100 text-blue-900",
   monitoring: "bg-cyan-100 text-cyan-900",
@@ -67,6 +67,10 @@ export default function ChangeOfConditionQueue() {
   const category = filters.category;
   const search = filters.search;
   const [showCreate, setShowCreate] = useState(false);
+  // Set only when arriving from a handoff that already knows the resident (the caregiver chart's
+  // critical-value dialog). A normal "Report change" click leaves it undefined so the dialog opens
+  // with an empty picker as before.
+  const [createForResident, setCreateForResident] = useState<string | undefined>(undefined);
   const events = useListResidentChangeEvents({
     organizationId,
     facilityId: facilityId === "all" ? undefined : facilityId,
@@ -75,6 +79,18 @@ export default function ChangeOfConditionQueue() {
     assignedProfileId: isEmployee ? user?.id : undefined,
     category: category === "all" ? undefined : category,
   });
+  // `?report=1&resident=<id>` means someone was sent here to file a report about a specific
+  // resident, not to browse. Landing them on a filtered list and making them press "Report change"
+  // and re-pick the resident is the wrong handoff for an escalation -- particularly the one that
+  // follows a critical vital sign. The flag is consumed immediately so closing the dialog, or
+  // reloading, does not reopen it.
+  useEffect(() => {
+    if (filters.report !== "1" || !canCreate || filters.resident === "all") return;
+    setCreateForResident(filters.resident);
+    setShowCreate(true);
+    setFilters({ report: "" });
+  }, [filters.report, filters.resident, canCreate, setFilters]);
+
   const { data: facilities } = useListFacilities({ organizationId });
   const residentOptions = useChangeEventResidentOptions();
 
@@ -95,7 +111,7 @@ export default function ChangeOfConditionQueue() {
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight"><Activity className="h-6 w-6" />{isEmployee ? "My Change Follow-Ups" : "Change-of-Condition Management"}</h1>
           <p className="text-muted-foreground">Guided observations, notifications, monitoring, reassessment, follow-up, and supervisor review—without diagnosis.</p>
         </div>
-        {canCreate && <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />Report change</Button>}
+        {canCreate && <Button onClick={() => { setCreateForResident(undefined); setShowCreate(true); }}><Plus className="mr-2 h-4 w-4" />Report change</Button>}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -143,7 +159,7 @@ export default function ChangeOfConditionQueue() {
         </CardContent>
       </Card>
 
-      <LogChangeOfConditionDialog open={showCreate} onOpenChange={setShowCreate} residents={residentOptions.data ?? []} />
+      <LogChangeOfConditionDialog open={showCreate} onOpenChange={setShowCreate} residentId={createForResident} residents={residentOptions.data ?? []} />
     </div>
   );
 }

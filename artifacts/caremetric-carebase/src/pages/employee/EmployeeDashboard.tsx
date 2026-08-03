@@ -19,7 +19,7 @@ import { RoleQuickStart } from "@/components/RoleQuickStart";
 import {
   GraduationCap, CheckCircle, Clock, AlertTriangle, FileText, ClipboardCheck, BookOpen,
   CalendarClock, CalendarDays, MapPin, FileCheck2, FileCheck, Files, ShieldCheck, FileSignature,
-  ChevronRight, HelpCircle, type LucideIcon,
+  ChevronRight, HelpCircle, HeartPulse, type LucideIcon,
 } from "lucide-react";
 import { Link } from "wouter";
 import { todayIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
@@ -462,6 +462,10 @@ export default function EmployeeDashboard() {
               <Link href="/me/services" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
                 <span className="font-medium text-sm">My Resident Services</span>
                 <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+              </Link>
+              <Link href="/me/residents" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
+                <span className="font-medium text-sm">Resident Chart</span>
+                <HeartPulse className="h-4 w-4 text-muted-foreground" />
               </Link>
               <Link href="/me/courses" className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors">
                 <span className="font-medium text-sm">My Training</span>
