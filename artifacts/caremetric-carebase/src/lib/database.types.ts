@@ -18711,6 +18711,13 @@ export type Database = {
             foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
