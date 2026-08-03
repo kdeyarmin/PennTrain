@@ -20053,6 +20053,12 @@ export type Database = {
           organization_id: string
           policy_document_id: string
           policy_document_version_id: string
+          target_facility_ids: string[] | null
+          target_facility_type: string | null
+          target_job_title_pattern: string | null
+          target_worker_type: string | null
+          targeting_mode: string
+          targets_last_materialized_at: string | null
         }
         Insert: {
           created_at?: string
@@ -20063,6 +20069,12 @@ export type Database = {
           organization_id: string
           policy_document_id: string
           policy_document_version_id: string
+          target_facility_ids?: string[] | null
+          target_facility_type?: string | null
+          target_job_title_pattern?: string | null
+          target_worker_type?: string | null
+          targeting_mode?: string
+          targets_last_materialized_at?: string | null
         }
         Update: {
           created_at?: string
@@ -20073,6 +20085,12 @@ export type Database = {
           organization_id?: string
           policy_document_id?: string
           policy_document_version_id?: string
+          target_facility_ids?: string[] | null
+          target_facility_type?: string | null
+          target_job_title_pattern?: string | null
+          target_worker_type?: string | null
+          targeting_mode?: string
+          targets_last_materialized_at?: string | null
         }
         Relationships: [
           {
@@ -37146,6 +37164,11 @@ export type Database = {
           p_policy_document_id: string
           p_policy_document_version_id: string
           p_questions?: Json
+          p_target_facility_ids?: string[]
+          p_target_facility_type?: string
+          p_target_job_title_pattern?: string
+          p_target_worker_type?: string
+          p_targeting_mode?: string
         }
         Returns: string
       }
@@ -39249,6 +39272,10 @@ export type Database = {
         Args: { p_organization_id?: string; p_source: string }
         Returns: undefined
       }
+      materialize_policy_campaign_targets: {
+        Args: { p_campaign_id: string }
+        Returns: number
+      }
       materialize_service_requirements_from_assessment_form: {
         Args: { p_form_id: string }
         Returns: number
@@ -40800,6 +40827,7 @@ export type Database = {
         Args: { p_now?: string }
         Returns: number
       }
+      run_policy_campaign_targeting: { Args: never; Returns: number }
       run_shift_handoff_escalations: {
         Args: { p_now?: string }
         Returns: number

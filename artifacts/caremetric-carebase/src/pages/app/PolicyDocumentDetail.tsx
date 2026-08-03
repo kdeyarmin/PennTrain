@@ -9,11 +9,14 @@ import {
 import {
   useListPolicyAttestationCampaigns,
   useListPolicyAttestations, useAssignPolicyAttestationToEmployee, type PolicyAttestation,
-  useCreatePolicyCampaignWithQuestions,
+  useCreatePolicyCampaignWithQuestions, type CampaignTargeting,
 } from "@/hooks/usePolicyAttestations";
 import {
   CampaignQuestionsEditor, draftQuestionsAreValid, normalizeDraftQuestion, type DraftQuestion,
 } from "@/components/policies/CampaignQuestionsEditor";
+import {
+  CampaignTargetingEditor, MANUAL_TARGETING, targetingIsValid, toJobTitlePattern,
+} from "@/components/policies/CampaignTargetingEditor";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { summarizePolicyLifecycle } from "@/lib/policyLifecycle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -274,6 +277,7 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
   const [name, setName] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [questions, setQuestions] = useState<DraftQuestion[]>([]);
+  const [targeting, setTargeting] = useState<CampaignTargeting>(MANUAL_TARGETING);
 
   const questionsValid = draftQuestionsAreValid(questions);
 
@@ -297,14 +301,23 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
           const { choices, correctIndex } = normalizeDraftQuestion(question);
           return { prompt: question.prompt.trim(), choices, correct_choice_index: correctIndex };
         }),
+        targeting: {
+          ...targeting,
+          // The column stores a raw ILIKE pattern; toJobTitlePattern adds the wildcards the
+          // field's help text promises. Without it "Direct Care Aide" would match only that
+          // exact title.
+          jobTitlePattern: toJobTitlePattern(targeting.jobTitlePattern),
+        },
       });
       toast({
         title: "Campaign created",
-        description: questions.length
+        description: targeting.mode === "declarative"
+          ? "Everyone matching the rule has been enrolled, and new staff will be added daily."
+          : questions.length
           ? `${questions.length} knowledge-check question${questions.length === 1 ? "" : "s"} added. Now assign it to employees below.`
           : "Now assign it to employees below.",
       });
-      setName(""); setDueDate(""); setQuestions([]); setOpen(false);
+      setName(""); setDueDate(""); setQuestions([]); setTargeting(MANUAL_TARGETING); setOpen(false);
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't create campaign", description: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -333,11 +346,16 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
             <Label htmlFor="campaign-due">Due date (optional)</Label>
             <Input id="campaign-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
+          <CampaignTargetingEditor
+            organizationId={user?.organizationId ?? undefined}
+            targeting={targeting}
+            onChange={setTargeting}
+          />
           <CampaignQuestionsEditor questions={questions} onChange={setQuestions} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || !questionsValid || isPending}>{isPending ? "Creating..." : "Create"}</Button>
+          <Button onClick={handleCreate} disabled={!name.trim() || !questionsValid || !targetingIsValid(targeting) || isPending}>{isPending ? "Creating..." : "Create"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -169,6 +169,17 @@ export function useCreateCampaignQuestions() {
   });
 }
 
+export interface CampaignTargeting {
+  /** `manual` keeps the pre-E4 behaviour: the campaign fans out only to explicitly picked employees. */
+  mode: "manual" | "declarative";
+  /** Named facilities. `null` means every facility in the organization, not "none". */
+  facilityIds: string[] | null;
+  facilityType: "PCH" | "ALR" | null;
+  workerType: "regular" | "agency" | "substitute" | "volunteer" | null;
+  /** ILIKE pattern against employees.job_title, the dimension compliance rules already match on. */
+  jobTitlePattern: string | null;
+}
+
 export interface CreateCampaignWithQuestionsParams {
   organizationId: string;
   policyDocumentId: string;
@@ -176,6 +187,8 @@ export interface CreateCampaignWithQuestionsParams {
   name: string;
   dueDate: string | null;
   questions: Array<{ prompt: string; choices: string[]; correct_choice_index: number }>;
+  /** Omit for a manual campaign -- the RPC defaults every targeting parameter. */
+  targeting?: CampaignTargeting;
 }
 
 /**
@@ -197,6 +210,13 @@ export function useCreatePolicyCampaignWithQuestions() {
         p_name: params.name,
         p_due_date: params.dueDate ?? undefined,
         p_questions: params.questions,
+        // A declarative campaign enrols its initial roster inside the same RPC call, so the
+        // administrator sees assignments immediately rather than after the nightly sweep.
+        p_targeting_mode: params.targeting?.mode ?? "manual",
+        p_target_facility_ids: params.targeting?.facilityIds ?? undefined,
+        p_target_facility_type: params.targeting?.facilityType ?? undefined,
+        p_target_worker_type: params.targeting?.workerType ?? undefined,
+        p_target_job_title_pattern: params.targeting?.jobTitlePattern ?? undefined,
       });
       if (error) throw error;
       return data as unknown as string;
@@ -204,6 +224,9 @@ export function useCreatePolicyCampaignWithQuestions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["policy_attestation_campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["policy_campaign_questions"] });
+      // A declarative campaign creates attestations as part of creation, so the roster view is
+      // stale the moment this resolves.
+      queryClient.invalidateQueries({ queryKey: ["policy_attestations"] });
     },
   });
 }
