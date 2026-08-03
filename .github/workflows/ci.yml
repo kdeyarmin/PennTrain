@@ -158,6 +158,11 @@ jobs:
       VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          # The dependency gate reads the base ref's pnpm-lock.yaml to tell a newly-introduced
+          # advisory from one the base already carries, so it needs the base branch, not just
+          # this PR's head. Same reason migration-immutability checks out with full history.
+          fetch-depth: 0
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -173,8 +178,23 @@ jobs:
           restore-keys: |
             deno-${{ runner.os }}-
 
+      # --base is what stops a newly-published advisory failing every open branch at once.
+      # On a pull request the gate compares this branch's dependency set against the base
+      # branch's and only fails on advisories THIS change introduced; anything the base
+      # already carries is reported loudly and left to the base branch's own run. On a push
+      # to main there is no base, the gate runs strict, and main goes red for its own
+      # pre-existing advisories -- which is the branch that should. See the header of
+      # scripts/check-dependencies.mjs.
+      - name: Dependency vulnerability gate (self-test)
+        run: node scripts/check-dependencies.mjs --self-test
+
       - name: Dependency vulnerability gate
-        run: pnpm run check:dependencies
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            node scripts/check-dependencies.mjs --base "origin/${GITHUB_BASE_REF}"
+          else
+            node scripts/check-dependencies.mjs
+          fi
 
       - name: Application release gate
         run: pnpm run check:all

@@ -1,6 +1,32 @@
 // Audit all packages in pnpm-lock.yaml -- plus the Deno `npm:` imports used by the
 // Supabase Edge Functions (N-12b) -- against the npm bulk advisory database.
 //
+// WHOSE FAULT IS A RED GATE. This audits the LIVE advisory database, so a newly-published
+// advisory turns every open branch red the day it lands, main included, with no commit
+// behind it. That happened three times in one week (GHSA-mh99-v99m-4gvg, then
+// GHSA-rgw5-rvv9-x895, then GHSA-7p8r-x3mc-p8w7), and each time it blocked branches that
+// had not touched a dependency at all. Left alone it trains people to read a red gate as
+// noise, which is the failure mode that eventually lets a real one through.
+//
+// The fix is not to stop auditing live, and not to pin a stale snapshot -- both trade away
+// the thing the gate is for. It is to answer a question this script previously could not:
+// did THIS change introduce the vulnerable package, or did it already exist on the base
+// branch? Pass `--base <ref>` and the same audit runs twice, once for HEAD's dependency set
+// and once for the base ref's. An advisory that fires against BOTH is pre-existing: it is
+// reported loudly and does not fail the branch, because blocking a docs PR on it helps
+// nobody and the base branch's own run already fails for it. An advisory that fires only
+// against HEAD is this change's doing and fails, as before.
+//
+// Comparison is by advisory id against two audits, deliberately, rather than by matching
+// `vulnerable_versions` ranges locally: the registry already does that matching correctly
+// for each set, and reimplementing semver range logic inside a security gate is exactly
+// where a subtle bug would be invisible and expensive.
+//
+// FAIL CLOSED. Without `--base`, or when the base ref cannot be read, every high/critical
+// advisory fails -- the original behaviour. Pushes to main pass no base and are therefore
+// always strict, which is what keeps a pre-existing advisory from living forever: main goes
+// red, and that is the right branch to go red.
+//
 // pnpm audit uses the retired npm legacy audit endpoint (/-/npm/v1/security/audits,
 // which now returns 410). This script calls the replacement bulk advisory endpoint
 // (/-/npm/v1/security/advisories/bulk) directly so it works regardless of which
@@ -15,8 +41,12 @@
 // (@supabase/supabase-js is a straight mirror of the npm package); everything else
 // on jsr has no npm advisory coverage and is listed-and-skipped with a note.
 import { readFile, readdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import https from "node:https";
 import path from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 // Extract package name→versions from the `packages:` block of pnpm-lock.yaml.
 // pnpm can emit package keys quoted or unquoted, depending on the package name
@@ -102,21 +132,27 @@ function parseSpecifierBody(body) {
   return { name, version: version || null };
 }
 
-// Scan Edge Function sources for npm:/jsr: import specifiers and sort them into
-// packages auditable against the npm advisory database vs. skipped specifiers.
-async function collectDenoImports(functionsDir) {
+// Read every edge-function .ts file from disk. Split from the scanner below so the base
+// ref can supply the same shape out of a git tree instead -- see readTreeDenoSources.
+async function readDiskDenoSources(functionsDir) {
   let files;
   try {
     files = await findTypeScriptFiles(functionsDir);
   } catch (error) {
-    if (error.code === "ENOENT") return { auditable: new Map(), skipped: [], fileCount: 0 };
+    if (error.code === "ENOENT") return [];
     throw error;
   }
+  return Promise.all(
+    files.map(async (file) => ({ path: file, content: await readFile(file, "utf8") })),
+  );
+}
 
+// Scan Edge Function sources for npm:/jsr: import specifiers and sort them into
+// packages auditable against the npm advisory database vs. skipped specifiers.
+function collectDenoImports(sources) {
   const auditable = new Map(); // npm package name → Set<version>
   const skipped = new Map(); // raw specifier → note (deduplicated)
-  for (const file of files) {
-    const source = await readFile(file, "utf8");
+  for (const { content: source } of sources) {
     for (const match of source.matchAll(/["'](npm|jsr):([^"']+)["']/g)) {
       const scheme = match[1];
       const raw = `${scheme}:${match[2]}`;
@@ -138,8 +174,83 @@ async function collectDenoImports(functionsDir) {
   return {
     auditable,
     skipped: [...skipped.entries()].map(([specifier, note]) => ({ specifier, note })).sort((a, b) => a.specifier.localeCompare(b.specifier)),
-    fileCount: files.length,
+    fileCount: sources.length,
   };
+}
+
+const FUNCTIONS_PREFIX = "supabase/functions";
+
+async function git(args) {
+  const { stdout } = await execFileAsync("git", args, { maxBuffer: 64 * 1024 * 1024 });
+  return stdout;
+}
+
+/** Edge-function sources as they exist at `ref`, in the same shape readDiskDenoSources returns. */
+async function readTreeDenoSources(ref) {
+  let listing;
+  try {
+    listing = await git(["ls-tree", "-r", "--name-only", "-z", ref, FUNCTIONS_PREFIX]);
+  } catch {
+    return [];
+  }
+  const files = listing.split("\0").filter((entry) => entry.endsWith(".ts")).sort();
+  const sources = [];
+  for (const file of files) {
+    sources.push({ path: file, content: await git(["show", `${ref}:${file}`]) });
+  }
+  return sources;
+}
+
+/**
+ * The auditable package set for one tree: lockfile packages plus edge-function npm: imports.
+ * Both sides of the base comparison are built through this, so a difference between them is a
+ * real dependency difference and never a difference in how the two were collected.
+ */
+function buildAuditSet(lockfileContent, denoSources) {
+  const { packages, parsedEntries } = parsePackagesFromLockfile(lockfileContent);
+  const denoImports = collectDenoImports(denoSources);
+  let denoVersionCount = 0;
+  for (const [name, versions] of denoImports.auditable) {
+    if (!packages.has(name)) packages.set(name, new Set());
+    for (const version of versions) {
+      packages.get(name).add(version);
+      denoVersionCount++;
+    }
+  }
+  return { packages, parsedEntries, denoImports, denoVersionCount };
+}
+
+const HIGH_SEVERITY = new Set(["high", "critical"]);
+
+/**
+ * Sort HEAD's advisories into what this change introduced and what the base already carried.
+ *
+ * Pure, and exported-in-spirit for --self-test, because this is the one piece of judgment in
+ * the script: everything else is I/O. `baseAdvisories` is null in strict mode (no --base, or
+ * an unreadable base), and null must behave exactly like the original script -- every
+ * high/critical counted as introduced. That is the fail-closed guarantee, and the self-test
+ * asserts it rather than leaving it to a reading of the code.
+ */
+function classifyAdvisories(headAdvisories, baseAdvisories) {
+  const baseKeys = new Set();
+  for (const [pkgName, list] of Object.entries(baseAdvisories ?? {})) {
+    for (const advisory of list) baseKeys.add(`${pkgName}\u0000${advisory.id}`);
+  }
+  const introduced = [];
+  const preExisting = [];
+  let lowOrModerate = 0;
+  for (const [pkgName, list] of Object.entries(headAdvisories ?? {})) {
+    for (const advisory of list) {
+      if (!HIGH_SEVERITY.has(advisory.severity)) {
+        lowOrModerate++;
+        continue;
+      }
+      const entry = { pkgName, advisory };
+      if (baseKeys.has(`${pkgName}\u0000${advisory.id}`)) preExisting.push(entry);
+      else introduced.push(entry);
+    }
+  }
+  return { introduced, preExisting, lowOrModerate };
 }
 
 const ADVISORY_REQUEST_TIMEOUT_MS = 60_000;
@@ -218,23 +329,90 @@ async function fetchAdvisories(hostname, urlPath, body) {
   throw lastError;
 }
 
-const lockfilePath = path.resolve(process.cwd(), "pnpm-lock.yaml");
-const lockfileContent = await readFile(lockfilePath, "utf8");
-const { packages, parsedEntries } = parsePackagesFromLockfile(lockfileContent);
+// ---------------------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------------------
 
-// Fold the Edge Functions' Deno npm: imports (and trivially-mapped jsr: imports) into the
-// same audit set, so one bulk request covers both dependency worlds.
-const denoImports = await collectDenoImports(
-  path.resolve(process.cwd(), "supabase", "functions"),
-);
-let denoVersionCount = 0;
-for (const [name, versions] of denoImports.auditable) {
-  if (!packages.has(name)) packages.set(name, new Set());
-  for (const version of versions) {
-    packages.get(name).add(version);
-    denoVersionCount++;
+function parseArgs(argv) {
+  const options = { baseRef: null, selfTest: false };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--self-test") options.selfTest = true;
+    else if (argv[i] === "--base") {
+      const value = argv[++i];
+      if (!value) throw new Error("--base requires a ref argument, e.g. --base origin/main");
+      options.baseRef = value;
+    }
   }
+  return options;
 }
+
+function runSelfTest() {
+  const high = (id) => ({ id, severity: "high", title: `t${id}`, vulnerable_versions: "<1", url: `u${id}` });
+  const cases = [];
+  const check = (name, actual, expected) => {
+    const ok = JSON.stringify(actual) === JSON.stringify(expected);
+    cases.push({ name, ok, actual, expected });
+  };
+  const shape = (r) => ({
+    introduced: r.introduced.map((e) => `${e.pkgName}:${e.advisory.id}`),
+    preExisting: r.preExisting.map((e) => `${e.pkgName}:${e.advisory.id}`),
+    lowOrModerate: r.lowOrModerate,
+  });
+
+  // THE fail-closed case: no base means strict, exactly as before --base existed.
+  check("null base fails every high advisory",
+    shape(classifyAdvisories({ a: [high(1)] }, null)),
+    { introduced: ["a:1"], preExisting: [], lowOrModerate: 0 });
+
+  check("an advisory the base also has is pre-existing",
+    shape(classifyAdvisories({ a: [high(1)] }, { a: [high(1)] })),
+    { introduced: [], preExisting: ["a:1"], lowOrModerate: 0 });
+
+  check("an advisory only HEAD has is introduced",
+    shape(classifyAdvisories({ a: [high(1)] }, { a: [high(2)] })),
+    { introduced: ["a:1"], preExisting: [], lowOrModerate: 0 });
+
+  // Same advisory id, different package: NOT a match. Keyed on both, or a shared advisory
+  // affecting two packages would excuse the one this change actually introduced.
+  check("the same id under a different package is not pre-existing",
+    shape(classifyAdvisories({ a: [high(1)] }, { b: [high(1)] })),
+    { introduced: ["a:1"], preExisting: [], lowOrModerate: 0 });
+
+  check("low/moderate is counted, never failed on",
+    shape(classifyAdvisories({ a: [{ ...high(1), severity: "moderate" }] }, null)),
+    { introduced: [], preExisting: [], lowOrModerate: 1 });
+
+  check("critical is treated as high",
+    shape(classifyAdvisories({ a: [{ ...high(1), severity: "critical" }] }, {})),
+    { introduced: ["a:1"], preExisting: [], lowOrModerate: 0 });
+
+  check("a mixed set splits both ways",
+    shape(classifyAdvisories({ a: [high(1), high(2)] }, { a: [high(2)] })),
+    { introduced: ["a:1"], preExisting: ["a:2"], lowOrModerate: 0 });
+
+  const failed = cases.filter((c) => !c.ok);
+  for (const c of failed) {
+    console.error(`  FAIL ${c.name}`);
+    console.error(`    expected ${JSON.stringify(c.expected)}`);
+    console.error(`    actual   ${JSON.stringify(c.actual)}`);
+  }
+  if (failed.length > 0) {
+    throw new Error(`Dependency-gate self-test failed (${failed.length}/${cases.length} cases).`);
+  }
+  console.log(`Dependency-gate self-test passed (${cases.length} cases).`);
+}
+
+const options = parseArgs(process.argv.slice(2));
+if (options.selfTest) {
+  runSelfTest();
+  process.exit(0);
+}
+
+const head = buildAuditSet(
+  await readFile(path.resolve(process.cwd(), "pnpm-lock.yaml"), "utf8"),
+  await readDiskDenoSources(path.resolve(process.cwd(), "supabase", "functions")),
+);
+const { packages, parsedEntries, denoImports, denoVersionCount } = head;
 
 if (packages.size === 0) {
   console.log("No packages found in pnpm-lock.yaml or supabase/functions imports.");
@@ -255,50 +433,101 @@ if (denoImports.skipped.length > 0) {
   }
 }
 
-// Build payload: { "name": ["v1", "v2"], ... }
-const requestPayload = Object.fromEntries(
-  [...packages.entries()].map(([name, versions]) => [name, [...versions]]),
-);
-
-let advisories;
-try {
-  advisories = await fetchAdvisories(
-    "registry.npmjs.org",
-    "/-/npm/v1/security/advisories/bulk",
-    requestPayload,
+// Base set. Any failure to read it degrades to strict mode with a visible reason -- never to
+// a silent pass, and never to a hard error either, because a missing base ref is a CI
+// configuration problem and should not masquerade as a vulnerability.
+let baseSet = null;
+if (options.baseRef) {
+  try {
+    await git(["rev-parse", "--verify", `${options.baseRef}^{commit}`]);
+    baseSet = buildAuditSet(
+      await git(["show", `${options.baseRef}:pnpm-lock.yaml`]),
+      await readTreeDenoSources(options.baseRef),
+    );
+    console.log(
+      `Comparing against ${options.baseRef} (${baseSet.packages.size} packages) to tell ` +
+        `newly-introduced advisories from ones that branch already carries…`,
+    );
+  } catch (error) {
+    console.warn(
+      `Could not read the dependency set at '${options.baseRef}' (${error.message.trim()}). ` +
+        `Auditing in strict mode: every high or critical advisory will fail this run.`,
+    );
+    baseSet = null;
+  }
+} else {
+  console.log(
+    "No --base given; auditing in strict mode (every high or critical advisory fails).",
   );
-} catch (error) {
-  throw new Error(`Failed to fetch security advisories: ${error.message}`, {
-    cause: error,
-  });
 }
 
-const HIGH_SEVERITY = new Set(["high", "critical"]);
-let highCount = 0;
-let totalCount = 0;
+const toPayload = (set) =>
+  Object.fromEntries([...set.entries()].map(([name, versions]) => [name, [...versions]]));
 
-for (const [pkgName, pkgAdvisories] of Object.entries(advisories)) {
-  for (const advisory of pkgAdvisories) {
-    totalCount++;
-    if (HIGH_SEVERITY.has(advisory.severity)) {
-      highCount++;
-      console.error(
-        `[${advisory.severity.toUpperCase()}] ${pkgName}: ${advisory.title}`,
-      );
-      console.error(`  Affected: ${advisory.vulnerable_versions}`);
-      console.error(`  Details:  ${advisory.url}`);
-    }
+async function audit(set, label) {
+  try {
+    return await fetchAdvisories(
+      "registry.npmjs.org",
+      "/-/npm/v1/security/advisories/bulk",
+      toPayload(set),
+    );
+  } catch (error) {
+    throw new Error(`Failed to fetch security advisories for ${label}: ${error.message}`, {
+      cause: error,
+    });
   }
 }
 
-if (totalCount === 0) {
+const headAdvisories = await audit(packages, "this branch");
+// A base audit that cannot be fetched must not quietly excuse anything: fall back to strict
+// rather than treating an empty result as "the base was clean".
+let baseAdvisories = null;
+if (baseSet) {
+  try {
+    baseAdvisories = await audit(baseSet.packages, options.baseRef);
+  } catch (error) {
+    console.warn(`${error.message} Auditing in strict mode instead.`);
+    baseAdvisories = null;
+  }
+}
+
+const { introduced, preExisting, lowOrModerate } = classifyAdvisories(
+  headAdvisories,
+  baseAdvisories,
+);
+
+const report = (entry, stream) => {
+  const { pkgName, advisory } = entry;
+  stream(`[${advisory.severity.toUpperCase()}] ${pkgName}: ${advisory.title}`);
+  stream(`  Affected: ${advisory.vulnerable_versions}`);
+  stream(`  Details:  ${advisory.url}`);
+};
+
+if (preExisting.length > 0) {
+  console.warn(
+    `\n${preExisting.length} high/critical advisor${preExisting.length === 1 ? "y" : "ies"} ` +
+      `already present on ${options.baseRef} — NOT caused by this change, and not failing it:`,
+  );
+  for (const entry of preExisting) report(entry, (line) => console.warn(`  ${line}`));
+  console.warn(
+    `  These still need fixing. ${options.baseRef}'s own run fails on them, which is the ` +
+      `branch that should be red for a dependency it already ships.\n`,
+  );
+}
+
+for (const entry of introduced) report(entry, (line) => console.error(line));
+
+const totalHigh = introduced.length + preExisting.length;
+if (totalHigh === 0 && lowOrModerate === 0) {
   console.log("No vulnerabilities found.");
-} else if (highCount === 0) {
+} else if (introduced.length === 0) {
   console.log(
-    `${totalCount} low/moderate vulnerabilities found (none at high or critical severity).`,
+    `${lowOrModerate} low/moderate vulnerabilities found (none at high or critical severity ` +
+      `introduced by this change).`,
   );
 } else {
   throw new Error(
-    `${highCount} high or critical ${highCount === 1 ? "vulnerability" : "vulnerabilities"} found. Resolve before merging.`,
+    `${introduced.length} high or critical ${introduced.length === 1 ? "vulnerability" : "vulnerabilities"} ` +
+      `introduced by this change. Resolve before merging.`,
   );
 }
