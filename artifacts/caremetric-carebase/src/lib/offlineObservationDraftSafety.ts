@@ -27,6 +27,22 @@ export type OfflineObservationSyncState =
 /** Mirrors sync_offline_clinical_observation_draft's `outcome` column exactly. */
 export type OfflineObservationSyncOutcome = "applied" | "duplicate" | "rejected" | "wipe_required";
 
+/**
+ * What a sync attempt actually reported back.
+ *
+ * `observationId` is carried rather than dropped because it is the only reliable way to identify the
+ * row that was just charted: a caregiver may backdate a reading, and another caregiver may record
+ * one concurrently, so "newest of this type" can name a different observation entirely. It is null
+ * whenever nothing was charted -- a rejected or wipe_required attempt -- and can also be null on a
+ * `duplicate` replay of a receipt whose own attempt never applied.
+ */
+export interface OfflineObservationSyncResult {
+  outcome: OfflineObservationSyncOutcome;
+  observationId: string | null;
+  /** Server-derived flag for the charted reading, so a delayed sync can still raise a critical value. */
+  abnormalFlag: string | null;
+}
+
 export const UNRESOLVED_OBSERVATION_DRAFT_STATES: OfflineObservationSyncState[] = ["draft", "syncing", "error"];
 export const NEEDS_REVIEW_OBSERVATION_DRAFT_STATES: OfflineObservationSyncState[] = ["rejected"];
 

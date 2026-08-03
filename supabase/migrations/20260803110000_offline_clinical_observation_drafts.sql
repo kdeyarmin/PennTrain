@@ -182,6 +182,7 @@ declare
   v_observation_id uuid;
   v_outcome text;
   v_error_message text;
+  v_wipe boolean;
 begin
   -- Device-ownership boundary first, as a hard failure rather than a soft outcome: a device_id that
   -- does not exist, or belongs to another profile, is a caller passing an id it has no claim to --
@@ -191,6 +192,15 @@ begin
   if not found or v_device.profile_id <> auth.uid() then
     raise exception 'Offline device is outside caller identity' using errcode = '42501';
   end if;
+
+  -- Current revocation state, resolved BEFORE the replay branch because it has to dominate it. If
+  -- the first attempt committed a receipt but its response was lost, and the device was revoked
+  -- before the retry, replaying the stored outcome would tell the client 'applied' or 'rejected' --
+  -- and the client only wipes the shared offline store on 'wipe_required'. A rejected draft would
+  -- then sit on a revoked device still holding resident PHI, and an applied one would clear that
+  -- single draft while ignoring the wipe entirely. A revocation is about the device, not about any
+  -- one attempt, so it outranks whatever the ledger remembers.
+  v_wipe := v_device.status <> 'active' or v_device.wipe_required_at is not null;
 
   -- Replay before any write path, so a retry whose receipt already exists can never collide with the
   -- unique constraint or chart the reading a second time. As with the service lane, a replay returns
@@ -203,11 +213,20 @@ begin
     return jsonb_build_object(
       'receiptId', v_existing.id,
       'observationId', v_existing.observation_id,
+      -- Server-derived, returned rather than recomputed: a reading that syncs long after it was
+      -- taken still has to be able to stop a human, and the client holds no copy of the thresholds.
+      'abnormalFlag', (
+        select o.abnormal_flag from public.clinical_observations o
+        where o.id = v_existing.observation_id and not o.entered_in_error
+      ),
       'outcome', case
+        when v_wipe then 'wipe_required'
         when v_existing.outcome in ('applied', 'duplicate') then 'duplicate'
         else v_existing.outcome
       end,
-      'errorMessage', v_existing.error_message
+      -- The stored error belonged to the earlier attempt; on a wipe it would only misdirect a
+      -- caregiver toward a validation problem instead of the revocation that now matters.
+      'errorMessage', case when v_wipe then null else v_existing.error_message end
     );
   end if;
 
@@ -218,7 +237,7 @@ begin
   select * into v_resident from public.residents where id = p_resident_id;
   if not found then raise exception 'Resident not found' using errcode = 'P0002'; end if;
 
-  if v_device.status <> 'active' or v_device.wipe_required_at is not null then
+  if v_wipe then
     -- This IS my device, but its offline access was turned off since the draft was queued. No
     -- attempt against record_clinical_observation is made; nothing is charted.
     v_outcome := 'wipe_required';
@@ -265,6 +284,10 @@ begin
   return jsonb_build_object(
     'receiptId', v_existing.id,
     'observationId', v_existing.observation_id,
+    'abnormalFlag', (
+      select o.abnormal_flag from public.clinical_observations o
+      where o.id = v_existing.observation_id and not o.entered_in_error
+    ),
     'outcome', v_outcome,
     'errorMessage', v_error_message
   );

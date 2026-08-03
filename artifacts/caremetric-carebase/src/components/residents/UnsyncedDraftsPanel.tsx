@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "wouter";
 import { CloudOff, CloudUpload, Copy, Loader2, TriangleAlert, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,19 +100,40 @@ export function UnsyncedDraftsPanel() {
     let needsAttention = 0;
     let wiped = false;
     let failure: unknown = null;
+    let critical: { observationId: string; residentId: string; residentLabel: string }[] = [];
 
-    for (const run of [syncAll, syncAllObservations]) {
-      if (wiped) break;
+    // Written out rather than looped over both mutations: the two lanes return different result
+    // shapes (only the observation lane can report a critical reading), and a loop collapses them to
+    // a union that has to be narrowed back apart at every use.
+    try {
+      const result = await syncAll.mutateAsync();
+      attempted += result.attempted;
+      applied += result.applied;
+      needsAttention += result.needsReview + result.failed;
+      if (result.wipeRequired) wiped = true;
+    } catch (error) {
+      failure = error;
+    }
+
+    if (!wiped) {
       try {
-        const result = await run.mutateAsync();
+        const result = await syncAllObservations.mutateAsync();
         attempted += result.attempted;
         applied += result.applied;
         needsAttention += result.needsReview + result.failed;
+        critical = result.criticalReadings;
         if (result.wipeRequired) wiped = true;
       } catch (error) {
         failure = error;
       }
     }
+
+    // Raised before the ordinary success/failure reporting below, and kept on screen rather than
+    // folded into a count. A vital sign the server flagged critical was charted here without anyone
+    // watching -- the caregiver took it offline, possibly hours ago, and the chart's re-check dialog
+    // never ran because they were not on that page when it synced. A line reading "3 items recorded"
+    // is the wrong way to learn that.
+    setCriticalFromSync(critical);
 
     if (wiped) {
       toast({ title: "Offline access was turned off for this device", description: SYNC_OUTCOME_MESSAGES.wipe_required, variant: "destructive" });
@@ -138,6 +160,28 @@ export function UnsyncedDraftsPanel() {
     toast({ title: applied === 1 ? "1 item recorded" : `${applied} items recorded` });
   };
 
+  // Catch up on mount, not only on the `online` event. The event fires once, at the transition, and
+  // is heard only by components that were already mounted -- so a caregiver who lost signal on the
+  // resident chart, regained it there, and then walked back to Floor would arrive with a backlog and
+  // nothing to trigger it: the transition happened while no listener existed, and returning here
+  // used to be a no-op. That left a charted reading device-only until someone noticed the panel and
+  // pressed "Sync now", which is not what the offline toast promises.
+  //
+  // Gated on there actually being unresolved work so a normal visit costs no device registration or
+  // IndexedDB read, and it waits for the draft queries to settle so a first paint with empty data
+  // does not read as an empty backlog.
+  const [criticalFromSync, setCriticalFromSync] =
+    useState<{ observationId: string; residentId: string; residentLabel: string }[]>([]);
+
+  const hasSettledEntries = entries.isSuccess && observationEntries.isSuccess;
+  const syncedOnMountRef = useRef(false);
+  useEffect(() => {
+    if (syncedOnMountRef.current || !hasSettledEntries || !isOnline || pendingCount === 0) return;
+    syncedOnMountRef.current = true;
+    void runSyncAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSettledEntries, isOnline, pendingCount]);
+
   // Best-effort automatic sync whenever this device regains connectivity, in addition to the manual
   // button below. Deliberately does not retry on a timer or on every render -- only on the browser's
   // own online signal, which is exactly the moment a backlog can first make progress.
@@ -153,7 +197,11 @@ export function UnsyncedDraftsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!entries.isLoading && !observationEntries.isLoading && pendingCount === 0 && reviewCount === 0) return null;
+  // criticalFromSync keeps the panel mounted after a clean run. Without it the successful sync that
+  // charted the critical reading would empty the queue, this early return would fire, and the
+  // warning would unmount in the same tick it was raised.
+  if (!entries.isLoading && !observationEntries.isLoading
+    && pendingCount === 0 && reviewCount === 0 && criticalFromSync.length === 0) return null;
 
   const needsReview = (drafts.data ?? []).filter((draft) => (NEEDS_REVIEW_DRAFT_STATES as string[]).includes(draft.syncState));
   const pending = (drafts.data ?? []).filter((draft) => (UNRESOLVED_DRAFT_STATES as string[]).includes(draft.syncState));
@@ -165,6 +213,43 @@ export function UnsyncedDraftsPanel() {
 
   return (
     <Card>
+      {criticalFromSync.length > 0 && (
+        <div className="border-b border-destructive/30 bg-destructive/10 p-4" role="alert">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-destructive">
+                {criticalFromSync.length === 1
+                  ? "A reading just synced is outside the critical range"
+                  : `${criticalFromSync.length} readings just synced are outside the critical range`}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                These were taken offline and charted when this device reconnected. Re-check the
+                resident and escalate if the reading stands.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {criticalFromSync.map((reading) => (
+                  <li key={reading.observationId} className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{reading.residentLabel}</span>
+                    <Button asChild size="sm" variant="destructive" className="h-9">
+                      <Link href={`/me/residents/${reading.residentId}`}>Open chart</Link>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              aria-label="Dismiss critical reading warning"
+              onClick={() => setCriticalFromSync([])}
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      )}
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>

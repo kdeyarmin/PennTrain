@@ -9,9 +9,9 @@ import {
 } from "@/lib/offlineServiceDraftCache";
 import {
   assertObservationDraftAllowed, UNRESOLVED_OBSERVATION_DRAFT_STATES,
-  type OfflineObservationDraft, type OfflineObservationSyncOutcome,
+  type OfflineObservationDraft, type OfflineObservationSyncOutcome, type OfflineObservationSyncResult,
 } from "@/lib/offlineObservationDraftSafety";
-import { OBSERVATION_CONFIG } from "@/lib/clinicalObservations";
+import { isCriticalFlag, OBSERVATION_CONFIG } from "@/lib/clinicalObservations";
 import type { ObservationType } from "@/hooks/useClinicalObservations";
 
 const QUERY_KEY = ["offline-observation-drafts"];
@@ -146,7 +146,7 @@ async function ensureRegisteredDeviceId(identity: OfflineFloorIdentity): Promise
 
 async function syncDraft(
   identity: OfflineFloorIdentity, draft: OfflineObservationDraft,
-): Promise<OfflineObservationSyncOutcome> {
+): Promise<OfflineObservationSyncResult> {
   const deviceId = await ensureRegisteredDeviceId(identity);
   const { data, error } = await supabase.rpc("sync_offline_clinical_observation_draft", {
     p_device_id: deviceId,
@@ -164,7 +164,10 @@ async function syncDraft(
     p_note: draft.note ?? undefined,
   });
   if (error) throw error;
-  const result = data as unknown as { outcome: OfflineObservationSyncOutcome; errorMessage: string | null };
+  const result = data as unknown as {
+    outcome: OfflineObservationSyncOutcome; errorMessage: string | null;
+    observationId: string | null; abnormalFlag: string | null;
+  };
   if (result.outcome === "wipe_required") {
     // The device itself is no longer trusted, so both draft kinds go -- this wipes the whole
     // "carebase-offline-floor" database, matching an explicit device revoke.
@@ -178,14 +181,18 @@ async function syncDraft(
       identity,
     );
   }
-  return result.outcome;
+  return {
+    outcome: result.outcome,
+    observationId: result.observationId ?? null,
+    abnormalFlag: result.abnormalFlag ?? null,
+  };
 }
 
 export function useSyncOfflineObservationDraft() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (draftId: string): Promise<OfflineObservationSyncOutcome> => {
+    mutationFn: async (draftId: string): Promise<OfflineObservationSyncResult> => {
       if (!user?.id || !user.organizationId) throw new Error("Sign in to sync offline readings.");
       const identity = floorIdentity(user.id, user.organizationId);
       const drafts = await readAllObservationDrafts(identity);
@@ -212,6 +219,14 @@ export interface ObservationSyncAllResult {
   needsReview: number;
   wipeRequired: boolean;
   failed: number;
+  /**
+   * Readings this run charted that the server flagged critical, with enough context to name the
+   * resident. The re-check dialog lives on the chart and only fires for a reading submitted while
+   * the caregiver is standing there; one queued offline and flushed later would otherwise be
+   * charted with no prompt at all -- the case where the caregiver is least likely to be looking at
+   * the resident, and so the one that most needs saying out loud.
+   */
+  criticalReadings: { observationId: string; residentId: string; residentLabel: string }[];
 }
 
 /** Syncs every unresolved (draft/syncing/error) reading, sequentially. Stops early on wipe_required. */
@@ -224,13 +239,22 @@ export function useSyncAllOfflineObservationDrafts() {
       const identity = floorIdentity(user.id, user.organizationId);
       const drafts = (await readAllObservationDrafts(identity))
         .filter((draft) => (UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(draft.syncState));
-      const result: ObservationSyncAllResult = { attempted: 0, applied: 0, needsReview: 0, wipeRequired: false, failed: 0 };
+      const result: ObservationSyncAllResult = {
+        attempted: 0, applied: 0, needsReview: 0, wipeRequired: false, failed: 0, criticalReadings: [],
+      };
       for (const draft of drafts) {
         result.attempted += 1;
         try {
-          const outcome = await syncDraft(identity, draft);
+          const { outcome, observationId, abnormalFlag } = await syncDraft(identity, draft);
           if (outcome === "wipe_required") { result.wipeRequired = true; break; }
-          if (outcome === "applied" || outcome === "duplicate") result.applied += 1;
+          if (outcome === "applied" || outcome === "duplicate") {
+            result.applied += 1;
+            if (observationId && abnormalFlag && isCriticalFlag(abnormalFlag)) {
+              result.criticalReadings.push({
+                observationId, residentId: draft.residentId, residentLabel: draft.residentDisplayLabel,
+              });
+            }
+          }
           else result.needsReview += 1;
         } catch (error) {
           result.failed += 1;

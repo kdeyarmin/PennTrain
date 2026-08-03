@@ -88,6 +88,15 @@ export default function MyResidentChart() {
     setObservationType(next);
     setUnit(OBSERVATION_CONFIG[next].unit === "{score}" ? "" : OBSERVATION_CONFIG[next].unit);
     setValueSecondary("");
+    // The free-text value and its label only have an input while the type is `custom`. Leaving them
+    // populated after a switch would keep a value on screen that the caregiver can no longer see or
+    // edit -- and it satisfied the submit gate below, so a blood-pressure row could be charted
+    // carrying nothing but narrative text and an `unknown` abnormal flag. Cleared here, and the
+    // payload/gate below ignore them for non-custom types as well, so neither alone is load-bearing.
+    if (next !== "custom") {
+      setValueText("");
+      setCustomLabel("");
+    }
   };
 
   const resetRecordForm = () => {
@@ -146,7 +155,9 @@ export default function MyResidentChart() {
         observedAt: observedAtDate.toISOString(),
         valueNumeric: numeric,
         valueSecondary: secondary,
-        valueText: valueText.trim() || null,
+        // Gated on isCustom for the same reason customLabel is: free text is only ever an input for
+        // the custom type, so sending it for a known one could only carry a stale value.
+        valueText: isCustom ? valueText.trim() || null : null,
         unit: unit.trim() || null,
         customLabel: isCustom ? customLabel.trim() || null : null,
         loincCode: config.loinc ?? null,
@@ -166,8 +177,9 @@ export default function MyResidentChart() {
     resetRecordForm();
 
     let outcome: OfflineObservationSyncOutcome;
+    let chartedId: string | null;
     try {
-      outcome = await syncOffline.mutateAsync(draftId);
+      ({ outcome, observationId: chartedId } = await syncOffline.mutateAsync(draftId));
     } catch {
       // Never reached the server (offline, DNS, captive portal). The draft is on the device and is
       // listed on the roster and on Floor until it syncs -- the reading is not lost.
@@ -189,14 +201,25 @@ export default function MyResidentChart() {
 
     // Charted. Everything below is read-back and presentation.
     toast({ title: "Observation recorded" });
+    // The "latest" cards render from the separate clinical-chart-summary query, so refetching only
+    // the observations list would leave the most prominent value on the page showing the previous
+    // reading -- or a value that was just retracted -- until something else happened to remount.
+    const [refreshed] = await Promise.all([
+      observations.refetch().catch(() => null),
+      summary.refetch().catch(() => null),
+    ]);
     // The abnormal flag is derived server-side, so the only honest way to know whether this reading
     // is critical is to read back what the server actually stored -- no client-side copy of the
     // thresholds to drift out of sync with record_clinical_observation's own logic. A failed
     // read-back costs the caregiver the critical-value prompt, never the reading itself.
-    const refreshed = await observations.refetch().catch(() => null);
-    const created = [...(refreshed?.data ?? [])]
-      .sort((a, b) => new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime())
-      .find((entry) => entry.observation_type === observationType && !entry.entered_in_error);
+    //
+    // Matched on the id the sync RPC returned, not on "newest of this type". A caregiver charting a
+    // backdated reading, or a second caregiver recording the same vital concurrently, would make the
+    // newest row a different observation entirely -- which would both miss a critical value and aim
+    // the dialog's retract-as-mistyped action at somebody else's row.
+    const created = chartedId
+      ? (refreshed?.data ?? []).find((entry) => entry.id === chartedId && !entry.entered_in_error)
+      : undefined;
     if (created && isCriticalFlag(created.abnormal_flag)) setCriticalReading(created);
   };
 
@@ -479,7 +502,11 @@ export default function MyResidentChart() {
               className="h-12"
               disabled={
                 saveOffline.isPending || syncOffline.isPending
-                || (valueNumeric.trim() === "" && valueText.trim() === "")
+                // A known observation type needs a number; only `custom` may be satisfied by text.
+                // Reading valueText here for every type let a hidden leftover enable the button.
+                || (isCustom
+                  ? valueNumeric.trim() === "" && valueText.trim() === ""
+                  : valueNumeric.trim() === "")
                 || (isCustom && customLabel.trim() === "")
               }
               onClick={() => void submitObservation()}

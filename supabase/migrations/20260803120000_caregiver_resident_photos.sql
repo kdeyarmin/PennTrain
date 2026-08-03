@@ -38,7 +38,17 @@ as $$
   select exists (
     select 1
     from public.residents r
+    join public.resident_documents d on d.id = r.photo_document_id
     where r.photo_document_id = p_document_id
+      -- "Designated as the photo" is not by itself proof the row IS a photo.
+      -- save_resident_administrative_master (20260713183435) validates only that the document
+      -- belongs to the resident -- it does not require an image -- so an admission manager can
+      -- point photo_document_id at that resident's contract or assessment PDF through the
+      -- sanctioned RPC, with no UI involved. Without this predicate that document would become
+      -- employee-readable, which is precisely the widening this migration exists to avoid. The
+      -- check belongs here rather than on the write path: tightening the RPC would not retract a
+      -- designation already stored, and this is the boundary actually being widened.
+      and d.file_type like 'image/%'
       and app_private.clinical_record_visible(r.organization_id, r.facility_id)
   )
 $$;
@@ -59,6 +69,8 @@ as $$
     join public.residents r on r.photo_document_id = d.id
     where d.storage_bucket = 'resident-documents'
       and d.storage_path = p_object_name
+      -- Same reason as the document predicate above: a designation is not a MIME type.
+      and d.file_type like 'image/%'
       and app_private.clinical_record_visible(r.organization_id, r.facility_id)
   )
 $$;
@@ -121,6 +133,10 @@ as $$
   from public.residents r
   join public.resident_documents d on d.id = r.photo_document_id
   where r.status in ('active', 'temporarily_out', 'hospital_leave')
+    -- Same image guard as the two predicates. Without it this RPC would hand the client a path for
+    -- a designated non-image, the storage policy would then refuse to sign it, and the caregiver
+    -- would see an unexplained missing avatar rather than the initials fallback.
+    and d.file_type like 'image/%'
     and app_private.clinical_record_visible(r.organization_id, r.facility_id)
 $$;
 revoke all on function public.get_clinical_chart_resident_photos() from public, anon, service_role;

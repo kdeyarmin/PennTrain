@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(18);
 
 -- The caregiver photo branch (20260803120000) widens what an `employee` may read for the first time
 -- since the clinical lane opened. The assertions that matter here are the ones proving how narrow it
@@ -44,7 +44,10 @@ insert into public.employees(
 
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
   ('d3000000-0000-4000-8000-000000000301', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000011', 'Rosa', 'Alvarez', public.pa_today() - 30, 'active'),
-  ('d3000000-0000-4000-8000-000000000302', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000012', 'Tess', 'Okafor', public.pa_today() - 10, 'active');
+  ('d3000000-0000-4000-8000-000000000302', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000012', 'Tess', 'Okafor', public.pa_today() - 10, 'active'),
+  -- Same facility as Rosa, so the employee CAN see this resident clinically. The only thing keeping
+  -- their "photo" out of reach is that it is not an image -- which is the whole point of the case.
+  ('d3000000-0000-4000-8000-000000000303', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000011', 'Walt', 'Byrne', public.pa_today() - 5, 'active');
 
 -- Rosa (facility A1) has a photo AND a contract; Tess (facility A2) has a photo.
 insert into public.resident_documents(
@@ -52,13 +55,19 @@ insert into public.resident_documents(
 ) values
   ('d3000000-0000-4000-8000-000000000401', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000011', 'd3000000-0000-4000-8000-000000000301', 'resident-documents', 'd3000000-0000-4000-8000-000000000001/d3000000-0000-4000-8000-000000000011/rosa-photo.jpg', 'rosa-photo.jpg', 'image/jpeg'),
   ('d3000000-0000-4000-8000-000000000402', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000011', 'd3000000-0000-4000-8000-000000000301', 'resident-documents', 'd3000000-0000-4000-8000-000000000001/d3000000-0000-4000-8000-000000000011/rosa-contract.pdf', 'rosa-contract.pdf', 'application/pdf'),
-  ('d3000000-0000-4000-8000-000000000403', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000012', 'd3000000-0000-4000-8000-000000000302', 'resident-documents', 'd3000000-0000-4000-8000-000000000001/d3000000-0000-4000-8000-000000000012/tess-photo.jpg', 'tess-photo.jpg', 'image/jpeg');
+  ('d3000000-0000-4000-8000-000000000403', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000012', 'd3000000-0000-4000-8000-000000000302', 'resident-documents', 'd3000000-0000-4000-8000-000000000001/d3000000-0000-4000-8000-000000000012/tess-photo.jpg', 'tess-photo.jpg', 'image/jpeg'),
+  -- Walt's "photo" is a contract PDF. save_resident_administrative_master only checks that a
+  -- designated document belongs to the resident, never that it is an image, so this is reachable
+  -- through the sanctioned RPC and not just by direct table access.
+  ('d3000000-0000-4000-8000-000000000404', 'd3000000-0000-4000-8000-000000000001', 'd3000000-0000-4000-8000-000000000011', 'd3000000-0000-4000-8000-000000000303', 'resident-documents', 'd3000000-0000-4000-8000-000000000001/d3000000-0000-4000-8000-000000000011/walt-contract.pdf', 'walt-contract.pdf', 'application/pdf');
 
 select set_config('app.privileged_write', 'on', true);
 update public.residents set photo_document_id = 'd3000000-0000-4000-8000-000000000401'
   where id = 'd3000000-0000-4000-8000-000000000301';
 update public.residents set photo_document_id = 'd3000000-0000-4000-8000-000000000403'
   where id = 'd3000000-0000-4000-8000-000000000302';
+update public.residents set photo_document_id = 'd3000000-0000-4000-8000-000000000404'
+  where id = 'd3000000-0000-4000-8000-000000000303';
 select set_config('app.privileged_write', 'off', true);
 
 create or replace function pg_temp.act_as(p_id uuid, p_role text default 'authenticated')
@@ -93,6 +102,12 @@ select is(
   'a photo at another facility stays invisible'
 );
 select is(
+  (select count(*)::integer from public.resident_documents
+   where id = 'd3000000-0000-4000-8000-000000000404'),
+  0,
+  'a NON-IMAGE designated as a resident''s photo stays invisible, at the caller''s own facility'
+);
+select is(
   (select count(*)::integer from public.resident_documents),
   1,
   'the employee''s entire view of resident_documents is that one photo'
@@ -122,6 +137,17 @@ select ok(
     'd3000000-0000-4000-8000-000000000001/d3000000-0000-4000-8000-000000000012/tess-photo.jpg'),
   'the storage predicate rejects another facility''s photo object'
 );
+-- The designation is real and the resident is clinically visible to this caller; only the MIME type
+-- stops it. Without the image guard both of these would pass and a contract would be readable.
+select ok(
+  not app_private.resident_photo_document_visible('d3000000-0000-4000-8000-000000000404'),
+  'the document predicate rejects a non-image that IS the designated photo_document_id'
+);
+select ok(
+  not app_private.resident_photo_object_visible(
+    'd3000000-0000-4000-8000-000000000001/d3000000-0000-4000-8000-000000000011/walt-contract.pdf'),
+  'the storage predicate rejects the object backing a non-image designated photo'
+);
 
 -- The path RPC follows the same scope ----------------------------------------------------
 select pg_temp.act_as('d3000000-0000-4000-8000-000000000101');
@@ -129,6 +155,15 @@ select is(
   (select count(*)::integer from public.get_clinical_chart_resident_photos()),
   1,
   'the photo RPC returns only residents the caller may see clinically'
+);
+-- Walt is at this employee's own facility and has a photo_document_id, so only the image guard
+-- keeps him out. Handing back a path the storage policy would then refuse to sign would surface as
+-- an unexplained missing avatar rather than the initials fallback.
+select is(
+  (select count(*)::integer from public.get_clinical_chart_resident_photos()
+   where resident_id = 'd3000000-0000-4000-8000-000000000303'),
+  0,
+  'the photo RPC omits a resident whose designated photo is not an image'
 );
 
 select pg_temp.act_as('d3000000-0000-4000-8000-000000000102');

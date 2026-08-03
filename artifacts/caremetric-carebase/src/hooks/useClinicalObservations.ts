@@ -109,8 +109,13 @@ export function useRecordClinicalObservation() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: (_data, input) =>
-      queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] }),
+    // The chart's prominent "latest vitals" cards render from the summary RPC, not from the
+    // observations list, so invalidating only the list leaves the most visible value on the page
+    // stale -- showing the previous reading after a record, or a value that was just retracted.
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+    },
   });
 }
 
@@ -138,8 +143,13 @@ export function useAmendClinicalObservation() {
       });
       if (error) throw error;
     },
-    onSuccess: (_data, input) =>
-      queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] }),
+    // The chart's prominent "latest vitals" cards render from the summary RPC, not from the
+    // observations list, so invalidating only the list leaves the most visible value on the page
+    // stale -- showing the previous reading after a record, or a value that was just retracted.
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+    },
   });
 }
 

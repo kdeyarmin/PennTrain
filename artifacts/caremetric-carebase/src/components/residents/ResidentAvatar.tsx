@@ -26,10 +26,15 @@ export function ResidentAvatar({
   photoUrl?: string;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  // The failure is remembered against the URL that failed, not as a bare boolean. useResidentPhotoUrls
+  // re-signs on an interval, so a bare flag would latch: one transient load error would pin this
+  // avatar to initials for the rest of the visit, ignoring every valid replacement URL that arrives
+  // afterwards -- silently defeating the right-patient check this component exists for. Comparing
+  // against the URL resets it as soon as a different one is handed down, with no effect needed.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const initials = residentInitials(firstName, lastName);
 
-  if (photoUrl && !failed) {
+  if (photoUrl && failedUrl !== photoUrl) {
     return (
       <img
         src={photoUrl}
@@ -37,7 +42,7 @@ export function ResidentAvatar({
         // here would just make a screen reader say it twice.
         alt=""
         aria-hidden="true"
-        onError={() => setFailed(true)}
+        onError={() => setFailedUrl(photoUrl)}
         className={cn("h-12 w-12 shrink-0 rounded-lg object-cover", className)}
       />
     );
