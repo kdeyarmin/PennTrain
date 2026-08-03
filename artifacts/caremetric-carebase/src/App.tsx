@@ -328,6 +328,10 @@ const SUPPORT_TICKET_DETAIL_ROLES: UserRole[] = ["org_admin", "facility_manager"
 // are the only "/me/*" self-service pages every role can reach; the rest of that prefix
 // (dashboard, schedule, credentials, etc.) stays employee-only real HR/scheduling data.
 const ANY_ROLE: UserRole[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
+// Roles a person can hold while still occupying a row in `employees` -- i.e. after being promoted
+// off the floor. Deliberately excludes auditor, which is a read-only reviewer role rather than a
+// rostered one. See /app/my-attestations and BACKLOG.md E6.
+const ROSTERED_STAFF_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"];
 const ORG_MANAGE_ROLES: UserRole[] = ["org_admin", "facility_manager"];
 const ORG_ADMIN_ONLY: UserRole[] = ["org_admin"];
 // Read-only compliance views auditor needs alongside the org admin roles -- auditor never
@@ -724,6 +728,18 @@ function Router() {
       </Route>
       <Route path="/app/policy-documents/:id">
         {() => <ProtectedRoute component={PolicyDocumentDetail} allowedRoles={POLICY_ROLES} />}
+      </Route>
+      {/* The same page as /me/attestations, for staff who are not in the employee portal.
+          A profile keeps its employees row across a role change -- admin_update_profile severs
+          employees.profile_id only when the ORGANIZATION changes -- so an aide promoted to shift
+          supervisor is a facility_manager who is still on the roster and still has to sign
+          policies. /me/* is employee-only by design, so without this route their attestation is
+          unsatisfiable through any UI: it stays pending forever and re-notifies every three days.
+          MyAttestations resolves off useGetEmployeeByProfileId(user.id) with no role assumption,
+          so it is correct here unchanged, and shows "no employee record" for a manager who has
+          none. BACKLOG.md E6. */}
+      <Route path="/app/my-attestations">
+        {() => <ProtectedRoute component={MyAttestations} allowedRoles={ROSTERED_STAFF_ROLES} />}
       </Route>
       <Route path="/app/template-documents">
         {() => <ProtectedRoute component={TemplateDocuments} allowedRoles={TEMPLATE_DOCUMENT_ROLES} />}

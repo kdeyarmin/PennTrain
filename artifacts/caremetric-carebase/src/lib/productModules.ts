@@ -152,6 +152,7 @@ export const COMPLIANCE_PATHS = [
   "/app/resident-compliance",
   "/app/closed-loop-compliance",
   "/me/attestations",
+  "/app/my-attestations",
 ] as const;
 
 // Resident financial operations.

@@ -1,5 +1,5 @@
 begin;
-select plan(15);
+select plan(19);
 
 -- send_policy_attestation_reminders() has run daily since 20260711162509 with no test coverage.
 -- These are the targeting rules it is supposed to follow. The headline one is the stamp
@@ -42,10 +42,27 @@ insert into public.profiles(id, organization_id, email, first_name, last_name, r
   ('a1000000-0000-4000-8000-000000000102', 'a1000000-0000-4000-8000-000000000001', 'reminder-invited-later@test.local', 'R', 'Later', 'employee', true),
   ('a1000000-0000-4000-8000-000000000103', 'a1000000-0000-4000-8000-000000000001', 'reminder-terminated@test.local', 'R', 'Terminated', 'employee', true),
   ('a1000000-0000-4000-8000-000000000104', 'a1000000-0000-4000-8000-000000000001', 'reminder-deactivated@test.local', 'R', 'Deactivated', 'employee', false),
-  ('a1000000-0000-4000-8000-000000000105', 'a1000000-0000-4000-8000-000000000001', 'reminder-overdue@test.local', 'R', 'Overdue', 'employee', true),
+  -- Promoted off the floor: still on the roster, no longer in the employee portal. The link
+  -- assertions below are about this person -- see BACKLOG.md E6.
+  ('a1000000-0000-4000-8000-000000000105', 'a1000000-0000-4000-8000-000000000001', 'reminder-overdue@test.local', 'R', 'Overdue', 'facility_manager', true),
   ('a1000000-0000-4000-8000-000000000106', 'a1000000-0000-4000-8000-000000000001', 'reminder-faroff@test.local', 'R', 'FarOff', 'employee', true)
-on conflict(id) do update set is_active = excluded.is_active;
+-- The auth.users insert above already created these rows via the new-user trigger, so this is an
+-- update in practice. `role` has to be in the DO UPDATE list or it silently stays at the column
+-- default 'employee' -- which would quietly turn every role-dependent assertion below into a
+-- test of the employee path twice.
+on conflict(id) do update set
+  organization_id = excluded.organization_id,
+  first_name = excluded.first_name,
+  last_name = excluded.last_name,
+  role = excluded.role,
+  is_active = excluded.is_active;
 select set_config('app.privileged_write','off',true);
+
+-- A facility_manager must be assigned to the facility their employee row sits in; linking one
+-- without an assignment is rejected ("target facility is outside the profile organization or
+-- inactive"). A promoted manager would have this assignment in real life.
+insert into public.facility_assignments(profile_id, facility_id) values
+  ('a1000000-0000-4000-8000-000000000105', 'a1000000-0000-4000-8000-000000000011');
 
 insert into public.employees(
   id, organization_id, facility_id, profile_id, first_name, last_name, job_title,
@@ -95,6 +112,25 @@ insert into public.policy_attestations (
   ('a1000000-0000-4000-8000-000000000504', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'a1000000-0000-4000-8000-000000000204', 'a1000000-0000-4000-8000-000000000401', 'a1000000-0000-4000-8000-000000000311'),
   ('a1000000-0000-4000-8000-000000000505', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'a1000000-0000-4000-8000-000000000205', 'a1000000-0000-4000-8000-000000000402', 'a1000000-0000-4000-8000-000000000311'),
   ('a1000000-0000-4000-8000-000000000506', 'a1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000011', 'a1000000-0000-4000-8000-000000000206', 'a1000000-0000-4000-8000-000000000403', 'a1000000-0000-4000-8000-000000000311');
+
+------------------------------------------------------------------------------------------------
+-- Assignment notification: the link has to follow the recipient, not assume the employee portal.
+------------------------------------------------------------------------------------------------
+select is(
+  (select link from public.notifications
+   where notification_type = 'policy_attestation_assigned'
+     and profile_id = 'a1000000-0000-4000-8000-000000000101'),
+  '/me/attestations',
+  'an employee is sent to the employee portal on assignment'
+);
+
+select is(
+  (select link from public.notifications
+   where notification_type = 'policy_attestation_assigned'
+     and profile_id = 'a1000000-0000-4000-8000-000000000105'),
+  '/app/my-attestations',
+  'a promoted manager still on the roster is sent somewhere their role can actually open'
+);
 
 -- Assignment itself notifies (notify_policy_attestation_assigned). Clear that out so the counts
 -- below are about the reminder sweep and nothing else.
@@ -158,6 +194,22 @@ select is(
 ------------------------------------------------------------------------------------------------
 -- What was stamped. The sweep must stamp exactly what it notified.
 ------------------------------------------------------------------------------------------------
+select is(
+  (select link from public.notifications
+   where notification_type = 'policy_attestation_due_soon'
+     and profile_id = 'a1000000-0000-4000-8000-000000000101'),
+  '/me/attestations',
+  'the reminder link follows the recipient too -- employee portal for an employee'
+);
+
+select is(
+  (select link from public.notifications
+   where notification_type = 'policy_attestation_due_soon'
+     and profile_id = 'a1000000-0000-4000-8000-000000000105'),
+  '/app/my-attestations',
+  'and the rostered-staff surface for the promoted manager, who cannot open /me/*'
+);
+
 select isnt(
   (select reminder_sent_at from public.policy_attestations
    where id = 'a1000000-0000-4000-8000-000000000501'),
