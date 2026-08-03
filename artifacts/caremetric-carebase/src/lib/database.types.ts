@@ -18643,6 +18643,7 @@ export type Database = {
       }
       offline_service_draft_receipts: {
         Row: {
+          change_event_id: string | null
           client_occurred_at: string
           device_id: string
           draft_kind: string
@@ -18660,6 +18661,7 @@ export type Database = {
           task_id: string | null
         }
         Insert: {
+          change_event_id?: string | null
           client_occurred_at: string
           device_id: string
           draft_kind?: string
@@ -18677,6 +18679,7 @@ export type Database = {
           task_id?: string | null
         }
         Update: {
+          change_event_id?: string | null
           client_occurred_at?: string
           device_id?: string
           draft_kind?: string
@@ -18694,6 +18697,13 @@ export type Database = {
           task_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "offline_service_draft_receipts_change_event_id_fkey"
+            columns: ["change_event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_change_events"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "offline_service_draft_receipts_device_id_fkey"
             columns: ["device_id"]
@@ -41916,6 +41926,18 @@ export type Database = {
         }
         Returns: string
       }
+      sync_offline_change_observation_draft: {
+        Args: {
+          p_action_taken?: string
+          p_client_observed_at: string
+          p_device_id: string
+          p_event_id: string
+          p_idempotency_key: string
+          p_observations: string
+          p_supervisor_notified?: boolean
+        }
+        Returns: Json
+      }
       sync_offline_learning_action: {
         Args: {
           p_action_type: string
@@ -42782,4 +42804,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

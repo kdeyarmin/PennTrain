@@ -1,5 +1,5 @@
 begin;
-select plan(56);
+select plan(79);
 
 -- E5 Tier 1: offline service documentation drafts + conflict rules
 -- (20260802030000_offline_service_documentation_drafts.sql).
@@ -651,6 +651,266 @@ select ok(
   ),
   'each receipt kind must still carry the columns that make it meaningful'
 );
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Tier 3: change-of-condition monitoring observations (BACKLOG.md E5 -- closes the row)
+--
+-- A change-of-condition event carries a monitoring cadence ("every two hours for 24 hours"), and
+-- walking that cadence is what produces the evidence the resident was actually watched. It happens
+-- in resident rooms and back hallways, where the wifi is worst. Tiers 1 and 2 covered the floor
+-- queue and unscheduled care; this is the third and last surface.
+--
+-- Same file as the other two tiers, for the same reason: one receipt ledger, and the uniqueness
+-- promise it makes is only meaningful ACROSS all three kinds.
+------------------------------------------------------------------------------------------------
+select has_function(
+  'public', 'sync_offline_change_observation_draft',
+  array['uuid', 'uuid', 'text', 'timestamptz', 'text', 'text', 'boolean'],
+  'the change-observation sync exists'
+);
+
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.sync_offline_change_observation_draft(uuid,uuid,text,timestamptz,text,text,boolean)',
+    'EXECUTE'),
+  'and is closed to anonymous callers'
+);
+
+-- add_change_event_monitoring owns "may this caller record on this event" -- for an employee that
+-- means the event must be assigned to them. Pinned against the body rather than re-derived, so the
+-- offline path cannot grow its own copy of the rule to drift out of step with.
+select ok(
+  pg_get_functiondef(
+    'public.sync_offline_change_observation_draft(uuid,uuid,text,timestamptz,text,text,boolean)'::regprocedure
+  ) like '%add_change_event_monitoring%',
+  'the offline path delegates authorization instead of restating it'
+);
+
+reset role;
+-- event-1 is worker A's; event-2 belongs to worker B and event-3 gets closed below.
+insert into public.resident_change_events(
+  id, organization_id, facility_id, resident_id, category, identified_at,
+  identified_by_profile_id, immediate_observations, immediate_action_taken,
+  assigned_profile_id, follow_up_due_at, monitoring_instructions, monitoring_frequency, status
+) values
+  ('65000000-0000-4000-8000-000000000601', '65000000-0000-4000-8000-000000000001',
+   '65000000-0000-4000-8000-000000000011', '65000000-0000-4000-8000-000000000201',
+   'mobility_decline', now() - interval '6 hours', '65000000-0000-4000-8000-000000000101',
+   'Unsteady on transfer.', 'Two-person assist put in place.',
+   '65000000-0000-4000-8000-000000000101', now() + interval '2 hours',
+   'Watch transfers and gait.', 'Every 2 hours', 'monitoring'),
+  ('65000000-0000-4000-8000-000000000602', '65000000-0000-4000-8000-000000000001',
+   '65000000-0000-4000-8000-000000000011', '65000000-0000-4000-8000-000000000201',
+   'skin_concern', now() - interval '5 hours', '65000000-0000-4000-8000-000000000102',
+   'Redness at left heel.', 'Offloaded and repositioned.',
+   '65000000-0000-4000-8000-000000000102', now() + interval '3 hours',
+   'Check heel each round.', 'Every 2 hours', 'monitoring'),
+  ('65000000-0000-4000-8000-000000000603', '65000000-0000-4000-8000-000000000001',
+   '65000000-0000-4000-8000-000000000011', '65000000-0000-4000-8000-000000000201',
+   'appetite_intake_change', now() - interval '4 hours', '65000000-0000-4000-8000-000000000101',
+   'Ate under half of lunch.', 'Offered a supplement.',
+   '65000000-0000-4000-8000-000000000101', now() + interval '4 hours',
+   'Record intake at each meal.', 'Each meal', 'monitoring');
+
+-- device-c is worker A's, registered in the Tier 2 block above and never revoked.
+select pg_temp.act_as('65000000-0000-4000-8000-000000000101');
+
+select is(
+  (select public.sync_offline_change_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000601',
+    'coc-key-1', now() - interval '90 minutes',
+    'Transferred with two-person assist, no buckling. Distinctive-marker-Q7.',
+    'Reminded to use the call bell.', true
+  )->>'outcome'),
+  'applied',
+  'an aide can file a monitoring observation captured offline'
+);
+
+select is(
+  (select count(*)::int from public.resident_change_monitoring_entries
+   where event_id = '65000000-0000-4000-8000-000000000601'),
+  1,
+  'and it lands as a real monitoring entry, not just a receipt'
+);
+
+select is(
+  (select observed_at from public.resident_change_monitoring_entries
+   where event_id = '65000000-0000-4000-8000-000000000601'),
+  (select client_occurred_at from public.offline_service_draft_receipts
+   where idempotency_key = 'coc-key-1'),
+  'observed at the time the aide looked at the resident, not the time the device found signal'
+);
+
+select is(
+  (select supervisor_notified from public.resident_change_monitoring_entries
+   where event_id = '65000000-0000-4000-8000-000000000601'),
+  true,
+  'and carries the supervisor-notified flag through the offline path'
+);
+
+-- THE OBSERVATION TEXT MUST NOT LAND IN THE RECEIPT LEDGER. That table is append-only -- update and
+-- delete both raise -- so a clinical observation copied into it could never be corrected or removed,
+-- including for an attempt that was rejected and therefore never entered the resident's record at
+-- all. Asserted by hunting the whole row rather than by naming columns, so adding a column that
+-- happens to capture the text later still fails this.
+select ok(
+  not exists(
+    select 1 from public.offline_service_draft_receipts r
+    where r::text like '%Distinctive-marker-Q7%'
+  ),
+  'the observation text itself is never written to the append-only receipt ledger'
+);
+
+select ok(
+  exists(
+    select 1 from public.resident_change_monitoring_entries
+    where event_id = '65000000-0000-4000-8000-000000000601'
+      and observations like '%Distinctive-marker-Q7%'
+  ),
+  'while the resident''s own record has it in full'
+);
+
+select is(
+  (select public.sync_offline_change_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000601',
+    'coc-key-1', now() - interval '90 minutes',
+    'Transferred with two-person assist, no buckling. Distinctive-marker-Q7.',
+    'Reminded to use the call bell.', true
+  )->>'outcome'),
+  'duplicate',
+  'replaying the same key reports duplicate rather than filing the observation twice'
+);
+
+select is(
+  (select count(*)::int from public.resident_change_monitoring_entries
+   where event_id = '65000000-0000-4000-8000-000000000601'),
+  1,
+  'and really does not file it twice'
+);
+
+-- CLAMPED, NOT NULLED -- the one place Tier 3 differs from Tiers 1 and 2, forced by
+-- resident_change_monitoring_entries.observed_at being NOT NULL. A wrong device clock must not turn
+-- a real bedside observation into a rejected receipt.
+select is(
+  (select public.sync_offline_change_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000601',
+    'coc-key-2', now() - interval '400 days', 'Steady on the second round.', null, false
+  )->>'outcome'),
+  'applied',
+  'an implausible device clock does not cost the aide the observation'
+);
+
+select is(
+  (select observed_at from public.resident_change_monitoring_entries
+   where event_id = '65000000-0000-4000-8000-000000000601'
+     and observations = 'Steady on the second round.'),
+  now(),
+  'the implausible time is clamped to sync time rather than trusted or nulled'
+);
+
+select ok(
+  (select client_occurred_at from public.offline_service_draft_receipts
+   where idempotency_key = 'coc-key-2') < now() - interval '300 days',
+  'and the raw client time stays on the receipt, so a bad clock is still visible in the ledger'
+);
+
+-- A CLOSED EVENT IS 'stale', NOT 'rejected'. add_change_event_monitoring raises the same 22023 for a
+-- closed event and for unusable text; they are not the same failure. The aide's observation is real
+-- and needs a supervisor, not a retry and not "this couldn't be submitted".
+reset role;
+update public.resident_change_events
+set status = 'closed', closed_at = now(), final_review_summary = 'Resolved; no further monitoring.'
+where id = '65000000-0000-4000-8000-000000000603';
+select pg_temp.act_as('65000000-0000-4000-8000-000000000101');
+
+select is(
+  (select public.sync_offline_change_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000603',
+    'coc-key-3', now() - interval '30 minutes', 'Ate most of dinner.', null, false
+  )->>'outcome'),
+  'stale',
+  'an event closed while the device was offline is stale, not rejected'
+);
+
+select ok(
+  (select error_message from public.offline_service_draft_receipts
+   where idempotency_key = 'coc-key-3') like '%closed%',
+  'and says so, rather than passing through a message about invalid input'
+);
+
+select is(
+  (select count(*)::int from public.resident_change_monitoring_entries
+   where event_id = '65000000-0000-4000-8000-000000000603'),
+  0,
+  'nothing is appended to a closed event -- the offline path is not a way around that rule'
+);
+
+-- Worker A filing on worker B's event. The employee branch of assert_change_event_contributor
+-- requires the event be assigned to the caller, so this is a real authorization refusal reaching the
+-- client as a flaggable receipt rather than an exception it would retry forever.
+select is(
+  (select public.sync_offline_change_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000602',
+    'coc-key-4', now(), 'Heel looks unchanged.', null, false
+  )->>'outcome'),
+  'rejected',
+  'an aide cannot file observations on another aide''s event through the offline path'
+);
+
+-- Deliberately NOT a "count is still zero on that event" assertion. resident_change_events' own RLS
+-- already hides worker B's event from worker A, so a version of this function that skipped
+-- authorization entirely would still write nothing there and that count would still read zero --
+-- it would pass while proving nothing. What is worth pinning is the part only this function
+-- decides: a refusal has to come back as a receipt carrying the server's reason, because that is
+-- what lets the client block-and-flag the draft for a human instead of retrying it forever.
+select ok(
+  (select error_message from public.offline_service_draft_receipts
+   where idempotency_key = 'coc-key-4') is not null,
+  'and the refusal comes back as a receipt carrying the reason, not as a silent no-op'
+);
+
+-- THE SHARED LEDGER, ASSERTED BEHAVIOURALLY. unsched-key-4 is a Tier 2 receipt on this same device
+-- (a rejected unscheduled service). Replaying it through the Tier 3 RPC must return that ORIGINAL
+-- outcome -- proving the (device_id, idempotency_key) promise really does span kinds, not just that
+-- the constraint text mentions two columns.
+select is(
+  (select public.sync_offline_change_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000601',
+    'unsched-key-4', now(), 'Reused key from a different kind.', null, false
+  )->>'outcome'),
+  'rejected',
+  'a key already spent on another draft kind replays that kind''s outcome -- one ledger, one promise'
+);
+
+select is(
+  (select count(*)::int from public.resident_change_monitoring_entries
+   where event_id = '65000000-0000-4000-8000-000000000601'),
+  2,
+  'and the cross-kind replay files nothing new'
+);
+
+select ok(
+  (select pg_get_constraintdef(oid) from pg_constraint
+   where conrelid = 'public.offline_service_draft_receipts'::regclass
+     and conname = 'offline_draft_receipt_kind_shape_check')
+  like '%change_observation%change_event_id IS NOT NULL%',
+  'the third kind must carry the column that makes it meaningful, like the other two'
+);
+
+-- Tier 2 tested only revoked_at; every writer moves status, revoked_at and wipe_required_at
+-- together, so this changes nothing reachable today -- it stops a later change that moves only one
+-- of them from silently defeating the check on one of the three tiers but not the others.
+select ok(
+  pg_get_functiondef(
+    'public.sync_offline_unscheduled_service_draft(uuid,uuid,text,timestamptz,text,integer,boolean,text)'::regprocedure
+  ) like '%wipe_required_at is not null%'
+  and pg_get_functiondef(
+    'public.sync_offline_change_observation_draft(uuid,uuid,text,timestamptz,text,text,boolean)'::regprocedure
+  ) like '%wipe_required_at is not null%',
+  'all three tiers test the same columns before trusting a device'
+);
+
 
 select * from finish();
 rollback;

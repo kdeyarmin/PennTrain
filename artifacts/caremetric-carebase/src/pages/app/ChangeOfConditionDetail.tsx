@@ -25,6 +25,9 @@ import {
   useResidentChangeEventActivity,
 } from "@/hooks/useResidentChangeEvents";
 import { QueryError } from "@/components/QueryState";
+import { UnsyncedDraftsPanel } from "@/components/residents/UnsyncedDraftsPanel";
+import { useSaveOfflineChangeObservationDraft } from "@/hooks/useOfflineServiceDrafts";
+import { isNetworkLevelSupabaseError } from "@/lib/offlineServiceDraftSafety";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +60,7 @@ export default function ChangeOfConditionDetail() {
   const activity = useResidentChangeEventActivity(id);
   const recordNotification = useRecordChangeEventNotification();
   const addMonitoring = useAddChangeEventMonitoring();
+  const saveOfflineObservation = useSaveOfflineChangeObservationDraft();
   const completeFollowUp = useCompleteChangeEventFollowUp();
   const closeEvent = useCloseResidentChangeEvent();
   const isManager = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
@@ -102,22 +106,89 @@ export default function ChangeOfConditionDetail() {
     });
   };
 
-  const submitMonitoring = () => {
-    addMonitoring.mutate({
-      eventId: event.id,
-      observedAt: new Date().toISOString(),
-      observations,
-      actionTaken: monitoringAction,
-      supervisorNotified,
-    }, {
-      onSuccess: () => {
-        toast({ title: "Monitoring observation recorded" });
-        setObservations("");
-        setMonitoringAction("");
-        setSupervisorNotified(false);
-      },
-      onError: (error: Error) => toast({ title: "Couldn't record monitoring", description: error.message, variant: "destructive" }),
-    });
+  // Monitoring is a cadence -- "every two hours" -- walked in resident rooms and back hallways,
+  // which is where the wifi is worst. An observation that cannot be filed at the bedside is either
+  // lost or written up later from memory, so this falls back to an encrypted local draft
+  // (BACKLOG.md E5 Tier 3), mirroring DocumentCareDialog and UnscheduledServiceDialog.
+  //
+  // Employee-only, unlike those two: the offline store is scoped to employee accounts (see
+  // register_offline_service_device), and this page is shared with managers at /app. Telling a
+  // facility manager their observation "requires an active employee account" would read as a
+  // permissions problem when the actual problem is that they are offline.
+  const canDraftOffline = user?.role === "employee";
+
+  const submitMonitoring = async () => {
+    const observedAt = new Date().toISOString();
+    const saveDraftLocally = async () => {
+      await saveOfflineObservation.mutateAsync({
+        eventId: event.id,
+        residentDisplayLabel: `${event.resident?.first_name ?? ""} ${event.resident?.last_name ?? ""}`.trim()
+          || "This resident",
+        eventLabel: humanize(event.category),
+        organizationId: event.organization_id,
+        facilityId: event.facility_id,
+        observedAt,
+        observations: observations.trim(),
+        actionTaken: monitoringAction.trim() || null,
+        supervisorNotified,
+      });
+      toast({
+        title: "Saved on this device",
+        description: "It will sync when you are back online. It stays here until it does.",
+      });
+      setObservations("");
+      setMonitoringAction("");
+      setSupervisorNotified(false);
+    };
+
+    const offlineFallback = async () => {
+      try {
+        await saveDraftLocally();
+      } catch (draftError) {
+        toast({
+          title: "Could not save this offline",
+          description: draftError instanceof Error ? draftError.message : String(draftError),
+          variant: "destructive",
+        });
+      }
+    };
+
+    // Decided at submit time rather than from render state: an aide can walk out of signal between
+    // typing the observation and tapping the button.
+    if (navigator.onLine === false) {
+      if (canDraftOffline) { await offlineFallback(); return; }
+      toast({
+        title: "You are offline",
+        description: "This observation can't be recorded until this device is back online.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await addMonitoring.mutateAsync({
+        eventId: event.id,
+        observedAt,
+        observations,
+        actionTaken: monitoringAction,
+        supervisorNotified,
+      });
+      toast({ title: "Monitoring observation recorded" });
+      setObservations("");
+      setMonitoringAction("");
+      setSupervisorNotified(false);
+    } catch (error) {
+      // navigator.onLine reads true with a LAN link but no route to Supabase, so the branch above
+      // misses that and the call fails having never reached the server. Fall back only for that
+      // failure shape -- a real rejection (the event was closed, this is not your event) must still
+      // surface rather than disappear into a silent draft.
+      if (canDraftOffline && isNetworkLevelSupabaseError(error)) { await offlineFallback(); return; }
+      toast({
+        title: "Couldn't record monitoring",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -140,6 +211,8 @@ export default function ChangeOfConditionDetail() {
         <AlertTitle>Guided operational workflow—not diagnosis</AlertTitle>
         <AlertDescription>Record observable facts, actions, notifications, and human decisions. Follow provider direction and emergency procedures.</AlertDescription>
       </Alert>
+
+      <UnsyncedDraftsPanel />
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="space-y-6">
@@ -180,7 +253,7 @@ export default function ChangeOfConditionDetail() {
                   <Textarea value={observations} onChange={input => setObservations(input.target.value)} placeholder="Current observable facts" />
                   <Textarea value={monitoringAction} onChange={input => setMonitoringAction(input.target.value)} placeholder="Action taken, if any" />
                   <label className="flex items-center gap-2 text-sm"><Checkbox checked={supervisorNotified} onCheckedChange={value => setSupervisorNotified(value === true)} /><BellRing className="h-4 w-4" />Supervisor notified</label>
-                  <Button disabled={observations.trim().length < 3 || addMonitoring.isPending} onClick={submitMonitoring}>Record observation</Button>
+                  <Button disabled={observations.trim().length < 3 || addMonitoring.isPending || saveOfflineObservation.isPending} onClick={() => void submitMonitoring()}>Record observation</Button>
                 </div>
               )}
               {activity.data?.monitoring.length ? activity.data.monitoring.map(entry => (

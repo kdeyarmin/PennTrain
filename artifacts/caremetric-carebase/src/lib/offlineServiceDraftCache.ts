@@ -20,7 +20,7 @@
  * decrypting a record always returns the complete, authoritative draft.
  */
 import {
-  assertFloorDraftAllowed, draftKindOf, isUnscheduledServiceDraft,
+  assertFloorDraftAllowed, draftKindOf, isChangeObservationDraft, isUnscheduledServiceDraft,
   NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
   type OfflineDraftKind, type OfflineDraftSyncOutcome, type OfflineDraftSyncState,
   type OfflineFloorDraft,
@@ -44,14 +44,15 @@ interface StoredDraftEnvelope { version: 1; iv: string; ciphertext: string; addi
 interface StoredDraftRecord {
   draftId: string;
   /**
-   * Present on service-task records, absent on unscheduled ones. Kept rather than folded into
+   * Present on service-task records, absent on the other two kinds. Kept rather than folded into
    * scopeId because records written before Tier 2 have only this field, and it is what their
    * envelope was sealed against.
    */
   taskId?: string;
   /**
    * What the envelope's AAD binds to: the task for a service draft, the resident for an
-   * unscheduled one. Absent on pre-Tier-2 records, which fall back to taskId -- see scopeSubjectOf.
+   * unscheduled one, the event for a change observation. Absent on pre-Tier-2 records, which fall
+   * back to taskId -- see scopeSubjectOf.
    */
   scopeId?: string;
   /** Absent on pre-Tier-2 records, which are all service_task by definition. */
@@ -63,7 +64,7 @@ interface StoredDraftRecord {
 
 export interface DraftListEntry {
   draftId: string;
-  /** Undefined for an unscheduled draft, which has no task. */
+  /** Undefined for the unscheduled and change-observation kinds, neither of which has a task. */
   taskId?: string;
   kind: OfflineDraftKind;
   syncState: OfflineDraftSyncState;
@@ -124,8 +125,9 @@ async function generateDraftDeviceKey(): Promise<CryptoKey> {
 /**
  * org:profile:subject:draftId -- decrypting under a different identity, subject, or draft id fails.
  *
- * The subject is the task for a service draft and the resident for an unscheduled one. The FORMAT
- * is deliberately unchanged from Tier 1: this string is the AES-GCM additional-authenticated-data
+ * The subject is the task for a service draft, the resident for an unscheduled one, and the event
+ * for a change-of-condition observation. The FORMAT is deliberately unchanged from Tier 1: this
+ * string is the AES-GCM additional-authenticated-data
  * an existing envelope was sealed against, so altering how a service draft's scope is composed
  * would make every not-yet-synced draft already on a device fail to decrypt -- on the one device
  * holding the only copy of that documentation.
@@ -136,7 +138,9 @@ function draftScope(organizationId: string, profileId: string, subjectId: string
 
 /** What a draft's envelope is bound to. */
 function draftSubjectOf(draft: OfflineFloorDraft): string {
-  return isUnscheduledServiceDraft(draft) ? draft.residentId : draft.taskId;
+  if (isUnscheduledServiceDraft(draft)) return draft.residentId;
+  if (isChangeObservationDraft(draft)) return draft.eventId;
+  return draft.taskId;
 }
 
 /**
@@ -231,12 +235,12 @@ export async function saveServiceDraft<T extends OfflineFloorDraft>(draft: T): P
   const db = await openDatabase();
   const key = await getDeviceKey(db);
   const envelope = await encryptDraft(key, draft);
-  // scopeId is written for BOTH kinds, and for a service draft it equals taskId -- so the scope
+  // scopeId is written for EVERY kind, and for a service draft it equals taskId -- so the scope
   // string a new service record produces is byte-identical to what Tier 1 produced, and old and
   // new records decrypt through the same path.
   const record: StoredDraftRecord = {
     draftId: draft.draftId,
-    taskId: isUnscheduledServiceDraft(draft) ? undefined : draft.taskId,
+    taskId: isUnscheduledServiceDraft(draft) || isChangeObservationDraft(draft) ? undefined : draft.taskId,
     scopeId: draftSubjectOf(draft),
     kind: draftKindOf(draft),
     syncState: draft.syncState, createdAt: draft.createdAt, envelope,
