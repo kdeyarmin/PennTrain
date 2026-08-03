@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(37);
 
 -- BACKLOG.md C4, SMS half. The claim under test, stated precisely: an overdue plan of correction
 -- reaches a manager on email AND SMS whether or not they asked for SMS, an upcoming one reaches
@@ -393,6 +393,34 @@ select is(
        '2c000000-0000-4000-8000-000000000101', '2c000000-0000-4000-8000-000000000102')),
   0,
   'across every sweep, only the org admin and the assigned manager were ever notified'
+);
+
+------------------------------------------------------------------------------------------------
+-- The digest half must agree with the sweep.
+--
+-- These two counted different things until 20260803040000: the sweep escalates unsubmitted plans,
+-- the digest tallied ('open','poc_submitted'). The digest is the number a manager reconciles
+-- against, so the larger tally read as "some of these are silently unescalated" when the
+-- difference was work already done. Asserting both against the same fixture is what keeps them
+-- from drifting apart again -- which is exactly how they drifted the first time.
+--
+-- On this fixture, facility 011 holds: V1 open and overdue, V2 open and due in 3 days, V3 open but
+-- 60 days out, V4 corrected, V5 overdue but already submitted. Only V1 and V2 are both open and
+-- inside the window.
+------------------------------------------------------------------------------------------------
+select lives_ok(
+  $$ select public.queue_manager_weekly_digests() $$,
+  'the manager digest runs'
+);
+
+select is(
+  (select (item->>'count')::int
+   from public.manager_digest_snapshots s,
+        lateral jsonb_array_elements(s.items) as item
+   where s.profile_id = '2c000000-0000-4000-8000-000000000102'
+     and item->>'key' = 'poc'),
+  2,
+  'the digest tally counts exactly what the sweep escalates -- the submitted plan is in neither'
 );
 
 select * from finish();
