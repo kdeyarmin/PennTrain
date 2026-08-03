@@ -5,25 +5,28 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
+import { ResidentAvatar } from "@/components/residents/ResidentAvatar";
 import { UnsyncedDraftsPanel } from "@/components/residents/UnsyncedDraftsPanel";
 import { usePageTitle } from "@/lib/pageTitle";
 import { useClinicalChartResidentOptions } from "@/hooks/useClinicalObservations";
+import { useResidentPhotoUrls } from "@/hooks/useResidentPhotos";
 import { useResidentServiceTaskQueue } from "@/hooks/useResidentServiceTasks";
 import { filterResidentOptions, type ClinicalChartResidentOption } from "@/lib/clinicalObservations";
 
 /** Only the resident id is needed here; the queue's full row shape belongs to Floor. */
 interface QueueResidentRow { resident_id: string }
 
-function ResidentRow({ resident }: { resident: ClinicalChartResidentOption }) {
+function ResidentRow({ resident, photoUrl }: { resident: ClinicalChartResidentOption; photoUrl?: string }) {
   return (
     <Link
       href={`/me/residents/${resident.id}`}
-      className="flex min-h-16 items-center justify-between rounded-lg border p-3 hover:bg-muted"
+      className="flex min-h-16 items-center gap-3 rounded-lg border p-3 hover:bg-muted"
     >
-      <span className="text-base font-medium">
+      <ResidentAvatar firstName={resident.first_name} lastName={resident.last_name} photoUrl={photoUrl} />
+      <span className="min-w-0 flex-1 text-base font-medium">
         {resident.last_name}, {resident.first_name}
       </span>
-      {resident.room && <Badge variant="outline">Room {resident.room}</Badge>}
+      {resident.room && <Badge variant="outline" className="shrink-0">Room {resident.room}</Badge>}
     </Link>
   );
 }
@@ -42,6 +45,7 @@ export default function MyResidents() {
   usePageTitle("Resident chart");
   const [query, setQuery] = useState("");
   const options = useClinicalChartResidentOptions();
+  const photos = useResidentPhotoUrls();
 
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
@@ -99,18 +103,24 @@ export default function MyResidents() {
         </p>
       ) : onAssignment.length === 0 ? (
         <div className="space-y-2">
-          {residents.map((resident) => <ResidentRow key={resident.id} resident={resident} />)}
+          {residents.map((resident) => (
+            <ResidentRow key={resident.id} resident={resident} photoUrl={photos.data?.[resident.id]} />
+          ))}
         </div>
       ) : (
         <div className="space-y-5">
           <div className="space-y-2">
             <h2 className="text-sm font-semibold text-muted-foreground">On your assignment today</h2>
-            {onAssignment.map((resident) => <ResidentRow key={resident.id} resident={resident} />)}
+            {onAssignment.map((resident) => (
+              <ResidentRow key={resident.id} resident={resident} photoUrl={photos.data?.[resident.id]} />
+            ))}
           </div>
           {others.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-muted-foreground">Everyone else at your facility</h2>
-              {others.map((resident) => <ResidentRow key={resident.id} resident={resident} />)}
+              {others.map((resident) => (
+                <ResidentRow key={resident.id} resident={resident} photoUrl={photos.data?.[resident.id]} />
+              ))}
             </div>
           )}
         </div>

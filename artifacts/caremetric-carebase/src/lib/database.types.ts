@@ -37862,6 +37862,14 @@ export type Database = {
           room: string
         }[]
       }
+      get_clinical_chart_resident_photos: {
+        Args: never
+        Returns: {
+          resident_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
       get_closed_loop_compliance_control_plane: { Args: never; Returns: Json }
       get_complaint_list_summary: {
         Args: {

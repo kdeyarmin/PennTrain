@@ -13,7 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/QueryState";
+import { ResidentAvatar } from "@/components/residents/ResidentAvatar";
 import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDocumentation";
+import { useResidentPhotoUrls } from "@/hooks/useResidentPhotos";
 import { useToast } from "@/hooks/use-toast";
 import {
   type ClinicalObservation,
@@ -55,6 +57,7 @@ export default function MyResidentChart() {
   const summary = useResidentClinicalChartSummary(id, "Caregiver clinical charting");
   const observations = useResidentClinicalObservations(id);
   const saveOffline = useSaveOfflineObservationDraft();
+  const photos = useResidentPhotoUrls();
 
   const residentName = summary.data ? `${summary.data.resident.firstName} ${summary.data.resident.lastName}` : "Resident";
   usePageTitle(`${residentName} · Clinical chart`);
@@ -214,11 +217,24 @@ export default function MyResidentChart() {
           <Link href="/me/residents" className="mb-1 inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="mr-1 h-4 w-4" />Back to resident chart
           </Link>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <HeartPulse className="h-6 w-6 text-rose-600" />
-            {summary.isLoading ? <Skeleton className="h-7 w-48" /> : residentName}
-          </h1>
-          {summary.data?.resident.room && <p className="text-muted-foreground">Room {summary.data.resident.room}</p>}
+          <div className="flex items-center gap-3">
+            {/* Right-patient verification: the face comes before the chart, not after it. */}
+            {summary.data && (
+              <ResidentAvatar
+                firstName={summary.data.resident.firstName}
+                lastName={summary.data.resident.lastName}
+                photoUrl={id ? photos.data?.[id] : undefined}
+                className="h-14 w-14"
+              />
+            )}
+            <div>
+              <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+                <HeartPulse className="h-6 w-6 text-rose-600" />
+                {summary.isLoading ? <Skeleton className="h-7 w-48" /> : residentName}
+              </h1>
+              {summary.data?.resident.room && <p className="text-muted-foreground">Room {summary.data.resident.room}</p>}
+            </div>
+          </div>
         </div>
       </div>
 
