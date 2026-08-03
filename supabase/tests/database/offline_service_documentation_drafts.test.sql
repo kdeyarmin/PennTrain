@@ -1,5 +1,5 @@
 begin;
-select plan(91);
+select plan(99);
 
 -- E5 Tier 1: offline service documentation drafts + conflict rules
 -- (20260802030000_offline_service_documentation_drafts.sql).
@@ -35,27 +35,16 @@ select has_function(
   array['uuid', 'uuid', 'text', 'timestamp with time zone', 'text', 'jsonb'],
   'offline service sync is a server command that classifies record_service_task_response'
 );
+-- Pinned BY CONSTRAINT NAME, not by "the constraint that mentions outcome and applied". That
+-- predicate identified exactly one row until 20260803160000 added a second outcome constraint, at
+-- which point the scalar subquery started raising "more than one row returned" and took the whole
+-- file down before its plan could run. A catalogue probe that matches on body text is a probe that
+-- silently depends on no sibling constraint ever discussing the same column.
 select ok(
   (select pg_get_constraintdef(oid) from pg_constraint
    where conrelid = 'public.offline_draft_receipts'::regclass
-     and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
-  like '%duplicate%' and
-  (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_draft_receipts'::regclass
-     and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
-  like '%conflict%' and
-  (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_draft_receipts'::regclass
-     and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
-  like '%stale%' and
-  (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_draft_receipts'::regclass
-     and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
-  like '%rejected%' and
-  (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_draft_receipts'::regclass
-     and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
-  like '%wipe_required%',
+     and conname = 'offline_service_draft_receipts_outcome_check')
+  like all (array['%applied%', '%duplicate%', '%conflict%', '%stale%', '%rejected%', '%wipe_required%']),
   'the outcome vocabulary covers every classified branch: applied, duplicate, conflict, stale, rejected, wipe_required'
 );
 select ok(
@@ -1041,6 +1030,124 @@ select ok(
     'public.sync_offline_clinical_observation_draft(uuid,uuid,text,timestamptz,text,timestamptz,numeric,numeric,text,text,text,text,text)'::regprocedure
   ) like '%wipe_required_at is not null%',
   'and the fourth tier tests the same columns before trusting a device'
+);
+
+------------------------------------------------------------------------------------------------
+-- Each lane keeps its own outcome vocabulary (20260803160000)
+--
+-- 20260803150000 merged four kinds onto one ledger, and the shared outcome CHECK permits all six
+-- values for all of them -- so the absorbed table's claim that a vitals sync can never produce
+-- `conflict` or `stale` stopped being enforced by anything but the function body. This is that
+-- claim back in the schema, per kind.
+--
+-- Asserted by attempting inserts rather than by reading the constraint text, which is the only form
+-- that proves anything: a `like '%clinical_observation%'` probe passes against a constraint whose
+-- arms are wired backwards. Done as superuser after `reset role` because this table's RLS refuses a
+-- direct authenticated write first, so an authenticated attempt would fail on 42501 and prove
+-- nothing about the CHECK -- the same reasoning the shape-check assertion above records.
+--
+-- THE RISK THESE GUARD AGAINST runs the other way from most constraints. Every sync RPC owes its
+-- caller a receipt; an arm narrower than what a function can really produce would turn a handled
+-- outcome into a raw 23514 and hand the client an error it cannot classify instead of a receipt it
+-- can act on. The 91 assertions above are what rule that out -- they exercise every reachable
+-- outcome of all four functions -- and these eight pin the intended refusals.
+------------------------------------------------------------------------------------------------
+reset role;
+
+select ok(
+  exists(select 1 from pg_constraint
+         where conrelid = 'public.offline_draft_receipts'::regclass
+           and conname = 'offline_draft_receipt_kind_outcome_check'),
+  'the per-kind outcome constraint exists'
+);
+
+-- The restored claim, both halves. A vital sign is a new reading: nobody can take the slot it was
+-- for, and it has no moment to miss.
+select throws_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, resident_id, observation_type,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'clinical_observation',
+      '65000000-0000-4000-8000-000000000201', 'blood_pressure', 'vocab-1', now(), 'conflict')$$,
+  '23514',
+  null,
+  'a vitals receipt cannot be a conflict -- nobody can take the slot a new reading was for'
+);
+
+select throws_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, resident_id, observation_type,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'clinical_observation',
+      '65000000-0000-4000-8000-000000000201', 'blood_pressure', 'vocab-2', now(), 'stale')$$,
+  '23514',
+  null,
+  'nor stale -- a reading taken hours ago is late, not obsolete'
+);
+
+-- Permitted on every kind on purpose, and this is the arm most likely to be "tidied" later. For the
+-- three non-service lanes `duplicate` is computed on the replay path and returned WITHOUT an
+-- insert, so its absence from those tables is about where the branch sits, not about the value
+-- being meaningless. The absorbed table made the same call -- it permitted `duplicate` while its
+-- own function never wrote one.
+select lives_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, resident_id, observation_type,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'clinical_observation',
+      '65000000-0000-4000-8000-000000000201', 'blood_pressure', 'vocab-3', now(), 'duplicate')$$,
+  'but duplicate stays permitted for every kind, including the ones whose replay path never stores it'
+);
+
+-- The change-observation lane disagrees with the vitals lane on exactly one value, and the
+-- disagreement is the point: its event CAN close while the device is offline.
+select throws_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, change_event_id,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'change_observation',
+      '65000000-0000-4000-8000-000000000601', 'vocab-4', now(), 'conflict')$$,
+  '23514',
+  null,
+  'a change observation cannot conflict -- monitoring entries are append-only, so two observers both exist'
+);
+
+select lives_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, change_event_id,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'change_observation',
+      '65000000-0000-4000-8000-000000000601', 'vocab-5', now(), 'stale')$$,
+  'but it can go stale, because the event can be closed while the device is offline'
+);
+
+select throws_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, resident_id, service_kind,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'unscheduled_service',
+      '65000000-0000-4000-8000-000000000201', 'toileting', 'vocab-6', now(), 'stale')$$,
+  '23514',
+  null,
+  'an unscheduled service cannot go stale -- it is an append, with no moment to miss'
+);
+
+-- The contrast that makes the other five mean something. service_task is the only kind whose draft
+-- points at a row that already existed and that somebody else can act on, so it keeps all six.
+select lives_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, task_id, response,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'service_task',
+      '65000000-0000-4000-8000-000000000501', 'completed_as_planned', 'vocab-7', now(), 'conflict')$$,
+  'while service_task keeps all six -- it is the one kind another aide can take the slot for'
 );
 
 select * from finish();

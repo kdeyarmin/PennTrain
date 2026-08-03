@@ -75,29 +75,42 @@ select lives_ok(
   $$ select public.queue_course_assignment_due_reminders() $$,
   'the due-reminder queue function runs'
 );
+
+-- SCOPED TO THIS FIXTURE'S ORGANIZATION. The claim is about the four assignments seeded above --
+-- which of them earns a nudge -- not about how many rows the whole table happens to hold. The
+-- function is global by design, so any other organization with an assignment due inside the same
+-- seven-day window contributes a perfectly correct reminder of its own; counting those made this
+-- file pass against an empty database and fail against a seeded one, for a reason that had nothing
+-- to do with the behaviour under test. `notifications.organization_id` is stamped from
+-- `ca.organization_id` by the function itself, so the scope is the same one the row was written
+-- under rather than a proxy for it.
 select results_eq(
   $$ select count(*)::int from public.notifications
-     where notification_type = 'course_assignment_due_soon' $$,
+     where notification_type = 'course_assignment_due_soon'
+       and organization_id = '14000000-0000-4000-8000-000000000001' $$,
   array[1],
   'only the unstarted assignment due within the window gets a reminder'
 );
 select results_eq(
   $$ select link from public.notifications
-     where notification_type = 'course_assignment_due_soon' $$,
+     where notification_type = 'course_assignment_due_soon'
+       and organization_id = '14000000-0000-4000-8000-000000000001' $$,
   array['/me/courses/14000000-0000-4000-8000-000000000061'::text],
   'the reminder links to the due-soon assignment'
 );
 select public.queue_course_assignment_due_reminders();
 select results_eq(
   $$ select count(*)::int from public.notifications
-     where notification_type = 'course_assignment_due_soon' $$,
+     where notification_type = 'course_assignment_due_soon'
+       and organization_id = '14000000-0000-4000-8000-000000000001' $$,
   array[1],
   'reruns do not re-nag the same assignment'
 );
 select results_eq(
   $$ select count(*)::int from public.notification_deliveries d
      join public.notifications n on n.id = d.notification_id
-     where n.notification_type = 'course_assignment_due_soon' $$,
+     where n.notification_type = 'course_assignment_due_soon'
+       and n.organization_id = '14000000-0000-4000-8000-000000000001' $$,
   array[0],
   'provider delivery for the reminder stays behind the expanded-delivery flag'
 );
