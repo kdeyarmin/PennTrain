@@ -164,6 +164,45 @@ export function useCreateCampaignQuestions() {
   });
 }
 
+export interface CreateCampaignWithQuestionsParams {
+  organizationId: string;
+  policyDocumentId: string;
+  policyDocumentVersionId: string;
+  name: string;
+  dueDate: string | null;
+  questions: Array<{ prompt: string; choices: string[]; correct_choice_index: number }>;
+}
+
+/**
+ * Creates a campaign and its questions in ONE transaction.
+ *
+ * Replaces an earlier create-campaign-then-insert-questions sequence: if the second call failed,
+ * the campaign stayed committed looking exactly like a read-and-sign campaign, and assigning it let
+ * staff attest with no knowledge check and no signal to the author. The RPC is SECURITY INVOKER, so
+ * both tables' RLS policies still authorize the caller exactly as a direct insert would.
+ */
+export function useCreatePolicyCampaignWithQuestions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: CreateCampaignWithQuestionsParams) => {
+      const { data, error } = await supabase.rpc("create_policy_campaign_with_questions", {
+        p_organization_id: params.organizationId,
+        p_policy_document_id: params.policyDocumentId,
+        p_policy_document_version_id: params.policyDocumentVersionId,
+        p_name: params.name,
+        p_due_date: params.dueDate ?? undefined,
+        p_questions: params.questions,
+      });
+      if (error) throw error;
+      return data as unknown as string;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["policy_attestation_campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["policy_campaign_questions"] });
+    },
+  });
+}
+
 export interface KnowledgeCheckQuestion {
   question_id: string;
   display_order: number;

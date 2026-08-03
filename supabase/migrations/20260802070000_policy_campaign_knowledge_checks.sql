@@ -544,3 +544,76 @@ $$;
 
 revoke all on function app_private.redact_audit_json(jsonb)
   from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7. Create a campaign and its questions atomically
+-- ---------------------------------------------------------------------------
+--
+-- The client originally inserted the campaign, then the questions, as two round trips. If the
+-- second failed -- transient network error, a question row the constraints reject -- the campaign
+-- stayed committed and looked exactly like a read-and-sign campaign. Assigning it then let staff
+-- attest with no knowledge check at all, silently, with nothing to tell the administrator their
+-- questions never landed. That is the same silent-degradation shape this feature exists to prevent.
+--
+-- A plpgsql function body is a single transaction, so both inserts commit together or neither does.
+--
+-- SECURITY INVOKER (not DEFINER) on purpose: every RLS policy on both tables applies to the caller
+-- exactly as it does for a direct insert, including identity_assurance_is_current('policy_document_admin')
+-- and the restrictive entitlement check. There is no authorization logic duplicated here to drift
+-- from the policies, and no definer context to accidentally widen.
+create or replace function public.create_policy_campaign_with_questions(
+  p_organization_id uuid,
+  p_policy_document_id uuid,
+  p_policy_document_version_id uuid,
+  p_name text,
+  p_due_date date default null,
+  p_questions jsonb default '[]'::jsonb
+) returns uuid
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_campaign_id uuid;
+  v_question jsonb;
+  v_order integer := 0;
+begin
+  if p_questions is not null and jsonb_typeof(p_questions) <> 'array' then
+    raise exception 'Questions must be a JSON array' using errcode = '22023';
+  end if;
+
+  insert into public.policy_attestation_campaigns (
+    organization_id, policy_document_id, policy_document_version_id, name, due_date, created_by
+  ) values (
+    p_organization_id, p_policy_document_id, p_policy_document_version_id,
+    btrim(p_name), p_due_date, auth.uid()
+  )
+  returning id into v_campaign_id;
+
+  for v_question in select * from jsonb_array_elements(coalesce(p_questions, '[]'::jsonb))
+  loop
+    v_order := v_order + 1;
+    insert into public.policy_campaign_questions (
+      organization_id, campaign_id, display_order, prompt, choices, correct_choice_index, created_by
+    ) values (
+      p_organization_id, v_campaign_id, v_order,
+      v_question ->> 'prompt',
+      v_question -> 'choices',
+      (v_question ->> 'correct_choice_index')::integer,
+      auth.uid()
+    );
+  end loop;
+
+  return v_campaign_id;
+end;
+$$;
+
+comment on function public.create_policy_campaign_with_questions(uuid, uuid, uuid, text, date, jsonb) is
+  'Creates an attestation campaign and its knowledge-check questions in one transaction, so a '
+  'campaign can never be left committed without the questions its author wrote. SECURITY INVOKER: '
+  'the tables'' own RLS policies authorize the caller.';
+
+revoke all on function public.create_policy_campaign_with_questions(uuid, uuid, uuid, text, date, jsonb)
+  from public, anon, service_role;
+grant execute on function public.create_policy_campaign_with_questions(uuid, uuid, uuid, text, date, jsonb)
+  to authenticated;

@@ -37130,6 +37130,17 @@ export type Database = {
         }
         Returns: string
       }
+      create_policy_campaign_with_questions: {
+        Args: {
+          p_due_date?: string
+          p_name: string
+          p_organization_id: string
+          p_policy_document_id: string
+          p_policy_document_version_id: string
+          p_questions?: Json
+        }
+        Returns: string
+      }
       create_qapi_project: {
         Args: {
           p_baseline_data: string

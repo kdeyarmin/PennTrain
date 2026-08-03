@@ -7,9 +7,9 @@ import {
   usePublishPolicyDocumentVersion, usePolicyDocumentSignedUrl, type PolicyDocumentVersion,
 } from "@/hooks/usePolicyDocuments";
 import {
-  useListPolicyAttestationCampaigns, useCreatePolicyAttestationCampaign,
+  useListPolicyAttestationCampaigns,
   useListPolicyAttestations, useAssignPolicyAttestationToEmployee, type PolicyAttestation,
-  useCreateCampaignQuestions,
+  useCreatePolicyCampaignWithQuestions,
 } from "@/hooks/usePolicyAttestations";
 import {
   CampaignQuestionsEditor, draftQuestionsAreValid, normalizeDraftQuestion, type DraftQuestion,
@@ -265,8 +265,7 @@ function AssignCampaignDialog({
 function NewCampaignDialog({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { mutateAsync: createCampaign } = useCreatePolicyAttestationCampaign();
-  const { mutateAsync: createQuestions } = useCreateCampaignQuestions();
+  const { mutateAsync: createCampaignWithQuestions } = useCreatePolicyCampaignWithQuestions();
   // One flag for the WHOLE operation. createCampaign's own isPending goes false the moment that
   // first mutation resolves, while this handler may still be inserting questions -- which re-enabled
   // the button mid-flight and let a second click create a second campaign and a second question set.
@@ -283,36 +282,22 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
     if (isPending) return;
     setIsPending(true);
     try {
-      const campaign = await createCampaign({
-        organization_id: user.organizationId,
-        policy_document_id: documentId,
-        policy_document_version_id: currentVersionId,
+      // One transactional RPC, not create-then-insert: a failure partway through used to leave a
+      // committed campaign with no questions, indistinguishable from a read-and-sign one, which
+      // staff could then attest against with no knowledge check at all.
+      await createCampaignWithQuestions({
+        organizationId: user.organizationId,
+        policyDocumentId: documentId,
+        policyDocumentVersionId: currentVersionId,
         name: name.trim(),
-        due_date: dueDate || null,
-        created_by: user.id,
+        dueDate: dueDate || null,
+        questions: questions.map((question) => {
+          // Blank choices are dropped here, so the correct index has to move with them --
+          // see normalizeDraftQuestion for what going without it silently stores.
+          const { choices, correctIndex } = normalizeDraftQuestion(question);
+          return { prompt: question.prompt.trim(), choices, correct_choice_index: correctIndex };
+        }),
       });
-      if (questions.length > 0) {
-        // Questions are written after the campaign exists because they hang off its id. A failure
-        // here leaves a read-and-sign campaign rather than a half-built quiz -- surfaced explicitly
-        // below, since silently dropping the knowledge check would be the worst outcome: the
-        // campaign would look complete and gate nothing.
-        await createQuestions(
-          questions.map((question, index) => {
-            // Blank choices are dropped here, so the correct index has to move with them --
-            // see normalizeDraftQuestion for what going without it silently stores.
-            const { choices, correctIndex } = normalizeDraftQuestion(question);
-            return {
-              organization_id: user.organizationId!,
-              campaign_id: campaign.id,
-              display_order: index + 1,
-              prompt: question.prompt.trim(),
-              choices,
-              correct_choice_index: correctIndex,
-              created_by: user.id,
-            };
-          }),
-        );
-      }
       toast({
         title: "Campaign created",
         description: questions.length
