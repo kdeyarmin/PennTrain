@@ -18645,6 +18645,7 @@ export type Database = {
         Row: {
           client_occurred_at: string
           device_id: string
+          draft_kind: string
           error_message: string | null
           exception_details: Json
           id: string
@@ -18653,12 +18654,15 @@ export type Database = {
           outcome: string
           processed_at: string
           profile_id: string
-          response: string
-          task_id: string
+          resident_id: string | null
+          response: string | null
+          service_kind: string | null
+          task_id: string | null
         }
         Insert: {
           client_occurred_at: string
           device_id: string
+          draft_kind?: string
           error_message?: string | null
           exception_details?: Json
           id?: string
@@ -18667,12 +18671,15 @@ export type Database = {
           outcome: string
           processed_at?: string
           profile_id: string
-          response: string
-          task_id: string
+          resident_id?: string | null
+          response?: string | null
+          service_kind?: string | null
+          task_id?: string | null
         }
         Update: {
           client_occurred_at?: string
           device_id?: string
+          draft_kind?: string
           error_message?: string | null
           exception_details?: Json
           id?: string
@@ -18681,8 +18688,10 @@ export type Database = {
           outcome?: string
           processed_at?: string
           profile_id?: string
-          response?: string
-          task_id?: string
+          resident_id?: string | null
+          response?: string | null
+          service_kind?: string | null
+          task_id?: string | null
         }
         Relationships: [
           {
@@ -18704,6 +18713,20 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_service_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_service_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
             referencedColumns: ["id"]
           },
           {
@@ -41914,6 +41937,19 @@ export type Database = {
           p_idempotency_key: string
           p_response: string
           p_task_id: string
+        }
+        Returns: Json
+      }
+      sync_offline_unscheduled_service_draft: {
+        Args: {
+          p_client_occurred_at: string
+          p_device_id: string
+          p_duration_minutes?: number
+          p_idempotency_key: string
+          p_note?: string
+          p_requires_two_staff?: boolean
+          p_resident_id: string
+          p_service_kind: string
         }
         Returns: Json
       }
