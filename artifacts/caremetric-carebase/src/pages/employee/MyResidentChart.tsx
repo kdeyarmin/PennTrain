@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { Link, useParams } from "wouter";
-import { AlertTriangle, ArrowLeft, HeartPulse, Plus, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, HeartPulse, Plus, ShieldCheck, WifiOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,16 @@ import {
   useResidentClinicalChartSummary,
   useResidentClinicalObservations,
 } from "@/hooks/useClinicalObservations";
+import { useSaveOfflineObservationDraft } from "@/hooks/useOfflineObservationDrafts";
+import { isNetworkLevelSupabaseError } from "@/lib/offlineServiceDraftSafety";
 import { toDateTimeLocal } from "@/lib/dateUtils";
 import { usePageTitle } from "@/lib/pageTitle";
 import {
   OBSERVATION_CONFIG,
   OBSERVATION_ORDER,
+  QUICK_OBSERVATION_TYPES,
   abnormalBadge,
+  isCriticalFlag,
   observationTitle,
   observationValue,
   summaryVitalTitle,
@@ -50,6 +54,7 @@ export default function MyResidentChart() {
   const { toast } = useToast();
   const summary = useResidentClinicalChartSummary(id, "Caregiver clinical charting");
   const observations = useResidentClinicalObservations(id);
+  const saveOffline = useSaveOfflineObservationDraft();
 
   const residentName = summary.data ? `${summary.data.resident.firstName} ${summary.data.resident.lastName}` : "Resident";
   usePageTitle(`${residentName} · Clinical chart`);
@@ -69,6 +74,9 @@ export default function MyResidentChart() {
   const [retractReason, setRetractReason] = useState("");
   const amend = useAmendClinicalObservation();
 
+  /** A just-recorded reading the server flagged critical -- see the review dialog at the bottom. */
+  const [criticalReading, setCriticalReading] = useState<ClinicalObservation | null>(null);
+
   const config = OBSERVATION_CONFIG[observationType];
   const isCustom = observationType === "custom";
 
@@ -85,6 +93,13 @@ export default function MyResidentChart() {
     setObservedAt(toDateTimeLocal(new Date()));
   };
 
+  /** Opens the record dialog with one type preselected -- the bedside path (see QUICK_OBSERVATION_TYPES). */
+  const openQuickRecord = (type: ObservationType) => {
+    resetRecordForm();
+    chooseType(type);
+    setRecordOpen(true);
+  };
+
   const submitObservation = async () => {
     if (!id) return;
     const numeric = valueNumeric.trim() === "" ? null : Number(valueNumeric);
@@ -92,23 +107,71 @@ export default function MyResidentChart() {
       toast({ title: "Enter a valid number", variant: "destructive" });
       return;
     }
+    const secondary = valueSecondary.trim() === "" ? null : Number(valueSecondary);
+    if (secondary != null && Number.isNaN(secondary)) {
+      toast({ title: "Enter a valid number", variant: "destructive" });
+      return;
+    }
+    const input = {
+      residentId: id,
+      observationType,
+      observedAt: new Date(observedAt).toISOString(),
+      valueNumeric: numeric,
+      valueSecondary: secondary,
+      valueText: valueText.trim() || null,
+      unit: unit.trim() || null,
+      customLabel: isCustom ? customLabel.trim() || null : null,
+      loincCode: config.loinc ?? null,
+      note: note.trim() || null,
+    };
     try {
-      await record.mutateAsync({
-        residentId: id,
-        observationType,
-        observedAt: new Date(observedAt).toISOString(),
-        valueNumeric: numeric,
-        valueSecondary: valueSecondary.trim() === "" ? null : Number(valueSecondary),
-        valueText: valueText.trim() || null,
-        unit: unit.trim() || null,
-        customLabel: isCustom ? customLabel.trim() || null : null,
-        loincCode: config.loinc ?? null,
-        note: note.trim() || null,
-      });
+      const observationId = await record.mutateAsync(input);
       setRecordOpen(false);
       resetRecordForm();
       toast({ title: "Observation recorded" });
+      // The abnormal flag is derived server-side, so the only honest way to know whether this
+      // reading is critical is to read back what the server actually stored -- no client-side copy
+      // of the thresholds to drift out of sync with record_clinical_observation's own logic.
+      const refreshed = await observations.refetch();
+      const created = (refreshed.data ?? []).find((entry) => entry.id === observationId);
+      if (created && isCriticalFlag(created.abnormal_flag)) setCriticalReading(created);
     } catch (error) {
+      // Offline / never-reached-the-server: queue it rather than losing the reading. A real server
+      // rejection (wrong facility, capability disabled) still surfaces -- see
+      // isNetworkLevelSupabaseError's own note on why an empty error code is the distinguishing mark.
+      if (!navigator.onLine || isNetworkLevelSupabaseError(error)) {
+        try {
+          await saveOffline.mutateAsync({
+            residentId: id,
+            residentDisplayLabel: summary.data?.resident.room
+              ? `${residentName} · Room ${summary.data.resident.room}`
+              : residentName,
+            observationType: input.observationType,
+            observedAt: input.observedAt,
+            valueNumeric: input.valueNumeric,
+            valueSecondary: input.valueSecondary,
+            valueText: input.valueText,
+            unit: input.unit,
+            customLabel: input.customLabel,
+            loincCode: input.loincCode,
+            note: input.note,
+          });
+          setRecordOpen(false);
+          resetRecordForm();
+          toast({
+            title: "Saved on this device",
+            description: "No connection right now. This reading syncs once you're back online.",
+          });
+          return;
+        } catch (offlineError) {
+          toast({
+            title: "Observation could not be saved",
+            description: offlineError instanceof Error ? offlineError.message : String(offlineError),
+            variant: "destructive",
+          });
+          return;
+        }
+      }
       toast({
         title: "Observation could not be recorded",
         description: error instanceof Error ? error.message : String(error),
@@ -157,9 +220,6 @@ export default function MyResidentChart() {
           </h1>
           {summary.data?.resident.room && <p className="text-muted-foreground">Room {summary.data.resident.room}</p>}
         </div>
-        <Button className="h-12" onClick={() => setRecordOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />Record vital
-        </Button>
       </div>
 
       {summary.data && summary.data.resident.clinicalDataConsent !== "granted" && (
@@ -192,6 +252,30 @@ export default function MyResidentChart() {
         </TabsList>
 
         <TabsContent value="vitals" className="space-y-3">
+          {/* Bedside path: one tap straight to the reading being taken, rather than opening a
+              dialog that starts on a twelve-item picker. "Something else" keeps the full list. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {QUICK_OBSERVATION_TYPES.map((type) => (
+              <Button
+                key={type}
+                variant="outline"
+                className="h-14 flex-col gap-0.5 text-xs font-semibold"
+                onClick={() => openQuickRecord(type)}
+              >
+                <Plus className="h-4 w-4" />
+                {OBSERVATION_CONFIG[type].shortLabel ?? OBSERVATION_CONFIG[type].label}
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              className="h-14 flex-col gap-0.5 text-xs font-semibold"
+              onClick={() => { resetRecordForm(); setRecordOpen(true); }}
+            >
+              <Plus className="h-4 w-4" />
+              Something else
+            </Button>
+          </div>
+
           {summary.isLoading ? (
             <Card><CardContent className="space-y-3 p-4"><Skeleton className="h-6 w-full" /><Skeleton className="h-6 w-2/3" /></CardContent></Card>
           ) : (summary.data?.latestVitals.length ?? 0) > 0 && (
@@ -271,8 +355,8 @@ export default function MyResidentChart() {
       <Dialog open={recordOpen} onOpenChange={(open) => { setRecordOpen(open); if (!open) resetRecordForm(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Record observation</DialogTitle>
-            <DialogDescription>Capture a structured vital sign or observation. The abnormal flag is derived automatically.</DialogDescription>
+            <DialogTitle>{isCustom ? "Record observation" : `Record ${config.label.toLowerCase()}`}</DialogTitle>
+            <DialogDescription>The abnormal flag is derived automatically once this is saved.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
@@ -302,6 +386,7 @@ export default function MyResidentChart() {
               <Input
                 id={`${__fieldIds}-value`}
                 inputMode="decimal"
+                autoFocus
                 value={valueNumeric}
                 onChange={(event) => setValueNumeric(event.target.value)}
                 placeholder={isCustom ? "Optional if using text" : ""}
@@ -317,10 +402,17 @@ export default function MyResidentChart() {
                   onChange={(event) => setValueSecondary(event.target.value)}
                 />
               </div>
-            ) : (
+            ) : isCustom ? (
               <div className="space-y-2">
                 <Label htmlFor={`${__fieldIds}-unit`}>Unit</Label>
                 <Input id={`${__fieldIds}-unit`} value={unit} onChange={(event) => setUnit(event.target.value)} />
+              </div>
+            ) : (
+              // A known observation type carries its own UCUM unit; showing it as a free-text input
+              // only creates a way to record a wrong one at the bedside.
+              <div className="space-y-2">
+                <span className="text-sm font-medium">Unit</span>
+                <p className="flex h-9 items-center text-sm text-muted-foreground">{unit || "—"}</p>
               </div>
             )}
             {isCustom && (
@@ -351,10 +443,62 @@ export default function MyResidentChart() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecordOpen(false)}>Cancel</Button>
             <Button
-              disabled={record.isPending || (valueNumeric.trim() === "" && valueText.trim() === "") || (isCustom && customLabel.trim() === "")}
+              className="h-12"
+              disabled={
+                record.isPending || saveOffline.isPending
+                || (valueNumeric.trim() === "" && valueText.trim() === "")
+                || (isCustom && customLabel.trim() === "")
+              }
               onClick={() => void submitObservation()}
             >
-              {record.isPending ? "Saving…" : "Record"}
+              {record.isPending || saveOffline.isPending ? "Saving…" : "Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recorded first, reviewed second -- a real reading is never silently discarded, and the
+          retraction path below is the append-only way to correct a mistyped one. */}
+      <Dialog open={!!criticalReading} onOpenChange={(open) => { if (!open) setCriticalReading(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Check this reading
+            </DialogTitle>
+            <DialogDescription>
+              This value is outside the expected range. It has been recorded — confirm it was entered
+              correctly, and escalate if the resident's condition has changed.
+            </DialogDescription>
+          </DialogHeader>
+          {criticalReading && (
+            <div className="rounded-lg border p-3">
+              <p className="text-sm text-muted-foreground">{observationTitle(criticalReading)}</p>
+              <p className="text-3xl font-semibold tabular-nums">{observationValue(criticalReading)}</p>
+              {abnormalBadge(criticalReading.abnormal_flag) && (
+                <Badge variant="outline" className={`mt-1 ${abnormalBadge(criticalReading.abnormal_flag)!.className}`}>
+                  {abnormalBadge(criticalReading.abnormal_flag)!.label}
+                </Badge>
+              )}
+            </div>
+          )}
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              className="h-12"
+              onClick={() => {
+                setRetracting(criticalReading);
+                setRetractReason("");
+                setCriticalReading(null);
+              }}
+            >
+              I mistyped it
+            </Button>
+            <Button className="h-12" asChild>
+              <Link href={`/me/change-of-condition?resident=${id}`}>Report a change of condition</Link>
+            </Button>
+            <Button variant="ghost" className="h-12" onClick={() => setCriticalReading(null)}>
+              The reading is correct
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -386,6 +530,13 @@ export default function MyResidentChart() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {saveOffline.isSuccess && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <WifiOff className="h-3.5 w-3.5" />
+          Readings saved on this device are listed on the resident chart list and on Floor until they sync.
+        </p>
+      )}
     </div>
   );
 }

@@ -2,19 +2,19 @@ import type { ClinicalChartSummary, ClinicalObservation, ObservationType } from 
 
 export const OBSERVATION_CONFIG: Record<
   ObservationType,
-  { label: string; unit: string; secondaryLabel?: string; loinc?: string }
+  { label: string; shortLabel?: string; unit: string; secondaryLabel?: string; loinc?: string }
 > = {
-  blood_pressure: { label: "Blood pressure", unit: "mm[Hg]", secondaryLabel: "Diastolic", loinc: "85354-9" },
-  heart_rate: { label: "Heart rate", unit: "/min", loinc: "8867-4" },
-  respiratory_rate: { label: "Respiratory rate", unit: "/min", loinc: "9279-1" },
-  temperature: { label: "Temperature", unit: "Cel", loinc: "8310-5" },
-  spo2: { label: "Oxygen saturation (SpO₂)", unit: "%", loinc: "59408-5" },
-  weight: { label: "Weight", unit: "kg", loinc: "29463-7" },
-  height: { label: "Height", unit: "cm", loinc: "8302-2" },
-  bmi: { label: "Body mass index", unit: "kg/m2", loinc: "39156-5" },
-  blood_glucose: { label: "Blood glucose", unit: "mg/dL", loinc: "2339-0" },
-  pain_score: { label: "Pain score (0–10)", unit: "{score}", loinc: "72514-3" },
-  o2_flow: { label: "Oxygen flow", unit: "L/min", loinc: "3151-8" },
+  blood_pressure: { label: "Blood pressure", shortLabel: "BP", unit: "mm[Hg]", secondaryLabel: "Diastolic", loinc: "85354-9" },
+  heart_rate: { label: "Heart rate", shortLabel: "Pulse", unit: "/min", loinc: "8867-4" },
+  respiratory_rate: { label: "Respiratory rate", shortLabel: "Resp", unit: "/min", loinc: "9279-1" },
+  temperature: { label: "Temperature", shortLabel: "Temp", unit: "Cel", loinc: "8310-5" },
+  spo2: { label: "Oxygen saturation (SpO₂)", shortLabel: "SpO₂", unit: "%", loinc: "59408-5" },
+  weight: { label: "Weight", shortLabel: "Weight", unit: "kg", loinc: "29463-7" },
+  height: { label: "Height", shortLabel: "Height", unit: "cm", loinc: "8302-2" },
+  bmi: { label: "Body mass index", shortLabel: "BMI", unit: "kg/m2", loinc: "39156-5" },
+  blood_glucose: { label: "Blood glucose", shortLabel: "Glucose", unit: "mg/dL", loinc: "2339-0" },
+  pain_score: { label: "Pain score (0–10)", shortLabel: "Pain", unit: "{score}", loinc: "72514-3" },
+  o2_flow: { label: "Oxygen flow", shortLabel: "O₂ flow", unit: "L/min", loinc: "3151-8" },
   custom: { label: "Custom observation", unit: "" },
 };
 
@@ -22,6 +22,24 @@ export const OBSERVATION_ORDER: ObservationType[] = [
   "blood_pressure", "heart_rate", "respiratory_rate", "temperature", "spo2",
   "blood_glucose", "pain_score", "o2_flow", "weight", "height", "bmi", "custom",
 ];
+
+/**
+ * The readings a direct-care employee actually takes at the bedside, in the order they are usually
+ * taken. These get one-tap buttons on the caregiver surface; everything else stays behind the full
+ * picker. Deliberately short -- the value of this list comes from what it leaves out.
+ */
+export const QUICK_OBSERVATION_TYPES: ObservationType[] = [
+  "blood_pressure", "heart_rate", "temperature", "spo2", "pain_score",
+];
+
+/**
+ * Server-derived flags that warrant stopping the caregiver to re-check the entry. The thresholds
+ * themselves live only in record_clinical_observation (20260725110000_clinical_observations_native.sql);
+ * this reads the flag that function already computed rather than keeping a second copy that could drift.
+ */
+export function isCriticalFlag(flag: string): boolean {
+  return flag === "critical_high" || flag === "critical_low";
+}
 
 export function abnormalBadge(flag: string): { className: string; label: string } | null {
   switch (flag) {

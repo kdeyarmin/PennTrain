@@ -6,10 +6,19 @@
 -- read path (20260725100000_ehr_foundation_and_guardrail_supersession.sql). This mirrors the
 -- shape of get_change_event_resident_options (20260713190000_structured_change_of_condition.sql),
 -- which solves the same "which residents can I act on" need for change-of-condition reporting,
--- but composes clinical_record_visible directly instead of re-deriving the employee-facility
--- check inline, and evaluates it per resident row so a multi-facility employee sees residents at
--- every facility they are assigned to, not just the one row a single `select ... into` would
--- capture. This intentionally checks only clinical_record_visible (not clinical_module_enabled /
+-- but composes clinical_record_visible directly instead of re-deriving the employee-facility check
+-- inline, so "who may see a resident's clinical record" has exactly one definition rather than two
+-- that can drift.
+--
+-- SCOPE NOTE (not a regression, and deliberately not widened here): clinical_record_visible reaches
+-- an employee only through public.employees.facility_id, and employees.profile_id is UNIQUE -- so a
+-- person has exactly one employees row at exactly one facility, and this roster returns residents at
+-- that facility only. Float staff carrying additional facilities via employee_facility_assignments
+-- (20260706051449) therefore cannot chart at those facilities. That limitation lives in the shared
+-- clinical helper, not in this function; changing it would widen the PHI boundary for every clinical
+-- RPC at once and belongs in its own reviewed change.
+--
+-- This intentionally checks only clinical_record_visible (not clinical_module_enabled /
 -- facility_clinical_enabled) to stay consistent with the existing read RPCs it feeds into --
 -- get_resident_clinical_chart and get_resident_clinical_observations gate the same way; only the
 -- write path (assert_clinical_contributor) additionally requires the org/facility capability

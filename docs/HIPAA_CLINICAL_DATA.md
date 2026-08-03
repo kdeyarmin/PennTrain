@@ -35,7 +35,7 @@ caregiver charts at the bedside. _(Delivered: M7.)_
 | M4 | Native care plans, assessments, progress notes (sign-and-lock) | **Delivered** |
 | M5 | Chart consolidation, unified timeline, hardening; write-back reserved (disabled) | **Delivered** |
 | M6 | Per-facility clinical enablement; opt-in FHIR write-back (Observation); consolidated chart summary wired read-side; demo clinical seed | **Delivered** |
-| M7 | Employee caregiver charting surface (`/me/residents`) — resident picker + vitals/notes chart, same authorization boundary as the admin chart | **Delivered** |
+| M7 | Employee caregiver charting surface (`/me/residents`) — resident picker + vitals/notes chart, same authorization boundary as the admin chart; offline-tolerant vitals capture; critical-value re-check handoff | **Delivered** |
 
 ## Data model (delivered in M0–M1)
 
@@ -80,6 +80,14 @@ Data model (delivered in M2 — FHIR medication lane):
   assigned-facility residents; capability gated by `clinical.ehr`.
 - **Append-only evidence.** Amendments/corrections never destroy prior values
   (`app_private.prevent_clinical_evidence_mutation`); retractions use `entered_in_error`.
+- **Offline vitals (M7).** A reading taken without connectivity is held in the same encrypted,
+  device-keyed IndexedDB store as offline service documentation (E5) — same non-extractable AES-GCM
+  key, same identity-change wipe rules, same purge ceilings — and synced through
+  `sync_offline_clinical_observation_draft`, which calls `record_clinical_observation` rather than
+  reimplementing it, so an offline reading is flagged and authorized identically to an online one.
+  `offline_observation_draft_receipts` is append-only and its `unique (device_id, idempotency_key)`
+  is what prevents a reconnect from charting the same vital sign twice — observations have no
+  natural uniqueness the way a service task does, so idempotency is the only guard.
 - **Encryption / secrets.** Supabase Postgres is encrypted at rest by default. Any external FHIR
   endpoint secrets must be stored in Supabase **Vault** (as the integration hub already does),
   never in plaintext columns. Raw FHIR payloads (Lane A `raw_resource`, a later milestone) are kept

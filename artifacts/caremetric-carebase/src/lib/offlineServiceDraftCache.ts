@@ -23,12 +23,23 @@ import {
   assertServiceDraftAllowed, NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
   type OfflineDraftSyncOutcome, type OfflineDraftSyncState, type OfflineServiceDraft,
 } from "./offlineServiceDraftSafety";
+import {
+  assertObservationDraftAllowed, NEEDS_REVIEW_OBSERVATION_DRAFT_STATES,
+  UNRESOLVED_OBSERVATION_DRAFT_STATES,
+  type OfflineObservationDraft, type OfflineObservationSyncState,
+} from "./offlineObservationDraftSafety";
 
 const DATABASE_NAME = "carebase-offline-floor";
-const DATABASE_VERSION = 1;
+// v2 adds OBSERVATION_DRAFT_STORE. This module owns the "carebase-offline-floor" database outright
+// -- its name, version, device key, and device identity -- so a second store that belongs to the
+// same device and the same wipe/identity rules is added here rather than in a module of its own.
+// Two modules calling indexedDB.open() on one database with different versions would block each
+// other; one owner is the only safe arrangement.
+const DATABASE_VERSION = 2;
 const KEY_STORE = "device-key";
 const META_STORE = "metadata";
 const DRAFT_STORE = "service-drafts";
+const OBSERVATION_DRAFT_STORE = "observation-drafts";
 
 export interface OfflineFloorIdentity { organizationId: string; profileId: string; role: string }
 export interface OfflineFloorDeviceMetadata extends OfflineFloorIdentity {
@@ -68,6 +79,11 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!value.result.objectStoreNames.contains(KEY_STORE)) value.result.createObjectStore(KEY_STORE);
       if (!value.result.objectStoreNames.contains(META_STORE)) value.result.createObjectStore(META_STORE);
       if (!value.result.objectStoreNames.contains(DRAFT_STORE)) value.result.createObjectStore(DRAFT_STORE, { keyPath: "draftId" });
+      // Additive on the v1 -> v2 upgrade: existing service drafts and the device key are untouched,
+      // so a device that already holds unsynced notes keeps them across this upgrade.
+      if (!value.result.objectStoreNames.contains(OBSERVATION_DRAFT_STORE)) {
+        value.result.createObjectStore(OBSERVATION_DRAFT_STORE, { keyPath: "draftId" });
+      }
     };
     value.onsuccess = () => resolve(value.result);
     value.onerror = () => reject(value.error ?? new Error("Offline service draft storage is unavailable"));
@@ -93,7 +109,7 @@ async function sha256(value: string): Promise<string> {
 }
 
 async function clearDatabase(db: IDBDatabase): Promise<void> {
-  await Promise.all([KEY_STORE, META_STORE, DRAFT_STORE].map((store) => new Promise<void>((resolve, reject) => {
+  await Promise.all([KEY_STORE, META_STORE, DRAFT_STORE, OBSERVATION_DRAFT_STORE].map((store) => new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(store, "readwrite");
     transaction.objectStore(store).clear();
     transaction.oncomplete = () => resolve();
@@ -285,3 +301,146 @@ export async function purgeExpiredServiceDrafts(now: number = Date.now()): Promi
 }
 
 export type { OfflineDraftSyncOutcome, OfflineDraftSyncState };
+
+// ---------------------------------------------------------------------------
+// Observation (vitals) drafts -- same database, same device key, same identity/wipe rules
+// ---------------------------------------------------------------------------
+//
+// A vital sign taken offline is the same problem as a service note taken offline, on the same
+// device, under the same employee identity, and it must be wiped by the same identity-change rules
+// -- so it shares this store rather than standing up a second database with a second key and a
+// second device registration. The encryption discipline is identical (per-record 12-byte IV,
+// AAD-bound scope, non-extractable key); only the payload type and scope shape differ.
+
+interface StoredObservationRecord {
+  draftId: string;
+  residentId: string;
+  syncState: OfflineObservationSyncState;
+  createdAt: string;
+  envelope: StoredDraftEnvelope;
+}
+
+export interface ObservationDraftListEntry {
+  draftId: string;
+  residentId: string;
+  syncState: OfflineObservationSyncState;
+  createdAt: string;
+}
+
+/** org:profile:residentId:draftId -- decrypting under a different identity or resident fails. */
+function observationScope(organizationId: string, profileId: string, residentId: string, draftId: string): string {
+  return `${organizationId}:${profileId}:${residentId}:${draftId}`;
+}
+
+async function encryptObservation(key: CryptoKey, draft: OfflineObservationDraft): Promise<StoredDraftEnvelope> {
+  assertObservationDraftAllowed(draft);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const additionalData = observationScope(draft.organizationId, draft.profileId, draft.residentId, draft.draftId);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(additionalData) },
+    key,
+    new TextEncoder().encode(JSON.stringify(draft)),
+  );
+  return { version: 1, iv: base64(iv), ciphertext: base64(new Uint8Array(ciphertext)), additionalData };
+}
+
+async function decryptObservation(
+  key: CryptoKey, envelope: StoredDraftEnvelope, expectedScope: string,
+): Promise<OfflineObservationDraft> {
+  if (envelope.version !== 1 || envelope.additionalData !== expectedScope) {
+    throw new Error("Offline observation draft scope changed; wipe required");
+  }
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: base64ToBytes(envelope.iv), additionalData: new TextEncoder().encode(envelope.additionalData) },
+    key,
+    base64ToBytes(envelope.ciphertext),
+  );
+  const draft = JSON.parse(new TextDecoder().decode(plaintext)) as OfflineObservationDraft;
+  assertObservationDraftAllowed(draft);
+  return draft;
+}
+
+/** Resolves only on transaction commit, for the reason documented on saveServiceDraft above. */
+export async function saveObservationDraft(draft: OfflineObservationDraft): Promise<OfflineObservationDraft> {
+  assertObservationDraftAllowed(draft);
+  const db = await openDatabase();
+  const key = await getDeviceKey(db);
+  const envelope = await encryptObservation(key, draft);
+  const record: StoredObservationRecord = {
+    draftId: draft.draftId, residentId: draft.residentId, syncState: draft.syncState, createdAt: draft.createdAt, envelope,
+  };
+  const transaction = db.transaction(OBSERVATION_DRAFT_STORE, "readwrite");
+  transaction.objectStore(OBSERVATION_DRAFT_STORE).put(record);
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Offline observation draft save failed"));
+    transaction.onabort = () => reject(transaction.error ?? new Error("Offline observation draft save was aborted"));
+  });
+  return draft;
+}
+
+export async function listObservationDraftEntries(): Promise<ObservationDraftListEntry[]> {
+  const db = await openDatabase();
+  const records = await request(db.transaction(OBSERVATION_DRAFT_STORE).objectStore(OBSERVATION_DRAFT_STORE).getAll()) as StoredObservationRecord[];
+  return records.map(({ draftId, residentId, syncState, createdAt }) => ({ draftId, residentId, syncState, createdAt }));
+}
+
+export async function readObservationDraft(
+  draftId: string, identity: OfflineFloorIdentity,
+): Promise<OfflineObservationDraft | undefined> {
+  const db = await openDatabase();
+  const record = await request(db.transaction(OBSERVATION_DRAFT_STORE).objectStore(OBSERVATION_DRAFT_STORE).get(draftId)) as StoredObservationRecord | undefined;
+  if (!record) return undefined;
+  const key = await getDeviceKey(db);
+  const expectedScope = observationScope(identity.organizationId, identity.profileId, record.residentId, record.draftId);
+  return decryptObservation(key, record.envelope, expectedScope);
+}
+
+export async function readAllObservationDrafts(identity: OfflineFloorIdentity): Promise<OfflineObservationDraft[]> {
+  const entries = await listObservationDraftEntries();
+  const drafts = await Promise.all(entries.map((entry) => readObservationDraft(entry.draftId, identity)));
+  return drafts.filter((draft): draft is OfflineObservationDraft => draft !== undefined);
+}
+
+export async function updateObservationDraft(
+  draftId: string,
+  patch: Partial<Pick<OfflineObservationDraft, "syncState" | "lastSyncOutcome" | "lastSyncError">>,
+  identity: OfflineFloorIdentity,
+): Promise<OfflineObservationDraft | undefined> {
+  const draft = await readObservationDraft(draftId, identity);
+  if (!draft) return undefined;
+  const updated: OfflineObservationDraft = { ...draft, ...patch, updatedAt: new Date().toISOString() };
+  return saveObservationDraft(updated);
+}
+
+export async function removeObservationDraft(draftId: string): Promise<void> {
+  const db = await openDatabase();
+  await request(db.transaction(OBSERVATION_DRAFT_STORE, "readwrite").objectStore(OBSERVATION_DRAFT_STORE).delete(draftId));
+}
+
+/** Same ceilings as service drafts -- one device, one retention policy, whatever the draft holds. */
+function isObservationExpired(entry: ObservationDraftListEntry, now: number): boolean {
+  const ageMs = now - new Date(entry.createdAt).getTime();
+  if ((UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= UNSYNCED_PURGE_AFTER_MS;
+  if ((NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= NEEDS_REVIEW_PURGE_AFTER_MS;
+  return false;
+}
+
+export function isUnsyncedObservationDraftOverdue(entry: ObservationDraftListEntry, now: number = Date.now()): boolean {
+  return (UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)
+    && now - new Date(entry.createdAt).getTime() >= UNSYNCED_WARN_AFTER_MS;
+}
+
+export async function purgeExpiredObservationDrafts(now: number = Date.now()): Promise<string[]> {
+  const entries = await listObservationDraftEntries();
+  const expired = entries.filter((entry) => isObservationExpired(entry, now));
+  if (expired.length === 0) return [];
+  const db = await openDatabase();
+  const transaction = db.transaction(OBSERVATION_DRAFT_STORE, "readwrite");
+  for (const entry of expired) transaction.objectStore(OBSERVATION_DRAFT_STORE).delete(entry.draftId);
+  await new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Offline observation draft purge failed"));
+  });
+  return expired.map((entry) => entry.draftId);
+}
