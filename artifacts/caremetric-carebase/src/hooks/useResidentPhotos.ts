@@ -19,8 +19,11 @@ export function useResidentPhotoUrls() {
   return useQuery({
     queryKey: [PHOTO_KEY, user?.id],
     enabled: Boolean(user?.id),
-    // Refetch before the signed URLs expire rather than after, so an <img> never points at a dead URL.
+    // staleTime alone only marks data stale -- nothing re-runs, and refetchOnWindowFocus is off
+    // globally (lib/queryClient.ts). A roster left open for a shift would then hand an expired URL to
+    // any <img> that remounts. refetchInterval is what actually keeps them live.
     staleTime: (SIGNED_URL_TTL_SECONDS - 60) * 1000,
+    refetchInterval: (SIGNED_URL_TTL_SECONDS - 60) * 1000,
     queryFn: async (): Promise<Record<string, string>> => {
       const { data, error } = await supabase.rpc("get_clinical_chart_resident_photos");
       if (error) throw error;

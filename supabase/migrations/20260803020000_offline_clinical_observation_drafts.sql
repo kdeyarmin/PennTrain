@@ -34,6 +34,12 @@
 -- duplicated vital sign in a chart is a clinical error, not a cosmetic one. The unique
 -- (device_id, idempotency_key) below plus the replay check in the RPC is the only thing preventing
 -- that, which is why the replay branch is checked before any write path.
+--
+-- This is also why the caregiver surface routes EVERY write through here, not just offline ones
+-- (MyResidentChart.submitObservation). An online call to record_clinical_observation whose response
+-- is lost in transit has already committed the row, but is indistinguishable client-side from one
+-- that never landed -- so a retry off that path would double-chart. Creating the draft, and its key,
+-- before the first network attempt is what makes the retry safe.
 
 -- ---------------------------------------------------------------------------
 -- 1. Receipt table: append-only, one row per sync attempt (every outcome, not just success)
@@ -229,10 +235,9 @@ begin
     exception
       -- Authorization (caller scope, facility clinical switch, module entitlement) and validation
       -- (unknown observation type, no value supplied) errors from record_clinical_observation.
-      -- Neither is a state the local draft can recover from by itself, so both are terminal for it.
-      when insufficient_privilege then
-        v_outcome := 'rejected';
-        v_error_message := sqlerrm;
+      -- Neither is a state the local draft can recover from by itself, so both are terminal for it
+      -- and land on the same outcome -- unlike sync_offline_service_task_draft, where the branches
+      -- genuinely differ (conflict / stale / duplicate), there is nothing here to tell apart.
       when others then
         v_outcome := 'rejected';
         v_error_message := sqlerrm;
@@ -252,6 +257,10 @@ begin
     v_device.organization_id, v_device.profile_id, v_device.id, p_resident_id, p_idempotency_key,
     p_client_occurred_at, p_observation_type, v_observation_id, v_outcome, v_error_message
   ) returning * into v_existing;
+
+  -- Both sibling sync RPCs stamp this (sync_offline_service_task_draft, sync_offline_learning_action);
+  -- without it a device that only ever syncs vitals reads as never-synced.
+  update public.offline_device_registrations set last_sync_at = now() where id = v_device.id;
 
   return jsonb_build_object(
     'receiptId', v_existing.id,

@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { Link, useParams } from "wouter";
-import { AlertTriangle, ArrowLeft, HeartPulse, Plus, ShieldCheck, WifiOff } from "lucide-react";
+import { AlertTriangle, ArrowLeft, HeartPulse, Plus, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,13 @@ import {
   type ClinicalObservation,
   type ObservationType,
   useAmendClinicalObservation,
-  useRecordClinicalObservation,
   useResidentClinicalChartSummary,
   useResidentClinicalObservations,
 } from "@/hooks/useClinicalObservations";
-import { useSaveOfflineObservationDraft } from "@/hooks/useOfflineObservationDrafts";
-import { isNetworkLevelSupabaseError } from "@/lib/offlineServiceDraftSafety";
+import {
+  OBSERVATION_SYNC_MESSAGES, useSaveOfflineObservationDraft, useSyncOfflineObservationDraft,
+} from "@/hooks/useOfflineObservationDrafts";
+import type { OfflineObservationSyncOutcome } from "@/lib/offlineObservationDraftSafety";
 import { toDateTimeLocal } from "@/lib/dateUtils";
 import { usePageTitle } from "@/lib/pageTitle";
 import {
@@ -57,6 +58,7 @@ export default function MyResidentChart() {
   const summary = useResidentClinicalChartSummary(id, "Caregiver clinical charting");
   const observations = useResidentClinicalObservations(id);
   const saveOffline = useSaveOfflineObservationDraft();
+  const syncOffline = useSyncOfflineObservationDraft();
   const photos = useResidentPhotoUrls();
 
   const residentName = summary.data ? `${summary.data.resident.firstName} ${summary.data.resident.lastName}` : "Resident";
@@ -71,7 +73,6 @@ export default function MyResidentChart() {
   const [unit, setUnit] = useState(OBSERVATION_CONFIG.blood_pressure.unit);
   const [observedAt, setObservedAt] = useState(() => toDateTimeLocal(new Date()));
   const [note, setNote] = useState("");
-  const record = useRecordClinicalObservation();
 
   const [retracting, setRetracting] = useState<ClinicalObservation | null>(null);
   const [retractReason, setRetractReason] = useState("");
@@ -115,84 +116,87 @@ export default function MyResidentChart() {
       toast({ title: "Enter a valid number", variant: "destructive" });
       return;
     }
-    const input = {
-      residentId: id,
-      observationType,
-      observedAt: new Date(observedAt).toISOString(),
-      valueNumeric: numeric,
-      valueSecondary: secondary,
-      valueText: valueText.trim() || null,
-      unit: unit.trim() || null,
-      customLabel: isCustom ? customLabel.trim() || null : null,
-      loincCode: config.loinc ?? null,
-      note: note.trim() || null,
-    };
-    // Only the record call itself may reach the offline fallback below. Anything that runs after it
-    // succeeds is post-charting work on a reading the server already holds, and must not be able to
-    // queue a draft of it -- that draft would sync on reconnect and chart the SAME vital sign twice,
-    // which is the one failure the idempotency key exists to prevent and cannot detect (a second
-    // draft carries a second key). refetch() does not reject in this version of react-query, so this
-    // is currently unreachable rather than live; the point is that it stays unreachable when someone
-    // adds the next await here.
-    let observationId: string;
+    // A datetime-local input can be cleared to "", and new Date("").toISOString() throws a
+    // RangeError. This used to escape as an unhandled rejection: no toast, dialog still open,
+    // reading gone. Validate before building anything.
+    const observedAtDate = new Date(observedAt);
+    if (Number.isNaN(observedAtDate.getTime())) {
+      toast({ title: "Enter when the reading was taken", variant: "destructive" });
+      return;
+    }
+
+    // Every write goes through the offline draft + sync path, online or not.
+    //
+    // record_clinical_observation takes no idempotency key, so an online write whose response is
+    // lost in transit is indistinguishable from one that never landed -- the row is committed, the
+    // client sees a fetch-level error, and queueing a retry would chart the same vital sign twice.
+    // A duplicated reading in a chart is a clinical error, not a cosmetic one, and nothing
+    // downstream can detect it. Creating the draft (and therefore its idempotency key) BEFORE the
+    // first network attempt is what closes that window: the retry carries the same key, and
+    // sync_offline_clinical_observation_draft's unique (device_id, idempotency_key) collapses it to
+    // a 'duplicate' instead of a second observation.
+    let draftId: string;
     try {
-      observationId = await record.mutateAsync(input);
+      const draft = await saveOffline.mutateAsync({
+        residentId: id,
+        residentDisplayLabel: summary.data?.resident.room
+          ? `${residentName} \u00b7 Room ${summary.data.resident.room}`
+          : residentName,
+        observationType,
+        observedAt: observedAtDate.toISOString(),
+        valueNumeric: numeric,
+        valueSecondary: secondary,
+        valueText: valueText.trim() || null,
+        unit: unit.trim() || null,
+        customLabel: isCustom ? customLabel.trim() || null : null,
+        loincCode: config.loinc ?? null,
+        note: note.trim() || null,
+      });
+      draftId = draft.draftId;
     } catch (error) {
-      // Offline / never-reached-the-server: queue it rather than losing the reading. A real server
-      // rejection (wrong facility, capability disabled) still surfaces -- see
-      // isNetworkLevelSupabaseError's own note on why an empty error code is the distinguishing mark.
-      if (!navigator.onLine || isNetworkLevelSupabaseError(error)) {
-        try {
-          await saveOffline.mutateAsync({
-            residentId: id,
-            residentDisplayLabel: summary.data?.resident.room
-              ? `${residentName} · Room ${summary.data.resident.room}`
-              : residentName,
-            observationType: input.observationType,
-            observedAt: input.observedAt,
-            valueNumeric: input.valueNumeric,
-            valueSecondary: input.valueSecondary,
-            valueText: input.valueText,
-            unit: input.unit,
-            customLabel: input.customLabel,
-            loincCode: input.loincCode,
-            note: input.note,
-          });
-          setRecordOpen(false);
-          resetRecordForm();
-          toast({
-            title: "Saved on this device",
-            description: "No connection right now. This reading syncs once you're back online.",
-          });
-          return;
-        } catch (offlineError) {
-          toast({
-            title: "Observation could not be saved",
-            description: offlineError instanceof Error ? offlineError.message : String(offlineError),
-            variant: "destructive",
-          });
-          return;
-        }
-      }
       toast({
-        title: "Observation could not be recorded",
+        title: "Observation could not be saved",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
       return;
     }
 
-    // Charted. Everything below is read-back and presentation.
     setRecordOpen(false);
     resetRecordForm();
-    toast({ title: "Observation recorded" });
 
+    let outcome: OfflineObservationSyncOutcome;
+    try {
+      outcome = await syncOffline.mutateAsync(draftId);
+    } catch {
+      // Never reached the server (offline, DNS, captive portal). The draft is on the device and is
+      // listed on the roster and on Floor until it syncs -- the reading is not lost.
+      toast({
+        title: "Saved on this device",
+        description: "No connection right now. This reading syncs once you're back online.",
+      });
+      return;
+    }
+
+    if (outcome !== "applied" && outcome !== "duplicate") {
+      toast({
+        title: "This reading needs attention",
+        description: OBSERVATION_SYNC_MESSAGES[outcome],
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Charted. Everything below is read-back and presentation.
+    toast({ title: "Observation recorded" });
     // The abnormal flag is derived server-side, so the only honest way to know whether this reading
     // is critical is to read back what the server actually stored -- no client-side copy of the
     // thresholds to drift out of sync with record_clinical_observation's own logic. A failed
     // read-back costs the caregiver the critical-value prompt, never the reading itself.
     const refreshed = await observations.refetch().catch(() => null);
-    const created = (refreshed?.data ?? []).find((entry) => entry.id === observationId);
+    const created = [...(refreshed?.data ?? [])]
+      .sort((a, b) => new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime())
+      .find((entry) => entry.observation_type === observationType && !entry.entered_in_error);
     if (created && isCriticalFlag(created.abnormal_flag)) setCriticalReading(created);
   };
 
@@ -474,13 +478,13 @@ export default function MyResidentChart() {
             <Button
               className="h-12"
               disabled={
-                record.isPending || saveOffline.isPending
+                saveOffline.isPending || syncOffline.isPending
                 || (valueNumeric.trim() === "" && valueText.trim() === "")
                 || (isCustom && customLabel.trim() === "")
               }
               onClick={() => void submitObservation()}
             >
-              {record.isPending || saveOffline.isPending ? "Saving…" : "Record"}
+              {saveOffline.isPending || syncOffline.isPending ? "Saving…" : "Record"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -559,13 +563,6 @@ export default function MyResidentChart() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {saveOffline.isSuccess && (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <WifiOff className="h-3.5 w-3.5" />
-          Readings saved on this device are listed on the resident chart list and on Floor until they sync.
-        </p>
-      )}
     </div>
   );
 }

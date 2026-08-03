@@ -54,6 +54,10 @@ export default function MyResidents() {
   // No status filter: a task already documented still means this resident is on today's assignment.
   const queue = useResidentServiceTaskQueue({ from: dayStart.toISOString(), through: dayEnd.toISOString() });
 
+  // Gate the grouped/ungrouped choice on the queue settling. The roster RPC is a single-table scan
+  // and the task queue joins task instances, so the roster usually resolves first -- without this the
+  // flat list paints and then every row jumps as it re-splits into "on your assignment" / "everyone
+  // else". On a bedside right-patient surface with 64px targets that is a mis-tap hazard.
   const onAssignmentIds = useMemo(
     () => new Set(((queue.data ?? []) as unknown as QueueResidentRow[]).map((task) => task.resident_id)),
     [queue.data],
@@ -91,7 +95,7 @@ export default function MyResidents() {
 
       {options.isError ? (
         <QueryError what="your residents" error={options.error} onRetry={() => void options.refetch()} />
-      ) : options.isLoading ? (
+      ) : options.isLoading || queue.isPending ? (
         <div className="space-y-2">
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
