@@ -76,6 +76,19 @@ Data model (delivered in M2 — FHIR medication lane):
 - **Write audit.** `public.audit_log_trigger()` on clinical tables → `public.audit_logs`.
 - **Read audit.** PHI reads route through RPCs that write `app_private.clinical_access_log` with a
   `minimum_necessary_reason` and access kind (chart/domain/export/print).
+- **Consent does not gate documentation — decided 2026-08, previously open.** `clinical_data_consent`
+  is surfaced wherever clinical data is charted and is deliberately *not* a write-block, including at
+  `revoked`. A consent posture governs **disclosure** of PHI, not whether the facility may record the
+  care it actually delivered: refusing a vital sign would put a hole in a clinical record the facility
+  is independently required to keep (55 Pa. Code Ch. 2800) and could suppress a critical reading,
+  while doing nothing for the privacy interest, which is about who the data reaches. Treatment and
+  operations uses do not turn on authorization; revocation applies to authorizations for disclosures
+  beyond them.
+  **Where it should bind instead — still open.** The disclosure paths do not consult it today: FHIR
+  write-back (`queue_clinical_observation_writeback`), organization export, and the designated-person
+  portal are all genuine outbound disclosures and none check the posture. That is the real gap, and
+  it is the one worth closing. As with the Terms language below, this reading should be confirmed by
+  counsel before it is relied on as settled.
 - **Consent / minimum-necessary.** `residents.clinical_data_consent`; employees limited to
   assigned-facility residents; capability gated by `clinical.ehr`.
 - **Resident photo (M7).** `20260803030000` adds the first `employee` branch to

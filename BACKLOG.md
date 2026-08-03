@@ -229,6 +229,8 @@ dry-run practice. Column order matches `importTemplate()`.
 1. Stripe Prices mapped and internal checkout smoke
 2. SCORM real vendor packages (B3); B1/B4/B5 shipped, adapter injection wired
 3. Wave 3/4 verticals: policy campaigns beyond E4's knowledge-check slice (declarative targeting, scheduling, reminders); offline drafts beyond E5 Tier 1's single floor-queue-task scope
+4. `clinical_data_consent` is not consulted on any **disclosure** path — FHIR write-back, organization export, designated-person portal. Charting deliberately does not check it (decided; rationale in `docs/HIPAA_CLINICAL_DATA.md`), but these three do disclose, and none of them look. Counsel confirm before relying on either half.
+5. Both offline draft safety gates (`assertServiceDraftAllowed`, `assertObservationDraftAllowed`) validate every field except `createdAt` and `syncState` — an unparseable `createdAt` makes a draft immune to both purge clocks and to the overdue warning, and an unrecognized `syncState` makes it invisible to the panel as well. The write paths always set both correctly, so this only bites as the tamper/corruption gate the modules claim to be. Symmetric across both lanes; fix them together or they drift.
 
 ---
 
