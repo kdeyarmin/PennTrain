@@ -27,6 +27,15 @@ export interface SessionIdentity {
   profileId: string;
   organizationId: string;
   role: string;
+  /**
+   * The caller's employee facility, which is the authoritative scope for most resident data and
+   * lives on `employees`, not `profiles`.
+   *
+   * Three-valued on purpose. `undefined` means "not resolved yet"; `null` means "resolved, and this
+   * person has no employee row" (an org_admin or auditor legitimately has none); a string is a real
+   * facility. The distinction is load-bearing -- see the comparison below.
+   */
+  facilityId?: string | null;
 }
 
 export function signedInIdentityChanged(
@@ -42,7 +51,23 @@ export function signedInIdentityChanged(
   // true here is the deliberately safe direction: a false negative serves another context's rows,
   // a false positive costs one refetch.
   if (!current) return true;
-  return previous.profileId !== current.profileId
+  if (previous.profileId !== current.profileId
     || previous.organizationId !== current.organizationId
-    || previous.role !== current.role;
+    || previous.role !== current.role) return true;
+
+  // Codex review finding: a facility transfer changes the authoritative scope on
+  // employees.facility_id while profile id, organization id and role all stay put -- so without
+  // this the clear never fired and the old facility's rosters, photos and charts kept serving from
+  // cache until their own staleTimes lapsed.
+  //
+  // Compared only when BOTH sides are resolved, and that guard is the whole subtlety. Facility
+  // loads after the profile, and queryClient.clear() wipes its query too -- so `undefined` appears
+  // twice in the ordinary lifecycle: once at first sign-in, and once immediately after every clear
+  // this predicate causes. Treating either as a change would clear on every sign-in and then clear
+  // again on its own refetch, which never converges. `null` is NOT undefined: a resolved
+  // no-employee-row is a real, comparable value.
+  if (previous.facilityId !== undefined && current.facilityId !== undefined
+    && previous.facilityId !== current.facilityId) return true;
+
+  return false;
 }

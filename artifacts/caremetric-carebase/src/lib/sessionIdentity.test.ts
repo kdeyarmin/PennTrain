@@ -55,3 +55,38 @@ describe("it is deliberately not the offline-draft wipe predicate", () => {
     expect(signedInIdentityChanged(aide, movedOrg)).toBe(true);
   });
 });
+
+// The facility half (Codex P1). Two things have to hold at once: a transfer must clear, and the
+// ordinary lifecycle must converge -- facility resolves AFTER the profile, and queryClient.clear()
+// wipes its query, so `undefined` appears twice in every normal session.
+describe("facility scope", () => {
+  const at = (facilityId: string | null | undefined): SessionIdentity => ({ ...aide, facilityId });
+
+  it("fires on a transfer, which changes nothing else", () => {
+    // Same profile, same org, same role -- only the facility moved. This is the case that
+    // previously returned false and left the old facility's data served from cache.
+    expect(signedInIdentityChanged(at("fac-1"), at("fac-2"))).toBe(true);
+  });
+
+  it("is quiet when the facility is unchanged", () => {
+    expect(signedInIdentityChanged(at("fac-1"), at("fac-1"))).toBe(false);
+  });
+
+  // Convergence, both halves. If either of these returned true the app would clear on every
+  // sign-in, and then clear again on the refetch its own clear triggered, forever.
+  it("does not fire while the facility is still resolving", () => {
+    expect(signedInIdentityChanged(at(undefined), at("fac-1"))).toBe(false);
+  });
+
+  it("does not fire when a clear has just wiped the facility query", () => {
+    expect(signedInIdentityChanged(at("fac-1"), at(undefined))).toBe(false);
+  });
+
+  // null is a resolved value, not an absent one: someone with no employees row genuinely has no
+  // facility, and gaining one is a real scope change.
+  it("treats null as resolved rather than unknown", () => {
+    expect(signedInIdentityChanged(at(null), at("fac-1"))).toBe(true);
+    expect(signedInIdentityChanged(at("fac-1"), at(null))).toBe(true);
+    expect(signedInIdentityChanged(at(null), at(null))).toBe(false);
+  });
+});
