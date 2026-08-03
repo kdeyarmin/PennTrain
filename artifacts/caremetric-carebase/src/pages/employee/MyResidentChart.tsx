@@ -555,7 +555,7 @@ export default function MyResidentChart() {
               I mistyped it
             </Button>
             <Button className="h-12" asChild>
-              <Link href={`/me/change-of-condition?resident=${id}`}>Report a change of condition</Link>
+              <Link href={`/me/change-of-condition?resident=${id}&report=1`}>Report a change of condition</Link>
             </Button>
             <Button variant="ghost" className="h-12" onClick={() => setCriticalReading(null)}>
               The reading is correct
