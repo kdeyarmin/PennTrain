@@ -95,6 +95,32 @@ $$;
 create trigger prevent_offline_observation_receipt_mutation
 before update or delete on public.offline_observation_draft_receipts
 for each row execute function app_private.prevent_offline_observation_receipt_mutation();
+-- A row guard alone is not enough: TRUNCATE fires no row-level triggers and is not subject to RLS,
+-- so an append-only table without this statement trigger can still be emptied in one statement --
+-- including through a `truncate ... cascade` that never names it. evidence_survives_truncate.test.sql
+-- derives this pairing from the catalogue rather than a table list, precisely so a new evidence table
+-- cannot arrive with one half of the guard.
+create trigger prevent_offline_observation_receipt_truncate
+before truncate on public.offline_observation_draft_receipts
+for each statement execute function app_private.prevent_offline_observation_receipt_mutation();
+
+-- The audit coverage report iterates app_private.audit_entity_manifest, so a table absent from it is
+-- not reported as uncovered -- it is simply invisible, and the report reads as complete.
+-- audit_manifest_covers_every_table.test.sql is the ratchet that keeps that from happening quietly.
+insert into app_private.audit_entity_manifest (table_name, audit_mode, contains_regulated_data, rationale)
+values (
+  'offline_observation_draft_receipts',
+  'not_required',
+  true,
+  'Append-only receipt of every offline vitals sync attempt (outcome + server message on every '
+  'row); the table is itself the evidence trail, so a row trigger would duplicate it. Reachable '
+  'from a resident via resident_id, and from the charted reading via observation_id. Mirrors '
+  'offline_service_draft_receipts (20260802060000).'
+)
+on conflict (table_name) do update set
+  audit_mode = excluded.audit_mode,
+  contains_regulated_data = excluded.contains_regulated_data,
+  rationale = excluded.rationale;
 
 -- Commercial gating, matching offline_device_registrations and the clinical tables this feeds.
 -- Registered as a CareBase resource and given the standard restrictive policy through the same

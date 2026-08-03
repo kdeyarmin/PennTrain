@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(18);
 
 -- Authorization coverage for public.get_clinical_chart_resident_options, the resident picker behind
 -- the employee caregiver charting surface (/me/residents). Employees have no direct RLS reach to
@@ -160,11 +160,20 @@ select is(
   'a trainer sees no residents -- trainers have no clinical reach at all'
 );
 
+-- The cross-tenant control. Org B's admin is not blind -- they see their OWN resident -- so the
+-- assertion that matters is that org A's residents are absent, not that the list is empty. An
+-- earlier revision of this test asserted a count of zero and failed for the right reason: the
+-- fixture gives org B a resident precisely so "sees nothing at all" cannot pass vacuously.
 select pg_temp.act_as('c2000000-0000-4000-8000-000000000201');
 select is(
   (select count(*)::integer from public.get_clinical_chart_resident_options()),
-  0,
-  'an org admin from another organization sees none of this organization''s residents'
+  1,
+  'an org admin from another organization sees only their own organization''s resident'
+);
+select is(
+  (select last_name from public.get_clinical_chart_resident_options()),
+  'Other',
+  'and it is org B''s resident, never one of org A''s'
 );
 
 -- The roster is a filter, not an assertion: an unauthorized caller gets an empty list rather than an

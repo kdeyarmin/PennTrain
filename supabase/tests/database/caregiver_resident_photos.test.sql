@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(14);
 
 -- The caregiver photo branch (20260803030000) widens what an `employee` may read for the first time
 -- since the clinical lane opened. The assertions that matter here are the ones proving how narrow it
@@ -99,6 +99,11 @@ select is(
 );
 
 -- The predicates themselves --------------------------------------------------------------
+-- `authenticated` holds no USAGE on app_private, so these are asserted with the role reset -- the
+-- same way clinical_observations.test.sql reads app_private.clinical_access_log. request.jwt.claims
+-- is a GUC and survives the role change, so current_role()/auth.uid() inside the predicate still
+-- resolve to the facility-A1 employee set above; only the schema permission differs.
+reset role;
 select ok(
   app_private.resident_photo_document_visible('d3000000-0000-4000-8000-000000000401'),
   'the document predicate accepts this facility''s photo'
@@ -119,6 +124,7 @@ select ok(
 );
 
 -- The path RPC follows the same scope ----------------------------------------------------
+select pg_temp.act_as('d3000000-0000-4000-8000-000000000101');
 select is(
   (select count(*)::integer from public.get_clinical_chart_resident_photos()),
   1,
