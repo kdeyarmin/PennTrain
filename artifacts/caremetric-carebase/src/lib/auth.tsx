@@ -299,18 +299,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // than a change to shouldWipeOfflineServiceDraftData itself.
   useEffect(() => {
     if (isOfflineServiceDraftIdentityPending(!!session, !!user)) return;
+    const previous = lastOfflineServiceDraftIdentityRef.current;
     const current = user
       ? { profileId: user.id, organizationId: user.organizationId ?? "", role: user.role, active: user.isActive }
       : null;
-    if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
+    if (shouldWipeOfflineServiceDraftData(previous, current)) {
       void wipeOfflineServiceDrafts();
       // BACKLOG.md item 6: this transition wiped the offline draft store but left the react-query
       // cache untouched -- only SIGNED_IN/SIGNED_OUT cleared it, so any query key that does not
       // itself carry the identity (e.g. a bare or profile-id-only key) kept serving the previous
-      // role/org/facility's rows until its own staleTime lapsed. clear() is the same operation
-      // SIGNED_IN already performs; the profile query this effect depends on is briefly re-fetched
-      // as a result, which isOfflineServiceDraftIdentityPending above already accounts for.
-      queryClient.clear();
+      // role/org/facility's rows until its own staleTime lapsed.
+      //
+      // Gated on an ACTUAL identity change, not on shouldWipeOfflineServiceDraftData's full result:
+      // that function also returns true for every render where current.role isn't "employee" --
+      // correct for ITS purpose (the draft store only ever applies to employees, so any non-employee
+      // identity is unconditionally wipe-worthy for that store alone, and wiping an already-empty
+      // store repeatedly is harmless) -- but clearing the ENTIRE query cache on every one of those
+      // calls, not just real transitions, self-sustains: clear() empties the profile query below,
+      // the profile refetches, this effect re-runs against the SAME still-non-employee identity, and
+      // clears again, forever. That silently broke every non-employee session (org_admin,
+      // facility_manager, trainer, auditor, platform_admin) on any session touch -- found via the
+      // MFA step-up e2e flake, where refreshSession() is exactly such a touch, but not specific to
+      // it: a background token refresh hits the same path in production.
+      //
+      // Not gating on `active` here leaves deactivation (profile/org/role unchanged, active flips)
+      // out of this comparison, but that is not a gap: the dedicated deactivation effect below signs
+      // the session out and clears the cache itself whenever `profile.is_active` is false, so this
+      // effect's own clear() was always redundant for that case, not load-bearing.
+      const identityChanged = !previous || !current
+        || previous.profileId !== current.profileId
+        || previous.organizationId !== current.organizationId
+        || previous.role !== current.role;
+      if (identityChanged) queryClient.clear();
     }
     lastOfflineServiceDraftIdentityRef.current = current
       ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
