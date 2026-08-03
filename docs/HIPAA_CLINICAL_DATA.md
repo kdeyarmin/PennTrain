@@ -18,7 +18,11 @@ implies.
   the structured change-of-condition pattern (SELECT-only grants, all writes via SECURITY
   DEFINER RPCs, append-only history).
 
-A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both lanes read-side.
+A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both lanes read-side
+for managers/admins/auditors. Frontline `employee` staff reach the native-charting slice of the
+same data (vitals, progress notes, assessments, care plans) through a separate, lighter caregiver
+surface at `/me/residents` — same RLS/RPC authorization boundary, simpler UI scoped to what a
+caregiver charts at the bedside. _(Delivered: M7.)_
 
 ## Rollout status
 
@@ -31,6 +35,7 @@ A single **Resident Clinical Chart** (`/app/residents/:id/chart`) composes both 
 | M4 | Native care plans, assessments, progress notes (sign-and-lock) | **Delivered** |
 | M5 | Chart consolidation, unified timeline, hardening; write-back reserved (disabled) | **Delivered** |
 | M6 | Per-facility clinical enablement; opt-in FHIR write-back (Observation); consolidated chart summary wired read-side; demo clinical seed | **Delivered** |
+| M7 | Employee caregiver charting surface (`/me/residents`) — resident picker + vitals/notes chart, same authorization boundary as the admin chart | **Delivered** |
 
 ## Data model (delivered in M0–M1)
 

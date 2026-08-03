@@ -163,3 +163,28 @@ export function useResidentClinicalChartSummary(residentId: string | undefined, 
     staleTime: 60_000,
   });
 }
+
+const CLINICAL_CHART_RESIDENT_OPTIONS_KEY = "clinical-chart-resident-options";
+
+/**
+ * Residents the caller may open the caregiver clinical chart for -- gated by the same
+ * clinical_record_visible helper as the chart RPCs above, not the base residents RLS (which has
+ * no employee path). Backs the resident picker at /me/residents.
+ */
+export function useClinicalChartResidentOptions() {
+  return useQuery({
+    queryKey: [CLINICAL_CHART_RESIDENT_OPTIONS_KEY],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_clinical_chart_resident_options");
+      if (error) throw error;
+      return data as unknown as {
+        id: string;
+        first_name: string;
+        last_name: string;
+        room: string | null;
+        facility_id: string;
+      }[];
+    },
+    staleTime: 60_000,
+  });
+}

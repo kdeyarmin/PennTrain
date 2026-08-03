@@ -442,6 +442,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/me/shift", label: "My shift", icon: ClipboardList },
           { href: "/me/schedule", label: "My schedule", icon: CalendarDays },
           { href: "/me/services", label: "My services", icon: ClipboardCheck },
+          { href: "/me/residents", label: "Resident chart", icon: HeartPulse },
           { href: "/me/change-of-condition", label: "Change follow-up", icon: Activity },
           ...(showPchAlrModules ? [{ href: "/me/dietary-operations", label: "Dietary & food safety", icon: Utensils }] : []),
           ...(showPchAlrModules ? [{ href: "/me/resident-services-calendar", label: "Resident calendar", icon: CalendarDays }] : []),

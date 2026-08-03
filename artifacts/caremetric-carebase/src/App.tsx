@@ -176,6 +176,8 @@ const TakeCourse = lazy(() => import("@/pages/employee/TakeCourse"));
 const OfflineCourse = lazy(() => import("@/pages/employee/OfflineCourse"));
 const TakeQuiz = lazy(() => import("@/pages/employee/TakeQuiz"));
 const MyAttestations = lazy(() => import("@/pages/employee/MyAttestations"));
+const MyResidents = lazy(() => import("@/pages/employee/MyResidents"));
+const MyResidentChart = lazy(() => import("@/pages/employee/MyResidentChart"));
 const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
 const CheckIn = lazy(() => import("@/pages/CheckIn"));
 
@@ -958,6 +960,16 @@ function Router() {
       </Route>
       <Route path="/me/floor">
         {() => <ProtectedRoute component={Floor} allowedRoles={["employee"]} />}
+      </Route>
+      {/* Clinical charting applies to every facility type (not PCH/ALR-only) -- see the admin
+          chart's CLINICAL_CHART_ROLES comment above. This is that surface's employee-facing
+          counterpart: employees author via SECURITY DEFINER RPCs already, they just had nowhere
+          to reach them from until now. */}
+      <Route path="/me/residents">
+        {() => <ProtectedRoute component={MyResidents} allowedRoles={["employee"]} />}
+      </Route>
+      <Route path="/me/residents/:id">
+        {() => <ProtectedRoute component={MyResidentChart} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/services">
         {() => <ProtectedRoute component={ServiceDelivery} allowedRoles={["employee"]} />}

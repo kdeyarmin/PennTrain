@@ -334,6 +334,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/me/work", label: "My work", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["tasks", "remediation", "assigned", "due"] },
   { path: "/me/schedule", label: "My schedule", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["shifts", "calendar"] },
   { path: "/me/services", label: "My services", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["resident services", "support plan", "tasks", "refusal", "completion"] },
+  { path: "/me/residents", label: "Resident chart", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["vitals", "clinical chart", "observations", "progress note", "caregiver", "blood pressure", "temperature"] },
   { path: "/me/change-of-condition", label: "My change follow-ups", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["resident change", "monitoring", "follow up", "observations", "supervisor"] },
   { path: "/me/dietary-operations", label: "Dietary & food-safety rounds", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["meal", "hydration", "weight", "temperature", "sanitation", "kitchen"] },
   { path: "/me/resident-services-calendar", label: "Assigned resident services calendar", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["appointment", "driver", "transportation", "accompany", "activity", "return instructions"] },
@@ -393,6 +394,7 @@ const NESTED_PAGE_OWNER_PATHS = new Set([
   "/trainer/employees",
   "/me/courses",
   "/me/work",
+  "/me/residents",
   "/me/change-of-condition",
   "/me/help",
 ]);
