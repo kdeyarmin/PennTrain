@@ -20050,9 +20050,12 @@ export type Database = {
           due_date: string | null
           id: string
           name: string
+          next_occurrence_on: string | null
           organization_id: string
           policy_document_id: string
           policy_document_version_id: string
+          recurrence_months: number | null
+          recurrence_parent_id: string | null
           target_facility_ids: string[] | null
           target_facility_type: string | null
           target_job_title_pattern: string | null
@@ -20066,9 +20069,12 @@ export type Database = {
           due_date?: string | null
           id?: string
           name: string
+          next_occurrence_on?: string | null
           organization_id: string
           policy_document_id: string
           policy_document_version_id: string
+          recurrence_months?: number | null
+          recurrence_parent_id?: string | null
           target_facility_ids?: string[] | null
           target_facility_type?: string | null
           target_job_title_pattern?: string | null
@@ -20082,9 +20088,12 @@ export type Database = {
           due_date?: string | null
           id?: string
           name?: string
+          next_occurrence_on?: string | null
           organization_id?: string
           policy_document_id?: string
           policy_document_version_id?: string
+          recurrence_months?: number | null
+          recurrence_parent_id?: string | null
           target_facility_ids?: string[] | null
           target_facility_type?: string | null
           target_job_title_pattern?: string | null
@@ -20130,6 +20139,13 @@ export type Database = {
             columns: ["policy_document_version_id"]
             isOneToOne: false
             referencedRelation: "policy_document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_attestation_campaigns_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
             referencedColumns: ["id"]
           },
         ]
@@ -37164,6 +37180,7 @@ export type Database = {
           p_policy_document_id: string
           p_policy_document_version_id: string
           p_questions?: Json
+          p_recurrence_months?: number
           p_target_facility_ids?: string[]
           p_target_facility_type?: string
           p_target_job_title_pattern?: string
@@ -41609,6 +41626,10 @@ export type Database = {
       simulate_workflow_automation_rule: {
         Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }
         Returns: Json
+      }
+      spawn_due_policy_campaign_cycles: {
+        Args: { p_now?: string }
+        Returns: number
       }
       stage_hris_import_row: {
         Args: {

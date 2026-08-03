@@ -189,6 +189,11 @@ export interface CreateCampaignWithQuestionsParams {
   questions: Array<{ prompt: string; choices: string[]; correct_choice_index: number }>;
   /** Omit for a manual campaign -- the RPC defaults every targeting parameter. */
   targeting?: CampaignTargeting;
+  /**
+   * Months between cycles, or null for a one-off campaign. The RPC derives the next occurrence
+   * from `dueDate` + this interval, so a repeating campaign must have a due date to repeat from.
+   */
+  recurrenceMonths?: number | null;
 }
 
 /**
@@ -217,6 +222,7 @@ export function useCreatePolicyCampaignWithQuestions() {
         p_target_facility_type: params.targeting?.facilityType ?? undefined,
         p_target_worker_type: params.targeting?.workerType ?? undefined,
         p_target_job_title_pattern: params.targeting?.jobTitlePattern ?? undefined,
+        p_recurrence_months: params.recurrenceMonths ?? undefined,
       });
       if (error) throw error;
       return data as unknown as string;
