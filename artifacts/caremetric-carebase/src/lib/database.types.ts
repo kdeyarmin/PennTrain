@@ -18641,6 +18641,94 @@ export type Database = {
           },
         ]
       }
+      offline_observation_draft_receipts: {
+        Row: {
+          client_occurred_at: string
+          device_id: string
+          error_message: string | null
+          id: string
+          idempotency_key: string
+          observation_id: string | null
+          observation_type: string
+          organization_id: string
+          outcome: string
+          processed_at: string
+          profile_id: string
+          resident_id: string
+        }
+        Insert: {
+          client_occurred_at: string
+          device_id: string
+          error_message?: string | null
+          id?: string
+          idempotency_key: string
+          observation_id?: string | null
+          observation_type: string
+          organization_id: string
+          outcome: string
+          processed_at?: string
+          profile_id: string
+          resident_id: string
+        }
+        Update: {
+          client_occurred_at?: string
+          device_id?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key?: string
+          observation_id?: string | null
+          observation_type?: string
+          organization_id?: string
+          outcome?: string
+          processed_at?: string
+          profile_id?: string
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offline_observation_draft_receipts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "offline_device_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_observation_id_fkey"
+            columns: ["observation_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_observations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offline_service_draft_receipts: {
         Row: {
           client_occurred_at: string
@@ -37979,6 +38067,24 @@ export type Database = {
         }[]
       }
       get_citation_governance_status: { Args: never; Returns: Json }
+      get_clinical_chart_resident_options: {
+        Args: never
+        Returns: {
+          facility_id: string
+          first_name: string
+          id: string
+          last_name: string
+          room: string
+        }[]
+      }
+      get_clinical_chart_resident_photos: {
+        Args: never
+        Returns: {
+          resident_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
       get_closed_loop_compliance_control_plane: { Args: never; Returns: Json }
       get_complaint_list_summary: {
         Args: {
@@ -41915,6 +42021,24 @@ export type Database = {
           p_work_item_id: string
         }
         Returns: string
+      }
+      sync_offline_clinical_observation_draft: {
+        Args: {
+          p_client_occurred_at: string
+          p_custom_label?: string
+          p_device_id: string
+          p_idempotency_key: string
+          p_loinc_code?: string
+          p_note?: string
+          p_observation_type: string
+          p_observed_at: string
+          p_resident_id: string
+          p_unit?: string
+          p_value_numeric?: number
+          p_value_secondary?: number
+          p_value_text?: string
+        }
+        Returns: Json
       }
       sync_offline_learning_action: {
         Args: {

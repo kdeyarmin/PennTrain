@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import {
-  ClipboardCheck, ClipboardList, HandHeart, MessageSquareWarning, Repeat, TriangleAlert, Users,
+  ClipboardCheck, ClipboardList, HandHeart, HeartPulse, MessageSquareWarning, Repeat, TriangleAlert, Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -177,6 +177,11 @@ export default function Floor() {
                     <Button className="h-12 flex-1" onClick={() => setDocumenting(task)}>Document</Button>
                     <Button variant="outline" className="h-12" onClick={() => setUnscheduledFor(task)}>
                       <HandHeart className="mr-2 h-4 w-4" /> Extra care
+                    </Button>
+                    <Button variant="outline" className="h-12" asChild>
+                      <Link href={`/me/residents/${task.resident_id}`}>
+                        <HeartPulse className="mr-2 h-4 w-4" /> Chart
+                      </Link>
                     </Button>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import type { Tables } from "@/lib/database.types";
 
 export type ClinicalObservation = Tables<"clinical_observations">;
@@ -108,8 +109,13 @@ export function useRecordClinicalObservation() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: (_data, input) =>
-      queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] }),
+    // The chart's prominent "latest vitals" cards render from the summary RPC, not from the
+    // observations list, so invalidating only the list leaves the most visible value on the page
+    // stale -- showing the previous reading after a record, or a value that was just retracted.
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+    },
   });
 }
 
@@ -137,8 +143,13 @@ export function useAmendClinicalObservation() {
       });
       if (error) throw error;
     },
-    onSuccess: (_data, input) =>
-      queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] }),
+    // The chart's prominent "latest vitals" cards render from the summary RPC, not from the
+    // observations list, so invalidating only the list leaves the most visible value on the page
+    // stale -- showing the previous reading after a record, or a value that was just retracted.
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+    },
   });
 }
 
@@ -159,6 +170,41 @@ export function useResidentClinicalChartSummary(residentId: string | undefined, 
       });
       if (error) throw error;
       return data as unknown as ClinicalChartSummary;
+    },
+    staleTime: 60_000,
+  });
+}
+
+const CLINICAL_CHART_RESIDENT_OPTIONS_KEY = "clinical-chart-resident-options";
+
+/**
+ * Residents the caller may open the caregiver clinical chart for -- gated by the same
+ * clinical_record_visible helper as the chart RPCs above, not the base residents RLS (which has
+ * no employee path). Backs the resident picker at /me/residents.
+ *
+ * The key carries the identity the roster was computed under, not just the query name. Sign-out and
+ * SIGNED_IN both call queryClient.clear(), so a bare key is safe across sessions -- but an admin
+ * moving someone to another facility or changing their role mid-shift is a supported, explicitly
+ * handled case (auth.tsx wipes the offline draft store for exactly that transition) and it does
+ * *not* clear the query cache. Without the identity in the key, that transition would keep serving
+ * the previous context's resident list until staleTime lapsed. For a roster of residents, that is a
+ * PHI boundary rather than a staleness nit.
+ */
+export function useClinicalChartResidentOptions() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: [CLINICAL_CHART_RESIDENT_OPTIONS_KEY, user?.id, user?.organizationId, user?.role],
+    enabled: Boolean(user?.id && user?.organizationId),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_clinical_chart_resident_options");
+      if (error) throw error;
+      return data as unknown as {
+        id: string;
+        first_name: string;
+        last_name: string;
+        room: string | null;
+        facility_id: string;
+      }[];
     },
     staleTime: 60_000,
   });

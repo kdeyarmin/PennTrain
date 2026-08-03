@@ -15,7 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useGetResident } from "@/hooks/useResidents";
 import {
-  type ClinicalChartSummary,
   type ClinicalObservation,
   type ObservationType,
   useAmendClinicalObservation,
@@ -29,87 +28,16 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/lib/pageTitle";
 import { toDateTimeLocal } from "@/lib/dateUtils";
-
-const OBSERVATION_CONFIG: Record<
-  ObservationType,
-  { label: string; unit: string; secondaryLabel?: string; loinc?: string }
-> = {
-  blood_pressure: { label: "Blood pressure", unit: "mm[Hg]", secondaryLabel: "Diastolic", loinc: "85354-9" },
-  heart_rate: { label: "Heart rate", unit: "/min", loinc: "8867-4" },
-  respiratory_rate: { label: "Respiratory rate", unit: "/min", loinc: "9279-1" },
-  temperature: { label: "Temperature", unit: "Cel", loinc: "8310-5" },
-  spo2: { label: "Oxygen saturation (SpO₂)", unit: "%", loinc: "59408-5" },
-  weight: { label: "Weight", unit: "kg", loinc: "29463-7" },
-  height: { label: "Height", unit: "cm", loinc: "8302-2" },
-  bmi: { label: "Body mass index", unit: "kg/m2", loinc: "39156-5" },
-  blood_glucose: { label: "Blood glucose", unit: "mg/dL", loinc: "2339-0" },
-  pain_score: { label: "Pain score (0–10)", unit: "{score}", loinc: "72514-3" },
-  o2_flow: { label: "Oxygen flow", unit: "L/min", loinc: "3151-8" },
-  custom: { label: "Custom observation", unit: "" },
-};
-
-const OBSERVATION_ORDER: ObservationType[] = [
-  "blood_pressure", "heart_rate", "respiratory_rate", "temperature", "spo2",
-  "blood_glucose", "pain_score", "o2_flow", "weight", "height", "bmi", "custom",
-];
-
-function abnormalBadge(flag: string): { className: string; label: string } | null {
-  switch (flag) {
-    case "critical_high":
-      return { className: "border-red-300 bg-red-100 text-red-800", label: "Critical high" };
-    case "critical_low":
-      return { className: "border-red-300 bg-red-100 text-red-800", label: "Critical low" };
-    case "high":
-      return { className: "border-amber-300 bg-amber-50 text-amber-800", label: "High" };
-    case "low":
-      return { className: "border-amber-300 bg-amber-50 text-amber-800", label: "Low" };
-    case "normal":
-      return { className: "border-emerald-200 bg-emerald-50 text-emerald-700", label: "Normal" };
-    default:
-      return null;
-  }
-}
-
-function observationValue(observation: ClinicalObservation): string {
-  const config = OBSERVATION_CONFIG[observation.observation_type as ObservationType];
-  const unit = observation.unit ?? config?.unit ?? "";
-  const unitSuffix = unit && unit !== "{score}" ? ` ${unit}` : "";
-  if (observation.observation_type === "blood_pressure" && observation.value_numeric != null) {
-    const diastolic = observation.value_secondary != null ? `/${observation.value_secondary}` : "";
-    return `${observation.value_numeric}${diastolic}${unitSuffix}`;
-  }
-  if (observation.value_numeric != null) return `${observation.value_numeric}${unitSuffix}`;
-  return observation.value_text ?? "—";
-}
-
-function observationTitle(observation: ClinicalObservation): string {
-  if (observation.observation_type === "custom") {
-    return observation.custom_label ?? "Custom observation";
-  }
-  return OBSERVATION_CONFIG[observation.observation_type as ObservationType]?.label ?? observation.observation_type;
-}
-
-type SummaryVital = ClinicalChartSummary["latestVitals"][number];
-
-function summaryVitalTitle(type: string): string {
-  return OBSERVATION_CONFIG[type as ObservationType]?.label ?? type.replace(/_/gu, " ");
-}
-
-function summaryVitalValue(vital: SummaryVital): string {
-  const unit = vital.unit ?? OBSERVATION_CONFIG[vital.observation_type as ObservationType]?.unit ?? "";
-  const unitSuffix = unit && unit !== "{score}" ? ` ${unit}` : "";
-  if (vital.observation_type === "blood_pressure" && vital.value_numeric != null) {
-    const diastolic = vital.value_secondary != null ? `/${vital.value_secondary}` : "";
-    return `${vital.value_numeric}${diastolic}${unitSuffix}`;
-  }
-  if (vital.value_numeric != null) return `${vital.value_numeric}${unitSuffix}`;
-  return vital.value_text ?? "—";
-}
-
-function titleCase(value: string): string {
-  const spaced = value.replace(/_/gu, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
+import {
+  OBSERVATION_CONFIG,
+  OBSERVATION_ORDER,
+  abnormalBadge,
+  observationTitle,
+  observationValue,
+  summaryVitalTitle,
+  summaryVitalValue,
+  titleCase,
+} from "@/lib/clinicalObservations";
 
 export default function ResidentClinicalChart() {
   const __fieldIds = useId();
