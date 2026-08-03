@@ -70,6 +70,22 @@ async function verifyOrgAdminClientMfa(client: SupabaseClient) {
 }
 
 async function verifyOrgAdminBrowserMfa(page: Page) {
+  // Same capture as e2e/resident-lifecycle.spec.ts's watchForFailures, scoped locally here since
+  // this file has no equivalent yet -- diagnosing the "stuck on Loading CareBase" failure needs it.
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(`pageerror:${String(error).slice(0, 200)}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console:${message.text().slice(0, 200)}`);
+  });
+  page.on("requestfailed", (request) => {
+    errors.push(`requestfailed:${request.method()} ${request.url().slice(0, 160)} ${request.failure()?.errorText ?? ""}`);
+  });
+  page.on("response", async (response) => {
+    if (response.status() < 400) return;
+    const body = await response.text().catch(() => "<unreadable>");
+    errors.push(`http${response.status()}:${response.url().slice(0, 120)} ${body.slice(0, 300)}`);
+  });
+
   await page.goto("/account/security");
   const code = page.getByLabel("Authenticator code");
   await expect(code).toBeVisible();
@@ -101,7 +117,9 @@ async function verifyOrgAdminBrowserMfa(page: Page) {
     const succeeded = await verified.waitFor({ state: "visible", timeout: 15000 }).then(() => true).catch(() => false);
     if (succeeded) break;
     const statusText = await page.getByRole("status").allTextContents().catch(() => []);
-    console.log(`[mfa-verify attempt=${attempt} window=${window}] not verified yet; status text: ${JSON.stringify(statusText)}`);
+    const path = await page.evaluate(() => window.location.pathname).catch(() => "?");
+    console.log(`[mfa-verify attempt=${attempt} window=${window}] not verified yet; path=${path} status text: ${JSON.stringify(statusText)}`
+      + (errors.length ? ` errors=${JSON.stringify(errors.slice(-6))}` : " errors=[]"));
     if (attempt === 3) await expect(verified).toBeVisible();
   }
 }

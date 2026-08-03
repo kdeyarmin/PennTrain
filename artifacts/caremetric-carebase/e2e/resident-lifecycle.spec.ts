@@ -155,7 +155,9 @@ async function signIn(
       const succeeded = await verified.waitFor({ state: "visible", timeout: 15000 }).then(() => true).catch(() => false);
       if (succeeded) break;
       const statusText = await page.getByRole("status").allTextContents().catch(() => []);
-      console.log(`[mfa-verify attempt=${attempt} window=${window}] not verified yet; status text: ${JSON.stringify(statusText)}`);
+      const path = await page.evaluate(() => window.location.pathname).catch(() => "?");
+      console.log(`[mfa-verify attempt=${attempt} window=${window}] not verified yet; path=${path} status text: ${JSON.stringify(statusText)}`
+        + (errors.length ? ` errors=${JSON.stringify(errors.slice(-6))}` : " errors=[]"));
       if (attempt === 3) await expect(verified).toBeVisible();
     }
     await page.goto(landsOn);
