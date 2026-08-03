@@ -75,7 +75,22 @@ function reviewMessage(draft: OfflineFloorDraft): string {
  */
 export function UnsyncedDraftsPanel() {
   const { toast } = useToast();
+  // Codex review finding: the 7a refactor moved the sync loop to the shell and removed this
+  // component's online/offline listener with it -- but left isOnline as a mount-time snapshot that
+  // nothing updated. A panel mounted during an outage kept "Sync now" and every per-draft Sync
+  // button disabled for the rest of its mount even after the device reconnected. The loop moved;
+  // the buttons' enablement did not, so the listener has to stay for them.
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
   const entries = useUnsyncedServiceDraftEntries();
   const drafts = useUnsyncedServiceDrafts();
   const syncOne = useSyncOfflineServiceDraft();

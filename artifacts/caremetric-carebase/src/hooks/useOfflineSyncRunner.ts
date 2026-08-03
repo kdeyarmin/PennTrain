@@ -1,5 +1,6 @@
 import { useToast } from "@/hooks/use-toast";
 import { createRunLatch } from "@/lib/runLatch";
+import { publishCriticalReadings } from "@/lib/criticalReadingBus";
 import { SYNC_OUTCOME_MESSAGES, useSyncAllOfflineServiceDrafts } from "@/hooks/useOfflineServiceDrafts";
 import { useSyncAllOfflineObservationDrafts } from "@/hooks/useOfflineObservationDrafts";
 
@@ -114,7 +115,14 @@ export function useRunAllOfflineSyncs() {
     return { critical, appliedAny: applied > 0, idle: false, wiped: false };
   };
 
-  const run = (): Promise<OfflineSyncRunResult> => runLatch(runAll);
+  // Published here, not by the caller. The manual "Sync now" used to drop these on the floor, and
+  // the latch means a manual click during a background backoff JOINS that run rather than starting
+  // one the manager would observe -- so a caller-side copy is not merely duplicated, it is missable.
+  const run = (): Promise<OfflineSyncRunResult> => runLatch(async () => {
+    const result = await runAll();
+    publishCriticalReadings(result.critical);
+    return result;
+  });
 
   return { run, isPending: syncAll.isPending || syncAllObservations.isPending };
 }

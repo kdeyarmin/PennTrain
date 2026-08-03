@@ -43,10 +43,16 @@ jobs:
       # No --base: on main there is nothing to be "pre-existing" relative to, and strict is the
       # point of this job.
       - name: Audit main against the live advisory database
+        id: audit
         run: node scripts/check-dependencies.mjs
 
+      # Codex review finding: `failure()` alone is true after ANY earlier failed step, so a checkout
+      # problem, a broken classifier self-test, or an npm registry outage would open an issue
+      # asserting main ships a high/critical vulnerability. That is a false security signal, and a
+      # standing issue that gets bumped by unrelated infrastructure noise is worse than none --
+      # people stop believing it. Conditioned on the audit step's own outcome instead.
       - name: Open or update issue on failure
-        if: failure()
+        if: steps.audit.outcome == 'failure'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertDraftLifecycleFields, assertKnownSyncState, assertParseableTimestamp,
+  coerceListedLifecycle,
 } from "./offlineDraftFieldGuards";
 import {
   assertServiceDraftAllowed, OFFLINE_DRAFT_SYNC_STATES, NEEDS_REVIEW_DRAFT_STATES,
@@ -143,5 +144,39 @@ describe("the two lanes keep separate vocabularies", () => {
     expect(() => assertDraftLifecycleFields(
       { createdAt: "2026-08-02T12:00:00.000Z", syncState: "conflict" }, OFFLINE_OBSERVATION_SYNC_STATES,
     )).toThrow(/not a recognized sync state/);
+  });
+});
+
+// Codex review finding. The guards above validate the copy inside the encrypted envelope; the panel
+// and both purge clocks read the SEPARATE plaintext columns and never decrypt. Corrupting those two
+// while leaving the envelope intact reproduced the exact failure this module exists to prevent, so
+// the listing coerces them. Both fallbacks must fail toward visible-and-expirable.
+describe("coerceListedLifecycle (the plaintext copy the listings actually read)", () => {
+  it("passes through values that are already valid", () => {
+    expect(coerceListedLifecycle("conflict", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES))
+      .toEqual({ syncState: "conflict", createdAt: "2026-08-02T12:00:00.000Z" });
+  });
+
+  it("turns an unusable state into one the panel actually lists", () => {
+    const { syncState } = coerceListedLifecycle("wat", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES);
+    expect(syncState).toBe("error");
+    // The property that matters is not the literal, it is that the record becomes visible.
+    expect(UNRESOLVED_DRAFT_STATES).toContain(syncState);
+  });
+
+  it("turns an unusable timestamp into one that is already overdue rather than immortal", () => {
+    const { createdAt } = coerceListedLifecycle("draft", "not-a-date", OFFLINE_DRAFT_SYNC_STATES);
+    expect(isUnsyncedDraftOverdue(
+      { draftId: "d", kind: "service_task", syncState: "draft", createdAt }, Date.now(),
+    )).toBe(true);
+  });
+
+  it("respects each lane's own vocabulary", () => {
+    // `conflict` is valid in the service lane and impossible in the observation lane, so the same
+    // stored value must survive in one and be coerced in the other.
+    expect(coerceListedLifecycle("conflict", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES).syncState)
+      .toBe("conflict");
+    expect(coerceListedLifecycle("conflict", "2026-08-02T12:00:00.000Z", OFFLINE_OBSERVATION_SYNC_STATES).syncState)
+      .toBe("error");
   });
 });

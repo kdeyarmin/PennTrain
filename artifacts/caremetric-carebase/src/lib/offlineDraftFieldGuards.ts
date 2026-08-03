@@ -54,3 +54,38 @@ export function assertDraftLifecycleFields(
   assertParseableTimestamp(draft.createdAt, "createdAt");
   assertKnownSyncState(draft.syncState, allowedStates, "syncState");
 }
+
+/**
+ * Codex review finding, and the sharper half of the gap above.
+ *
+ * assertDraftLifecycleFields validates the copy of these fields INSIDE the encrypted envelope, on
+ * save and on decrypt. But the panel's counts and both purge clocks never decrypt anything -- they
+ * read the separate PLAINTEXT `syncState` and `createdAt` columns the store keeps as a cheap index.
+ * Corrupting those two while leaving the envelope untouched therefore still produced exactly the
+ * record this module was written to prevent: invisible to the panel and immortal against the purge.
+ * Validating only the inner copy defended the threat model's name and not its substance.
+ *
+ * Coerced rather than thrown on, because these run inside a listing that must keep working: one bad
+ * record must not make the whole store unreadable, which would hide every OTHER pending draft too.
+ * Both fallbacks fail toward visible-and-expirable, the opposite of the failure being fixed:
+ *
+ *   - an unusable state becomes "error", which is in every lane's unresolved set, so the record is
+ *     listed, retried, and subject to the purge clock;
+ *   - an unusable timestamp becomes the epoch, which reads as maximally overdue -- so it is flagged
+ *     immediately and purged on schedule rather than sitting there forever.
+ */
+export function coerceListedLifecycle<TState extends string>(
+  syncState: unknown,
+  createdAt: unknown,
+  allowedStates: readonly TState[],
+): { syncState: TState; createdAt: string } {
+  const stateOk = typeof syncState === "string" && (allowedStates as readonly string[]).includes(syncState);
+  const createdOk = typeof createdAt === "string" && !Number.isNaN(Date.parse(createdAt));
+  // "error" is a member of both lanes' unions; the cast is what lets one helper serve both without
+  // widening DraftListEntry.syncState to string, which would defeat the exhaustiveness the callers
+  // rely on.
+  return {
+    syncState: (stateOk ? syncState : "error") as TState,
+    createdAt: createdOk ? (createdAt as string) : new Date(0).toISOString(),
+  };
+}

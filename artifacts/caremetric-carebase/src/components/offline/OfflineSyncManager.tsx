@@ -7,7 +7,10 @@ import { useUnsyncedServiceDraftEntries } from "@/hooks/useOfflineServiceDrafts"
 import { useUnsyncedObservationDraftEntries } from "@/hooks/useOfflineObservationDrafts";
 import { UNRESOLVED_DRAFT_STATES } from "@/lib/offlineServiceDraftSafety";
 import { UNRESOLVED_OBSERVATION_DRAFT_STATES } from "@/lib/offlineObservationDraftSafety";
-import { useRunAllOfflineSyncs, type OfflineCriticalReading } from "@/hooks/useOfflineSyncRunner";
+import { useRunAllOfflineSyncs } from "@/hooks/useOfflineSyncRunner";
+import {
+  clearCriticalReadings, subscribeToCriticalReadings, type CriticalReading,
+} from "@/lib/criticalReadingBus";
 
 /**
  * The offline sync loop, mounted once in the signed-in shell (BACKLOG.md open question 7a).
@@ -45,7 +48,7 @@ export function OfflineSyncManager() {
   const { run } = useRunAllOfflineSyncs();
   const serviceEntries = useUnsyncedServiceDraftEntries();
   const observationEntries = useUnsyncedObservationDraftEntries();
-  const [critical, setCritical] = useState<OfflineCriticalReading[]>([]);
+  const [critical, setCritical] = useState<CriticalReading[]>([]);
 
   // Both stores are employee-scoped (register_offline_service_device refuses any other role), so
   // for everyone else this is a no-op that never opens IndexedDB.
@@ -58,6 +61,9 @@ export function OfflineSyncManager() {
 
   const attemptRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the immediate catch-up below to one run per backlog episode. Reset when the backlog
+  // drains, in the loop effect.
+  const caughtUpRef = useRef(false);
 
   const runOnce = useCallback(async () => {
     const result = await run();
@@ -65,8 +71,12 @@ export function OfflineSyncManager() {
     // backlog finishes quickly rather than waiting out an escalation earned while offline.
     if (result.appliedAny || result.idle) attemptRef.current = 0;
     else attemptRef.current = Math.min(attemptRef.current + 1, RETRY_BACKOFF_MS.length - 1);
-    if (result.critical.length > 0) setCritical(result.critical);
+    // Critical readings arrive via the bus below rather than from this result, so a run STARTED
+    // elsewhere -- the panel's manual button, which the latch may have joined to this very run --
+    // still reaches the alert.
   }, [run]);
+
+  useEffect(() => subscribeToCriticalReadings(setCritical), []);
 
   // The retry loop. Re-armed from scratch whenever the backlog size changes, so draining it stops
   // the timer rather than leaving one running against an empty queue.
@@ -74,6 +84,12 @@ export function OfflineSyncManager() {
     if (!enabled || !settled || pendingCount === 0) {
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
       attemptRef.current = 0;
+      // Copilot review finding: without this reset, caughtUpRef latches true on the session's FIRST
+      // backlog and never clears -- so every later draft in that session skips the immediate
+      // catch-up and waits out a 30s backoff tick instead, which is precisely the delay the
+      // catch-up exists to avoid. Reset here so it means "once per backlog episode" rather than
+      // "once per session".
+      caughtUpRef.current = false;
       return;
     }
     let cancelled = false;
@@ -92,7 +108,6 @@ export function OfflineSyncManager() {
 
   // Catch up once as soon as the shell knows there is a backlog -- the loop above only fires after
   // its first interval, and a caregiver returning to a reachable network should not wait 30s.
-  const caughtUpRef = useRef(false);
   useEffect(() => {
     if (!enabled || !settled || pendingCount === 0 || caughtUpRef.current) return;
     caughtUpRef.current = true;
@@ -145,7 +160,7 @@ export function OfflineSyncManager() {
           size="icon"
           className="h-9 w-9 shrink-0"
           aria-label="Dismiss critical reading warning"
-          onClick={() => setCritical([])}
+          onClick={() => { clearCriticalReadings(); setCritical([]); }}
         >
           <X className="h-4 w-4" />
         </Button>

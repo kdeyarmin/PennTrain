@@ -5,10 +5,10 @@ select plan(79);
 -- (20260802030000_offline_service_documentation_drafts.sql).
 
 -- Schema -----------------------------------------------------------------------------------------
-select has_table('public', 'offline_draft_receipts', 'offline service draft receipts exist');
+select has_table('public', 'offline_draft_receipts', 'the offline draft receipt ledger exists');
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.offline_draft_receipts'::regclass),
-  'offline service draft receipts are row-level secured'
+  'offline draft receipts are row-level secured'
 );
 select ok(
   not exists (
@@ -16,7 +16,7 @@ select ok(
     where table_schema = 'public' and table_name = 'offline_draft_receipts'
       and grantee in ('anon', 'public')
   ),
-  'offline service draft receipts are not readable by anon or public'
+  'offline draft receipts are not readable by anon or public'
 );
 select ok(
   not has_table_privilege('authenticated', 'public.offline_draft_receipts', 'INSERT'),
@@ -361,7 +361,7 @@ select throws_ok(
   $$update public.offline_draft_receipts set outcome = 'applied'
     where id = (select id from public.offline_draft_receipts limit 1)$$,
   '55000', null,
-  'offline service draft receipts cannot be mutated after the fact'
+  'offline draft receipts cannot be mutated after the fact'
 );
 
 -- Codex review fixes on PR #431 -----------------------------------------------------------------------------
