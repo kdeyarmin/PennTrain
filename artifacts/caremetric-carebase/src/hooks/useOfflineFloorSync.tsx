@@ -1,5 +1,5 @@
 import {
-  createContext, useContext, useEffect, useRef, useState, type ReactNode,
+  createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode,
 } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -51,6 +51,21 @@ export function OfflineFloorSyncProvider({ children }: { children: ReactNode }) 
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [criticalReadings, setCriticalReadings] = useState<CriticalSyncedReading[]>([]);
 
+  // Undismissed warnings are keyed by observationId, not by identity, so nothing about them
+  // otherwise changes when the signed-in profile/org/role does. This provider (like MainLayout that
+  // mounts it) can stay mounted across a mid-session identity change -- that is exactly the case
+  // auth.tsx's own identity-change effect exists to handle -- so without this, a warning naming a
+  // resident from the tenant the session just left would stay pinned to the global chrome after the
+  // switch. React Query cache isolation (auth.tsx) does not reach this: it is local component state.
+  const identityKey = user ? `${user.id}:${user.organizationId ?? ""}:${user.role}` : null;
+  const lastIdentityKeyRef = useRef(identityKey);
+  useEffect(() => {
+    if (lastIdentityKeyRef.current !== identityKey) {
+      lastIdentityKeyRef.current = identityKey;
+      setCriticalReadings([]);
+    }
+  }, [identityKey]);
+
   // Both queries already gate on user.role === "employee" internally (enabled), so pendingCount
   // and hasSettledEntries below are naturally inert for every other role.
   const entries = useUnsyncedServiceDraftEntries();
@@ -61,7 +76,7 @@ export function OfflineFloorSyncProvider({ children }: { children: ReactNode }) 
   const pendingCount = (entries.data ?? []).filter((entry) => (UNRESOLVED_DRAFT_STATES as string[]).includes(entry.syncState)).length
     + (observationEntries.data ?? []).filter((entry) => (UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)).length;
 
-  const runSyncAll = async () => {
+  const runSyncAll = useCallback(async () => {
     // Sequential, not Promise.all, for two reasons.
     //
     // 1. Promise.all discards the other lane's fulfilled result the moment one rejects -- a run that
@@ -139,7 +154,7 @@ export function OfflineFloorSyncProvider({ children }: { children: ReactNode }) 
       return;
     }
     toast({ title: applied === 1 ? "1 item recorded" : `${applied} items recorded` });
-  };
+  }, [syncAll, syncAllObservations, toast]);
 
   // Catch up on mount, not only on the `online` event. The event fires once, at the transition, and
   // is heard only while this provider is mounted -- which is now the whole authenticated session, so
@@ -150,8 +165,7 @@ export function OfflineFloorSyncProvider({ children }: { children: ReactNode }) 
     if (syncedOnMountRef.current || !hasSettledEntries || !isOnline || pendingCount === 0) return;
     syncedOnMountRef.current = true;
     void runSyncAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSettledEntries, isOnline, pendingCount]);
+  }, [hasSettledEntries, isOnline, pendingCount, runSyncAll]);
 
   // Best-effort automatic sync whenever this device regains connectivity, in addition to the manual
   // button in UnsyncedDraftsPanel. Deliberately does not retry on a timer or on every render -- only
@@ -171,8 +185,7 @@ export function OfflineFloorSyncProvider({ children }: { children: ReactNode }) 
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEmployee]);
+  }, [isEmployee, runSyncAll]);
 
   return (
     <OfflineFloorSyncContext.Provider

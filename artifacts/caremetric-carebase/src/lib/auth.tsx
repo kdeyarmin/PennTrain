@@ -330,7 +330,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         || previous.profileId !== current.profileId
         || previous.organizationId !== current.organizationId
         || previous.role !== current.role;
-      if (identityChanged) queryClient.clear();
+      // resetQueries(), not clear(): clear() removes every Query from the cache but does not touch
+      // any QueryObserver already mounted and watching one of them -- destroy() only cancels the
+      // in-flight fetch, it never notifies observers, so a component that stays mounted across this
+      // transition (the case this effect exists for; a component that unmounts doesn't need either
+      // call) keeps rendering the previous identity's cached result until something unrelated
+      // happens to re-render it, with no refetch queued behind it. Verified directly against the
+      // installed @tanstack/query-core: clear() leaves a subscribed observer's getCurrentResult()
+      // unchanged; resetQueries() immediately notifies every observer back to pending and refetches
+      // the ones that are active, because -- unlike clear() -- it reaches them through
+      // queryCache.findAll() before removing anything, rather than deleting the cache entry first
+      // and leaving observers to discover that on their own next render. Still followed by an
+      // explicit mutation-cache clear to keep clear()'s other effect (discarding stale mutation
+      // state/errors from the previous identity, e.g. a leftover error toast trigger).
+      if (identityChanged) {
+        void queryClient.resetQueries();
+        queryClient.getMutationCache().clear();
+      }
     }
     lastOfflineServiceDraftIdentityRef.current = current
       ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }

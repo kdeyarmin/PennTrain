@@ -16,6 +16,19 @@ import type { ObservationType } from "@/hooks/useClinicalObservations";
 
 const QUERY_KEY = ["offline-observation-drafts"];
 
+// Mirrors what the ONLINE recording/amendment mutations invalidate (useClinicalObservations.ts's
+// CLINICAL_OBSERVATIONS_KEY/CLINICAL_CHART_SUMMARY_KEY), so a chart already open when an offline
+// reading applies picks it up the same way one recorded online would -- QUERY_KEY above only covers
+// this device's own outbox list, not the resident's chart. Literal keys, not imported, matching the
+// sibling useOfflineServiceDrafts.ts's invalidateDomainFor: cross-domain invalidation here is by
+// hand-verified key rather than an import across every domain hook.
+function invalidateChartFor(queryClient: ReturnType<typeof useQueryClient>, residentIds: Iterable<string>): void {
+  for (const residentId of new Set(residentIds)) {
+    queryClient.invalidateQueries({ queryKey: ["clinical-observations", residentId] });
+    queryClient.invalidateQueries({ queryKey: ["clinical-chart-summary", residentId] });
+  }
+}
+
 function draftsSupported(): boolean {
   return typeof indexedDB !== "undefined";
 }
@@ -199,7 +212,9 @@ export function useSyncOfflineObservationDraft() {
       const draft = drafts.find((entry) => entry.draftId === draftId);
       if (!draft) throw new Error("This reading is no longer on this device.");
       try {
-        return await syncDraft(identity, draft);
+        const result = await syncDraft(identity, draft);
+        if (result.outcome === "applied") invalidateChartFor(queryClient, [draft.residentId]);
+        return result;
       } catch (error) {
         await updateObservationDraft(
           draftId,
@@ -242,6 +257,7 @@ export function useSyncAllOfflineObservationDrafts() {
       const result: ObservationSyncAllResult = {
         attempted: 0, applied: 0, needsReview: 0, wipeRequired: false, failed: 0, criticalReadings: [],
       };
+      const appliedResidentIds: string[] = [];
       for (const draft of drafts) {
         result.attempted += 1;
         try {
@@ -249,6 +265,7 @@ export function useSyncAllOfflineObservationDrafts() {
           if (outcome === "wipe_required") { result.wipeRequired = true; break; }
           if (outcome === "applied" || outcome === "duplicate") {
             result.applied += 1;
+            if (outcome === "applied") appliedResidentIds.push(draft.residentId);
             if (observationId && abnormalFlag && isCriticalFlag(abnormalFlag)) {
               result.criticalReadings.push({
                 observationId, residentId: draft.residentId, residentLabel: draft.residentDisplayLabel,
@@ -265,6 +282,7 @@ export function useSyncAllOfflineObservationDrafts() {
           ).catch(() => undefined);
         }
       }
+      invalidateChartFor(queryClient, appliedResidentIds);
       return result;
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
