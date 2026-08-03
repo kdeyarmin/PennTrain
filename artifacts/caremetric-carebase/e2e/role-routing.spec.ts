@@ -84,14 +84,20 @@ async function verifyOrgAdminBrowserMfa(page: Page) {
   // retry can hang trying to fill an input that is now disabled or already gone.
   const verified = page.getByText(/session is already verified/i);
   for (let attempt = 1; attempt <= 3; attempt += 1) {
+    // Diagnostic pass: the last two failure signatures (a hang, then 3/3 clean rejections) each
+    // turned out to be a different bug than assumed. Logging the TOTP window, whether fill/click
+    // completed, and whatever status/toast text is visible after a failed attempt gives the next
+    // failure (if any) hard evidence instead of another guess.
+    const window = Math.floor(Date.now() / 30_000);
     try {
       await code.fill(totpCode(orgAdminMfaSecret), { timeout: 5000 });
       await page.getByRole("button", { name: "Verify authenticator" }).click({ timeout: 5000 });
-    } catch {
-      // Input was disabled or detached by a still-resolving (or already-successful) previous
-      // attempt -- fall through to the visibility check either way.
+    } catch (error) {
+      console.log(`[mfa-verify attempt=${attempt} window=${window}] fill/click did not complete: ${String(error).slice(0, 200)}`);
     }
     if (await verified.isVisible({ timeout: 15000 }).catch(() => false)) break;
+    const statusText = await page.getByRole("status").allTextContents().catch(() => []);
+    console.log(`[mfa-verify attempt=${attempt} window=${window}] not verified yet; status text: ${JSON.stringify(statusText)}`);
     if (attempt === 3) await expect(verified).toBeVisible();
   }
 }
