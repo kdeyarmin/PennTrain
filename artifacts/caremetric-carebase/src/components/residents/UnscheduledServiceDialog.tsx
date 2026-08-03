@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useRecordUnscheduledService } from "@/hooks/useFloorMode";
+import { useSaveOfflineUnscheduledDraft } from "@/hooks/useOfflineServiceDrafts";
+import { isNetworkLevelSupabaseError } from "@/lib/offlineServiceDraftSafety";
 
 /**
  * The eight kinds the request names. Kept as a flat grid of large buttons because the whole value of
@@ -26,15 +28,20 @@ const SERVICE_KINDS: { value: string; label: string }[] = [
 ];
 
 export function UnscheduledServiceDialog({
-  open, onOpenChange, residentId, residentName,
+  open, onOpenChange, residentId, residentName, organizationId, facilityId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   residentId: string;
   residentName: string;
+  // Needed only for the offline-draft path (BACKLOG.md E5 Tier 2). Floor already has both from the
+  // task queue it loaded, so capturing offline needs no extra fetch.
+  organizationId: string;
+  facilityId: string;
 }) {
   const { toast } = useToast();
   const record = useRecordUnscheduledService();
+  const saveOfflineDraft = useSaveOfflineUnscheduledDraft();
   const [kind, setKind] = useState<string | null>(null);
   const [requiresTwoStaff, setRequiresTwoStaff] = useState(false);
   const [note, setNote] = useState("");
@@ -47,6 +54,42 @@ export function UnscheduledServiceDialog({
   }, [open]);
 
   const submit = async (chosen: string) => {
+    const saveDraftLocally = async () => {
+      await saveOfflineDraft.mutateAsync({
+        residentId,
+        residentDisplayLabel: residentName,
+        organizationId,
+        facilityId,
+        serviceKind: chosen,
+        // The care happened now; the sync may be hours away. The server trusts a plausible client
+        // time for occurred_at, so recording it here is what keeps the note dated when it happened
+        // rather than when the device next found signal.
+        occurredAt: new Date().toISOString(),
+        durationMinutes: null,
+        requiresTwoStaff,
+        note: note.trim() || null,
+      });
+      toast({
+        title: "Saved on this device",
+        description: "It will sync when you are back online. It stays here until it does.",
+      });
+      onOpenChange(false);
+    };
+
+    // Decided fresh at submit time rather than from render state, mirroring DocumentCareDialog:
+    // an aide can walk out of signal between opening this and tapping a service kind.
+    if (navigator.onLine === false) {
+      try {
+        await saveDraftLocally();
+      } catch (error) {
+        toast({
+          title: "Could not save this offline",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        });
+      }
+      return;
+    }
     try {
       await record.mutateAsync({
         residentId,
@@ -57,6 +100,23 @@ export function UnscheduledServiceDialog({
       toast({ title: "Recorded", description: "Extra care logged for this resident." });
       onOpenChange(false);
     } catch (error) {
+      // navigator.onLine reads true with a LAN link but no route to Supabase (bad DNS, captive
+      // portal, service outage), so the branch above misses that and the call fails having never
+      // reached the server. Fall back only for that failure shape -- a real rejection
+      // (authorization, an unrecognised service kind) must still surface rather than disappear
+      // into a silent draft.
+      if (isNetworkLevelSupabaseError(error)) {
+        try {
+          await saveDraftLocally();
+        } catch (draftError) {
+          toast({
+            title: "Could not save this offline",
+            description: draftError instanceof Error ? draftError.message : String(draftError),
+            variant: "destructive",
+          });
+        }
+        return;
+      }
       toast({
         title: "Could not record this",
         description: error instanceof Error ? error.message : String(error),

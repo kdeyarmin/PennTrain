@@ -262,6 +262,8 @@ export default function Floor() {
           onOpenChange={(open) => !open && setUnscheduledFor(null)}
           residentId={unscheduledFor.resident_id}
           residentName={residentName(unscheduledFor)}
+          organizationId={unscheduledFor.organization_id}
+          facilityId={unscheduledFor.facility_id}
         />
       )}
     </div>

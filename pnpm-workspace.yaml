@@ -63,10 +63,16 @@ overrides:
   # .map disclosure); fixed in 8.5.18, pinned to the latest mature 8.5.x patch.
   'postcss@<=8.5.17': 8.5.22
   # Patch transitive brace-expansion off the range flagged by GHSA-mh99-v99m-4gvg (DoS via
-  # unbounded expansion length -> out-of-memory crash). 5.0.8 is the only patched release; its
-  # `expand` API is unchanged and it still ships a CommonJS build via its exports map, so the
-  # older 2.x consumers keep working.
-  'brace-expansion@<=5.0.7': 5.0.8
+  # unbounded expansion length -> out-of-memory crash), then GHSA-rgw5-rvv9-x895, which found the
+  # first fix bypassable via unbounded INTERMEDIATE arrays and widened the affected range to
+  # >=4.0.0 <5.0.9 -- taking 5.0.8, this override's own previous target, with it. Bumped to 5.0.9.
+  # The `expand` API is unchanged across both patches and it still ships a CommonJS build via its
+  # exports map, so the older 2.x consumers keep working.
+  #
+  # This surfaces as a CI failure on every branch the day the advisory publishes, including main,
+  # because check-dependencies.mjs audits against the live advisory database rather than a
+  # snapshot. A red `application` job here is not necessarily the branch's doing.
+  'brace-expansion@<=5.0.8': 5.0.9
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'

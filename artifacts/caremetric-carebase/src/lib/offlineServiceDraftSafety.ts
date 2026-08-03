@@ -45,7 +45,18 @@ export const UNRESOLVED_DRAFT_STATES: OfflineDraftSyncState[] = ["draft", "synci
 /** Draft states that need a human to look at them; the 7-day ceiling applies to these regardless. */
 export const NEEDS_REVIEW_DRAFT_STATES: OfflineDraftSyncState[] = ["conflict", "stale", "rejected"];
 
+/**
+ * Which offline surface produced a draft.
+ *
+ * Absent on records written before Tier 2 -- every reader must treat a missing kind as
+ * "service_task" rather than rejecting it. Those records sit on aides' devices holding the only
+ * copy of care documentation that has not synced yet.
+ */
+export type OfflineDraftKind = "service_task" | "unscheduled_service";
+
 export interface OfflineServiceDraft {
+  /** Optional so drafts written before Tier 2 still parse; absent means "service_task". */
+  kind?: "service_task";
   draftId: string;
   taskId: string;
   residentId: string;
@@ -68,6 +79,50 @@ export interface OfflineServiceDraft {
   syncState: OfflineDraftSyncState;
   lastSyncOutcome: OfflineDraftSyncOutcome | null;
   lastSyncError: string | null;
+}
+
+/**
+ * Care that was never on the queue (BACKLOG.md E5 Tier 2).
+ *
+ * Deliberately NOT an extension of OfflineServiceDraft: it has no task, no acceptable-response
+ * set and no exception follow-ups, and modelling it as "a service draft with optional fields"
+ * would make every one of those fields optional for the service kind too -- which is exactly the
+ * shape assertServiceDraftAllowed exists to refuse.
+ */
+export interface OfflineUnscheduledServiceDraft {
+  kind: "unscheduled_service";
+  draftId: string;
+  residentId: string;
+  /** Short display string (e.g. "Jamie Resident - Room 12") -- never a full resident record. */
+  residentDisplayLabel: string;
+  organizationId: string;
+  facilityId: string;
+  profileId: string;
+  /** One of resident_unscheduled_services' closed service_kind set; the server is authoritative. */
+  serviceKind: string;
+  occurredAt: string;
+  durationMinutes: number | null;
+  requiresTwoStaff: boolean;
+  note: string | null;
+  idempotencyKey: string;
+  createdAt: string;
+  updatedAt: string;
+  syncState: OfflineDraftSyncState;
+  lastSyncOutcome: OfflineDraftSyncOutcome | null;
+  lastSyncError: string | null;
+}
+
+export type OfflineFloorDraft = OfflineServiceDraft | OfflineUnscheduledServiceDraft;
+
+/** Narrows without depending on the discriminator being present on legacy records. */
+export function draftKindOf(draft: OfflineFloorDraft): OfflineDraftKind {
+  return draft.kind ?? "service_task";
+}
+
+export function isUnscheduledServiceDraft(
+  draft: OfflineFloorDraft,
+): draft is OfflineUnscheduledServiceDraft {
+  return draft.kind === "unscheduled_service";
 }
 
 const MAX_TEXT_LENGTH = 4000;
@@ -117,6 +172,42 @@ export function assertServiceDraftAllowed(draft: OfflineServiceDraft): void {
     }
     if (typeof value === "string") assertTextWithinLimit(value, `exceptionDetails.${key}`);
   }
+}
+
+/**
+ * Hard gate for an unscheduled draft, mirroring assertServiceDraftAllowed.
+ *
+ * serviceKind is checked for presence and length only. Its closed vocabulary lives on
+ * resident_unscheduled_services and is enforced there -- restating the eight values here would
+ * give the client a second copy to drift out of step with, and an unrecognised value already
+ * comes back as a `rejected` receipt the panel can flag rather than something that silently
+ * disappears.
+ */
+export function assertUnscheduledServiceDraftAllowed(draft: OfflineUnscheduledServiceDraft): void {
+  assertNonEmptyId(draft.draftId, "draftId");
+  assertNonEmptyId(draft.residentId, "residentId");
+  assertNonEmptyId(draft.organizationId, "organizationId");
+  assertNonEmptyId(draft.facilityId, "facilityId");
+  assertNonEmptyId(draft.profileId, "profileId");
+  assertNonEmptyId(draft.idempotencyKey, "idempotencyKey");
+  assertNonEmptyId(draft.serviceKind, "serviceKind");
+
+  assertTextWithinLimit(draft.residentDisplayLabel, "residentDisplayLabel");
+  assertTextWithinLimit(draft.serviceKind, "serviceKind");
+  assertTextWithinLimit(draft.note, "note");
+
+  if (
+    draft.durationMinutes !== null
+    && (!Number.isInteger(draft.durationMinutes) || draft.durationMinutes < 1 || draft.durationMinutes > 480)
+  ) {
+    throw new Error("Offline unscheduled service draft duration must be a whole number of minutes between 1 and 480");
+  }
+}
+
+/** Dispatches to the gate for whichever kind this is. Legacy records narrow to service_task. */
+export function assertFloorDraftAllowed(draft: OfflineFloorDraft): void {
+  if (isUnscheduledServiceDraft(draft)) assertUnscheduledServiceDraftAllowed(draft);
+  else assertServiceDraftAllowed(draft);
 }
 
 export interface OfflineServiceDraftIdentitySnapshot { profileId: string; organizationId: string; role: string }

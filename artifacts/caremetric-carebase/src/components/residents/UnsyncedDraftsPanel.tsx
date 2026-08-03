@@ -5,23 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import {
-  formatDraftNoteForCopy, isUnsyncedDraftOverdue, NEEDS_REVIEW_DRAFT_STATES, rejectedMessage,
+  describeDraft, formatDraftNoteForCopy, isUnsyncedDraftOverdue, NEEDS_REVIEW_DRAFT_STATES, rejectedMessage,
   SYNC_OUTCOME_MESSAGES, UNRESOLVED_DRAFT_STATES, useDismissOfflineServiceDraft,
   useSyncAllOfflineServiceDrafts, useSyncOfflineServiceDraft, useUnsyncedServiceDraftEntries,
   useUnsyncedServiceDrafts,
 } from "@/hooks/useOfflineServiceDrafts";
-import { COMPLETION_RESPONSE_LABELS, type CompletionResponse } from "@/lib/serviceDeliveryContract";
-import type { OfflineServiceDraft } from "@/lib/offlineServiceDraftSafety";
+import { draftKindOf, type OfflineDraftSyncState, type OfflineFloorDraft } from "@/lib/offlineServiceDraftSafety";
 
-function copyNote(draft: OfflineServiceDraft, toast: ReturnType<typeof useToast>["toast"]) {
+function copyNote(draft: OfflineFloorDraft, toast: ReturnType<typeof useToast>["toast"]) {
   void navigator.clipboard.writeText(formatDraftNoteForCopy(draft))
     .then(() => toast({ title: "Note copied", description: "Paste it wherever your supervisor needs it." }))
     .catch(() => toast({ title: "Couldn't copy the note", variant: "destructive" }));
 }
 
-function reviewMessage(draft: OfflineServiceDraft): string {
+function reviewMessage(draft: OfflineFloorDraft): string {
   if (draft.syncState === "rejected") return rejectedMessage(draft.lastSyncError);
-  if (draft.syncState === "conflict" || draft.syncState === "stale") return SYNC_OUTCOME_MESSAGES[draft.syncState];
+  if (draft.syncState === "conflict" || draft.syncState === "stale") {
+    return SYNC_OUTCOME_MESSAGES[draft.syncState as OfflineDraftSyncState & keyof typeof SYNC_OUTCOME_MESSAGES];
+  }
   return "This note needs review.";
 }
 
@@ -114,7 +115,7 @@ export function UnsyncedDraftsPanel() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{draft.residentDisplayLabel}</p>
                 <p className="text-xs text-muted-foreground">
-                  {draft.serviceName} · {COMPLETION_RESPONSE_LABELS[draft.response as CompletionResponse] ?? draft.response}
+                  {describeDraft(draft)}
                 </p>
               </div>
               <Badge variant="outline" className="shrink-0 capitalize">{draft.syncState}</Badge>
@@ -137,13 +138,13 @@ export function UnsyncedDraftsPanel() {
         ))}
 
         {pending.map((draft) => {
-          const overdue = isUnsyncedDraftOverdue({ draftId: draft.draftId, taskId: draft.taskId, syncState: draft.syncState, createdAt: draft.createdAt });
+          const overdue = isUnsyncedDraftOverdue({ draftId: draft.draftId, kind: draftKindOf(draft), syncState: draft.syncState, createdAt: draft.createdAt });
           return (
             <div key={draft.draftId} className="flex items-start justify-between gap-2 rounded-lg border p-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{draft.residentDisplayLabel}</p>
                 <p className="text-xs text-muted-foreground">
-                  {draft.serviceName} · {COMPLETION_RESPONSE_LABELS[draft.response as CompletionResponse] ?? draft.response}
+                  {describeDraft(draft)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {draft.syncState === "error"
