@@ -52,7 +52,10 @@ const TRAINER_ONLY: Role[] = ["trainer"];
 const EMPLOYEE_ONLY: Role[] = ["employee"];
 const ANY_ROLE: Role[] = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
-const APP_COMMAND_ACTIONS: AppCommandAction[] = [
+// Exported so route-manifest coverage tests can verify every action's `path` is actually
+// registered in App.tsx, the same way APP_PAGES and the other navigation sources are checked --
+// see routeRegistration.test.ts.
+export const APP_COMMAND_ACTIONS: AppCommandAction[] = [
   {
     id: "add-employee",
     label: "Add employee",
@@ -300,6 +303,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/reports/comprehensive", label: "Comprehensive Report", domain: "documents", roles: REPORTING_ROLES, keywords: ["print", "pdf", "board report", "survey packet", "all facets", "snapshot", "executive summary", "everything"] },
   { path: "/app/compliance-command-center", label: "Compliance Command Center", domain: "compliance", roles: REPORTING_ROLES, keywords: ["requirements", "recurring", "due", "overdue", "regulation", "chapter 2600", "chapter 2800", "category", "responsible", "evidence", "reminder", "escalation", "template", "register", "obligation", "monthly", "quarterly", "annual"] },
   { path: "/app/inspection-readiness", label: "Inspection readiness", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "audit"] },
+  { path: "/app/survey-day", label: "Survey Day", domain: "compliance", roles: REPORTING_ROLES, keywords: ["survey", "surveyor", "entrance conference", "regulatory survey", "readiness"] },
   { path: "/app/survey-rehearsals", label: "Survey rehearsal & sampling", domain: "compliance", roles: REPORTING_ROLES, keywords: ["mock survey", "random sample", "rehearsal", "survey readiness"] },
   { path: "/app/pch-alr-operations", label: "PCH / ALF operations", domain: "compliance", roles: REPORTING_ROLES, keywords: ["personal care home", "assisted living", "chapter 2600", "chapter 2800", "survey", "medication safety", "resident rights", "emergency preparedness"] },
   { path: "/app/shift-handoffs", label: "Shift handoff inbox", domain: "compliance", roles: ORG_MANAGERS, keywords: ["shift", "handoff", "concern", "escalation", "acknowledgement", "resolution"] },

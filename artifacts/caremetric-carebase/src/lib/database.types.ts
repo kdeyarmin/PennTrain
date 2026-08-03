@@ -20372,6 +20372,74 @@ export type Database = {
           },
         ]
       }
+      policy_campaign_questions: {
+        Row: {
+          campaign_id: string
+          choices: Json
+          correct_choice_index: number
+          created_at: string
+          created_by: string | null
+          display_order: number
+          id: string
+          organization_id: string
+          prompt: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          choices: Json
+          correct_choice_index: number
+          created_at?: string
+          created_by?: string | null
+          display_order: number
+          id?: string
+          organization_id: string
+          prompt: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          choices?: Json
+          correct_choice_index?: number
+          created_at?: string
+          created_by?: string | null
+          display_order?: number
+          id?: string
+          organization_id?: string
+          prompt?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_campaign_questions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_campaign_questions_campaign_org_fk"
+            columns: ["campaign_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestation_campaigns"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "policy_campaign_questions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_campaign_questions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       policy_delivery_events: {
         Row: {
           audience_rule_id: string | null
@@ -20578,6 +20646,64 @@ export type Database = {
           },
           {
             foreignKeyName: "policy_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policy_knowledge_check_attempts: {
+        Row: {
+          answers: Json
+          attestation_id: string
+          correct_count: number
+          created_at: string
+          employee_id: string
+          id: string
+          organization_id: string
+          passed: boolean
+          total_count: number
+        }
+        Insert: {
+          answers: Json
+          attestation_id: string
+          correct_count: number
+          created_at?: string
+          employee_id: string
+          id?: string
+          organization_id: string
+          passed: boolean
+          total_count: number
+        }
+        Update: {
+          answers?: Json
+          attestation_id?: string
+          correct_count?: number
+          created_at?: string
+          employee_id?: string
+          id?: string
+          organization_id?: string
+          passed?: boolean
+          total_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "policy_knowledge_check_attempts_attestation_id_fkey"
+            columns: ["attestation_id"]
+            isOneToOne: false
+            referencedRelation: "policy_attestations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_knowledge_check_attempts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "policy_knowledge_check_attempts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -37085,6 +37211,17 @@ export type Database = {
         }
         Returns: string
       }
+      create_policy_campaign_with_questions: {
+        Args: {
+          p_due_date?: string
+          p_name: string
+          p_organization_id: string
+          p_policy_document_id: string
+          p_policy_document_version_id: string
+          p_questions?: Json
+        }
+        Returns: string
+      }
       create_qapi_project: {
         Args: {
           p_baseline_data: string
@@ -38083,6 +38220,15 @@ export type Database = {
         Returns: Json
       }
       get_platform_health: { Args: never; Returns: Json }
+      get_policy_knowledge_check: {
+        Args: { p_attestation_id: string }
+        Returns: {
+          choices: Json
+          display_order: number
+          prompt: string
+          question_id: string
+        }[]
+      }
       get_portfolio_operations_command_center: { Args: never; Returns: Json }
       get_product_changelog: { Args: { p_limit?: number }; Returns: Json }
       get_product_value_workspace: {
@@ -39273,6 +39419,7 @@ export type Database = {
         Args: { p_from: string; p_organization_id?: string; p_to: string }
         Returns: string
       }
+      policy_choices_are_valid: { Args: { p_choices: Json }; Returns: boolean }
       post_resident_financial_transaction: {
         Args: { p_entry: Json; p_resident_id: string }
         Returns: string
@@ -41708,6 +41855,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_policy_knowledge_check: {
+        Args: { p_answers: Json; p_attestation_id: string }
+        Returns: Json
       }
       submit_regulatory_rule_version: {
         Args: { p_version_id: string }
