@@ -18641,95 +18641,7 @@ export type Database = {
           },
         ]
       }
-      offline_observation_draft_receipts: {
-        Row: {
-          client_occurred_at: string
-          device_id: string
-          error_message: string | null
-          id: string
-          idempotency_key: string
-          observation_id: string | null
-          observation_type: string
-          organization_id: string
-          outcome: string
-          processed_at: string
-          profile_id: string
-          resident_id: string
-        }
-        Insert: {
-          client_occurred_at: string
-          device_id: string
-          error_message?: string | null
-          id?: string
-          idempotency_key: string
-          observation_id?: string | null
-          observation_type: string
-          organization_id: string
-          outcome: string
-          processed_at?: string
-          profile_id: string
-          resident_id: string
-        }
-        Update: {
-          client_occurred_at?: string
-          device_id?: string
-          error_message?: string | null
-          id?: string
-          idempotency_key?: string
-          observation_id?: string | null
-          observation_type?: string
-          organization_id?: string
-          outcome?: string
-          processed_at?: string
-          profile_id?: string
-          resident_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "offline_observation_draft_receipts_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "offline_device_registrations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "offline_observation_draft_receipts_observation_id_fkey"
-            columns: ["observation_id"]
-            isOneToOne: false
-            referencedRelation: "clinical_observations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "offline_observation_draft_receipts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "offline_observation_draft_receipts_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
-            columns: ["resident_id"]
-            isOneToOne: false
-            referencedRelation: "resident_roster_rows"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
-            columns: ["resident_id"]
-            isOneToOne: false
-            referencedRelation: "residents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      offline_service_draft_receipts: {
+      offline_draft_receipts: {
         Row: {
           change_event_id: string | null
           client_occurred_at: string
@@ -18832,6 +18744,94 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "resident_service_task_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      offline_observation_draft_receipts: {
+        Row: {
+          client_occurred_at: string
+          device_id: string
+          error_message: string | null
+          id: string
+          idempotency_key: string
+          observation_id: string | null
+          observation_type: string
+          organization_id: string
+          outcome: string
+          processed_at: string
+          profile_id: string
+          resident_id: string
+        }
+        Insert: {
+          client_occurred_at: string
+          device_id: string
+          error_message?: string | null
+          id?: string
+          idempotency_key: string
+          observation_id?: string | null
+          observation_type: string
+          organization_id: string
+          outcome: string
+          processed_at?: string
+          profile_id: string
+          resident_id: string
+        }
+        Update: {
+          client_occurred_at?: string
+          device_id?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key?: string
+          observation_id?: string | null
+          observation_type?: string
+          organization_id?: string
+          outcome?: string
+          processed_at?: string
+          profile_id?: string
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offline_observation_draft_receipts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "offline_device_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_observation_id_fkey"
+            columns: ["observation_id"]
+            isOneToOne: false
+            referencedRelation: "clinical_observations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offline_observation_draft_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
             referencedColumns: ["id"]
           },
         ]

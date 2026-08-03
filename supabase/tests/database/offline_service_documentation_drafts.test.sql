@@ -5,21 +5,21 @@ select plan(79);
 -- (20260802030000_offline_service_documentation_drafts.sql).
 
 -- Schema -----------------------------------------------------------------------------------------
-select has_table('public', 'offline_service_draft_receipts', 'offline service draft receipts exist');
+select has_table('public', 'offline_draft_receipts', 'offline service draft receipts exist');
 select ok(
-  (select relrowsecurity from pg_class where oid = 'public.offline_service_draft_receipts'::regclass),
+  (select relrowsecurity from pg_class where oid = 'public.offline_draft_receipts'::regclass),
   'offline service draft receipts are row-level secured'
 );
 select ok(
   not exists (
     select 1 from information_schema.role_table_grants
-    where table_schema = 'public' and table_name = 'offline_service_draft_receipts'
+    where table_schema = 'public' and table_name = 'offline_draft_receipts'
       and grantee in ('anon', 'public')
   ),
   'offline service draft receipts are not readable by anon or public'
 );
 select ok(
-  not has_table_privilege('authenticated', 'public.offline_service_draft_receipts', 'INSERT'),
+  not has_table_privilege('authenticated', 'public.offline_draft_receipts', 'INSERT'),
   'offline clients cannot forge sync receipts directly -- only the RPC may write them'
 );
 select has_function(
@@ -37,23 +37,23 @@ select has_function(
 );
 select ok(
   (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_service_draft_receipts'::regclass
+   where conrelid = 'public.offline_draft_receipts'::regclass
      and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
   like '%duplicate%' and
   (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_service_draft_receipts'::regclass
+   where conrelid = 'public.offline_draft_receipts'::regclass
      and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
   like '%conflict%' and
   (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_service_draft_receipts'::regclass
+   where conrelid = 'public.offline_draft_receipts'::regclass
      and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
   like '%stale%' and
   (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_service_draft_receipts'::regclass
+   where conrelid = 'public.offline_draft_receipts'::regclass
      and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
   like '%rejected%' and
   (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_service_draft_receipts'::regclass
+   where conrelid = 'public.offline_draft_receipts'::regclass
      and pg_get_constraintdef(oid) like '%outcome%' and pg_get_constraintdef(oid) like '%applied%')
   like '%wipe_required%',
   'the outcome vocabulary covers every classified branch: applied, duplicate, conflict, stale, rejected, wipe_required'
@@ -61,7 +61,7 @@ select ok(
 select ok(
   exists (
     select 1 from pg_constraint
-    where conrelid = 'public.offline_service_draft_receipts'::regclass
+    where conrelid = 'public.offline_draft_receipts'::regclass
       and contype = 'u'
       and pg_get_constraintdef(oid) like '%device_id%'
       and pg_get_constraintdef(oid) like '%idempotency_key%'
@@ -247,7 +247,7 @@ select is(
   'replaying the same idempotency key returns duplicate rather than re-applying'
 );
 select is(
-  (select count(*)::int from public.offline_service_draft_receipts
+  (select count(*)::int from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-1'),
   1,
   'the replay does not insert a second receipt row'
@@ -304,7 +304,7 @@ select is(
   'a response the service does not accept is rejected rather than silently coerced or applied'
 );
 select ok(
-  (select error_message from public.offline_service_draft_receipts
+  (select error_message from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-5')
   ilike '%not accepted%',
   'the server message explaining the rejection is preserved on the receipt'
@@ -342,7 +342,7 @@ select is(
 
 select pg_temp.act_as('65000000-0000-4000-8000-000000000101');
 select is(
-  (select count(*)::int from public.offline_service_draft_receipts
+  (select count(*)::int from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-b')),
   0,
   'worker A cannot see worker B''s device receipts under RLS'
@@ -350,7 +350,7 @@ select is(
 
 select pg_temp.act_as('65000000-0000-4000-8000-000000000102');
 select ok(
-  (select count(*)::int from public.offline_service_draft_receipts
+  (select count(*)::int from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-b')) >= 1,
   'worker B can see her own device''s receipts'
 );
@@ -358,8 +358,8 @@ select ok(
 -- Append-only -------------------------------------------------------------------------------------------------
 reset role;
 select throws_ok(
-  $$update public.offline_service_draft_receipts set outcome = 'applied'
-    where id = (select id from public.offline_service_draft_receipts limit 1)$$,
+  $$update public.offline_draft_receipts set outcome = 'applied'
+    where id = (select id from public.offline_draft_receipts limit 1)$$,
   '55000', null,
   'offline service draft receipts cannot be mutated after the fact'
 );
@@ -382,7 +382,7 @@ select is(
   'replaying a conflict receipt returns conflict again, not duplicate'
 );
 select is(
-  (select count(*)::int from public.offline_service_draft_receipts
+  (select count(*)::int from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-3'),
   1,
   'the conflict replay does not insert a second receipt row'
@@ -398,7 +398,7 @@ select is(
   'replaying a stale receipt returns stale again, not duplicate'
 );
 select is(
-  (select count(*)::int from public.offline_service_draft_receipts
+  (select count(*)::int from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-4'),
   1,
   'the stale replay does not insert a second receipt row'
@@ -414,7 +414,7 @@ select is(
   'replaying a rejected receipt returns rejected again, not duplicate'
 );
 select is(
-  (select count(*)::int from public.offline_service_draft_receipts
+  (select count(*)::int from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-5'),
   1,
   'the rejected replay does not insert a second receipt row'
@@ -432,7 +432,7 @@ select is(
   'replaying a wipe_required receipt still returns wipe_required, not duplicate'
 );
 select is(
-  (select count(*)::int from public.offline_service_draft_receipts
+  (select count(*)::int from public.offline_draft_receipts
    where device_id = (select id from t_ids where key = 'device-a') and idempotency_key = 'sync-key-6'),
   1,
   'the wipe_required replay does not insert a second receipt row'
@@ -561,7 +561,7 @@ select is(
   (select occurred_at from public.resident_unscheduled_services
    where resident_id = '65000000-0000-4000-8000-000000000201'
      and service_kind = 'unscheduled_toileting'),
-  (select client_occurred_at from public.offline_service_draft_receipts
+  (select client_occurred_at from public.offline_draft_receipts
    where idempotency_key = 'unsched-key-1'),
   'recorded at the time the care happened on the device, not the time it reached the server'
 );
@@ -612,7 +612,7 @@ select is(
 );
 
 select ok(
-  (select error_message from public.offline_service_draft_receipts
+  (select error_message from public.offline_draft_receipts
    where idempotency_key = 'unsched-key-4') is not null,
   'and carries the reason, so a human reviewing the flagged draft can see why'
 );
@@ -630,7 +630,7 @@ select is(
 select ok(
   exists(
     select 1 from pg_constraint
-    where conrelid = 'public.offline_service_draft_receipts'::regclass
+    where conrelid = 'public.offline_draft_receipts'::regclass
       and contype = 'u'
       and pg_get_constraintdef(oid) = 'UNIQUE (device_id, idempotency_key)'
   ),
@@ -644,7 +644,7 @@ select ok(
 select ok(
   exists(
     select 1 from pg_constraint
-    where conrelid = 'public.offline_service_draft_receipts'::regclass
+    where conrelid = 'public.offline_draft_receipts'::regclass
       and conname = 'offline_draft_receipt_kind_shape_check'
       and pg_get_constraintdef(oid) like '%task_id IS NOT NULL%response IS NOT NULL%'
       and pg_get_constraintdef(oid) like '%resident_id IS NOT NULL%service_kind IS NOT NULL%'
@@ -737,7 +737,7 @@ select is(
 select is(
   (select observed_at from public.resident_change_monitoring_entries
    where event_id = '65000000-0000-4000-8000-000000000601'),
-  (select client_occurred_at from public.offline_service_draft_receipts
+  (select client_occurred_at from public.offline_draft_receipts
    where idempotency_key = 'coc-key-1'),
   'observed at the time the aide looked at the resident, not the time the device found signal'
 );
@@ -756,7 +756,7 @@ select is(
 -- happens to capture the text later still fails this.
 select ok(
   not exists(
-    select 1 from public.offline_service_draft_receipts r
+    select 1 from public.offline_draft_receipts r
     where r::text like '%Distinctive-marker-Q7%'
   ),
   'the observation text itself is never written to the append-only receipt ledger'
@@ -810,7 +810,7 @@ select is(
 );
 
 select ok(
-  (select client_occurred_at from public.offline_service_draft_receipts
+  (select client_occurred_at from public.offline_draft_receipts
    where idempotency_key = 'coc-key-2') < now() - interval '300 days',
   'and the raw client time stays on the receipt, so a bad clock is still visible in the ledger'
 );
@@ -834,7 +834,7 @@ select is(
 );
 
 select ok(
-  (select error_message from public.offline_service_draft_receipts
+  (select error_message from public.offline_draft_receipts
    where idempotency_key = 'coc-key-3') like '%closed%',
   'and says so, rather than passing through a message about invalid input'
 );
@@ -865,7 +865,7 @@ select is(
 -- decides: a refusal has to come back as a receipt carrying the server's reason, because that is
 -- what lets the client block-and-flag the draft for a human instead of retrying it forever.
 select ok(
-  (select error_message from public.offline_service_draft_receipts
+  (select error_message from public.offline_draft_receipts
    where idempotency_key = 'coc-key-4') is not null,
   'and the refusal comes back as a receipt carrying the reason, not as a silent no-op'
 );
@@ -892,7 +892,7 @@ select is(
 
 select ok(
   (select pg_get_constraintdef(oid) from pg_constraint
-   where conrelid = 'public.offline_service_draft_receipts'::regclass
+   where conrelid = 'public.offline_draft_receipts'::regclass
      and conname = 'offline_draft_receipt_kind_shape_check')
   like '%change_observation%change_event_id IS NOT NULL%',
   'the third kind must carry the column that makes it meaningful, like the other two'
