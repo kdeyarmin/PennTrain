@@ -71,11 +71,13 @@ const budgets = {
   // branches. Sized the same way the 4200 -> 4700 step was -- a deliberate raise on main rather
   // than a per-feature shave -- and leaves the measurement at 81.6%.
   //
-  // Raising the tripwire is the response this warning is designed to prompt, but it is not an
-  // answer to the underlying number: 4.2 MiB of JavaScript is a lot to push to a tablet on
-  // facility wifi, and no single route is the culprit -- the biggest audited chunk is 61.9 KiB.
-  // That is a real optimization with real user benefit and it is tracked as BACKLOG.md F5 rather
-  // than absorbed silently here.
+  // What this metric is NOT: a user-facing download size. It sums every emitted chunk, including
+  // the ~150 lazy route chunks a given user never fetches. A first load preloads five chunks --
+  // index, supabase, radix, query, router -- totalling 922 KiB raw and 220 KiB brotli over the
+  // wire, since server/index.mjs negotiates br/gzip against the siblings server/precompress.mjs
+  // emits. BACKLOG.md F5 was opened on the aggregate as though it were the download, measured,
+  // and closed. Read this budget as what its header says: a regression tripwire that catches a
+  // route module leaking into the shell.
   totalJavaScript: 5200 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted. Raised 160 -> 176 on the
   // full-app-debugging branch: organic growth had reached 156.1 KiB, which is 97.5% of the old

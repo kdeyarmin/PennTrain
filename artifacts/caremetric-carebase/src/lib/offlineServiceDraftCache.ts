@@ -15,13 +15,15 @@
  * Only four fields sit in plaintext on disk -- draftId, taskId, syncState, createdAt -- because that
  * is everything the panel's listing and the purge/expiry clock need without decrypting anything.
  * Everything else (resident label, service name, the documentation response, exception-detail notes)
- * lives only inside the per-record ciphertext, which the full OfflineServiceDraft is serialized into
+ * lives only inside the per-record ciphertext, which the full draft is serialized into
  * whole -- so the plaintext columns are a fast index into the store, not a second source of truth;
  * decrypting a record always returns the complete, authoritative draft.
  */
 import {
-  assertServiceDraftAllowed, NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
-  type OfflineDraftSyncOutcome, type OfflineDraftSyncState, type OfflineServiceDraft,
+  assertFloorDraftAllowed, draftKindOf, isUnscheduledServiceDraft,
+  NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
+  type OfflineDraftKind, type OfflineDraftSyncOutcome, type OfflineDraftSyncState,
+  type OfflineFloorDraft,
 } from "./offlineServiceDraftSafety";
 import {
   assertObservationDraftAllowed, NEEDS_REVIEW_OBSERVATION_DRAFT_STATES,
@@ -52,7 +54,19 @@ export interface OfflineFloorDeviceMetadata extends OfflineFloorIdentity {
 interface StoredDraftEnvelope { version: 1; iv: string; ciphertext: string; additionalData: string }
 interface StoredDraftRecord {
   draftId: string;
-  taskId: string;
+  /**
+   * Present on service-task records, absent on unscheduled ones. Kept rather than folded into
+   * scopeId because records written before Tier 2 have only this field, and it is what their
+   * envelope was sealed against.
+   */
+  taskId?: string;
+  /**
+   * What the envelope's AAD binds to: the task for a service draft, the resident for an
+   * unscheduled one. Absent on pre-Tier-2 records, which fall back to taskId -- see scopeSubjectOf.
+   */
+  scopeId?: string;
+  /** Absent on pre-Tier-2 records, which are all service_task by definition. */
+  kind?: OfflineDraftKind;
   syncState: OfflineDraftSyncState;
   createdAt: string;
   envelope: StoredDraftEnvelope;
@@ -60,7 +74,9 @@ interface StoredDraftRecord {
 
 export interface DraftListEntry {
   draftId: string;
-  taskId: string;
+  /** Undefined for an unscheduled draft, which has no task. */
+  taskId?: string;
+  kind: OfflineDraftKind;
   syncState: OfflineDraftSyncState;
   createdAt: string;
 }
@@ -136,15 +152,40 @@ async function generateDraftDeviceKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 
-/** org:profile:taskId:draftId -- decrypting under a different identity, task, or draft id fails. */
-function draftScope(organizationId: string, profileId: string, taskId: string, draftId: string): string {
-  return `${organizationId}:${profileId}:${taskId}:${draftId}`;
+/**
+ * org:profile:subject:draftId -- decrypting under a different identity, subject, or draft id fails.
+ *
+ * The subject is the task for a service draft and the resident for an unscheduled one. The FORMAT
+ * is deliberately unchanged from Tier 1: this string is the AES-GCM additional-authenticated-data
+ * an existing envelope was sealed against, so altering how a service draft's scope is composed
+ * would make every not-yet-synced draft already on a device fail to decrypt -- on the one device
+ * holding the only copy of that documentation.
+ */
+function draftScope(organizationId: string, profileId: string, subjectId: string, draftId: string): string {
+  return `${organizationId}:${profileId}:${subjectId}:${draftId}`;
 }
 
-async function encryptDraft(key: CryptoKey, draft: OfflineServiceDraft): Promise<StoredDraftEnvelope> {
-  assertServiceDraftAllowed(draft);
+/** What a draft's envelope is bound to. */
+function draftSubjectOf(draft: OfflineFloorDraft): string {
+  return isUnscheduledServiceDraft(draft) ? draft.residentId : draft.taskId;
+}
+
+/**
+ * The same, recovered from a stored record. Pre-Tier-2 records have no scopeId, and taskId is what
+ * their envelope was sealed with -- so the fallback is not a convenience, it is the compatibility.
+ */
+function scopeSubjectOf(record: StoredDraftRecord): string {
+  const subject = record.scopeId ?? record.taskId;
+  if (!subject) throw new Error(`Offline draft ${record.draftId} has no scope subject`);
+  return subject;
+}
+
+async function encryptDraft(key: CryptoKey, draft: OfflineFloorDraft): Promise<StoredDraftEnvelope> {
+  assertFloorDraftAllowed(draft);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const additionalData = draftScope(draft.organizationId, draft.profileId, draft.taskId, draft.draftId);
+  const additionalData = draftScope(
+    draft.organizationId, draft.profileId, draftSubjectOf(draft), draft.draftId,
+  );
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(additionalData) },
     key,
@@ -153,7 +194,7 @@ async function encryptDraft(key: CryptoKey, draft: OfflineServiceDraft): Promise
   return { version: 1, iv: base64(iv), ciphertext: base64(new Uint8Array(ciphertext)), additionalData };
 }
 
-async function decryptDraft(key: CryptoKey, envelope: StoredDraftEnvelope, expectedScope: string): Promise<OfflineServiceDraft> {
+async function decryptDraft(key: CryptoKey, envelope: StoredDraftEnvelope, expectedScope: string): Promise<OfflineFloorDraft> {
   if (envelope.version !== 1 || envelope.additionalData !== expectedScope) {
     throw new Error("Offline service draft scope changed; wipe required");
   }
@@ -162,8 +203,8 @@ async function decryptDraft(key: CryptoKey, envelope: StoredDraftEnvelope, expec
     key,
     base64ToBytes(envelope.ciphertext),
   );
-  const draft = JSON.parse(new TextDecoder().decode(plaintext)) as OfflineServiceDraft;
-  assertServiceDraftAllowed(draft);
+  const draft = JSON.parse(new TextDecoder().decode(plaintext)) as OfflineFloorDraft;
+  assertFloorDraftAllowed(draft);
   return draft;
 }
 
@@ -216,13 +257,20 @@ export async function saveOfflineFloorDeviceId(deviceId: string): Promise<void> 
 // resolve only once the transaction itself completes, exactly like the other multi-store writes in
 // this module (initializeOfflineFloorDevice, clearDatabase, purgeExpiredServiceDrafts) already key
 // off transaction.oncomplete rather than the individual request.
-export async function saveServiceDraft(draft: OfflineServiceDraft): Promise<OfflineServiceDraft> {
-  assertServiceDraftAllowed(draft);
+export async function saveServiceDraft<T extends OfflineFloorDraft>(draft: T): Promise<T> {
+  assertFloorDraftAllowed(draft);
   const db = await openDatabase();
   const key = await getDeviceKey(db);
   const envelope = await encryptDraft(key, draft);
+  // scopeId is written for BOTH kinds, and for a service draft it equals taskId -- so the scope
+  // string a new service record produces is byte-identical to what Tier 1 produced, and old and
+  // new records decrypt through the same path.
   const record: StoredDraftRecord = {
-    draftId: draft.draftId, taskId: draft.taskId, syncState: draft.syncState, createdAt: draft.createdAt, envelope,
+    draftId: draft.draftId,
+    taskId: isUnscheduledServiceDraft(draft) ? undefined : draft.taskId,
+    scopeId: draftSubjectOf(draft),
+    kind: draftKindOf(draft),
+    syncState: draft.syncState, createdAt: draft.createdAt, envelope,
   };
   const transaction = db.transaction(DRAFT_STORE, "readwrite");
   transaction.objectStore(DRAFT_STORE).put(record);
@@ -238,33 +286,37 @@ export async function saveServiceDraft(draft: OfflineServiceDraft): Promise<Offl
 export async function listServiceDraftEntries(): Promise<DraftListEntry[]> {
   const db = await openDatabase();
   const records = await request(db.transaction(DRAFT_STORE).objectStore(DRAFT_STORE).getAll()) as StoredDraftRecord[];
-  return records.map(({ draftId, taskId, syncState, createdAt }) => ({ draftId, taskId, syncState, createdAt }));
+  return records.map(({ draftId, taskId, kind, syncState, createdAt }) => ({
+    draftId, taskId, kind: kind ?? "service_task", syncState, createdAt,
+  }));
 }
 
-export async function readServiceDraft(draftId: string, identity: OfflineFloorIdentity): Promise<OfflineServiceDraft | undefined> {
+export async function readServiceDraft(draftId: string, identity: OfflineFloorIdentity): Promise<OfflineFloorDraft | undefined> {
   const db = await openDatabase();
   const record = await request(db.transaction(DRAFT_STORE).objectStore(DRAFT_STORE).get(draftId)) as StoredDraftRecord | undefined;
   if (!record) return undefined;
   const key = await getDeviceKey(db);
-  const expectedScope = draftScope(identity.organizationId, identity.profileId, record.taskId, record.draftId);
+  const expectedScope = draftScope(
+    identity.organizationId, identity.profileId, scopeSubjectOf(record), record.draftId,
+  );
   return decryptDraft(key, record.envelope, expectedScope);
 }
 
 /** Full, decrypted drafts for the review list -- used only where the content itself must be shown. */
-export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Promise<OfflineServiceDraft[]> {
+export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Promise<OfflineFloorDraft[]> {
   const entries = await listServiceDraftEntries();
   const drafts = await Promise.all(entries.map((entry) => readServiceDraft(entry.draftId, identity)));
-  return drafts.filter((draft): draft is OfflineServiceDraft => draft !== undefined);
+  return drafts.filter((draft): draft is OfflineFloorDraft => draft !== undefined);
 }
 
 export async function updateServiceDraft(
   draftId: string,
-  patch: Partial<Pick<OfflineServiceDraft, "syncState" | "lastSyncOutcome" | "lastSyncError">>,
+  patch: Partial<Pick<OfflineFloorDraft, "syncState" | "lastSyncOutcome" | "lastSyncError">>,
   identity: OfflineFloorIdentity,
-): Promise<OfflineServiceDraft | undefined> {
+): Promise<OfflineFloorDraft | undefined> {
   const draft = await readServiceDraft(draftId, identity);
   if (!draft) return undefined;
-  const updated: OfflineServiceDraft = { ...draft, ...patch, updatedAt: new Date().toISOString() };
+  const updated = { ...draft, ...patch, updatedAt: new Date().toISOString() } as OfflineFloorDraft;
   return saveServiceDraft(updated);
 }
 

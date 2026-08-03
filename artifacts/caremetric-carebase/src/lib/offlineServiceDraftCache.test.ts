@@ -1,6 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { saveServiceDraft } from "./offlineServiceDraftCache";
-import type { OfflineServiceDraft } from "./offlineServiceDraftSafety";
+import { readServiceDraft, saveServiceDraft } from "./offlineServiceDraftCache";
+import type { OfflineServiceDraft, OfflineUnscheduledServiceDraft } from "./offlineServiceDraftSafety";
+
+function unscheduledDraft(
+  overrides: Partial<OfflineUnscheduledServiceDraft> = {},
+): OfflineUnscheduledServiceDraft {
+  return {
+    kind: "unscheduled_service",
+    draftId: "unsched-1",
+    residentId: "resident-1",
+    residentDisplayLabel: "Jamie Resident - Room 12",
+    organizationId: "org-1",
+    facilityId: "facility-1",
+    profileId: "profile-1",
+    serviceKind: "unscheduled_toileting",
+    occurredAt: "2026-08-02T12:30:00.000Z",
+    durationMinutes: 10,
+    requiresTwoStaff: false,
+    note: "Assisted after a fall risk moment.",
+    idempotencyKey: "idem-unsched-1",
+    createdAt: "2026-08-02T12:31:00.000Z",
+    updatedAt: "2026-08-02T12:31:00.000Z",
+    syncState: "draft",
+    lastSyncOutcome: null,
+    lastSyncError: null,
+    ...overrides,
+  };
+}
 
 /**
  * A minimal, purpose-built fake of just the IndexedDB surface offlineServiceDraftCache.ts touches.
@@ -105,6 +131,10 @@ function fakeIndexedDB() {
       stores.get("device-key")!.data.set("content", key);
     },
     draftStoreHas: (draftId: string) => stores.get("service-drafts")?.data.has(draftId) ?? false,
+    readStoredRecord: (draftId: string) => stores.get("service-drafts")?.data.get(draftId) as Record<string, unknown> | undefined,
+    writeStoredRecord: (draftId: string, record: Record<string, unknown>) => {
+      stores.get("service-drafts")!.data.set(draftId, record);
+    },
   };
 }
 
@@ -154,5 +184,65 @@ describe("saveServiceDraft transaction safety", () => {
   it("rejects, rather than silently resolving, when the put succeeds but its transaction later aborts", async () => {
     fake.forceNextWriteAbort(true);
     await expect(saveServiceDraft(draft())).rejects.toThrow();
+  });
+});
+
+describe("draft kinds share one store (BACKLOG.md E5 Tier 2)", () => {
+  let fake: ReturnType<typeof fakeIndexedDB>;
+  const identity = { organizationId: "org-1", profileId: "profile-1", role: "employee" };
+
+  beforeEach(async () => {
+    fake = fakeIndexedDB();
+    vi.stubGlobal("indexedDB", fake.stub);
+    await fake.seedDeviceKey();
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("round-trips an unscheduled draft, which has no task at all", async () => {
+    await saveServiceDraft(unscheduledDraft());
+    await expect(readServiceDraft("unsched-1", identity)).resolves.toMatchObject({
+      kind: "unscheduled_service",
+      residentId: "resident-1",
+      serviceKind: "unscheduled_toileting",
+    });
+  });
+
+  it("binds an unscheduled draft's envelope to the resident, so another identity cannot open it", async () => {
+    await saveServiceDraft(unscheduledDraft());
+    await expect(
+      readServiceDraft("unsched-1", { ...identity, profileId: "someone-else" }),
+    ).rejects.toThrow();
+  });
+
+  // THE migration hazard. Records written before Tier 2 have neither `kind` nor `scopeId`, and
+  // their envelope was sealed against a scope built from taskId. If a reader stopped falling back
+  // to taskId, every not-yet-synced draft already on an aide's device would fail to decrypt -- on
+  // the one device holding the only copy of that documentation, with no network to re-fetch it.
+  it("still decrypts a pre-Tier-2 record that has neither kind nor scopeId", async () => {
+    await saveServiceDraft(draft());
+    const stored = fake.readStoredRecord("draft-1")!;
+    expect(stored.scopeId).toBe("task-1");
+    expect(stored.kind).toBe("service_task");
+
+    const legacy = { ...stored };
+    delete legacy.scopeId;
+    delete legacy.kind;
+    fake.writeStoredRecord("draft-1", legacy);
+
+    await expect(readServiceDraft("draft-1", identity)).resolves.toMatchObject({
+      draftId: "draft-1",
+      taskId: "task-1",
+      response: "completed_as_planned",
+    });
+  });
+
+  // The other half of that guarantee: a service draft written NOW must produce the same scope
+  // string Tier 1 produced, or old and new records would need two different read paths.
+  it("writes a service draft's scopeId equal to its taskId, keeping the scope string unchanged", async () => {
+    await saveServiceDraft(draft({ draftId: "draft-2", taskId: "task-2", idempotencyKey: "idem-2" }));
+    const stored = fake.readStoredRecord("draft-2")!;
+    expect(stored.scopeId).toBe(stored.taskId);
+    expect(stored.envelope).toMatchObject({ additionalData: "org-1:profile-1:task-2:draft-2" });
   });
 });

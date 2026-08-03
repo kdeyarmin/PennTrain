@@ -8,8 +8,10 @@ import {
   type DraftListEntry, type OfflineFloorIdentity,
 } from "@/lib/offlineServiceDraftCache";
 import {
-  assertServiceDraftAllowed, NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
-  type OfflineDraftSyncOutcome, type OfflineServiceDraft,
+  assertServiceDraftAllowed, assertUnscheduledServiceDraftAllowed, isUnscheduledServiceDraft,
+  NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
+  type OfflineDraftSyncOutcome, type OfflineFloorDraft, type OfflineServiceDraft,
+  type OfflineUnscheduledServiceDraft,
 } from "@/lib/offlineServiceDraftSafety";
 import { followUpFieldsFor } from "@/lib/serviceExceptionFollowUp";
 import type { CompletionResponse } from "@/lib/serviceDeliveryContract";
@@ -42,7 +44,31 @@ function rejectedMessage(errorMessage: string | null): string {
 }
 
 /** Plain-text summary of a draft, for the "copy note" affordance on an overdue or flagged draft. */
-export function formatDraftNoteForCopy(draft: OfflineServiceDraft): string {
+/**
+ * One-line summary for the drafts panel, for either kind.
+ *
+ * Lives here beside formatDraftNoteForCopy rather than in the panel so the two descriptions of a
+ * draft cannot say different things about the same record.
+ */
+export function describeDraft(draft: OfflineFloorDraft): string {
+  if (isUnscheduledServiceDraft(draft)) {
+    return `${draft.serviceKind.replace(/_/g, " ")} · unscheduled`;
+  }
+  return `${draft.serviceName} · ${draft.response}`;
+}
+
+export function formatDraftNoteForCopy(draft: OfflineFloorDraft): string {
+  if (isUnscheduledServiceDraft(draft)) {
+    const unscheduledLines = [
+      `${draft.residentDisplayLabel} — ${draft.serviceKind.replace(/_/g, " ")} (unscheduled)`,
+      `Occurred: ${new Date(draft.occurredAt).toLocaleString()}`,
+    ];
+    if (draft.durationMinutes !== null) unscheduledLines.push(`Duration: ${draft.durationMinutes} minutes`);
+    if (draft.requiresTwoStaff) unscheduledLines.push("Required two staff");
+    if (draft.note) unscheduledLines.push(`Note: ${draft.note}`);
+    unscheduledLines.push(`Saved on this device: ${new Date(draft.createdAt).toLocaleString()}`);
+    return unscheduledLines.join("\n");
+  }
   const lines = [
     `${draft.residentDisplayLabel} — ${draft.serviceName}`,
     `Response: ${draft.response}`,
@@ -72,6 +98,20 @@ export interface NewOfflineServiceDraftInput {
   exceptionDetails: OfflineServiceDraft["exceptionDetails"];
 }
 
+export interface NewOfflineUnscheduledDraftInput {
+  residentId: string;
+  residentDisplayLabel: string;
+  organizationId: string;
+  facilityId: string;
+  /** One of resident_unscheduled_services' closed set; the server is authoritative. */
+  serviceKind: string;
+  /** When the care actually happened, which is not when it was written down. */
+  occurredAt: string;
+  durationMinutes: number | null;
+  requiresTwoStaff: boolean;
+  note: string | null;
+}
+
 /**
  * Plaintext-only listing (draftId/taskId/syncState/createdAt) for the panel's counts -- cheap, no
  * decryption. Expired drafts are purged as part of the same read, since this is the surface every
@@ -95,7 +135,7 @@ export function useUnsyncedServiceDrafts() {
   return useQuery({
     queryKey: [...QUERY_KEY, "full", user?.id],
     enabled: Boolean(user?.id && user.organizationId && user.role === "employee" && draftsSupported()),
-    queryFn: async (): Promise<OfflineServiceDraft[]> => {
+    queryFn: async (): Promise<OfflineFloorDraft[]> => {
       if (!user?.id || !user.organizationId) return [];
       await purgeExpiredServiceDrafts();
       return readAllServiceDrafts(floorIdentity(user.id, user.organizationId));
@@ -163,9 +203,23 @@ async function ensureRegisteredDeviceId(identity: OfflineFloorIdentity): Promise
  * conflict/stale/rejected keep it, labeled, for a human to review and dismiss; wipe_required wipes
  * the entire local store, matching an explicit device revoke.
  */
-async function syncDraft(identity: OfflineFloorIdentity, draft: OfflineServiceDraft): Promise<OfflineDraftSyncOutcome> {
-  const deviceId = await ensureRegisteredDeviceId(identity);
-  const { data, error } = await supabase.rpc("sync_offline_service_task_draft", {
+// Both kinds share everything after the call: the outcome handling below is what makes a draft
+// disappear, get flagged, or trigger a wipe, and duplicating it per kind is how the two would
+// drift. Only the RPC and its arguments differ.
+async function callSyncRpc(deviceId: string, draft: OfflineFloorDraft) {
+  if (isUnscheduledServiceDraft(draft)) {
+    return supabase.rpc("sync_offline_unscheduled_service_draft", {
+      p_device_id: deviceId,
+      p_resident_id: draft.residentId,
+      p_idempotency_key: draft.idempotencyKey,
+      p_client_occurred_at: draft.occurredAt,
+      p_service_kind: draft.serviceKind,
+      p_duration_minutes: draft.durationMinutes ?? undefined,
+      p_requires_two_staff: draft.requiresTwoStaff,
+      p_note: draft.note ?? undefined,
+    });
+  }
+  return supabase.rpc("sync_offline_service_task_draft", {
     p_device_id: deviceId,
     p_task_id: draft.taskId,
     p_idempotency_key: draft.idempotencyKey,
@@ -173,6 +227,11 @@ async function syncDraft(identity: OfflineFloorIdentity, draft: OfflineServiceDr
     p_response: draft.response,
     p_exception_details: draft.exceptionDetails as Json,
   });
+}
+
+async function syncDraft(identity: OfflineFloorIdentity, draft: OfflineFloorDraft): Promise<OfflineDraftSyncOutcome> {
+  const deviceId = await ensureRegisteredDeviceId(identity);
+  const { data, error } = await callSyncRpc(deviceId, draft);
   if (error) throw error;
   const result = data as { outcome: OfflineDraftSyncOutcome; errorMessage: string | null };
   if (result.outcome === "wipe_required") {
@@ -187,6 +246,57 @@ async function syncDraft(identity: OfflineFloorIdentity, draft: OfflineServiceDr
     );
   }
   return result.outcome;
+}
+
+
+/**
+ * Capture unscheduled care offline (BACKLOG.md E5 Tier 2).
+ *
+ * Separate from useSaveOfflineServiceDraft rather than a mode on it: the two drafts share no
+ * required field beyond identity, and folding them together would make taskId, response and the
+ * acceptable-response set optional for both -- which is precisely the shape
+ * assertServiceDraftAllowed exists to refuse.
+ *
+ * occurredAt is the caller's, not now(): an aide writes this up minutes or hours after the care,
+ * and the server treats a plausible client time as authoritative for occurred_at. createdAt stays
+ * the moment it was written, because that is what the purge clock and the "unsynced for N hours"
+ * warning are about.
+ */
+export function useSaveOfflineUnscheduledDraft() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewOfflineUnscheduledDraftInput): Promise<OfflineUnscheduledServiceDraft> => {
+      if (!user?.id || !user.organizationId || user.role !== "employee") {
+        throw new Error("Offline service documentation requires an active employee account.");
+      }
+      await initializeOfflineFloorDevice(floorIdentity(user.id, user.organizationId));
+      const now = new Date().toISOString();
+      const draft: OfflineUnscheduledServiceDraft = {
+        kind: "unscheduled_service",
+        draftId: crypto.randomUUID(),
+        residentId: input.residentId,
+        residentDisplayLabel: input.residentDisplayLabel,
+        organizationId: input.organizationId,
+        facilityId: input.facilityId,
+        profileId: user.id,
+        serviceKind: input.serviceKind,
+        occurredAt: input.occurredAt,
+        durationMinutes: input.durationMinutes,
+        requiresTwoStaff: input.requiresTwoStaff,
+        note: input.note,
+        idempotencyKey: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+        syncState: "draft",
+        lastSyncOutcome: null,
+        lastSyncError: null,
+      };
+      assertUnscheduledServiceDraftAllowed(draft);
+      return saveServiceDraft(draft);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
 }
 
 export function useSyncOfflineServiceDraft() {
