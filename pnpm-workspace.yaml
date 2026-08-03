@@ -56,8 +56,13 @@ onlyBuiltDependencies:
 
 overrides:
   # Patch a transitive fast-uri (via ajv) off the range flagged by GHSA-v2hh-gcrm-f6hx
-  # (host confusion via a literal backslash authority delimiter); 3.1.4 is the fix.
-  'fast-uri@>=3.0.0 <=3.1.3': 3.1.4
+  # (host confusion via a literal backslash authority delimiter); 3.1.4 was the fix at the
+  # time, then GHSA-7p8r-x3mc-p8w7 (host confusion via a backslash authority introducer)
+  # widened the affected range through 3.1.4 -- taking this override's own previous target
+  # with it. Bumped to 3.1.5, the fix for both. Same live-advisory-database caveat as the
+  # brace-expansion override below: this goes red on every branch the day the advisory
+  # publishes, not just this one.
+  'fast-uri@>=3.0.0 <=3.1.4': 3.1.5
   # Patch a transitive postcss (via tailwindcss/vite) off the range flagged by
   # GHSA-r28c-9q8g-f849 (path traversal in sourceMappingURL auto-loading -> arbitrary
   # .map disclosure); fixed in 8.5.18, pinned to the latest mature 8.5.x patch.
@@ -94,7 +99,7 @@ overrides:
   '@tailwindcss/oxide>@tailwindcss/oxide-linux-x64-musl': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-arm64-msvc': '-'
   esbuild: 0.28.1
-  fast-uri: 3.1.4
+  fast-uri: 3.1.5
   esbuild>@esbuild/aix-ppc64: '-'
   esbuild>@esbuild/android-arm: '-'
   esbuild>@esbuild/android-arm64: '-'
