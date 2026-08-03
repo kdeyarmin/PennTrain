@@ -205,6 +205,10 @@ begin
     );
   end if;
 
+  -- Existence only -- nothing is read off this row for scoping (see the receipt insert below). It is
+  -- still load-bearing: offline_observation_draft_receipts.resident_id carries a foreign key, so a
+  -- bogus id would abort the receipt insert with a raw constraint violation instead of the clean
+  -- JSON outcome every other failure path returns, breaking the always-write-a-receipt guarantee.
   select * into v_resident from public.residents where id = p_resident_id;
   if not found then raise exception 'Resident not found' using errcode = 'P0002'; end if;
 
@@ -235,11 +239,17 @@ begin
     end;
   end if;
 
+  -- Scoped from the device row, which was proven to belong to the caller above -- not from the
+  -- resident, whose id is caller-supplied. Sourcing organization_id from p_resident_id would let a
+  -- caller holding another tenant's resident UUID stamp that foreign org onto a row in their own
+  -- sync history. Nothing reads this column across tenants today, so this is consistency rather than
+  -- a live hole -- but it is the same rule sync_offline_service_task_draft already follows, and the
+  -- reason it follows it.
   insert into public.offline_observation_draft_receipts(
     organization_id, profile_id, device_id, resident_id, idempotency_key, client_occurred_at,
     observation_type, observation_id, outcome, error_message
   ) values (
-    v_resident.organization_id, auth.uid(), p_device_id, p_resident_id, p_idempotency_key,
+    v_device.organization_id, v_device.profile_id, v_device.id, p_resident_id, p_idempotency_key,
     p_client_occurred_at, p_observation_type, v_observation_id, v_outcome, v_error_message
   ) returning * into v_existing;
 
