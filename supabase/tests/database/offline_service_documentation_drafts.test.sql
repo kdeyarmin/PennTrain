@@ -1,11 +1,11 @@
 begin;
-select plan(101);
+select plan(102);
 
 -- E5 Tier 1: offline service documentation drafts + conflict rules
 -- (20260802030000_offline_service_documentation_drafts.sql).
 --
 -- The table this file tests was renamed from offline_service_draft_receipts to
--- offline_draft_receipts by 20260803140000 (BACKLOG.md item 6), which also folded in
+-- offline_draft_receipts by 20260803140000 (BACKLOG.md item 8), which also folded in
 -- offline_observation_draft_receipts as a fourth draft_kind (clinical_observation). Tiers
 -- 1-3 below are otherwise unchanged from the LIVE behaviour; Tier 4 at the end of this file
 -- is the vitals lane's first pgTAP coverage -- it shipped in 20260803110000 with none.
@@ -918,7 +918,7 @@ select ok(
 );
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
--- Tier 4: vitals capture (BACKLOG.md item 6 -- offline_observation_draft_receipts folded in)
+-- Tier 4: vitals capture (BACKLOG.md item 8 -- offline_observation_draft_receipts folded in)
 --
 -- sync_offline_clinical_observation_draft shipped in 20260803110000 with no pgTAP coverage at
 -- all -- this is its first. It used to write its own table; 20260803140000 (this same
@@ -1035,23 +1035,36 @@ select is(
   'wipe_required never charts anything'
 );
 
--- THE SHARED LEDGER, ASSERTED BEHAVIOURALLY, A FOURTH TIME. unsched-key-4 is a Tier 2 receipt on
--- this same device (a rejected unscheduled service). Replaying it through the vitals RPC must
--- return that ORIGINAL outcome -- proving the unification actually spans all four kinds, not just
--- the three that already shared a table before this migration.
+-- THE SHARED LEDGER, ASSERTED BEHAVIOURALLY, A FOURTH TIME -- BUT NOT BY REPLAYING THE OTHER KIND'S
+-- OUTCOME. unsched-key-4 is a Tier 2 receipt on this same device (a rejected unscheduled service).
+-- Unlike the Tier 3 RPC above (a byte-for-byte reproduction of already-deployed code whose client
+-- already understands the full outcome vocabulary), the vitals RPC's client only understands
+-- {applied, duplicate, rejected, wipe_required} -- the vocabulary its own retired table's CHECK
+-- constraint used to guarantee -- so it must never hand back another kind's raw outcome (a
+-- conflict/stale from a different lane would have no case in that client). It still has to refuse
+-- the reused key, just generically: a fixed 'rejected' plus a message that names the real reason,
+-- not whatever the other kind's receipt happened to say.
 select is(
   (select public.sync_offline_clinical_observation_draft(
     (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000201',
     'unsched-key-4', now(), 'heart_rate', now(), 80, null, null, '/min', null, null, null
   )->>'outcome'),
   'rejected',
-  'a key already spent on another draft kind replays that kind''s outcome through the vitals RPC too'
+  'a key already spent on another draft kind is rejected on the vitals RPC too, not silently applied'
+);
+select is(
+  (select public.sync_offline_clinical_observation_draft(
+    (select id from t_ids where key = 'device-c'), '65000000-0000-4000-8000-000000000201',
+    'unsched-key-4', now(), 'heart_rate', now(), 80, null, null, '/min', null, null, null
+  )->>'errorMessage'),
+  'This sync key was already used by a different offline draft.',
+  'and the message names the real reason instead of echoing the other kind''s stored error text'
 );
 select is(
   (select count(*)::int from public.clinical_observations
    where resident_id = '65000000-0000-4000-8000-000000000201'),
   1,
-  'and the cross-kind replay charts nothing new'
+  'and the cross-kind collision is caught before record_clinical_observation ever runs -- no phantom reading charted with no receipt to show for it'
 );
 
 select ok(

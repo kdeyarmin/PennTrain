@@ -1,4 +1,4 @@
--- Unify the offline draft receipt ledger (BACKLOG.md item 6, decided 2026-08-03).
+-- Unify the offline draft receipt ledger (BACKLOG.md item 8, decided 2026-08-03).
 --
 -- THE DECISION, RESTATED. 20260803090000 argued for one receipt ledger and then
 -- 20260803110000 added a second table anyway (offline_observation_draft_receipts), on the
@@ -184,7 +184,7 @@ comment on table public.offline_draft_receipts is
   '(device_id, idempotency_key) holds across all of them, and so there is one place to audit '
   'what a device sent. Append-only; the outcome column is what the client uses to decide '
   'whether the local draft is cleared, retried, or flagged for human review. Formerly '
-  'offline_service_draft_receipts, renamed and widened by 20260803140000 (BACKLOG.md item 6).';
+  'offline_service_draft_receipts, renamed and widened by 20260803140000 (BACKLOG.md item 8).';
 comment on column public.offline_draft_receipts.draft_kind is
   'Which offline surface produced this attempt. service_task rows carry task_id + response; '
   'unscheduled_service rows carry resident_id + service_kind; change_observation rows carry '
@@ -234,7 +234,7 @@ update app_private.audit_entity_manifest
         'trail, so a row trigger would duplicate it. Reachable from a resident via task_id, '
         'resident_id, or observation_id depending on draft_kind. Formerly '
         'offline_service_draft_receipts; unified with offline_observation_draft_receipts by '
-        '20260803140000 (BACKLOG.md item 6).',
+        '20260803140000 (BACKLOG.md item 8).',
       updated_at = now()
   where table_name = 'offline_service_draft_receipts';
 delete from app_private.audit_entity_manifest
@@ -301,8 +301,16 @@ begin
   -- what actually happened the first time: reporting a blanket 'duplicate' over a 'rejected' receipt
   -- would tell the client the reading was stored and it would delete the only local copy of one that
   -- never applied.
+  --
+  -- Scoped to this draft_kind, unlike the service lane's shared lookup: the unique constraint spans
+  -- all four kinds, but this lane's client only understands {applied, duplicate, rejected,
+  -- wipe_required} -- the vocabulary its own retired table's CHECK constraint used to guarantee.
+  -- Without this filter, a device_id/idempotency_key collision with another kind's row (astronomically
+  -- unlikely with crypto.randomUUID() keys, but not structurally prevented by the shared constraint)
+  -- could hand this lane's client a 'conflict' or 'stale' outcome it has no case for.
   select * into v_existing from public.offline_draft_receipts
-  where device_id = p_device_id and idempotency_key = p_idempotency_key;
+  where device_id = p_device_id and idempotency_key = p_idempotency_key
+    and draft_kind = 'clinical_observation';
   if found then
     return jsonb_build_object(
       'receiptId', v_existing.id,
@@ -321,6 +329,28 @@ begin
       -- The stored error belonged to the earlier attempt; on a wipe it would only misdirect a
       -- caregiver toward a validation problem instead of the revocation that now matters.
       'errorMessage', case when v_wipe then null else v_existing.error_message end
+    );
+  end if;
+
+  -- The scoped lookup above only rules out a replay of THIS lane's own prior attempt; the shared
+  -- unique constraint still spans all four kinds, so the same key could belong to someone else's
+  -- kind instead. Checked here, before record_clinical_observation runs, rather than left for the
+  -- receipt insert below to discover via a raw unique_violation: catching it there (see that
+  -- insert's own exception block, kept as a defensive backstop) would still leave a vitals reading
+  -- charted with no receipt to show for it, since a caught exception only unwinds the sub-block it
+  -- occurred in, not record_clinical_observation's already-committed effects earlier in this call.
+  -- The device row's own `for update` lock above already serializes concurrent calls for this
+  -- device, so this check and the insert cannot race against a same-device caller of another kind.
+  if exists (
+    select 1 from public.offline_draft_receipts
+    where device_id = p_device_id and idempotency_key = p_idempotency_key
+  ) then
+    return jsonb_build_object(
+      'receiptId', null,
+      'observationId', null,
+      'abnormalFlag', null,
+      'outcome', 'rejected',
+      'errorMessage', 'This sync key was already used by a different offline draft.'
     );
   end if;
 
@@ -363,14 +393,31 @@ begin
   -- sync history. Nothing reads this column across tenants today, so this is consistency rather than
   -- a live hole -- but it is the same rule sync_offline_service_task_draft already follows, and the
   -- reason it follows it.
-  insert into public.offline_draft_receipts(
-    organization_id, profile_id, device_id, draft_kind, resident_id, idempotency_key,
-    client_occurred_at, observation_type, observation_id, outcome, error_message
-  ) values (
-    v_device.organization_id, v_device.profile_id, v_device.id, 'clinical_observation',
-    p_resident_id, p_idempotency_key,
-    p_client_occurred_at, p_observation_type, v_observation_id, v_outcome, v_error_message
-  ) returning * into v_receipt;
+  begin
+    insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, resident_id, idempotency_key,
+      client_occurred_at, observation_type, observation_id, outcome, error_message
+    ) values (
+      v_device.organization_id, v_device.profile_id, v_device.id, 'clinical_observation',
+      p_resident_id, p_idempotency_key,
+      p_client_occurred_at, p_observation_type, v_observation_id, v_outcome, v_error_message
+    ) returning * into v_receipt;
+  exception
+    -- Defensive backstop, not the primary defense -- the cross-kind existence check above already
+    -- returns before record_clinical_observation runs for a key any other kind is using, and the
+    -- device row's `for update` lock closes the race window between that check and this insert. If
+    -- this branch is ever reached anyway, "always return a clean outcome, never a raw constraint
+    -- violation" is this function's own guarantee (see the resident-lookup comment above), so it
+    -- applies here too.
+    when unique_violation then
+      return jsonb_build_object(
+        'receiptId', null,
+        'observationId', null,
+        'abnormalFlag', null,
+        'outcome', 'rejected',
+        'errorMessage', 'This sync key was already used by a different offline draft.'
+      );
+  end;
 
   -- Both sibling sync RPCs stamp this (sync_offline_service_task_draft, sync_offline_learning_action);
   -- without it a device that only ever syncs vitals reads as never-synced.
