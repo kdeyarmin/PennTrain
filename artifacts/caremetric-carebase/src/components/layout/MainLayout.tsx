@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
+import { OfflineSyncManager } from "@/components/offline/OfflineSyncManager";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { CareMetricCopilot } from "@/components/CareMetricCopilot";
 import { EndUserExperiencePanel } from "./EndUserExperiencePanel";
@@ -159,6 +160,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <MobileSidebar open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
       <div className="flex-1 flex flex-col min-w-0">
         <ImpersonationBanner />
+        {/* Owns the offline draft sync loop for the whole signed-in session, and renders the
+            critical-reading warning a background sync can raise. In the shell rather than on a
+            page because the pages that used to carry it are not the ones a caregiver sits on while
+            a draft is waiting -- BACKLOG.md open question 7a. Its own boundary: a crash in the
+            sync loop must not blank the app chrome. */}
+        <RouteErrorBoundary>
+          <OfflineSyncManager />
+        </RouteErrorBoundary>
         <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto bg-background focus:outline-none">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">

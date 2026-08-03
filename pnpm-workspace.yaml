@@ -55,9 +55,17 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
-  # Patch a transitive fast-uri (via ajv) off the range flagged by GHSA-v2hh-gcrm-f6hx
-  # (host confusion via a literal backslash authority delimiter); 3.1.4 is the fix.
-  'fast-uri@>=3.0.0 <=3.1.3': 3.1.4
+  # Patch a transitive fast-uri (via ajv) off the range flagged by GHSA-v2hh-gcrm-f6hx (host
+  # confusion via a literal backslash authority delimiter), then GHSA-7p8r-x3mc-p8w7, which found
+  # that fix bypassable via a BACKSLASH authority introducer and widened the affected range to
+  # >=3.0.0 <3.1.5 -- taking 3.1.4, this override's own previous target, with it. Bumped to 3.1.5.
+  # Deliberately not 4.x: fast-uri is transitive via ajv, and a major bump risks an API break for a
+  # patch that does not need one.
+  #
+  # Same shape as the brace-expansion entry below, and the same caveat applies: this surfaces as a
+  # CI failure on every branch the day the advisory publishes, main included, because
+  # check-dependencies.mjs audits the live advisory database rather than a snapshot.
+  'fast-uri@>=3.0.0 <=3.1.4': 3.1.5
   # Patch a transitive postcss (via tailwindcss/vite) off the range flagged by
   # GHSA-r28c-9q8g-f849 (path traversal in sourceMappingURL auto-loading -> arbitrary
   # .map disclosure); fixed in 8.5.18, pinned to the latest mature 8.5.x patch.
@@ -94,7 +102,6 @@ overrides:
   '@tailwindcss/oxide>@tailwindcss/oxide-linux-x64-musl': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-arm64-msvc': '-'
   esbuild: 0.28.1
-  fast-uri: 3.1.4
   esbuild>@esbuild/aix-ppc64: '-'
   esbuild>@esbuild/android-arm: '-'
   esbuild>@esbuild/android-arm64: '-'

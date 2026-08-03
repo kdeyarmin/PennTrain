@@ -13,6 +13,7 @@
  * `conflict` or `stale` -- see the header of 20260803110000_offline_clinical_observation_drafts.sql.
  */
 import type { ObservationType } from "@/hooks/useClinicalObservations";
+import { assertDraftLifecycleFields } from "./offlineDraftFieldGuards";
 import { OBSERVATION_CONFIG } from "./clinicalObservations";
 
 /** Where a draft sits in its own lifecycle. Mirrors OfflineDraftSyncState minus conflict/stale. */
@@ -42,6 +43,21 @@ export interface OfflineObservationSyncResult {
   /** Server-derived flag for the charted reading, so a delayed sync can still raise a critical value. */
   abnormalFlag: string | null;
 }
+
+/**
+ * The declared states, as a runtime list the safety gate can check membership against. Exhaustive
+ * by construction via Record<OfflineObservationSyncState, true> -- see the service lane's twin.
+ *
+ * Deliberately NOT the same set as the service lane's: no `conflict` or `stale`, because a vital
+ * sign is an observation this caregiver personally took and there is no shared row for anyone else
+ * to document first or for a plan revision to supersede. The RULE is shared
+ * (offlineDraftFieldGuards.ts); the alphabet is not.
+ */
+const ALL_OBSERVATION_SYNC_STATES: Record<OfflineObservationSyncState, true> = {
+  draft: true, syncing: true, applied: true, duplicate: true, rejected: true, error: true,
+};
+export const OFFLINE_OBSERVATION_SYNC_STATES =
+  Object.keys(ALL_OBSERVATION_SYNC_STATES) as OfflineObservationSyncState[];
 
 export const UNRESOLVED_OBSERVATION_DRAFT_STATES: OfflineObservationSyncState[] = ["draft", "syncing", "error"];
 export const NEEDS_REVIEW_OBSERVATION_DRAFT_STATES: OfflineObservationSyncState[] = ["rejected"];
@@ -97,6 +113,7 @@ function assertFiniteOrNull(value: number | null, field: string): void {
  * Throws on the first problem -- a hard gate, not a best-effort sanitizer.
  */
 export function assertObservationDraftAllowed(draft: OfflineObservationDraft): void {
+  assertDraftLifecycleFields(draft, OFFLINE_OBSERVATION_SYNC_STATES);
   assertNonEmptyId(draft.draftId, "draftId");
   assertNonEmptyId(draft.residentId, "residentId");
   assertNonEmptyId(draft.organizationId, "organizationId");

@@ -23,6 +23,7 @@
 import {
   COMPLETION_RESPONSES, type CompletionResponse,
 } from "./serviceDeliveryContract";
+import { assertDraftLifecycleFields } from "./offlineDraftFieldGuards";
 import { followUpFieldsFor, type FollowUpAnswers } from "./serviceExceptionFollowUp";
 
 /** Where a draft sits in its own lifecycle. See UnsyncedDraftsPanel.tsx / useOfflineServiceDrafts.ts. */
@@ -42,6 +43,20 @@ export type OfflineDraftSyncState =
 /** Mirrors sync_offline_service_task_draft's `outcome` column exactly. */
 export type OfflineDraftSyncOutcome =
   | "applied" | "duplicate" | "conflict" | "stale" | "rejected" | "wipe_required";
+
+/**
+ * The declared states, as a runtime list the safety gate can check membership against.
+ *
+ * Typed as Record<OfflineDraftSyncState, true> rather than written as a plain array so the compiler
+ * enforces that it stays exhaustive: add a state to the union above and forget it here, and tsc
+ * fails on this object instead of the gate silently rejecting a legitimate draft at runtime, on a
+ * device, where nobody would see it.
+ */
+const ALL_DRAFT_SYNC_STATES: Record<OfflineDraftSyncState, true> = {
+  draft: true, syncing: true, applied: true, duplicate: true,
+  conflict: true, stale: true, rejected: true, error: true,
+};
+export const OFFLINE_DRAFT_SYNC_STATES = Object.keys(ALL_DRAFT_SYNC_STATES) as OfflineDraftSyncState[];
 
 /** Draft states that still need connectivity to resolve; the 24h/72h purge clock applies to these. */
 export const UNRESOLVED_DRAFT_STATES: OfflineDraftSyncState[] = ["draft", "syncing", "error"];
@@ -187,6 +202,7 @@ function assertTextWithinLimit(value: string | null | undefined, field: string):
  * Throws on the first problem found -- this is a hard gate, not a best-effort sanitizer.
  */
 export function assertServiceDraftAllowed(draft: OfflineServiceDraft): void {
+  assertDraftLifecycleFields(draft, OFFLINE_DRAFT_SYNC_STATES);
   assertNonEmptyId(draft.draftId, "draftId");
   assertNonEmptyId(draft.taskId, "taskId");
   assertNonEmptyId(draft.residentId, "residentId");
@@ -227,6 +243,7 @@ export function assertServiceDraftAllowed(draft: OfflineServiceDraft): void {
  * disappears.
  */
 export function assertUnscheduledServiceDraftAllowed(draft: OfflineUnscheduledServiceDraft): void {
+  assertDraftLifecycleFields(draft, OFFLINE_DRAFT_SYNC_STATES);
   assertNonEmptyId(draft.draftId, "draftId");
   assertNonEmptyId(draft.residentId, "residentId");
   assertNonEmptyId(draft.organizationId, "organizationId");
@@ -255,6 +272,7 @@ export function assertUnscheduledServiceDraftAllowed(draft: OfflineUnscheduledSe
  * better refused at capture time, while the aide is still standing there and can type more.
  */
 export function assertChangeObservationDraftAllowed(draft: OfflineChangeObservationDraft): void {
+  assertDraftLifecycleFields(draft, OFFLINE_DRAFT_SYNC_STATES);
   assertNonEmptyId(draft.draftId, "draftId");
   assertNonEmptyId(draft.eventId, "eventId");
   assertNonEmptyId(draft.organizationId, "organizationId");

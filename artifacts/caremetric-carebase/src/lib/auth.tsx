@@ -11,6 +11,7 @@ import { AuthProfileError } from "@/components/AuthProfileError";
 import { isDefinitiveProfileAbsence } from "@/lib/authProfileErrors";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
+import { signedInIdentityChanged, type SessionIdentity } from "@/lib/sessionIdentity";
 import {
   isOfflineServiceDraftIdentityPending, shouldWipeOfflineServiceDraftData,
   type OfflineServiceDraftIdentitySnapshot,
@@ -26,6 +27,11 @@ export interface AuthUser {
   role: Role;
   organizationId: string | null;
   isActive: boolean;
+  /**
+   * The caller's employee facility. `undefined` until its own query settles; `null` once settled
+   * for someone with no employees row. See the query below for why it is not on the profile select.
+   */
+  facilityId?: string | null;
 }
 
 interface AuthContextType {
@@ -181,6 +187,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // auth-state-change handler immediately following, so the wipe fires proactively either way rather
   // than waiting for the store to next be opened.
   const lastOfflineServiceDraftIdentityRef = useRef<OfflineServiceDraftIdentitySnapshot | null>(null);
+  // Separate from the offline-draft snapshot above: that one answers "may this identity hold
+  // drafts" and carries no facility, this one answers "is the cache populated for someone else".
+  const lastCacheIdentityRef = useRef<SessionIdentity | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -266,6 +275,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isLoading = sessionLoading || (!!session && profileLoading);
   const isAuthenticated = !!session && !!profile && profile.is_active && !isRecoverySession;
 
+  // Facility is the authoritative scope for most resident data and lives on employees, not
+  // profiles -- so the identity comparison below cannot see a facility transfer without it.
+  //
+  // Its own query rather than an embed on the profile select above. A PostgREST embed fails the
+  // WHOLE request, so `.select("*, employees(facility_id)")` would put every sign-in behind the
+  // employees RLS policy resolving correctly for every role. Separate, this degrades to
+  // "facility unknown" instead of "cannot sign in", and the predicate is built to treat unknown as
+  // not-a-change.
+  const { data: facilityId } = useQuery({
+    queryKey: ["profile-facility", profile?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("facility_id")
+        .eq("profile_id", profile!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.facility_id ?? null;
+    },
+    enabled: !!profile?.id,
+  });
+
   const user: AuthUser | null = profile
     ? {
         id: profile.id,
@@ -275,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: profile.role as Role,
         organizationId: profile.organization_id,
         isActive: profile.is_active,
+        facilityId,
       }
     : null;
 
@@ -305,10 +337,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
       void wipeOfflineServiceDrafts();
     }
+    // BACKLOG.md open question 6. Wiping the offline drafts was only half of it: every OTHER
+    // identity transition in this file also calls queryClient.clear(), and this one -- the transition
+    // where the session survives -- did not. A cached query whose key does not itself carry the
+    // identity therefore kept serving the previous context's rows until its own staleTime lapsed.
+    // Two hooks were fixed at the point of use by putting the identity in their keys, but that
+    // treated the symptom; the cause is that nothing clears here.
+    //
+    // Deliberately NOT gated on shouldWipeOfflineServiceDraftData above, even though it is right
+    // there: that predicate treats any non-employee role as "wipe", which is correct for an
+    // employee-only draft store and would mean clearing every manager's entire cache on every
+    // evaluation. See sessionIdentity.ts.
+    //
+    // What this cannot reach: a signed storage URL already handed to the browser stays
+    // bearer-authorized for its full TTL regardless of what RLS would now say. Clearing the cache
+    // stops the app re-serving it, which is the whole of what a client can do about that.
+    const previousIdentity = lastCacheIdentityRef.current;
+    const currentCacheIdentity = current
+      ? { profileId: current.profileId, organizationId: current.organizationId,
+          role: current.role, facilityId: user?.facilityId }
+      : null;
+    lastCacheIdentityRef.current = currentCacheIdentity;
     lastOfflineServiceDraftIdentityRef.current = current
       ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
       : null;
-  }, [user?.id, user?.organizationId, user?.role, user?.isActive, session]);
+    if (signedInIdentityChanged(previousIdentity, currentCacheIdentity)) {
+      queryClient.clear();
+    }
+    // facilityId is in the dependency list, not merely in the comparison: without it this effect
+    // would never re-run on a transfer, so the predicate would never be asked.
+  }, [user?.id, user?.organizationId, user?.role, user?.isActive, user?.facilityId, session, queryClient]);
 
   useEffect(() => {
     if (!isLoading && !session && !isError) {

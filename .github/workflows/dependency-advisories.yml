@@ -1,0 +1,101 @@
+name: Dependency advisories
+
+# The PR-time gate in ci.yml only fails on advisories a branch INTRODUCES -- anything the base
+# branch already carries is reported and passed over, so a newly-published advisory no longer
+# turns every open branch red at once. That trade needs somewhere for the pre-existing half to
+# land, or a vulnerability main already ships could sit unnoticed until someone happens to push.
+#
+# This is that somewhere. It audits main strictly, on a schedule rather than on a push, because
+# an advisory publishes on the world's clock and not on this repo's commit cadence. A failure
+# opens (or bumps) one issue rather than blocking anybody's branch.
+#
+# Daily, not weekly: the three advisories that prompted this landed within a week of each other,
+# and a week's delay on a high/critical in a healthcare product is too long to defend.
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Self-test the advisory classifier
+        run: node scripts/check-dependencies.mjs --self-test
+
+      # No --base: on main there is nothing to be "pre-existing" relative to, and strict is the
+      # point of this job.
+      - name: Audit main against the live advisory database
+        id: audit
+        run: node scripts/check-dependencies.mjs
+
+      # Codex review finding: `failure()` alone is true after ANY earlier failed step, so a checkout
+      # problem, a broken classifier self-test, or an npm registry outage would open an issue
+      # asserting main ships a high/critical vulnerability. That is a false security signal, and a
+      # standing issue that gets bumped by unrelated infrastructure noise is worse than none --
+      # people stop believing it. Conditioned on the audit step's own outcome instead.
+      - name: Open or update issue on failure
+        if: steps.audit.outcome == 'failure'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const title = '[deps] High or critical advisory affects main';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              'The daily dependency audit against main failed.',
+              '',
+              `- Run: ${runUrl}`,
+              '- Script: `scripts/check-dependencies.mjs` (strict: no `--base`)',
+              '',
+              'This means a package main already ships has a high or critical advisory. Pull requests',
+              'are NOT blocked by it — the PR-time gate only fails on advisories a branch introduces —',
+              'so this issue is the signal that it needs fixing.',
+              '',
+              'Usual fix: add or bump a `pnpm-workspace.yaml` override to the first patched version,',
+              'run `pnpm install --lockfile-only`, and confirm the lockfile actually re-resolves. Note',
+              'that a follow-up advisory often widens its range to swallow the previous override target,',
+              'so check what the existing override pins to before assuming it still helps.',
+              '',
+              'Opened automatically by `dependency-advisories.yml`. Close once main is green.',
+            ].join('\n');
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 50,
+            });
+            const existing = open.find((i) => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Still failing:\n${runUrl}`,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+            });

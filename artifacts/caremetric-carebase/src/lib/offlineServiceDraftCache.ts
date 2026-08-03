@@ -19,15 +19,17 @@
  * whole -- so the plaintext columns are a fast index into the store, not a second source of truth;
  * decrypting a record always returns the complete, authoritative draft.
  */
+import { coerceListedLifecycle } from "./offlineDraftFieldGuards";
 import {
   assertFloorDraftAllowed, draftKindOf, isChangeObservationDraft, isUnscheduledServiceDraft,
+  OFFLINE_DRAFT_SYNC_STATES,
   NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
   type OfflineDraftKind, type OfflineDraftSyncOutcome, type OfflineDraftSyncState,
   type OfflineFloorDraft,
 } from "./offlineServiceDraftSafety";
 import {
   assertObservationDraftAllowed, NEEDS_REVIEW_OBSERVATION_DRAFT_STATES,
-  UNRESOLVED_OBSERVATION_DRAFT_STATES,
+  OFFLINE_OBSERVATION_SYNC_STATES, UNRESOLVED_OBSERVATION_DRAFT_STATES,
   type OfflineObservationDraft, type OfflineObservationSyncState,
 } from "./offlineObservationDraftSafety";
 
@@ -291,7 +293,8 @@ export async function listServiceDraftEntries(): Promise<DraftListEntry[]> {
   const db = await openDatabase();
   const records = await request(db.transaction(DRAFT_STORE).objectStore(DRAFT_STORE).getAll()) as StoredDraftRecord[];
   return records.map(({ draftId, taskId, kind, syncState, createdAt }) => ({
-    draftId, taskId, kind: kind ?? "service_task", syncState, createdAt,
+    draftId, taskId, kind: kind ?? "service_task",
+    ...coerceListedLifecycle(syncState, createdAt, OFFLINE_DRAFT_SYNC_STATES),
   }));
 }
 
@@ -453,7 +456,10 @@ export async function saveObservationDraft(draft: OfflineObservationDraft): Prom
 export async function listObservationDraftEntries(): Promise<ObservationDraftListEntry[]> {
   const db = await openDatabase();
   const records = await request(db.transaction(OBSERVATION_DRAFT_STORE).objectStore(OBSERVATION_DRAFT_STORE).getAll()) as StoredObservationRecord[];
-  return records.map(({ draftId, residentId, syncState, createdAt }) => ({ draftId, residentId, syncState, createdAt }));
+  return records.map(({ draftId, residentId, syncState, createdAt }) => ({
+    draftId, residentId,
+    ...coerceListedLifecycle(syncState, createdAt, OFFLINE_OBSERVATION_SYNC_STATES),
+  }));
 }
 
 export async function readObservationDraft(
