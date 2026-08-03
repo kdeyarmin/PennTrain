@@ -71,8 +71,7 @@ begin
     select 1 from app_private.product_module_resources
     where resource_schema = 'public' and resource_name = 'offline_draft_receipts'
   ) then
-    raise exception 'Renamed ledger is not registered in product_module_resources; it would lose '
-      'modules.carebase entitlement enforcement';
+    raise exception 'Renamed ledger is not registered in product_module_resources; it would lose modules.carebase entitlement enforcement';
   end if;
 end $$;
 
@@ -90,8 +89,7 @@ begin
   if not exists (
     select 1 from app_private.audit_entity_manifest where table_name = 'offline_draft_receipts'
   ) then
-    raise exception 'Renamed ledger is missing from audit_entity_manifest; it would drop out of the '
-      'audit coverage report';
+    raise exception 'Renamed ledger is missing from audit_entity_manifest; it would drop out of the audit coverage report';
   end if;
 end $$;
 
