@@ -7,9 +7,13 @@ import {
   usePublishPolicyDocumentVersion, usePolicyDocumentSignedUrl, type PolicyDocumentVersion,
 } from "@/hooks/usePolicyDocuments";
 import {
-  useListPolicyAttestationCampaigns, useCreatePolicyAttestationCampaign,
+  useListPolicyAttestationCampaigns,
   useListPolicyAttestations, useAssignPolicyAttestationToEmployee, type PolicyAttestation,
+  useCreatePolicyCampaignWithQuestions,
 } from "@/hooks/usePolicyAttestations";
+import {
+  CampaignQuestionsEditor, draftQuestionsAreValid, normalizeDraftQuestion, type DraftQuestion,
+} from "@/components/policies/CampaignQuestionsEditor";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { summarizePolicyLifecycle } from "@/lib/policyLifecycle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -261,26 +265,50 @@ function AssignCampaignDialog({
 function NewCampaignDialog({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { mutateAsync: createCampaign, isPending } = useCreatePolicyAttestationCampaign();
+  const { mutateAsync: createCampaignWithQuestions } = useCreatePolicyCampaignWithQuestions();
+  // One flag for the WHOLE operation. createCampaign's own isPending goes false the moment that
+  // first mutation resolves, while this handler may still be inserting questions -- which re-enabled
+  // the button mid-flight and let a second click create a second campaign and a second question set.
+  const [isPending, setIsPending] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [questions, setQuestions] = useState<DraftQuestion[]>([]);
+
+  const questionsValid = draftQuestionsAreValid(questions);
 
   const handleCreate = async () => {
-    if (!name.trim() || !currentVersionId || !user?.organizationId) return;
+    if (!name.trim() || !currentVersionId || !user?.organizationId || !questionsValid) return;
+    if (isPending) return;
+    setIsPending(true);
     try {
-      await createCampaign({
-        organization_id: user.organizationId,
-        policy_document_id: documentId,
-        policy_document_version_id: currentVersionId,
+      // One transactional RPC, not create-then-insert: a failure partway through used to leave a
+      // committed campaign with no questions, indistinguishable from a read-and-sign one, which
+      // staff could then attest against with no knowledge check at all.
+      await createCampaignWithQuestions({
+        organizationId: user.organizationId,
+        policyDocumentId: documentId,
+        policyDocumentVersionId: currentVersionId,
         name: name.trim(),
-        due_date: dueDate || null,
-        created_by: user.id,
+        dueDate: dueDate || null,
+        questions: questions.map((question) => {
+          // Blank choices are dropped here, so the correct index has to move with them --
+          // see normalizeDraftQuestion for what going without it silently stores.
+          const { choices, correctIndex } = normalizeDraftQuestion(question);
+          return { prompt: question.prompt.trim(), choices, correct_choice_index: correctIndex };
+        }),
       });
-      toast({ title: "Campaign created", description: "Now assign it to employees below." });
-      setName(""); setDueDate(""); setOpen(false);
+      toast({
+        title: "Campaign created",
+        description: questions.length
+          ? `${questions.length} knowledge-check question${questions.length === 1 ? "" : "s"} added. Now assign it to employees below.`
+          : "Now assign it to employees below.",
+      });
+      setName(""); setDueDate(""); setQuestions([]); setOpen(false);
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't create campaign", description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setIsPending(false);
     }
   };
 
@@ -291,7 +319,7 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
           <Plus className="mr-2 h-4 w-4" /> New Campaign
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Attestation Campaign</DialogTitle>
           <DialogDescription>Targets the currently published version. Assign it to employees once created.</DialogDescription>
@@ -305,10 +333,11 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
             <Label htmlFor="campaign-due">Due date (optional)</Label>
             <Input id="campaign-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
+          <CampaignQuestionsEditor questions={questions} onChange={setQuestions} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || isPending}>{isPending ? "Creating..." : "Create"}</Button>
+          <Button onClick={handleCreate} disabled={!name.trim() || !questionsValid || isPending}>{isPending ? "Creating..." : "Create"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

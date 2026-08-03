@@ -120,6 +120,163 @@ export function useAssignPolicyAttestationToEmployee() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Knowledge checks (BACKLOG.md E4).
+//
+// Two deliberately separate read paths, because they are for two different
+// people. Administrators authoring a campaign read policy_campaign_questions
+// directly (RLS lets org_admin/facility_manager see the whole row, answer key
+// included). Employees never touch that table -- they go through
+// get_policy_knowledge_check, whose return type has no correct_choice_index at
+// all, so the answer key cannot reach a learner's browser even by mistake.
+// ---------------------------------------------------------------------------
+
+export type PolicyCampaignQuestion = Tables<"policy_campaign_questions">;
+export type PolicyCampaignQuestionInsert = TablesInsert<"policy_campaign_questions">;
+
+/** Admin-side read: includes the answer key, and is RLS-restricted to campaign authors. */
+export function useListCampaignQuestions(campaignId: string | undefined) {
+  return useQuery({
+    queryKey: ["policy_campaign_questions", campaignId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("policy_campaign_questions")
+        .select("*")
+        .eq("campaign_id", campaignId!)
+        .order("display_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!campaignId,
+  });
+}
+
+export function useCreateCampaignQuestions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (questions: PolicyCampaignQuestionInsert[]) => {
+      if (questions.length === 0) return [];
+      const { data, error } = await supabase.from("policy_campaign_questions").insert(questions).select();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["policy_campaign_questions"] }),
+  });
+}
+
+export interface CreateCampaignWithQuestionsParams {
+  organizationId: string;
+  policyDocumentId: string;
+  policyDocumentVersionId: string;
+  name: string;
+  dueDate: string | null;
+  questions: Array<{ prompt: string; choices: string[]; correct_choice_index: number }>;
+}
+
+/**
+ * Creates a campaign and its questions in ONE transaction.
+ *
+ * Replaces an earlier create-campaign-then-insert-questions sequence: if the second call failed,
+ * the campaign stayed committed looking exactly like a read-and-sign campaign, and assigning it let
+ * staff attest with no knowledge check and no signal to the author. The RPC is SECURITY INVOKER, so
+ * both tables' RLS policies still authorize the caller exactly as a direct insert would.
+ */
+export function useCreatePolicyCampaignWithQuestions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: CreateCampaignWithQuestionsParams) => {
+      const { data, error } = await supabase.rpc("create_policy_campaign_with_questions", {
+        p_organization_id: params.organizationId,
+        p_policy_document_id: params.policyDocumentId,
+        p_policy_document_version_id: params.policyDocumentVersionId,
+        p_name: params.name,
+        p_due_date: params.dueDate ?? undefined,
+        p_questions: params.questions,
+      });
+      if (error) throw error;
+      return data as unknown as string;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["policy_attestation_campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["policy_campaign_questions"] });
+    },
+  });
+}
+
+export interface KnowledgeCheckQuestion {
+  question_id: string;
+  display_order: number;
+  prompt: string;
+  choices: string[];
+}
+
+/** Employee-side read: the same questions, minus the answer key. */
+export function usePolicyKnowledgeCheck(attestationId: string | undefined) {
+  return useQuery({
+    queryKey: ["policy_knowledge_check", attestationId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_policy_knowledge_check", {
+        p_attestation_id: attestationId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as unknown as KnowledgeCheckQuestion[];
+    },
+    enabled: !!attestationId,
+  });
+}
+
+/**
+ * Whether this attestation already has a passing attempt on record.
+ *
+ * Without this, closing the dialog after passing but before attesting loses the fact: reopening
+ * would re-disable the attest button and demand a full retake, adding a duplicate attempt for a
+ * check the server already considers passed. RLS scopes policy_knowledge_check_attempts to the
+ * owning employee, so this is the learner reading their own record.
+ */
+export function useHasPassedKnowledgeCheck(attestationId: string | undefined) {
+  return useQuery({
+    queryKey: ["policy_knowledge_check_passed", attestationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("policy_knowledge_check_attempts")
+        .select("id")
+        .eq("attestation_id", attestationId!)
+        .eq("passed", true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: !!attestationId,
+  });
+}
+
+export interface KnowledgeCheckResult {
+  attemptId: string;
+  passed: boolean;
+  correctCount: number;
+  totalCount: number;
+}
+
+// Grading happens entirely in submit_policy_knowledge_check -- this sends the chosen indexes and
+// reports back the score. It deliberately does not learn which individual answers were wrong;
+// repeated attempts would otherwise reconstruct the answer key without reading the policy.
+export function useSubmitPolicyKnowledgeCheck() {
+  return useMutation({
+    mutationFn: async (params: { attestationId: string; answers: Record<string, number> }) => {
+      const { data, error } = await supabase.rpc("submit_policy_knowledge_check", {
+        p_attestation_id: params.attestationId,
+        p_answers: params.answers,
+      });
+      if (error) throw error;
+      return data as unknown as KnowledgeCheckResult;
+    },
+    // Deliberately no invalidation. Nothing in the app caches attempts, and the questions
+    // (["policy_knowledge_check", attestationId]) do not change when one is graded -- refetching
+    // them would only re-request the same rows. The result is returned to the caller directly.
+  });
+}
+
 interface AttestPolicyResponse {
   success?: boolean;
   error?: string;
