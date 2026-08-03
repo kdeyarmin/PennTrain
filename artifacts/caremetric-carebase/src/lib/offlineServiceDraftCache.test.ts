@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readServiceDraft, saveServiceDraft } from "./offlineServiceDraftCache";
-import type { OfflineServiceDraft, OfflineUnscheduledServiceDraft } from "./offlineServiceDraftSafety";
+import type {
+  OfflineChangeObservationDraft, OfflineServiceDraft, OfflineUnscheduledServiceDraft,
+} from "./offlineServiceDraftSafety";
 
 function unscheduledDraft(
   overrides: Partial<OfflineUnscheduledServiceDraft> = {},
@@ -21,6 +23,32 @@ function unscheduledDraft(
     idempotencyKey: "idem-unsched-1",
     createdAt: "2026-08-02T12:31:00.000Z",
     updatedAt: "2026-08-02T12:31:00.000Z",
+    syncState: "draft",
+    lastSyncOutcome: null,
+    lastSyncError: null,
+    ...overrides,
+  };
+}
+
+function changeObservationDraft(
+  overrides: Partial<OfflineChangeObservationDraft> = {},
+): OfflineChangeObservationDraft {
+  return {
+    kind: "change_observation",
+    draftId: "obs-1",
+    eventId: "event-1",
+    residentDisplayLabel: "Jamie Resident - Room 12",
+    eventLabel: "Mobility Decline",
+    organizationId: "org-1",
+    facilityId: "facility-1",
+    profileId: "profile-1",
+    observedAt: "2026-08-03T03:00:00.000Z",
+    observations: "Transferred with two-person assist, no buckling.",
+    actionTaken: "Reminded to use the call bell.",
+    supervisorNotified: true,
+    idempotencyKey: "idem-obs-1",
+    createdAt: "2026-08-03T03:01:00.000Z",
+    updatedAt: "2026-08-03T03:01:00.000Z",
     syncState: "draft",
     lastSyncOutcome: null,
     lastSyncError: null,
@@ -187,7 +215,7 @@ describe("saveServiceDraft transaction safety", () => {
   });
 });
 
-describe("draft kinds share one store (BACKLOG.md E5 Tier 2)", () => {
+describe("draft kinds share one store (BACKLOG.md E5 Tiers 2-3)", () => {
   let fake: ReturnType<typeof fakeIndexedDB>;
   const identity = { organizationId: "org-1", profileId: "profile-1", role: "employee" };
 
@@ -244,5 +272,80 @@ describe("draft kinds share one store (BACKLOG.md E5 Tier 2)", () => {
     const stored = fake.readStoredRecord("draft-2")!;
     expect(stored.scopeId).toBe(stored.taskId);
     expect(stored.envelope).toMatchObject({ additionalData: "org-1:profile-1:task-2:draft-2" });
+  });
+
+  it("round-trips a change observation, which has no task and no resident id", async () => {
+    await saveServiceDraft(changeObservationDraft());
+    await expect(readServiceDraft("obs-1", identity)).resolves.toMatchObject({
+      kind: "change_observation",
+      eventId: "event-1",
+      observations: "Transferred with two-person assist, no buckling.",
+      supervisorNotified: true,
+    });
+  });
+
+  // Its subject is the EVENT -- which is why it is a third member of the union rather than a
+  // variant of either existing kind. The plaintext taskId column stays empty for it, so the
+  // panel's listing cannot mistake it for a task draft.
+  it("binds a change observation's envelope to its event, and leaves taskId unwritten", async () => {
+    await saveServiceDraft(changeObservationDraft());
+    const stored = fake.readStoredRecord("obs-1")!;
+    expect(stored.taskId).toBeUndefined();
+    expect(stored.scopeId).toBe("event-1");
+    expect(stored.kind).toBe("change_observation");
+    expect(stored.envelope).toMatchObject({ additionalData: "org-1:profile-1:event-1:obs-1" });
+  });
+
+  it("refuses to open a change observation under a different identity", async () => {
+    await saveServiceDraft(changeObservationDraft());
+    await expect(
+      readServiceDraft("obs-1", { ...identity, organizationId: "another-org" }),
+    ).rejects.toThrow();
+  });
+
+  // Codex review finding (P1). The double-charting window this closes is invisible in a diff: it
+  // depends on a NEW idempotency key being minted per capture, so that a retry of a write whose
+  // response was lost carries the SAME key and collapses to a duplicate server-side rather than
+  // appending a second monitoring entry.
+  //
+  // Two properties make that work, and both live here. First, saving a draft must preserve the key
+  // it was given rather than regenerating one -- an update (the sync path rewrites syncState) must
+  // not mint a fresh key, or every retry would look new to the server.
+  it("preserves a change observation's idempotency key across a re-save", async () => {
+    const original = changeObservationDraft();
+    await saveServiceDraft(original);
+    const readBack = await readServiceDraft("obs-1", identity);
+    expect(readBack).toMatchObject({ idempotencyKey: "idem-obs-1" });
+
+    await saveServiceDraft({ ...(readBack as OfflineChangeObservationDraft), syncState: "error" });
+    await expect(readServiceDraft("obs-1", identity)).resolves.toMatchObject({
+      idempotencyKey: "idem-obs-1",
+      syncState: "error",
+    });
+  });
+
+  // Second, two separate captures must NOT share a key -- otherwise the server would collapse two
+  // genuinely different observations into one. The guarantee is per-draft, not global.
+  it("keeps two separate captures on distinct keys", async () => {
+    await saveServiceDraft(changeObservationDraft());
+    await saveServiceDraft(changeObservationDraft({
+      draftId: "obs-2", idempotencyKey: "idem-obs-2", observations: "Second round, still steady.",
+    }));
+    const first = await readServiceDraft("obs-1", identity);
+    const second = await readServiceDraft("obs-2", identity);
+    expect((first as OfflineChangeObservationDraft).idempotencyKey)
+      .not.toBe((second as OfflineChangeObservationDraft).idempotencyKey);
+  });
+
+  // Three kinds now share one keyPath-"draftId" store with no secondary index, so nothing about
+  // adding this one required an IndexedDB version bump -- but the three must genuinely coexist
+  // rather than the last write clobbering the others.
+  it("keeps all three kinds side by side in the same store", async () => {
+    await saveServiceDraft(draft());
+    await saveServiceDraft(unscheduledDraft());
+    await saveServiceDraft(changeObservationDraft());
+    expect(fake.draftStoreHas("draft-1")).toBe(true);
+    expect(fake.draftStoreHas("unsched-1")).toBe(true);
+    expect(fake.draftStoreHas("obs-1")).toBe(true);
   });
 });

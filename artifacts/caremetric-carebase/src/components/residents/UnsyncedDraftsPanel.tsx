@@ -6,8 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useOfflineFloorSync } from "@/hooks/useOfflineFloorSync";
 import {
   describeDraft, formatDraftNoteForCopy, isUnsyncedDraftOverdue, NEEDS_REVIEW_DRAFT_STATES, rejectedMessage,
-  SYNC_OUTCOME_MESSAGES, UNRESOLVED_DRAFT_STATES, useDismissOfflineServiceDraft, useSyncOfflineServiceDraft,
-  useUnsyncedServiceDraftEntries, useUnsyncedServiceDrafts,
+  staleMessage, SYNC_OUTCOME_MESSAGES, UNRESOLVED_DRAFT_STATES, useDismissOfflineServiceDraft,
+  useSyncOfflineServiceDraft, useUnsyncedServiceDraftEntries, useUnsyncedServiceDrafts,
 } from "@/hooks/useOfflineServiceDrafts";
 import {
   formatObservationDraftForCopy, OBSERVATION_SYNC_MESSAGES, useDismissOfflineObservationDraft,
@@ -47,20 +47,30 @@ function observationSummary(draft: OfflineObservationDraft): string {
 
 function reviewMessage(draft: OfflineFloorDraft): string {
   if (draft.syncState === "rejected") return rejectedMessage(draft.lastSyncError);
-  if (draft.syncState === "conflict" || draft.syncState === "stale") {
+  // 'stale' reads differently per kind -- a task that left the plan versus a change-of-condition
+  // event that closed with the observation still in hand. See staleMessage.
+  if (draft.syncState === "stale") return staleMessage(draft);
+  if (draft.syncState === "conflict") {
     return SYNC_OUTCOME_MESSAGES[draft.syncState as OfflineDraftSyncState & keyof typeof SYNC_OUTCOME_MESSAGES];
   }
   return "This note needs review.";
 }
 
 /**
- * Unsynced offline service-documentation drafts (BACKLOG.md E5, Tier 1). Rendered on Floor and the
- * roster, not as global chrome, because the list itself is always about a task from the queue that
- * same page shows. The connectivity watch that keeps these in sync (mount + `online` event) is not
- * local, though -- see useOfflineFloorSync, mounted once in MainLayout, which is what actually
- * catches a reconnect while the caregiver is elsewhere (e.g. the resident chart, where neither this
- * panel nor its old page-local watch was ever mounted). This component only reads that shared state
- * and its own manual "Sync now"/per-item buttons.
+ * Unsynced offline documentation drafts (BACKLOG.md E5).
+ *
+ * This is a DEVICE-level outbox, not a page-level one: it lists every unsynced draft on this device
+ * regardless of which surface captured it. Tier 1 mounted it only on Floor, when every draft was a
+ * task from the queue that page shows. Tier 3 captures observations on ChangeOfConditionDetail, so
+ * it is mounted there too -- a draft whose only surface an aide never happens to open would sit
+ * invisible until the purge ceiling silently deleted it, which is the one failure this panel exists
+ * to prevent. It renders nothing when there is no backlog, so a second mount costs an empty render.
+ *
+ * The connectivity watch that keeps these in sync (mount + `online` event) is not local to this
+ * component, though -- see useOfflineFloorSync, mounted once in MainLayout, which is what actually
+ * catches a reconnect while the caregiver is elsewhere (e.g. the resident chart itself, where neither
+ * this panel nor its own watch is ever mounted). This component only reads that shared state and
+ * exposes its own manual "Sync now"/per-item buttons.
  *
  * Block-and-flag: a conflict/stale/rejected draft is never merged, auto-reconciled, or silently
  * retried. It stays here, clearly labeled, until a human dismisses it or the purge ceiling hits.

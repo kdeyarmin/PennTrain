@@ -8,10 +8,11 @@ import {
   type DraftListEntry, type OfflineFloorIdentity,
 } from "@/lib/offlineServiceDraftCache";
 import {
-  assertServiceDraftAllowed, assertUnscheduledServiceDraftAllowed, isUnscheduledServiceDraft,
-  NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
-  type OfflineDraftSyncOutcome, type OfflineFloorDraft, type OfflineServiceDraft,
-  type OfflineUnscheduledServiceDraft,
+  assertChangeObservationDraftAllowed, assertServiceDraftAllowed,
+  assertUnscheduledServiceDraftAllowed, draftKindOf, isChangeObservationDraft,
+  isUnscheduledServiceDraft, NEEDS_REVIEW_DRAFT_STATES, UNRESOLVED_DRAFT_STATES,
+  type OfflineChangeObservationDraft, type OfflineDraftKind, type OfflineDraftSyncOutcome,
+  type OfflineFloorDraft, type OfflineServiceDraft, type OfflineUnscheduledServiceDraft,
 } from "@/lib/offlineServiceDraftSafety";
 import { followUpFieldsFor } from "@/lib/serviceExceptionFollowUp";
 import type { CompletionResponse } from "@/lib/serviceDeliveryContract";
@@ -37,6 +38,20 @@ export const SYNC_OUTCOME_MESSAGES: Record<OfflineDraftSyncOutcome, string> = {
   wipe_required: "This device's offline access was turned off. Unsynced notes here were cleared.",
 };
 
+/**
+ * 'stale' means the server moved on, but WHAT moved is different per kind, and the difference is
+ * what the aide has to act on: a task that left the plan is nothing they can still do anything
+ * about, while a closed change-of-condition event means their observation is real, unfiled, and
+ * needs a supervisor who can decide where it goes. One generic sentence would lose that.
+ */
+export function staleMessage(draft: OfflineFloorDraft): string {
+  if (isChangeObservationDraft(draft)) {
+    return "This change-of-condition event was closed before your observation could be filed. "
+      + "It wasn't submitted — take it to your supervisor.";
+  }
+  return SYNC_OUTCOME_MESSAGES.stale;
+}
+
 function rejectedMessage(errorMessage: string | null): string {
   return errorMessage
     ? `This couldn't be submitted (${errorMessage}). Talk to your supervisor.`
@@ -54,10 +69,24 @@ export function describeDraft(draft: OfflineFloorDraft): string {
   if (isUnscheduledServiceDraft(draft)) {
     return `${draft.serviceKind.replace(/_/g, " ")} · unscheduled`;
   }
+  if (isChangeObservationDraft(draft)) {
+    return `${draft.eventLabel} · monitoring observation`;
+  }
   return `${draft.serviceName} · ${draft.response}`;
 }
 
 export function formatDraftNoteForCopy(draft: OfflineFloorDraft): string {
+  if (isChangeObservationDraft(draft)) {
+    const observationLines = [
+      `${draft.residentDisplayLabel} — ${draft.eventLabel} (monitoring observation)`,
+      `Observed: ${new Date(draft.observedAt).toLocaleString()}`,
+      `Observations: ${draft.observations}`,
+    ];
+    if (draft.actionTaken) observationLines.push(`Action taken: ${draft.actionTaken}`);
+    if (draft.supervisorNotified) observationLines.push("Supervisor was notified");
+    observationLines.push(`Saved on this device: ${new Date(draft.createdAt).toLocaleString()}`);
+    return observationLines.join("\n");
+  }
   if (isUnscheduledServiceDraft(draft)) {
     const unscheduledLines = [
       `${draft.residentDisplayLabel} — ${draft.serviceKind.replace(/_/g, " ")} (unscheduled)`,
@@ -96,6 +125,20 @@ export interface NewOfflineServiceDraftInput {
   refusalHandling: string | null;
   response: CompletionResponse;
   exceptionDetails: OfflineServiceDraft["exceptionDetails"];
+}
+
+export interface NewOfflineChangeObservationDraftInput {
+  eventId: string;
+  residentDisplayLabel: string;
+  /** Short label for the event (e.g. "Mobility Decline") -- not its narrative. */
+  eventLabel: string;
+  organizationId: string;
+  facilityId: string;
+  /** When the aide actually looked at the resident, which is not when the device found signal. */
+  observedAt: string;
+  observations: string;
+  actionTaken: string | null;
+  supervisorNotified: boolean;
 }
 
 export interface NewOfflineUnscheduledDraftInput {
@@ -203,10 +246,21 @@ async function ensureRegisteredDeviceId(identity: OfflineFloorIdentity): Promise
  * conflict/stale/rejected keep it, labeled, for a human to review and dismiss; wipe_required wipes
  * the entire local store, matching an explicit device revoke.
  */
-// Both kinds share everything after the call: the outcome handling below is what makes a draft
-// disappear, get flagged, or trigger a wipe, and duplicating it per kind is how the two would
-// drift. Only the RPC and its arguments differ.
+// All three kinds share everything after the call: the outcome handling below is what makes a draft
+// disappear, get flagged, or trigger a wipe, and duplicating it per kind is how they would drift.
+// Only the RPC and its arguments differ.
 async function callSyncRpc(deviceId: string, draft: OfflineFloorDraft) {
+  if (isChangeObservationDraft(draft)) {
+    return supabase.rpc("sync_offline_change_observation_draft", {
+      p_device_id: deviceId,
+      p_event_id: draft.eventId,
+      p_idempotency_key: draft.idempotencyKey,
+      p_client_observed_at: draft.observedAt,
+      p_observations: draft.observations,
+      p_action_taken: draft.actionTaken ?? undefined,
+      p_supervisor_notified: draft.supervisorNotified,
+    });
+  }
   if (isUnscheduledServiceDraft(draft)) {
     return supabase.rpc("sync_offline_unscheduled_service_draft", {
       p_device_id: deviceId,
@@ -227,6 +281,39 @@ async function callSyncRpc(deviceId: string, draft: OfflineFloorDraft) {
     p_response: draft.response,
     p_exception_details: draft.exceptionDetails as Json,
   });
+}
+
+/**
+ * Codex review finding (P2). A synced draft changes a domain record, not just the local store, and
+ * the surface showing that record is often open at the moment the sync lands -- the drafts panel is
+ * mounted on ChangeOfConditionDetail, which renders the very monitoring history a change-observation
+ * sync just appended to. Invalidating only ["offline-service-drafts"] makes the draft disappear and
+ * the toast say "recorded" while the immutable history below it still shows nothing, until a reload
+ * or some unrelated invalidation happens by.
+ *
+ * Keyed per kind rather than invalidating everything: a service-task sync has no reason to refetch
+ * change events, and vice versa.
+ */
+// Taken from what each domain's own online mutation already invalidates (useResidentServiceTasks'
+// invalidateServiceTasks, useResidentCareDelivery's invalidateResidentCare, useResidentChangeEvents'
+// invalidateChangeEvents) rather than guessed, so the offline path refreshes exactly what the online
+// path does.
+const DOMAIN_QUERY_KEYS_BY_KIND: Record<OfflineDraftKind, string[][]> = {
+  service_task: [["resident-service-tasks"], ["service-task-alerts"], ["resident-360"], ["work-items"]],
+  unscheduled_service: [["resident-care-delivery"], ["resident-service-tasks"], ["work-items"], ["daily-operations"]],
+  change_observation: [["resident-change-events"], ["resident_compliance_items"], ["work-items"]],
+};
+
+function invalidateDomainFor(
+  queryClient: ReturnType<typeof useQueryClient>,
+  drafts: OfflineFloorDraft[],
+): void {
+  const kinds = new Set(drafts.map(draftKindOf));
+  for (const kind of kinds) {
+    for (const key of DOMAIN_QUERY_KEYS_BY_KIND[kind]) {
+      queryClient.invalidateQueries({ queryKey: key });
+    }
+  }
 }
 
 async function syncDraft(identity: OfflineFloorIdentity, draft: OfflineFloorDraft): Promise<OfflineDraftSyncOutcome> {
@@ -299,6 +386,50 @@ export function useSaveOfflineUnscheduledDraft() {
   });
 }
 
+/**
+ * Capture one monitoring observation offline (BACKLOG.md E5 Tier 3).
+ *
+ * observedAt is the caller's, not now(): the aide may write this up a few minutes after the check,
+ * and the server trusts a plausible client time. createdAt stays the moment it was written, because
+ * that is what the purge clock and the "unsynced for over a day" warning are about.
+ */
+export function useSaveOfflineChangeObservationDraft() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewOfflineChangeObservationDraftInput): Promise<OfflineChangeObservationDraft> => {
+      if (!user?.id || !user.organizationId || user.role !== "employee") {
+        throw new Error("Offline service documentation requires an active employee account.");
+      }
+      await initializeOfflineFloorDevice(floorIdentity(user.id, user.organizationId));
+      const now = new Date().toISOString();
+      const draft: OfflineChangeObservationDraft = {
+        kind: "change_observation",
+        draftId: crypto.randomUUID(),
+        eventId: input.eventId,
+        residentDisplayLabel: input.residentDisplayLabel,
+        eventLabel: input.eventLabel,
+        organizationId: input.organizationId,
+        facilityId: input.facilityId,
+        profileId: user.id,
+        observedAt: input.observedAt,
+        observations: input.observations,
+        actionTaken: input.actionTaken,
+        supervisorNotified: input.supervisorNotified,
+        idempotencyKey: crypto.randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+        syncState: "draft",
+        lastSyncOutcome: null,
+        lastSyncError: null,
+      };
+      assertChangeObservationDraftAllowed(draft);
+      return saveServiceDraft(draft);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
 export function useSyncOfflineServiceDraft() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -310,7 +441,9 @@ export function useSyncOfflineServiceDraft() {
       const draft = drafts.find((entry) => entry.draftId === draftId);
       if (!draft) throw new Error("This draft is no longer on this device.");
       try {
-        return await syncDraft(identity, draft);
+        const outcome = await syncDraft(identity, draft);
+        if (outcome === "applied") invalidateDomainFor(queryClient, [draft]);
+        return outcome;
       } catch (error) {
         await updateServiceDraft(
           draftId,
@@ -343,13 +476,16 @@ export function useSyncAllOfflineServiceDrafts() {
       const drafts = (await readAllServiceDrafts(identity))
         .filter((draft) => (UNRESOLVED_DRAFT_STATES as string[]).includes(draft.syncState));
       const result: SyncAllResult = { attempted: 0, applied: 0, needsReview: 0, wipeRequired: false, failed: 0 };
+      const applied: OfflineFloorDraft[] = [];
       for (const draft of drafts) {
         result.attempted += 1;
         try {
           const outcome = await syncDraft(identity, draft);
           if (outcome === "wipe_required") { result.wipeRequired = true; break; }
-          if (outcome === "applied" || outcome === "duplicate") result.applied += 1;
-          else result.needsReview += 1;
+          if (outcome === "applied" || outcome === "duplicate") {
+            result.applied += 1;
+            if (outcome === "applied") applied.push(draft);
+          } else result.needsReview += 1;
         } catch (error) {
           result.failed += 1;
           await updateServiceDraft(
@@ -359,6 +495,7 @@ export function useSyncAllOfflineServiceDrafts() {
           ).catch(() => undefined);
         }
       }
+      invalidateDomainFor(queryClient, applied);
       return result;
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
