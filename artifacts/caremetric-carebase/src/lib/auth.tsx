@@ -11,6 +11,7 @@ import { AuthProfileError } from "@/components/AuthProfileError";
 import { isDefinitiveProfileAbsence } from "@/lib/authProfileErrors";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
+import { signedInIdentityChanged } from "@/lib/sessionIdentity";
 import {
   isOfflineServiceDraftIdentityPending, shouldWipeOfflineServiceDraftData,
   type OfflineServiceDraftIdentitySnapshot,
@@ -305,10 +306,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
       void wipeOfflineServiceDrafts();
     }
+    // BACKLOG.md open question 6. Wiping the offline drafts was only half of it: every OTHER
+    // identity transition in this file also calls queryClient.clear(), and this one -- the transition
+    // where the session survives -- did not. A cached query whose key does not itself carry the
+    // identity therefore kept serving the previous context's rows until its own staleTime lapsed.
+    // Two hooks were fixed at the point of use by putting the identity in their keys, but that
+    // treated the symptom; the cause is that nothing clears here.
+    //
+    // Deliberately NOT gated on shouldWipeOfflineServiceDraftData above, even though it is right
+    // there: that predicate treats any non-employee role as "wipe", which is correct for an
+    // employee-only draft store and would mean clearing every manager's entire cache on every
+    // evaluation. See sessionIdentity.ts.
+    //
+    // What this cannot reach: a signed storage URL already handed to the browser stays
+    // bearer-authorized for its full TTL regardless of what RLS would now say. Clearing the cache
+    // stops the app re-serving it, which is the whole of what a client can do about that.
+    const previousIdentity = lastOfflineServiceDraftIdentityRef.current;
     lastOfflineServiceDraftIdentityRef.current = current
       ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
       : null;
-  }, [user?.id, user?.organizationId, user?.role, user?.isActive, session]);
+    if (signedInIdentityChanged(previousIdentity, lastOfflineServiceDraftIdentityRef.current)) {
+      queryClient.clear();
+    }
+  }, [user?.id, user?.organizationId, user?.role, user?.isActive, session, queryClient]);
 
   useEffect(() => {
     if (!isLoading && !session && !isError) {
