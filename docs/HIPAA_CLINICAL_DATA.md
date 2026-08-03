@@ -94,11 +94,20 @@ Data model (delivered in M2 — FHIR medication lane):
 - **Resident photo (M7).** `20260803120000` adds the first `employee` branch to
   `resident_documents_select` and the `resident-documents` storage read policy, for right-patient
   verification. It is scoped to a single document per resident — the one `residents.photo_document_id`
-  designates — through `app_private.resident_photo_document_visible` / `resident_photo_object_visible`,
-  which are SECURITY DEFINER because `residents` itself has no employee-readable branch and an inline
-  `exists` would silently evaluate false. Employees still cannot read contracts, agreements,
-  assessments, or state forms, including for a resident whose photo they may see; pgTAP asserts that
-  directly (`supabase/tests/database/caregiver_resident_photos.test.sql`).
+  designates, **and only if that document is an `image/*`** — through
+  `app_private.resident_photo_document_visible` / `resident_photo_object_visible`, which are SECURITY
+  DEFINER because `residents` itself has no employee-readable branch and an inline `exists` would
+  silently evaluate false. Employees still cannot read contracts, agreements, assessments, or state
+  forms, including for a resident whose photo they may see; pgTAP asserts that directly
+  (`supabase/tests/database/caregiver_resident_photos.test.sql`).
+  The MIME check is load-bearing, not defensive tidiness, and the first pass of this migration
+  shipped without it. `save_resident_administrative_master` (`20260713183435`) validates only that a
+  designated document *belongs to the resident*; it does not require an image. So an admission
+  manager could designate that resident's contract or assessment PDF as the photo through a
+  sanctioned RPC — no direct table access, no UI involvement — and the employee branch would then
+  make it readable, which is precisely the widening this migration exists to prevent. The check sits
+  on the read predicates rather than on that RPC deliberately: tightening the write path would not
+  retract a designation already stored, and the read boundary is the one actually being widened.
 - **Append-only evidence.** Amendments/corrections never destroy prior values
   (`app_private.prevent_clinical_evidence_mutation`); retractions use `entered_in_error`.
 - **Offline vitals (M7).** A reading taken without connectivity is held in the same encrypted,
