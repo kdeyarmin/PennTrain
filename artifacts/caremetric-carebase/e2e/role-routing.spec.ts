@@ -77,11 +77,21 @@ async function verifyOrgAdminBrowserMfa(page: Page) {
   // narrow window, and on a loaded CI runner the round trip can occasionally straddle it. Retrying
   // with a freshly-computed code (not the same one) is the standard fix, and costs nothing when the
   // first attempt already lands within its window.
+  //
+  // The fill/click are wrapped and time-boxed for the same reason as the sibling file: a
+  // slow-but-correct first attempt can outlast the "verified" check below, and #mfa-code is
+  // disabled for the whole verify round trip then unmounted entirely on success -- so a naive
+  // retry can hang trying to fill an input that is now disabled or already gone.
   const verified = page.getByText(/session is already verified/i);
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await code.fill(totpCode(orgAdminMfaSecret));
-    await page.getByRole("button", { name: "Verify authenticator" }).click();
-    if (await verified.isVisible({ timeout: 5000 }).catch(() => false)) break;
+    try {
+      await code.fill(totpCode(orgAdminMfaSecret), { timeout: 5000 });
+      await page.getByRole("button", { name: "Verify authenticator" }).click({ timeout: 5000 });
+    } catch {
+      // Input was disabled or detached by a still-resolving (or already-successful) previous
+      // attempt -- fall through to the visibility check either way.
+    }
+    if (await verified.isVisible({ timeout: 15000 }).catch(() => false)) break;
     if (attempt === 3) await expect(verified).toBeVisible();
   }
 }

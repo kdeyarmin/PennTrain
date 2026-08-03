@@ -129,11 +129,23 @@ async function signIn(
     // "compute the code" to "the server validates it" can occasionally straddle that window, so the
     // server sees an already-expired code. Recomputing and resubmitting a fresh code -- rather than
     // retrying the same one -- is the standard mitigation for exactly this class of flake.
+    //
+    // The fill/click are wrapped and time-boxed: MfaSettings disables #mfa-code for the whole
+    // verify+refreshSession+loadSecurityState round trip and, on success, unmounts it entirely (the
+    // "already verified" panel replaces the form). A slow-but-correct first attempt can outlast the
+    // "verified" check below, so a naive retry tries to fill an input that's now disabled or already
+    // detached and hangs for the rest of the test timeout. Failing that fill/click fast and falling
+    // through to a longer "did it actually succeed" wait avoids the hang either way.
     const verified = page.getByText(/session is already verified/i);
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      await code.fill(totpCode(mfaSecret));
-      await page.getByRole("button", { name: "Verify authenticator" }).click();
-      if (await verified.isVisible({ timeout: 5000 }).catch(() => false)) break;
+      try {
+        await code.fill(totpCode(mfaSecret), { timeout: 5000 });
+        await page.getByRole("button", { name: "Verify authenticator" }).click({ timeout: 5000 });
+      } catch {
+        // Input was disabled or detached by a still-resolving (or already-successful) previous
+        // attempt -- fall through to the visibility check either way.
+      }
+      if (await verified.isVisible({ timeout: 15000 }).catch(() => false)) break;
       if (attempt === 3) await expect(verified).toBeVisible();
     }
     await page.goto(landsOn);
