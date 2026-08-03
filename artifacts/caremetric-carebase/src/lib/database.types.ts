@@ -5905,6 +5905,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null
@@ -5927,6 +5929,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date?: string | null
+          poc_due_soon_notified_at?: string | null
+          poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
           severity?: string
           source_inspection_event_id?: string | null
@@ -5949,6 +5953,8 @@ export type Database = {
           inspection_date?: string
           organization_id?: string
           poc_due_date?: string | null
+          poc_due_soon_notified_at?: string | null
+          poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
           severity?: string
           source_inspection_event_id?: string | null
@@ -36075,6 +36081,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null
@@ -39210,6 +39218,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null
@@ -40786,6 +40796,10 @@ export type Database = {
         Returns: number
       }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
+      run_plan_of_correction_escalations: {
+        Args: { p_now?: string }
+        Returns: number
+      }
       run_shift_handoff_escalations: {
         Args: { p_now?: string }
         Returns: number
@@ -42453,6 +42467,8 @@ export type Database = {
           inspection_date: string
           organization_id: string
           poc_due_date: string | null
+          poc_due_soon_notified_at: string | null
+          poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
           severity: string
           source_inspection_event_id: string | null
