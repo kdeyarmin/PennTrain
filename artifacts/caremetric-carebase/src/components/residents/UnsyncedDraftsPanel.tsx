@@ -1,20 +1,17 @@
-import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
 import { CloudOff, CloudUpload, Copy, Loader2, TriangleAlert, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useOfflineFloorSync } from "@/hooks/useOfflineFloorSync";
 import {
   describeDraft, formatDraftNoteForCopy, isUnsyncedDraftOverdue, NEEDS_REVIEW_DRAFT_STATES, rejectedMessage,
-  SYNC_OUTCOME_MESSAGES, UNRESOLVED_DRAFT_STATES, useDismissOfflineServiceDraft,
-  useSyncAllOfflineServiceDrafts, useSyncOfflineServiceDraft, useUnsyncedServiceDraftEntries,
-  useUnsyncedServiceDrafts,
+  SYNC_OUTCOME_MESSAGES, UNRESOLVED_DRAFT_STATES, useDismissOfflineServiceDraft, useSyncOfflineServiceDraft,
+  useUnsyncedServiceDraftEntries, useUnsyncedServiceDrafts,
 } from "@/hooks/useOfflineServiceDrafts";
 import {
   formatObservationDraftForCopy, OBSERVATION_SYNC_MESSAGES, useDismissOfflineObservationDraft,
-  useSyncAllOfflineObservationDrafts, useSyncOfflineObservationDraft,
-  useUnsyncedObservationDraftEntries, useUnsyncedObservationDrafts,
+  useSyncOfflineObservationDraft, useUnsyncedObservationDraftEntries, useUnsyncedObservationDrafts,
 } from "@/hooks/useOfflineObservationDrafts";
 import { isUnsyncedObservationDraftOverdue } from "@/lib/offlineServiceDraftCache";
 import {
@@ -57,19 +54,23 @@ function reviewMessage(draft: OfflineFloorDraft): string {
 }
 
 /**
- * Unsynced offline service-documentation drafts (BACKLOG.md E5, Tier 1). Local to Floor -- not
- * global chrome -- because these drafts are always about a task from the queue this same page shows.
+ * Unsynced offline service-documentation drafts (BACKLOG.md E5, Tier 1). Rendered on Floor and the
+ * roster, not as global chrome, because the list itself is always about a task from the queue that
+ * same page shows. The connectivity watch that keeps these in sync (mount + `online` event) is not
+ * local, though -- see useOfflineFloorSync, mounted once in MainLayout, which is what actually
+ * catches a reconnect while the caregiver is elsewhere (e.g. the resident chart, where neither this
+ * panel nor its old page-local watch was ever mounted). This component only reads that shared state
+ * and its own manual "Sync now"/per-item buttons.
  *
  * Block-and-flag: a conflict/stale/rejected draft is never merged, auto-reconciled, or silently
  * retried. It stays here, clearly labeled, until a human dismisses it or the purge ceiling hits.
  */
 export function UnsyncedDraftsPanel() {
   const { toast } = useToast();
-  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const { isOnline, isSyncingAll, runSyncAll } = useOfflineFloorSync();
   const entries = useUnsyncedServiceDraftEntries();
   const drafts = useUnsyncedServiceDrafts();
   const syncOne = useSyncOfflineServiceDraft();
-  const syncAll = useSyncAllOfflineServiceDrafts();
   const dismiss = useDismissOfflineServiceDraft();
 
   // Vitals queued offline from the caregiver chart share this device and this panel -- an aide who
@@ -77,7 +78,6 @@ export function UnsyncedDraftsPanel() {
   const observationEntries = useUnsyncedObservationDraftEntries();
   const observationDrafts = useUnsyncedObservationDrafts();
   const syncOneObservation = useSyncOfflineObservationDraft();
-  const syncAllObservations = useSyncAllOfflineObservationDrafts();
   const dismissObservation = useDismissOfflineObservationDraft();
 
   const pendingCount = (entries.data ?? []).filter((entry) => (UNRESOLVED_DRAFT_STATES as string[]).includes(entry.syncState)).length
@@ -85,125 +85,7 @@ export function UnsyncedDraftsPanel() {
   const reviewCount = (entries.data ?? []).filter((entry) => (NEEDS_REVIEW_DRAFT_STATES as string[]).includes(entry.syncState)).length
     + (observationEntries.data ?? []).filter((entry) => (NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)).length;
 
-  const runSyncAll = async () => {
-    // Sequential, not Promise.all, for two reasons.
-    //
-    // 1. Promise.all discards the other lane's fulfilled result the moment one rejects -- a run that
-    //    actually charted readings would report only "Sync failed", and a wipe_required from the
-    //    surviving lane would never reach the user.
-    // 2. Both lanes share one IndexedDB database, one device key, and one device registration. If the
-    //    observation lane hits wipe_required it clears the whole store, including the device key and
-    //    metadata; a service lane running concurrently would then find no metadata, mint a fresh key,
-    //    and call register_offline_service_device -- whose upsert sets status='active' and clears
-    //    wipe_required_at, re-activating the device that was just revoked and syncing the drafts the
-    //    wipe existed to destroy. Stopping on the first wipe closes that.
-    let applied = 0;
-    let attempted = 0;
-    let needsAttention = 0;
-    let wiped = false;
-    let failure: unknown = null;
-    let critical: { observationId: string; residentId: string; residentLabel: string }[] = [];
-
-    // Written out rather than looped over both mutations: the two lanes return different result
-    // shapes (only the observation lane can report a critical reading), and a loop collapses them to
-    // a union that has to be narrowed back apart at every use.
-    try {
-      const result = await syncAll.mutateAsync();
-      attempted += result.attempted;
-      applied += result.applied;
-      needsAttention += result.needsReview + result.failed;
-      if (result.wipeRequired) wiped = true;
-    } catch (error) {
-      failure = error;
-    }
-
-    if (!wiped) {
-      try {
-        const result = await syncAllObservations.mutateAsync();
-        attempted += result.attempted;
-        applied += result.applied;
-        needsAttention += result.needsReview + result.failed;
-        critical = result.criticalReadings;
-        if (result.wipeRequired) wiped = true;
-      } catch (error) {
-        failure = error;
-      }
-    }
-
-    // Raised before the ordinary success/failure reporting below, and kept on screen rather than
-    // folded into a count. A vital sign the server flagged critical was charted here without anyone
-    // watching -- the caregiver took it offline, possibly hours ago, and the chart's re-check dialog
-    // never ran because they were not on that page when it synced. A line reading "3 items recorded"
-    // is the wrong way to learn that.
-    setCriticalFromSync(critical);
-
-    if (wiped) {
-      toast({ title: "Offline access was turned off for this device", description: SYNC_OUTCOME_MESSAGES.wipe_required, variant: "destructive" });
-      return;
-    }
-    // Report what did land before reporting what did not -- a lane that charted readings should say
-    // so even if the other lane threw.
-    if (failure && applied === 0) {
-      toast({ title: "Sync failed", description: failure instanceof Error ? failure.message : "Try again when connected.", variant: "destructive" });
-      return;
-    }
-    if (attempted === 0 && !failure) {
-      // Nothing pending -- typical for the automatic online-event trigger firing with no backlog.
-      return;
-    }
-    if (needsAttention > 0 || failure) {
-      toast({
-        title: `${applied} recorded, ${needsAttention + (failure ? 1 : 0)} need attention`,
-        description: "Review the flagged items below.",
-        variant: "destructive",
-      });
-      return;
-    }
-    toast({ title: applied === 1 ? "1 item recorded" : `${applied} items recorded` });
-  };
-
-  // Catch up on mount, not only on the `online` event. The event fires once, at the transition, and
-  // is heard only by components that were already mounted -- so a caregiver who lost signal on the
-  // resident chart, regained it there, and then walked back to Floor would arrive with a backlog and
-  // nothing to trigger it: the transition happened while no listener existed, and returning here
-  // used to be a no-op. That left a charted reading device-only until someone noticed the panel and
-  // pressed "Sync now", which is not what the offline toast promises.
-  //
-  // Gated on there actually being unresolved work so a normal visit costs no device registration or
-  // IndexedDB read, and it waits for the draft queries to settle so a first paint with empty data
-  // does not read as an empty backlog.
-  const [criticalFromSync, setCriticalFromSync] =
-    useState<{ observationId: string; residentId: string; residentLabel: string }[]>([]);
-
-  const hasSettledEntries = entries.isSuccess && observationEntries.isSuccess;
-  const syncedOnMountRef = useRef(false);
-  useEffect(() => {
-    if (syncedOnMountRef.current || !hasSettledEntries || !isOnline || pendingCount === 0) return;
-    syncedOnMountRef.current = true;
-    void runSyncAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSettledEntries, isOnline, pendingCount]);
-
-  // Best-effort automatic sync whenever this device regains connectivity, in addition to the manual
-  // button below. Deliberately does not retry on a timer or on every render -- only on the browser's
-  // own online signal, which is exactly the moment a backlog can first make progress.
-  useEffect(() => {
-    const handleOnline = () => { setIsOnline(true); void runSyncAll(); };
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // criticalFromSync keeps the panel mounted after a clean run. Without it the successful sync that
-  // charted the critical reading would empty the queue, this early return would fire, and the
-  // warning would unmount in the same tick it was raised.
-  if (!entries.isLoading && !observationEntries.isLoading
-    && pendingCount === 0 && reviewCount === 0 && criticalFromSync.length === 0) return null;
+  if (!entries.isLoading && !observationEntries.isLoading && pendingCount === 0 && reviewCount === 0) return null;
 
   const needsReview = (drafts.data ?? []).filter((draft) => (NEEDS_REVIEW_DRAFT_STATES as string[]).includes(draft.syncState));
   const pending = (drafts.data ?? []).filter((draft) => (UNRESOLVED_DRAFT_STATES as string[]).includes(draft.syncState));
@@ -211,47 +93,9 @@ export function UnsyncedDraftsPanel() {
     .filter((draft) => (NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(draft.syncState));
   const observationsPending = (observationDrafts.data ?? [])
     .filter((draft) => (UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(draft.syncState));
-  const syncingAll = syncAll.isPending || syncAllObservations.isPending;
 
   return (
     <Card>
-      {criticalFromSync.length > 0 && (
-        <div className="border-b border-destructive/30 bg-destructive/10 p-4" role="alert">
-          <div className="flex items-start gap-3">
-            <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-destructive">
-                {criticalFromSync.length === 1
-                  ? "A reading just synced is outside the critical range"
-                  : `${criticalFromSync.length} readings just synced are outside the critical range`}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                These were taken offline and charted when this device reconnected. Re-check the
-                resident and escalate if the reading stands.
-              </p>
-              <ul className="mt-3 space-y-2">
-                {criticalFromSync.map((reading) => (
-                  <li key={reading.observationId} className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{reading.residentLabel}</span>
-                    <Button asChild size="sm" variant="destructive" className="h-9">
-                      <Link href={`/me/residents/${reading.residentId}`}>Open chart</Link>
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 shrink-0"
-              aria-label="Dismiss critical reading warning"
-              onClick={() => setCriticalFromSync([])}
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-        </div>
-      )}
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -263,10 +107,10 @@ export function UnsyncedDraftsPanel() {
           <Button
             size="sm"
             variant="outline"
-            disabled={!isOnline || syncingAll || pendingCount === 0}
+            disabled={!isOnline || isSyncingAll || pendingCount === 0}
             onClick={() => void runSyncAll()}
           >
-            {syncingAll
+            {isSyncingAll
               ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Syncing…</>
               : <><CloudUpload className="mr-2 h-4 w-4" />Sync now</>}
           </Button>

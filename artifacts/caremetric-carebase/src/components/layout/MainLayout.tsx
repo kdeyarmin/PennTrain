@@ -5,15 +5,16 @@ import { useImpersonationStatus, useStopImpersonation } from "@/hooks/useImperso
 import { Sidebar, MobileSidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { RouteErrorBoundary } from "@/components/ErrorBoundary";
-import { Loader2, Eye, X, ShieldAlert } from "lucide-react";
+import { Loader2, Eye, X, ShieldAlert, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { CareMetricCopilot } from "@/components/CareMetricCopilot";
 import { EndUserExperiencePanel } from "./EndUserExperiencePanel";
 import { PageTitleProvider, registryLabelForPath } from "@/lib/pageTitle";
+import { OfflineFloorSyncProvider, useOfflineFloorSync } from "@/hooks/useOfflineFloorSync";
 
 // Impersonation sessions auto-return after this long as a defense-in-depth backstop, independent
 // of the underlying magic-link JWT's own expiry (see useImpersonation.ts).
@@ -65,6 +66,54 @@ function ImpersonationBanner() {
         <X className="h-4 w-4 mr-1" />
         Return to Admin
       </Button>
+    </div>
+  );
+}
+
+// A vital sign synced from an offline draft that the server flagged critical (BACKLOG.md item 7).
+// Global chrome rather than something local to Floor/the roster: the sync that charts it can now
+// happen from any /me/* page (see useOfflineFloorSync), including the resident chart itself, which
+// is exactly where the caregiver most needs to be told to go re-check the resident -- and exactly
+// the page furthest from where a page-local banner used to live.
+function CriticalOfflineReadingBanner() {
+  const { criticalReadings, dismissCriticalReadings } = useOfflineFloorSync();
+  if (criticalReadings.length === 0) return null;
+
+  return (
+    <div className="border-b border-destructive/30 bg-destructive/10 p-4" role="alert">
+      <div className="flex items-start gap-3">
+        <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-destructive">
+            {criticalReadings.length === 1
+              ? "A reading just synced is outside the critical range"
+              : `${criticalReadings.length} readings just synced are outside the critical range`}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            These were taken offline and charted when this device reconnected. Re-check the
+            resident and escalate if the reading stands.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {criticalReadings.map((reading) => (
+              <li key={reading.observationId} className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{reading.residentLabel}</span>
+                <Button asChild size="sm" variant="destructive" className="h-9">
+                  <Link href={`/me/residents/${reading.residentId}`}>Open chart</Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0"
+          aria-label="Dismiss critical reading warning"
+          onClick={dismissCriticalReadings}
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -151,6 +200,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     <MfaPolicyGate>
     <IdleSessionLock>
     <PageTitleProvider>
+    <OfflineFloorSyncProvider>
     <div className="flex h-screen w-full overflow-hidden bg-background">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground">
         Skip to main content
@@ -159,6 +209,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <MobileSidebar open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
       <div className="flex-1 flex flex-col min-w-0">
         <ImpersonationBanner />
+        <CriticalOfflineReadingBanner />
         <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto bg-background focus:outline-none">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -174,6 +225,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <CareMetricCopilot />
       </div>
     </div>
+    </OfflineFloorSyncProvider>
     </PageTitleProvider>
     </IdleSessionLock>
     </MfaPolicyGate>

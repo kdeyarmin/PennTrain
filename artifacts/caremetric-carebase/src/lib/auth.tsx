@@ -304,11 +304,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       : null;
     if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
       void wipeOfflineServiceDrafts();
+      // BACKLOG.md item 6: this transition wiped the offline draft store but left the react-query
+      // cache untouched -- only SIGNED_IN/SIGNED_OUT cleared it, so any query key that does not
+      // itself carry the identity (e.g. a bare or profile-id-only key) kept serving the previous
+      // role/org/facility's rows until its own staleTime lapsed. clear() is the same operation
+      // SIGNED_IN already performs; the profile query this effect depends on is briefly re-fetched
+      // as a result, which isOfflineServiceDraftIdentityPending above already accounts for.
+      queryClient.clear();
     }
     lastOfflineServiceDraftIdentityRef.current = current
       ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
       : null;
-  }, [user?.id, user?.organizationId, user?.role, user?.isActive, session]);
+  }, [user?.id, user?.organizationId, user?.role, user?.isActive, session, queryClient]);
 
   useEffect(() => {
     if (!isLoading && !session && !isError) {
