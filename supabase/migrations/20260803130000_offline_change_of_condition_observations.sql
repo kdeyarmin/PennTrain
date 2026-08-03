@@ -104,7 +104,7 @@ alter table public.offline_service_draft_receipts
 -- resident_change_monitoring_entries when it applies, and nowhere on the server when it does not.
 comment on column public.offline_service_draft_receipts.change_event_id is
   'The change-of-condition event a change_observation attempt was filed against. The observation '
-  'text itself is deliberately not stored here -- see 20260803100000. BACKLOG.md E5 Tier 3.';
+  'text itself is deliberately not stored here -- see 20260803130000. BACKLOG.md E5 Tier 3.';
 
 comment on column public.offline_service_draft_receipts.draft_kind is
   'Which offline surface produced this attempt. service_task rows carry task_id + response; '
@@ -312,7 +312,7 @@ begin
     );
   end if;
 
-  -- Aligned with Tier 1/Tier 3 (20260803100000): wipe_required_at is the column that means "this
+  -- Aligned with Tier 1/Tier 3 (20260803130000): wipe_required_at is the column that means "this
   -- device must wipe", and pairing it with the status check still holds if a future path ever moves
   -- only one of the three. Every writer sets all three together today, so this changes no outcome
   -- that is currently reachable -- it removes a way for a later change to silently defeat the check.
