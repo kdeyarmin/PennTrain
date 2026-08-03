@@ -115,7 +115,8 @@ Data model (delivered in M2 — FHIR medication lane):
   key, same identity-change wipe rules, same purge ceilings — and synced through
   `sync_offline_clinical_observation_draft`, which calls `record_clinical_observation` rather than
   reimplementing it, so an offline reading is flagged and authorized identically to an online one.
-  `offline_observation_draft_receipts` is append-only and its `unique (device_id, idempotency_key)`
+  The receipt ledger (`offline_draft_receipts` — one table shared across every offline lane since
+  20260803140000, vitals included) is append-only, and its `unique (device_id, idempotency_key)`
   is what prevents a reconnect from charting the same vital sign twice — observations have no
   natural uniqueness the way a service task does, so idempotency is the only guard.
 - **Encryption / secrets.** Supabase Postgres is encrypted at rest by default. Any external FHIR
