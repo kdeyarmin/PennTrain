@@ -85,7 +85,22 @@ function openDatabase(): Promise<IDBDatabase> {
         value.result.createObjectStore(OBSERVATION_DRAFT_STORE, { keyPath: "draftId" });
       }
     };
-    value.onsuccess = () => resolve(value.result);
+    // Without this the v1 -> v2 upgrade can hang forever rather than fail. During a rolling deploy a
+    // tab still running the v1 bundle holds an open v1 connection; this open() then fires `blocked`
+    // and, with only onsuccess/onerror wired, the promise never settles either way -- so every
+    // consumer waits indefinitely, including the save path, where the caregiver sees "Saving..."
+    // spin and loses the reading with no error at all. Rejecting turns that into a visible,
+    // retryable failure. (This is the first version bump on this database, so it is also the first
+    // time the blocked path can fire.)
+    value.onblocked = () => reject(new Error(
+      "Another tab is still using the offline store. Close other CareBase tabs and try again.",
+    ));
+    value.onsuccess = () => {
+      // A later version bump should not hit the same wall from this side: close this connection when
+      // a newer tab asks to upgrade, rather than blocking it.
+      value.result.onversionchange = () => value.result.close();
+      resolve(value.result);
+    };
     value.onerror = () => reject(value.error ?? new Error("Offline service draft storage is unavailable"));
   });
 }
