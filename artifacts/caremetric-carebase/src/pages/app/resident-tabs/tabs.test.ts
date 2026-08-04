@@ -51,10 +51,46 @@ describe("resolveResidentTab", () => {
 });
 
 describe("planned tabs", () => {
-  it("records the tab the request asked for that is not built, with a reason", () => {
-    expect(PLANNED_TABS.map((tab) => tab.label)).toEqual(["Appointments"]);
-    expect(PLANNED_TABS[0].blockedBy).toBeTruthy();
-    // It must not appear as a real tab while it has no content behind it.
-    expect(RESIDENT_TABS.map((tab) => tab.label)).not.toContain("Appointments");
+  it("is empty, because every tab the request named is now built", () => {
+    // Appointments was the last entry, held back until `resident_appointments` had write paths
+    // behind it (migration 20260804010000). If a later phase defers a tab, this list is where it
+    // says so -- and the assertion below is what stops it being deferred silently.
+    expect(PLANNED_TABS).toEqual([]);
+  });
+
+  it("requires a real blocker on anything that is deferred", () => {
+    for (const tab of PLANNED_TABS) {
+      expect(tab.label.trim()).toBeTruthy();
+      // "not built yet" is not a blocker. A deferred tab has to name what stands in the way.
+      expect(tab.blockedBy.trim().length).toBeGreaterThan(20);
+    }
+  });
+
+  it("never lists a tab as both planned and real", () => {
+    const real = new Set(RESIDENT_TABS.map((tab) => tab.label));
+    for (const tab of PLANNED_TABS) expect(real.has(tab.label)).toBe(false);
+  });
+});
+
+describe("registry and component map", () => {
+  it("gives every registered tab a component of its own", async () => {
+    // The shell falls back to Overview for an id it has no component for, which means a tab added
+    // here and forgotten there renders the Overview under someone else's heading -- strictly worse
+    // than the empty tab this registry exists to avoid. Read as source rather than imported so the
+    // assertion costs nothing: importing ResidentDetail would pull in the whole application.
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const source = readFileSync(join(here, "..", "ResidentDetail.tsx"), "utf8");
+
+    const block = source.match(/const TAB_COMPONENTS[^{]*\{([\s\S]*?)\n\};/);
+    expect(block, "TAB_COMPONENTS is no longer an object literal -- update this test with it").toBeTruthy();
+    const mapped = new Set(
+      [...block![1].matchAll(/^\s*"?([\w-]+)"?:\s*lazy\(/gmu)].map((match) => match[1]),
+    );
+    // A parser that matches nothing must fail rather than pass vacuously.
+    expect(mapped.size).toBeGreaterThanOrEqual(RESIDENT_TABS.length);
+    for (const tab of RESIDENT_TABS) expect([...mapped]).toContain(tab.id);
   });
 });

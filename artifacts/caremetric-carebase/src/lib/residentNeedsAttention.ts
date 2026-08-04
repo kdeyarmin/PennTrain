@@ -17,6 +17,10 @@
 
 import { facilityToday } from "./dateUtils";
 import {
+  buildPreparationState, followUpIsOverdue, followUpOutstanding,
+  type AppointmentLike, type AppointmentPreparationItemLike,
+} from "./residentAppointments";
+import {
   ASSISTANCE_COUNT_THRESHOLD,
   ASSISTANCE_WINDOW_DAYS,
   REFUSAL_COUNT_THRESHOLD,
@@ -34,6 +38,9 @@ export type NeedsAttentionKind =
   | "change_of_condition_open"
   | "incident_follow_up"
   | "hospital_return_reconciliation"
+  | "appointment_preparation"
+  | "appointment_new_order"
+  | "appointment_follow_up"
   | "agreement_unsigned"
   | "missing_physician"
   | "fall_cluster"
@@ -111,6 +118,12 @@ export interface NeedsAttentionInput {
   moveInBlockers: number;
   hospitalState: "in_facility" | "out_at_hospital" | "returned_reconciliation_incomplete";
   hospitalSince: string | null;
+  /**
+   * Appointments and their preparation items. Empty is a legitimate state -- most residents have
+   * none open -- so an empty array produces no cards rather than a "not loaded" one.
+   */
+  appointments: AppointmentLike[];
+  appointmentPreparation: (AppointmentPreparationItemLike & { appointment_id: string })[];
   supportPlan: { versionNumber: number; state: string; reviewDueDate: string | null } | null;
   /**
    * An approved plan whose effective date has passed while it is still not active. Separate from
@@ -387,6 +400,84 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
       actionLabel: "Complete reconciliation",
       href: `${base}?tab=timeline`,
     });
+  }
+
+  // --- Appointments ---------------------------------------------------------------------------
+  // The sibling of the hospital card above, and the far more common one: most residents leave the
+  // building for a provider several times a year and almost never for an inpatient stay. All three
+  // cards are derived from `resident_appointments` rows through the same pure helpers the
+  // Appointments tab renders, so the panel and the tab cannot disagree about what is outstanding.
+  const preparationByAppointment = new Map<string, AppointmentPreparationItemLike[]>();
+  for (const item of input.appointmentPreparation) {
+    const list = preparationByAppointment.get(item.appointment_id) ?? [];
+    list.push(item);
+    preparationByAppointment.set(item.appointment_id, list);
+  }
+
+  for (const appointment of input.appointments) {
+    const preparation = buildPreparationState({
+      appointment,
+      items: preparationByAppointment.get(appointment.id) ?? [],
+      now,
+    });
+    // Raised only once the lead window opens. Flagging a list that is unready three weeks out is
+    // noise -- nobody assembles a discharge summary a month early, and a card nobody can action is
+    // how a panel gets ignored.
+    if (preparation.due && preparation.outstanding.length > 0) {
+      cards.push({
+        id: `appointment-preparation-${appointment.id}`,
+        kind: "appointment_preparation",
+        // Departure has passed with something missing: the resident is out without it, which is a
+        // different problem from a list that still has hours to run.
+        severity: preparation.overdue ? "urgent" : "high",
+        title: preparation.overdue
+          ? "Resident left for an appointment with preparation outstanding"
+          : "Appointment preparation not ready",
+        why: "A document or piece of equipment that does not travel with the resident is a visit the provider cannot act on, and a trip that has to be repeated.",
+        evidence: `${appointment.appointment_type} at ${appointment.location}: ${formatCount(preparation.outstanding.length, "item")} not ready (${preparation.outstanding.map((item) => item.label).join(", ")}).`,
+        owner: "Facility manager",
+        dueDate: preparation.dueAt,
+        since: null,
+        actionLabel: "Open appointment",
+        href: `${base}?tab=appointments`,
+      });
+    }
+
+    if (appointment.new_order_ack_status === "pending_review") {
+      cards.push({
+        id: `appointment-orders-${appointment.id}`,
+        kind: "appointment_new_order",
+        severity: "urgent",
+        title: "New physician orders not acknowledged",
+        why: "An order nobody acknowledged is an order nobody is carrying out. Orders that change at an appointment are the most common way a support plan silently stops matching the resident's care.",
+        evidence: `${appointment.appointment_type} on ${new Date(appointment.starts_at).toLocaleDateString()} returned orders that are still awaiting review.`,
+        owner: "Facility manager",
+        dueDate: appointment.follow_up_due_at,
+        since: appointment.starts_at,
+        actionLabel: "Acknowledge orders",
+        href: `${base}?tab=appointments`,
+      });
+    }
+
+    // The unacknowledged-orders card above already covers that half of the gate, so this one is
+    // raised only for the residual: a deadline that has passed with something else outstanding.
+    if (followUpIsOverdue(appointment, now)
+      && appointment.new_order_ack_status !== "pending_review") {
+      const outstanding = followUpOutstanding(appointment, now);
+      cards.push({
+        id: `appointment-follow-up-${appointment.id}`,
+        kind: "appointment_follow_up",
+        severity: "high",
+        title: "Appointment follow-up overdue",
+        why: "The follow-up work item stays open in the queue until what happened at the appointment is written down, and an appointment nobody recorded is one the next reviewer cannot see.",
+        evidence: `${appointment.appointment_type}: ${outstanding.map((step) => step.label.toLowerCase()).join("; ")}.`,
+        owner: "Facility manager",
+        dueDate: appointment.follow_up_due_at,
+        since: appointment.starts_at,
+        actionLabel: "Open appointment",
+        href: `${base}?tab=appointments`,
+      });
+    }
   }
 
   // --- Agreements -----------------------------------------------------------------------------

@@ -21,19 +21,25 @@ export const RESIDENT_TABS: ResidentTabDefinition[] = [
   { id: "assessments", label: "Assessments" },
   { id: "support-plan", label: "Support plan", trackedFacilityOnly: true },
   { id: "incidents", label: "Incidents & changes" },
+  { id: "appointments", label: "Appointments" },
   { id: "documents", label: "Documents" },
   { id: "financial", label: "Financial & agreements" },
   { id: "timeline", label: "Timeline" },
 ];
 
 /**
- * The request's tab list also names "Appointments". `resident_appointments` exists in the schema
- * but has no read surface on this record yet, and an empty tab is worse than an absent one -- it
- * reads as "no appointments" rather than "not built". Tracked here so it is not quietly forgotten.
+ * Empty, and that is the point: every tab the request named is now built.
+ *
+ * Appointments was the last entry. It was held back deliberately because `resident_appointments`
+ * had a schema, a scheduling RPC, and an outcome RPC that no application code had ever called, so a
+ * tab over it would have read as "no appointments" rather than "not built". Migration
+ * `20260804010000` supplied the three write paths the table was missing -- preparation readiness,
+ * new-order acknowledgement, and follow-up closure -- and `AppointmentsTab.tsx` renders them.
+ *
+ * Kept rather than deleted: a later phase that defers a tab needs somewhere to say so, and
+ * `tabs.test.ts` asserts that anything listed here carries a real blocker.
  */
-export const PLANNED_TABS: { label: string; blockedBy: string }[] = [
-  { label: "Appointments", blockedBy: "resident_appointments has no read surface on the resident record yet." },
-];
+export const PLANNED_TABS: { label: string; blockedBy: string }[] = [];
 
 export function visibleResidentTabs({
   isTrackedFacilityType,

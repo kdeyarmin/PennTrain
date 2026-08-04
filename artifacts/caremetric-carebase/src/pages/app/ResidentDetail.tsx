@@ -28,6 +28,9 @@ import { useResidentAgreements } from "@/hooks/useResidentAgreements";
 import { useResidentAdministrativeMaster } from "@/hooks/useResidentAdministrativeMaster";
 import { useResidentCareLevelFlags } from "@/hooks/useCareLevelReview";
 import { useResidentServiceExceptions } from "@/hooks/useFloorMode";
+import {
+  useResidentAppointmentPreparation, useResidentAppointments,
+} from "@/hooks/useResidentAppointments";
 import { buildResidentNeedsAttention } from "@/lib/residentNeedsAttention";
 import { isCareProfileStale } from "@/lib/residentCareHeader";
 import { buildResidentFaceSheetPacket } from "@/lib/residentFaceSheet";
@@ -49,6 +52,7 @@ const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentTy
   assessments: lazy(() => import("./resident-tabs/AssessmentsTab")),
   "support-plan": lazy(() => import("./resident-tabs/SupportPlanTab")),
   incidents: lazy(() => import("./resident-tabs/IncidentsChangesTab")),
+  appointments: lazy(() => import("./resident-tabs/AppointmentsTab")),
   documents: lazy(() => import("./resident-tabs/DocumentsTab")),
   financial: lazy(() => import("./resident-tabs/FinancialTab")),
   timeline: lazy(() => import("./resident-tabs/TimelineTab")),
@@ -89,6 +93,16 @@ export default function ResidentDetail() {
   const careLevelFlags = useResidentCareLevelFlags(id, resident?.facility_id, careLevelResident);
   // Phase 4b floor-execution exception rows — same source change detection and care conflicts use.
   const serviceExceptionsQuery = useResidentServiceExceptions(id);
+  // Two indexed, resident-scoped reads that also back the Appointments tab, so opening the tab
+  // costs nothing more. The care-level review card was deliberately kept out of the shell because
+  // feeding it meant loading the 11-query financial workspace on every resident view; this is the
+  // other side of that judgement -- these are cheap enough that the cards are worth the shell.
+  const appointmentsQuery = useResidentAppointments(id);
+  const appointmentIds = useMemo(
+    () => (appointmentsQuery.data ?? []).map((row) => row.id),
+    [appointmentsQuery.data],
+  );
+  const appointmentPreparationQuery = useResidentAppointmentPreparation(appointmentIds);
 
   const { mutate: updateResident } = useUpdateResident();
 
@@ -159,7 +173,13 @@ export default function ResidentDetail() {
     || documentsLoading
     || careHeader.isLoading
     || careLevelFlags.isLoading
-    || serviceExceptionsQuery.isLoading;
+    || serviceExceptionsQuery.isLoading
+    || appointmentsQuery.isLoading
+    // Only counts while there is something to fetch: with no appointments the preparation query is
+    // disabled, and react-query reports a disabled query as loading forever. Treating that as
+    // "still loading" would leave the panel showing a spinner on every resident who has never had
+    // an appointment.
+    || (appointmentIds.length > 0 && appointmentPreparationQuery.isLoading);
   const typedServiceExceptions: DetectionServiceException[] = (serviceExceptionsQuery.data ?? []).map((row) => ({
     completion_response: row.completion_response,
     documented_assistance_level: row.documented_assistance_level,
@@ -178,6 +198,8 @@ export default function ResidentDetail() {
       moveInBlockers: moveInPacket.blockers,
       hospitalState: careHeader.data.hospital.state,
       hospitalSince: careHeader.data.hospital.since,
+      appointments: appointmentsQuery.data ?? [],
+      appointmentPreparation: appointmentPreparationQuery.data ?? [],
       supportPlan: careHeader.data.supportPlan
         ? {
           versionNumber: careHeader.data.supportPlan.versionNumber,
