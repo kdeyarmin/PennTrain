@@ -34,6 +34,7 @@ import {
   revisionStateLabel,
   stepBlocker,
   validateCourseSnapshot,
+  type CourseSnapshot,
   type MaterialChangeAction,
 } from "@/lib/governedContentRevision";
 import { QueryError } from "@/components/QueryState";
@@ -266,9 +267,6 @@ function RevisionRow({
   const review = useReviewGovernedRevision();
   const publish = usePublishGovernedRevision();
   const [reason, setReason] = useState("");
-  const versions = useListCourseVersions(sourceCourseId);
-  const blocks = useListCourseBlocks(revision.source_version_id ?? undefined);
-
   const step = nextStep(revision.state);
   const blocker = stepBlocker(
     {
@@ -288,10 +286,13 @@ function RevisionRow({
     user?.id ?? null,
   );
 
-  // Re-derived rather than read back from the stored snapshot: the point of showing findings at
-  // submission time is to say what is true of the source *now*, which is what the reviewer inherits.
-  const version = (versions.data ?? []).find((row) => row.id === revision.source_version_id);
-  const findings = version ? validateCourseSnapshot(buildCourseSnapshot(version, blocks.data ?? [])) : [];
+  // The frozen snapshot, not the live course rows. This used to re-derive from whatever the source
+  // version says now, which describes something nobody is approving: the revision carries its own
+  // `snapshot` and `snapshot_sha256`, the server validates and publishes that, and the footer below
+  // already tells the reader it is frozen. Re-deriving got it wrong in both directions -- a stale
+  // broken snapshot submitted cleanly once the source was fixed, and a good snapshot blocked by a
+  // regression landed in the source afterwards.
+  const findings = validateCourseSnapshot(revision.snapshot as unknown as CourseSnapshot);
   const pending = submit.isPending || review.isPending || publish.isPending;
   const reasonProblem = reasonIssue(reason, step === "publish" ? "publication" : "review");
 

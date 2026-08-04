@@ -29,10 +29,23 @@ const SIGNED_URL_TTL_SECONDS = 60 * 10;
 // Mirrors artifacts/caremetric-carebase/src/lib/residentCompliance.ts's DHS form URLs -- duplicated
 // here (a Deno edge function can't import from the frontend package) and must stay in sync if
 // that file's URLs ever change.
-const DHS_PREFILL_TEMPLATES: Record<
-  string,
-  Record<string, { url: string; sourceLabel: string; fileLabel: string }>
-> = {
+type DhsPrefillTemplate = { url: string; sourceLabel: string; fileLabel: string };
+
+// Shared by `medical_evaluation` and `annual_medical_evaluation` below -- one form, two cycles.
+const MEDICAL_EVALUATION_TEMPLATES: Record<string, DhsPrefillTemplate> = {
+  PCH: {
+    url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-25-personal-care-homes-dme-reupload.pdf",
+    sourceLabel: "PA DHS Personal Care Home DME form",
+    fileLabel: "DME",
+  },
+  ALR: {
+    url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-24-assisted-living-residences-dme.pdf",
+    sourceLabel: "PA DHS Assisted Living Facility (ALF) DME form",
+    fileLabel: "DME",
+  },
+};
+
+const DHS_PREFILL_TEMPLATES: Record<string, Record<string, DhsPrefillTemplate>> = {
   preadmission_screening: {
     PCH: {
       url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Preadmission-Screening.pdf",
@@ -45,18 +58,13 @@ const DHS_PREFILL_TEMPLATES: Record<
       fileLabel: "Preadmission Screening",
     },
   },
-  medical_evaluation: {
-    PCH: {
-      url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-25-personal-care-homes-dme-reupload.pdf",
-      sourceLabel: "PA DHS Personal Care Home DME form",
-      fileLabel: "DME",
-    },
-    ALR: {
-      url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-24-assisted-living-residences-dme.pdf",
-      sourceLabel: "PA DHS Assisted Living Facility (ALF) DME form",
-      fileLabel: "DME",
-    },
-  },
+  medical_evaluation: MEDICAL_EVALUATION_TEMPLATES,
+  // The annual cycle prefills from the same document. DHS publishes one Medical Evaluation form per
+  // setting type, used both at admission and for the annual re-evaluation; splitting the item types
+  // (20260804170000) split the schedule, not the paperwork. Without this key an annual row reached
+  // the State Forms Center and got the "prefill only available" 400, which reads as "we do not have
+  // that form" when the form is the one directly above.
+  annual_medical_evaluation: MEDICAL_EVALUATION_TEMPLATES,
 };
 
 Deno.serve(async (req: Request) => {

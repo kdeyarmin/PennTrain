@@ -283,7 +283,11 @@ export function DataLifecyclePanel() {
               <p className="text-xs text-muted-foreground">Planned batch {plannedBatchId.slice(0, 8)}…</p>
             )}
             <Button
-              disabled={busy || archiveIssues.length > 0 || planArchive.isPending}
+              // `!manifestQ.data` is load-bearing, not belt-and-braces: until the count arrives,
+              // archivePlanIssues is handed a null rowCount and cannot report an empty range, and
+              // plan_audit_archive records a zero-row batch rather than refusing one. Clicking
+              // during the count is exactly how the empty batch this form guards against gets made.
+              disabled={busy || archiveIssues.length > 0 || planArchive.isPending || !manifestQ.data}
               onClick={() => void handlePlanArchive()}
             >
               <Archive className="mr-2 h-4 w-4" />Plan archive batch

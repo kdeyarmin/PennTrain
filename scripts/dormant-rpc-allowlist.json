@@ -1,0 +1,47 @@
+{
+  "_readme": [
+    "Functions granted EXECUTE to `authenticated` that check-dormant-rpcs.mjs must not fail on.",
+    "",
+    "An entry is a debt, not an absolution. The gate exists because this codebase repeatedly shipped",
+    "complete server work no button could reach (BACKLOG.md G1-G11). Every row below names a function",
+    "in exactly that state, and every one has an open BACKLOG row. Delete the entry when the caller",
+    "lands -- do not delete the entry to make the gate quiet.",
+    "",
+    "All six were exposed at once when the gate stopped treating a migration comment as a call site.",
+    "Naming a function in prose -- as a good comment does when it explains why something was removed --",
+    "had been enough to excuse it from the check. The `zero dormant RPCs` this branch reported before",
+    "that fix was not true; six is the real number."
+  ],
+
+  "unassign_organization_release_cohort": {
+    "reason": "Restored by 20260804160000 to close the one-way door 20260802030000 left behind: that migration dropped the unassign side while keeping assign, so an organization could be put into a release cohort and nothing supported could take it out. The console that called it was deleted on purpose in the same migration and is deliberately not being re-added here. The function is the supported exit; the surface that calls it is the open work.",
+    "backlog": "G12.1",
+    "introduced_by": "this branch (20260804160000)"
+  },
+
+  "admin_emergency_update_course_block": {
+    "reason": "Pre-existing on main and never called. An emergency edit path for a published course block, complete with its own audit trail, that no admin screen offers.",
+    "backlog": "G12.2",
+    "introduced_by": "main"
+  },
+  "get_resident_administrative_packet": {
+    "reason": "Pre-existing on main and never called. The current wrapper in a chain of renamed predecessors (_base, _before_dietary, _before_calendar); each rename kept the grant, and nothing reads the packet it assembles.",
+    "backlog": "G12.3",
+    "introduced_by": "main"
+  },
+  "grant_duty_eligibility_override": {
+    "reason": "Pre-existing on main and never called. Duty eligibility can be evaluated and refused, but the documented override that would let a supervisor accept the risk has no way in.",
+    "backlog": "G12.4",
+    "introduced_by": "main"
+  },
+  "is_employee_access_active": {
+    "reason": "Pre-existing on main and never called, from either client source or another function body. Reads as a helper predicate, but nothing in the database uses it either, so it is dead rather than internal.",
+    "backlog": "G12.5",
+    "introduced_by": "main"
+  },
+  "revoke_offline_service_device": {
+    "reason": "Pre-existing on main and never called. Offline service devices can be registered but not revoked -- the same one-way-door shape as the survey-packet guest grants closed in G9.",
+    "backlog": "G12.6",
+    "introduced_by": "main"
+  }
+}

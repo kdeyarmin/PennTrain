@@ -15,6 +15,7 @@ import {
   useRescheduleAppointment, useScheduleAppointmentForResident,
 } from "@/hooks/useResidentAppointmentMutations";
 import type { AppointmentLike } from "@/lib/residentAppointments";
+import { errorText } from "@/lib/errorText";
 
 /**
  * The four write surfaces the Appointments tab needs, in one module so the tab's lazy chunk pulls
@@ -22,10 +23,6 @@ import type { AppointmentLike } from "@/lib/residentAppointments";
  * these dialogs disable the obvious cases and let the server's message through for the rest, rather
  * than reimplementing gates that would then drift.
  */
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 /** Splits a textarea into trimmed, non-empty lines. One item per line is the fastest thing to type. */
 function lines(value: string): string[] {
@@ -82,7 +79,7 @@ export function ScheduleAppointmentDialog({
       toast({ title: "Appointment scheduled" });
       onOpenChange(false);
     } catch (error) {
-      toast({ title: "Could not schedule the appointment", description: errorMessage(error), variant: "destructive" });
+      toast({ title: "Could not schedule the appointment", description: errorText(error), variant: "destructive" });
     }
   };
 
@@ -195,12 +192,16 @@ export function RecordAppointmentOutcomeDialog({
         status,
         outcomeSummary: summary.trim() || undefined,
         followUpDueAt: followUpDueAt ? new Date(followUpDueAt).toISOString() : undefined,
-        newOrderAckStatus: newOrders ? "pending_review" : "not_applicable",
+        // A closed outcome cannot raise an acknowledgement. `record_appointment_outcome` opens a
+        // follow-up work item for `pending_review`, while `appointmentStage` reads the row as
+        // closed and the Appointments tab stops offering the Close follow-up action -- so the pair
+        // produced a work item with no way to close it. Closing means nothing is outstanding.
+        newOrderAckStatus: newOrders && status !== "closed" ? "pending_review" : "not_applicable",
       });
       toast({ title: "Outcome recorded" });
       onOpenChange(false);
     } catch (error) {
-      toast({ title: "Could not record the outcome", description: errorMessage(error), variant: "destructive" });
+      toast({ title: "Could not record the outcome", description: errorText(error), variant: "destructive" });
     }
   };
 
@@ -242,7 +243,8 @@ export function RecordAppointmentOutcomeDialog({
           </div>
           <label className="flex items-start gap-2 rounded-md border p-2 text-sm">
             <input
-              type="checkbox" className="mt-0.5" checked={newOrders}
+              type="checkbox" className="mt-0.5" checked={newOrders && status !== "closed"}
+              disabled={status === "closed"}
               onChange={(e) => setNewOrders(e.target.checked)}
             />
             <span>
@@ -251,6 +253,12 @@ export function RecordAppointmentOutcomeDialog({
                 Raises the acknowledgement, which is a separate signed step. An order nobody
                 acknowledged is an order nobody is carrying out.
               </span>
+              {status === "closed" && (
+                <span className="block text-xs text-amber-700">
+                  Not available on a closed outcome: closing is the claim that nothing is
+                  outstanding. Record this as “Follow-up required” instead if orders came back.
+                </span>
+              )}
             </span>
           </label>
         </div>
@@ -285,7 +293,7 @@ export function AcknowledgeNewOrdersDialog({
       toast({ title: "New orders acknowledged" });
       onOpenChange(false);
     } catch (error) {
-      toast({ title: "Could not acknowledge the orders", description: errorMessage(error), variant: "destructive" });
+      toast({ title: "Could not acknowledge the orders", description: errorText(error), variant: "destructive" });
     }
   };
 
@@ -338,7 +346,7 @@ export function CloseAppointmentFollowUpDialog({
       toast({ title: "Appointment follow-up closed" });
       onOpenChange(false);
     } catch (error) {
-      toast({ title: "Could not close the follow-up", description: errorMessage(error), variant: "destructive" });
+      toast({ title: "Could not close the follow-up", description: errorText(error), variant: "destructive" });
     }
   };
 
@@ -405,7 +413,7 @@ export function RescheduleAppointmentDialog({
       toast({ title: "Appointment rescheduled", description: "The replacement inherits the transport and preparation list." });
       onOpenChange(false);
     } catch (error) {
-      toast({ title: "Could not reschedule", description: errorMessage(error), variant: "destructive" });
+      toast({ title: "Could not reschedule", description: errorText(error), variant: "destructive" });
     }
   };
 

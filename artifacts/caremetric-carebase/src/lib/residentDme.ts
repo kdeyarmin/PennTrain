@@ -74,8 +74,14 @@ export const DME_EVENT_SHAPES: Record<DmeEventType, DmeEventShape> = {
   },
   transferred: {
     label: "Transferred to another resident",
-    status: "transferred", condition: null, requiresResident: true, requiresNote: false,
-    description: "Moves the item to a different resident in the same facility.",
+    // `in_use`, not `transferred`: a transfer names a new resident, so the walker or concentrator
+    // is still in service in the same facility and still needs inspecting on schedule. Only
+    // `in_use`/`needs_repair` items are counted by `dmeInspectionState` and by
+    // `get_resident_care_delivery_analytics`, so parking it in a `transferred` status silently
+    // took it off the inspection schedule. The transfer stays visible as an event in the history,
+    // which is where "what happened" belongs; status records where the item is now.
+    status: "in_use", condition: null, requiresResident: true, requiresNote: false,
+    description: "Moves the item to a different resident in the same facility. It stays in service.",
   },
   returned: {
     label: "Returned to vendor or owner",

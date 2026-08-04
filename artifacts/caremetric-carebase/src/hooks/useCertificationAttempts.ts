@@ -112,11 +112,14 @@ export function useStartCertificationAttempt(employeeId: string) {
   const invalidate = useCertificationInvalidation(employeeId);
   return useMutation({
     mutationFn: async (input: { certificationVersionId: string; observedAt?: string }) => {
+      // The key is omitted, not sent as null, when the caller has no observation time. A PostgreSQL
+      // parameter default (`p_observed_at timestamptz default now()`) applies only when the argument
+      // is left out; passing an explicit null passes null, and `certification_attempts.observed_at`
+      // is NOT NULL, so sending null failed the insert with 23502 and no attempt could be started.
       const { data, error } = await supabase.rpc("start_certification_attempt" as never, {
         p_employee_id: employeeId,
         p_certification_version_id: input.certificationVersionId,
-        // Null lets the server stamp its own clock rather than trusting the browser's.
-        p_observed_at: input.observedAt ?? null,
+        ...(input.observedAt ? { p_observed_at: input.observedAt } : {}),
       } as never);
       if (error) throw error;
       return data as string;

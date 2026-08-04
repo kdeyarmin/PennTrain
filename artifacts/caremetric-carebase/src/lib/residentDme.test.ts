@@ -148,3 +148,39 @@ describe("dmeEquipmentLabel", () => {
     expect(dmeEquipmentLabel("specialty_mattress")).toBe("Specialty mattress");
   });
 });
+
+describe("a transfer keeps the item on its inspection schedule", () => {
+  // A transfer names a new resident, so the item is still in service in the same facility. Parking
+  // it in a `transferred` status dropped it out of the in_use/needs_repair set that both
+  // `dmeInspectionState` and `get_resident_care_delivery_analytics` count, which silently took a
+  // walker or oxygen concentrator off the inspection schedule the moment it changed hands.
+  it("moves the item to in_use, the same status an assignment produces", () => {
+    expect(DME_EVENT_SHAPES.transferred.status).toBe("in_use");
+    expect(DME_EVENT_SHAPES.transferred.status).toBe(DME_EVENT_SHAPES.assigned.status);
+  });
+
+  it("still requires the new resident, which is what makes it a transfer", () => {
+    expect(DME_EVENT_SHAPES.transferred.requiresResident).toBe(true);
+  });
+
+  it("leaves a transferred item inspectable rather than untracked", () => {
+    const state = dmeInspectionState(
+      { status: DME_EVENT_SHAPES.transferred.status!, inspection_frequency_days: 30 },
+      "2026-01-01T00:00:00Z",
+      new Date("2026-06-01T00:00:00Z"),
+    );
+    expect(state.label).not.toBe("Not on an inspection schedule");
+    expect(state.overdue).toBe(true);
+  });
+
+  it("still leaves the events that genuinely end service off the schedule", () => {
+    for (const shape of [DME_EVENT_SHAPES.returned, DME_EVENT_SHAPES.disposed]) {
+      const state = dmeInspectionState(
+        { status: shape.status!, inspection_frequency_days: 30 },
+        "2026-01-01T00:00:00Z",
+        new Date("2026-06-01T00:00:00Z"),
+      );
+      expect(state.label).toBe("Not on an inspection schedule");
+    }
+  });
+});

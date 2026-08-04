@@ -66,8 +66,26 @@ export function droppedFunctions(sql) {
 const DECLARATIVE =
   /(create\s+(or\s+replace\s+)?function|grant\s+execute|revoke\s+all|comment\s+on\s+function|drop\s+function|has_function|alter\s+function)/i;
 
+/**
+ * SQL with its comments removed.
+ *
+ * Prose is not a caller, and this gate treated it as one. A migration whose header explained why a
+ * function was being removed -- naming it, as a good comment does -- made that function look
+ * reachable, so the check silently stopped applying to it. That is how
+ * `unassign_organization_release_cohort` passed while having no caller at all.
+ *
+ * Block comments are stripped from the whole file before it is split into lines, because they span
+ * lines and a line-at-a-time reader cannot see that it is inside one. A `--` inside a string literal
+ * would be stripped too; no migration here does that, and the failure mode is a missed finding
+ * rather than a false one.
+ */
+export function stripSqlComments(sql) {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
+}
+
 export function isCallSite(line, name) {
-  return new RegExp(`\\b${name}\\b`).test(line) && !DECLARATIVE.test(line);
+  const code = stripSqlComments(line);
+  return new RegExp(`\\b${name}\\b`).test(code) && !DECLARATIVE.test(code);
 }
 
 if (process.argv.includes("--self-test")) {
@@ -83,6 +101,40 @@ if (process.argv.includes("--self-test")) {
     [() => isCallSite("grant execute on function public.foo(uuid) to authenticated;", "foo"), false],
     [() => isCallSite("create or replace function public.foo(uuid)", "foo"), false],
     [() => isCallSite("select has_function('public','foo',array['uuid'],'exists');", "foo"), false],
+    // Prose is not a caller. A migration header explaining why `foo` was removed named `foo`, and
+    // that alone used to excuse it from the check.
+    [() => isCallSite("-- Console, and dropped `foo` as console-only with no other caller.", "foo"), false],
+    [() => isCallSite("  perform public.foo(v_id); -- unrelated note", "foo"), true],
+    [() => stripSqlComments("select 1; /* foo\n bar */ select 2;").includes("foo"), false],
+    // Cross-migration drop-then-restore. Applying drops as each migration is read has to leave a
+    // later re-grant standing; collecting every drop and subtracting at the end does not, and that
+    // is what previously hid `unassign_organization_release_cohort` from the check entirely.
+    [() => {
+      const migrations = [
+        "grant execute on function public.later_restored(uuid) to authenticated;",
+        "drop function if exists public.later_restored(uuid);",
+        "create or replace function public.later_restored(uuid, text) returns void as $$ $$;\n" +
+          "grant execute on function public.later_restored(uuid, text) to authenticated;",
+      ];
+      const live = new Set();
+      for (const sql of migrations) {
+        for (const fn of droppedFunctions(sql)) live.delete(fn);
+        for (const fn of grantedToAuthenticated(sql)) live.add(fn);
+      }
+      return [...live];
+    }, ["later_restored"]],
+    // ...and a drop that is never undone still removes the function.
+    [() => {
+      const live = new Set();
+      for (const sql of [
+        "grant execute on function public.gone_for_good(uuid) to authenticated;",
+        "drop function if exists public.gone_for_good(uuid);",
+      ]) {
+        for (const fn of droppedFunctions(sql)) live.delete(fn);
+        for (const fn of grantedToAuthenticated(sql)) live.add(fn);
+      }
+      return [...live];
+    }, []],
   ];
   let failures = 0;
   for (const [run, expected] of cases) {
@@ -108,17 +160,27 @@ async function walk(dir, filter, out = []) {
   return out;
 }
 
+// Migrations apply in filename order, so the LAST statement about a function is the one that counts
+// -- and that has to be decided per migration, as they are read. An earlier version accumulated every
+// drop across the whole scan and subtracted the lot at the end, which quietly reversed the answer for
+// any function dropped once and re-created later: `unassign_organization_release_cohort` is dropped by
+// 20260802030000 and restored by 20260804160000, and the end-of-scan subtraction removed it from the
+// check even though it is granted and live. A gate that silently stops checking a function is worse
+// than no gate, because the zero it reports is trusted.
 const migrationNames = (await readdir(MIGRATIONS)).filter((n) => n.endsWith(".sql")).sort();
 const granted = new Set();
-const dropped = new Set();
+let dropCount = 0;
 const migrationLines = [];
 for (const name of migrationNames) {
   const sql = await readFile(path.join(MIGRATIONS, name), "utf8");
+  // Drops first, then grants: `droppedFunctions` already discounts a drop that the same file
+  // re-creates, so a migration that replaces a function ends with it granted, as it should.
+  for (const fn of droppedFunctions(sql)) {
+    if (granted.delete(fn)) dropCount += 1;
+  }
   for (const fn of grantedToAuthenticated(sql)) granted.add(fn);
-  for (const fn of droppedFunctions(sql)) dropped.add(fn);
-  migrationLines.push(...sql.split("\n"));
+  migrationLines.push(...stripSqlComments(sql).split("\n"));
 }
-for (const fn of dropped) granted.delete(fn);
 
 const clientFiles = await walk(
   CLIENT_SRC,
@@ -129,7 +191,9 @@ const callerText = (await Promise.all([...clientFiles, ...edgeFiles].map((f) => 
 
 let allowlist = {};
 try {
-  allowlist = JSON.parse(await readFile(ALLOWLIST, "utf8"));
+  const parsed = JSON.parse(await readFile(ALLOWLIST, "utf8"));
+  // `_`-prefixed keys are prose for whoever opens the file next, not function names.
+  allowlist = Object.fromEntries(Object.entries(parsed).filter(([key]) => !key.startsWith("_")));
 } catch {
   // An absent allowlist means nothing is excused, which is the correct default.
 }
@@ -152,5 +216,5 @@ if (findings.length) {
 }
 process.stdout.write(
   `Dormant-RPC check passed (${granted.size} function(s) granted to authenticated, ` +
-    `${dropped.size} later dropped and excluded, ${Object.keys(allowlist).length} allowlisted).\n`,
+    `${dropCount} dropped and excluded, ${Object.keys(allowlist).length} allowlisted).\n`,
 );

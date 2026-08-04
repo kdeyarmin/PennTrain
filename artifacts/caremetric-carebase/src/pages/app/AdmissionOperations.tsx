@@ -39,7 +39,7 @@ import {
   type FacilityBedWithRelations,
 } from "@/hooks/useAdmissions";
 import { QueryError } from "@/components/QueryState";
-import { PIPELINE_STAGES, pipelineStage, stageDirection } from "@/lib/admissionPipeline";
+import { SETTABLE_STAGES, pipelineStage, stageDirection } from "@/lib/admissionPipeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -235,7 +235,10 @@ function ProspectReviewDialog({
               <Select value={funnelStage} onValueChange={setFunnelStage}>
                 <SelectTrigger id={`${__fieldIds}-funnel-stage`} className="sm:w-72"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PIPELINE_STAGES.map(definition => (
+                  {/* Not PIPELINE_STAGES: `advance_admission_pipeline_stage` refuses `admitted`,
+                      because admission is the move-in workflow's job -- it creates the resident
+                      record. Offering it here could only ever produce a server error. */}
+                  {SETTABLE_STAGES.map(definition => (
                     <SelectItem key={definition.key} value={definition.key}>{definition.label}</SelectItem>
                   ))}
                 </SelectContent>

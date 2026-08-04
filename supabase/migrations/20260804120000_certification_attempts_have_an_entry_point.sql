@@ -270,9 +270,14 @@ begin
   left join public.certification_attempt_items ai
     on ai.checklist_item_id = i.id and ai.certification_attempt_id = v_attempt.id
   where i.certification_version_id = v_attempt.certification_version_id
+    -- `not_applicable` is a complete answer, not a missing one. `record_certification_attempt_item`
+    -- accepts it without evidence or a signature by design -- an item that genuinely does not apply
+    -- to this observation has nothing to photograph and nobody to sign it -- so a gate that still
+    -- demanded both made any checklist containing such an item impossible to submit or approve.
+    -- `ai.id is null` stays: not recorded at all is still missing. N/A has to be recorded.
     and (ai.id is null
-      or (i.evidence_required and ai.evidence = '{}'::jsonb)
-      or (i.signature_required and ai.signed_at is null));
+      or (i.evidence_required and ai.evidence = '{}'::jsonb and ai.result <> 'not_applicable')
+      or (i.signature_required and ai.signed_at is null and ai.result <> 'not_applicable'));
 
   if cardinality(v_missing) > 0 then
     raise exception 'These checklist items are not complete: %', array_to_string(v_missing, ', ')

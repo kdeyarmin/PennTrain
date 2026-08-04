@@ -231,7 +231,10 @@ export function useCorrectCompletedClassAttendee() {
     },
     onSuccess: (_data, input) => {
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", input.classId] });
-      queryClient.invalidateQueries({ queryKey: ["training_class_attendee_counts"] });
+      // `useClassAttendeeCounts` keys on ["training_class_attendees", "all-counts"], which is what
+      // the add/update mutations above already invalidate. The key this used to name existed
+      // nowhere, so class lists kept showing pre-correction totals until an unrelated refetch.
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
       // A correction adds or removes a training record and its hour bucket, so anything reading
       // compliance for that employee is stale.
       queryClient.invalidateQueries({ queryKey: ["training_records"] });

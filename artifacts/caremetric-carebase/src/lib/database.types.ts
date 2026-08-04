@@ -13433,6 +13433,9 @@ export type Database = {
           assessment_review_required: boolean
           bed_hold_status: string
           belongings: Json
+          changed_order_ack_at: string | null
+          changed_order_ack_by: string | null
+          changed_order_ack_note: string | null
           changed_order_ack_status: string
           condition_changes: string | null
           created_at: string
@@ -13470,6 +13473,9 @@ export type Database = {
           assessment_review_required?: boolean
           bed_hold_status?: string
           belongings?: Json
+          changed_order_ack_at?: string | null
+          changed_order_ack_by?: string | null
+          changed_order_ack_note?: string | null
           changed_order_ack_status?: string
           condition_changes?: string | null
           created_at?: string
@@ -13507,6 +13513,9 @@ export type Database = {
           assessment_review_required?: boolean
           bed_hold_status?: string
           belongings?: Json
+          changed_order_ack_at?: string | null
+          changed_order_ack_by?: string | null
+          changed_order_ack_note?: string | null
           changed_order_ack_status?: string
           condition_changes?: string | null
           created_at?: string
@@ -13541,6 +13550,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "hospital_transfer_episodes_changed_order_ack_by_fkey"
+            columns: ["changed_order_ack_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "hospital_transfer_episodes_created_by_fkey"
             columns: ["created_by"]
@@ -35786,6 +35802,10 @@ export type Database = {
         Args: { p_appointment_id: string; p_note: string }
         Returns: boolean
       }
+      acknowledge_hospital_return_new_order: {
+        Args: { p_episode_id: string; p_note: string }
+        Returns: boolean
+      }
       acknowledge_notification_spend_alert: {
         Args: { p_alert_id: string }
         Returns: undefined
@@ -43085,3 +43105,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

@@ -254,13 +254,19 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
   };
 }
 
-async function collectResidentCompliance(client: any, facilityId: string, asOf: string, itemType: string, overdueOnly: boolean) {
+// `itemType` accepts several types because one question can span more than one. A medical evaluation
+// is required at admission and again annually, and 20260804170000 made those separate item types
+// because they carry different intervals; asking only about `medical_evaluation` made every expired
+// annual re-evaluation invisible to the intent whose entire job is finding them.
+async function collectResidentCompliance(client: any, facilityId: string, asOf: string, itemType: string | string[], overdueOnly: boolean) {
+  const itemTypes = Array.isArray(itemType) ? itemType : [itemType];
+  const label = (value: string) => value.replaceAll("_", " ");
   // The gap filters are pushed into the query (not applied after `.limit`): filtering
   // an unordered first-200 page in memory can miss every real gap once a facility has
   // mostly-completed history, making "missing X" intents falsely report all clear.
   let query = client.from("resident_compliance_items")
     .select("id,resident_id,item_type,status,due_date,completed_date,citation_topic_id")
-    .eq("facility_id", facilityId).eq("item_type", itemType)
+    .eq("facility_id", facilityId).in("item_type", itemTypes)
     .is("completed_date", null);
   query = overdueOnly
     ? query.or(`status.eq.expired,due_date.lt.${asOf}`)
@@ -274,14 +280,14 @@ async function collectResidentCompliance(client: any, facilityId: string, asOf: 
     evidence: matching.map((row) => evidence(
       `resident-compliance:${row.id}`,
       "resident_compliance_item",
-      `${itemType.replaceAll("_", " ")} for ${names.get(row.resident_id) ?? row.resident_id}`,
+      `${label(row.item_type)} for ${names.get(row.resident_id) ?? row.resident_id}`,
       row.status,
       null,
       row.due_date,
       `/app/residents/${row.resident_id}`,
-      { residentId: row.resident_id, itemType, citationTopicId: row.citation_topic_id },
+      { residentId: row.resident_id, itemType: row.item_type, citationTopicId: row.citation_topic_id },
     )),
-    missing: matching.length === 0 ? [`No matching ${itemType.replaceAll("_", " ")} gaps were found in the facility snapshot.`] : [],
+    missing: matching.length === 0 ? [`No matching ${itemTypes.map(label).join(" or ")} gaps were found in the facility snapshot.`] : [],
   };
 }
 
@@ -415,7 +421,7 @@ async function collectEffectivenessReviews(client: any, facilityId: string, asOf
 async function collectGrounding(client: any, facilityId: string, body: CopilotRequest, intent: CopilotIntent, asOf: string) {
   if (intent === "employee_blocked") return collectEmployeeBlocked(client, facilityId, body.employeeId);
   if (intent === "due_next_30_days") return collectDue(client, facilityId, asOf);
-  if (intent === "missing_medical_evaluations") return collectResidentCompliance(client, facilityId, asOf, "medical_evaluation", false);
+  if (intent === "missing_medical_evaluations") return collectResidentCompliance(client, facilityId, asOf, ["medical_evaluation", "annual_medical_evaluation"], false);
   if (intent === "citation_evidence") return collectCitationEvidence(client, facilityId, body.citationQuery);
   if (intent === "recurring_citations") return collectRecurringCitations(client, facilityId);
   if (intent === "readiness_score") return collectReadiness(client, facilityId);

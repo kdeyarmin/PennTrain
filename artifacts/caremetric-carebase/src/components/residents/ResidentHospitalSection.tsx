@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { errorText } from "@/lib/errorText";
 import { useResidentAssessmentReviews } from "@/hooks/useResidentAssessmentReviews";
 import { useResidentSupportPlans } from "@/hooks/useResidentCareDelivery";
 import {
@@ -56,6 +57,33 @@ function useCompleteReconciliation(residentId: string) {
 }
 
 /**
+ * Acknowledging orders that came back with the resident.
+ *
+ * Without this the return dialog's default -- new orders came back, awaiting review -- was a state
+ * with no exit: `complete_hospital_return_reconciliation` refuses to close unless the status is
+ * `acknowledged` or `not_applicable`, and nothing wrote `acknowledged`. Every clinically
+ * significant return therefore produced a reconciliation nobody could close.
+ */
+function useAcknowledgeHospitalNewOrder(residentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { episodeId: string; note: string }) => {
+      const { data, error } = await supabase.rpc("acknowledge_hospital_return_new_order" as never, {
+        p_episode_id: input.episodeId,
+        p_note: input.note,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hospital-episodes", residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-care-header", residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-timeline", residentId] });
+    },
+  });
+}
+
+/**
  * Hospital leave and return. The episode schema already carried the departure and return detail;
  * what was missing was any surface that showed the reconciliation as a checklist with a deadline,
  * and any gate stopping a return being closed with steps outstanding.
@@ -77,9 +105,12 @@ export default function ResidentHospitalSection({
   const { data: reviews } = useResidentAssessmentReviews(residentId);
   const { data: plans } = useResidentSupportPlans(residentId);
   const complete = useCompleteReconciliation(residentId);
+  const acknowledgeOrder = useAcknowledgeHospitalNewOrder(residentId);
   const [closing, setClosing] = useState<HospitalEpisodeLike | null>(null);
   const [recordingReturn, setRecordingReturn] = useState(false);
   const [note, setNote] = useState("");
+  const [acknowledging, setAcknowledging] = useState<HospitalEpisodeLike | null>(null);
+  const [ackNote, setAckNote] = useState("");
 
   const episode = episodes.data?.[0];
   if (!episode) return null;
@@ -196,6 +227,15 @@ export default function ResidentHospitalSection({
                 >
                   Close reconciliation
                 </Button>
+                {episode.changed_order_ack_status === "pending_review" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setAcknowledging(episode); setAckNote(""); }}
+                  >
+                    Acknowledge new orders
+                  </Button>
+                )}
                 <Link href={`${residentHref}?tab=assessments`} className="text-sm text-primary hover:underline">
                   Open return review
                 </Link>
@@ -234,6 +274,50 @@ export default function ResidentHospitalSection({
             <Button variant="outline" onClick={() => setClosing(null)}>Cancel</Button>
             <Button onClick={submit} disabled={complete.isPending}>
               {complete.isPending ? "Closing..." : "Close"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!acknowledging} onOpenChange={(open) => !open && setAcknowledging(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Acknowledge new or changed orders</DialogTitle>
+            <DialogDescription>
+              An order nobody acknowledged is an order nobody is carrying out. Say what came back and
+              what was changed to carry it out — the server requires it, and it is what a surveyor
+              asks about this record.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label className="text-xs" htmlFor="order-ack-note">What changed</Label>
+            <Textarea
+              id="order-ack-note"
+              rows={3}
+              value={ackNote}
+              onChange={(event) => setAckNote(event.target.value)}
+              placeholder="New furosemide 40mg daily; MAR updated and pharmacy notified."
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAcknowledging(null)}>Cancel</Button>
+            <Button
+              disabled={!ackNote.trim() || acknowledgeOrder.isPending}
+              onClick={() => {
+                if (!acknowledging) return;
+                void acknowledgeOrder
+                  .mutateAsync({ episodeId: acknowledging.id, note: ackNote.trim() })
+                  .then(() => {
+                    setAcknowledging(null);
+                    setAckNote("");
+                    toast({ title: "New orders acknowledged" });
+                  })
+                  .catch((e: unknown) => {
+                    toast({ title: "Could not acknowledge", description: errorText(e), variant: "destructive" });
+                  });
+              }}
+            >
+              {acknowledgeOrder.isPending ? "Acknowledging..." : "Acknowledge"}
             </Button>
           </DialogFooter>
         </DialogContent>

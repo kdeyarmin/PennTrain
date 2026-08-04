@@ -148,7 +148,17 @@ function AssignmentRow({
             </p>
           ))}
         </div>
-        <Button size="sm" variant="outline" onClick={() => setOpen(!open)}>
+        {/* `evaluate_learning_path` recomputes current_state from the submitted outcomes alone and
+            does not refuse a finished assignment. Evaluating a completed one with a partial or
+            empty outcome would bump state_version and rewrite its steps back to available/locked
+            while the row still reads `completed`, so the action stops at the end of the path. */}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={assignment.state !== "active"}
+          title={assignment.state !== "active" ? `This assignment is ${assignment.state}.` : undefined}
+          onClick={() => setOpen(!open)}
+        >
           <Play className="mr-1 h-4 w-4" />{open ? "Cancel" : "Evaluate"}
         </Button>
       </div>
