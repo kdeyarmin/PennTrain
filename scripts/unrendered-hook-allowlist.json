@@ -33,12 +33,6 @@
     "real, the server work is finished, and nothing in the product can reach it. All of them predate this",
     "branch, and they are being wired down from here -- two are already gone (G16.2, G16.7)."
   ],
-  "useIssueCertificate": {
-    "reason": "Calls `issue_certificate`. A certificate cannot be issued from anywhere in the product. `useVerifyCertificate` beside it is rendered, so a certificate can be verified -- there is simply no way to create the thing being verified except whatever writes them server-side.",
-    "backlog": "G16.1",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
   "useComplaintTrends": {
     "reason": "Calls `get_complaint_trends` for a facility over a date range. Complaints are listed, filtered and worked; the aggregate nobody can see is the one that answers whether the same complaint keeps recurring.",
     "backlog": "G16.9",

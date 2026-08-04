@@ -6,9 +6,11 @@
     "complete server work no button could reach (BACKLOG.md G1-G15). Delete the entry when the caller",
     "lands -- do not delete the entry to make the gate quiet.",
     "",
-    "THE COUNT WAS WRONG THREE TIMES, each because this script read SQL badly: it ignored",
+    "THE COUNT WAS WRONG FOUR TIMES, each because this script read SQL badly: it ignored",
     "`drop function`; it treated a migration COMMENT as a call site; and it read line by line, so in a",
-    "grant naming several functions only the first line carried the keywords. 'Zero' was never true.",
+    "grant naming several functions only the first line carried the keywords; and it counted a function",
+    "named inside a QUOTED STRING as a call -- `issue_certificate`'s only apparent call site in the whole",
+    "repository was its own `raise exception` message. 'Zero' was never true.",
     "",
     "Of the twenty-one that were real, fifteen have been wired and their entries removed. The four",
     "below are not gaps at all, and saying which kind of not-a-gap each one is was the useful part:",
@@ -32,6 +34,11 @@
   "record_regulatory_fixture_result": {
     "reason": "Machine entry point, not a screen. It records one golden-fixture result for a given engine version with a request id -- conformance-harness output. Same reasoning as G15.18: the missing piece is the harness, not a button.",
     "backlog": "G15.20",
+    "introduced_by": "main"
+  },
+  "issue_certificate": {
+    "reason": "Superseded compatibility endpoint, and the migration that superseded it says so outright. `20260711154819_atomic_course_completion_certificates.sql` moved issuance inside `complete_course_assignment()` because the two-call browser flow left a valid completion with no certificate whenever a request failed between the calls, and records that this function \"remains as an idempotent compatibility endpoint\". Its client hook was deleted rather than given a screen: calling it from the product again would mint a certificate with no completion behind it, which is the exact invariant that migration exists to hold. It stays granted because an integration outside this repository could still be calling it. THIS ENTRY IS ALSO THE FOURTH READING BUG'S EVIDENCE -- the function's only apparent call site anywhere was its own error message, `'certificates are not directly writable by clients; use issue_certificate() / service role'`, and the gate counted that string as a caller until `blankSqlStrings` landed.",
+    "backlog": "G16.1",
     "introduced_by": "main"
   }
 }

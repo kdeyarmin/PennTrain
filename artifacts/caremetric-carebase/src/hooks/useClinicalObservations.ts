@@ -209,3 +209,31 @@ export function useClinicalChartResidentOptions() {
     staleTime: 60_000,
   });
 }
+
+/**
+ * Queue an observation for FHIR write-back to the resident's EHR.
+ *
+ * The `fhir-writeback` edge function drains this queue and nothing filled it: the whole write-back
+ * pipeline existed with no entry point. `queue_clinical_observation_writeback` looked reached only
+ * because the edge function names it in a comment, which is how the dormant-RPC gate missed it for
+ * as long as it did.
+ *
+ * The server refuses a retracted observation, and refuses outright unless the resident has an
+ * active patient mapping to a write-back-enabled FHIR source -- so this is offered only where that
+ * is plausible, and the refusal is surfaced verbatim rather than pre-guessed here.
+ */
+export function useQueueClinicalObservationWriteback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { residentId: string; observationId: string }) => {
+      const { data, error } = await supabase.rpc("queue_clinical_observation_writeback" as never, {
+        p_observation_id: input.observationId,
+      } as never);
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
+    },
+  });
+}

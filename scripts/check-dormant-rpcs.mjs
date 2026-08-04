@@ -83,8 +83,67 @@ export function stripSqlComments(sql) {
   return sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
 }
 
+/**
+ * Blank single-quoted string literals, preserving length so nothing else shifts.
+ *
+ * A function name inside a quoted string is never a call, and one of them was excusing a genuinely
+ * dormant function from this check:
+ *
+ *     raise exception 'certificates are not directly writable by clients; use issue_certificate()'
+ *
+ * `issue_certificate` had exactly that one "call site" in the whole repository -- inside its own
+ * error message -- so the gate reported it as reached. This is the same mistake as counting a
+ * comment as a caller, in a different quoting style, and it is the FOURTH way this script has read
+ * SQL wrongly. Dollar-quoted bodies ($$...$$) are deliberately untouched: that is where real calls
+ * live, and a single quote inside a body is still a string.
+ */
+export function blankSqlStrings(sql) {
+  const out = sql.split("");
+  let i = 0;
+  while (i < sql.length) {
+    // Skip over a dollar-quoted body wholesale; its contents are code, and its own single-quoted
+    // strings are blanked by the ordinary scan once we are inside it.
+    if (sql[i] !== "'") { i += 1; continue; }
+    let j = i + 1;
+    while (j < sql.length) {
+      if (sql[j] === "'") {
+        // '' is an escaped quote inside the literal, not the end of it.
+        if (sql[j + 1] === "'") { j += 2; continue; }
+        break;
+      }
+      j += 1;
+    }
+    for (let k = i + 1; k < Math.min(j, sql.length); k += 1) if (out[k] !== "\n") out[k] = " ";
+    i = j + 1;
+  }
+  return out.join("");
+}
+
+/**
+ * Blank TypeScript COMMENTS, preserving length. An RPC named in prose is not a caller.
+ *
+ * Comments only -- deliberately not string literals, unlike the SQL side. In SQL a function name in
+ * a string is always prose; in TypeScript it is the opposite, because every real call goes through
+ * `supabase.rpc("name")` and the name IS a string literal. Blanking strings here would blank every
+ * genuine call site in the codebase and report the entire schema as dormant.
+ */
+export function blankTsNonCode(source) {
+  const out = source.split("");
+  let i = 0;
+  while (i < source.length) {
+    const two = source.slice(i, i + 2);
+    let end;
+    if (two === "//") end = source.indexOf("\n", i) === -1 ? source.length : source.indexOf("\n", i);
+    else if (two === "/*") end = source.indexOf("*/", i + 2) === -1 ? source.length : source.indexOf("*/", i + 2) + 2;
+    else { i += 1; continue; }
+    for (let k = i; k < end; k += 1) if (out[k] !== "\n") out[k] = " ";
+    i = end;
+  }
+  return out.join("");
+}
+
 export function isCallSite(line, name) {
-  const code = stripSqlComments(line);
+  const code = blankSqlStrings(stripSqlComments(line));
   return new RegExp(`\\b${name}\\b`).test(code) && !DECLARATIVE.test(code);
 }
 
@@ -110,7 +169,7 @@ export function isCallSite(line, name) {
  * non-greedily and only for the forms that cannot contain one.
  */
 export function sqlCallSiteText(sql) {
-  return stripSqlComments(sql)
+  return blankSqlStrings(stripSqlComments(sql))
     // Statements that can never contain a call, removed entirely.
     .replace(/\b(grant|revoke)\b[\s\S]*?;/gi, " ")
     .replace(/\bcomment\s+on\s+function\b[\s\S]*?;/gi, " ")
@@ -143,6 +202,18 @@ if (process.argv.includes("--self-test")) {
     [() => sqlCallSiteText(
       "grant execute on function public.a(uuid),\n  public.dormant_one(uuid)\n  to authenticated;",
     ).includes("dormant_one"), false],
+    // A function name inside a quoted SQL string is prose, not a call. `issue_certificate` had
+    // exactly one "call site" in the repository -- its own error message -- and this is the fourth
+    // way this script has read SQL wrongly.
+    [() => sqlCallSiteText("do $$ begin raise exception 'use issue_certificate()'; end $$;").includes("issue_certificate"), false],
+    [() => sqlCallSiteText("do $$ begin perform public.real_call(v); end $$;").includes("real_call"), true],
+    // '' is an escaped quote inside a literal, not the end of it.
+    [() => blankSqlStrings("select 'it''s issue_certificate', real_call;").includes("real_call"), true],
+    [() => blankSqlStrings("select 'it''s issue_certificate', real_call;").includes("issue_certificate"), false],
+    // TypeScript: comments are prose, string literals are call sites.
+    [() => blankTsNonCode("// calls issue_certificate directly\n").includes("issue_certificate"), false],
+    [() => blankTsNonCode("/* see issue_certificate */").includes("issue_certificate"), false],
+    [() => blankTsNonCode('supabase.rpc("issue_certificate", {});').includes("issue_certificate"), true],
     [() => sqlCallSiteText(
       "revoke all on function public.a(uuid),\n  public.dormant_two(uuid)\n  from public, anon;",
     ).includes("dormant_two"), false],
@@ -236,7 +307,13 @@ const clientFiles = await walk(
   (f) => /\.(ts|tsx)$/.test(f) && !f.endsWith("database.types.ts") && !/\.test\.(ts|tsx)$/.test(f),
 );
 const edgeFiles = await walk(EDGE_FUNCTIONS, (f) => /\.(ts|js)$/.test(f));
-const callerText = (await Promise.all([...clientFiles, ...edgeFiles].map((f) => readFile(f, "utf8")))).join("\n");
+// Comments and string literals are blanked here for the same reason they are in the SQL scan: a
+// function named in prose is not a caller. This bit the check within minutes of the SQL fix landing
+// -- the note explaining why `useIssueCertificate` had been deleted mentioned the RPC by name, and
+// that comment alone made the newly-dormant function look reached.
+const callerText = (await Promise.all(
+  [...clientFiles, ...edgeFiles].map(async (f) => blankTsNonCode(await readFile(f, "utf8"))),
+)).join("\n");
 
 let allowlist = {};
 try {

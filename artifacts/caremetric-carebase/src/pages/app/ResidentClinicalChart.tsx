@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { Link, useParams } from "wouter";
-import { Activity, AlertTriangle, ArrowLeft, DatabaseZap, HeartPulse, Pill, Plus, ShieldCheck, Stethoscope } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, DatabaseZap, HeartPulse, Pill, Plus, Share2, ShieldCheck, Stethoscope } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   type ClinicalObservation,
   type ObservationType,
   useAmendClinicalObservation,
+  useQueueClinicalObservationWriteback,
   useRecordClinicalObservation,
   useResidentClinicalChartSummary,
   useResidentClinicalObservations,
@@ -73,6 +74,7 @@ export default function ResidentClinicalChart() {
   const [retracting, setRetracting] = useState<ClinicalObservation | null>(null);
   const [retractReason, setRetractReason] = useState("");
   const amend = useAmendClinicalObservation();
+  const queueWriteback = useQueueClinicalObservationWriteback();
 
   const config = OBSERVATION_CONFIG[observationType];
   const isCustom = observationType === "custom";
@@ -429,9 +431,25 @@ export default function ResidentClinicalChart() {
                       {observation.note && <p className="mt-2 text-sm">{observation.note}</p>}
                     </div>
                     {canChart && (
-                      <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setRetracting(observation); setRetractReason(""); }}>
-                        <AlertTriangle className="mr-1 h-3.5 w-3.5" />Retract
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Button
+                          size="sm" variant="ghost" className="text-muted-foreground"
+                          disabled={queueWriteback.isPending}
+                          onClick={() => queueWriteback.mutate({ residentId: id!, observationId: observation.id }, {
+                            onSuccess: () => toast({ title: "Queued for write-back", description: "It will be sent to the resident's EHR on the next run." }),
+                            // The server refuses unless the resident has an active mapping to a
+                            // write-back-enabled FHIR source, and says which of those is missing.
+                            // That is a better message than anything guessable here, so it is shown
+                            // verbatim rather than hidden behind a pre-emptive disable.
+                            onError: (error) => toast({ title: "Not queued", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                          })}
+                        >
+                          <Share2 className="mr-1 h-3.5 w-3.5" />Send to EHR
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setRetracting(observation); setRetractReason(""); }}>
+                          <AlertTriangle className="mr-1 h-3.5 w-3.5" />Retract
+                        </Button>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
