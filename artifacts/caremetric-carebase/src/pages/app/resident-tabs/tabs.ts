@@ -33,7 +33,7 @@ export const RESIDENT_TABS: ResidentTabDefinition[] = [
  * Appointments was the last entry. It was held back deliberately because `resident_appointments`
  * had a schema, a scheduling RPC, and an outcome RPC that no application code had ever called, so a
  * tab over it would have read as "no appointments" rather than "not built". Migration
- * `20260804010000` supplied the three write paths the table was missing -- preparation readiness,
+ * `20260804110000` supplied the three write paths the table was missing -- preparation readiness,
  * new-order acknowledgement, and follow-up closure -- and `AppointmentsTab.tsx` renders them.
  *
  * Kept rather than deleted: a later phase that defers a tab needs somewhere to say so, and

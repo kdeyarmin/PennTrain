@@ -1,4 +1,4 @@
--- Certification attempts have an entry point (migration 20260804020000).
+-- Certification attempts have an entry point (migration 20260804120000).
 --
 -- The assertion this suite exists for is that `approve_certification_attempt` -- which shipped in
 -- 20260711213000 and had never been called by anything, because nothing could create an attempt --

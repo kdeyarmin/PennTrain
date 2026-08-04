@@ -81,6 +81,31 @@ async function enforceIpRateLimit(adminClient: { from: (table: string) => any },
   }
 }
 
+// Best-effort platform-admin notification (public.notifications, surfaced through the app's
+// existing notification bell -- see supabase/migrations/20260804010000_demo_request_notifications.sql
+// for the fan-out and why it is a service-role-only RPC rather than a trigger on demo_requests).
+// Never throws into the request path: the demo_requests row is already committed by the time this
+// runs, and a notification failure must not fail a submission that already succeeded. Same shape as
+// subscribe-updates/index.ts's sendWelcomeEmail.
+async function notifyPlatformAdmins(
+  adminClient: { rpc: (fn: string, args?: Record<string, unknown>) => any },
+  demoRequestId: string,
+): Promise<void> {
+  try {
+    const { error } = await adminClient.rpc("notify_platform_admins_of_demo_request", {
+      p_demo_request_id: demoRequestId,
+    });
+    if (error) {
+      console.warn("request-demo platform admin notification failed", error.message);
+    }
+  } catch (error) {
+    console.warn(
+      "request-demo platform admin notification error",
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return corsPreflightResponse(req);
   if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
@@ -147,21 +172,30 @@ Deno.serve(async (req: Request) => {
     await verifyTurnstile(body.turnstile_token, ip);
     await enforceIpRateLimit(adminClient, ipHash);
 
-    const { error } = await adminClient.from("demo_requests").insert({
-      name,
-      email,
-      organization,
-      facility_count: facilityCount,
-      message,
-      source_path: sourcePath,
-      ip_hash: ipHash,
-    });
+    const { data: inserted, error } = await adminClient
+      .from("demo_requests")
+      .insert({
+        name,
+        email,
+        organization,
+        facility_count: facilityCount,
+        message,
+        source_path: sourcePath,
+        ip_hash: ipHash,
+      })
+      .select("id")
+      .single();
     if (error) {
       throw new HttpError(500, "demo_request_failed", "We could not submit your demo request. Please try again later.", error.message);
     }
 
-    // Notification dispatch (e.g. an email or Slack ping to the sales inbox) could hook in
-    // here later; for now platform admins triage new rows from the demo_requests queue.
+    // Fan out an in-app notification to platform admins (public.notifications, existing
+    // notification-bell plumbing -- no new external integration). Best-effort: the demo request
+    // above already succeeded, so this cannot turn a successful submission into a failed response.
+    if (inserted?.id) {
+      await notifyPlatformAdmins(adminClient, inserted.id);
+    }
+
     return json(req, { ok: true });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;

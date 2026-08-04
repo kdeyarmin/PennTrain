@@ -4,7 +4,7 @@
  * `evaluate_learning_path` was the only granted function in this area and it had no caller, because
  * nothing anywhere wrote `learning_path_definitions`, `learning_path_versions` or
  * `learning_path_assignments` -- no RPC, no edge function, no trigger, no seed. Migration
- * `20260804040000` supplies the authoring, publication and assignment path; this module reads it and
+ * `20260804140000` supplies the authoring, publication and assignment path; this module reads it and
  * drives all four.
  *
  * Reads go at the tables: all four carry `grant select` to `authenticated` with RLS scoping rows to

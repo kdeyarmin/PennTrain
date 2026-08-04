@@ -1,4 +1,4 @@
--- Governed content has an entry point (migration 20260804030000).
+-- Governed content has an entry point (migration 20260804130000).
 --
 -- `phase4_governed_learning.test.sql` already walks the four-step publication control, but it does
 -- so after inserting a `governed_content_assets` row directly as superuser -- which is precisely

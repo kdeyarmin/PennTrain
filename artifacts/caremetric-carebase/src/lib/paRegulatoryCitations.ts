@@ -31,13 +31,13 @@
 import type { FacilityType } from "./facilityTypes";
 
 /** Human review date for this catalog. Surfaced in the UI so the library shows its own staleness. */
-export const PA_CITATIONS_LAST_VERIFIED = "2026-07-25";
+export const PA_CITATIONS_LAST_VERIFIED = "2026-08-04";
 
 /**
- * Matches the review cadence `scripts/check-dhs-sources.mjs` enforces for the form library. This
- * catalog is not yet covered by that live-link check (see the module note at the bottom of this
- * file), so staleness is enforced at the point of use instead: every surface that renders guidance
- * calls `isCitationLibraryStale()` and says so.
+ * Matches the review cadence `scripts/check-dhs-sources.mjs` enforces for the form library --
+ * and, since the module note at the bottom of this file, that script enforces this gate too, the
+ * same way it already does for the form library. Every surface that renders guidance also calls
+ * `isCitationLibraryStale()` directly, so staleness is visible at the point of use as well as in CI.
  */
 export const CITATION_REVIEW_MAX_AGE_DAYS = 45;
 
@@ -136,7 +136,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     facilityTypes: ["PCH"],
     heading: "Resident medical evaluation",
     requirement:
-      "A medical evaluation is required on a 60-days-before / 30-days-after admission window, then annually.",
+      "A medical evaluation is required on a 60-days-before / 30-days-after admission window, then annually, with a 15-day grace period on the annual cycle.",
     responsibleRole: "Administrator",
     requiredFrequency: "At admission, then annually",
     requiredEvidence: "Signed DHS DME (Documentation of Medical Evaluation) form attached to the resident record.",
@@ -144,8 +144,8 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     sourceUrl: PA_CODE_2600,
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
     verification: {
-      status: "pending_confirmation",
-      note: "resident_compliance_rule_packs (20260706155617) records the initial window as confirmed but states the annual grace period is \"NOT ... pending confirmation; see plan Open Items.\" Do not present a grace period for this cycle as settled.",
+      status: "verified",
+      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window. Recorded in resident_compliance_rule_packs (20260804000000) notes; deliberately NOT applied to that row's grace_period_days there, because the row is shared between the initial and annual cycles and the schema doesn't yet distinguish them -- see BACKLOG.md F9.",
     },
   },
   {
@@ -172,7 +172,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     facilityTypes: ["ALR"],
     heading: "Annual and significant-change reassessment",
     requirement:
-      "Reassessment is due annually and upon a significant change in condition.",
+      "Reassessment is due annually and upon a significant change in condition, with a 15-day grace period on the annual cycle.",
     responsibleRole: "Administrator",
     requiredFrequency: "Annually and on significant change",
     requiredEvidence: "Signed DHS ASP (Assessment-Support Plan) form attached to the resident record.",
@@ -180,8 +180,8 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     sourceUrl: PA_CODE_2800,
     sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
     verification: {
-      status: "pending_confirmation",
-      note: "dhs_citation_topics (20260706155617): \"Verified: 55 Pa Code 2800.225. Grace period for the annual cycle not yet confirmed -- see plan Open Items.\" The section applies; the grace period does not.",
+      status: "verified",
+      note: "resident_compliance_rule_packs (20260804000000) confirms the annual-cycle grace period at 15 days via PA DHS's 2800 Regulatory Compliance Guide, p.5 Grace Periods table, which names \"Completion of ANNUAL Resident Assessments (2800.225(a)(1))\" directly in the 15-day list -- the same evidentiary standard already accepted for 2600.225 and 2800.141 in this file. The same page's exclusion list names only 2800.225(a) (the initial assessment), confirming the grace applies to the annual/significant-change cycle rather than the initial one.",
     },
   },
   {
@@ -261,6 +261,6 @@ export function citationDisplayLabel(entry: PaRegulatoryCitation): string {
   return `55 Pa. Code § ${entry.citation} — ${entry.heading}${suffix}`;
 }
 
-// FOLLOW-UP, tracked in the program plan: extend `scripts/check-dhs-sources.mjs` to cover the
-// pacodeandbulletin.gov URLs above the way it already covers the pa.gov form links, so a moved or
-// dead regulation link fails CI instead of waiting for the next human review.
+// `scripts/check-dhs-sources.mjs` covers the pacodeandbulletin.gov URLs above -- and the
+// PA_CITATIONS_LAST_VERIFIED staleness gate -- the same way it already covers the pa.gov form
+// links, so a moved or dead regulation link fails CI instead of waiting for the next human review.

@@ -1,4 +1,4 @@
--- Adaptive learning paths have an entry point (migration 20260804040000).
+-- Adaptive learning paths have an entry point (migration 20260804140000).
 --
 -- `phase4_governed_learning.test.sql` exercises `evaluate_learning_path`, but only after inserting a
 -- definition, a version and an assignment directly as superuser -- which is precisely what
@@ -163,7 +163,7 @@ select is(
 
 -- The conflict code is asserted by number, not by message, because the number is the whole point:
 -- 40001 (serialization_failure) is what PostgREST retries, so a *deterministic* conflict reported
--- that way hangs the request instead of answering it. See 20260804050000.
+-- that way hangs the request instead of answering it. See 20260804150000.
 select pg_temp.act_as('1a000000-0000-4000-8000-000000000102');
 select throws_ok($$select public.evaluate_learning_path(
   (select id from lp_ids where key = 'assignment'), 0, '{}'::jsonb)$$,

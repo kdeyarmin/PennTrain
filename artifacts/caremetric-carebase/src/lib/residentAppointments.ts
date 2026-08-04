@@ -3,7 +3,7 @@
  *
  * `resident_appointments` was modelled in full in 20260714100000 and then never read or written by
  * the application. `resident-tabs/tabs.ts` carried it in `PLANNED_TABS` with the reason: an empty
- * tab reads as "no appointments" rather than "not built". Migration 20260804010000 supplies the
+ * tab reads as "no appointments" rather than "not built". Migration 20260804110000 supplies the
  * three write paths the schema was missing; this module owns the reading of a row -- what stage it
  * is at, what is outstanding before the resident leaves, and what is outstanding before the
  * follow-up can be closed.

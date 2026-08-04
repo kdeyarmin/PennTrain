@@ -90,7 +90,7 @@ function PreparationList({
  *
  * This is the last tab in the Resident 360 request that had never been built. The table and its two
  * RPCs shipped in 20260714100000 and no code ever touched them; `tabs.ts` recorded that as a planned
- * tab rather than pretending otherwise. Migration 20260804010000 added the three missing write paths
+ * tab rather than pretending otherwise. Migration 20260804110000 added the three missing write paths
  * -- preparation readiness, order acknowledgement, and follow-up closure -- and this renders them.
  *
  * The screen is ordered by what a person is trying to answer: is this resident ready to leave, and

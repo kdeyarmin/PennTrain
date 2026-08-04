@@ -1,5 +1,5 @@
 begin;
-select plan(99);
+select plan(100);
 
 -- E5 Tier 1: offline service documentation drafts + conflict rules
 -- (20260802030000_offline_service_documentation_drafts.sql).
@@ -1050,7 +1050,9 @@ select ok(
 -- caller a receipt; an arm narrower than what a function can really produce would turn a handled
 -- outcome into a raw 23514 and hand the client an error it cannot classify instead of a receipt it
 -- can act on. The 91 assertions above are what rule that out -- they exercise every reachable
--- outcome of all four functions -- and these eight pin the intended refusals.
+-- outcome of all four functions -- and these nine pin the intended refusals. unscheduled_service
+-- gets both of its halves pinned (conflict and stale); it did not before -- as the weakest, least
+-- self-evident arm, it is the one this block can least afford to leave half-covered.
 ------------------------------------------------------------------------------------------------
 reset role;
 
@@ -1126,13 +1128,29 @@ select lives_ok(
   'but it can go stale, because the event can be closed while the device is offline'
 );
 
+-- Both halves of the weakest arm's own claim (20260803160000's words: "the weakest of the three
+-- arms and the one most worth challenging in review", because this exclusion is read off
+-- record_unscheduled_service's branches rather than stated by it). An unscheduled service is an
+-- append: no pre-existing slot for a second person to take, and nothing whose moment can pass.
 select throws_ok(
   $$insert into public.offline_draft_receipts(
       organization_id, profile_id, device_id, draft_kind, resident_id, service_kind,
       idempotency_key, client_occurred_at, outcome)
     values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
       (select id from t_ids where key = 'device-c'), 'unscheduled_service',
-      '65000000-0000-4000-8000-000000000201', 'toileting', 'vocab-6', now(), 'stale')$$,
+      '65000000-0000-4000-8000-000000000201', 'toileting', 'vocab-6', now(), 'conflict')$$,
+  '23514',
+  null,
+  'nor a conflict -- there is no pre-existing slot for a second person to take'
+);
+
+select throws_ok(
+  $$insert into public.offline_draft_receipts(
+      organization_id, profile_id, device_id, draft_kind, resident_id, service_kind,
+      idempotency_key, client_occurred_at, outcome)
+    values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
+      (select id from t_ids where key = 'device-c'), 'unscheduled_service',
+      '65000000-0000-4000-8000-000000000201', 'toileting', 'vocab-7', now(), 'stale')$$,
   '23514',
   null,
   'an unscheduled service cannot go stale -- it is an append, with no moment to miss'
@@ -1146,7 +1164,7 @@ select lives_ok(
       idempotency_key, client_occurred_at, outcome)
     values ('65000000-0000-4000-8000-000000000001', '65000000-0000-4000-8000-000000000101',
       (select id from t_ids where key = 'device-c'), 'service_task',
-      '65000000-0000-4000-8000-000000000501', 'completed_as_planned', 'vocab-7', now(), 'conflict')$$,
+      '65000000-0000-4000-8000-000000000501', 'completed_as_planned', 'vocab-8', now(), 'conflict')$$,
   'while service_task keeps all six -- it is the one kind another aide can take the slot for'
 );
 

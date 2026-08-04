@@ -1,4 +1,4 @@
--- Resident appointment lifecycle (migration 20260804010000).
+-- Resident appointment lifecycle (migration 20260804110000).
 --
 -- The three assertions this suite exists for are the three dead ends the migration closed: a
 -- preparation list nobody could tick, an acknowledgement status nothing could reach, and a follow-up

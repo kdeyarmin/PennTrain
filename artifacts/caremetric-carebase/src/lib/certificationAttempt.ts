@@ -3,7 +3,7 @@
  *
  * The whole capability had no entry point: nothing created an attempt or recorded a checklist item,
  * so `approve_certification_attempt` -- a rigorous function -- approved rows that could not exist.
- * Migration `20260804020000` supplies the observation path. This module owns the reading of it:
+ * Migration `20260804120000` supplies the observation path. This module owns the reading of it:
  * which items are still outstanding, and whether the attempt is ready to submit.
  *
  * Pure and clock-injectable, so the same definition drives the screen and the tests, and the server

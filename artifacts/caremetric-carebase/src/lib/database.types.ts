@@ -18366,7 +18366,7 @@ export type Database = {
           id: string
           link: string | null
           notification_type: string
-          organization_id: string
+          organization_id: string | null
           profile_id: string
           read_at: string | null
           title: string
@@ -18377,7 +18377,7 @@ export type Database = {
           id?: string
           link?: string | null
           notification_type: string
-          organization_id: string
+          organization_id?: string | null
           profile_id: string
           read_at?: string | null
           title: string
@@ -18388,7 +18388,7 @@ export type Database = {
           id?: string
           link?: string | null
           notification_type?: string
-          organization_id?: string
+          organization_id?: string | null
           profile_id?: string
           read_at?: string | null
           title?: string
@@ -39527,6 +39527,10 @@ export type Database = {
         Returns: string
       }
       notification_phone_key: { Args: { p_phone: string }; Returns: string }
+      notify_platform_admins_of_demo_request: {
+        Args: { p_demo_request_id: string }
+        Returns: number
+      }
       open_confidential_intake_details: {
         Args: { p_intake_id: string; p_purpose: string }
         Returns: {

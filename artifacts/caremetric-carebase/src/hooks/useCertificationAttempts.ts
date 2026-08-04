@@ -9,7 +9,7 @@ import type { Json, Tables } from "@/lib/database.types";
  * qualifications, attempts, per-item evidence, and `approve_certification_attempt`, which is a
  * genuinely rigorous decision function. And **nothing anywhere created an attempt or recorded a
  * checklist item**, so the approval function approved rows that could not exist and the whole
- * capability had no entry point. Migration `20260804020000` adds the observation path; these are its
+ * capability had no entry point. Migration `20260804120000` adds the observation path; these are its
  * client bindings, plus the approval call that had never been made.
  *
  * Reads go straight to the tables: all six carry RLS policies already, so no read RPC was needed.

@@ -1,7 +1,7 @@
-import { createHmac } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { totpCode } from "./helpers/totp";
 
 type TestRole =
   | "platform_admin"
@@ -37,29 +37,6 @@ let admin: SupabaseClient;
 let organizationId: string;
 let facilityId: string;
 const accounts = new Map<TestRole, TestAccount>();
-
-function totpCode(secret: string) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let buffer = 0;
-  let bits = 0;
-  const bytes: number[] = [];
-  for (const character of secret.toUpperCase().replace(/=+$/u, "")) {
-    const value = alphabet.indexOf(character);
-    if (value < 0) throw new Error("Authenticator secret is not valid base32");
-    buffer = (buffer << 5) | value;
-    bits += 5;
-    if (bits >= 8) {
-      bits -= 8;
-      bytes.push((buffer >> bits) & 0xff);
-      buffer &= (1 << bits) - 1;
-    }
-  }
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
-  const digest = createHmac("sha1", Buffer.from(bytes)).update(counter).digest();
-  const offset = digest[digest.length - 1] & 0x0f;
-  return String((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
-}
 
 async function verifyOrgAdminClientMfa(client: SupabaseClient) {
   const { error } = await client.auth.mfa.challengeAndVerify({

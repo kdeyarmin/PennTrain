@@ -28,7 +28,22 @@ regexes = ['''^oh\.rcf\.3701-16\.personnel$''']
 paths = [
   '''^artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation\.tsx$''',
   '''^supabase/tests/database/platform_intelligence_web_push_and_lifecycle\.test\.sql$''',
+  '''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''',
 ]
+
+[[rules.allowlists]]
+description = "Ignore the non-secret PA PCH personnel rule-pack identifier"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^pa\.pch\.2600\.65\.personnel$''']
+paths = ['''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''']
+
+[[rules.allowlists]]
+description = "Ignore the non-secret PA ALF personnel rule-pack identifier"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^pa\.alf\.2800\.65\.personnel$''']
+paths = ['''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''']
 
 [[rules.allowlists]]
 description = "Ignore the non-secret incident pathway question key (a template field name, not a credential)"

@@ -4,7 +4,7 @@
  * The Adaptive tab showed three counters — published paths, active assignments, remediation
  * transitions — over tables nothing in the product could write. `evaluate_learning_path` was the one
  * granted function in the area and it had no caller, because there were no assignments for it to
- * evaluate. Migration `20260804040000` supplies authoring, publication and assignment; this panel
+ * evaluate. Migration `20260804140000` supplies authoring, publication and assignment; this panel
  * drives all four steps.
  */
 import { useState } from "react";

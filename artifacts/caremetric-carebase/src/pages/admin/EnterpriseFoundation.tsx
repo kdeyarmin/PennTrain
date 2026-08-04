@@ -416,7 +416,7 @@ function RegulatoryRuleCommand() {
     <Card>
       <CardHeader>
         <CardTitle>Guarded rule workflow</CardTitle>
-        <CardDescription>Approval separation, fixtures, shadow duration, reconciliation, and supersession are enforced in the database.</CardDescription>
+        <CardDescription>Approval separation, fixtures, and supersession are enforced in the database. Shadow evaluation and its reconciliation check remain available as optional tooling before activation.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -467,7 +467,7 @@ function RegulatoryExpansionPanel() {
     try {
       const { data, error } = await supabase.rpc("install_regulatory_rule_pack_template", { p_template_key: templateKey });
       if (error) throw error;
-      toast({ title: `${label} installed as a draft`, description: `Version ${data} must complete fixture, independent review, shadow, and activation gates.` });
+      toast({ title: `${label} installed as a draft`, description: `Version ${data} must complete fixture verification and independent review before activation.` });
       await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
     } catch (error) {
       toast({ title: `${label} could not be installed`, description: error instanceof Error ? error.message : String(error), variant: "destructive" });
@@ -484,11 +484,11 @@ function RegulatoryExpansionPanel() {
           <p className="mb-2 text-sm font-medium">PA rule packs — counsel-cleared SG-2</p>
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-              <div><p className="font-medium">PA Personal Care Home (PCH) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2600.65. Counsel-cleared template; install as a draft, then complete independent review, shadow, and activation.</p></div>
+              <div><p className="font-medium">PA Personal Care Home (PCH) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2600.65. Counsel-cleared template; install as a draft, then complete fixture verification and independent review before activation.</p></div>
               <Button variant="outline" onClick={() => void installTemplate("pa.pch.2600.65.personnel", "PA PCH personnel rule pack")} disabled={installingTemplateKey !== null}>{installingTemplateKey === "pa.pch.2600.65.personnel" ? "Installing draft..." : "Install PA PCH draft"}</Button>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-              <div><p className="font-medium">PA Assisted Living Facility (ALF) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2800.65. Counsel-cleared template; install as a draft, then complete independent review, shadow, and activation.</p></div>
+              <div><p className="font-medium">PA Assisted Living Facility (ALF) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2800.65. Counsel-cleared template; install as a draft, then complete fixture verification and independent review before activation.</p></div>
               <Button variant="outline" onClick={() => void installTemplate("pa.alf.2800.65.personnel", "PA ALF personnel rule pack")} disabled={installingTemplateKey !== null}>{installingTemplateKey === "pa.alf.2800.65.personnel" ? "Installing draft..." : "Install PA ALF draft"}</Button>
             </div>
           </div>
@@ -1276,7 +1276,7 @@ export default function EnterpriseFoundation() {
           </TabsList>
           <TabsContent value="scope" className="space-y-4"><ControlPlanePanel title="Hierarchy and permissions" description="Effective portfolio, regional, organization, and facility scope with explicit governed permissions." data={data.scope} /><ScopeGrantCommand /><StandingGrantsCard /><RoleTemplateCard organizationId={user?.organizationId ?? null} /></TabsContent>
           <TabsContent value="workforce" className="space-y-4"><ControlPlanePanel title="Workforce lifecycle and compliance profiles" description="Effective employment state, retained documentation, profile explanations, and unresolved mappings." data={data.workforce} /><LifecycleCommand /><ComplianceProfileAssignmentCommand /></TabsContent>
-          <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, approval separation, golden fixtures, shadow comparisons, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
+          <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, approval separation, golden fixtures, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
           <TabsContent value="identity" className="space-y-4">
             <ControlPlanePanel title="Enterprise identity" description="Verified domains, SAML connections, AAL2 policy, SCIM replay safety, and session revocation documentation." data={data.identity} />
             <IdentityDomainCommand />

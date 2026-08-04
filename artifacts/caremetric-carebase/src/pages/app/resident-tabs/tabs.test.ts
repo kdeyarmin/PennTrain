@@ -53,7 +53,7 @@ describe("resolveResidentTab", () => {
 describe("planned tabs", () => {
   it("is empty, because every tab the request named is now built", () => {
     // Appointments was the last entry, held back until `resident_appointments` had write paths
-    // behind it (migration 20260804010000). If a later phase defers a tab, this list is where it
+    // behind it (migration 20260804110000). If a later phase defers a tab, this list is where it
     // says so -- and the assertion below is what stops it being deferred silently.
     expect(PLANNED_TABS).toEqual([]);
   });

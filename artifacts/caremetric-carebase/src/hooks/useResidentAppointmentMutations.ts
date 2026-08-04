@@ -16,7 +16,7 @@ function useAppointmentInvalidation(residentId: string) {
   return () => {
     queryClient.invalidateQueries({ queryKey: ["resident-appointments", residentId] });
     queryClient.invalidateQueries({ queryKey: ["resident-appointment-preparation"] });
-    // The timeline unions appointments as of 20260804010000, and the needs-attention panel reads
+    // The timeline unions appointments as of 20260804110000, and the needs-attention panel reads
     // them. Leaving either stale is how a user acts on a card they have already cleared.
     queryClient.invalidateQueries({ queryKey: ["resident-timeline", residentId] });
     queryClient.invalidateQueries({ queryKey: ["resident-needs-attention", residentId] });

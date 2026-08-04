@@ -2,10 +2,8 @@
 -- notify-trigger changes from 20260712160000_state_forms_reminders_and_digest.sql.
 --
 -- Run with: supabase test db  (requires the local Docker dev stack; see supabase/config.toml).
--- NOTE: this file was written and syntax-reviewed but NOT executed against a running Postgres
--- instance in the environment that authored it (no Docker daemon was available there) -- run it
--- once before relying on it, and treat a first failure as "fix the test" as plausibly as "fix
--- the app," same as any newly-written test.
+-- Confirmed passing in CI 2026-08-04 (PR #447's `database` job, first real run since authoring --
+-- see git history for the "NOT executed" note this replaces).
 
 begin;
 select plan(9);
