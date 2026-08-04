@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { errorText } from "@/lib/errorText";
 import {
   useAddSurveyEvidencePacketItem,
   useAssembleSurveyEvidencePacket,
@@ -222,8 +223,8 @@ export default function SurveyDayPacketSection({
                   surveyDaySessionId: sessionId,
                   binderExportJobId: pinnedBinderJobId,
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Could not add binder", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Could not add binder", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -261,8 +262,8 @@ export default function SurveyDayPacketSection({
                   setPacketNote("");
                   setPacketCitation("");
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Could not add note", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Could not add note", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -281,8 +282,8 @@ export default function SurveyDayPacketSection({
                   setAssembledManifest(manifest);
                   toast({ title: "Packet manifest assembled" });
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Assemble failed", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Assemble failed", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -306,8 +307,8 @@ export default function SurveyDayPacketSection({
                   });
                   if (result.downloadUrl) window.open(result.downloadUrl, "_blank", "noopener");
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Package failed", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Package failed", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -347,8 +348,8 @@ export default function SurveyDayPacketSection({
                         description: "Copy the token now — it is shown once.",
                       });
                     })
-                    .catch((e: Error) => {
-                      toast({ title: "Guest grant failed", description: e.message, variant: "destructive" });
+                    .catch((e: unknown) => {
+                      toast({ title: "Guest grant failed", description: errorText(e), variant: "destructive" });
                     });
                 }}
               >
@@ -376,8 +377,8 @@ export default function SurveyDayPacketSection({
                     setRevokeReason("");
                     toast({ title: "Guest access revoked", description: "The link stops working immediately." });
                   })
-                  .catch((e: Error) => {
-                    toast({ title: "Could not revoke access", description: e.message, variant: "destructive" });
+                  .catch((e: unknown) => {
+                    toast({ title: "Could not revoke access", description: errorText(e), variant: "destructive" });
                   });
               }}
             />
@@ -398,8 +399,8 @@ export default function SurveyDayPacketSection({
                   variant="ghost"
                   disabled={removePacketItem.isPending}
                   onClick={() => {
-                    void removePacketItem.mutateAsync(item.id).catch((e: Error) => {
-                      toast({ title: "Remove failed", description: e.message, variant: "destructive" });
+                    void removePacketItem.mutateAsync(item.id).catch((e: unknown) => {
+                      toast({ title: "Remove failed", description: errorText(e), variant: "destructive" });
                     });
                   }}
                 >

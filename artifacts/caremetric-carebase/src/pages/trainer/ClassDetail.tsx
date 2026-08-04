@@ -73,6 +73,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeClassAttendance } from "@/lib/classAttendance";
+import { errorText } from "@/lib/errorText";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -202,7 +203,7 @@ function QrCheckinCard({ classId }: { classId: string }) {
                       notify({ title: "Check-in codes revoked", description: "Every outstanding code stops working now." });
                       setRevoking(false); setRevokeReason("");
                     })
-                    .catch((e: Error) => notify({ title: "Could not revoke the codes", description: e.message, variant: "destructive" }));
+                    .catch((e: unknown) => notify({ title: "Could not revoke the codes", description: errorText(e), variant: "destructive" }));
                 }}
               >
                 {revokeTokens.isPending ? "Revoking..." : "Confirm revoke"}
