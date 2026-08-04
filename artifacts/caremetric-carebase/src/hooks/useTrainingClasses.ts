@@ -172,6 +172,74 @@ export function useCompleteTrainingClass() {
 // convention used throughout this feature.
 // ---------------------------------------------------------------------------
 
+/**
+ * Correcting a class that has already been completed (BACKLOG.md G6).
+ *
+ * THE GAP THESE CLOSE. `complete_training_class` is wired; `correct_completed_training_class` and
+ * `correct_completed_class_attendee` were not, by anything. Those RPCs exist *because* a completed
+ * class is immutable evidence -- the page turns read-only at completion, and a database trigger
+ * refuses writes unless `app.completed_class_correction` is set, which only these two functions do.
+ * So the sanctioned correction path was the one path with no way in, and a mis-marked attendee was
+ * uncorrectable through the product.
+ *
+ * Both refuse a reason shorter than ten characters, and the class correction refuses any field
+ * outside class_name / location / notes / roster_document_id -- hours and dates are what the
+ * training record was computed from, so they are not "descriptive".
+ */
+export function useCorrectCompletedTrainingClass() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      classId: string;
+      patch: { class_name?: string; location?: string; notes?: string };
+      reason: string;
+    }) => {
+      const { data, error } = await supabase.rpc("correct_completed_training_class" as never, {
+        p_class_id: input.classId,
+        p_patch: input.patch,
+        p_reason: input.reason,
+      } as never);
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: ["training_classes"] });
+      queryClient.invalidateQueries({ queryKey: ["training_class", input.classId] });
+    },
+  });
+}
+
+export function useCorrectCompletedClassAttendee() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      classId: string;
+      employeeId: string;
+      action: "upsert" | "delete";
+      attended: boolean;
+      reason: string;
+    }) => {
+      const { data, error } = await supabase.rpc("correct_completed_class_attendee" as never, {
+        p_class_id: input.classId,
+        p_employee_id: input.employeeId,
+        p_action: input.action,
+        p_attended: input.attended,
+        p_reason: input.reason,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendees", input.classId] });
+      queryClient.invalidateQueries({ queryKey: ["training_class_attendee_counts"] });
+      // A correction adds or removes a training record and its hour bucket, so anything reading
+      // compliance for that employee is stale.
+      queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      queryClient.invalidateQueries({ queryKey: ["employee_compliance"] });
+    },
+  });
+}
+
 export function useGenerateClassCheckinToken() {
   return useMutation({
     mutationFn: async (classId: string) => {

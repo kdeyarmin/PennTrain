@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useRoute, useLocation, Link } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+
+// Its own chunk: only an org admin correcting a mistake on an already-completed class ever needs
+// it, which is rare, and this page is already 961 lines.
+const CompletedClassCorrectionCard = lazy(
+  () => import("@/components/training/CompletedClassCorrectionCard"),
+);
 import {
   useGetTrainingClass,
   useListClassAttendees,
@@ -262,6 +268,10 @@ export default function ClassDetail() {
   const allAttendees = attendees ?? [];
   const attendanceSummary = useMemo(() => summarizeClassAttendance(allAttendees), [allAttendees]);
   const isDraft = cls?.status === "draft";
+  // The correction path mirrors `assert_completed_class_corrector`: platform admin, or an org_admin
+  // in the owning organization. Showing it to anyone else would offer a button the server refuses.
+  const canCorrectCompleted = cls?.status === "completed"
+    && ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   const existingEmpIds = new Set(allAttendees.map((a) => a.employee_id));
   const availableEmployees = (allEmployees ?? []).filter((e) => !existingEmpIds.has(e.id));
@@ -630,6 +640,25 @@ export default function ClassDetail() {
             <p className="text-sm">{cls.notes}</p>
           </CardContent>
         </Card>
+      )}
+
+      {canCorrectCompleted && cls && (
+        <Suspense fallback={null}>
+          <CompletedClassCorrectionCard
+            classId={classId}
+            className={cls.class_name}
+            location={cls.location}
+            notes={cls.notes}
+            attendees={allAttendees.map((attendee) => {
+              const employee = employeesById.get(attendee.employee_id);
+              return {
+                employee_id: attendee.employee_id,
+                attended: attendee.attended,
+                name: employee ? `${employee.last_name}, ${employee.first_name}` : attendee.employee_id,
+              };
+            })}
+          />
+        </Suspense>
       )}
 
       {isDraft && <QrCheckinCard classId={classId} />}

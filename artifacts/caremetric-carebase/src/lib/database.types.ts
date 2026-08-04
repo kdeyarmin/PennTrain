@@ -39882,6 +39882,17 @@ export type Database = {
         }
         Returns: string
       }
+      record_certification_attempt_item: {
+        Args: {
+          p_attempt_id: string
+          p_checklist_item_id: string
+          p_evidence?: Json
+          p_notes?: string
+          p_result: string
+          p_sign?: boolean
+        }
+        Returns: string
+      }
       record_change_event_notification: {
         Args: {
           p_contact: string
@@ -41873,6 +41884,14 @@ export type Database = {
         }
         Returns: string
       }
+      start_certification_attempt: {
+        Args: {
+          p_certification_version_id: string
+          p_employee_id: string
+          p_observed_at?: string
+        }
+        Returns: string
+      }
       start_confidential_incident_intake: {
         Args: {
           p_confirmation_token: string
@@ -42022,6 +42041,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_certification_attempt: {
+        Args: { p_attempt_id: string }
+        Returns: boolean
       }
       submit_governed_content_revision: {
         Args: { p_revision_id: string; p_validation_results: Json }

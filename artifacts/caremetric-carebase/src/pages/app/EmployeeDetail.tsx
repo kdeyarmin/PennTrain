@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,12 @@ import {
 } from "@/hooks/useOnboarding";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
+
+// Its own chunk: only an assessor running a bedside observation needs it, and this page is already
+// 1,037 lines.
+const CertificationAttemptSection = lazy(
+  () => import("@/components/workforce/CertificationAttemptSection"),
+);
 import { useInviteUser } from "@/hooks/useProfiles";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
@@ -778,6 +784,14 @@ export default function EmployeeDetail() {
 
         {canViewCredentials && (
           <TabsContent value="credentials" className="space-y-6">
+            {canManage && employee && (
+              <Suspense fallback={<Skeleton className="h-40" />}>
+                <CertificationAttemptSection
+                  employeeId={employee.id}
+                  employeeName={`${employee.first_name} ${employee.last_name}`}
+                />
+              </Suspense>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

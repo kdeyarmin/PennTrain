@@ -6,6 +6,8 @@ import { useListShiftAssignments } from "@/hooks/useShiftAssignments";
 import {
   useClaimOpenShift,
   useMyShiftWorkspace,
+  useCancelShiftSwapRequest,
+  useMyShiftSwapRequests,
   useRequestShiftSwap,
   useShiftSwapCandidates,
   useSubmitTimeOffRequest,
@@ -50,6 +52,10 @@ export default function MySchedule() {
   const submitTimeOff = useSubmitTimeOffRequest();
   const claimShift = useClaimOpenShift();
   const requestSwap = useRequestShiftSwap();
+  const mySwaps = useMyShiftSwapRequests(employee?.id);
+  const cancelSwap = useCancelShiftSwapRequest();
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const [withdrawReason, setWithdrawReason] = useState("");
   const [timeOffDraft, setTimeOffDraft] = useState<TimeOffDraft | null>(null);
   const [swapAssignmentId, setSwapAssignmentId] = useState<string | null>(null);
   const [swapTargetId, setSwapTargetId] = useState("");
@@ -115,6 +121,21 @@ export default function MySchedule() {
       toast({ title: "Time-off request submitted", description: "Your manager can now review it in the workforce queue." });
     } catch (error) {
       toast({ title: "Could not submit request", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
+  const submitWithdrawal = async (requestId: string) => {
+    try {
+      await cancelSwap.mutateAsync({ requestId, reason: withdrawReason.trim() });
+      setWithdrawingId(null);
+      setWithdrawReason("");
+      toast({ title: "Swap request withdrawn", description: "It has left your manager's queue." });
+    } catch (error) {
+      toast({
+        title: "Could not withdraw the request",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
     }
   };
 
@@ -195,6 +216,71 @@ export default function MySchedule() {
           )}
         </CardContent>
       </Card>
+
+      {(mySwaps.data ?? []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Repeat2 className="h-5 w-5" />Swap requests awaiting a decision ({(mySwaps.data ?? []).length})
+            </CardTitle>
+            <CardDescription>
+              Yours to withdraw until a manager decides. Withdrawing takes it out of their queue —
+              previously the only way out was asking them to deny something nobody wanted any more.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(mySwaps.data ?? []).map((swap) => (
+              <div key={swap.id as string} className="rounded-lg border p-3 text-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {swap.requester_assignment?.shift_date
+                        ? formatDateLabel(String(swap.requester_assignment.shift_date))
+                        : "Your shift"}
+                      {swap.target?.first_name ? ` → ${swap.target.first_name} ${swap.target.last_name}` : ""}
+                    </p>
+                    {swap.reason ? <p className="text-xs text-muted-foreground">{String(swap.reason)}</p> : null}
+                  </div>
+                  {withdrawingId !== swap.id && (
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={() => { setWithdrawingId(String(swap.id)); setWithdrawReason(""); }}
+                    >
+                      Withdraw
+                    </Button>
+                  )}
+                </div>
+                {withdrawingId === swap.id && (
+                  <div className="mt-2 space-y-2">
+                    <Label htmlFor={`${__fieldIds}-withdraw-${String(swap.id)}`} className="text-xs">
+                      Why you are withdrawing
+                    </Label>
+                    <Textarea
+                      id={`${__fieldIds}-withdraw-${String(swap.id)}`} rows={2}
+                      value={withdrawReason} onChange={(event) => setWithdrawReason(event.target.value)}
+                      placeholder="Found cover another way."
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        disabled={withdrawReason.trim().length < 5 || cancelSwap.isPending}
+                        onClick={() => void submitWithdrawal(String(swap.id))}
+                      >
+                        {cancelSwap.isPending ? "Withdrawing…" : "Confirm withdrawal"}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setWithdrawingId(null)}>Cancel</Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      At least five characters — the reason is kept on the request.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
