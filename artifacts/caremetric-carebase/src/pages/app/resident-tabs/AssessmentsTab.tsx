@@ -16,7 +16,8 @@ import { AssessmentReviewDialog } from "@/components/residents/AssessmentReviewD
 import {
   internalReviewTemplates, templateCitation, type AssessmentTemplate,
 } from "@/lib/assessmentTemplates";
-import { citationDisplayLabel, isCitationLibraryStale, PA_CITATIONS_LAST_VERIFIED } from "@/lib/paRegulatoryCitations";
+import { citationDisplayLabel, governedStatusByCitation, isCitationLibraryStale, PA_CITATIONS_LAST_VERIFIED } from "@/lib/paRegulatoryCitations";
+import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import {
   useRecordAssessmentReviewClinicalReview, useResidentAssessmentReviews,
 } from "@/hooks/useResidentAssessmentReviews";
@@ -27,6 +28,10 @@ import { QueryError } from "@/components/QueryState";
 
 export default function AssessmentsTab({ resident, facility, canManage, residentPathPrefix }: ResidentTabProps) {
   const { toast } = useToast();
+  // See AssessmentReviewDialog: the citation library states provenance, the database states
+  // verification (BACKLOG.md F10).
+  const { data: citationTopics } = useListCitationTopics();
+  const governedStatuses = governedStatusByCitation(citationTopics ?? []);
   const itemsQuery = useListResidentComplianceItems(resident.id);
   const { data: items, isLoading: itemsLoading } = itemsQuery;
   const { data: reviews } = useResidentAssessmentReviews(resident.id);
@@ -172,7 +177,7 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
                     </div>
                     {citation && (
                       <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <BookOpen className="h-3 w-3 shrink-0" /> {citationDisplayLabel(citation)}
+                        <BookOpen className="h-3 w-3 shrink-0" /> {citationDisplayLabel(citation, governedStatuses[citation.citation])}
                       </p>
                     )}
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2">

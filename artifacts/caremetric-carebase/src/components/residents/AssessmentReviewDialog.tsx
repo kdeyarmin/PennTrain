@@ -17,7 +17,8 @@ import {
   templateCitation, templateProgress, validateTemplateAnswers,
   type AssessmentTemplate, type TemplateAnswers,
 } from "@/lib/assessmentTemplates";
-import { citationDisplayLabel } from "@/lib/paRegulatoryCitations";
+import { citationDisplayLabel, governedStatusByCitation } from "@/lib/paRegulatoryCitations";
+import { useListCitationTopics } from "@/hooks/useCitationTopics";
 import type { Json } from "@/lib/database.types";
 
 /**
@@ -35,6 +36,11 @@ export function AssessmentReviewDialog({
   existing?: ResidentAssessmentReview;
 }) {
   const { toast } = useToast();
+  // The governed verification status, not this library's own claim about itself: dhs_citation_topics
+  // is the only place a citation is verified, and record_citation_verification() demands a named
+  // platform admin and a source URL to set it (BACKLOG.md F10).
+  const { data: citationTopics } = useListCitationTopics();
+  const governedStatuses = governedStatusByCitation(citationTopics ?? []);
   const save = useSaveResidentAssessmentReview();
   const finalize = useFinalizeResidentAssessmentReview();
   const [answers, setAnswers] = useState<TemplateAnswers>({});
@@ -110,7 +116,7 @@ export function AssessmentReviewDialog({
             <Badge variant="outline">{progress.answered}/{progress.total} answered</Badge>
             {citation && (
               <Badge variant="outline" className="gap-1">
-                <BookOpen className="h-3 w-3" /> {citationDisplayLabel(citation)}
+                <BookOpen className="h-3 w-3" /> {citationDisplayLabel(citation, governedStatuses[citation.citation])}
               </Badge>
             )}
           </div>
