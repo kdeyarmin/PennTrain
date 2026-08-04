@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(10);
 
 -- Tenant isolation invariants, pinned.
 --
@@ -92,6 +92,28 @@ select is(
   '(none)',
   'no storage bucket is public'
 );
+-- Buckets no user touches, only the service role, which bypasses RLS -- so the correct number of
+-- policies on them is zero.
+--
+-- This list is the whole safeguard, so it earns its own paragraph. The assertion below started as
+-- "every bucket is named by at least one object policy", and it was right about the danger and
+-- wrong about the rule: a bucket with no policy and a bucket whose policy somebody forgot look
+-- identical from outside, which is exactly why an absence cannot be the declaration. It was first
+-- "satisfied" by giving `regulatory-templates` a platform-admin read that nothing needed -- a
+-- capability invented to quiet a test. Naming the bucket here instead makes the deliberate case a
+-- deliberate act, reviewable in a diff, while every bucket not on this list still must carry a
+-- policy.
+--
+-- A bucket belongs here only if NO user role, of any kind, should reach it. If a human ever needs
+-- to read it, it needs a policy and comes off this list.
+create temporary table service_role_only_buckets (id text primary key, why text not null);
+insert into service_role_only_buckets values (
+  'regulatory-templates',
+  'Cache of blank PA DHS form PDFs, which DHS publishes publicly. Written and read only by the '
+  'edge functions that fill them, using the service role. Holds no tenant data, so there is '
+  'nothing here to isolate. See 20260804200000.'
+);
+
 select is(
   (select coalesce(string_agg(b.id, ', ' order by b.id), '(none)')
    from storage.buckets b
@@ -99,9 +121,24 @@ select is(
      select 1 from pg_catalog.pg_policy p
      where p.polrelid = 'storage.objects'::regclass
        and pg_get_expr(p.polqual, p.polrelid) like '%' || b.id || '%'
-   )),
+   )
+   and not exists (select 1 from service_role_only_buckets s where s.id = b.id)),
   '(none)',
-  'every storage bucket is named by at least one object policy'
+  'every storage bucket is either named by an object policy or declared service-role-only'
+);
+
+-- And the declaration cannot rot: a bucket that gains a policy, or disappears, must leave the list.
+select is(
+  (select coalesce(string_agg(s.id, ', ' order by s.id), '(none)')
+   from service_role_only_buckets s
+   where not exists (select 1 from storage.buckets b where b.id = s.id)
+      or exists (
+        select 1 from pg_catalog.pg_policy p
+        where p.polrelid = 'storage.objects'::regclass
+          and pg_get_expr(p.polqual, p.polrelid) like '%' || s.id || '%'
+      )),
+  '(none)',
+  'no bucket is declared service-role-only while also having a policy, or after being dropped'
 );
 
 -- Function exposure --------------------------------------------------------------------------------

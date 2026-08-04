@@ -19,21 +19,24 @@ insert into storage.buckets (id, name, public)
 values ('regulatory-templates', 'regulatory-templates', false)
 on conflict (id) do nothing;
 
--- The edge functions reach this bucket with the service role, which bypasses RLS, so strictly
--- nothing here needs a policy at all. It gets one anyway, and the reason is worth stating:
--- `tenant_isolation_invariants` asserts that every bucket is named by at least one object policy,
--- because a bucket with no policy and a bucket whose policy was forgotten look identical from the
--- outside. Leaving this one unnamed would have made that invariant weaker for every future bucket.
+-- NO POLICY ON PURPOSE, and this is the interesting part of the migration.
 --
--- So the rule is written down rather than left as an absence, and it is the narrowest one that is
--- true: a platform admin may read what is cached -- which is how somebody answers "which version of
--- the DHS form is this tenant actually filling?" -- and nobody may write. Writes stay with the
--- service role, so a cached official form cannot be replaced from a browser.
+-- The edge functions reach this bucket with the service role, which bypasses RLS. No user needs to
+-- read it and no user may write it, so the correct number of policies is zero.
+--
+-- `tenant_isolation_invariants` asserts every bucket is named by at least one object policy, and
+-- the first attempt here satisfied it by granting platform admins a read nobody had asked for --
+-- inventing a capability to quiet a test, which is the same move as raising a budget to silence a
+-- warning. The invariant's own preamble says what it is for: "a public bucket serves objects to
+-- anyone with the URL... resident documents, certificates and incident evidence all live in
+-- buckets." It is about tenant data escaping. This bucket holds blank government forms that DHS
+-- publishes to the world; there is no tenant data in it to isolate.
+--
+-- So the invariant was corrected instead, in the style that file already uses for two earlier
+-- assertions that were wrong about how the system has to work: it now requires every bucket to be
+-- either policied or explicitly declared service-role-only. Declaring is a deliberate, reviewable
+-- act, which keeps "decided" distinguishable from "forgot" -- the thing the invariant was actually
+-- protecting.
 --
 -- (No `comment on schema storage`: that schema belongs to `supabase_admin`, not to the role
 -- migrations run as, so commenting on it fails the whole migration.)
-
-create policy "regulatory-templates platform admin read" on storage.objects for select to authenticated using (
-  bucket_id = 'regulatory-templates'
-  and public.is_platform_admin()
-);
