@@ -748,11 +748,17 @@ export default function ClassDetail() {
             {/* The session-registration track, which is a different model from the attendee list
                 above: capacity, a waitlist, signed attendance evidence, and an approval that
                 writes training records. All of it existed in the database and none of it had a
-                screen -- registration had a hook nothing rendered, and attendance and approval
-                had neither. Renders nothing when the session has no registrations. */}
+                screen -- registration had a hook nothing rendered (G16.7), and attendance and
+                approval had neither. The employee list is the same active roster the attendee
+                dialog picks from; the card filters out anyone already registered. */}
             <SessionRosterCard
               classId={classId}
               classStatus={cls?.status}
+              capacity={cls?.capacity}
+              employees={(allEmployees ?? []).map((employee) => ({
+                id: employee.id,
+                name: `${employee.first_name} ${employee.last_name}`,
+              }))}
               employeeName={(employeeId) => {
                 const employee = employeesById.get(employeeId);
                 return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);

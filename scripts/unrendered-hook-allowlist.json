@@ -12,31 +12,30 @@
     "dormant-RPC gate proved the point by introducing one: `useAddAppointmentPreparationItem` was",
     "written, its screen was not, and the gate reported zero.",
     "",
-    "FOURTEEN WERE NOT DEBT AND ARE GONE. Three were unadopted infrastructure with no caller anywhere",
-    "(`useIsMobile`, `useServerListState`, `useBulkAction`); eight were superseded by a rendered sibling",
-    "doing the same job better (`useListQuizAnswers`, `useListComplaints`, `useListConfidentialIntakes`,",
-    "`useCreatePolicyAttestationCampaign`, `useCreateCampaignQuestions`, `useRunEmployeeImport`,",
-    "`useClosedLoopCommand`, `useGovernedLearningCommand`); three more were never unreachable at all and",
-    "the gate was reading badly -- one declared beside the component that used it, and two vouched for",
-    "only by a comment that had outlived the call it described.",
+    "THIRTY-FIVE HOOKS HAD NO RENDERER. Fifteen were not debt and are deleted: three unadopted helpers",
+    "with no caller anywhere (`useIsMobile`, `useServerListState`, `useBulkAction`), and nine superseded",
+    "by a rendered sibling doing the same job better -- `useListQuizAnswers`, `useListComplaints`,",
+    "`useListConfidentialIntakes`, `useCreatePolicyAttestationCampaign`, `useCreateCampaignQuestions`,",
+    "`useRunEmployeeImport`, `useClosedLoopCommand`, `useGovernedLearningCommand`, and",
+    "`useLogResidentChangeOfCondition`. Three more were never unreachable at all and the gate was",
+    "reading badly: one declared beside the component that used it, and two vouched for by nothing but a",
+    "comment that had outlived the call it described.",
+    "",
+    "`useLogResidentChangeOfCondition` is worth naming, because it was first recorded here as a gap and",
+    "was not one. `create_resident_change_event` -- which LogChangeOfConditionDialog already calls --",
+    "writes the same `significant_change_reassessment` item with the same warning and grace days, plus",
+    "the citation topic, the change event, its follow-up and its history. Wiring the thin one would have",
+    "produced a reassessment item with no change-of-condition record behind it. Checking before building",
+    "changed the answer, the same way it did for G15.13 and G15.15.",
     "",
     "EVERY ENTRY BELOW IS A GAP. Not one is a deliberate not-a-gap, which is the difference between this",
     "file and scripts/dormant-rpc-allowlist.json. Each `awaiting_surface: true` says the capability is",
-    "real, the server work is finished, and nothing in the product can reach it. All twenty-one predate",
-    "this branch. They are recorded rather than wired in one change because twenty-one surfaces is its",
-    "own body of work, and burying it in an already large pull request would hide it -- the same reason",
-    "given for G15, and the reason G15's rows then got built."
+    "real, the server work is finished, and nothing in the product can reach it. All of them predate this",
+    "branch, and they are being wired down from here -- two are already gone (G16.2, G16.7)."
   ],
-
   "useIssueCertificate": {
     "reason": "Calls `issue_certificate`. A certificate cannot be issued from anywhere in the product. `useVerifyCertificate` beside it is rendered, so a certificate can be verified -- there is simply no way to create the thing being verified except whatever writes them server-side.",
     "backlog": "G16.1",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useCancelTimeOffRequest": {
-    "reason": "Calls `cancel_time_off_request`. A submitted time-off request can be approved or denied by a supervisor, but the person who filed it cannot withdraw it. The same one-way door as the shift-swap withdrawal closed in G7.",
-    "backlog": "G16.2",
     "awaiting_surface": true,
     "introduced_by": "main"
   },
@@ -52,21 +51,9 @@
     "awaiting_surface": true,
     "introduced_by": "main"
   },
-  "useLogResidentChangeOfCondition": {
-    "reason": "Calls `log_resident_change_of_condition`, which re-dates the resident's compliance items against the change. `ChangeOfConditionQueue.tsx` exists and shows the queue that results; nothing can put a resident into it from the resident record.",
-    "backlog": "G16.5",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
   "usePinSurveyDayBinder": {
     "reason": "Calls `pin_survey_day_binder`. Every other survey-day command is rendered -- activate, refresh, disposition, surveyor, request, observation, packet, close -- and pinning the binder generated for the session is the one that is not, so the binder an inspector is walked through cannot be fixed to the session.",
     "backlog": "G16.6",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useRegisterForTrainingSession": {
-    "reason": "Calls `register_for_training_session`, which returns a registration receipt with a waitlist position. This is the hook that named the whole class: G15.11/G15.12 wired attendance and completion approval onto the roster, and the roster is populated by a registration nothing can create.",
-    "backlog": "G16.7",
     "awaiting_surface": true,
     "introduced_by": "main"
   },
@@ -94,7 +81,6 @@
     "awaiting_surface": true,
     "introduced_by": "main"
   },
-
   "useUpdateViolation": {
     "reason": "Updates `dhs_violations`. A violation can be created, listed, opened and have a plan-of-correction document generated from it; it cannot be edited. A typo in a citation stands.",
     "backlog": "G16.12",
@@ -125,7 +111,6 @@
     "awaiting_surface": true,
     "introduced_by": "main"
   },
-
   "useListAdmissionActivities": {
     "reason": "Reads `admission_activities` for a prospect. The activity trail on an admissions prospect -- every call, tour and follow-up -- is written and never shown.",
     "backlog": "G16.17",

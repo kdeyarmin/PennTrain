@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { CheckCircle2, ClipboardCheck } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, ClipboardCheck, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,8 @@ import { errorText } from "@/lib/errorText";
 import { signatureDigest } from "@/lib/certificationAttempt";
 import {
   ATTENDANCE_STATUSES, useApproveTrainingSessionCompletion, useRecordTrainingAttendance,
-  useTrainingSessionRegistrations, type TrainingSessionRegistration,
+  useRegisterForTrainingSession, useTrainingSessionRegistrations,
+  type TrainingSessionRegistration,
 } from "@/hooks/useTrainingClasses";
 
 const MIN_REASON = 5;
@@ -31,33 +32,58 @@ const MIN_REASON = 5;
  * registration marked `attended` carries signed evidence, and recording that evidence is the only
  * thing that produces it. Wiring one without the other would have produced an approve button that
  * always failed.
+ *
+ * Registration itself (G16.7) was the missing first step, and it is why the unrendered-hook gate
+ * exists: `register_for_training_session` had a hook, so the dormant-RPC check passed, and no
+ * component rendered the hook, so the roster this card manages could never be populated.
  */
 export function SessionRosterCard({
   classId,
   classStatus,
+  capacity,
+  employees,
   employeeName,
 }: {
   classId: string;
   classStatus: string | null | undefined;
+  capacity: number | null | undefined;
+  /** Active employees who could be registered, in display order. */
+  employees: { id: string; name: string }[];
   employeeName: (employeeId: string) => string;
 }) {
   const { toast } = useToast();
   const registrations = useTrainingSessionRegistrations(classId);
   const record = useRecordTrainingAttendance(classId);
   const approve = useApproveTrainingSessionCompletion(classId);
+  const register = useRegisterForTrainingSession();
 
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("attended");
   const [typedName, setTypedName] = useState("");
   const [approving, setApproving] = useState(false);
   const [approveReason, setApproveReason] = useState("");
+  const [registering, setRegistering] = useState("");
 
   const rows = registrations.data ?? [];
-  // Only these two states can be approved; the server refuses anything else outright.
+  // Only these two states can be approved; the server refuses anything else outright. Registration
+  // is gated on exactly the same two states, by the same function.
   const canApprove = classStatus === "scheduled" || classStatus === "in_progress";
   const attendedWithoutEvidence = rows.filter(
     (row) => row.registration_status === "attended" && !row.attendance_recorded_at,
   ).length;
+
+  // The server counts `registered` and `attended` against capacity -- a withdrawal or a waitlist
+  // entry does not hold a seat -- so the seats-taken figure here has to be counted the same way or
+  // it will disagree with the status the registration comes back with.
+  const seatsTaken = rows.filter(
+    (row) => row.registration_status === "registered" || row.registration_status === "attended",
+  ).length;
+  const registeredIds = useMemo(() => new Set(rows.map((row) => row.employee_id)), [rows]);
+  const registrable = useMemo(
+    () => employees.filter((employee) => !registeredIds.has(employee.id)),
+    [employees, registeredIds],
+  );
+  const full = capacity != null && seatsTaken >= capacity;
 
   const submitAttendance = async (row: TrainingSessionRegistration) => {
     // `attended` is the only status the server demands a signature for, but recording one for every
@@ -96,6 +122,61 @@ export function SessionRosterCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="space-y-2 rounded border p-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Label htmlFor="register-employee" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Register an employee
+            </Label>
+            {capacity != null && (
+              <Badge variant={full ? "secondary" : "outline"}>
+                {seatsTaken} of {capacity} seats
+              </Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <Select value={registering} onValueChange={setRegistering} disabled={!canApprove}>
+              <SelectTrigger id="register-employee" className="sm:w-72">
+                <SelectValue placeholder={registrable.length ? "Pick an employee" : "Everyone is already registered"} />
+              </SelectTrigger>
+              <SelectContent>
+                {registrable.map((employee) => (
+                  <SelectItem key={employee.id} value={employee.id}>{employee.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              disabled={register.isPending || !registering || !canApprove}
+              title={canApprove ? undefined : `A ${classStatus ?? "class"} session is not open for registration.`}
+              onClick={() => register.mutate({ classId, employeeId: registering }, {
+                onSuccess: (receipt) => {
+                  setRegistering("");
+                  // The receipt is the point: over capacity the server silently waitlists rather
+                  // than refusing, so saying only "registered" would misreport what happened.
+                  toast({
+                    title: receipt.status === "waitlisted"
+                      ? `Waitlisted at #${receipt.waitlistPosition ?? "?"}`
+                      : "Registered",
+                    description: receipt.status === "waitlisted"
+                      ? "The session is full. They move up automatically as seats free up."
+                      : undefined,
+                  });
+                },
+                onError: (error) => toast({ title: "Registration refused", description: errorText(error), variant: "destructive" }),
+              })}
+            >
+              <UserPlus className="mr-1 h-4 w-4" />
+              {register.isPending ? "Registering…" : "Register"}
+            </Button>
+          </div>
+          {full && (
+            <p className="text-xs text-muted-foreground">
+              The session is full. Registering now adds the employee to the waitlist rather than
+              refusing — the server decides, and the receipt says which happened.
+            </p>
+          )}
+        </div>
+
         {rows.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Nobody has registered for this session yet.

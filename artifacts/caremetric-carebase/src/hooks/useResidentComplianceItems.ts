@@ -73,24 +73,14 @@ export function useCompleteResidentComplianceItem() {
   });
 }
 
-// Logs a change-of-condition event: PA DHS requires a reassessment "if the resident's condition
-// significantly changes" but states no numeric turnaround anywhere in the regulation or RCG, so
-// this is flagged as due immediately (see log_resident_change_of_condition()'s comment). notes is
-// an optional short compliance-tracking annotation, not a clinical record.
-export function useLogResidentChangeOfCondition() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ residentId, notes }: { residentId: string; notes?: string }) => {
-      const { data, error } = await supabase.rpc("log_resident_change_of_condition", {
-        p_resident_id: residentId,
-        p_notes: notes,
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] });
-      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items_all"] });
-    },
-  });
-}
+// A `useLogResidentChangeOfCondition` used to sit here, calling `log_resident_change_of_condition`
+// to raise a `significant_change_reassessment` item due immediately. It was removed rather than
+// given a screen: `create_resident_change_event` -- which LogChangeOfConditionDialog already calls
+// from ResidentDetail and the State Forms Center -- writes that same item, with the same warning
+// and grace days, plus the citation topic, the change event itself, its follow-up and its history,
+// and optionally an incident. Wiring the thin one would have produced a reassessment item with no
+// change-of-condition record behind it, invisible in ChangeOfConditionQueue, which reads the events.
+//
+// The function itself stays: `convert_shift_report_entry` calls it server-side to turn a triaged
+// handoff entry into the same item, which is a building block rather than a user action.
+
