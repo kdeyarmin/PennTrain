@@ -11,6 +11,7 @@ import {
 import { useListEmployeeFacilityAssignments } from "@/hooks/useEmployeeFacilityAssignments";
 import {
   useListEmployeeSchedulePreferences, useCreateEmployeeSchedulePreference, useDeleteEmployeeSchedulePreference,
+  useUpdateEmployeeSchedulePreference,
   type EmployeeSchedulePreference,
 } from "@/hooks/useEmployeeSchedulePreferences";
 import {
@@ -32,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Trash2, Grid3x3, Clock, Star, ShieldCheck, UsersRound } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Trash2, Grid3x3, Clock, Star, ShieldCheck, UsersRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatTimeLabel, WEEKDAY_LABELS } from "@/lib/scheduleDates";
 import { isSpecialCareUnit } from "@/lib/specialCareCompliance";
@@ -543,6 +544,14 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
   const { data: preferences } = useListEmployeeSchedulePreferences({ employeeId: singleEmployeeId, facilityId });
   const create = useCreateEmployeeSchedulePreference();
   const del = useDeleteEmployeeSchedulePreference();
+  // A pattern could be added and deleted but never amended (BACKLOG.md G16.16), so correcting one
+  // day meant deleting the row and rebuilding it. Auto-fill reads these, which is what makes a
+  // stale pattern quietly wrong rather than merely untidy.
+  const update = useUpdateEmployeeSchedulePreference();
+  const [editingPreferenceId, setEditingPreferenceId] = useState<string | null>(null);
+  const [editDays, setEditDays] = useState<number[]>([]);
+  const [editShiftId, setEditShiftId] = useState("");
+  const [editUnitId, setEditUnitId] = useState("");
 
   const activeRoster = useMemo(() => (roster ?? []).filter((r) => r.employees && r.employees.status === "active"), [roster]);
   const activeUnits = useMemo(() => (units ?? []).filter((u) => u.is_active), [units]);
@@ -707,19 +716,83 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                   <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
                 ) : (
                   (preferences ?? []).map((p: EmployeeSchedulePreference) => (
-                    <div key={p.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                      <div className="text-sm">
-                        <span className="font-medium">
-                          {p.days_of_week.map((d) => WEEKDAY_LABELS[d]).join(", ")}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {" "}&middot; {shiftById.get(p.shift_definition_id)?.name ?? "—"}
-                          {p.unit_id ? ` · ${unitById.get(p.unit_id)?.name ?? "—"}` : ""}
-                        </span>
+                    <div key={p.id} className="space-y-2 rounded-md border px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                          <span className="font-medium">
+                            {p.days_of_week.map((d) => WEEKDAY_LABELS[d]).join(", ")}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {" "}&middot; {shiftById.get(p.shift_definition_id)?.name ?? "—"}
+                            {p.unit_id ? ` · ${unitById.get(p.unit_id)?.name ?? "—"}` : ""}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {editingPreferenceId !== p.id && (
+                            <Button
+                              variant="ghost" size="icon" aria-label="Edit schedule pattern"
+                              onClick={() => {
+                                setEditingPreferenceId(p.id);
+                                setEditDays([...p.days_of_week]);
+                                setEditShiftId(p.shift_definition_id);
+                                setEditUnitId(p.unit_id ?? "");
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)} aria-label="Delete schedule pattern">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)} aria-label="Delete schedule pattern">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {editingPreferenceId === p.id && (
+                        <div className="space-y-3 rounded-md bg-muted/40 p-2">
+                          <div className="flex flex-wrap gap-3">
+                            {WEEKDAY_LABELS.map((label, i) => (
+                              <label key={i} className="flex items-center gap-1.5 text-sm">
+                                <Checkbox
+                                  checked={editDays.includes(i)}
+                                  onCheckedChange={() => setEditDays((days) => days.includes(i) ? days.filter((d) => d !== i) : [...days, i].sort((a, b) => a - b))}
+                                />
+                                {label}
+                              </label>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <Select value={editShiftId} onValueChange={setEditShiftId}>
+                              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+                              <SelectContent>
+                                {activeShiftDefs.map((sd) => <SelectItem key={sd.id} value={sd.id}>{sd.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={editUnitId} onValueChange={setEditUnitId}>
+                              <SelectTrigger><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
+                              <SelectContent>
+                                {activeUnits.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              disabled={update.isPending || editDays.length === 0 || !editShiftId}
+                              onClick={() => update.mutate({
+                                id: p.id,
+                                days_of_week: editDays,
+                                shift_definition_id: editShiftId,
+                                unit_id: editUnitId || null,
+                              }, {
+                                onSuccess: () => { setEditingPreferenceId(null); toast({ title: "Pattern updated" }); },
+                                onError: (error) => toast({ title: "Could not update the pattern", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                              })}
+                            >
+                              {update.isPending ? "Saving..." : "Save pattern"}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingPreferenceId(null)}>Cancel</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}

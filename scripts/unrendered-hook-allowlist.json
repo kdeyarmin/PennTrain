@@ -57,36 +57,6 @@
     "awaiting_surface": true,
     "introduced_by": "main"
   },
-  "useUpdateViolation": {
-    "reason": "Updates `dhs_violations`. A violation can be created, listed, opened and have a plan-of-correction document generated from it; it cannot be edited. A typo in a citation stands.",
-    "backlog": "G16.12",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useUpdateSchedule": {
-    "reason": "Updates `schedules`. A schedule can be created, auto-filled, published and unpublished, but its own fields -- name, date range, facility -- cannot be corrected after creation.",
-    "backlog": "G16.13",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useDeleteSchedule": {
-    "reason": "Deletes `schedules`. A schedule created by mistake cannot be removed. Paired with G16.13; both are missing from the same page.",
-    "backlog": "G16.14",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useUpdateCourseVersion": {
-    "reason": "Updates `course_versions`. A version can be created, cloned, published and unpublished; the fields on a draft version cannot be edited, so fixing one means cloning it. `useCompetencies.ts` names this hook in a comment as the pattern to follow, which is how it looked reachable until the gate stopped counting comments as callers.",
-    "backlog": "G16.15",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useUpdateEmployeeSchedulePreference": {
-    "reason": "Updates `employee_schedule_preferences`. A preference can be added and deleted but not amended, so changing one means deleting and re-adding it -- and the auto-fill that reads these is exactly what a stale preference silently corrupts.",
-    "backlog": "G16.16",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
   "useListAdmissionActivities": {
     "reason": "Reads `admission_activities` for a prospect. The activity trail on an admissions prospect -- every call, tour and follow-up -- is written and never shown.",
     "backlog": "G16.17",

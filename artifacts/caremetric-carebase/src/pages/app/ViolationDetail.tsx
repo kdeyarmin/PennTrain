@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useParams, Link } from "wouter";
-import { useGetViolation, useGeneratePocDocument } from "@/hooks/useViolations";
+import { useGetViolation, useGeneratePocDocument, useUpdateViolation } from "@/hooks/useViolations";
 import { PocLifecycleActions } from "@/components/violations/PocLifecycleActions";
 import { usePageTitle } from "@/lib/pageTitle";
 import {
@@ -21,6 +21,8 @@ import { QueryError } from "@/components/QueryState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +60,7 @@ export default function ViolationDetail() {
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees();
   const { data: citationTopics } = useListCitationTopics();
+  const updateViolation = useUpdateViolation();
   const { data: courses } = useListCourses();
   const { data: correctiveActions, isLoading: correctiveLoading } = useListCorrectiveActions({ violationId: id });
   const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
@@ -80,6 +83,14 @@ export default function ViolationDetail() {
   const [actionPendingDelete, setActionPendingDelete] = useState<CorrectiveAction | null>(null);
   const [docPendingDelete, setDocPendingDelete] = useState<ViolationDocument | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
+  // The citation as recorded, not the POC's progress. `status` is deliberately absent: it moves
+  // only through PocLifecycleActions' SECURITY DEFINER RPCs, which version the plan and record who
+  // verified it, and a raw table update would step around all of that (BACKLOG.md G16.12).
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [details, setDetails] = useState({
+    citation_ref: "", description: "", severity: "moderate",
+    poc_due_date: "", surveyor_name: "", citation_topic_id: "",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const facilityName = facilities?.find((f) => f.id === violation?.facility_id)?.name;
@@ -189,13 +200,107 @@ export default function ViolationDetail() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Violation Description</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle>Violation Description</CardTitle>
+          {canManage && !editingDetails && (
+            <Button
+              size="sm" variant="outline"
+              onClick={() => {
+                setDetails({
+                  citation_ref: violation.citation_ref ?? "",
+                  description: violation.description ?? "",
+                  severity: violation.severity,
+                  poc_due_date: violation.poc_due_date ?? "",
+                  surveyor_name: violation.surveyor_name ?? "",
+                  citation_topic_id: violation.citation_topic_id ?? "",
+                });
+                setEditingDetails(true);
+              }}
+            >
+              Correct details
+            </Button>
+          )}
+        </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-sm whitespace-pre-wrap">{violation.description}</p>
-          <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t">
-            <div><p className="text-xs text-muted-foreground">Citation Topic</p><p>{topicTitle ?? "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">POC Due Date</p><p>{violation.poc_due_date ?? "—"}</p></div>
-          </div>
+          {editingDetails ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                What the inspection cited, as recorded. The plan-of-correction status is not here —
+                it moves through the actions below, which version the plan and record who verified
+                it.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="violation-citation-ref">Citation reference</Label>
+                  <Input id="violation-citation-ref" value={details.citation_ref} onChange={(e) => setDetails((d) => ({ ...d, citation_ref: e.target.value }))} placeholder="2600.65" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="violation-topic">Citation topic</Label>
+                  <Select value={details.citation_topic_id} onValueChange={(value) => setDetails((d) => ({ ...d, citation_topic_id: value }))}>
+                    <SelectTrigger id="violation-topic"><SelectValue placeholder="Select a topic" /></SelectTrigger>
+                    <SelectContent>
+                      {(citationTopics ?? []).map((topic) => (
+                        <SelectItem key={topic.id} value={topic.id}>{topic.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="violation-severity">Severity</Label>
+                  <Select value={details.severity} onValueChange={(value) => setDetails((d) => ({ ...d, severity: value }))}>
+                    <SelectTrigger id="violation-severity"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {/* Verbatim from the CHECK on dhs_violations.severity. */}
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="moderate">Moderate</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="violation-poc-due">POC due date</Label>
+                  <Input id="violation-poc-due" type="date" value={details.poc_due_date} onChange={(e) => setDetails((d) => ({ ...d, poc_due_date: e.target.value }))} />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label htmlFor="violation-surveyor">Surveyor</Label>
+                  <Input id="violation-surveyor" value={details.surveyor_name} onChange={(e) => setDetails((d) => ({ ...d, surveyor_name: e.target.value }))} />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label htmlFor="violation-description">Description</Label>
+                  <Textarea id="violation-description" rows={4} value={details.description} onChange={(e) => setDetails((d) => ({ ...d, description: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={updateViolation.isPending || !details.description.trim()}
+                  onClick={() => updateViolation.mutate({
+                    id: violation.id,
+                    citation_ref: details.citation_ref.trim() || null,
+                    description: details.description.trim(),
+                    severity: details.severity,
+                    poc_due_date: details.poc_due_date || null,
+                    surveyor_name: details.surveyor_name.trim() || null,
+                    citation_topic_id: details.citation_topic_id || null,
+                  }, {
+                    onSuccess: () => { setEditingDetails(false); toast({ title: "Violation updated" }); },
+                    onError: (error) => toast({ title: "Could not update the violation", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                  })}
+                >
+                  {updateViolation.isPending ? "Saving…" : "Save details"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditingDetails(false)}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm whitespace-pre-wrap">{violation.description}</p>
+              <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t">
+                <div><p className="text-xs text-muted-foreground">Citation Topic</p><p>{topicTitle ?? "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">POC Due Date</p><p>{violation.poc_due_date ?? "—"}</p></div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
