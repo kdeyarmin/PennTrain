@@ -40,6 +40,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 // status read are only wanted by someone actually doing verification work. Splitting it keeps that
 // weight off everyone else's first paint of this page.
 const CitationGovernanceSection = lazy(() => import("@/components/admin/CitationGovernanceSection"));
+const RegulatoryGovernanceCard = lazy(
+  () => import("@/components/admin/RegulatoryGovernanceCard").then((m) => ({ default: m.RegulatoryGovernanceCard })),
+);
 
 interface FormState {
   slug: string;
@@ -408,6 +411,12 @@ export default function RegulatoryUpdates() {
 
       <Suspense fallback={<Skeleton className="h-64" />}>
         <CitationGovernanceSection />
+      </Suspense>
+
+      {/* Rule history and shadow differences. Its own chunk for the same reason as the section
+          above: this is platform rule-admin work, not something every page visitor needs. */}
+      <Suspense fallback={<Skeleton className="h-64" />}>
+        <RegulatoryGovernanceCard />
       </Suspense>
     </div>
   );

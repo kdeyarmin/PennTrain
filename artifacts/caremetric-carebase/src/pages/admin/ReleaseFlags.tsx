@@ -8,6 +8,7 @@ import {
 } from "@/hooks/useReleaseFlagAdmin";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
+import { ReleaseCohortMembershipCard } from "@/components/admin/ReleaseCohortMembershipCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,6 +205,12 @@ export default function ReleaseFlags() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* The third leg of the same mechanism. The migration that deleted the pilot console said the
+          release-flag / cohort / kill-switch mechanism was untouched -- it was, except that both of
+          cohort membership's entry points lost their callers. This is membership of cohorts that
+          already exist, not a re-creation of that console. */}
+      <ReleaseCohortMembershipCard />
     </div>
   );
 }

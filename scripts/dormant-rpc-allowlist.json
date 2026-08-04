@@ -6,27 +6,14 @@
     "complete server work no button could reach (BACKLOG.md G1-G15). Delete the entry when the caller",
     "lands -- do not delete the entry to make the gate quiet.",
     "",
-    "THE NUMBER HAS BEEN WRONG THREE TIMES, each time because this script read SQL badly:",
-    "  1. It never looked for `drop function`, so it reported a function a migration had removed.",
-    "  2. It treated a migration COMMENT as a call site, so naming a function in prose excused it.",
-    "  3. It read line by line, so in a grant naming several functions only the first line carried",
-    "     the keywords and every later one read as a bare call. That hid 20 functions at once.",
-    "Each fix raised the count. 'Zero' was never true; 21 is the number as of the statement-level fix.",
+    "THE COUNT WAS WRONG THREE TIMES, each because this script read SQL badly: it ignored",
+    "`drop function`; it treated a migration COMMENT as a call site; and it read line by line, so in a",
+    "grant naming several functions only the first line carried the keywords. 'Zero' was never true.",
     "",
-    "Everything below is verified against the live catalog with a word-boundary search, not against",
-    "this script's own parsing -- pg_proc bodies, RLS policies, views and triggers, plus client and",
-    "edge-function source. Each has an open G15.x row."
+    "Of the twenty-one that were real, fifteen have been wired and their entries removed. The four",
+    "below are not gaps at all, and saying which kind of not-a-gap each one is was the useful part:",
+    "two are superseded predecessors, and two are machine entry points with no human caller by design."
   ],
-  "unassign_organization_release_cohort": {
-    "reason": "Restored by 20260804160000 to close the one-way door 20260802030000 left behind. The statement-level gate fix has since shown its counterpart `assign_organization_release_cohort` is equally uncalled, so the whole cohort mechanism is intact and unreachable rather than half-wired. Both need the surface that migration deliberately deleted; see G15.1.",
-    "backlog": "G12.1",
-    "introduced_by": "this branch (20260804160000)"
-  },
-  "assign_organization_release_cohort": {
-    "reason": "G12.1's counterpart, and dormant for the same reason: the pilot cohort console that called both was deleted on purpose by 20260802030000. Neither side has a caller; the mechanism is intact and unreachable.",
-    "backlog": "G15.1",
-    "introduced_by": "main"
-  },
   "record_resident_service_task": {
     "reason": "Superseded duplicate write path, and the earlier reason here was wrong. Documenting a service task works: the floor and the task queue both call `record_service_task_response`, which 20260726060100 introduced with a response plus structured `exception_details`, replacing this one's status/note/supervisor_notified model. Unlike `save_report_schedule` this predecessor does NOT delegate -- it is a second full implementation writing the same rows on the older model. Wiring it would be actively wrong. The real remediation is to revoke its grant from `authenticated` so it stops being a user-reachable alternate write path, which is a deprecation decision rather than a fix, so it is recorded here instead of taken unilaterally.",
     "backlog": "G15.13",
@@ -37,23 +24,13 @@
     "backlog": "G15.15",
     "introduced_by": "main"
   },
-  "get_regulatory_rule_snapshot": {
-    "reason": "Returns a rule as it stood on a date. Nothing asks, so 'what did the rule say when this happened' has no answer in the product.",
-    "backlog": "G15.17",
-    "introduced_by": "main"
-  },
   "record_regulatory_shadow_run": {
-    "reason": "Records a shadow evaluation of a candidate rule version against a cohort -- the mechanism for testing a regulation change before it binds.",
+    "reason": "Machine entry point, not a screen. It takes a rule version, a baseline version, a cohort window, an evaluated count and an engine version -- output from a rule engine running a candidate version alongside the current one, not anything a person types. The differences it produces ARE now actionable: `reconcile_regulatory_shadow_difference` is wired (G15.19). Giving this one a form would be inventing a user for it. What it needs is the engine that calls it, which does not exist in this repository.",
     "backlog": "G15.18",
     "introduced_by": "main"
   },
-  "reconcile_regulatory_shadow_difference": {
-    "reason": "Resolves one difference a shadow run found, with a rationale and an evidence checksum. No shadow run can be recorded, so no difference can exist to reconcile.",
-    "backlog": "G15.19",
-    "introduced_by": "main"
-  },
   "record_regulatory_fixture_result": {
-    "reason": "Records a regulatory engine fixture result for a given engine version. The conformance harness has no entry point.",
+    "reason": "Machine entry point, not a screen. It records one golden-fixture result for a given engine version with a request id -- conformance-harness output. Same reasoning as G15.18: the missing piece is the harness, not a button.",
     "backlog": "G15.20",
     "introduced_by": "main"
   }
