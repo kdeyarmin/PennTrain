@@ -3,6 +3,7 @@ import {
   CITATION_REVIEW_MAX_AGE_DAYS, citationDisplayLabel, citationForComplianceItem,
   citationLibraryAgeInDays, citationsForModule, findCitation, isCitationLibraryStale,
   PA_CITATIONS_LAST_VERIFIED, PA_REGULATORY_CITATIONS,
+  type PaRegulatoryCitation,
 } from "./paRegulatoryCitations";
 
 describe("catalog governance", () => {
@@ -37,16 +38,31 @@ describe("catalog governance", () => {
     expect(new Set(citations).size).toBe(citations.length);
   });
 
-  it("carries the unconfirmed points forward as unconfirmed", () => {
-    // The source rule packs say the PCH medical-evaluation annual grace and the ALR annual
-    // reassessment grace are not confirmed. Upgrading either to "verified" here would launder an
-    // open question into a settled one.
-    expect(findCitation("2600.141")!.verification.status).toBe("pending_confirmation");
-    expect(findCitation("2800.225")!.verification.status).toBe("pending_confirmation");
+  it("resolves the two grace periods that were pending confirmation as of 2026-08-04", () => {
+    // 2600.141 (PCH medical evaluation) and 2800.225 (ALR annual reassessment) were the last two
+    // pending_confirmation entries -- both closed 2026-08-04 via PA DHS's own Regulatory
+    // Compliance Guides naming each section directly in the chapter's Grace Periods table (see
+    // their verification.note). Checked specifically rather than asserting every entry is
+    // verified: pending_confirmation is a supported, ongoing status (see the module docstring),
+    // not a defect to eliminate, and a future citation legitimately added as unconfirmed should
+    // stay that way rather than force someone to mark it verified just to pass this test. The
+    // mechanism that keeps an unconfirmed entry from displaying as settled is guarded by the
+    // fixture test below.
+    expect(findCitation("2600.141")!.verification.status).toBe("verified");
+    expect(findCitation("2800.225")!.verification.status).toBe("verified");
   });
 
-  it("marks the unconfirmed ones visibly in their display label", () => {
-    expect(citationDisplayLabel(findCitation("2600.141")!)).toContain("(unconfirmed detail)");
+  it("carries an unconfirmed status forward rather than upgrading it silently", () => {
+    // Exercised against a constructed fixture rather than a real entry: real data has had nothing
+    // pending since 2026-08-04, and this guarantee should hold regardless of whether anything
+    // currently does. Upgrading a status to "verified" without the label reflecting it would
+    // launder an open question into a settled one.
+    const pending: PaRegulatoryCitation = {
+      ...PA_REGULATORY_CITATIONS[0],
+      citation: "0000.000",
+      verification: { status: "pending_confirmation", note: "test fixture, not a real citation" },
+    };
+    expect(citationDisplayLabel(pending)).toContain("(unconfirmed detail)");
     expect(citationDisplayLabel(findCitation("2600.225")!)).not.toContain("unconfirmed");
     expect(citationDisplayLabel(findCitation("2600.225")!)).toBe("55 Pa. Code § 2600.225 — Initial and annual assessment");
   });

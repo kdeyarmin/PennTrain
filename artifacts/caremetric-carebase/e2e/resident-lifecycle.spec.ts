@@ -1,8 +1,8 @@
-import { createHmac } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { RESIDENT_JOURNEY_STEPS } from "../src/lib/residentJourney";
 import { buildIncidentStages } from "../src/lib/incidentStages";
+import { totpCode } from "./helpers/totp";
 
 /**
  * The twelve-step resident lifecycle journey (program plan Phase 0, item 3).
@@ -20,32 +20,6 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const password = process.env.E2E_ACCOUNT_PASSWORD ?? "";
-
-// Same TOTP derivation as e2e/role-routing.spec.ts. Kept in sync by hand for now -- extracting a
-// shared helper means touching the passing role suite, which is its own change.
-function totpCode(secret: string) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let buffer = 0;
-  let bits = 0;
-  const bytes: number[] = [];
-  for (const character of secret.toUpperCase().replace(/=+$/u, "")) {
-    const value = alphabet.indexOf(character);
-    if (value < 0) throw new Error("Authenticator secret is not valid base32");
-    buffer = (buffer << 5) | value;
-    bits += 5;
-    if (bits >= 8) {
-      bits -= 8;
-      bytes.push((buffer >> bits) & 0xff);
-      buffer &= (1 << bits) - 1;
-    }
-  }
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
-  const digest = createHmac("sha1", Buffer.from(bytes)).update(counter).digest();
-  const offset = digest[digest.length - 1] & 0x0f;
-  const code = ((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString();
-  return code.padStart(6, "0");
-}
 
 let admin: SupabaseClient;
 let organizationId: string;

@@ -344,12 +344,17 @@ Deliver:
   states with author/approver separation.
 - Build deterministic golden fixtures for supported facility types, workforce
   profiles, boundary dates, grace periods, and renewals.
-- Run candidate rules in shadow mode and reconcile every result difference
-  before activation.
+- Gate activation on golden-fixture verification and independent
+  second-reviewer approval. Shadow mode remains available as optional
+  pre-activation evaluation -- reconcile every result difference before
+  activating if it's used -- but activation does not wait on it (2026-08-04:
+  the mandatory 30-day live-shadow observation period was removed; see
+  `docs/ops/SG2_DECISION.md`).
 
 Accept when no unsourced or unapproved rule can become enforceable, historic
-results remain reproducible by rule version, and pilot organizations have no
-unexplained calculation variance.
+results remain reproducible by rule version, and every fixture-verified,
+approved version can activate without waiting on a pilot or shadow
+observation period.
 
 ### P2.5 — #25 Add enterprise SSO, privileged-role MFA, and SCIM
 
@@ -409,8 +414,9 @@ versioned event.
 - Hierarchy migration produces no privilege escalation and no unresolved
   cross-tenant authorization failures.
 - Every active employee is mapped to a governed profile or visible exception.
-- Approved rule packs pass golden fixtures and at least 30 days of shadow/pilot
-  reconciliation across two facility/license types.
+- Approved rule packs pass golden fixtures and independent second-reviewer
+  approval; activation does not wait on a shadow or pilot observation period
+  (2026-08-04).
 - SSO/SCIM, entitlements, APIs, and webhooks pass replay, revocation,
   out-of-order, and tenant-isolation tests.
 - No open unexplained rule-result or billing-entitlement variance exists.
@@ -877,7 +883,7 @@ Track these across all phases:
 
 | Risk | Control and stop condition |
 | --- | --- |
-| Incorrect regulatory logic | Source and independently approve every enforceable version; unexplained shadow variance stops activation. |
+| Incorrect regulatory logic | Source, golden-fixture-verify, and independently approve every enforceable version; if shadow evaluation is used, unexplained variance still stops activation. |
 | Cross-tenant disclosure | Direct REST/RPC/Storage negative tests are release blockers; any failure stops rollout. |
 | Migration or backfill loss | Expand/contract, resumable batches, reconciliation, and tested restore; unexplained variance blocks switching. |
 | Duplicate asynchronous effects | Idempotency keys, uniqueness constraints, outbox state, replay tests, and operator reconciliation. |
