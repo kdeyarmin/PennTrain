@@ -290,6 +290,7 @@ export default function ResidentDetail() {
           <ResidentHospitalSection
             residentId={resident.id}
             residentHref={`${residentPathPrefix}/${resident.id}`}
+            canManage={canManage}
           />
         </Suspense>
 

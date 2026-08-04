@@ -1448,6 +1448,55 @@ this seat: the plan names a confidently-wrong citation in a survey packet as thi
 failure mode, and citations written from memory rather than from the regulation are exactly that.
 Seeding needs a compliance SME with the source text in front of them.
 
+### Phase 5b completion — The hospital return had no write path
+
+**Found by sweeping, not by reading.** After the Appointments tab closed the last `PLANNED_TABS`
+entry, the obvious question was whether anything else had the same shape: schema, RPCs, RLS and
+grants all present, and no caller anywhere. Checking every `public` RPC granted to `authenticated`
+against the client and edge-function source found **79 of 556 with no caller**. Most are legitimate
+— RLS helpers (`current_role`), clock helpers (`pa_now`), functions called from other function
+bodies. One was not.
+
+**`complete_hospital_return` had never been called by anything.** `start_hospital_transfer` *is*
+wired, from the facility-wide care-delivery page, so an episode could reach `status = 'out'` — and
+stop there permanently. `ResidentHospitalSection` rendered, for that state, one sentence: *"The
+resident is currently out. Reconciliation starts when they return."* There was no way to record a
+return.
+
+Everything Phase 5b delivered hung off that one call, and all of it was unreachable:
+
+| Delivered in Phase 5b | Reachable before this pass |
+| --- | --- |
+| The five-step reconciliation checklist | No — needs `status = 'returned'` |
+| `complete_hospital_return_reconciliation`'s gated closure | No |
+| The seeded `hospital_return_review` draft | No |
+| The 24-hour follow-up work item (`hospital_return` source type) | No |
+| The `hospital_return_reconciliation` card in Needs Attention | No |
+
+| Delivered now | Detail |
+| --- | --- |
+| `RecordHospitalReturnDialog` | Return time, discharge document, medication-reconciliation and order-acknowledgement status, the five change fields, and the two review-required flags |
+| `suggestedReviewFlags` | The two flags are *proposed with a reason*, not pre-ticked. The RPC defaults both to true, which is right for a server and wrong for a form: two boxes pre-checked on every return are two boxes nobody reads, and these are what seed the review and gate the closure. The proposal is derived from what the person actually typed, and a deliberate override is never silently overwritten by the next keystroke |
+| Section wiring | The dead-end paragraph becomes a paragraph plus a **Record return** button, manager-gated, with the server enforcing the same rule |
+
+**Verified end-to-end against a real stack, through the path the client actually takes.** The 12
+parameter names were checked against the live function signature, then the RPC was driven over
+PostgREST as an authenticated `org_admin` — not as `service_role`, which the function's grant
+excludes. The episode moved to `returned`, the work item landed as `hospital_return` / open / due in
+24 hours, the `hospital_return_review` was seeded as a draft, and the stay appeared on the timeline.
+That is the whole of Phase 5b becoming reachable, asserted rather than assumed.
+
+`pnpm run test` passes 1,377 tests across 146 files (7 new on the proposal logic); typecheck clean;
+build succeeds; the resident shell is unchanged at 68.3 KiB and the dialog landed in
+`ResidentHospitalSection`'s own 15.8 KiB chunk.
+
+**What this does not do.** Starting a transfer is still only reachable from the facility-wide care
+delivery page, not from the resident's own record — a discoverability gap, not a dead end, and left
+alone rather than duplicated. The rest of the sweep's findings are recorded as `BACKLOG.md` Tier G
+rather than fixed here; the sharpest is **G2**, Phase 10b's citation-verification write paths, which
+have the identical no-caller shape and mean no compliance SME can record a verification through any
+surface that exists.
+
 ### Phase 1b completion — The Appointments tab, and the three states behind it that had no exit
 
 **The last tab in the request, and the reason it was held back.** `PLANNED_TABS` has carried one

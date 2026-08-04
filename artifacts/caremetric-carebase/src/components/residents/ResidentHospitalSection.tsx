@@ -18,6 +18,7 @@ import {
   buildReconciliationState, episodeStateLabel, recordedChanges, type HospitalEpisodeLike,
 } from "@/lib/hospitalReconciliation";
 import { formatDateForDisplay } from "@/lib/dateUtils";
+import RecordHospitalReturnDialog from "@/components/residents/RecordHospitalReturnDialog";
 
 function useHospitalEpisodes(residentId: string) {
   return useQuery({
@@ -64,10 +65,12 @@ function useCompleteReconciliation(residentId: string) {
  * regardless.
  */
 export default function ResidentHospitalSection({
-  residentId, residentHref,
+  residentId, residentHref, canManage,
 }: {
   residentId: string;
   residentHref: string;
+  /** Manager-tier roles only; the server enforces the same rule in every RPC below. */
+  canManage: boolean;
 }) {
   const { toast } = useToast();
   const episodes = useHospitalEpisodes(residentId);
@@ -75,6 +78,7 @@ export default function ResidentHospitalSection({
   const { data: plans } = useResidentSupportPlans(residentId);
   const complete = useCompleteReconciliation(residentId);
   const [closing, setClosing] = useState<HospitalEpisodeLike | null>(null);
+  const [recordingReturn, setRecordingReturn] = useState(false);
   const [note, setNote] = useState("");
 
   const episode = episodes.data?.[0];
@@ -137,9 +141,15 @@ export default function ResidentHospitalSection({
         </CardHeader>
         <CardContent className="space-y-3">
           {episode.status === "out" ? (
-            <p className="text-sm text-muted-foreground">
-              The resident is currently out. Reconciliation starts when they return.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                The resident is currently out. Recording their return opens the reconciliation
+                checklist and starts its 24-hour clock.
+              </p>
+              {canManage && (
+                <Button size="sm" onClick={() => setRecordingReturn(true)}>Record return</Button>
+              )}
+            </div>
           ) : (
             <>
               {changes.length > 0 && (
@@ -197,6 +207,15 @@ export default function ResidentHospitalSection({
           )}
         </CardContent>
       </Card>
+
+      <RecordHospitalReturnDialog
+        open={recordingReturn}
+        onOpenChange={setRecordingReturn}
+        residentId={residentId}
+        episodeId={episode.id}
+        transferTime={episode.transfer_time}
+        destination={episode.destination}
+      />
 
       <Dialog open={!!closing} onOpenChange={(open) => !open && setClosing(null)}>
         <DialogContent>
