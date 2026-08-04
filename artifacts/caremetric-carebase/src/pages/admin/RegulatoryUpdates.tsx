@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { lazy, Suspense, useId, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,12 @@ import {
   type RegulatoryUpdateInput,
 } from "@/hooks/useRegulatoryUpdates";
 import { QueryError } from "@/components/QueryState";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Its own chunk: this page is already 404 lines and the governance table, its two dialogs, and the
+// status read are only wanted by someone actually doing verification work. Splitting it keeps that
+// weight off everyone else's first paint of this page.
+const CitationGovernanceSection = lazy(() => import("@/components/admin/CitationGovernanceSection"));
 
 interface FormState {
   slug: string;
@@ -399,6 +405,10 @@ export default function RegulatoryUpdates() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Suspense fallback={<Skeleton className="h-64" />}>
+        <CitationGovernanceSection />
+      </Suspense>
     </div>
   );
 }

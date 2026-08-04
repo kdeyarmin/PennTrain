@@ -1448,6 +1448,41 @@ this seat: the plan names a confidently-wrong citation in a survey packet as thi
 failure mode, and citations written from memory rather than from the regulation are exactly that.
 Seeding needs a compliance SME with the source text in front of them.
 
+### Phase 10b completion — The verification mechanism had no way in
+
+**Tier G's sharpest row, and the second confirmed instance of the same shape.** Phase 10b's entry in
+this log says the deliverable is *the mechanism*: a status that cannot be claimed without a named
+person, a date, and a source URL, with seeding left to a compliance SME. That was the right call and
+it is still the right call. What the sweep found is narrower and worse: `record_citation_verification`,
+`record_citation_superseded` and `get_citation_governance_status` had **no caller anywhere** outside
+pgTAP. The display half was wired — `citationDisplay` reaches `InspectionReadiness.tsx`, so operators
+correctly saw "(2600.65 — approximate)". The write half had no surface. Every citation sat at
+`unverified` or `approximate` permanently, and an SME with the regulation open had no way in either.
+
+The numbers on a fresh database: **22 topics, 16 unverified, 6 approximate, 0 verified** — and no
+path to change that.
+
+| Delivered | Detail |
+| --- | --- |
+| `CitationGovernanceSection` | Lazy (9.1 KiB), on `/admin/regulatory-updates` — status counts, a stale-verification warning, and the full topic table showing each row's live qualifier next to its reference |
+| Verification dialog | Pre-filled with what is on record so confirming an existing number is one field, not four — and editable, because confirming a wrong number is the failure the mechanism exists to prevent |
+| `verificationFormIssues` / `supersessionFormIssues` | The server's rules stated up front instead of discovered by submitting. These are the two halves of one decision, not a client-side gate: the server still refuses, and both refusals were exercised |
+
+**Verified end-to-end over PostgREST as a platform admin**, not asserted. A verification with no
+source is refused — *"Verification requires the source the citation was read from"*. A real one moves
+the row to `verified` with `verified_by` and `verified_on` stamped, and the governance summary goes
+`{unverified: 16, approximate: 6}` → `{verified: 1, unverified: 16, approximate: 5}`. A supersession
+naming no successor is refused. That is the first citation in this product's history to reach
+`verified`, which is the whole point: the count was structurally stuck at zero.
+
+**No content was seeded, and that is deliberate and unchanged.** The plan names a confidently-wrong
+citation in a survey packet as this product's worst failure mode; values come from a person with the
+regulation open, one row at a time, each carrying the URL they read. What changed is only that such a
+person now has somewhere to put the answer.
+
+**Verified:** typecheck clean; 1,386 tests across 146 files (9 new on the form rules); build
+succeeds; all bundle budgets pass with the resident shell unchanged at 68.3 KiB.
+
 ### Phase 5b completion — The hospital return had no write path
 
 **Found by sweeping, not by reading.** After the Appointments tab closed the last `PLANNED_TABS`
