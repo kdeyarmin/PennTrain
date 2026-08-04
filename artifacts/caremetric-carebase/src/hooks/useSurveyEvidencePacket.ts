@@ -163,6 +163,68 @@ export function usePackageSurveyEvidencePacket() {
   });
 }
 
+/**
+ * Who currently holds guest access to a packet, and taking it back (BACKLOG.md G9).
+ *
+ * `issue_survey_packet_guest_grant` was wired; `revoke_survey_packet_guest_grant` was called by
+ * nothing, and no surface listed existing grants. So a survey evidence packet -- compliance evidence
+ * assembled for an external surveyor -- could be shared with a guest, and afterwards nobody could
+ * see who held access or take it back. The same product already does this correctly for move-in
+ * guests, where both `issue_move_in_guest_grant` and `revoke_move_in_guest_grant` are wired.
+ *
+ * The read needs no new policy: `survey_packet_guest_grants_select` already admits org_admin,
+ * facility_manager and auditor within the organization.
+ */
+export function useSurveyPacketGuestGrants(packetExportId: string | undefined) {
+  return useQuery({
+    queryKey: ["survey-packet-guest-grants", packetExportId],
+    enabled: Boolean(packetExportId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("survey_packet_guest_grants")
+        .select("id, guest_label, expires_at, revoked_at, revocation_reason, download_count, last_downloaded_at, created_at")
+        .eq("packet_export_id", packetExportId!)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as {
+        id: string;
+        guest_label: string;
+        expires_at: string;
+        revoked_at: string | null;
+        revocation_reason: string | null;
+        download_count: number | null;
+        last_downloaded_at: string | null;
+        created_at: string;
+      }[];
+    },
+  });
+}
+
+export function useRevokeSurveyPacketGuestGrant() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { grantId: string; reason: string }) => {
+      const { data, error } = await rpc().rpc("revoke_survey_packet_guest_grant", {
+        p_grant_id: input.grantId,
+        p_reason: input.reason,
+      });
+      if (error) throw new Error(error.message);
+      // The RPC returns false rather than raising when the grant is not found -- a row deleted, or
+      // one this caller cannot see. Resolving successfully on that would tell somebody access was
+      // withdrawn when nothing was withdrawn, which is the worst possible lie for this particular
+      // button.
+      if (data !== true) {
+        throw new Error("That guest grant no longer exists, so nothing was revoked. Refresh the list.");
+      }
+      return true;
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["survey-packet-guest-grants"] });
+      void client.invalidateQueries({ queryKey: ["survey-evidence-packet-exports"] });
+    },
+  });
+}
+
 export function useIssueSurveyPacketGuestGrant() {
   const client = useQueryClient();
   return useMutation({
