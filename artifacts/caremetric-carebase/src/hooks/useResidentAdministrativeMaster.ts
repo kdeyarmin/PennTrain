@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import type { Json, Tables } from "@/lib/database.types";
 import type { ResidentDocument } from "./useResidentDocuments";
 
@@ -141,8 +142,16 @@ export function useUpsertResidentLegalRecord() {
 }
 
 export function useResidentPhotoUrl(document: ResidentDocument | undefined) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["resident-photo", document?.id],
+    // Identity-scoped for the same reason useResidentPhotoUrls (useResidentPhotos.ts) is: a signed
+    // URL is bearer-authorized for its whole TTL regardless of what RLS would say now, so the key
+    // -- not the identity-change queryClient.clear() alone -- is what stops a role/org/facility
+    // change from resolving under a still-cached signing context. All four identity fields belong
+    // in the key, not just role/org: a facility-only transfer changes nothing else here.
+    queryKey: [
+      "resident-photo", document?.id, user?.id, user?.organizationId, user?.role, user?.facilityId,
+    ],
     queryFn: async () => {
       const { error: logError } = await supabase.rpc("log_document_access", {
         p_document_table: "resident_documents",
