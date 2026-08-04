@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BookCheck, GitBranch, PackageCheck, RefreshCw, ShieldCheck, WifiOff } from "lucide-react";
 import { useGovernedLearning } from "@/hooks/useGovernedLearning";
 import { GovernedContentRevisionsPanel } from "@/components/learning/GovernedContentRevisionsPanel";
+import { AdaptivePathsPanel } from "@/components/learning/AdaptivePathsPanel";
 import {
   useAcceptLearningPackage,
   useAdminLearningPackages,
@@ -155,7 +156,7 @@ export default function GovernedLearning() {
         <TabsContent value="review" className="mt-4"><GovernedContentRevisionsPanel /></TabsContent>
         <TabsContent value="policies" className="mt-4"><Metrics title="Policy lifecycle" description="Effective audiences, exact attestations, and delivery outcomes." values={data.policies} /></TabsContent>
         <TabsContent value="standards" className="mt-4"><StandardsPackagesPanel /></TabsContent>
-        <TabsContent value="adaptive" className="mt-4"><Metrics title="Adaptive paths" description="Pinned definitions and explainable server-side transitions." values={data.adaptive} /></TabsContent>
+        <TabsContent value="adaptive" className="mt-4 space-y-4"><Metrics title="Adaptive paths" description="Pinned definitions and explainable server-side transitions." values={data.adaptive} /><AdaptivePathsPanel /></TabsContent>
         <TabsContent value="offline" className="mt-4"><Metrics title="Offline sync" description="Conflict, rejection, revocation, and wipe visibility." values={data.offline} /></TabsContent>
       </Tabs>
       {data.generatedAt ? <p className="text-xs text-muted-foreground">Snapshot generated {new Date(data.generatedAt).toLocaleString()}</p> : null}

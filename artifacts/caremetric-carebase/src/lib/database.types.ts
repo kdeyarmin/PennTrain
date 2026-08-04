@@ -36406,6 +36406,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assign_learning_path: {
+        Args: {
+          p_due_at?: string
+          p_employee_id: string
+          p_path_version_id: string
+        }
+        Returns: string
+      }
       assign_medication_integration_exception: {
         Args: {
           p_create_work_item?: boolean
@@ -39737,6 +39745,10 @@ export type Database = {
         Args: { p_reason: string; p_revision_id: string }
         Returns: string
       }
+      publish_learning_path_version: {
+        Args: { p_version_id: string }
+        Returns: string
+      }
       publish_org_announcement: {
         Args: {
           p_audience_facility_ids?: string[]
@@ -41353,6 +41365,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      save_learning_path_version: {
+        Args: {
+          p_definition: Json
+          p_description?: string
+          p_name: string
+          p_path_definition_id?: string
+          p_version_id?: string
+        }
+        Returns: string
+      }
       save_medication_integration_source: {
         Args: {
           p_credential_id?: string
@@ -42344,6 +42366,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      unassign_organization_release_cohort: {
+        Args: {
+          p_cohort_id: string
+          p_feature_key: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       unpublish_course: {
         Args: { p_course_id: string; p_reason: string }

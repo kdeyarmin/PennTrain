@@ -1,6 +1,12 @@
 import { useId, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
+  actionReasonLabel,
+  actionTypeLabel,
+  simulationStateNote,
+  simulationSummary,
+} from "@/lib/automationSimulation";
+import {
   Activity,
   AlertTriangle,
   ArrowRight,
@@ -10,6 +16,7 @@ import {
   Cable,
   CalendarClock,
   CheckCircle2,
+  FlaskConical,
   CircleDollarSign,
   ClipboardCheck,
   CloudOff,
@@ -78,6 +85,7 @@ import {
   useProductValueWorkspace,
   useReviewCopilotActionDraft,
   useRunWorkflowAutomation,
+  useSimulateWorkflowAutomation,
   useSaveCustomerValueBaseline,
   useSaveWorkflowAutomation,
   useStaffingOptimization,
@@ -315,6 +323,10 @@ export default function ValueCenter() {
   const [automationState, setAutomationState] = useState<"draft" | "active">("draft");
   const saveAutomation = useSaveWorkflowAutomation();
   const runAutomation = useRunWorkflowAutomation();
+  const simulateAutomation = useSimulateWorkflowAutomation();
+  // Keyed by rule so a dry-run stays attached to the rule it describes rather than floating above
+  // the list, which is how somebody ends up running the wrong rule after reading the right preview.
+  const [simulatedRuleId, setSimulatedRuleId] = useState<string | null>(null);
 
   const [warRoomName, setWarRoomName] = useState("Upcoming inspection response");
   const createWarRoom = useCreateInspectionWarRoom();
@@ -668,6 +680,20 @@ export default function ValueCenter() {
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={!facilityId || simulateAutomation.isPending}
+                        onClick={() => {
+                          setSimulatedRuleId(rule.id);
+                          void notify(
+                            () => simulateAutomation.mutateAsync({ ruleId: rule.id, facilityId }),
+                            "Dry run complete — nothing was written",
+                          );
+                        }}
+                      >
+                        <FlaskConical className="mr-2 h-4 w-4" /> Dry run
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         disabled={!facilityId || runAutomation.isPending || rule.state !== "active"}
                         onClick={() => void notify(
                           () => runAutomation.mutateAsync({ ruleId: rule.id, facilityId }),
@@ -677,6 +703,24 @@ export default function ValueCenter() {
                         <Play className="mr-2 h-4 w-4" /> Run now
                       </Button>
                     </div>
+                    {simulatedRuleId === rule.id && simulateAutomation.data && (
+                      <div className="w-full space-y-2 rounded-lg border bg-muted/30 p-3">
+                        <p className="text-sm font-medium">{simulationSummary(simulateAutomation.data)}</p>
+                        {simulationStateNote(simulateAutomation.data.ruleState) && (
+                          <p className="text-xs text-muted-foreground">
+                            {simulationStateNote(simulateAutomation.data.ruleState)}
+                          </p>
+                        )}
+                        {simulateAutomation.data.actions.map((simulated, index) => (
+                          <p key={`${simulated.type}-${index}`} className="text-xs text-muted-foreground">
+                            {actionTypeLabel(simulated.type)}: {actionReasonLabel(simulated.reason)}
+                          </p>
+                        ))}
+                        <p className="text-xs text-muted-foreground">
+                          Nothing was written — no work item was created and no notification was sent.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );

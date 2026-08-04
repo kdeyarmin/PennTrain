@@ -148,6 +148,48 @@ export function useSaveWorkflowAutomation() {
   });
 }
 
+export interface AutomationSimulation {
+  ruleId: string;
+  ruleName: string;
+  ruleState: string;
+  conditions: Record<string, unknown>;
+  context: Record<string, unknown>;
+  conditionsMatch: boolean;
+  actions: Array<{
+    type: string;
+    wouldAttempt: boolean;
+    wouldCreateWork: boolean;
+    wouldNotify: boolean;
+    reason: string;
+    payload: Record<string, unknown>;
+  }>;
+  writesPerformed: boolean;
+  simulatedAt: string;
+}
+
+/**
+ * Dry-run a rule (BACKLOG.md G11).
+ *
+ * `run_workflow_automation_now` was wired and `simulate_workflow_automation_rule` was not, so the
+ * only way to find out what a rule would do was to let it do it -- creating real work items and
+ * sending real notifications to org admins and facility managers. The simulation runs the same
+ * condition match and action walk and returns `writesPerformed: false`; the function is declared
+ * `stable`, so it cannot write even if it wanted to.
+ */
+export function useSimulateWorkflowAutomation() {
+  return useMutation({
+    mutationFn: async (input: { ruleId: string; facilityId: string; context?: Record<string, unknown> }) => {
+      const { data, error } = await rpc().rpc("simulate_workflow_automation_rule", {
+        p_rule_id: input.ruleId,
+        p_facility_id: input.facilityId,
+        p_context: input.context ?? {},
+      });
+      if (error) throw error;
+      return data as AutomationSimulation;
+    },
+  });
+}
+
 export function useRunWorkflowAutomation() {
   const queryClient = useQueryClient();
   return useMutation({

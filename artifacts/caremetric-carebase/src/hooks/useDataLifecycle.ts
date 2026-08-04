@@ -111,6 +111,66 @@ export function useReleaseAuditLegalHold() {
   });
 }
 
+export interface AuditExportManifest {
+  rowCount: number;
+  sha256: string;
+}
+
+/**
+ * What an archive of this range would contain, before planning one (BACKLOG.md G11).
+ *
+ * `plan_audit_archive` calls this itself and stores the result, so previewing with the same function
+ * means the number on screen is the number that gets recorded rather than a second estimate.
+ */
+export function useAuditExportManifest(range: { from: string; to: string; organizationId: string | null }) {
+  return useQuery({
+    queryKey: ["audit_export_manifest", range.from, range.to, range.organizationId],
+    queryFn: async (): Promise<AuditExportManifest> => {
+      const { data, error } = await supabase.rpc("get_audit_export_manifest", {
+        p_from: range.from,
+        p_to: range.to,
+        p_organization_id: (range.organizationId ?? null) as string,
+      });
+      if (error) throw error;
+      const raw = (data ?? {}) as Record<string, unknown>;
+      return { rowCount: Number(raw.rowCount ?? 0), sha256: String(raw.sha256 ?? "") };
+    },
+    enabled: Boolean(range.from && range.to),
+    staleTime: 15_000,
+  });
+}
+
+/**
+ * Plan an audit archive batch (BACKLOG.md G11).
+ *
+ * `plan_audit_archive` had no caller anywhere. It is the only writer of
+ * `app_private.audit_archive_batches`, so the export half of the retention story had no beginning:
+ * lifecycle policies could archive and delete rows on their own schedule, but the deliberate
+ * "freeze this range, hash it, and record whether a legal hold covers it" step could not be taken.
+ *
+ * The legal-hold answer is the reason to plan before exporting. The function records
+ * `legal_hold_applies` on the batch rather than refusing, so the planner learns the range is frozen
+ * at the point they can still do something about it.
+ */
+export function usePlanAuditArchive() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { from: string; to: string; organizationId?: string | null }) => {
+      const { data, error } = await supabase.rpc("plan_audit_archive", {
+        p_from: input.from,
+        p_to: input.to,
+        p_organization_id: (input.organizationId ?? null) as string,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["data_lifecycle_status"] });
+      client.invalidateQueries({ queryKey: ["audit-governance-status"] });
+    },
+  });
+}
+
 export function useRunDataLifecyclePolicy() {
   const client = useQueryClient();
   return useMutation({
