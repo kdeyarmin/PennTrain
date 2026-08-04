@@ -208,7 +208,7 @@ Deno.serve(async (req: Request) => {
   } | null;
   if (!resident) return json(req, { error: "Resident not found" }, 404);
 
-  const templateBytes = await fetchDhsTemplate(template);
+  const templateBytes = await fetchDhsTemplate(template, adminClient);
   const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
   // The preadmission PDFs are LiveCycle exports; drop the XFA layer so viewers show the AcroForm
   // values this code fills (see stripXfa's comment).

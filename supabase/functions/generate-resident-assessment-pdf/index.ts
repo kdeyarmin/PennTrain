@@ -44,13 +44,15 @@ const DHS_ASSESSMENT_FORM_TEMPLATES: Record<string, StateAssessmentTemplate> = {
 
 async function fetchStateApprovedAssessmentTemplate(
   formType: string,
+  // Service-role client, so the official form comes from the cache bucket rather than pa.gov.
+  cacheClient?: Parameters<typeof fetchDhsTemplate>[1],
 ): Promise<{ templateBytes: Uint8Array; template: StateAssessmentTemplate }> {
   const template = DHS_ASSESSMENT_FORM_TEMPLATES[formType];
   if (!template)
     throw new Error(
       `No PA DHS state-approved template configured for ${formType}`,
     );
-  return { templateBytes: await fetchDhsTemplate(template), template };
+  return { templateBytes: await fetchDhsTemplate(template, cacheClient), template };
 }
 
 function humanize(value: string | null | undefined): string {
@@ -830,9 +832,10 @@ async function buildAssessmentPdf(input: {
     phone: string | null;
   }[];
   content: AnyRecord;
+  cacheClient?: Parameters<typeof fetchDhsTemplate>[1];
 }): Promise<{ pdfBytes: Uint8Array; template: StateAssessmentTemplate }> {
   const { templateBytes, template } =
-    await fetchStateApprovedAssessmentTemplate(input.formType);
+    await fetchStateApprovedAssessmentTemplate(input.formType, input.cacheClient);
   const w = new PdfWriter();
   await w.init(templateBytes, input);
   const content = input.content ?? {};
@@ -1217,7 +1220,12 @@ Deno.serve(async (req: Request) => {
     .order("sort_order");
   if (supportsError) return json(req, { error: supportsError.message }, 500);
 
+  // Created before the build, not after: the template cache lives in storage and reaching it needs
+  // the service role. A cache hit means this request never touches pa.gov.
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
   const { pdfBytes, template } = await buildAssessmentPdf({
+    cacheClient: adminClient,
     formType: form.form_type,
     reason: form.reason,
     versionNumber: form.version_number,
@@ -1245,7 +1253,6 @@ Deno.serve(async (req: Request) => {
     content: (form.content ?? {}) as AnyRecord,
   });
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const path = `${form.organization_id}/${form.facility_id}/${form.resident_id}-${form.form_type.toLowerCase()}-v${form.version_number}-${form.id}.pdf`;
 
   const { error: uploadError } = await adminClient.storage

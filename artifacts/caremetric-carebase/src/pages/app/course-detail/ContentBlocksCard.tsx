@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Eye, Lock, Plus, RefreshCw, Sparkles, Trash2, Video, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmergencyBlockCorrection } from "./EmergencyBlockCorrection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CourseBlock, CourseVersion } from "@/hooks/useCourses";
 import type { TrainingDocument } from "@/hooks/useDocuments";
@@ -80,6 +81,7 @@ export function ContentBlocksCard({
         {isVersionLocked && (
           <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
             <Lock className="h-3 w-3" /> Published versions are locked; create a new version to make changes.
+            {userRole === "platform_admin" && " A platform admin can correct a single block in an emergency, below."}
           </p>
         )}
       </CardHeader>
@@ -142,6 +144,13 @@ export function ContentBlocksCard({
                         role={userRole}
                       />
                     </div>
+                  )}
+                  {/* Only where the lock actually bites, and only for the one role the server
+                      accepts. Per block, because a correction that rewrites a whole version is the
+                      re-version this deliberately is not. Inside the block's own column so the
+                      form gets the width to be read carefully. */}
+                  {isVersionLocked && userRole === "platform_admin" && (
+                    <EmergencyBlockCorrection block={b} />
                   )}
                 </div>
                 {canManage && !isVersionLocked && (

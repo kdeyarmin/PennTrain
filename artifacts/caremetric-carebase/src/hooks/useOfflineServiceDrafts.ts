@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import {
+  getOfflineFloorDeviceMetadata,
   initializeOfflineFloorDevice, isUnsyncedDraftOverdue, listServiceDraftEntries,
   purgeExpiredServiceDrafts, readAllServiceDrafts, removeServiceDraft, saveOfflineFloorDeviceId,
   saveServiceDraft, updateServiceDraft, wipeOfflineServiceDrafts,
@@ -508,6 +509,59 @@ export function useDismissOfflineServiceDraft() {
   return useMutation({
     mutationFn: async (draftId: string) => removeServiceDraft(draftId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
+/**
+ * Is this device registered for offline service documentation, and does it still hold drafts?
+ *
+ * Read-only: it never registers a device as a side effect of being asked about one.
+ */
+export function useOfflineServiceDeviceRegistration() {
+  return useQuery({
+    queryKey: ["offline-service-device"],
+    queryFn: async () => {
+      const metadata = await getOfflineFloorDeviceMetadata();
+      return metadata ? { deviceId: metadata.deviceId ?? null, registeredAt: metadata.createdAt } : null;
+    },
+  });
+}
+
+/**
+ * Ending this device's registration, and wiping what it holds (BACKLOG.md G12.6).
+ *
+ * `register_offline_service_device` had five callers and `revoke_offline_service_device` had none,
+ * so a phone could be enrolled to document care offline and never un-enrolled -- the same one-way
+ * door closed for survey-packet guest grants in G9, and the same shape the learning device already
+ * avoids via `useWipeOfflineCourses`.
+ *
+ * The caller is expected to refuse this while unsynced drafts remain: wiping the store destroys
+ * care documentation that never reached the server, and no server-side undo exists. That check
+ * lives in the surface, where the pending count is already known and can be shown.
+ */
+export function useRevokeOfflineServiceDevice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const metadata = await getOfflineFloorDeviceMetadata();
+      // Revoke first: if the wipe failed afterwards the registration is still gone, which is the
+      // safe order. Wiping first and failing to revoke would leave a device the server still trusts.
+      if (metadata?.deviceId) {
+        const { error } = await supabase.rpc("revoke_offline_service_device" as never, {
+          p_device_id: metadata.deviceId,
+        } as never);
+        if (error) throw error;
+      }
+      await wipeOfflineServiceDrafts();
+      return true;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["offline-service-device"] }),
+        queryClient.invalidateQueries({ queryKey: ["offline-service-drafts"] }),
+        queryClient.invalidateQueries({ queryKey: ["offline-observation-drafts"] }),
+      ]);
+    },
   });
 }
 
