@@ -449,3 +449,95 @@ export function useEnrollRetrainingCohort() {
     },
   });
 }
+
+// --- Session registrations: attendance and completion (BACKLOG.md G15.11, G15.12) ---------------
+//
+// `register_for_training_session` had a hook and no screen; `record_training_attendance` and
+// `approve_training_session_completion` had neither. So the session model -- registrations with
+// capacity and a waitlist, signed attendance evidence, and a trainer's approval that turns the
+// session into training records -- existed end to end in the database and nowhere in the product.
+//
+// The two are a matched pair, which is why they are wired together: approval refuses unless every
+// registration marked `attended` carries signed evidence, and recording that evidence is the only
+// thing that produces it.
+
+export interface TrainingSessionRegistration {
+  id: string;
+  employee_id: string;
+  registration_status: string;
+  waitlist_position: number | null;
+  attendance_recorded_at: string | null;
+  training_record_id: string | null;
+}
+
+export function useTrainingSessionRegistrations(classId: string | undefined) {
+  return useQuery({
+    queryKey: ["training_session_registrations", classId ?? null],
+    enabled: !!classId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("training_session_registrations")
+        .select("id,employee_id,registration_status,waitlist_position,attendance_recorded_at,training_record_id")
+        .eq("class_id", classId!)
+        .order("waitlist_position", { ascending: true, nullsFirst: true });
+      if (error) throw error;
+      return (data ?? []) as TrainingSessionRegistration[];
+    },
+  });
+}
+
+/** The three the server accepts. Only `attended` demands a signature. */
+export const ATTENDANCE_STATUSES = [
+  { value: "attended", label: "Attended" },
+  { value: "partial", label: "Partial" },
+  { value: "no_show", label: "Did not attend" },
+] as const;
+
+export function useRecordTrainingAttendance(classId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      registrationId: string;
+      attendanceStatus: string;
+      checkInAt: string;
+      checkOutAt: string;
+      attendeeSignatureSha256: string;
+      recorderSignatureSha256: string;
+      evidence?: Record<string, unknown>;
+    }) => {
+      const { error } = await supabase.rpc("record_training_attendance" as never, {
+        p_registration_id: input.registrationId,
+        p_attendance_status: input.attendanceStatus,
+        p_check_in_at: input.checkInAt,
+        p_check_out_at: input.checkOutAt,
+        p_evidence: input.evidence ?? {},
+        p_attendee_signature_sha256: input.attendeeSignatureSha256,
+        p_recorder_signature_sha256: input.recorderSignatureSha256,
+      } as never);
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["training_session_registrations", classId ?? null] });
+    },
+  });
+}
+
+export function useApproveTrainingSessionCompletion(classId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { reason: string }) => {
+      const { data, error } = await supabase.rpc("approve_training_session_completion" as never, {
+        p_class_id: classId!,
+        p_reason: input.reason,
+      } as never);
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["training_session_registrations", classId ?? null] });
+      void queryClient.invalidateQueries({ queryKey: ["training_classes"] });
+      void queryClient.invalidateQueries({ queryKey: ["training_records"] });
+    },
+  });
+}

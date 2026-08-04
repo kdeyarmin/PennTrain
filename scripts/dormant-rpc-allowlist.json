@@ -27,31 +27,6 @@
     "backlog": "G15.1",
     "introduced_by": "main"
   },
-  "rotate_scim_connection_credential": {
-    "reason": "The SCIM provisioning credential cannot be rotated, which is the standing remediation when a directory integration is compromised.",
-    "backlog": "G15.6",
-    "introduced_by": "main"
-  },
-  "get_scim_connection_registry": {
-    "reason": "Takes no arguments and returns the SCIM connection registry. Nothing lists SCIM connections at all, so the rotation above has no surface to be offered from either.",
-    "backlog": "G15.7",
-    "introduced_by": "main"
-  },
-  "link_sso_identity_subject": {
-    "reason": "Binds an SSO provider subject to a profile with a stated link method. Without it an SSO identity that fails to auto-match cannot be attached by an administrator.",
-    "backlog": "G15.8",
-    "introduced_by": "main"
-  },
-  "record_training_attendance": {
-    "reason": "Records attendance for a class registration with check-in/out times and evidence. Distinct from the class-attendance path already wired in G6; this one is the registration-level record.",
-    "backlog": "G15.11",
-    "introduced_by": "main"
-  },
-  "approve_training_session_completion": {
-    "reason": "Approves a training session's completion with a reason. Nothing offers the approval, so the state it grants cannot be reached.",
-    "backlog": "G15.12",
-    "introduced_by": "main"
-  },
   "record_resident_service_task": {
     "reason": "Superseded duplicate write path, and the earlier reason here was wrong. Documenting a service task works: the floor and the task queue both call `record_service_task_response`, which 20260726060100 introduced with a response plus structured `exception_details`, replacing this one's status/note/supervisor_notified model. Unlike `save_report_schedule` this predecessor does NOT delegate -- it is a second full implementation writing the same rows on the older model. Wiring it would be actively wrong. The real remediation is to revoke its grant from `authenticated` so it stops being a user-reachable alternate write path, which is a deprecation decision rather than a fix, so it is recorded here instead of taken unilaterally.",
     "backlog": "G15.13",

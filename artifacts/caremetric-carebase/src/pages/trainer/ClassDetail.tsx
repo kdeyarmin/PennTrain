@@ -74,6 +74,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { summarizeClassAttendance } from "@/lib/classAttendance";
 import { errorText } from "@/lib/errorText";
+import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -743,6 +744,20 @@ export default function ClassDetail() {
                 <p className="text-xl font-semibold">{attendanceSummary.recordsPending}</p>
               </div>
             </div>
+
+            {/* The session-registration track, which is a different model from the attendee list
+                above: capacity, a waitlist, signed attendance evidence, and an approval that
+                writes training records. All of it existed in the database and none of it had a
+                screen -- registration had a hook nothing rendered, and attendance and approval
+                had neither. Renders nothing when the session has no registrations. */}
+            <SessionRosterCard
+              classId={classId}
+              classStatus={cls?.status}
+              employeeName={(employeeId) => {
+                const employee = employeesById.get(employeeId);
+                return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
+              }}
+            />
 
             {(attendanceSummary.checkedInNotMarkedPresent > 0 || attendanceSummary.presentWithoutCheckin > 0 || attendanceSummary.checkedInWithoutCheckout > 0) ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

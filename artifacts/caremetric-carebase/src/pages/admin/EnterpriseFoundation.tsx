@@ -31,6 +31,7 @@ import { RoleTemplateCard } from "@/components/admin/RoleTemplateCard";
 import { useEnterpriseRoleTemplates } from "@/hooks/useEnterpriseRoleTemplates";
 import { useToast } from "@/hooks/use-toast";
 import { IntegrationRegisterCard } from "@/components/admin/IntegrationRegisterCard";
+import { ScimRegistryCard } from "@/components/admin/ScimRegistryCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -803,6 +804,7 @@ function ScimConnectionCommand() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>SCIM provisioning connection</CardTitle>
@@ -838,6 +840,10 @@ function ScimConnectionCommand() {
         <div className="md:col-span-2"><Button onClick={() => void createConnection()} disabled={command.isPending || !!issued}>Create SCIM connection</Button></div>
       </CardContent>
     </Card>
+    {/* Creating was the whole of it. Listing, rotating a credential, and attaching an SSO identity
+        that did not match on its own all had no way in. */}
+    <ScimRegistryCard />
+    </>
   );
 }
 
