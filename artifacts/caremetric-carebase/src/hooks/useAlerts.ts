@@ -121,9 +121,32 @@ export function useBulkUpdateAlerts() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ ids, ...payload }: AlertUpdate & { ids: string[] }) => {
-      const { data, error } = await supabase.from("alerts").update(payload).in("id", ids).select();
+      // Routed through bulk_update_alert_status rather than a direct table update (BACKLOG.md G10).
+      // The RPC existed and had no caller, while this hook wrote straight to the table -- which RLS
+      // authorizes, but which skips three things the RPC does: it writes an
+      // `alerts_bulk_status_updated` audit_logs row per alert, it stamps `resolved_at` when the
+      // status becomes 'resolved', and it authorizes each alert individually against the caller's
+      // facility assignment. The audit gap is the sharp one: dismissing alerts in bulk is exactly
+      // what a surveyor asks about, and it was leaving no trail. The resolved_at gap meant a
+      // human-resolved alert was indistinguishable from one the nightly sweep resolved.
+      const status = (payload as { status?: string }).status;
+      if (!status) throw new Error("A target status is required for a bulk alert update.");
+      const { data, error } = await supabase.rpc("bulk_update_alert_status" as never, {
+        p_alert_ids: ids,
+        p_status: status,
+        p_reason: (payload as { reason?: string }).reason ?? null,
+      } as never);
       if (error) throw error;
-      return data;
+      // The RPC reports per-alert outcomes instead of failing the batch, so a partial result must
+      // not be reported as a clean success.
+      const results = (data ?? []) as { id: string; status: string; message?: string }[];
+      const rejected = results.filter((row) => row.status === "failed" || row.status === "unauthorized");
+      if (rejected.length > 0) {
+        throw new Error(
+          `${rejected.length} of ${ids.length} alert(s) could not be updated: ${rejected[0].message ?? rejected[0].status}`,
+        );
+      }
+      return results;
     },
     onMutate: async ({ ids, ...payload }) => {
       await queryClient.cancelQueries({ queryKey: ALERTS_KEY });

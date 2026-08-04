@@ -229,6 +229,53 @@ export function usePreviewNotificationTemplate() {
   });
 }
 
+export interface NotificationDeliveryHealth {
+  pendingReady: number;
+  deferred: number;
+  processing: number;
+  awaitingFinal: number;
+  delivered24h: number;
+  failed24h: number;
+  unknown: number;
+  oldestActionableAt: string | null;
+  signedProviderEvents24h: number;
+}
+
+/**
+ * Queue health for the whole platform (BACKLOG.md G10).
+ *
+ * `get_notification_delivery_health` had no caller: the console could retry an individual failed
+ * delivery but could not see whether the queue was moving at all -- a stuck worker looked exactly
+ * like a quiet day. It raises 42501 for anybody who is not a platform_admin, so `enabled` gates the
+ * query rather than letting every org admin's console fire a request that can only fail.
+ */
+export function useNotificationDeliveryHealth(enabled: boolean) {
+  return useQuery({
+    queryKey: ["notification_delivery_health"],
+    queryFn: () => callNotificationRpc<NotificationDeliveryHealth>("get_notification_delivery_health", {}),
+    enabled,
+    refetchInterval: 60_000,
+  });
+}
+
+/**
+ * Render a *saved* template version, as opposed to whatever is in the draft editor.
+ *
+ * `preview_notification_template_draft` was wired; `preview_notification_template` was not. They
+ * answer different questions: the draft one asks "what will this become", and this one asks "what
+ * does the version that is live right now actually send" -- which is the question somebody has after
+ * a delivery went out wrong.
+ */
+export function usePreviewSavedNotificationTemplate() {
+  return useMutation({
+    mutationFn: (input: { templateId: string; variables: Record<string, string> }) =>
+      callNotificationRpc<{ templateId: string; version: number; subject: string; body: string }>(
+        "preview_notification_template",
+        { p_template_id: input.templateId, p_variables: input.variables },
+      ),
+  });
+}
+
 export function useCreateNotificationTemplateVersion() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -21,6 +21,7 @@ import {
   useListServiceExceptionRules,
   useListServiceTaskAlerts,
   useRecordResidentServiceTask,
+  useRecordServiceExceptionFollowUp,
   useResidentServiceTaskQueue,
   useResolveServiceTaskAlert,
   useServiceTaskAvailableStaff,
@@ -33,6 +34,7 @@ import {
 } from "@/hooks/useResidentServiceTasks";
 import { facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
+import { ServiceExceptionFollowUpDialog, isServiceException } from "@/components/residents/ServiceExceptionFollowUpDialog";
 import { QueryError } from "@/components/QueryState";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -249,6 +251,7 @@ export default function ServiceDelivery() {
   const [selectedTask, setSelectedTask] = useState<ResidentServiceTaskQueueRow | null>(null);
   const [selectedRequirement, setSelectedRequirement] = useState<ServiceRequirementWithRelations | null>(null);
   const [changeReviewAlert, setChangeReviewAlert] = useState<ServiceTaskAlertWithRelations | null>(null);
+  const [followUpTask, setFollowUpTask] = useState<ResidentServiceTaskQueueRow | null>(null);
   const [outcome, setOutcome] = useState("completed");
   const [note, setNote] = useState("");
   const [supervisorNotified, setSupervisorNotified] = useState(false);
@@ -278,6 +281,7 @@ export default function ServiceDelivery() {
   }, { enabled: isManager });
   const { data: availableStaff } = useServiceTaskAvailableStaff(selectedTask?.id);
   const recordTask = useRecordResidentServiceTask();
+  const followUpExceptionRpc = useRecordServiceExceptionFollowUp();
   const assignTask = useAssignResidentServiceTask();
   const resolveAlert = useResolveServiceTaskAlert();
 
@@ -381,6 +385,16 @@ export default function ServiceDelivery() {
                     <Button onClick={() => setSelectedTask(task)}>
                       <CalendarCheck className="mr-2 h-4 w-4" /> Record
                     </Button>
+                  )}
+                  {isManager && isServiceException(task.status) && (
+                    <>
+                      {/* Self-reported at documentation time -- context, not a substitute for a
+                          tracked item, so it does not suppress the button. */}
+                      {task.supervisor_notified && <Badge variant="secondary">Told supervisor</Badge>}
+                      <Button variant="outline" onClick={() => setFollowUpTask(task)}>
+                        <BellRing className="mr-2 h-4 w-4" /> Supervisor follow-up
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -563,6 +577,28 @@ export default function ServiceDelivery() {
       </Dialog>
 
       <RequirementDialog requirement={selectedRequirement} onClose={() => setSelectedRequirement(null)} />
+      <ServiceExceptionFollowUpDialog
+        open={!!followUpTask}
+        taskName={followUpTask?.service_name ?? "service"}
+        residentName={followUpTask?.resident_name ?? "the resident"}
+        existingNote={followUpTask?.note ?? null}
+        pending={followUpExceptionRpc.isPending}
+        onOpenChange={open => !open && setFollowUpTask(null)}
+        onConfirm={async reason => {
+          if (!followUpTask) return;
+          try {
+            await followUpExceptionRpc.mutateAsync({ taskId: followUpTask.id, reason });
+            toast({ title: "Supervisor follow-up raised", description: "It is in the shared work queue." });
+            setFollowUpTask(null);
+          } catch (error) {
+            toast({
+              title: "Couldn't raise the follow-up",
+              description: error instanceof Error ? error.message : String(error),
+              variant: "destructive",
+            });
+          }
+        }}
+      />
       <LogChangeOfConditionDialog
         open={!!changeReviewAlert}
         onOpenChange={open => !open && setChangeReviewAlert(null)}

@@ -40472,6 +40472,10 @@ export type Database = {
           waitlist_position: number
         }[]
       }
+      register_governed_content_asset: {
+        Args: { p_asset_type: string; p_source_id: string; p_title?: string }
+        Returns: string
+      }
       register_identity_domain: {
         Args: {
           p_domain: string

@@ -250,6 +250,31 @@ export function useGenerateClassCheckinToken() {
   });
 }
 
+/**
+ * Killing every outstanding check-in token for a class (BACKLOG.md G10).
+ *
+ * `generate_class_checkin_token` is wired -- the QR card rotates one every 30 seconds --
+ * and `revoke_class_checkin_tokens` had no caller. A rotating token is not a substitute for
+ * revocation: the current one stays valid until it rotates, and a QR photographed and shared
+ * keeps working until then. This is the control for "that code is out, stop it now".
+ */
+export function useRevokeClassCheckinTokens() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { classId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("revoke_class_checkin_tokens" as never, {
+        p_class_id: input.classId,
+        p_reason: input.reason,
+      } as never);
+      if (error) throw error;
+      return data as number | boolean;
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: ["training_class", input.classId] });
+    },
+  });
+}
+
 export function useCheckinViaToken() {
   const queryClient = useQueryClient();
   return useMutation({

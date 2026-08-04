@@ -19,6 +19,7 @@ import {
   useUpdateClassAttendee,
   useUpdateTrainingClass,
   useGenerateClassCheckinToken,
+  useRevokeClassCheckinTokens,
   useGenerateClassNoticePdf,
 } from "@/hooks/useTrainingClasses";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -134,6 +135,10 @@ function QrCheckinCard({ classId }: { classId: string }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const generateToken = useGenerateClassCheckinToken();
+  const revokeTokens = useRevokeClassCheckinTokens();
+  const { toast: notify } = useToast();
+  const [revoking, setRevoking] = useState(false);
+  const [revokeReason, setRevokeReason] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -179,6 +184,41 @@ function QrCheckinCard({ classId }: { classId: string }) {
         <Link href={`/trainer/classes/${classId}/kiosk`}>
           <Button variant="outline" size="sm"><Monitor className="mr-2 h-4 w-4" /> Open Kiosk Mode</Button>
         </Link>
+        {revoking ? (
+          <div className="w-full max-w-xs space-y-2">
+            <Input
+              aria-label="Why the check-in codes are being revoked"
+              value={revokeReason}
+              onChange={(event) => setRevokeReason(event.target.value)}
+              placeholder="Why (e.g. the code was shared outside the room)"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm" variant="destructive"
+                disabled={revokeReason.trim().length < 5 || revokeTokens.isPending}
+                onClick={() => {
+                  void revokeTokens.mutateAsync({ classId, reason: revokeReason.trim() })
+                    .then(() => {
+                      notify({ title: "Check-in codes revoked", description: "Every outstanding code stops working now." });
+                      setRevoking(false); setRevokeReason("");
+                    })
+                    .catch((e: Error) => notify({ title: "Could not revoke the codes", description: e.message, variant: "destructive" }));
+                }}
+              >
+                {revokeTokens.isPending ? "Revoking..." : "Confirm revoke"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setRevoking(false)}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => { setRevoking(true); setRevokeReason(""); }}>
+            Revoke outstanding codes
+          </Button>
+        )}
+        <p className="max-w-xs text-center text-[11px] text-muted-foreground">
+          Rotation is not revocation -- the current code stays valid until it rotates, so a code that
+          left the room keeps working until you revoke it.
+        </p>
       </CardContent>
     </Card>
   );
