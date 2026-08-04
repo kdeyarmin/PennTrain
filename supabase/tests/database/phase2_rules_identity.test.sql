@@ -318,6 +318,7 @@ select isnt(
 -- SG-2) that shadow evidence is optional, not required. Separate rule pack from the shadow-path
 -- test above so the two scenarios share no state; a fresh UUID prefix avoids any collision with
 -- the identity/SCIM fixtures used later in this file.
+reset role;
 insert into public.regulatory_rule_packs (id, rule_key, name, owner_profile_id)
 values (
   '33000000-0000-4000-8000-000000000001', 'pa.training.direct-activation-test',
