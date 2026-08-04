@@ -275,7 +275,7 @@ export default function IncidentDetail() {
 
       <div id="incident-followthrough" className="scroll-mt-28" />
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-        <IncidentFollowThroughSection incidentId={incident.id} canManage={canManage} />
+        <IncidentFollowThroughSection incidentId={incident.id} canManage={canManage} facilityId={incident.facility_id} />
       </Suspense>
 
       <div id="incident-narrative" className="scroll-mt-28" />

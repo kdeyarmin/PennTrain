@@ -2,7 +2,9 @@ import { useId, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListResidentAssessmentForms } from "@/hooks/useResidentAssessmentForms";
+import { useListProfiles } from "@/hooks/useProfiles";
 import {
+  useAcknowledgeSupportPlan,
   useApproveSupportPlan,
   useCreateSupportPlanDraft,
   useActivateDueSupportPlan,
@@ -13,6 +15,7 @@ import {
   useRecordSupportPlanSignature,
   useReviewSupportPlanProposal,
   useSubmitSupportPlan,
+  useSupportPlanAcknowledgments,
   useTransitionSupportPlan,
   type ResidentSupportPlan,
   type SupportPlanProposal,
@@ -27,7 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, ClipboardList, FileCheck2, GitBranch, GitCompareArrows } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, ClipboardList, FileCheck2, GitBranch, GitCompareArrows } from "lucide-react";
 import {
   allowedSupportPlanTransitions, diffSupportPlanVersions, isActivationOverdue, summarizePlanDiff,
   SUPPORT_PLAN_STATE_DESCRIPTIONS, supportPlanStateLabel, transitionRequiresReason,
@@ -158,6 +161,13 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   const generateProposal = useGenerateSupportPlanProposal();
   const activatePlan = useActivateDueSupportPlan();
   const reviewProposal = useReviewSupportPlanProposal();
+  // Acknowledgement is not a manager action -- the server accepts it from anyone whose scope
+  // includes the plan, because the record it produces is "this caregiver has read the plan they are
+  // working to". Both halves were unreachable (BACKLOG.md G16.3, G16.4): nothing wrote an
+  // acknowledgement and nothing displayed one, so the table existed in both directions unusable.
+  const acknowledgments = useSupportPlanAcknowledgments(residentId);
+  const acknowledge = useAcknowledgeSupportPlan();
+  const { data: profiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined });
 
   const [expanded, setExpanded] = useState<string | null>(null);
   const [approveFor, setApproveFor] = useState<ResidentSupportPlan | null>(null);
@@ -180,6 +190,20 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
 
   const plans = plansQuery.data ?? [];
   const effectivePlan = plans.find((p) => p.state === "active");
+  // Keyed by plan, not by resident: an acknowledgement records the version the person read, so a
+  // new active version leaves everyone unacknowledged again, which is the point of keeping it.
+  const acknowledgedPlanIds = useMemo(
+    () => new Set((acknowledgments.data ?? []).filter((row) => row.profile_id === user?.id).map((row) => row.plan_id)),
+    [acknowledgments.data, user?.id],
+  );
+  const acknowledgmentsForEffective = (acknowledgments.data ?? []).filter(
+    (row) => row.plan_id === effectivePlan?.id,
+  );
+  const profileName = (profileId: string) => {
+    if (profileId === user?.id) return "You";
+    const profile = (profiles ?? []).find((row) => row.id === profileId);
+    return profile ? `${profile.first_name} ${profile.last_name}` : "Someone else in this organization";
+  };
   const openProposals = (proposalsQuery.data ?? []).filter((p) => p.state === "proposed");
   const latestFinalizedAssessment = useMemo(
     () => (assessmentForms ?? []).filter((f) => f.status === "finalized").sort((a, b) => b.created_at.localeCompare(a.created_at))[0],
@@ -414,6 +438,23 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                         <span className="text-xs text-muted-foreground">Effective {formatDateForDisplay(plan.effective_date)}{plan.review_due_date ? ` · review by ${formatDateForDisplay(plan.review_due_date)}` : ""}</span>
                       )}
                     </button>
+                    {plan.state === "active" && (
+                      acknowledgedPlanIds.has(plan.id) ? (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <BookOpenCheck className="h-3.5 w-3.5" />You have read this version
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm" variant="outline" disabled={acknowledge.isPending}
+                          onClick={() => acknowledge.mutate({ planId: plan.id }, {
+                            onSuccess: () => toast({ title: "Acknowledged", description: `Recorded against version ${plan.version_number}.` }),
+                            onError: (error) => toast({ title: "Could not record the acknowledgement", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                          })}
+                        >
+                          <BookOpenCheck className="mr-1 h-4 w-4" />I have read this plan
+                        </Button>
+                      )
+                    )}
                     {canManage && (
                       <div className="flex gap-1.5">
                         {plan.state === "draft" && <Button size="sm" variant="outline" onClick={() => submit(plan)} disabled={submitPlan.isPending || !planHasContent(plan)} title={!planHasContent(plan) ? "Add plan content before submitting" : undefined}>Submit for review</Button>}
@@ -457,6 +498,26 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                       {plan.staff_instructions && <div><p className="text-xs font-medium text-muted-foreground">Staff instructions</p><p className="text-sm whitespace-pre-wrap">{plan.staff_instructions}</p></div>}
                       {asArray(plan.needs).length === 0 && asArray(plan.services).length === 0 && !plan.staff_instructions && (
                         <p className="text-sm text-muted-foreground">This version has no content yet.</p>
+                      )}
+                      {plan.state === "active" && (
+                        <div className="border-t pt-2">
+                          <p className="text-xs font-medium text-muted-foreground">Read by</p>
+                          {acknowledgmentsForEffective.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              Nobody has acknowledged this version yet.
+                            </p>
+                          ) : (
+                            <ul className="text-sm">
+                              {acknowledgmentsForEffective.map((row) => (
+                                <li key={row.id} className="text-muted-foreground">
+                                  {profileName(row.profile_id)}
+                                  {" · "}{formatDateForDisplay(toLocalIsoDate(new Date(row.acknowledged_at)))}
+                                  {row.note ? ` — ${row.note}` : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

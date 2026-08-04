@@ -39,30 +39,6 @@
     "awaiting_surface": true,
     "introduced_by": "main"
   },
-  "useAcknowledgeSupportPlan": {
-    "reason": "Calls `acknowledge_support_plan`. A support plan can be authored, transitioned through its gated states and read, but the acknowledgement that someone has actually seen it cannot be recorded -- which is the part an inspector asks for.",
-    "backlog": "G16.3",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useSupportPlanAcknowledgments": {
-    "reason": "Reads `support_plan_acknowledgments`. The other half of G16.3: nothing writes an acknowledgement and nothing displays one either, so the table is unreachable in both directions.",
-    "backlog": "G16.4",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "usePinSurveyDayBinder": {
-    "reason": "Calls `pin_survey_day_binder`. Every other survey-day command is rendered -- activate, refresh, disposition, surveyor, request, observation, packet, close -- and pinning the binder generated for the session is the one that is not, so the binder an inspector is walked through cannot be fixed to the session.",
-    "backlog": "G16.6",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
-  "useSetIncidentQapiConsideration": {
-    "reason": "Calls `set_incident_qapi_consideration`. Every other step of incident follow-through is rendered -- pathway, reportability, investigation step, approval -- and the QAPI consideration is not, so 'was this incident considered for quality improvement, and what was decided' cannot be answered.",
-    "backlog": "G16.8",
-    "awaiting_surface": true,
-    "introduced_by": "main"
-  },
   "useComplaintTrends": {
     "reason": "Calls `get_complaint_trends` for a facility over a date range. Complaints are listed, filtered and worked; the aggregate nobody can see is the one that answers whether the same complaint keeps recurring.",
     "backlog": "G16.9",
