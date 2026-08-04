@@ -429,8 +429,21 @@ select lives_ok(
 reset role;
 
 -- platform_admin: global reads and a cross-tenant regulated write.
+--
+-- SCOPED TO THE FIXTURE ROWS, unlike the four sibling counts below, and the asymmetry is the point.
+-- Those four assert that a tenant-scoped role sees NOTHING beyond its own rows, so counting the
+-- whole table is the strongest form -- any leak, from any organization, shows up. platform_admin is
+-- the one role for which a whole-table count asserts nothing about the code: it legitimately sees
+-- every row, so the number is a count of whatever happens to be in the database. It read 3 against
+-- an empty database and 73 against a seeded one, which is not a property of the access matrix.
+-- 401 and 402 are org A, 403 is org B -- so seeing all three IS the cross-tenant claim.
 select pg_temp.act_as('20000000-0000-4000-8000-000000000101');
-select is((select count(*)::int from public.employee_training_records), 3,
+select is(
+  (select count(*)::int from public.employee_training_records
+   where id in ('20000000-0000-4000-8000-000000000401',
+                '20000000-0000-4000-8000-000000000402',
+                '20000000-0000-4000-8000-000000000403')),
+  3,
   'platform_admin can read representative records across tenants');
 select results_eq(
   $$ with changed as (
