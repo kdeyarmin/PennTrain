@@ -1,5 +1,5 @@
 begin;
-select plan(51);
+select plan(55);
 
 select has_table('public', 'regulatory_rule_versions',
   'versioned regulatory rules are persisted');
@@ -313,6 +313,80 @@ select isnt(
     where id = '32000000-0000-4000-8000-000000000212'),
   'historical rule versions retain distinct deterministic checksums'
 );
+
+-- Direct approved -> active activation, no shadow at all -- the 2026-08-04 decision (BACKLOG.md
+-- SG-2) that shadow evidence is optional, not required. Separate rule pack from the shadow-path
+-- test above so the two scenarios share no state; a fresh UUID prefix avoids any collision with
+-- the identity/SCIM fixtures used later in this file.
+insert into public.regulatory_rule_packs (id, rule_key, name, owner_profile_id)
+values (
+  '33000000-0000-4000-8000-000000000001', 'pa.training.direct-activation-test',
+  'Direct-activation test pack', '32000000-0000-4000-8000-000000000101'
+);
+
+select pg_temp.act_as('32000000-0000-4000-8000-000000000101', 'aal2');
+insert into public.regulatory_rule_versions (
+  id, rule_pack_id, version_number, jurisdiction_code, authority_name,
+  citation, source_uri, source_checksum_sha256, applicability,
+  calculation_parameters, effective_from, release_notes, authored_by
+)
+values (
+  '33000000-0000-4000-8000-000000000002',
+  '33000000-0000-4000-8000-000000000001', 1, 'US-PA',
+  'Pennsylvania Department of Human Services', '55 Pa. Code direct-activation test',
+  'https://example.test/rules/direct', repeat('4', 64),
+  '{"facilityTypes":["PCH"]}', '{"annualHours":12,"graceDays":0}',
+  date '2026-01-01', 'Direct-activation test version, never shadowed',
+  '32000000-0000-4000-8000-000000000101'
+);
+insert into public.regulatory_rule_golden_fixtures (
+  id, rule_version_id, fixture_key, facility_type, workforce_profile_key,
+  boundary_date, input_payload, expected_result, created_by
+)
+values (
+  '33000000-0000-4000-8000-000000000003',
+  '33000000-0000-4000-8000-000000000002', 'pch-direct-activation', 'PCH',
+  'direct-care', date '2026-01-01', '{"completedHours":12}',
+  '{"compliant":true,"requiredHours":12}', '32000000-0000-4000-8000-000000000101'
+);
+select public.submit_regulatory_rule_version('33000000-0000-4000-8000-000000000002');
+reset role;
+
+select pg_temp.act_as('32000000-0000-4000-8000-000000000102', 'aal2');
+select throws_ok(
+  $$ select public.activate_regulatory_rule_version(
+    '33000000-0000-4000-8000-000000000002'
+  ) $$,
+  '22023', null,
+  'a version still in review cannot activate before approval'
+);
+select public.approve_regulatory_rule_version(
+  '33000000-0000-4000-8000-000000000002', 'Independent approval, direct-activation test'
+);
+select throws_ok(
+  $$ select public.activate_regulatory_rule_version(
+    '33000000-0000-4000-8000-000000000002'
+  ) $$,
+  '23514', null,
+  'an approved version with no passing fixture run still cannot activate'
+);
+select public.record_regulatory_fixture_result(
+  '33000000-0000-4000-8000-000000000003', 'phase2-test-engine',
+  '{"compliant":true,"requiredHours":12}', 'direct-fixture-run-0001'
+);
+select lives_ok(
+  $$ select public.activate_regulatory_rule_version(
+    '33000000-0000-4000-8000-000000000002'
+  ) $$,
+  'an approved version with passing fixtures activates directly, with no shadow evidence at all'
+);
+select is(
+  (select state from public.regulatory_rule_versions
+    where id = '33000000-0000-4000-8000-000000000002'),
+  'active',
+  'the direct-activation version reaches active state without ever entering shadow'
+);
+reset role;
 
 -- MFA and trusted domain verification.
 reset role;
