@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import {
   careHeaderFields, hospitalStateLabel, hospitalStateTone, isCareProfileStale,
@@ -37,8 +38,15 @@ const TONE_TEXT: Record<CareHeaderTone, string> = {
  * silently: a broken image must never blank out the header.
  */
 function useResidentPhotoUrl(photoDocument?: ResidentDocument) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["resident-photo-url", photoDocument?.id],
+    // Identity-scoped so a role/org/facility change forces a fresh sign instead of resolving a
+    // URL cached from before the change -- see useResidentPhotoUrls in useResidentPhotos.ts. All
+    // four identity fields belong in the key: a facility-only transfer changes none of the other three.
+    queryKey: [
+      "resident-photo-url", photoDocument?.id, user?.id, user?.organizationId, user?.role,
+      user?.facilityId,
+    ],
     enabled: Boolean(photoDocument),
     // Signed URL lives 60s; refetch just inside that so an open page never shows a dead link.
     staleTime: 45_000,

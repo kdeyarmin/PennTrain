@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 function courseVideoStoragePath(value: string): string | null {
   const locatorPrefix = "storage://course-videos/";
@@ -15,34 +16,47 @@ function courseVideoStoragePath(value: string): string | null {
   return null;
 }
 
+/**
+ * Org-authored course videos are gated by the storage policy in
+ * 20260714233041_remediate_p2_security_findings.sql (`b.organization_id = current_org_id()`), so
+ * this is the same class of problem the resident-photo signers are: a signed URL is
+ * bearer-authorized for its own TTL regardless of what RLS would say after an org change. This
+ * used to be plain useState/useEffect, which queryClient.clear() could not reach at all on an
+ * identity change -- a course player left mounted across an org change kept the old org's video
+ * resolvable for up to 15 more minutes. useQuery brings it under the clear, and the key is
+ * identity-scoped on top of that for the same narrower race the resident-photo signers close.
+ */
 export function useCourseVideoUrl(value: string): {
   url: string | null;
   isLoading: boolean;
   error: string | null;
 } {
-  const [state, setState] = useState({ url: null as string | null, isLoading: true, error: null as string | null });
+  const { user } = useAuth();
+  const path = courseVideoStoragePath(value);
 
-  useEffect(() => {
-    let active = true;
-    const path = courseVideoStoragePath(value);
-    if (!path) {
-      try {
-        const url = new URL(value);
-        if (url.protocol !== "https:") throw new Error("Video URL must use HTTPS");
-        setState({ url: value, isLoading: false, error: null });
-      } catch (error) {
-        setState({ url: null, isLoading: false, error: error instanceof Error ? error.message : "Invalid video URL" });
-      }
-      return () => { active = false; };
+  const signed = useQuery({
+    queryKey: ["course-video-url", value, user?.id, user?.organizationId, user?.role, user?.facilityId],
+    queryFn: async () => {
+      const { data, error } = await supabase.storage.from("course-videos").createSignedUrl(path!, 15 * 60);
+      if (error) throw error;
+      return data.signedUrl;
+    },
+    enabled: Boolean(path),
+  });
+
+  if (!path) {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:") throw new Error("Video URL must use HTTPS");
+      return { url: value, isLoading: false, error: null };
+    } catch (error) {
+      return { url: null, isLoading: false, error: error instanceof Error ? error.message : "Invalid video URL" };
     }
+  }
 
-    setState({ url: null, isLoading: true, error: null });
-    void supabase.storage.from("course-videos").createSignedUrl(path, 15 * 60)
-      .then(({ data, error }) => {
-        if (!active) return;
-        setState({ url: data?.signedUrl ?? null, isLoading: false, error: error?.message ?? null });
-      });
-    return () => { active = false; };
-  }, [value]);
-  return state;
+  return {
+    url: signed.data ?? null,
+    isLoading: signed.isLoading,
+    error: signed.error ? (signed.error instanceof Error ? signed.error.message : String(signed.error)) : null,
+  };
 }
