@@ -145,7 +145,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
     verification: {
       status: "verified",
-      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window. Recorded in resident_compliance_rule_packs (20260804000000) notes; deliberately NOT applied to that row's grace_period_days there, because the row is shared between the initial and annual cycles and the schema doesn't yet distinguish them -- see BACKLOG.md F9.",
+      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window. Applied by 20260804170000, which split the shared row into `medical_evaluation` (the initial evaluation, grace 0) and `annual_medical_evaluation` (grace 15). 20260804000000 had confirmed the figure but could not apply it, because one rule-pack row covered both cycles and the initial one is named in the exclusion list.",
     },
   },
   {
@@ -216,6 +216,9 @@ const ITEM_TYPE_CITATIONS: Record<string, Partial<Record<FacilityType, string>>>
   annual_reassessment: { PCH: "2600.225", ALR: "2800.225" },
   significant_change_reassessment: { PCH: "2600.225", ALR: "2800.225" },
   medical_evaluation: { PCH: "2600.141", ALR: "2800.141" },
+  // Same section as the initial evaluation -- 20260804170000 split the two cycles into separate
+  // item types so each could carry its own grace period, not because they are different rules.
+  annual_medical_evaluation: { PCH: "2600.141", ALR: "2800.141" },
 };
 
 export function findCitation(citation: string): PaRegulatoryCitation | undefined {

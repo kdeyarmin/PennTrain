@@ -25437,6 +25437,7 @@ export type Database = {
           facility_type: string
           grace_period_days: number
           id: string
+          instantiate_at_admission: boolean
           is_active: boolean
           item_type: string
           notes: string | null
@@ -25454,6 +25455,7 @@ export type Database = {
           facility_type: string
           grace_period_days?: number
           id?: string
+          instantiate_at_admission?: boolean
           is_active?: boolean
           item_type: string
           notes?: string | null
@@ -25471,6 +25473,7 @@ export type Database = {
           facility_type?: string
           grace_period_days?: number
           id?: string
+          instantiate_at_admission?: boolean
           is_active?: boolean
           item_type?: string
           notes?: string | null
