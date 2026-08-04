@@ -145,7 +145,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
     verification: {
       status: "verified",
-      note: "resident_compliance_rule_packs (20260804000000) confirms the annual grace period via PA DHS's own 2600 Regulatory Compliance Guide: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window.",
+      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window. Recorded in resident_compliance_rule_packs (20260804000000) notes; deliberately NOT applied to that row's grace_period_days there, because the row is shared between the initial and annual cycles and the schema doesn't yet distinguish them -- see BACKLOG.md F9.",
     },
   },
   {

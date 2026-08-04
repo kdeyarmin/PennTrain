@@ -1,7 +1,9 @@
--- Closes both grace-period pending_confirmation rows 20260706155617 left open, using a source
--- that migration's research pass didn't reach: the PA DHS Regulatory Compliance Guide's own
--- "Grace Periods" table (p.5 of both the 2600 and 2800 RCGs), which names every section it
--- covers by number rather than describing them generically.
+-- Closes the research question behind both grace-period pending_confirmation rows 20260706155617
+-- left open, using a source that migration's research pass didn't reach: the PA DHS Regulatory
+-- Compliance Guide's own "Grace Periods" table (p.5 of both the 2600 and 2800 RCGs), which names
+-- every section it covers by number rather than describing them generically. 2800.225's confirmed
+-- figure is applied below. 2600.141's is recorded but deliberately NOT applied to
+-- grace_period_days -- see that statement's own comment for why.
 --
 -- 2600 RCG (Personal_Care_Home-2600_Regulatory_Compliance_Guide_RCG.pdf, pa.gov), p.5,
 -- "Grace Periods": "A 15-day flex or grace period is allowed for any item that has a time
@@ -27,13 +29,28 @@
 -- resident_compliance_rule_packs.notes already names as "the 2600 RCG" / "the 2800 RCG" for
 -- every other confirmed row in this table -- this is the same source, not a new one.
 
+-- NOT setting grace_period_days = 15 here despite confirming the figure below. This rule-pack row
+-- is the ONLY medical_evaluation row PCH has -- unlike the assessment items, which already split
+-- the initial occurrence (initial_assessment_15day) from the annual one (annual_reassessment) into
+-- separate item_types/rows, medical_evaluation has never had that split. instantiate_resident_-
+-- compliance_items() (20260706155928) copies this single grace_period_days value onto the INITIAL
+-- evaluation item (due admission_date + 30), and complete_resident_compliance_item()
+-- (20260706143049, redefined since) copies whatever grace_period_days the just-completed row
+-- carried onto every annual successor it inserts. So one grace value covers both cycles, and this
+-- migration's own cited source explicitly excludes the initial cycle from the 15-day grace
+-- (2600.141(a), same p.5 "does NOT apply" list the annual figure comes from) -- setting it here
+-- would silently hand a real initial-cycle violation 15 days of cover it is not entitled to.
+-- Recording the confirmed annual figure in notes only; applying it needs medical_evaluation split
+-- into separate initial/annual item_types first, tracked as F9 in BACKLOG.md.
 update public.resident_compliance_rule_packs
-set grace_period_days = 15,
-    notes = '15-day grace confirmed: PA DHS 2600 RCG (Personal_Care_Home-2600_Regulatory_Compliance_Guide_RCG.pdf), '
+set notes = 'Annual-cycle grace period CONFIRMED at 15 days: PA DHS 2600 RCG (Personal_Care_Home-2600_Regulatory_Compliance_Guide_RCG.pdf), '
       'p.5 Grace Periods table names "Medical evaluations (2600.141)" in the 15-day list, and p.118''s '
       'discussion of 2600.141(b)(1) restates the figure directly. The "does NOT apply" list on the same '
-      'p.5 separately carves out only "2600.141(a) - Initial medical evaluations," confirming this grace '
-      'applies to the annual cycle, not the initial admission-window evaluation (which stays zero grace).'
+      'p.5 separately carves out only "2600.141(a) - Initial medical evaluations." NOT applied to '
+      'grace_period_days: this row is shared between the initial evaluation and every annual renewal '
+      '(see migration comment above), so applying it here would grant the initial cycle the same 15 '
+      'days the source explicitly excludes it from. Stays at its existing conservative 0 until F9 '
+      '(BACKLOG.md) splits medical_evaluation into separate initial/annual item_types.'
 where facility_type = 'PCH' and item_type = 'medical_evaluation' and citation_ref = '2600.141'
   and organization_id is null;
 
@@ -48,16 +65,15 @@ set grace_period_days = 15,
 where facility_type = 'ALR' and item_type = 'annual_reassessment' and citation_ref = '2800.225'
   and organization_id is null;
 
--- Backfill already-instantiated resident_compliance_items rows seeded at the old conservative
--- default before this confirmation. This only ever relaxes a status (moves due_date + grace
--- forward), never tightens one -- it cannot newly hide a real violation, only stop misreporting
--- an item that is compliant-within-grace as expired. instantiate_resident_compliance_items
+-- annual_reassessment has no initial/annual collision -- the initial resident assessment is
+-- already a separate item_type (initial_assessment_15day, untouched here), so every
+-- annual_reassessment row, existing or future, really is an annual cycle and can safely take the
+-- grace uniformly. Backfill already-instantiated rows seeded at the old conservative default
+-- before this confirmation. This only ever relaxes a status (moves due_date + grace forward),
+-- never tightens one -- it cannot newly hide a real violation, only stop misreporting an item
+-- that is compliant-within-grace as expired. instantiate_resident_compliance_items
 -- (20260706155928) reads grace_period_days from the rule pack at insert time rather than joining
--- live, so already-instantiated rows do not pick up the two updates above on their own.
-update public.resident_compliance_items
-set grace_period_days = 15
-where item_type = 'medical_evaluation' and grace_period_days = 0;
-
+-- live, so already-instantiated rows do not pick up the update above on their own.
 update public.resident_compliance_items
 set grace_period_days = 15
 where item_type = 'annual_reassessment' and grace_period_days = 0;

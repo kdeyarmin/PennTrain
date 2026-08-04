@@ -114,15 +114,20 @@ begin
     select id, organization_id from public.profiles
     where role = 'platform_admin' and is_active
   loop
+    -- Contact email leads the body: name/organization are free text with no length cap upstream,
+    -- and Header.tsx renders notification bodies with line-clamp-2 and no expand affordance --
+    -- there's also no demo-request detail page for this notification's (null) link to point at, so
+    -- whatever falls past the clamp is unrecoverable from the app today. Leading with the one
+    -- actionable field means it survives the clamp regardless of how long name/organization run;
+    -- name and organization are also capped defensively, matching the existing message cap.
     insert into public.notifications (
       organization_id, profile_id, notification_type, title, body, link
     ) values (
       v_admin.organization_id, v_admin.id, 'demo_request_received',
       'New demo request',
-      v_request.name
-        || case when v_request.organization is not null then ' (' || v_request.organization || ')' else '' end
-        || ' requested a demo. Contact: ' || v_request.email
-        || case when v_request.message is not null then ' -- "' || left(v_request.message, 140) || '"' else '' end,
+      'Contact: ' || v_request.email || ' -- ' || left(v_request.name, 80)
+        || case when v_request.organization is not null then ' (' || left(v_request.organization, 80) || ')' else '' end
+        || case when v_request.message is not null then ': "' || left(v_request.message, 140) || '"' else '' end,
       null
     );
     v_notified := v_notified + 1;

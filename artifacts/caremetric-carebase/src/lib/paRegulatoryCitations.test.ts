@@ -38,16 +38,18 @@ describe("catalog governance", () => {
     expect(new Set(citations).size).toBe(citations.length);
   });
 
-  it("has no entry left pending without a citation that resolves it", () => {
+  it("resolves the two grace periods that were pending confirmation as of 2026-08-04", () => {
     // 2600.141 (PCH medical evaluation) and 2800.225 (ALR annual reassessment) were the last two
     // pending_confirmation entries -- both closed 2026-08-04 via PA DHS's own Regulatory
     // Compliance Guides naming each section directly in the chapter's Grace Periods table (see
-    // their verification.note). Every entry is verified today; the fixture test below guards the
-    // mechanism itself, so this stays true only because nothing upgrades a status without a real
-    // citation behind it, not because this test pins today's already-resolved set forever.
-    for (const entry of PA_REGULATORY_CITATIONS) {
-      expect(entry.verification.status).toBe("verified");
-    }
+    // their verification.note). Checked specifically rather than asserting every entry is
+    // verified: pending_confirmation is a supported, ongoing status (see the module docstring),
+    // not a defect to eliminate, and a future citation legitimately added as unconfirmed should
+    // stay that way rather than force someone to mark it verified just to pass this test. The
+    // mechanism that keeps an unconfirmed entry from displaying as settled is guarded by the
+    // fixture test below.
+    expect(findCitation("2600.141")!.verification.status).toBe("verified");
+    expect(findCitation("2800.225")!.verification.status).toBe("verified");
   });
 
   it("carries an unconfirmed status forward rather than upgrading it silently", () => {
