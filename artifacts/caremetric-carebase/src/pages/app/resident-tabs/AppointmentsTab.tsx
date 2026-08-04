@@ -1,19 +1,25 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
-  CalendarClock, CalendarPlus, CheckCircle2, CircleDashed, ClipboardCheck, FileWarning, Truck,
+  CalendarClock, CalendarPlus, CheckCircle2, CircleDashed, ClipboardCheck, FileWarning, Plus, Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
+import { errorText } from "@/lib/errorText";
 import {
   AcknowledgeNewOrdersDialog, CloseAppointmentFollowUpDialog, RecordAppointmentOutcomeDialog,
   RescheduleAppointmentDialog, ScheduleAppointmentDialog,
 } from "@/components/residents/AppointmentDialogs";
 import {
+  useAddAppointmentPreparationItem,
   useCompleteAppointmentPreparation, useSetAppointmentPreparationItem,
 } from "@/hooks/useResidentAppointmentMutations";
 import {
@@ -82,6 +88,59 @@ function PreparationList({
         </li>
       ))}
     </ul>
+  );
+}
+
+function AddPreparationItem({ appointmentId, residentId }: { appointmentId: string; residentId: string }) {
+  const { toast } = useToast();
+  const addItem = useAddAppointmentPreparationItem(residentId);
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [kind, setKind] = useState<"document" | "equipment" | "task">("task");
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="ghost" className="mt-1 h-7 px-2 text-xs" onClick={() => { setOpen(true); setLabel(""); }}>
+        <Plus className="mr-1 h-3 w-3" />Add something to prepare
+      </Button>
+    );
+  }
+  return (
+    <div className="mt-2 space-y-2 rounded border p-2">
+      <div className="flex flex-wrap gap-2">
+        <Select value={kind} onValueChange={(value) => setKind(value as typeof kind)}>
+          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="document">Document</SelectItem>
+            <SelectItem value="equipment">Equipment</SelectItem>
+            <SelectItem value="task">Task</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          className="h-8 flex-1 text-xs"
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+          placeholder="Current medication list"
+          aria-label="What needs preparing"
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm" className="h-7 text-xs"
+          disabled={addItem.isPending || label.trim().length < 2}
+          onClick={() => addItem.mutate(
+            { appointmentId, itemKind: kind, label: label.trim() },
+            {
+              onSuccess: () => { setOpen(false); setLabel(""); toast({ title: "Added to the preparation list" }); },
+              onError: (error) => toast({ title: "Could not add it", description: errorText(error), variant: "destructive" }),
+            },
+          )}
+        >
+          Add
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </div>
   );
 }
 
@@ -288,6 +347,17 @@ export default function AppointmentsTab({ resident, canManage }: ResidentTabProp
                             disabled={setItem.isPending}
                             onToggle={(item) => void toggleItem(item)}
                           />
+                          {/* The trigger derives preparation items from the arrays the scheduler
+                              wrote, which covers what was known when the appointment was booked.
+                              Anything remembered afterwards -- and it usually is -- needs this.
+                              The hook existed from the start of this branch and nothing rendered
+                              it, so the list was fixed at creation. */}
+                          {canManage && (stage === "upcoming" || stage === "in_progress") && (
+                            <AddPreparationItem
+                              appointmentId={appointment.id}
+                              residentId={resident.id}
+                            />
+                          )}
                         </div>
                       </div>
                     )}

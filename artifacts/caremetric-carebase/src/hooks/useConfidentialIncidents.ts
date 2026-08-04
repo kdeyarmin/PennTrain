@@ -6,35 +6,15 @@ export type ConfidentialIntake = Tables<"confidential_incident_intakes">;
 export type ConfidentialIntakeDetails = Tables<"confidential_incident_details">;
 export type ConfidentialAccessEvent = Tables<"confidential_incident_access_events">;
 
-export interface ListConfidentialIntakesFilters {
-  organizationId?: string;
-  facilityId?: string;
-  status?: string;
-  severity?: string;
-}
-
 // Intake summaries are the broadly-visible triage tier: RLS shows org_admin/auditor every
 // org intake and facility-assigned staff their facilities' non-draft intakes. The protected
 // narrative deliberately has NO direct read path -- it is reachable only through the
 // purpose-stamped open_confidential_intake_details RPC below, so every view is auditable.
-export function useListConfidentialIntakes(filters: ListConfidentialIntakesFilters = {}) {
-  return useQuery({
-    queryKey: ["confidential_intakes", filters],
-    queryFn: async () => {
-      let query = supabase
-        .from("confidential_incident_intakes")
-        .select("*")
-        .order("reported_at", { ascending: false });
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.severity) query = query.eq("severity", filters.severity);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-  });
-}
+//
+// A `useListConfidentialIntakes` used to sit here, reading every visible intake unpaginated.
+// ConfidentialIncidents.tsx lists intakes through `usePaginatedDomainList`, which asks the server
+// for one page and a count, so this was removed rather than left as a second reader of the same
+// tier with no page bound.
 
 export function useGetConfidentialIntake(id: string | undefined) {
   return useQuery({

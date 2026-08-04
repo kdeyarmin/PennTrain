@@ -1,0 +1,159 @@
+{
+  "_readme": [
+    "Exported `use*` hooks that no component renders, which check-unrendered-hooks.mjs must not fail on.",
+    "",
+    "An entry is a debt, not an absolution. Delete the entry when the surface lands -- do not add an",
+    "entry to make the gate quiet.",
+    "",
+    "WHY THIS GATE EXISTS. `check-dormant-rpcs.mjs` asks whether a database function has a caller.",
+    "Satisfying it turned out not to mean the capability was reachable: a hook that calls the RPC, that",
+    "no component renders, is a capability with no way in -- and the dormant-RPC gate passes, because",
+    "the RPC does have a caller. That caller is simply unreachable itself. The branch that added the",
+    "dormant-RPC gate proved the point by introducing one: `useAddAppointmentPreparationItem` was",
+    "written, its screen was not, and the gate reported zero.",
+    "",
+    "FOURTEEN WERE NOT DEBT AND ARE GONE. Three were unadopted infrastructure with no caller anywhere",
+    "(`useIsMobile`, `useServerListState`, `useBulkAction`); eight were superseded by a rendered sibling",
+    "doing the same job better (`useListQuizAnswers`, `useListComplaints`, `useListConfidentialIntakes`,",
+    "`useCreatePolicyAttestationCampaign`, `useCreateCampaignQuestions`, `useRunEmployeeImport`,",
+    "`useClosedLoopCommand`, `useGovernedLearningCommand`); three more were never unreachable at all and",
+    "the gate was reading badly -- one declared beside the component that used it, and two vouched for",
+    "only by a comment that had outlived the call it described.",
+    "",
+    "EVERY ENTRY BELOW IS A GAP. Not one is a deliberate not-a-gap, which is the difference between this",
+    "file and scripts/dormant-rpc-allowlist.json. Each `awaiting_surface: true` says the capability is",
+    "real, the server work is finished, and nothing in the product can reach it. All twenty-one predate",
+    "this branch. They are recorded rather than wired in one change because twenty-one surfaces is its",
+    "own body of work, and burying it in an already large pull request would hide it -- the same reason",
+    "given for G15, and the reason G15's rows then got built."
+  ],
+
+  "useIssueCertificate": {
+    "reason": "Calls `issue_certificate`. A certificate cannot be issued from anywhere in the product. `useVerifyCertificate` beside it is rendered, so a certificate can be verified -- there is simply no way to create the thing being verified except whatever writes them server-side.",
+    "backlog": "G16.1",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useCancelTimeOffRequest": {
+    "reason": "Calls `cancel_time_off_request`. A submitted time-off request can be approved or denied by a supervisor, but the person who filed it cannot withdraw it. The same one-way door as the shift-swap withdrawal closed in G7.",
+    "backlog": "G16.2",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useAcknowledgeSupportPlan": {
+    "reason": "Calls `acknowledge_support_plan`. A support plan can be authored, transitioned through its gated states and read, but the acknowledgement that someone has actually seen it cannot be recorded -- which is the part an inspector asks for.",
+    "backlog": "G16.3",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useSupportPlanAcknowledgments": {
+    "reason": "Reads `support_plan_acknowledgments`. The other half of G16.3: nothing writes an acknowledgement and nothing displays one either, so the table is unreachable in both directions.",
+    "backlog": "G16.4",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useLogResidentChangeOfCondition": {
+    "reason": "Calls `log_resident_change_of_condition`, which re-dates the resident's compliance items against the change. `ChangeOfConditionQueue.tsx` exists and shows the queue that results; nothing can put a resident into it from the resident record.",
+    "backlog": "G16.5",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "usePinSurveyDayBinder": {
+    "reason": "Calls `pin_survey_day_binder`. Every other survey-day command is rendered -- activate, refresh, disposition, surveyor, request, observation, packet, close -- and pinning the binder generated for the session is the one that is not, so the binder an inspector is walked through cannot be fixed to the session.",
+    "backlog": "G16.6",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useRegisterForTrainingSession": {
+    "reason": "Calls `register_for_training_session`, which returns a registration receipt with a waitlist position. This is the hook that named the whole class: G15.11/G15.12 wired attendance and completion approval onto the roster, and the roster is populated by a registration nothing can create.",
+    "backlog": "G16.7",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useSetIncidentQapiConsideration": {
+    "reason": "Calls `set_incident_qapi_consideration`. Every other step of incident follow-through is rendered -- pathway, reportability, investigation step, approval -- and the QAPI consideration is not, so 'was this incident considered for quality improvement, and what was decided' cannot be answered.",
+    "backlog": "G16.8",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useComplaintTrends": {
+    "reason": "Calls `get_complaint_trends` for a facility over a date range. Complaints are listed, filtered and worked; the aggregate nobody can see is the one that answers whether the same complaint keeps recurring.",
+    "backlog": "G16.9",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useResidentServiceUtilization": {
+    "reason": "Calls `get_resident_service_utilization`, returning unscheduled service counts, exceptions and documented assistance over a window. This is the evidence for whether a resident's support plan still matches the care actually being given, and no screen asks for it.",
+    "backlog": "G16.10",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useFeatureReleaseActive": {
+    "reason": "Calls `feature_release_active`. Release cohorts can now be administered (G15.1/G12.1), so a feature can be released to an organization -- and no client gate reads the result, so being in a cohort changes nothing a user sees. Its sibling `useOrgFeatureEnabled` covers the entitlement system; this one covers the release system and has no caller.",
+    "backlog": "G16.11",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+
+  "useUpdateViolation": {
+    "reason": "Updates `dhs_violations`. A violation can be created, listed, opened and have a plan-of-correction document generated from it; it cannot be edited. A typo in a citation stands.",
+    "backlog": "G16.12",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useUpdateSchedule": {
+    "reason": "Updates `schedules`. A schedule can be created, auto-filled, published and unpublished, but its own fields -- name, date range, facility -- cannot be corrected after creation.",
+    "backlog": "G16.13",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useDeleteSchedule": {
+    "reason": "Deletes `schedules`. A schedule created by mistake cannot be removed. Paired with G16.13; both are missing from the same page.",
+    "backlog": "G16.14",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useUpdateCourseVersion": {
+    "reason": "Updates `course_versions`. A version can be created, cloned, published and unpublished; the fields on a draft version cannot be edited, so fixing one means cloning it. `useCompetencies.ts` names this hook in a comment as the pattern to follow, which is how it looked reachable until the gate stopped counting comments as callers.",
+    "backlog": "G16.15",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useUpdateEmployeeSchedulePreference": {
+    "reason": "Updates `employee_schedule_preferences`. A preference can be added and deleted but not amended, so changing one means deleting and re-adding it -- and the auto-fill that reads these is exactly what a stale preference silently corrupts.",
+    "backlog": "G16.16",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+
+  "useListAdmissionActivities": {
+    "reason": "Reads `admission_activities` for a prospect. The activity trail on an admissions prospect -- every call, tour and follow-up -- is written and never shown.",
+    "backlog": "G16.17",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useListAllIncidentNotifications": {
+    "reason": "Reads `incident_notifications` (id and incident_id only). Written as the lookup behind deep-link resolution; the resolution was built another way and this was left.",
+    "backlog": "G16.18",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useListAllIncidentNotificationsDetailed": {
+    "reason": "Reads full `incident_notifications` rows. Its own comment says it is used by the incident-notification register in Reports.tsx -- the register an inspector uses to diff this system's log against the regional office's. Reports.tsx does not call it. The comment described an intention, and the gate believed it until it stopped counting comments as callers.",
+    "backlog": "G16.19",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useListAllInspectionEvents": {
+    "reason": "Reads `inspection_events` across items. `useListViolationsBySourceInspectionEvents` is rendered and joins from the violation side; the event list itself has no reader.",
+    "backlog": "G16.20",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  },
+  "useListCampaignQuestions": {
+    "reason": "Reads `policy_campaign_questions` with the answer key, for authoring. A campaign is created atomically with its questions by `create_policy_campaign_with_questions`, and after that nothing can show an administrator what questions the campaign actually asks. The employee-side read (`usePolicyKnowledgeCheck`, without the key) is rendered.",
+    "backlog": "G16.21",
+    "awaiting_surface": true,
+    "introduced_by": "main"
+  }
+}

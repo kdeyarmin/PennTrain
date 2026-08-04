@@ -43,26 +43,10 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
 }
 
-export function useListComplaints(filters: {
-  organizationId?: string;
-  facilityId?: string;
-  status?: string;
-  category?: string;
-} = {}) {
-  return useQuery({
-    queryKey: ["complaints", "list", filters],
-    queryFn: async () => {
-      let query = supabase.from("complaints").select(SELECT).order("date_received", { ascending: false });
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.category) query = query.eq("category", filters.category);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as ComplaintWithRelations[];
-    },
-  });
-}
+// An unpaginated `useListComplaints` used to sit here, fetching every complaint the caller could
+// see. Complaints.tsx uses `usePaginatedComplaints` below, which asks the server for one page and
+// a count; nothing ever used the unbounded version, so it was removed rather than left as a way to
+// pull a whole organization's complaints into the browser.
 
 export interface PaginatedComplaintsFilters {
   organizationId?: string;

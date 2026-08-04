@@ -6,15 +6,17 @@ import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 // IMPORTANT -- is_correct exposure boundary
 //
 // `quiz_answers` (and the `QuizAnswer` type below) carries `is_correct`, i.e.
-// the answer key. `useListQuizAnswers` reads that table directly and MUST
-// only ever be used from authoring/editing UI (the quiz builder), where the
-// author is allowed to see and edit the key.
+// the answer key. `useQuizAnswersByQuestionIds` reads that table directly and
+// MUST only ever be used from authoring/editing UI (the quiz builder), where
+// the author is allowed to see and edit the key. (A per-question
+// `useListQuizAnswers` used to sit alongside it; the batched hook replaced it
+// and the single-question version was removed once nothing called it.)
 //
 // The quiz-taking flow (anything an employee sees while answering a quiz) must
 // use `useQuizAnswerChoices` instead, which calls the `get_quiz_answer_choices`
 // RPC. That RPC deliberately omits `is_correct` -- it is the only sanctioned
 // way for an employee to read answer options without seeing the key. Never
-// substitute `useListQuizAnswers` for `useQuizAnswerChoices` in a
+// substitute a `quiz_answers` read for `useQuizAnswerChoices` in a
 // quiz-taking page.
 // ---------------------------------------------------------------------------
 
@@ -222,24 +224,8 @@ export function useDeleteQuizQuestion() {
 // must use useQuizAnswerChoices below instead.
 // ---------------------------------------------------------------------------
 
-export function useListQuizAnswers(questionId: string | undefined) {
-  return useQuery({
-    queryKey: ["quiz_answers", questionId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("quiz_answers")
-        .select("*")
-        .eq("question_id", questionId!)
-        .order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!questionId,
-  });
-}
-
 // Batches every answer for a whole quiz's questions into one request instead of each question
-// card firing its own useListQuizAnswers -- mirrors useQuizQuestionStats' .in("question_id", ids)
+// card fetching its own -- mirrors useQuizQuestionStats' .in("question_id", ids)
 // pattern below, grouping the flat result by question_id client-side. QuizBuilder.tsx calls this
 // once at the parent level and passes each question's slice down as a prop, instead of every
 // QuestionCard independently fetching its own answers (previously 20 requests for a 20-question quiz).
@@ -318,7 +304,7 @@ export function useDeleteQuizAnswer() {
 
 // ---------------------------------------------------------------------------
 // LEARNER-SIDE answer choices (no is_correct) -- use this from any
-// quiz-TAKING page instead of useListQuizAnswers.
+// quiz-TAKING page instead of reading `quiz_answers`.
 // ---------------------------------------------------------------------------
 
 export function useQuizAnswerChoices(quizId: string | undefined) {
