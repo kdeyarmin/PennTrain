@@ -27,26 +27,6 @@
     "backlog": "G15.1",
     "introduced_by": "main"
   },
-  "revoke_integration_api_credential": {
-    "reason": "An issued integration API credential cannot be revoked from anywhere. The same one-way door closed for survey-packet guest grants in G9, on a credential that authenticates machine access.",
-    "backlog": "G15.2",
-    "introduced_by": "main"
-  },
-  "rotate_integration_api_credential": {
-    "reason": "Nor rotated, so a credential suspected of leaking can only be left in place.",
-    "backlog": "G15.3",
-    "introduced_by": "main"
-  },
-  "rotate_integration_webhook_secret": {
-    "reason": "The signing secret a webhook consumer verifies against cannot be rotated.",
-    "backlog": "G15.4",
-    "introduced_by": "main"
-  },
-  "deactivate_integration_webhook_endpoint": {
-    "reason": "A webhook endpoint can be created but never switched off, so deliveries continue to a URL nobody controls any more.",
-    "backlog": "G15.5",
-    "introduced_by": "main"
-  },
   "rotate_scim_connection_credential": {
     "reason": "The SCIM provisioning credential cannot be rotated, which is the standing remediation when a directory integration is compromised.",
     "backlog": "G15.6",
@@ -60,16 +40,6 @@
   "link_sso_identity_subject": {
     "reason": "Binds an SSO provider subject to a profile with a stated link method. Without it an SSO identity that fails to auto-match cannot be attached by an administrator.",
     "backlog": "G15.8",
-    "introduced_by": "main"
-  },
-  "grant_identity_break_glass": {
-    "reason": "Emergency elevated access with a requester, a ticket reference, a reason and a mandatory expiry -- carefully built, and impossible to invoke.",
-    "backlog": "G15.9",
-    "introduced_by": "main"
-  },
-  "revoke_identity_break_glass": {
-    "reason": "And impossible to end early, which is the half that matters most.",
-    "backlog": "G15.10",
     "introduced_by": "main"
   },
   "record_training_attendance": {

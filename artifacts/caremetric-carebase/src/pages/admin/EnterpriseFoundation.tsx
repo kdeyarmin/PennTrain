@@ -30,6 +30,7 @@ import { StandingGrantsCard } from "@/components/admin/StandingGrantsCard";
 import { RoleTemplateCard } from "@/components/admin/RoleTemplateCard";
 import { useEnterpriseRoleTemplates } from "@/hooks/useEnterpriseRoleTemplates";
 import { useToast } from "@/hooks/use-toast";
+import { IntegrationRegisterCard } from "@/components/admin/IntegrationRegisterCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1078,6 +1079,7 @@ function IntegrationProvisioningCommand() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Provision an integration</CardTitle>
@@ -1121,6 +1123,12 @@ function IntegrationProvisioningCommand() {
         </div>
       </CardContent>
     </Card>
+    {/* The other half of provisioning. Nested here rather than placed beside it so both read the
+        same organization field: type an organization once, then issue or take back. Until this
+        landed, everything above was a one-way door -- issue a credential, create an endpoint, and
+        no supported way to revoke, rotate or switch either off. */}
+    {organizationId.trim() && <IntegrationRegisterCard organizationId={organizationId.trim()} />}
+    </>
   );
 }
 
