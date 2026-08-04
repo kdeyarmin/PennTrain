@@ -88,6 +88,38 @@ export function isCallSite(line, name) {
   return new RegExp(`\\b${name}\\b`).test(code) && !DECLARATIVE.test(code);
 }
 
+/**
+ * The parts of a migration where a call to another function could actually appear.
+ *
+ * SQL is a statement language and this check read it a line at a time, which was wrong in a way
+ * that mattered. A grant naming several functions puts one per line:
+ *
+ *     grant execute on function public.set_release_flag(text, ...),
+ *       public.assign_organization_release_cohort(uuid, ...)
+ *       to authenticated;
+ *
+ * Only the first line carries the words `grant execute`, so every function after it looked like a
+ * bare call and was excused from the check. `assign_organization_release_cohort` has no caller
+ * anywhere and this is why nothing said so.
+ *
+ * So: drop whole grant/revoke/comment/drop/alter statements, which never contain a call. Do NOT
+ * drop `create function` statements -- their bodies are where most real calls live -- but do drop
+ * the header up to the body delimiter, so a function is not treated as calling itself.
+ *
+ * Splitting on `;` would cut function bodies apart, so statements are matched to their terminator
+ * non-greedily and only for the forms that cannot contain one.
+ */
+export function sqlCallSiteText(sql) {
+  return stripSqlComments(sql)
+    // Statements that can never contain a call, removed entirely.
+    .replace(/\b(grant|revoke)\b[\s\S]*?;/gi, " ")
+    .replace(/\bcomment\s+on\s+function\b[\s\S]*?;/gi, " ")
+    .replace(/\bdrop\s+function\b[\s\S]*?;/gi, " ")
+    .replace(/\balter\s+function\b[\s\S]*?;/gi, " ")
+    // A function's own signature is not a call to itself; its body is kept.
+    .replace(/\bcreate\s+(or\s+replace\s+)?function\b[\s\S]*?\bas\s+\$[a-z_]*\$/gi, " ");
+}
+
 if (process.argv.includes("--self-test")) {
   const cases = [
     [() => [...grantedToAuthenticated("grant execute on function public.foo(uuid) to authenticated;")], ["foo"]],
@@ -106,6 +138,23 @@ if (process.argv.includes("--self-test")) {
     [() => isCallSite("-- Console, and dropped `foo` as console-only with no other caller.", "foo"), false],
     [() => isCallSite("  perform public.foo(v_id); -- unrelated note", "foo"), true],
     [() => stripSqlComments("select 1; /* foo\n bar */ select 2;").includes("foo"), false],
+    // A multi-function grant puts one function per line, and only the first line carries the
+    // keywords. Every later one used to read as a bare call and be excused from the check.
+    [() => sqlCallSiteText(
+      "grant execute on function public.a(uuid),\n  public.dormant_one(uuid)\n  to authenticated;",
+    ).includes("dormant_one"), false],
+    [() => sqlCallSiteText(
+      "revoke all on function public.a(uuid),\n  public.dormant_two(uuid)\n  from public, anon;",
+    ).includes("dormant_two"), false],
+    // A function body IS a call site, and must survive the header being stripped.
+    [() => sqlCallSiteText(
+      "create or replace function public.outer(uuid) returns void language plpgsql as $$\n" +
+      "begin perform public.inner_fn(1); end $$;",
+    ).includes("inner_fn"), true],
+    // ...and the function does not count as calling itself.
+    [() => sqlCallSiteText(
+      "create or replace function public.selfie(uuid) returns void language plpgsql as $$\nbegin end $$;",
+    ).includes("selfie"), false],
     // Cross-migration drop-then-restore. Applying drops as each migration is read has to leave a
     // later re-grant standing; collecting every drop and subtracting at the end does not, and that
     // is what previously hid `unassign_organization_release_cohort` from the check entirely.
@@ -170,7 +219,7 @@ async function walk(dir, filter, out = []) {
 const migrationNames = (await readdir(MIGRATIONS)).filter((n) => n.endsWith(".sql")).sort();
 const granted = new Set();
 let dropCount = 0;
-const migrationLines = [];
+const migrationCallSites = [];
 for (const name of migrationNames) {
   const sql = await readFile(path.join(MIGRATIONS, name), "utf8");
   // Drops first, then grants: `droppedFunctions` already discounts a drop that the same file
@@ -179,7 +228,7 @@ for (const name of migrationNames) {
     if (granted.delete(fn)) dropCount += 1;
   }
   for (const fn of grantedToAuthenticated(sql)) granted.add(fn);
-  migrationLines.push(...stripSqlComments(sql).split("\n"));
+  migrationCallSites.push(sqlCallSiteText(sql));
 }
 
 const clientFiles = await walk(
@@ -201,7 +250,7 @@ try {
 const findings = [];
 for (const fn of [...granted].sort()) {
   if (new RegExp(`\\b${fn}\\b`).test(callerText)) continue;
-  if (migrationLines.some((line) => isCallSite(line, fn))) continue;
+  if (migrationCallSites.some((text) => new RegExp(`\\b${fn}\\b`).test(text))) continue;
   if (allowlist[fn]) continue;
   findings.push(fn);
 }

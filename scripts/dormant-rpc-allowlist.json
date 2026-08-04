@@ -3,17 +3,123 @@
     "Functions granted EXECUTE to `authenticated` that check-dormant-rpcs.mjs must not fail on.",
     "",
     "An entry is a debt, not an absolution. The gate exists because this codebase repeatedly shipped",
-    "complete server work no button could reach (BACKLOG.md G1-G12). Delete the entry when the caller",
+    "complete server work no button could reach (BACKLOG.md G1-G15). Delete the entry when the caller",
     "lands -- do not delete the entry to make the gate quiet.",
     "",
-    "Six functions were exposed at once when the gate stopped treating a migration comment as a call",
-    "site. Five have since been wired and their entries removed: revoke_offline_service_device,",
-    "grant_duty_eligibility_override, admin_emergency_update_course_block,",
-    "get_resident_administrative_packet and is_employee_access_active. One remains, below."
+    "THE NUMBER HAS BEEN WRONG THREE TIMES, each time because this script read SQL badly:",
+    "  1. It never looked for `drop function`, so it reported a function a migration had removed.",
+    "  2. It treated a migration COMMENT as a call site, so naming a function in prose excused it.",
+    "  3. It read line by line, so in a grant naming several functions only the first line carried",
+    "     the keywords and every later one read as a bare call. That hid 20 functions at once.",
+    "Each fix raised the count. 'Zero' was never true; 21 is the number as of the statement-level fix.",
+    "",
+    "Everything below is verified against the live catalog with a word-boundary search, not against",
+    "this script's own parsing -- pg_proc bodies, RLS policies, views and triggers, plus client and",
+    "edge-function source. Each has an open G15.x row."
   ],
   "unassign_organization_release_cohort": {
-    "reason": "Restored by 20260804160000 to close the one-way door 20260802030000 left behind: that migration dropped the unassign side while keeping assign, so an organization could be put into a release cohort and nothing supported could take it out. The console that called it was deleted on purpose in the same migration and is deliberately not being re-added here. The function is the supported exit; the surface that calls it is the open work.",
+    "reason": "Restored by 20260804160000 to close the one-way door 20260802030000 left behind. The statement-level gate fix has since shown its counterpart `assign_organization_release_cohort` is equally uncalled, so the whole cohort mechanism is intact and unreachable rather than half-wired. Both need the surface that migration deliberately deleted; see G15.1.",
     "backlog": "G12.1",
     "introduced_by": "this branch (20260804160000)"
+  },
+  "assign_organization_release_cohort": {
+    "reason": "G12.1's counterpart, and dormant for the same reason: the pilot cohort console that called both was deleted on purpose by 20260802030000. Neither side has a caller; the mechanism is intact and unreachable.",
+    "backlog": "G15.1",
+    "introduced_by": "main"
+  },
+  "revoke_integration_api_credential": {
+    "reason": "An issued integration API credential cannot be revoked from anywhere. The same one-way door closed for survey-packet guest grants in G9, on a credential that authenticates machine access.",
+    "backlog": "G15.2",
+    "introduced_by": "main"
+  },
+  "rotate_integration_api_credential": {
+    "reason": "Nor rotated, so a credential suspected of leaking can only be left in place.",
+    "backlog": "G15.3",
+    "introduced_by": "main"
+  },
+  "rotate_integration_webhook_secret": {
+    "reason": "The signing secret a webhook consumer verifies against cannot be rotated.",
+    "backlog": "G15.4",
+    "introduced_by": "main"
+  },
+  "deactivate_integration_webhook_endpoint": {
+    "reason": "A webhook endpoint can be created but never switched off, so deliveries continue to a URL nobody controls any more.",
+    "backlog": "G15.5",
+    "introduced_by": "main"
+  },
+  "rotate_scim_connection_credential": {
+    "reason": "The SCIM provisioning credential cannot be rotated, which is the standing remediation when a directory integration is compromised.",
+    "backlog": "G15.6",
+    "introduced_by": "main"
+  },
+  "get_scim_connection_registry": {
+    "reason": "Takes no arguments and returns the SCIM connection registry. Nothing lists SCIM connections at all, so the rotation above has no surface to be offered from either.",
+    "backlog": "G15.7",
+    "introduced_by": "main"
+  },
+  "link_sso_identity_subject": {
+    "reason": "Binds an SSO provider subject to a profile with a stated link method. Without it an SSO identity that fails to auto-match cannot be attached by an administrator.",
+    "backlog": "G15.8",
+    "introduced_by": "main"
+  },
+  "grant_identity_break_glass": {
+    "reason": "Emergency elevated access with a requester, a ticket reference, a reason and a mandatory expiry -- carefully built, and impossible to invoke.",
+    "backlog": "G15.9",
+    "introduced_by": "main"
+  },
+  "revoke_identity_break_glass": {
+    "reason": "And impossible to end early, which is the half that matters most.",
+    "backlog": "G15.10",
+    "introduced_by": "main"
+  },
+  "record_training_attendance": {
+    "reason": "Records attendance for a class registration with check-in/out times and evidence. Distinct from the class-attendance path already wired in G6; this one is the registration-level record.",
+    "backlog": "G15.11",
+    "introduced_by": "main"
+  },
+  "approve_training_session_completion": {
+    "reason": "Approves a training session's completion with a reason. Nothing offers the approval, so the state it grants cannot be reached.",
+    "backlog": "G15.12",
+    "introduced_by": "main"
+  },
+  "record_resident_service_task": {
+    "reason": "Records a service task response with supervisor notification and an optional second staff member. The offline draft sync path writes these; the online path does not call it.",
+    "backlog": "G15.13",
+    "introduced_by": "main"
+  },
+  "retract_clinical_progress_note": {
+    "reason": "A clinical progress note cannot be retracted. A note entered on the wrong resident stands, because retraction is the audited path and it has no caller.",
+    "backlog": "G15.14",
+    "introduced_by": "main"
+  },
+  "save_report_schedule": {
+    "reason": "A report definition can be built and run but never scheduled, so recurring delivery cannot be set up.",
+    "backlog": "G15.15",
+    "introduced_by": "main"
+  },
+  "set_hris_import_row_decision": {
+    "reason": "Accepts or rejects one row of an HRIS import against an employee. The import runs are creatable (G10) but individual row decisions cannot be recorded.",
+    "backlog": "G15.16",
+    "introduced_by": "main"
+  },
+  "get_regulatory_rule_snapshot": {
+    "reason": "Returns a rule as it stood on a date. Nothing asks, so 'what did the rule say when this happened' has no answer in the product.",
+    "backlog": "G15.17",
+    "introduced_by": "main"
+  },
+  "record_regulatory_shadow_run": {
+    "reason": "Records a shadow evaluation of a candidate rule version against a cohort -- the mechanism for testing a regulation change before it binds.",
+    "backlog": "G15.18",
+    "introduced_by": "main"
+  },
+  "reconcile_regulatory_shadow_difference": {
+    "reason": "Resolves one difference a shadow run found, with a rationale and an evidence checksum. No shadow run can be recorded, so no difference can exist to reconcile.",
+    "backlog": "G15.19",
+    "introduced_by": "main"
+  },
+  "record_regulatory_fixture_result": {
+    "reason": "Records a regulatory engine fixture result for a given engine version. The conformance harness has no entry point.",
+    "backlog": "G15.20",
+    "introduced_by": "main"
   }
 }
