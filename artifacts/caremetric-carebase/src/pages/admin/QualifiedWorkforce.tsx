@@ -7,6 +7,7 @@ import {
 } from "@/hooks/useQualifiedWorkforce";
 import type { EnterpriseJson, EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
 import { useCreateHrisImportRun, useHrisImportRuns, useHrisSourceSystems } from "@/hooks/useHrisImportRuns";
+import { HrisRowDecisions } from "@/components/admin/HrisRowDecisions";
 import { importRunIssues, importRunStatusLabel, suggestedRequestId } from "@/lib/hrisImportRuns";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -185,6 +186,15 @@ function HrisCommands() {
         )}
       </div>
       <CommandCard title="Validate import" description="Re-runs deterministic validation and surfaces duplicate candidates for a human decision." rpc="validate_hris_import_run" args={{ p_import_run_id: runId }} disabled={!runId} buttonLabel="Validate staged rows" />
+      {/* Between the two commands, because that is where it belongs: Validate says it "surfaces
+          duplicate candidates for a human decision", and until now there was nowhere to make one,
+          so Apply ran with nothing decided. */}
+      {runId && (
+        <div className="rounded-lg border p-3">
+          <p className="mb-2 text-sm font-medium">Merge decisions</p>
+          <HrisRowDecisions importRunId={runId} />
+        </div>
+      )}
       <CommandCard title="Resume import" description="Applies the next idempotent batch. Re-running never credits the same source row twice." rpc="apply_hris_import_batch" args={{ p_import_run_id: runId, p_batch_size: 100 }} disabled={!runId} buttonLabel="Apply next batch" />
     </div>
   );

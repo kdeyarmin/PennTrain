@@ -53,18 +53,13 @@
     "introduced_by": "main"
   },
   "record_resident_service_task": {
-    "reason": "Records a service task response with supervisor notification and an optional second staff member. The offline draft sync path writes these; the online path does not call it.",
+    "reason": "Superseded duplicate write path, and the earlier reason here was wrong. Documenting a service task works: the floor and the task queue both call `record_service_task_response`, which 20260726060100 introduced with a response plus structured `exception_details`, replacing this one's status/note/supervisor_notified model. Unlike `save_report_schedule` this predecessor does NOT delegate -- it is a second full implementation writing the same rows on the older model. Wiring it would be actively wrong. The real remediation is to revoke its grant from `authenticated` so it stops being a user-reachable alternate write path, which is a deprecation decision rather than a fix, so it is recorded here instead of taken unilaterally.",
     "backlog": "G15.13",
     "introduced_by": "main"
   },
   "save_report_schedule": {
     "reason": "Superseded compatibility shim, not a missing capability -- and the earlier reason here was wrong. Report scheduling works: the Value Center calls `save_report_schedule_configuration`, which 20260717021844 introduced as a strict superset (delivery hour and minute, day of week, day of month, and a schedule id so an existing schedule can be edited). The same migration re-declared this older signature as a wrapper that delegates with defaults of 07:00, Monday, the 1st. It is dormant by design and wiring it would be wrong -- the richer function is the one a person should reach. Kept rather than dropped because it is granted to `authenticated` and an external integration could still be calling the older signature.",
     "backlog": "G15.15",
-    "introduced_by": "main"
-  },
-  "set_hris_import_row_decision": {
-    "reason": "Accepts or rejects one row of an HRIS import against an employee. The import runs are creatable (G10) but individual row decisions cannot be recorded.",
-    "backlog": "G15.16",
     "introduced_by": "main"
   },
   "get_regulatory_rule_snapshot": {

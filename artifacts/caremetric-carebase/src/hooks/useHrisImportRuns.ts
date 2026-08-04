@@ -84,3 +84,73 @@ export function useCreateHrisImportRun() {
     },
   });
 }
+
+export interface HrisImportRow {
+  id: string;
+  row_number: number;
+  external_person_id: string | null;
+  validation_status: string;
+  match_status: string | null;
+  candidate_employee_ids: string[] | null;
+  merge_decision: string | null;
+  decision_reason: string | null;
+  apply_status: string | null;
+  error_detail: string | null;
+}
+
+/**
+ * The staged rows of one import run (BACKLOG.md G15.16).
+ *
+ * Validation "surfaces duplicate candidates for a human decision" -- the Validate card says exactly
+ * that -- and there was no way to make the decision. So a run could be validated and applied, with
+ * the step between them missing, and `apply_hris_import_batch` had nothing decided to apply.
+ */
+export function useHrisImportRows(importRunId: string | undefined) {
+  return useQuery({
+    queryKey: ["hris-import-rows", importRunId ?? null],
+    enabled: !!importRunId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("hris_import_rows")
+        .select("id,row_number,external_person_id,validation_status,match_status,candidate_employee_ids,merge_decision,decision_reason,apply_status,error_detail")
+        .eq("import_run_id", importRunId!)
+        .order("row_number");
+      if (error) throw error;
+      return (data ?? []) as HrisImportRow[];
+    },
+  });
+}
+
+/** The four decisions the server accepts. `link` must name one of the row's own candidates. */
+export const HRIS_DECISIONS = [
+  { value: "create", label: "Create a new employee" },
+  { value: "link", label: "Link to an existing employee" },
+  { value: "skip", label: "Skip this row" },
+  { value: "reject", label: "Reject this row" },
+] as const;
+
+export function useSetHrisImportRowDecision(importRunId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      importRowId: string;
+      decision: string;
+      employeeId: string | null;
+      reason: string;
+    }) => {
+      const { error } = await (supabase as unknown as RpcClient).rpc("set_hris_import_row_decision", {
+        p_import_row_id: input.importRowId,
+        p_decision: input.decision,
+        // Only a link decision may carry an employee; the server refuses the others outright.
+        p_employee_id: input.decision === "link" ? input.employeeId : null,
+        p_reason: input.reason,
+      });
+      if (error) throw new Error(error.message);
+      return true;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["hris-import-rows", importRunId ?? null] });
+      void queryClient.invalidateQueries({ queryKey: ["hris-import-runs"] });
+    },
+  });
+}
