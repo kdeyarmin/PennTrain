@@ -90,6 +90,23 @@ export function useAmendClinicalProgressNote() {
   }, (input) => input.residentId);
 }
 
+/**
+ * Marking a note entered in error (BACKLOG.md G15.14).
+ *
+ * Sign and amend were both wired; this third one was not, so a note charted against the wrong
+ * resident -- the mistake this exists for -- simply stood. It is not a delete: the server writes
+ * the prior body into `clinical_progress_note_versions` and sets the note to `entered_in_error`,
+ * which is how a clinical record is corrected without losing what it used to say.
+ */
+export function useRetractClinicalProgressNote() {
+  return useCareMutation(async (input: { residentId: string; noteId: string; reason: string }) => {
+    const { error } = await supabase.rpc("retract_clinical_progress_note" as never, {
+      p_note_id: input.noteId, p_reason: input.reason,
+    } as never);
+    if (error) throw error;
+  }, (input) => input.residentId);
+}
+
 export function useRecordClinicalAssessment() {
   return useCareMutation(async (input: {
     residentId: string; assessmentType: AssessmentType; assessedAt: string;

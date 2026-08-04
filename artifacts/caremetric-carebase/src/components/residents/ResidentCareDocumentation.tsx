@@ -18,6 +18,7 @@ import {
   type ClinicalProgressNote,
   type ProgressNoteType,
   useAmendClinicalProgressNote,
+  useRetractClinicalProgressNote,
   useFinalizeClinicalAssessment,
   useRecordClinicalAssessment,
   useResidentClinicalCare,
@@ -53,6 +54,9 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
   const [amendReason, setAmendReason] = useState("");
   const [amendBody, setAmendBody] = useState("");
   const amendNote = useAmendClinicalProgressNote();
+  const retractNote = useRetractClinicalProgressNote();
+  const [retracting, setRetracting] = useState<ClinicalProgressNote | null>(null);
+  const [retractReason, setRetractReason] = useState("");
 
   const [assessmentType, setAssessmentType] = useState<AssessmentType>("braden");
   const [assessmentScore, setAssessmentScore] = useState("");
@@ -185,6 +189,19 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                   {canChart && (note.status === "signed" || note.status === "amended") && (
                     <Button size="sm" variant="ghost" onClick={() => { setAmending(note); setAmendReason(""); setAmendBody(note.body); }}><FilePenLine className="mr-1 h-3.5 w-3.5" />Amend</Button>
                   )}
+                  {/* Amend corrects what a note says; this says the note should not exist at all --
+                      charted on the wrong resident, most often. The server keeps the prior body in
+                      a version row rather than deleting anything. */}
+                  {canChart && note.status !== "entered_in_error" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => { setRetracting(note); setRetractReason(""); }}
+                    >
+                      Entered in error
+                    </Button>
+                  )}
                 </div>
                 <p className="whitespace-pre-wrap text-sm">{note.body}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
@@ -255,6 +272,49 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
             </Card>
           ))}
       </TabsContent>
+
+      <Dialog open={!!retracting} onOpenChange={(open) => { if (!open) setRetracting(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark this note entered in error</DialogTitle>
+            <DialogDescription>
+              The note stays in the record, marked as entered in error, and its current text is kept
+              in the note history. Use this when the note should not have been written at all — most
+              often because it was charted against the wrong resident. To correct what a note says,
+              amend it instead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label htmlFor="retract-reason">Reason</Label>
+            <Input
+              id="retract-reason"
+              value={retractReason}
+              onChange={(event) => setRetractReason(event.target.value)}
+              placeholder="Charted on the wrong resident; re-entered on the correct chart."
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRetracting(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={retractNote.isPending || retractReason.trim().length < 3}
+              onClick={() => {
+                if (!retracting) return;
+                void retractNote
+                  .mutateAsync({ residentId, noteId: retracting.id, reason: retractReason.trim() })
+                  .then(() => { setRetracting(null); setRetractReason(""); toast({ title: "Note marked entered in error" }); })
+                  .catch((error: unknown) => toast({
+                    title: "Note could not be retracted",
+                    description: error instanceof Error ? error.message : String(error),
+                    variant: "destructive",
+                  }));
+              }}
+            >
+              Mark entered in error
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!amending} onOpenChange={(open) => { if (!open) setAmending(null); }}>
         <DialogContent>

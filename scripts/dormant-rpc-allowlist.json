@@ -57,13 +57,8 @@
     "backlog": "G15.13",
     "introduced_by": "main"
   },
-  "retract_clinical_progress_note": {
-    "reason": "A clinical progress note cannot be retracted. A note entered on the wrong resident stands, because retraction is the audited path and it has no caller.",
-    "backlog": "G15.14",
-    "introduced_by": "main"
-  },
   "save_report_schedule": {
-    "reason": "A report definition can be built and run but never scheduled, so recurring delivery cannot be set up.",
+    "reason": "Superseded compatibility shim, not a missing capability -- and the earlier reason here was wrong. Report scheduling works: the Value Center calls `save_report_schedule_configuration`, which 20260717021844 introduced as a strict superset (delivery hour and minute, day of week, day of month, and a schedule id so an existing schedule can be edited). The same migration re-declared this older signature as a wrapper that delegates with defaults of 07:00, Monday, the 1st. It is dormant by design and wiring it would be wrong -- the richer function is the one a person should reach. Kept rather than dropped because it is granted to `authenticated` and an external integration could still be calling the older signature.",
     "backlog": "G15.15",
     "introduced_by": "main"
   },
