@@ -114,6 +114,14 @@ trap - EXIT
 log "Running services"
 docker ps --format '{{.Names}}' | sed 's/supabase_//' | sort
 
+log "Seeding course-video placeholders (non-production Storage assets only)"
+# See BACKLOG.md SG-3: the 3 HeyGen New Employee Orientation blocks only have real video files in
+# the production project, so this stack's Storage would otherwise resolve them to a missing
+# object. Derives its own env rather than requiring the caller to have exported anything yet.
+(eval "$(supabase status -o env)"; SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+  node "$REPO_ROOT/scripts/seed-course-video-placeholders.mjs") \
+  || echo "placeholder seeding failed (non-fatal to stack startup) -- rerun scripts/seed-course-video-placeholders.mjs manually if needed"
+
 cat <<'NOTES'
 
 === Next steps ===

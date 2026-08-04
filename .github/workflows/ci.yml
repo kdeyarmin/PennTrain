@@ -120,6 +120,7 @@ jobs:
             "scripts/check-migration*"
             "scripts/check-raise-arity*"
             "scripts/check-journey-coverage*"
+            "scripts/seed-course-video-placeholders*"
             ".github/*"
           )
 
@@ -282,6 +283,14 @@ jobs:
           # journey needs the accounts to render, and this bundle is a throwaway:
           # the password above is scoped to one workflow run and never deployed.
           echo "VITE_ENABLE_PUBLIC_DEMO=true" >> "$GITHUB_ENV"
+
+      - name: Seed course-video placeholders (non-production Storage assets only)
+        # See BACKLOG.md SG-3 and the script's own header. The 3 HeyGen New Employee Orientation
+        # blocks only have real video files in the production project; this uploads a tiny
+        # placeholder to this run's local Storage so the video-watch gate has something real to
+        # resolve here, without touching the gate's logic at all. The script refuses to run
+        # against anything but a loopback SUPABASE_URL, which this job's local stack always is.
+        run: node scripts/seed-course-video-placeholders.mjs
 
       - name: Build browser-test application
         run: pnpm --filter @workspace/caremetric-carebase run build
