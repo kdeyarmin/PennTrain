@@ -33,11 +33,13 @@ import {
   useSetBedAvailability,
   useStartMoveInWorkspace,
   useTransitionResidentCensus,
+  useAdvanceAdmissionPipelineStage,
   useUpdateAdmissionProspect,
   type AdmissionProspectWithRelations,
   type FacilityBedWithRelations,
 } from "@/hooks/useAdmissions";
 import { QueryError } from "@/components/QueryState";
+import { PIPELINE_STAGES, pipelineStage, stageDirection } from "@/lib/admissionPipeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,6 +183,7 @@ function ProspectReviewDialog({
   const __fieldIds = useId();
   const { toast } = useToast();
   const update = useUpdateAdmissionProspect();
+  const advance = useAdvanceAdmissionPipelineStage();
   const activity = useRecordAdmissionActivity();
   const reserve = useReserveBedForProspect();
   const startWorkspace = useStartMoveInWorkspace();
@@ -195,6 +198,7 @@ function ProspectReviewDialog({
   const [activityDate, setActivityDate] = useState("");
   const [lostReason, setLostReason] = useState(prospect?.lost_lead_reason ?? "");
   const [bedId, setBedId] = useState("");
+  const [funnelStage, setFunnelStage] = useState(prospect?.pipeline_stage ?? "new_inquiry");
   const isLostStage = stage === "declined" || stage === "lost";
 
   const saveReview = () => {
@@ -219,12 +223,47 @@ function ProspectReviewDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{prospect?.first_name} {prospect?.last_name}</DialogTitle><DialogDescription>Clinical, financial, tour, room reservation, and move-in decisions.</DialogDescription></DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-pipeline-stage`}>Pipeline stage</Label><Select value={stage} onValueChange={setStage}><SelectTrigger id={`${__fieldIds}-pipeline-stage`}><SelectValue /></SelectTrigger><SelectContent>{STAGES.filter(value => value !== "admitted").map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-pipeline-stage`}>Decision stage</Label><Select value={stage} onValueChange={setStage}><SelectTrigger id={`${__fieldIds}-pipeline-stage`}><SelectValue /></SelectTrigger><SelectContent>{STAGES.filter(value => value !== "admitted").map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-expected-move-in-2`}>Expected move-in</Label><Input id={`${__fieldIds}-expected-move-in-2`} type="date" value={expectedDate} onChange={event => setExpectedDate(event.target.value)} /></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-clinical-review`}>Clinical review</Label><Select value={clinical} onValueChange={setClinical}><SelectTrigger id={`${__fieldIds}-clinical-review`}><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-financial-review`}>Financial review</Label><Select value={financial} onValueChange={setFinancial}><SelectTrigger id={`${__fieldIds}-financial-review`}><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-decision-reason`}>Decision reason</Label><Input id={`${__fieldIds}-decision-reason`} value={reason} onChange={event => setReason(event.target.value)} /></div>
           {isLostStage && <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-lost-declined-reason`}>Lost / declined reason</Label><Select value={lostReason} onValueChange={setLostReason}><SelectTrigger id={`${__fieldIds}-lost-declined-reason`}><SelectValue placeholder="Select a standard reason" /></SelectTrigger><SelectContent>{LOST_REASONS.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>}
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor={`${__fieldIds}-funnel-stage`}>Funnel stage</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={funnelStage} onValueChange={setFunnelStage}>
+                <SelectTrigger id={`${__fieldIds}-funnel-stage`} className="sm:w-72"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PIPELINE_STAGES.map(definition => (
+                    <SelectItem key={definition.key} value={definition.key}>{definition.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                disabled={advance.isPending || funnelStage === (prospect?.pipeline_stage ?? "new_inquiry")}
+                onClick={() => prospect && advance.mutate(
+                  { prospectId: prospect.id, pipelineStage: funnelStage },
+                  {
+                    onSuccess: () => toast({ title: "Funnel stage updated" }),
+                    onError: (error: Error) => toast({ title: "Couldn't move the funnel stage", description: error.message, variant: "destructive" }),
+                  },
+                )}
+              >
+                {advance.isPending ? "Saving..." : "Move stage"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {pipelineStage(funnelStage)?.meaning}
+              {prospect && stageDirection(prospect.pipeline_stage ?? "new_inquiry", funnelStage) === "backward"
+                && " This is a step backwards, which is recorded rather than refused."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Separate from the decision stage above: a prospect can be at &quot;tour completed&quot; and
+              still be clinically unreviewed. This is the sales funnel; that one gates the bed.
+            </p>
+          </div>
           <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-notes-2`}>Notes</Label><Textarea id={`${__fieldIds}-notes-2`} value={notes} onChange={event => setNotes(event.target.value)} /></div>
         </div>
         <Button onClick={saveReview} disabled={update.isPending}>{update.isPending ? "Saving..." : "Save review"}</Button>
