@@ -537,6 +537,11 @@ export function useApproveTrainingSessionCompletion(classId: string | undefined)
       void queryClient.invalidateQueries({ queryKey: ["training_session_registrations", classId ?? null] });
       void queryClient.invalidateQueries({ queryKey: ["training_classes"] });
       void queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      // Approval inserts a `training_class_attendees` row per attended registration, so the roster
+      // and the per-class counts both move. Every other mutation that touches attendees refreshes
+      // these two; this one wrote the most rows of any of them and refreshed neither.
+      void queryClient.invalidateQueries({ queryKey: ["training_class_attendees", classId ?? null] });
+      void queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
     },
   });
 }

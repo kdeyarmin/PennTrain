@@ -15,7 +15,12 @@ import {
   useUnassignOrganizationCohort, type OrganizationCohortMembership,
 } from "@/hooks/useReleaseFlagAdmin";
 
-const MIN_REASON = 5;
+// The two sides do not agree, so neither does this. `assign_organization_release_cohort` records
+// the reason without a length check; `unassign_organization_release_cohort` raises 'A meaningful
+// unassign reason is required' below 8 characters. One shared minimum of 5 meant a 5-to-7 character
+// removal reason passed the form and was refused by the server.
+const MIN_ASSIGN_REASON = 5;
+const MIN_UNASSIGN_REASON = 8;
 
 /**
  * Which organizations are in which release cohort (BACKLOG.md G12.1, G15.1).
@@ -50,7 +55,7 @@ export function ReleaseCohortMembershipCard() {
     cohorts.data?.find((cohort) => cohort.id === id)?.name ?? id.slice(0, 8);
 
   const canAssign = organizationId.trim() && cohortId && featureKey.trim()
-    && reason.trim().length >= MIN_REASON;
+    && reason.trim().length >= MIN_ASSIGN_REASON;
 
   return (
     <Card>
@@ -140,10 +145,15 @@ export function ReleaseCohortMembershipCard() {
               {removing?.id === membership.id && (
                 <div className="space-y-2 pt-1">
                   <Input value={removeReason} onChange={(e) => setRemoveReason(e.target.value)} placeholder="Why they are coming out of the cohort" />
+                  {removeReason.trim().length > 0 && removeReason.trim().length < MIN_UNASSIGN_REASON && (
+                    <p className="text-xs text-muted-foreground">
+                      At least {MIN_UNASSIGN_REASON} characters — the server requires it.
+                    </p>
+                  )}
                   <div className="flex gap-2">
                     <Button
                       size="sm" variant="destructive"
-                      disabled={unassign.isPending || removeReason.trim().length < MIN_REASON}
+                      disabled={unassign.isPending || removeReason.trim().length < MIN_UNASSIGN_REASON}
                       onClick={() => unassign.mutate({
                         organizationId: membership.organization_id,
                         cohortId: membership.cohort_id,

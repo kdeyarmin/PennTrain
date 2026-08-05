@@ -243,6 +243,10 @@ export function useIssueSurveyPacketGuestGrant() {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["survey-evidence-packet-exports"] });
+      // The grant list is the answer to "who can currently see this packet", and issuing is the
+      // event that changes it most. Revoke refreshed it and issue did not, so a packet shared with
+      // a surveyor did not appear in the list of people holding access to it.
+      void client.invalidateQueries({ queryKey: ["survey-packet-guest-grants"] });
     },
   });
 }

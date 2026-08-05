@@ -67,6 +67,13 @@ function useCitationInvalidation() {
     queryClient.invalidateQueries({ queryKey: ["citation-governance-status"] });
     // The readiness table renders the qualifier from these same rows; leaving it stale would show
     // "approximate" next to a citation somebody has just verified.
+    //
+    // Two hooks read this one table under two roots: this module's `useCitationTopics` keys on
+    // "dhs-citation-topics", and `useCitationTopics.ts`'s `useListCitationTopics` keys on the table
+    // name itself. The second is the one Violations, ViolationDetail, InspectionReadiness and the
+    // assessment surfaces render, so invalidating only the first refreshed the governance admin
+    // section and left every screen a surveyor actually looks at showing the old citation.
+    queryClient.invalidateQueries({ queryKey: ["dhs_citation_topics"] });
   };
 }
 

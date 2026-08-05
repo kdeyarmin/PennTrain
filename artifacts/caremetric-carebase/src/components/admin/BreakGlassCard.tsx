@@ -34,6 +34,12 @@ function defaultExpiry(): string {
  *
  * The form asks for a ticket reference because break-glass is the access you justify afterwards,
  * and "there was an incident" is not a justification anyone can audit.
+ *
+ * It asks who requested the access separately from who is approving it because the server insists
+ * on two people: `grant_identity_break_glass` raises 'break-glass requests require a separate
+ * approver' when `p_requested_by` is the caller. The first version of this form filled the
+ * requester in with the signed-in admin, so every grant it submitted was rejected -- the one path
+ * that has to work at 3am failed on its own precondition.
  */
 export function BreakGlassCard() {
   const { toast } = useToast();
@@ -44,6 +50,7 @@ export function BreakGlassCard() {
 
   const [opening, setOpening] = useState(false);
   const [targetProfileId, setTargetProfileId] = useState("");
+  const [requestedBy, setRequestedBy] = useState("");
   const [reason, setReason] = useState("");
   const [ticket, setTicket] = useState("");
   const [expiresAt, setExpiresAt] = useState(defaultExpiry());
@@ -53,7 +60,11 @@ export function BreakGlassCard() {
   const expiry = expiresAt ? new Date(expiresAt) : null;
   const expiryPast = !!expiry && expiry.getTime() <= Date.now();
   const expiryTooFar = !!expiry && expiry.getTime() > Date.now() + MAX_HOURS * 3_600_000;
+  // Checked here as well as on the server so the refusal arrives while the field can still be
+  // corrected, rather than as a failed submission with the reason buried in an error toast.
+  const approverIsRequester = requestedBy.trim().length > 0 && requestedBy.trim() === user?.id;
   const canGrant = targetProfileId.trim().length > 0
+    && requestedBy.trim().length > 0 && !approverIsRequester
     && reason.trim().length >= MIN_REASON
     && ticket.trim().length > 0
     && !expiryPast && !expiryTooFar;
@@ -73,7 +84,7 @@ export function BreakGlassCard() {
       <CardContent className="space-y-4">
         {!opening && (
           <Button variant="outline" size="sm" onClick={() => {
-            setOpening(true); setTargetProfileId(""); setReason(""); setTicket(""); setExpiresAt(defaultExpiry());
+            setOpening(true); setTargetProfileId(""); setRequestedBy(""); setReason(""); setTicket(""); setExpiresAt(defaultExpiry());
           }}>
             Grant break-glass access
           </Button>
@@ -84,6 +95,21 @@ export function BreakGlassCard() {
             <div className="space-y-1.5">
               <Label htmlFor="bg-target">Profile receiving access</Label>
               <Input id="bg-target" value={targetProfileId} onChange={(e) => setTargetProfileId(e.target.value)} placeholder="Profile UUID" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bg-requester">Requested by</Label>
+              <Input id="bg-requester" value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Profile UUID of whoever asked for it" />
+              {approverIsRequester ? (
+                <p className="text-xs text-destructive">
+                  You are approving this, so you cannot also be the one who requested it. Break-glass
+                  takes two people.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Someone other than you, in the same organization as the profile above. You are
+                  recorded as the approver.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bg-ticket">Ticket reference</Label>
@@ -112,7 +138,7 @@ export function BreakGlassCard() {
                 disabled={grant.isPending || !canGrant || !user?.id}
                 onClick={() => grant.mutate({
                   targetProfileId: targetProfileId.trim(),
-                  requestedBy: user!.id,
+                  requestedBy: requestedBy.trim(),
                   reason: reason.trim(),
                   ticketReference: ticket.trim(),
                   expiresAt: new Date(expiresAt).toISOString(),

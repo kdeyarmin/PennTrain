@@ -39,14 +39,21 @@ export function declaredRoutes(appSource) {
  *
  * A trailing `/` is kept, because that is the shape the concatenating form takes --
  * `'/admin/complaints/' || c.id::text` -- and it is exactly the case that broke.
+ *
+ * A template literal's `${...}` becomes a stand-in segment rather than disqualifying the whole
+ * literal. Skipping them was the first version's blind spot: an edge function that builds its link
+ * with a template is doing the same thing as one that concatenates in SQL, and
+ * `compliance-copilot`'s `/app/inspection-items/${row.id}` -- a route that does not exist -- went
+ * unreported the entire time the check claimed to be reading every server link.
  */
 export function serverLinkLiterals(source) {
   const found = new Set();
   for (const re of [/'([^']*)'/g, /"([^"]*)"/g, /`([^`]*)`/g]) {
     for (const match of source.matchAll(re)) {
-      const value = match[1];
+      // An interpolated value fills one path segment, which is exactly what a `:param` route accepts.
+      const value = match[1].replace(/\$\{[^}]*\}/g, "x");
       if (!APP_PREFIXES.some((p) => value === p || value.startsWith(`${p}/`))) continue;
-      // Reject anything with SQL/JS interpolation left in it; the prefix is what matters.
+      // SQL concatenation, or interpolation this cannot read; the quoted prefix stands on its own.
       if (/[|${}]/.test(value)) continue;
       found.add(value);
     }
@@ -79,8 +86,12 @@ if (process.argv.includes("--self-test")) {
     [() => serverLinkLiterals("'https://example.com/app/x'"), []],
     // Not an in-app prefix.
     [() => serverLinkLiterals("'/functions/v1/thing'"), []],
-    // Interpolation left in the literal is a prefix fragment, not a path.
-    [() => serverLinkLiterals("`/app/${kind}/x`"), []],
+    // An interpolated segment is checked, standing in for the one value it fills.
+    [() => serverLinkLiterals("`/app/${kind}/x`"), ["/app/x/x"]],
+    [() => serverLinkLiterals("`/app/inspection-items/${row.id}`"), ["/app/inspection-items/x"]],
+    // Substituting a segment is what lets a `:param` route accept it.
+    [() => routeMatches("/app/inspections/:id", "/app/inspections/x"), true],
+    [() => routeMatches("/app/inspections/:id", "/app/inspection-items/x"), false],
     [() => routeMatches("/admin/complaints/:id", "/admin/complaints/"), true],
     [() => routeMatches("/admin/complaints/:id", "/admin/complaints/abc-123"), true],
     // The bug this check exists for: the route simply does not exist.

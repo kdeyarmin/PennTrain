@@ -30,9 +30,14 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
 
+  const body = block.body as { content?: string } | null;
+  const originalContent = body?.content ?? "";
   const reasonTooShort = reason.trim().length < MIN_REASON_LENGTH;
-  const nothingToChange = title.trim().length === 0;
+  const titleChanged = title.trim().length > 0 && title.trim() !== (block.title ?? "");
+  const contentChanged = content !== originalContent;
+  const nothingToChange = title.trim().length === 0 || (!titleChanged && !contentChanged);
 
   if (!open) {
     return (
@@ -40,7 +45,9 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
         size="sm"
         variant="ghost"
         className="text-destructive hover:text-destructive"
-        onClick={() => { setOpen(true); setReason(""); setTitle(block.title ?? ""); }}
+        onClick={() => {
+          setOpen(true); setReason(""); setTitle(block.title ?? ""); setContent(originalContent);
+        }}
       >
         <ShieldAlert className="mr-1 h-4 w-4" />Emergency correction
       </Button>
@@ -61,6 +68,19 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
           value={title}
           onChange={(event) => setTitle(event.target.value)}
         />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`emergency-content-${block.id}`}>Corrected content</Label>
+        <Textarea
+          id={`emergency-content-${block.id}`}
+          rows={6}
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          The text learners are shown. This is where a wrong dose or a rescinded rule actually lives,
+          so a correction that could only reach the title could not fix the thing this exists for.
+        </p>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`emergency-reason-${block.id}`}>Why this cannot wait for a new version</Label>
@@ -85,7 +105,15 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
           disabled={correct.isPending || reasonTooShort || nothingToChange}
           onClick={() => {
             correct.mutate(
-              { blockId: block.id, reason: reason.trim(), title: title.trim() },
+              {
+                blockId: block.id,
+                reason: reason.trim(),
+                title: title.trim(),
+                // Merged into the existing body rather than replacing it: `heygen` job state lives
+                // alongside `content`, and sending a bare { content } would drop it. Omitted
+                // entirely when unchanged, which the RPC coalesces back to the current value.
+                ...(contentChanged ? { body: { ...(body ?? {}), content } } : {}),
+              },
               {
                 onSuccess: () => {
                   setOpen(false);

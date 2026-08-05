@@ -13,19 +13,28 @@ import { useEmployeeAccessActive } from "@/hooks/useEmployeeAccess";
  * everywhere in the product, and once a suspension is lifted no column records that it ever
  * applied -- so "did they have access the day of the incident" could not be answered from a screen.
  * `is_employee_access_active` takes the moment as an argument precisely so it can be.
+ *
+ * `hasLinkedAccount` is asked for because the RPC cannot answer this question for an employee who
+ * has none. Its `(e.profile_id is null or p.is_active)` clause exists so a missing profile row does
+ * not read as a suspension, which is right for what that function is weighing and wrong as an
+ * answer to "can this person sign in" -- it returns true for someone with no account at all. The
+ * page header already says "No portal access" for exactly these employees; this card sat underneath
+ * it saying "active".
  */
 export function EmployeeAccessCard({
   employeeId,
   employeeName,
+  hasLinkedAccount,
 }: {
   employeeId: string;
   employeeName: string;
+  hasLinkedAccount: boolean;
 }) {
   const [asOf, setAsOf] = useState("");
-  const now = useEmployeeAccessActive(employeeId);
+  const now = useEmployeeAccessActive(hasLinkedAccount ? employeeId : undefined);
   // Asked at the end of that day, because "did they have access on the 3rd" means during the 3rd.
   const historic = useEmployeeAccessActive(
-    employeeId,
+    hasLinkedAccount ? employeeId : undefined,
     asOf ? new Date(`${asOf}T23:59:59`).toISOString() : undefined,
   );
 
@@ -41,6 +50,13 @@ export function EmployeeAccessCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {!hasLinkedAccount ? (
+          <p className="text-sm text-muted-foreground">
+            {employeeName} has no linked account, so there is nothing to sign in with and no access
+            history to ask about. Invite them to the portal first.
+          </p>
+        ) : (
+          <>
         <div className="flex items-center gap-2">
           <span className="text-sm">Right now:</span>
           {now.isLoading
@@ -73,6 +89,8 @@ export function EmployeeAccessCard({
             </p>
           )}
         </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

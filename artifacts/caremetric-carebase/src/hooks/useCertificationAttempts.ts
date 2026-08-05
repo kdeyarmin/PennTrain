@@ -103,6 +103,8 @@ function useCertificationInvalidation(employeeId: string) {
     queryClient.invalidateQueries({ queryKey: ["certification-attempts", employeeId] });
     queryClient.invalidateQueries({ queryKey: ["certification-checklist"] });
     // A passed attempt grants an employee_qualifications row, which is what duty eligibility reads.
+    // Not the overrides list: an attempt earns a qualification, it does not write a manual override.
+    queryClient.invalidateQueries({ queryKey: ["duty-eligibility"] });
   };
 }
 

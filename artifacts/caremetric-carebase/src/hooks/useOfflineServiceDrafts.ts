@@ -301,7 +301,7 @@ async function callSyncRpc(deviceId: string, draft: OfflineFloorDraft) {
 // path does.
 const DOMAIN_QUERY_KEYS_BY_KIND: Record<OfflineDraftKind, string[][]> = {
   service_task: [["resident-service-tasks"], ["service-task-alerts"], ["resident-360"], ["work-items"]],
-  unscheduled_service: [["resident-care-delivery"], ["resident-service-tasks"], ["work-items"], ["daily-operations"]],
+  unscheduled_service: [["resident-care-delivery"], ["resident-service-tasks"], ["work-items"], ["daily-operations-command-center"]],
   change_observation: [["resident-change-events"], ["resident_compliance_items"], ["work-items"]],
 };
 

@@ -66,20 +66,54 @@ export function constantKeyRoots(source) {
   return roots;
 }
 
-/** Roots of every key literal following `pattern`, resolving constants through `constants`. */
+/**
+ * Heads of every inner array inside an array-of-arrays literal.
+ *
+ * A table of query keys -- `[["a"], ["b", id]]`, either standalone or as the values of a record --
+ * exists to be handed to something one entry at a time. The entries never appear at a `queryKey:`
+ * site, so the patterns below cannot see them, which is the hole `invalidateQueries({ queryKey: key
+ * })` fell through.
+ */
+export function nestedKeyTableRoots(source) {
+  const code = blankTsComments(source);
+  const roots = [];
+  for (const open of [...code.matchAll(/\[\s*\[/g)].map((m) => m.index)) {
+    let depth = 0;
+    let end = open;
+    for (let i = open; i < code.length; i += 1) {
+      if (code[i] === "[") depth += 1;
+      else if (code[i] === "]") { depth -= 1; if (depth === 0) { end = i; break; } }
+    }
+    for (const m of code.slice(open, end).matchAll(/\[\s*["'`]([^"'`]+)["'`]/g)) roots.push(m[1]);
+  }
+  return roots;
+}
+
+/**
+ * Roots of every key literal following `pattern`, resolving constants through `constants`.
+ *
+ * `unresolved` counts the identifiers that named a key the gate could not follow -- a loop variable,
+ * an index into a table, a helper's return value. A caller that cares whether it saw the whole
+ * picture has to be told when it did not.
+ */
 export function keyRoots(source, pattern, constants) {
   const roots = [];
+  let unresolved = 0;
   for (const m of blankTsComments(source).matchAll(pattern)) {
     const literal = m[1];
     const identifier = m[2];
     if (literal) roots.push(literal);
     else if (identifier && constants.has(identifier)) roots.push(constants.get(identifier));
+    else if (identifier) unresolved += 1;
   }
+  roots.unresolved = unresolved;
   return roots;
 }
 
-// `queryKey: [` then either a string literal or an identifier, optionally spread.
-const KEY_HEAD = String.raw`queryKey:\s*\[\s*(?:\.\.\.)?(?:["'\`]([^"'\`]+)["'\`]|([A-Za-z_$][A-Za-z0-9_$]*))`;
+// `queryKey:` then a string literal or an identifier. The surrounding `[` is optional because a key
+// is just as often held whole in a variable -- `queryKey: key` -- and requiring the bracket made
+// every one of those invisible rather than merely unresolved.
+const KEY_HEAD = String.raw`queryKey:\s*(?:\[\s*(?:\.\.\.)?)?(?:["'\`]([^"'\`]+)["'\`]|([A-Za-z_$][A-Za-z0-9_$]*))`;
 export const QUERY_PATTERN = new RegExp(String.raw`use(?:Infinite)?Query\(\{[\s\S]{0,600}?${KEY_HEAD}`, "g");
 export const INVALIDATE_PATTERN = new RegExp(String.raw`invalidateQueries\(\{\s*${KEY_HEAD}`, "g");
 // A query key may also be declared standalone and handed to useQuery, or built by a helper.
@@ -90,8 +124,8 @@ if (process.argv.includes("--self-test")) {
   const cases = [
     [() => [...constants], [["QUERY_KEY", "drafts"]]],
     [() => keyRoots('useQuery({ queryKey: ["a", id] })', QUERY_PATTERN, new Map()), ["a"]],
-    [() => keyRoots("useQuery({ queryKey: QUERY_KEY })", QUERY_PATTERN, constants), []],
-    // A constant used as the whole key still has to resolve, via the spread form.
+    // A constant used as the whole key resolves, with or without the spread form.
+    [() => keyRoots("useQuery({ queryKey: QUERY_KEY })", QUERY_PATTERN, constants), ["drafts"]],
     [() => keyRoots("useQuery({ queryKey: [...QUERY_KEY, id] })", QUERY_PATTERN, constants), ["drafts"]],
     // Module-first resolution: the local declaration wins over a same-named one elsewhere.
     [() => {
@@ -102,6 +136,17 @@ if (process.argv.includes("--self-test")) {
     [() => keyRoots('invalidateQueries({ queryKey: ["b"] })', INVALIDATE_PATTERN, new Map()), ["b"]],
     // Comments are not call sites.
     [() => keyRoots('// invalidateQueries({ queryKey: ["ghost"] })\n', INVALIDATE_PATTERN, new Map()), []],
+    // An unfollowable key is reported as such rather than passing silently, which is what makes the
+    // key-table fallback fire. This is the case that hid "daily-operations".
+    [() => keyRoots("invalidateQueries({ queryKey: key })", INVALIDATE_PATTERN, new Map()).unresolved, 1],
+    [() => keyRoots('invalidateQueries({ queryKey: ["b"] })', INVALIDATE_PATTERN, new Map()).unresolved, 0],
+    // Key tables, standalone and as record values, including the shape that hid the bug.
+    [() => nestedKeyTableRoots('const T = [["a"], ["b", id]];'), ["a", "b"]],
+    [() => nestedKeyTableRoots('const T: R = { k: [["a"]], j: [["b"], ["c"]] };'), ["a", "b", "c"]],
+    [() => nestedKeyTableRoots('const T = [["daily-operations"]];'), ["daily-operations"]],
+    // A flat key is not a key table; only the inner arrays of a nested one count.
+    [() => nestedKeyTableRoots('const K = ["a", "b"];'), []],
+    [() => nestedKeyTableRoots('// const T = [["ghost"]];\n'), []],
     // The bug this exists for: these two roots are NOT the same key, though they look alike.
     [() => "training_class" === "training_classes", false],
     [() => "daily-operations" === "daily-operations-command-center", false],
@@ -159,7 +204,14 @@ for (const [file, source] of sources) {
   // Any surviving `queryKey:` establishes a real key -- useQuery, useInfiniteQuery, setQueryData,
   // prefetchQuery, getQueryData, and the helper builders that hand one to them.
   for (const root of keyRoots(withoutInvalidations, ANY_KEY_PATTERN, constants)) queryRoots.add(root);
-  for (const root of keyRoots(code, INVALIDATE_PATTERN, constants)) {
+  const invalidated = keyRoots(code, INVALIDATE_PATTERN, constants);
+  // An invalidation keyed on something the gate could not follow means this file dispatches keys
+  // dynamically, so its key tables are the invalidation list. `useOfflineServiceDrafts` does exactly
+  // this -- a per-kind record of key arrays, walked in a loop -- and its `["daily-operations"]` entry
+  // (the real key root is "daily-operations-command-center") survived the first version of this check
+  // because no root ever appeared at a `queryKey:` site to be read.
+  const roots = invalidated.unresolved ? [...invalidated, ...nestedKeyTableRoots(source)] : invalidated;
+  for (const root of roots) {
     if (!invalidations.has(root)) invalidations.set(root, path.relative(ROOT, file));
   }
 }

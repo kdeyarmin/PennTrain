@@ -248,7 +248,7 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
       ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_label || row.credential_type} for ${employees.get(row.employee_id) ?? row.employee_id}`, row.status, null, row.expiration_date, `/app/employees/${row.employee_id}?tab=credentials`, { employeeId: row.employee_id, credentialType: row.credential_type })),
       ...residentItems.map((row) => evidence(`resident-compliance:${row.id}`, "resident_compliance_item", `${row.item_type.replaceAll("_", " ")} for ${residents.get(row.resident_id) ?? row.resident_id}`, row.status, null, row.due_date, `/app/residents/${row.resident_id}`, { residentId: row.resident_id, itemType: row.item_type })),
       ...workItems.map((row) => evidence(`work-item:${row.id}`, "work_item", row.title, row.state, null, row.due_at, `/app/work/${row.id}`, { priority: row.priority, sourceType: row.source_type })),
-      ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspection-items/${row.id}`, { itemType: row.item_type })),
+      ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspections/${row.id}`, { itemType: row.item_type })),
     ],
     missing: [],
   };
@@ -321,7 +321,7 @@ async function collectCitationEvidence(client: any, facilityId: string, citation
     ...matchingViolations.map((row) => evidence(`violation:${row.id}`, "dhs_violation", row.citation_ref || row.description, row.status, row.inspection_date, row.poc_due_date, `/app/violations/${row.id}`, { description: row.description, severity: row.severity, citationTopicId: row.citation_topic_id })),
     ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_type} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, null, row.expiration_date, `/app/employees/${row.employee_id}?tab=credentials`, { citationTopicId: row.citation_topic_id })),
     ...residents.map((row) => evidence(`resident-compliance:${row.id}`, "resident_compliance_item", `${row.item_type.replaceAll("_", " ")} for ${residentMap.get(row.resident_id) ?? row.resident_id}`, row.status, null, row.due_date, `/app/residents/${row.resident_id}`, { citationTopicId: row.citation_topic_id })),
-    ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspection-items/${row.id}`, { citationTopicId: row.citation_topic_id, itemType: row.item_type })),
+    ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspections/${row.id}`, { citationTopicId: row.citation_topic_id, itemType: row.item_type })),
     ...training.map((row) => evidence(`training:${row.id}`, "training_record", `${trainingTypeMap.get(row.training_type_id)?.name ?? "Training"} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, row.completion_date, row.due_date, "/app/training-matrix", { trainingTypeId: row.training_type_id, citationTopicId: trainingTypeMap.get(row.training_type_id)?.citation_topic_id })),
   ];
   return { evidence: collected, missing: collected.length === 0 ? [`No system documentation matched “${citationQuery}”.`] : [] };

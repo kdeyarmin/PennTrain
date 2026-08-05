@@ -833,6 +833,7 @@ export default function EmployeeDetail() {
                 <EmployeeAccessCard
                   employeeId={employee.id}
                   employeeName={`${employee.first_name} ${employee.last_name}`}
+                  hasLinkedAccount={Boolean(employee.profile_id)}
                 />
               </Suspense>
             )}
