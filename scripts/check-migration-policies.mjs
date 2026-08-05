@@ -1,5 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripSqlComments } from "./lib/sqlComments.mjs";
 
@@ -329,16 +329,21 @@ async function run() {
     return;
   }
 
-  const migrationsDir = join(process.cwd(), "supabase", "migrations");
+  // Resolved from THIS FILE, not process.cwd(). Every other checker in scripts/ derives its paths
+  // from `dirname(fileURLToPath(import.meta.url))`, and this one already computes SCRIPT_DIR for
+  // its allowlist but used the working directory for the migrations. Run from anywhere but the
+  // repo root -- a pre-commit hook, an editor task, a CI step with a `working-directory` -- the
+  // readdir hit ENOENT and the catch below reported "nothing to lint" and exited 0. A lint that
+  // reports success because it could not find the thing it lints is the failure mode this repo has
+  // already been bitten by twice.
+  const migrationsDir = resolve(SCRIPT_DIR, "..", "supabase", "migrations");
   let entries;
   try {
     entries = await readdir(migrationsDir);
   } catch (error) {
-    if (error.code === "ENOENT") {
-      console.log("No supabase/migrations directory found; nothing to lint.");
-      return;
-    }
-    throw error;
+    // No longer swallowed. The directory is part of the repository; its absence means the checker
+    // is looking in the wrong place, which is a failure, not an empty result set.
+    throw new Error(`Cannot read ${migrationsDir}: ${error.message}`);
   }
 
   const duplicates = findDuplicateVersions(entries);

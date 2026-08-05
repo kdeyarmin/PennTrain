@@ -106,6 +106,17 @@ jobs:
             "supabase/config.toml"
             "deno.lock"
             ".github/*"
+            # Deploy and toolchain config that nothing else in this list covers. A PR touching only
+            # these set application=false AND database=false, every gated job was skipped, and
+            # ci-result aggregates a skipped job as success -- so it merged with no validation at
+            # all. railway.json/railpack.json are the start command and build plan that
+            # check:startup exercises; tsconfig.base.json is the base config every workspace
+            # extends, so it moves typecheck everywhere; .nvmrc is the Node version, and its
+            # sibling .node-version was already listed.
+            "railway.json"
+            "railpack.json"
+            "tsconfig.base.json"
+            ".nvmrc"
           )
 
           # database → local Supabase stack, advisors, types drift, Playwright e2e
@@ -125,6 +136,8 @@ jobs:
             "scripts/check-journey-coverage*"
             "scripts/seed-course-video-placeholders*"
             ".github/*"
+            # The e2e run builds CareBase, and every workspace tsconfig extends this one.
+            "tsconfig.base.json"
           )
 
           # migration-immutability → only when migration files or its checker/allowlist change
