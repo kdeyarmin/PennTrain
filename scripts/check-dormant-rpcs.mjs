@@ -306,7 +306,14 @@ const clientFiles = await walk(
   CLIENT_SRC,
   (f) => /\.(ts|tsx)$/.test(f) && !f.endsWith("database.types.ts") && !/\.test\.(ts|tsx)$/.test(f),
 );
-const edgeFiles = await walk(EDGE_FUNCTIONS, (f) => /\.(ts|js)$/.test(f));
+// Test files excluded on BOTH sides. The client walk above has always dropped `*.test.ts(x)`; this
+// one did not, so a Deno edge-function test calling an RPC certified it as reached. A function
+// whose only caller is its own test is exactly what "dormant" means -- the check existed to find
+// shipped SQL nothing invokes, and a test invoking it is not the product invoking it.
+const edgeFiles = await walk(
+  EDGE_FUNCTIONS,
+  (f) => /\.(ts|js)$/.test(f) && !/\.test\.(ts|js)$/.test(f),
+);
 // Comments and string literals are blanked here for the same reason they are in the SQL scan: a
 // function named in prose is not a caller. This bit the check within minutes of the SQL fix landing
 // -- the note explaining why `useIssueCertificate` had been deleted mentioned the RPC by name, and

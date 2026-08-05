@@ -81,9 +81,32 @@ export function parseVerifyJwt(configToml) {
  * run-data-lifecycle's handler still passed, which is how this was found.
  */
 export function blankDeclarationHeads(source) {
-  return source.replace(
+  return blankImportStatements(source).replace(
     /\b(?:export\s+)?(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z_$][\w$]*)/g,
     (match) => " ".repeat(match.length),
+  );
+}
+
+/**
+ * Blank whole import statements, for the same reason declaration heads are blanked -- and it is the
+ * same bug, one site further along.
+ *
+ * Blanking `export function requireCronRequest` stopped the gate certifying its own definition, but
+ * left `import { requireCronRequest } from "../_shared/cronAuth.ts"` matching the marker. An import
+ * is never a use: it says the name is in scope, not that anything calls it. Measured, not inferred
+ * -- deleting every `requireCron*(` call site from run-data-lifecycle/handler.ts and leaving line 1
+ * alone still produced "each with a declared and reachable gate". That certification covers 34
+ * functions running with `verify_jwt = false`, so the one gate standing between them and the open
+ * internet could be deleted without CI noticing.
+ *
+ * Every non-newline character is replaced with a space so offsets and line numbers are unchanged,
+ * and multi-line import lists collapse safely. Note importClosure walks the RAW text for its
+ * relative-import edges, so blanking here cannot shorten the closure it builds.
+ */
+export function blankImportStatements(source) {
+  return source.replace(
+    /^[ \t]*import\b[\s\S]*?from\s*["'][^"']*["'][ \t]*;?/gm,
+    (match) => match.replace(/[^\n]/g, " "),
   );
 }
 
@@ -206,6 +229,34 @@ const SELF_TEST_CASES = [
   {
     name: "a complete entry is clean",
     run: () => validateRegistryShape({ x: { gates: ["cron-secret"], rationale: "y" } }, new Map([["x", false]])).length === 0,
+  },
+  {
+    // The vacuity this check has now had twice: first the marker matched its own declaration, then
+    // it matched the import that brings the name into scope. Both certify a gate nothing calls.
+    name: "an import of the gate does not prove the gate",
+    run: () => {
+      const importOnly = 'import { requireCronRequest } from "../_shared/cronAuth.ts";\n\nDeno.serve(() => new Response("ok"));\n';
+      return gateIsProven("cron-secret", blankDeclarationHeads(importOnly)) === false;
+    },
+  },
+  {
+    name: "calling the gate still proves it",
+    run: () => {
+      const called = 'import { requireCronRequest } from "../_shared/cronAuth.ts";\n\nDeno.serve((req) => requireCronRequest(req, {}) ?? new Response("ok"));\n';
+      return gateIsProven("cron-secret", blankDeclarationHeads(called)) === true;
+    },
+  },
+  {
+    // Length and line count have to survive, or every other offset in the closure shifts.
+    name: "blanking an import preserves its newlines",
+    run: () => {
+      const source = 'import {\n  a,\n  b,\n} from "./x.ts";\nconst y = 1;\n';
+      const blanked = blankImportStatements(source);
+      return blanked.length === source.length
+        && blanked.split("\n").length === source.split("\n").length
+        && blanked.includes("const y = 1;")
+        && !blanked.includes("a,");
+    },
   },
 ];
 
