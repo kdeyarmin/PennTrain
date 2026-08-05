@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(24);
 
 select has_table('public', 'resident_service_requirements', 'service requirements use a dedicated high-volume model');
 select has_table('public', 'resident_service_task_instances', 'scheduled service task instances exist');
@@ -227,6 +227,93 @@ select ok(
       and scheduled_start::date >= public.pa_today() + 1
   ),
   'future prior-version tasks are superseded at the new effective date'
+);
+
+-- ---------------------------------------------------------------------------
+-- The legacy command and its successor are not interchangeable (backlog SG-4)
+-- ---------------------------------------------------------------------------
+--
+-- 20260805000000 records why public.record_resident_service_task is retained rather than dropped,
+-- revoked, or reduced to a shim over record_service_task_response. That argument rests entirely on
+-- claims about live behaviour, so they are asserted here rather than only described: a documented
+-- reason that quietly stops being true is worse than no reason at all. If any assertion below
+-- starts failing, the standing gap needs re-deciding, not re-dating.
+
+reset role;
+create temporary table legacy_command_probe(label text primary key, task_id uuid) on commit drop;
+-- Without this grant every statement below that runs as `authenticated` fails 42501 reading the
+-- probe table itself, which for the throws_ok assertion is indistinguishable from the rejection it
+-- is meant to prove. Same trap citation_verification_governance.test.sql documents.
+grant all on legacy_command_probe to authenticated;
+insert into legacy_command_probe(label, task_id)
+select case seq when 1 then 'legacy_by_other' when 2 then 'successor_rejects' else 'successor_no_alert' end, id
+from (
+  select id, row_number() over (order by scheduled_start, id) as seq
+  from public.resident_service_task_instances
+  where source_assessment_form_id = '56000000-0000-4000-8000-000000000302' and status = 'scheduled'
+) ranked
+where seq <= 3;
+
+-- 1. Still an executable surface. This is the fact that makes the other three consequential: an
+-- out-of-repo caller can reach it today, so every way of closing it out is a breaking change.
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.record_resident_service_task(uuid,text,text,boolean,uuid)',
+    'EXECUTE'
+  ),
+  'the superseded service-task command is still granted, so it is a live surface and not dead code'
+);
+
+select pg_temp.act_as('56000000-0000-4000-8000-000000000102');
+
+-- 2 and 3. completed_by_other is an outcome only the legacy command can record, and it lands as
+-- its own status rather than collapsing into a plain completion.
+select lives_ok(
+  $$select public.record_resident_service_task(
+    (select task_id from legacy_command_probe where label = 'legacy_by_other'),
+    'completed_by_other', 'Night aide had already done it.', false, null
+  )$$,
+  'the legacy command accepts completed_by_other'
+);
+select is(
+  (select status from public.resident_service_task_instances
+   where id = (select task_id from legacy_command_probe where label = 'legacy_by_other')),
+  'completed_by_other',
+  'and records it as its own status, distinct from an ordinary completion'
+);
+
+-- 4. The successor cannot express it. acceptable_completion_responses is CHECK-constrained to
+-- seven values that do not include completed_by_other, so a shim has no faithful mapping -- it
+-- would have to send completed_as_planned, which writes status = 'completed'.
+select throws_ok(
+  $$select public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'successor_rejects'),
+    'completed_by_other', '{}'::jsonb, null
+  )$$,
+  '22023',
+  null,
+  'the successor refuses completed_by_other, so a delegating shim would have to record something else'
+);
+
+-- 5. The successor does not evaluate exception thresholds. not_completed is seeded at threshold 1
+-- over 1 day, so the legacy path alerts on the first occurrence; this path produces nothing.
+select lives_ok(
+  $$select public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'successor_no_alert'),
+    'not_completed', jsonb_build_object('note', 'Resident at an appointment.'), null
+  )$$,
+  'the successor records a not_completed response'
+);
+-- Read the alert queue with RLS out of the way: as the employee, an empty result would prove
+-- nothing about whether an alert was written.
+reset role;
+select ok(
+  not exists (
+    select 1 from public.service_task_alerts
+    where task_instance_id = (select task_id from legacy_command_probe where label = 'successor_no_alert')
+  ),
+  'but raises no service_task_alert, so the legacy command is still the only alert-producing path'
 );
 
 select * from finish();
