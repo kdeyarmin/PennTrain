@@ -143,14 +143,25 @@ export function useSaveClinicalCarePlan() {
   }, (input) => input.residentId);
 }
 
+/**
+ * Create a goal, or revise one that exists.
+ *
+ * `goalId` is what makes the second half possible: `save_care_plan_goal` branches on `p_goal_id`,
+ * inserting when it is absent and updating when it is present, and nothing ever passed it. So a
+ * goal's status was rendered on the plan -- proposed, active, achieved, on hold, cancelled -- and
+ * could never leave the value it was created with. A care plan whose goals cannot be marked
+ * achieved is one that only ever grows.
+ */
 export function useSaveCarePlanGoal() {
   return useCareMutation(async (input: {
-    residentId: string; carePlanId: string; description: string; targetMeasure?: string | null; status?: string;
+    residentId: string; carePlanId: string; description: string; targetMeasure?: string | null;
+    status?: string; goalId?: string;
   }) => {
     const { error } = await supabase.rpc("save_care_plan_goal", {
       p_care_plan_id: input.carePlanId, p_description: input.description,
       ...(input.targetMeasure ? { p_target_measure: input.targetMeasure } : {}),
       ...(input.status ? { p_status: input.status } : {}),
+      ...(input.goalId ? { p_goal_id: input.goalId } : {}),
     });
     if (error) throw error;
   }, (input) => input.residentId);

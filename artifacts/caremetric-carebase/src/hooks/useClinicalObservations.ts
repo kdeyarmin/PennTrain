@@ -63,14 +63,20 @@ export interface ClinicalChartSummary {
 export function useResidentClinicalObservations(
   residentId: string | undefined,
   observationType?: ObservationType,
+  // `p_include_retracted` defaults to false server-side and nothing ever passed it, so an
+  // observation retracted as entered-in-error vanished from every screen the moment it was
+  // retracted -- along with the amendment row recording who took it back and why. The chart offers
+  // the retraction; it has to be able to show the result.
+  includeRetracted = false,
 ) {
   return useQuery({
-    queryKey: [CLINICAL_OBSERVATIONS_KEY, residentId, observationType ?? "all"],
+    queryKey: [CLINICAL_OBSERVATIONS_KEY, residentId, observationType ?? "all", includeRetracted],
     enabled: Boolean(residentId),
     queryFn: async (): Promise<ClinicalObservation[]> => {
       const { data, error } = await supabase.rpc("get_resident_clinical_observations", {
         p_resident_id: residentId!,
         ...(observationType ? { p_observation_type: observationType } : {}),
+        ...(includeRetracted ? { p_include_retracted: true } : {}),
       });
       if (error) throw error;
       return (data ?? []) as ClinicalObservation[];

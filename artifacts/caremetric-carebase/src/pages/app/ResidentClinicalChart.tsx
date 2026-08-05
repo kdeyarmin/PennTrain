@@ -46,7 +46,11 @@ export default function ResidentClinicalChart() {
   const { user } = useAuth();
   const { toast } = useToast();
   const resident = useGetResident(id);
-  const observations = useResidentClinicalObservations(id);
+  // Retracted observations are excluded by default -- the chart is what care is delivered from, and
+  // an entered-in-error vital does not belong in it. But the retraction has to remain answerable
+  // afterwards, which is what this shows: the observation, struck through, with the reason.
+  const [showRetracted, setShowRetracted] = useState(false);
+  const observations = useResidentClinicalObservations(id, undefined, showRetracted);
   const fhir = useResidentFhirClinical(id);
   const summary = useResidentClinicalChartSummary(id, "Resident clinical chart view");
 
@@ -398,6 +402,16 @@ export default function ResidentClinicalChart() {
         </TabsContent>
 
         <TabsContent value="vitals" className="space-y-3">
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant={showRetracted ? "secondary" : "ghost"}
+              className="text-xs text-muted-foreground"
+              onClick={() => setShowRetracted((on) => !on)}
+            >
+              {showRetracted ? "Hide retracted" : "Show retracted"}
+            </Button>
+          </div>
           {observations.isError ? (
             <QueryError what="clinical observations" error={observations.error} onRetry={() => observations.refetch()} />
           ) : observations.isLoading ? (
@@ -422,15 +436,26 @@ export default function ResidentClinicalChart() {
                       <div className="mb-1 flex flex-wrap items-center gap-2">
                         <p className="font-medium">{observationTitle(observation)}</p>
                         {badge && <Badge variant="outline" className={badge.className}>{badge.label}</Badge>}
+                        {observation.entered_in_error && (
+                          <Badge variant="outline" className="border-destructive/40 text-destructive">Retracted</Badge>
+                        )}
                       </div>
-                      <p className="text-2xl font-semibold tabular-nums">{observationValue(observation)}</p>
+                      <p className={`text-2xl font-semibold tabular-nums${observation.entered_in_error ? " text-muted-foreground line-through" : ""}`}>
+                        {observationValue(observation)}
+                      </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {new Date(observation.observed_at).toLocaleString()}
                         {observation.recorded_by_name ? ` · ${observation.recorded_by_name}` : ""}
                       </p>
+                      {observation.entered_in_error && observation.error_reason && (
+                        <p className="mt-1 text-xs text-destructive">Entered in error — {observation.error_reason}</p>
+                      )}
                       {observation.note && <p className="mt-2 text-sm">{observation.note}</p>}
                     </div>
-                    {canChart && (
+                    {/* Neither action applies once it is retracted: the server refuses a second
+                        amendment with 'Observation is already retracted', and sending a withdrawn
+                        vital to the resident's EHR is the opposite of what the retraction meant. */}
+                    {canChart && !observation.entered_in_error && (
                       <div className="flex flex-wrap items-center gap-1">
                         <Button
                           size="sm" variant="ghost" className="text-muted-foreground"
