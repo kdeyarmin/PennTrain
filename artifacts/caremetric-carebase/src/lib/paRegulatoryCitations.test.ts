@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   CITATION_REVIEW_MAX_AGE_DAYS, citationDisplayLabel, citationForComplianceItem,
-  citationLibraryAgeInDays, citationsForModule, findCitation, isCitationLibraryStale,
+  citationLibraryAgeInDays, citationsForModule, findCitation,
+  governedStatusByCitation, governedStatusSuffix, isCitationLibraryStale,
   PA_CITATIONS_LAST_VERIFIED, PA_REGULATORY_CITATIONS,
-  type PaRegulatoryCitation,
 } from "./paRegulatoryCitations";
 
 describe("catalog governance", () => {
-  it("gives every citation provenance, a source link, and a verification posture", () => {
+  it("gives every citation provenance and a source link, and claims no verification of its own", () => {
     // A citation with no recorded provenance is indistinguishable from one authored from memory,
     // which is the failure mode this library exists to prevent.
     for (const entry of PA_REGULATORY_CITATIONS) {
@@ -19,8 +19,11 @@ describe("catalog governance", () => {
       expect(entry.requiredEvidence.length).toBeGreaterThan(0);
       expect(entry.modules.length).toBeGreaterThan(0);
       expect(entry.sourceUrl).toMatch(/^https:\/\/www\.pacodeandbulletin\.gov\//);
-      expect(entry.verification.note.length).toBeGreaterThan(20);
-      expect(["verified", "pending_confirmation"]).toContain(entry.verification.status);
+      expect(entry.provenance.note.length).toBeGreaterThan(20);
+      // The whole point of F10: this library records where its wording came from and does NOT
+      // carry a verification status. It used to, and every entry said "verified" while
+      // dhs_citation_topics said `approximate` or `unverified` for the same sections.
+      expect(entry).not.toHaveProperty("verification");
     }
   });
 
@@ -38,33 +41,46 @@ describe("catalog governance", () => {
     expect(new Set(citations).size).toBe(citations.length);
   });
 
-  it("resolves the two grace periods that were pending confirmation as of 2026-08-04", () => {
-    // 2600.141 (PCH medical evaluation) and 2800.225 (ALR annual reassessment) were the last two
-    // pending_confirmation entries -- both closed 2026-08-04 via PA DHS's own Regulatory
-    // Compliance Guides naming each section directly in the chapter's Grace Periods table (see
-    // their verification.note). Checked specifically rather than asserting every entry is
-    // verified: pending_confirmation is a supported, ongoing status (see the module docstring),
-    // not a defect to eliminate, and a future citation legitimately added as unconfirmed should
-    // stay that way rather than force someone to mark it verified just to pass this test. The
-    // mechanism that keeps an unconfirmed entry from displaying as settled is guarded by the
-    // fixture test below.
-    expect(findCitation("2600.141")!.verification.status).toBe("verified");
-    expect(findCitation("2800.225")!.verification.status).toBe("verified");
+  it("keeps the RCG grace-period evidence in the provenance of the two entries it settled", () => {
+    // 2600.141 (PCH medical evaluation) and 2800.225 (ALF annual reassessment) are the two whose
+    // grace periods PA DHS's own Regulatory Compliance Guides settled on 2026-08-04. That research
+    // is the reason those figures are in the rule packs, so it has to survive here as provenance
+    // even though this module no longer asserts a verification status from it.
+    expect(findCitation("2600.141")!.provenance.note).toContain("2600 Regulatory Compliance Guide");
+    expect(findCitation("2800.225")!.provenance.note.length).toBeGreaterThan(20);
   });
 
-  it("carries an unconfirmed status forward rather than upgrading it silently", () => {
-    // Exercised against a constructed fixture rather than a real entry: real data has had nothing
-    // pending since 2026-08-04, and this guarantee should hold regardless of whether anything
-    // currently does. Upgrading a status to "verified" without the label reflecting it would
-    // launder an open question into a settled one.
-    const pending: PaRegulatoryCitation = {
-      ...PA_REGULATORY_CITATIONS[0],
-      citation: "0000.000",
-      verification: { status: "pending_confirmation", note: "test fixture, not a real citation" },
-    };
-    expect(citationDisplayLabel(pending)).toContain("(unconfirmed detail)");
-    expect(citationDisplayLabel(findCitation("2600.225")!)).not.toContain("unconfirmed");
-    expect(citationDisplayLabel(findCitation("2600.225")!)).toBe("55 Pa. Code § 2600.225 — Initial and annual assessment");
+  it("says 'not verified' when no governed status is supplied, rather than staying silent", () => {
+    // The truthful default. Every entry in this library is currently in exactly this position:
+    // record_citation_verification() has never been invoked for any citation, so nothing is
+    // governed-verified, and a label that said nothing would read as settled.
+    const label = citationDisplayLabel(findCitation("2600.225")!);
+    expect(label).toBe("55 Pa. Code § 2600.225 — Initial and annual assessment (not verified)");
+  });
+
+  it("reflects the governed status it is given, and adds nothing once verified", () => {
+    const entry = findCitation("2600.225")!;
+    expect(citationDisplayLabel(entry, "verified")).toBe("55 Pa. Code § 2600.225 — Initial and annual assessment");
+    expect(citationDisplayLabel(entry, "approximate")).toContain("approximate");
+    expect(citationDisplayLabel(entry, "superseded")).toContain("superseded");
+    expect(citationDisplayLabel(entry, "unverified")).toContain("not verified");
+  });
+
+  it("treats a missing governed row the same as an explicit unverified one", () => {
+    expect(governedStatusSuffix(undefined)).toBe(governedStatusSuffix("unverified"));
+    expect(governedStatusSuffix(null)).toBe(governedStatusSuffix("unverified"));
+  });
+
+  it("indexes governed statuses by citation, splitting rows that name several sections", () => {
+    const byRef = governedStatusByCitation([
+      { citation_ref: "2600.141", verification_status: "approximate" },
+      { citation_ref: "2600.65 / 2800.65", verification_status: "verified" },
+      { citation_ref: null, verification_status: "unverified" },
+    ]);
+    expect(byRef["2600.141"]).toBe("approximate");
+    expect(byRef["2600.65"]).toBe("verified");
+    expect(byRef["2800.65"]).toBe("verified");
+    expect(Object.keys(byRef)).toHaveLength(3);
   });
 });
 

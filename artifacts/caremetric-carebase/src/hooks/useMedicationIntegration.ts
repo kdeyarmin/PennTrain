@@ -83,6 +83,45 @@ export function useResolveMedicationIntegrationException() {
   });
 }
 
+/**
+ * Linking an external eMAR resident id to a CareBase resident.
+ *
+ * THE GAP THIS CLOSES. `map_medication_resident` is the only path that creates a
+ * `medication_resident_mappings` row, and it had no caller. An `unmatched_resident` exception --
+ * the eMAR sending administration data for somebody CareBase cannot identify -- could be
+ * acknowledged or dismissed through the UI and never actually fixed. Meanwhile the medication
+ * evidence for that resident never reaches their chart or their timeline, because everything
+ * downstream joins through the mapping this function writes.
+ *
+ * The RPC resolves the exception itself on success, so no second call is needed and the two cannot
+ * disagree about whether the mapping happened.
+ */
+export function useMapMedicationResident() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      sourceId: string;
+      residentId: string;
+      externalResidentId: string;
+      facilityId: string;
+    }) => {
+      const { data, error } = await supabase.rpc("map_medication_resident" as never, {
+        p_source_id: input.sourceId,
+        p_resident_id: input.residentId,
+        p_external_resident_id: input.externalResidentId,
+      } as never);
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: ["medication-integration", input.facilityId] });
+      // The mapping is what lets administration events reach the chart, so the resident's own
+      // surfaces are stale the moment it lands.
+      queryClient.invalidateQueries({ queryKey: ["resident-timeline", input.residentId] });
+    },
+  });
+}
+
 export function useAssignMedicationIntegrationException() {
   const queryClient = useQueryClient();
   return useMutation({

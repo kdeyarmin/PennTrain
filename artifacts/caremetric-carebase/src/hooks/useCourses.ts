@@ -469,3 +469,47 @@ export function useDeleteCourseBlock() {
     },
   });
 }
+
+/**
+ * Correcting a published course block in an emergency (BACKLOG.md G12.2).
+ *
+ * Published versions are locked, and that lock is the point: learners are being assessed against
+ * what they were shown, so content cannot move underneath a completion record. But a published
+ * course can still contain something that has to change now rather than at the next version -- a
+ * wrong medication dose, a rescinded regulation, a named person who must not be named.
+ *
+ * `admin_emergency_update_course_block` is that exit, and it had no caller, so the only options
+ * were to leave the error published or to unpublish the course. It is platform-admin only, demands
+ * a written reason of at least ten characters, and writes the before and after into `audit_logs` --
+ * the correction is recorded as an exception, which is what makes it usable without eroding the
+ * lock it steps around.
+ */
+export function useEmergencyUpdateCourseBlock(courseVersionId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      blockId: string;
+      reason: string;
+      title?: string;
+      body?: unknown;
+      videoUrl?: string;
+      documentId?: string;
+    }) => {
+      // Only the fields being corrected are sent. The function coalesces each against the current
+      // value, so omitting one leaves it alone rather than blanking it.
+      const { error } = await supabase.rpc("admin_emergency_update_course_block" as never, {
+        p_course_block_id: input.blockId,
+        p_reason: input.reason,
+        ...(input.title !== undefined ? { p_title: input.title } : {}),
+        ...(input.body !== undefined ? { p_body: input.body } : {}),
+        ...(input.videoUrl !== undefined ? { p_video_url: input.videoUrl } : {}),
+        ...(input.documentId !== undefined ? { p_document_id: input.documentId } : {}),
+      } as never);
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course_blocks", courseVersionId] });
+    },
+  });
+}

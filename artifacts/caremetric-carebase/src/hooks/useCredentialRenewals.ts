@@ -64,7 +64,7 @@ export function useReviewCredentialRenewal() {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["credential-renewal-submissions"] });
       client.invalidateQueries({ queryKey: ["qualified-workforce"] });
-      client.invalidateQueries({ queryKey: ["employee-credentials"] });
+      client.invalidateQueries({ queryKey: ["employee_credentials"] });
     },
   });
 }

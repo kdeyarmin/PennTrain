@@ -815,6 +815,13 @@ match the generator's output. CI's database job is the check on both.
 
 All three are surfaced in the panel's "checks not yet covered" section rather than silently omitted.
 
+**All three are now closed**, which is the point of having listed them. The increased-assistance and
+refusal cards landed with Phase 4b's typed `completion_response` rows; the care-level review card
+landed once the Financial tab took ownership of that query; and the Appointments tab landed in
+"Phase 1b completion" below, along with the three appointment states that had no write path.
+`UNAVAILABLE_CARDS` and `PLANNED_TABS` are both empty arrays now, kept as exports so a future
+deferral has somewhere to declare itself.
+
 ### Phase 2 — 2a and 2c delivered; 2b outstanding
 
 Phase 2 has three parts. Two landed complete; the template engine (2b) is the largest single piece
@@ -1440,6 +1447,185 @@ and the connections to compliance requirements and training. The content itself 
 this seat: the plan names a confidently-wrong citation in a survey packet as this product's worst
 failure mode, and citations written from memory rather than from the regulation are exactly that.
 Seeding needs a compliance SME with the source text in front of them.
+
+### Phase 10b completion — The verification mechanism had no way in
+
+**Tier G's sharpest row, and the second confirmed instance of the same shape.** Phase 10b's entry in
+this log says the deliverable is *the mechanism*: a status that cannot be claimed without a named
+person, a date, and a source URL, with seeding left to a compliance SME. That was the right call and
+it is still the right call. What the sweep found is narrower and worse: `record_citation_verification`,
+`record_citation_superseded` and `get_citation_governance_status` had **no caller anywhere** outside
+pgTAP. The display half was wired — `citationDisplay` reaches `InspectionReadiness.tsx`, so operators
+correctly saw "(2600.65 — approximate)". The write half had no surface. Every citation sat at
+`unverified` or `approximate` permanently, and an SME with the regulation open had no way in either.
+
+The numbers on a fresh database: **22 topics, 16 unverified, 6 approximate, 0 verified** — and no
+path to change that.
+
+| Delivered | Detail |
+| --- | --- |
+| `CitationGovernanceSection` | Lazy (9.1 KiB), on `/admin/regulatory-updates` — status counts, a stale-verification warning, and the full topic table showing each row's live qualifier next to its reference |
+| Verification dialog | Pre-filled with what is on record so confirming an existing number is one field, not four — and editable, because confirming a wrong number is the failure the mechanism exists to prevent |
+| `verificationFormIssues` / `supersessionFormIssues` | The server's rules stated up front instead of discovered by submitting. These are the two halves of one decision, not a client-side gate: the server still refuses, and both refusals were exercised |
+
+**Verified end-to-end over PostgREST as a platform admin**, not asserted. A verification with no
+source is refused — *"Verification requires the source the citation was read from"*. A real one moves
+the row to `verified` with `verified_by` and `verified_on` stamped, and the governance summary goes
+`{unverified: 16, approximate: 6}` → `{verified: 1, unverified: 16, approximate: 5}`. A supersession
+naming no successor is refused. That is the first citation in this product's history to reach
+`verified`, which is the whole point: the count was structurally stuck at zero.
+
+**No content was seeded, and that is deliberate and unchanged.** The plan names a confidently-wrong
+citation in a survey packet as this product's worst failure mode; values come from a person with the
+regulation open, one row at a time, each carrying the URL they read. What changed is only that such a
+person now has somewhere to put the answer.
+
+**Verified:** typecheck clean; 1,386 tests across 146 files (9 new on the form rules); build
+succeeds; all bundle budgets pass with the resident shell unchanged at 68.3 KiB.
+
+### Phase 5b completion — The hospital return had no write path
+
+**Found by sweeping, not by reading.** After the Appointments tab closed the last `PLANNED_TABS`
+entry, the obvious question was whether anything else had the same shape: schema, RPCs, RLS and
+grants all present, and no caller anywhere. Checking every `public` RPC granted to `authenticated`
+against the client and edge-function source found **79 of 556 with no caller**. Most are legitimate
+— RLS helpers (`current_role`), clock helpers (`pa_now`), functions called from other function
+bodies. One was not.
+
+**`complete_hospital_return` had never been called by anything.** `start_hospital_transfer` *is*
+wired, from the facility-wide care-delivery page, so an episode could reach `status = 'out'` — and
+stop there permanently. `ResidentHospitalSection` rendered, for that state, one sentence: *"The
+resident is currently out. Reconciliation starts when they return."* There was no way to record a
+return.
+
+Everything Phase 5b delivered hung off that one call, and all of it was unreachable:
+
+| Delivered in Phase 5b | Reachable before this pass |
+| --- | --- |
+| The five-step reconciliation checklist | No — needs `status = 'returned'` |
+| `complete_hospital_return_reconciliation`'s gated closure | No |
+| The seeded `hospital_return_review` draft | No |
+| The 24-hour follow-up work item (`hospital_return` source type) | No |
+| The `hospital_return_reconciliation` card in Needs Attention | No |
+
+| Delivered now | Detail |
+| --- | --- |
+| `RecordHospitalReturnDialog` | Return time, discharge document, medication-reconciliation and order-acknowledgement status, the five change fields, and the two review-required flags |
+| `suggestedReviewFlags` | The two flags are *proposed with a reason*, not pre-ticked. The RPC defaults both to true, which is right for a server and wrong for a form: two boxes pre-checked on every return are two boxes nobody reads, and these are what seed the review and gate the closure. The proposal is derived from what the person actually typed, and a deliberate override is never silently overwritten by the next keystroke |
+| Section wiring | The dead-end paragraph becomes a paragraph plus a **Record return** button, manager-gated, with the server enforcing the same rule |
+
+**Verified end-to-end against a real stack, through the path the client actually takes.** The 12
+parameter names were checked against the live function signature, then the RPC was driven over
+PostgREST as an authenticated `org_admin` — not as `service_role`, which the function's grant
+excludes. The episode moved to `returned`, the work item landed as `hospital_return` / open / due in
+24 hours, the `hospital_return_review` was seeded as a draft, and the stay appeared on the timeline.
+That is the whole of Phase 5b becoming reachable, asserted rather than assumed.
+
+`pnpm run test` passes 1,377 tests across 146 files (7 new on the proposal logic); typecheck clean;
+build succeeds; the resident shell is unchanged at 68.3 KiB and the dialog landed in
+`ResidentHospitalSection`'s own 15.8 KiB chunk.
+
+**What this does not do.** Starting a transfer is still only reachable from the facility-wide care
+delivery page, not from the resident's own record — a discoverability gap, not a dead end, and left
+alone rather than duplicated. The rest of the sweep's findings are recorded as `BACKLOG.md` Tier G
+rather than fixed here; the sharpest is **G2**, Phase 10b's citation-verification write paths, which
+have the identical no-caller shape and mean no compliance SME can record a verification through any
+surface that exists.
+
+### Phase 1b completion — The Appointments tab, and the three states behind it that had no exit
+
+**The last tab in the request, and the reason it was held back.** `PLANNED_TABS` has carried one
+entry since Phase 1: Appointments, with the reason "`resident_appointments` has no read surface on
+the resident record yet." That was the honest call at the time and it was never revisited.
+
+Checking before building found the gap was larger than "no read surface." `resident_appointments`
+shipped in `20260714100000` with fourteen columns of transport and preparation detail, a scheduling
+RPC, an outcome RPC, an RLS policy, and grants — and **no application code has ever read or written
+a row.** Three of its states had no path out of them, so a tab rendered over the schema as it stood
+would have shown dead ends rather than work:
+
+| Dead end | What it meant on the floor |
+| --- | --- |
+| `documents_required`, `equipment_required`, `preparation_checklist` written at scheduling, never revisited | A resident leaves for cardiology without the medication list, because nothing recorded that the list was supposed to travel |
+| `new_order_ack_status` reaches `'pending_review'` and stops | The same failure Phase 5b named for hospital returns — "an order nobody acknowledged is an order nobody is carrying out" — with no equivalent of `complete_hospital_return_reconciliation` |
+| `record_appointment_outcome` opens a follow-up work item; nothing closes it | The universal queue accumulates appointment follow-ups closable only through the generic path, severing the link back |
+
+| Delivered | Detail |
+| --- | --- |
+| Preparation as real rows | `resident_appointment_preparation_items` — one row per required document, piece of equipment, and checklist entry, **derived by a trigger** from the three arrays the untouched creator already writes. A caller that never heard of this migration gets tracking |
+| Readiness costs a name | `ready_by` / `ready_at` required by CHECK whenever `ready` is true. `set_appointment_preparation_item` is the only way in, and reopening an item retracts a sign-off it would otherwise contradict |
+| Gated departure sign-off | `complete_appointment_preparation` refuses while required items are unready **and names them**, mirroring the hospital-return gate |
+| The acknowledgement path that did not exist | `acknowledge_appointment_new_order`, note required, acknowledger and instant recorded. `record_appointment_outcome` can no longer grant `'acknowledged'` — it carries neither |
+| Gated follow-up closure | `complete_appointment_follow_up` refuses over a missing outcome summary or an unacknowledged order, then closes the work item with it |
+| Reschedule as a link | `reschedule_resident_appointment` creates the successor, inherits transport and preparation, and a CHECK makes `status = 'rescheduled'` unreachable without one. `record_appointment_outcome` now refuses a bare reschedule and says which RPC to use |
+| Timeline | Appointments join the union. The body was **generated** from `20260726070100` rather than retyped, and a line-level diff confirmed nothing but the new branch changed — the trap that file's own comment warns about |
+| Tab and panel | `AppointmentsTab.tsx` (lazy, 22.6 KiB) plus three Needs Attention card kinds, both reading the same pure `residentAppointments.ts` helpers the server's gates mirror |
+| `PLANNED_TABS` | **Empty.** Every tab the request named is now built |
+
+**A re-declaration that had to justify itself.** `record_appointment_outcome` is rewritten, which
+this repository treats as a hazard — one earlier re-declaration silently dropped a validation a later
+migration had added. Two facts make it safe here and both were checked rather than assumed: the
+function is fifteen lines, and no migration between `20260714100000` and now touches it. The three
+changes are marked inline as CHANGE 1/2/3. One is a real bug fix beyond the stated scope: a second
+outcome edit was resetting `new_order_ack_status` to `'not_applicable'`, silently discarding an
+acknowledgement already on file.
+
+**Two bugs of my own, both found by exercising the code rather than reading it.**
+
+1. *Rescheduling an appointment conflicted with itself.* Moving an appointment with an assigned
+   driver to any overlapping time failed with "Driver has a transportation conflict" — the successor
+   is inserted before the original can be marked superseded, because the successor's id is what
+   marks it, so the original was still holding the slot. Two fixes, and both are needed: the conflict
+   predicate in `schedule_resident_appointment` now ignores rows that already name a successor (a
+   superseded appointment must not retire that driver's window permanently), and the reschedule RPC
+   releases the original's driver and escort for the duration of the insert, restoring them from the
+   locked snapshot so the record of who was assigned survives. That second re-declaration was
+   generated with a single substitution and every other line asserted identical — two lines differ,
+   both of them the conflict checks.
+2. *A superseded appointment raised an urgent card that nothing could clear.* `buildPreparationState`
+   treated `rescheduled` as still applicable, on the reasoning that the replacement inherits the
+   preparation list. It does — as its own rows, on its own appointment. The superseded row kept its
+   original start date, so `overdue` went true against items nobody would ever tick. Exactly the
+   "permanent, unactionable rows in the panel" failure the filter around it exists to prevent.
+
+Both now have named regression tests; the first is asserted by running the reschedule, not by
+asserting the predicate.
+
+**The bundle budget caught what it exists to catch.** The first build put the resident shell at 70.9
+KiB against its 70 KiB budget. The cause was real: the shell imports the appointment read queries to
+feed the Needs Attention panel, and was dragging seven mutations along with them. Splitting
+`useResidentAppointmentMutations.ts` into the tab's own chunk is the fix; the budget then went 70 →
+80 KiB deliberately, on main's own measurement of 61.9 KiB (88.4% — already inside the warning band
+before this branch) against the branch's 68.3 KiB. No tab module leaked into the shell.
+
+**The audit manifest was classified, not parked.** A new public table absent from
+`app_private.audit_entity_manifest` is invisible to the coverage report, which then reads as
+complete — the failure `audit_manifest_covers_every_table.test.sql` ratchets against. The
+`unclassified` backlog would have accepted the row and its ceiling had four slots free, but that
+bucket means "added after the Phase 1 snapshot and nobody has looked." Filing a table reviewed while
+it was being designed under "nobody looked" would be false. It is `domain_evidence`: each row carries
+the person and instant under a CHECK, so a row trigger would copy `ready_by` into `audit_logs` on
+every checkbox tick and corroborate nothing.
+
+**Verified, against a real local Supabase stack** (Docker was available in this environment, unlike
+every prior slice in this log): the migration applies from a `db reset --no-seed`; **all 3,083 pgTAP
+assertions across 128 files pass**, including 35 new ones in
+`resident_appointment_lifecycle.test.sql` that drive every RPC as an authenticated `org_admin`
+rather than writing end states directly; `db lint --level error` and `db advisors --type all
+--fail-on error` both clean, with zero ERROR-level findings and none naming the new objects.
+`database.types.ts` was **regenerated by the real generator** and byte-matches the live database —
+not hand-extended as in earlier slices. Typecheck clean; 1,370 unit tests across 146 files pass (45
+new); build succeeds; all bundle budgets pass.
+
+**One check could not run here and why:** `scripts/check-database-types.mjs` exits non-zero in this
+sandbox because the Supabase CLI's PostHog telemetry cannot reach the network and appends a timeout
+error to stdout after the generated types. The generated content itself was compared to the
+checked-in file with that tail stripped and matches exactly; CI is the check on the wrapper.
+
+**What this does not do.** It does not add an appointment *calendar* — `resident_appointments` has a
+facility-wide index built for exactly that, and a board across residents is a different surface from
+a resident's record. The tab is the item the request named; the board is not tracked as blocked
+because nothing asked for it.
 
 ### Phase 0a — The journey coverage ratchet
 

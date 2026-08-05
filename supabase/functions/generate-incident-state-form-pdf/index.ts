@@ -165,7 +165,10 @@ Deno.serve(async (req: Request) => {
   if (reporterError) return json(req, { error: reporterError.message }, 500);
   if (residentError) return json(req, { error: residentError.message }, 500);
 
-  const templateBytes = await fetchDhsTemplate(INCIDENT_FORM_TEMPLATE);
+  // Created here rather than at the upload below, because the template cache lives in storage and
+  // reaching it needs the service role. A cache hit means this request never touches pa.gov.
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const templateBytes = await fetchDhsTemplate(INCIDENT_FORM_TEMPLATE, adminClient);
   const doc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
   let form: any = null;
   try {
@@ -277,7 +280,6 @@ Deno.serve(async (req: Request) => {
   // (signature, any field this app has no data for) before using it.
   const pdfBytes = await doc.save();
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const path = `${incident.organization_id}/${incident.id}-state-form.pdf`;
 
   const { error: uploadError } = await adminClient.storage.from(REPORTS_BUCKET).upload(path, pdfBytes, {

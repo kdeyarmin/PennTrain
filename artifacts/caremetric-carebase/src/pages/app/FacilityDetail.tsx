@@ -27,6 +27,7 @@ import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListEmployeeSchedulePreferences } from "@/hooks/useEmployeeSchedulePreferences";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
+import { FacilityClinicalCard } from "@/components/facilities/FacilityClinicalCard";
 import { useToast } from "@/hooks/use-toast";
 import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { FREQUENCY_OPTIONS, responsiblePartyOptions } from "@/lib/residentAssessmentFormSchema";
@@ -361,6 +362,13 @@ export default function FacilityDetail() {
         facilityId={facility.id}
         facilityType={facility.facility_type}
         canManage={["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "")}
+      />
+
+      <FacilityClinicalCard
+        facilityId={facility.id}
+        facilityName={facility.name}
+        clinicalEnabled={facility.clinical_enabled}
+        canManage={["platform_admin", "org_admin"].includes(user?.role ?? "")}
       />
 
       {/* Public safety-report poster QR — opaque token, never show facility UUID */}

@@ -7,6 +7,7 @@ import {
   usePublishPolicyDocumentVersion, usePolicyDocumentSignedUrl, type PolicyDocumentVersion,
 } from "@/hooks/usePolicyDocuments";
 import {
+  useListCampaignQuestions,
   useListPolicyAttestationCampaigns,
   useListPolicyAttestations, useAssignPolicyAttestationToEmployee, type PolicyAttestation,
   useCreatePolicyCampaignWithQuestions, type CampaignTargeting,
@@ -158,6 +159,61 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
 // per-employee "multiple items" level to fan out over here since a campaign
 // is exactly one policy version).
 // ---------------------------------------------------------------------------
+
+/**
+ * What a campaign actually asks (BACKLOG.md G16.21).
+ *
+ * A campaign is created atomically with its questions by `create_policy_campaign_with_questions`,
+ * and after that nothing could show an administrator what it asks -- the authoring-side read had no
+ * renderer, so a campaign already in flight was a black box to the person who owns it. The
+ * employee-side read (`usePolicyKnowledgeCheck`, deliberately without the answer key) was rendered
+ * all along.
+ *
+ * This is the authoring view, so it does show the key. It sits inside the campaign's own expanded
+ * panel on a page already restricted to policy administrators, which is the same boundary the
+ * questions were authored behind.
+ */
+function CampaignQuestions({ campaignId }: { campaignId: string }) {
+  const questions = useListCampaignQuestions(campaignId);
+  const rows = questions.data ?? [];
+
+  if (questions.isLoading) return <div className="mt-3 h-10 animate-pulse rounded bg-muted" />;
+  if (rows.length === 0) {
+    return (
+      <p className="mt-3 text-xs text-muted-foreground">
+        Read-and-sign campaign — no knowledge check.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Knowledge check ({rows.length} question{rows.length === 1 ? "" : "s"}) — correct answers shown
+      </p>
+      {rows.map((question) => {
+        const choices = Array.isArray(question.choices) ? (question.choices as string[]) : [];
+        return (
+          <div key={question.id} className="rounded border p-2 text-sm">
+            <p className="font-medium">{question.display_order + 1}. {question.prompt}</p>
+            <ul className="mt-1 space-y-0.5">
+              {choices.map((choice, index) => (
+                <li
+                  key={index}
+                  className={index === question.correct_choice_index
+                    ? "text-emerald-700 dark:text-emerald-500"
+                    : "text-muted-foreground"}
+                >
+                  {index === question.correct_choice_index ? "✓ " : "· "}{choice}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function AssignCampaignDialog({
   campaignId, policyDocumentVersionId, dueDate, open, onClose,
@@ -455,7 +511,12 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
                       Assign Employees
                     </Button>
                   </div>
-                  {expandedId === c.id && <CampaignRoster campaignId={c.id} />}
+                  {expandedId === c.id && (
+                    <>
+                      <CampaignQuestions campaignId={c.id} />
+                      <CampaignRoster campaignId={c.id} />
+                    </>
+                  )}
                 </div>
               ))}
             </div>

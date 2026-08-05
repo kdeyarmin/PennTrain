@@ -100,6 +100,54 @@ export function citationDisplay(topic: CitationLike, today: Date = new Date()): 
   }
 }
 
+/**
+ * What is wrong with a verification a person is about to record, in their words.
+ *
+ * `record_citation_verification` refuses a verification with no source URL, and a CHECK on the table
+ * independently refuses `'verified'` without a verifier, a date, **and** a source. That is the right
+ * server behaviour and a bad first experience: the operator finds out by submitting. This states the
+ * same rules up front, and the server still enforces them -- these are the two halves of one
+ * decision, not a client-side gate.
+ *
+ * Empty array means "nothing wrong that this form can see".
+ */
+export function verificationFormIssues(input: {
+  citationRef: string;
+  sourceUrl: string;
+  verifiedOn: string;
+  today?: Date;
+}): string[] {
+  const issues: string[] = [];
+  if (!input.citationRef.trim()) {
+    issues.push("Enter the section number exactly as it appears in the regulation.");
+  }
+  const source = input.sourceUrl.trim();
+  if (!source) {
+    // The whole point of the mechanism: a verification nobody can retrace is a claim, not evidence.
+    issues.push("A source URL is required — a verification nobody can retrace is not evidence.");
+  } else if (!/^https?:\/\/\S+$/u.test(source)) {
+    issues.push("The source must be a URL, so the next person can open what you read.");
+  }
+  if (input.verifiedOn) {
+    const verified = new Date(`${input.verifiedOn}T00:00:00`);
+    if (Number.isNaN(verified.valueOf())) {
+      issues.push("Verification date is not a real date.");
+    } else if (verified.valueOf() > (input.today ?? new Date()).valueOf()) {
+      issues.push("Verification date cannot be in the future.");
+    }
+  }
+  return issues;
+}
+
+/** Same, for recording that a citation has been replaced. */
+export function supersessionFormIssues(input: { supersededByRef: string }): string[] {
+  // A supersession with no successor loses the only thing that makes it actionable: where to look
+  // instead. The table's CHECK refuses it too.
+  return input.supersededByRef.trim()
+    ? []
+    : ["Name the section that replaces this one — 'superseded' with no successor tells nobody where to look."];
+}
+
 /** Formats a reference for inline display, e.g. "(2600.65 — approximate)". */
 export function inlineCitation(topic: CitationLike, today: Date = new Date()): string {
   const display = citationDisplay(topic, today);

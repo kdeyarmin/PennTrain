@@ -312,6 +312,55 @@ export function useWorkforceSelfServiceQueues(facilityId?: string) {
   });
 }
 
+/**
+ * The requester's own pending swaps, and withdrawing one (BACKLOG.md G7).
+ *
+ * `request_shift_swap` and `decide_shift_swap` were both wired; `cancel_shift_swap_request` was not,
+ * by anything. So an employee could propose a swap and a manager could decide it, but the requester
+ * could not withdraw one they no longer wanted -- it sat in the manager's queue until decided, and
+ * the only way out was to ask a manager to deny something nobody was asking for any more.
+ *
+ * The RPC scopes itself to the requester (`e.profile_id = auth.uid()`), so this is deliberately a
+ * self-service surface rather than a second manager control. `shift_swap_requests_select` already
+ * lets an employee read their own rows, so the list needs no new policy.
+ */
+export function useMyShiftSwapRequests(employeeId?: string) {
+  return useQuery({
+    queryKey: ["my-shift-swap-requests", employeeId ?? "none"],
+    enabled: Boolean(employeeId),
+    queryFn: async () => {
+      const { data, error } = await asRpc().from("shift_swap_requests")
+        .select("*, target:employees!shift_swap_requests_target_employee_id_fkey(first_name,last_name), requester_assignment:shift_assignments!shift_swap_requests_requester_assignment_id_fkey(shift_date,start_time,end_time)")
+        .eq("requester_employee_id", employeeId!)
+        .eq("status", "pending")
+        .order("requested_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Record<string, any>[];
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useCancelShiftSwapRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { requestId: string; reason: string }) => {
+      const { data, error } = await asRpc().rpc("cancel_shift_swap_request", {
+        p_request_id: input.requestId,
+        p_reason: input.reason,
+      });
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-shift-swap-requests"] });
+      // The manager's queue is the same rows from the other side; leaving it stale would show a
+      // withdrawn swap as still awaiting a decision.
+      queryClient.invalidateQueries({ queryKey: ["workforce-self-service-queues"] });
+    },
+  });
+}
+
 export function useDecideTimeOffRequest() {
   const queryClient = useQueryClient();
   return useMutation({

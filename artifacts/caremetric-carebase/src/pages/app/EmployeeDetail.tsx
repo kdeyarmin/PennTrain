@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,21 @@ import {
 } from "@/hooks/useOnboarding";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
+
+// Its own chunk: only an assessor running a bedside observation needs it, and this page is already
+// 1,037 lines.
+const CertificationAttemptSection = lazy(
+  () => import("@/components/workforce/CertificationAttemptSection"),
+);
+// Same reasoning: only a manager checking who may sign needs the duty rules and the override form.
+const DutyEligibilityCard = lazy(
+  () => import("@/components/employees/DutyEligibilityCard").then((m) => ({ default: m.DutyEligibilityCard })),
+);
+const EmployeeAccessCard = lazy(
+  () => import("@/components/employees/EmployeeAccessCard").then((m) => ({ default: m.EmployeeAccessCard })),
+);
 import { useInviteUser } from "@/hooks/useProfiles";
+import { useEmployeeAccessActive } from "@/hooks/useEmployeeAccess";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
 import {
@@ -115,6 +129,7 @@ export default function EmployeeDetail() {
   const { data: employee, isLoading: empLoading, isError: empError, error: empErr, refetch: refetchEmployee } = useGetEmployee(id);
   usePageTitle(employee ? `${employee.first_name} ${employee.last_name}` : undefined);
   const { data: facility } = useGetFacility(employee?.facility_id);
+  const accessActive = useEmployeeAccessActive(employee?.profile_id ? employee.id : undefined);
   const { data: facilities } = useListFacilities();
   // Scoped to this employee's own org (unlike Practicums.tsx's equivalent qualifiedObservers list,
   // which is left unfiltered) so a platform_admin viewing one org's employee doesn't get another
@@ -369,8 +384,23 @@ export default function EmployeeDetail() {
               {employee.administers_medications && <Badge variant="outline">Medication Administrator</Badge>}
               {employee.trainer_status && <Badge variant="outline">Trainer</Badge>}
               {employee.worker_type !== "regular" && <Badge variant="outline">{employee.worker_type}</Badge>}
-              <Badge variant="outline" className={employee.profile_id ? "border-success/40 text-success" : "text-muted-foreground"}>
-                {employee.profile_id ? "Portal access active" : "No portal access"}
+              {/* `profile_id` only says an account was linked. Whether access is *active* also
+                  depends on employment status, whether that account is still active, and whether an
+                  access suspension currently applies -- which is what `is_employee_access_active`
+                  weighs. The old badge said "Portal access active" for a suspended employee. */}
+              <Badge
+                variant="outline"
+                className={!employee.profile_id
+                  ? "text-muted-foreground"
+                  : accessActive.data
+                    ? "border-success/40 text-success"
+                    : "border-destructive/40 text-destructive"}
+              >
+                {!employee.profile_id
+                  ? "No portal access"
+                  : accessActive.isLoading
+                    ? "Checking access…"
+                    : accessActive.data ? "Portal access active" : "Portal access suspended"}
               </Badge>
               <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
                 {employee.cleared_for_unsupervised_duty ? "Cleared for Unsupervised Duty" : "Onboarding In Progress"}
@@ -778,6 +808,39 @@ export default function EmployeeDetail() {
 
         {canViewCredentials && (
           <TabsContent value="credentials" className="space-y-6">
+            {canManage && employee && (
+              <Suspense fallback={<Skeleton className="h-40" />}>
+                <CertificationAttemptSection
+                  employeeId={employee.id}
+                  employeeName={`${employee.first_name} ${employee.last_name}`}
+                />
+              </Suspense>
+            )}
+            {canManage && employee && (
+              <Suspense fallback={<Skeleton className="h-40" />}>
+                <DutyEligibilityCard
+                  profileId={employee.profile_id ?? null}
+                  facilityId={employee.facility_id ?? null}
+                  employeeName={`${employee.first_name} ${employee.last_name}`}
+                  // The server refuses anyone but an org admin (and refuses self-grants). This only
+                  // keeps the form from offering what the server would reject -- which means it has
+                  // to check both halves. `grant_duty_eligibility_override` raises 'An override
+                  // cannot be granted to yourself' when `auth.uid() = p_profile_id`, so an org admin
+                  // on their own employee record was being offered a form that could only fail.
+                  canOverride={["platform_admin", "org_admin"].includes(user?.role ?? "")
+                    && user?.id !== employee.profile_id}
+                />
+              </Suspense>
+            )}
+            {canManage && employee && (
+              <Suspense fallback={<Skeleton className="h-32" />}>
+                <EmployeeAccessCard
+                  employeeId={employee.id}
+                  employeeName={`${employee.first_name} ${employee.last_name}`}
+                  hasLinkedAccount={Boolean(employee.profile_id)}
+                />
+              </Suspense>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

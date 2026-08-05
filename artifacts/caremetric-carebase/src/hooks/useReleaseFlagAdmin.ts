@@ -114,3 +114,101 @@ export function useSetFeatureKillSwitch() {
     },
   });
 }
+
+// --- Cohort membership (BACKLOG.md G12.1, G15.1) ------------------------------------------------
+//
+// `20260802030000_remove_pilot_program.sql` deleted the pilot cohort console and said "the general
+// release-flag / cohort / kill-switch mechanism itself is untouched". The mechanism survived; its
+// only two entry points did not. `unassign_organization_release_cohort` was dropped outright (this
+// branch restored it), and `assign_organization_release_cohort` kept its grant and lost its caller
+// -- which nothing noticed, because the gate was reading multi-function grants a line at a time.
+//
+// So both sides are dormant and the tables are intact: an organization cannot be put into a release
+// cohort, nor taken out of one. This is wired on the existing release-flags page, beside the flags
+// and kill switches it belongs with -- NOT as a re-creation of the pilot console that migration
+// deliberately removed.
+
+export interface ReleaseCohort {
+  id: string;
+  cohort_key: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+}
+
+export interface OrganizationCohortMembership {
+  id: string;
+  organization_id: string;
+  cohort_id: string;
+  feature_key: string;
+  assigned_at: string;
+  expires_at: string | null;
+  reason: string | null;
+}
+
+export function useReleaseCohorts() {
+  return useQuery({
+    queryKey: ["release-cohorts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("release_cohorts")
+        .select("id,cohort_key,name,description,is_active")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as ReleaseCohort[];
+    },
+  });
+}
+
+export function useOrganizationCohortMemberships() {
+  return useQuery({
+    queryKey: ["organization-release-cohorts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("organization_release_cohorts")
+        .select("id,organization_id,cohort_id,feature_key,assigned_at,expires_at,reason")
+        .order("assigned_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as OrganizationCohortMembership[];
+    },
+  });
+}
+
+function useCohortMutation<TArgs>(run: (args: TArgs) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["organization-release-cohorts"] }),
+  });
+}
+
+export function useAssignOrganizationCohort() {
+  return useCohortMutation(async (input: {
+    organizationId: string; cohortId: string; featureKey: string; reason: string; expiresAt?: string;
+  }) => {
+    const { error } = await supabase.rpc("assign_organization_release_cohort" as never, {
+      p_organization_id: input.organizationId,
+      p_cohort_id: input.cohortId,
+      p_feature_key: input.featureKey,
+      p_reason: input.reason,
+      ...(input.expiresAt ? { p_expires_at: input.expiresAt } : {}),
+    } as never);
+    if (error) throw error;
+    return true;
+  });
+}
+
+export function useUnassignOrganizationCohort() {
+  return useCohortMutation(async (input: {
+    organizationId: string; cohortId: string; featureKey: string; reason: string;
+  }) => {
+    const { error } = await supabase.rpc("unassign_organization_release_cohort" as never, {
+      p_organization_id: input.organizationId,
+      p_cohort_id: input.cohortId,
+      p_feature_key: input.featureKey,
+      p_reason: input.reason,
+    } as never);
+    if (error) throw error;
+    return true;
+  });
+}

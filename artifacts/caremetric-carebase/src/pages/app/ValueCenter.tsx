@@ -1,6 +1,12 @@
 import { useId, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
+  actionReasonLabel,
+  actionTypeLabel,
+  simulationStateNote,
+  simulationSummary,
+} from "@/lib/automationSimulation";
+import {
   Activity,
   AlertTriangle,
   ArrowRight,
@@ -10,6 +16,7 @@ import {
   Cable,
   CalendarClock,
   CheckCircle2,
+  FlaskConical,
   CircleDollarSign,
   ClipboardCheck,
   CloudOff,
@@ -67,6 +74,7 @@ import {
 } from "@/lib/implementationReadiness";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { ReadinessForecastPanel } from "@/components/value-center/ReadinessForecastPanel";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
 import {
@@ -78,6 +86,7 @@ import {
   useProductValueWorkspace,
   useReviewCopilotActionDraft,
   useRunWorkflowAutomation,
+  useSimulateWorkflowAutomation,
   useSaveCustomerValueBaseline,
   useSaveWorkflowAutomation,
   useStaffingOptimization,
@@ -315,6 +324,10 @@ export default function ValueCenter() {
   const [automationState, setAutomationState] = useState<"draft" | "active">("draft");
   const saveAutomation = useSaveWorkflowAutomation();
   const runAutomation = useRunWorkflowAutomation();
+  const simulateAutomation = useSimulateWorkflowAutomation();
+  // Keyed by rule so a dry-run stays attached to the rule it describes rather than floating above
+  // the list, which is how somebody ends up running the wrong rule after reading the right preview.
+  const [simulatedRuleId, setSimulatedRuleId] = useState<string | null>(null);
 
   const [warRoomName, setWarRoomName] = useState("Upcoming inspection response");
   const createWarRoom = useCreateInspectionWarRoom();
@@ -668,6 +681,20 @@ export default function ValueCenter() {
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={!facilityId || simulateAutomation.isPending}
+                        onClick={() => {
+                          setSimulatedRuleId(rule.id);
+                          void notify(
+                            () => simulateAutomation.mutateAsync({ ruleId: rule.id, facilityId }),
+                            "Dry run complete — nothing was written",
+                          );
+                        }}
+                      >
+                        <FlaskConical className="mr-2 h-4 w-4" /> Dry run
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         disabled={!facilityId || runAutomation.isPending || rule.state !== "active"}
                         onClick={() => void notify(
                           () => runAutomation.mutateAsync({ ruleId: rule.id, facilityId }),
@@ -677,6 +704,24 @@ export default function ValueCenter() {
                         <Play className="mr-2 h-4 w-4" /> Run now
                       </Button>
                     </div>
+                    {simulatedRuleId === rule.id && simulateAutomation.data && (
+                      <div className="w-full space-y-2 rounded-lg border bg-muted/30 p-3">
+                        <p className="text-sm font-medium">{simulationSummary(simulateAutomation.data)}</p>
+                        {simulationStateNote(simulateAutomation.data.ruleState) && (
+                          <p className="text-xs text-muted-foreground">
+                            {simulationStateNote(simulateAutomation.data.ruleState)}
+                          </p>
+                        )}
+                        {simulateAutomation.data.actions.map((simulated, index) => (
+                          <p key={`${simulated.type}-${index}`} className="text-xs text-muted-foreground">
+                            {actionTypeLabel(simulated.type)}: {actionReasonLabel(simulated.reason)}
+                          </p>
+                        ))}
+                        <p className="text-xs text-muted-foreground">
+                          Nothing was written — no work item was created and no notification was sent.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -1048,6 +1093,12 @@ export default function ValueCenter() {
         </TabsContent>
 
         <TabsContent value="workforce" className="space-y-5">
+          {/* The 30/60/90-day forecast: which employees will be blocked from working, and when,
+              with the remediation routing that clears each reason. Nothing imported this panel --
+              209 lines and the only caller of two RPCs, three layers deep in nothing (BACKLOG.md
+              G16.25). It belongs above today's staffing numbers, because the whole point of it is
+              the blockers that have not happened yet. */}
+          <ReadinessForecastPanel facilityId={facilityId || undefined} />
           {!facilityId ? (
             <Empty>Select a facility to calculate qualification-aware staffing recommendations.</Empty>
           ) : staffing.isLoading ? (

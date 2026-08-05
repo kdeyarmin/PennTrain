@@ -4,8 +4,11 @@ import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListShiftAssignments } from "@/hooks/useShiftAssignments";
 import {
+  useCancelTimeOffRequest,
   useClaimOpenShift,
   useMyShiftWorkspace,
+  useCancelShiftSwapRequest,
+  useMyShiftSwapRequests,
   useRequestShiftSwap,
   useShiftSwapCandidates,
   useSubmitTimeOffRequest,
@@ -50,6 +53,13 @@ export default function MySchedule() {
   const submitTimeOff = useSubmitTimeOffRequest();
   const claimShift = useClaimOpenShift();
   const requestSwap = useRequestShiftSwap();
+  const mySwaps = useMyShiftSwapRequests(employee?.id);
+  const cancelSwap = useCancelShiftSwapRequest();
+  const cancelTimeOff = useCancelTimeOffRequest();
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [cancelingTimeOffId, setCancelingTimeOffId] = useState<string | null>(null);
+  const [timeOffCancelReason, setTimeOffCancelReason] = useState("");
   const [timeOffDraft, setTimeOffDraft] = useState<TimeOffDraft | null>(null);
   const [swapAssignmentId, setSwapAssignmentId] = useState<string | null>(null);
   const [swapTargetId, setSwapTargetId] = useState("");
@@ -115,6 +125,40 @@ export default function MySchedule() {
       toast({ title: "Time-off request submitted", description: "Your manager can now review it in the workforce queue." });
     } catch (error) {
       toast({ title: "Could not submit request", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
+  const submitWithdrawal = async (requestId: string) => {
+    try {
+      await cancelSwap.mutateAsync({ requestId, reason: withdrawReason.trim() });
+      setWithdrawingId(null);
+      setWithdrawReason("");
+      toast({ title: "Swap request withdrawn", description: "It has left your manager's queue." });
+    } catch (error) {
+      toast({
+        title: "Could not withdraw the request",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  // The mirror image of submitWithdrawal above, for the other self-service request. Both RPCs are
+  // scoped to the requester (`employees.profile_id = auth.uid()`), refuse anything not `pending`,
+  // and demand a reason of at least five characters -- so the same rules are enforced here, and the
+  // control only appears on a pending request.
+  const submitTimeOffCancellation = async (requestId: string) => {
+    try {
+      await cancelTimeOff.mutateAsync({ requestId, reason: timeOffCancelReason.trim() });
+      setCancelingTimeOffId(null);
+      setTimeOffCancelReason("");
+      toast({ title: "Time-off request withdrawn", description: "It has left your manager's queue." });
+    } catch (error) {
+      toast({
+        title: "Could not withdraw the request",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
     }
   };
 
@@ -196,6 +240,71 @@ export default function MySchedule() {
         </CardContent>
       </Card>
 
+      {(mySwaps.data ?? []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Repeat2 className="h-5 w-5" />Swap requests awaiting a decision ({(mySwaps.data ?? []).length})
+            </CardTitle>
+            <CardDescription>
+              Yours to withdraw until a manager decides. Withdrawing takes it out of their queue —
+              previously the only way out was asking them to deny something nobody wanted any more.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(mySwaps.data ?? []).map((swap) => (
+              <div key={swap.id as string} className="rounded-lg border p-3 text-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">
+                      {swap.requester_assignment?.shift_date
+                        ? formatDateLabel(String(swap.requester_assignment.shift_date))
+                        : "Your shift"}
+                      {swap.target?.first_name ? ` → ${swap.target.first_name} ${swap.target.last_name}` : ""}
+                    </p>
+                    {swap.reason ? <p className="text-xs text-muted-foreground">{String(swap.reason)}</p> : null}
+                  </div>
+                  {withdrawingId !== swap.id && (
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={() => { setWithdrawingId(String(swap.id)); setWithdrawReason(""); }}
+                    >
+                      Withdraw
+                    </Button>
+                  )}
+                </div>
+                {withdrawingId === swap.id && (
+                  <div className="mt-2 space-y-2">
+                    <Label htmlFor={`${__fieldIds}-withdraw-${String(swap.id)}`} className="text-xs">
+                      Why you are withdrawing
+                    </Label>
+                    <Textarea
+                      id={`${__fieldIds}-withdraw-${String(swap.id)}`} rows={2}
+                      value={withdrawReason} onChange={(event) => setWithdrawReason(event.target.value)}
+                      placeholder="Found cover another way."
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        disabled={withdrawReason.trim().length < 5 || cancelSwap.isPending}
+                        onClick={() => void submitWithdrawal(String(swap.id))}
+                      >
+                        {cancelSwap.isPending ? "Withdrawing…" : "Confirm withdrawal"}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setWithdrawingId(null)}>Cancel</Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      At least five characters — the reason is kept on the request.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Open shifts</CardTitle><CardDescription>Claims run through qualification, credential, training, conflict, and policy checks.</CardDescription></CardHeader>
@@ -210,12 +319,56 @@ export default function MySchedule() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Recent time-off requests</CardTitle><CardDescription>Status is updated after a manager decision.</CardDescription></CardHeader>
+          <CardHeader>
+            <CardTitle>Recent time-off requests</CardTitle>
+            <CardDescription>
+              Status is updated after a manager decision. A request still pending is yours to
+              withdraw — previously the only way out was asking a manager to deny something nobody
+              wanted any more.
+            </CardDescription>
+          </CardHeader>
           <CardContent className="space-y-3">
             {timeOffRequests.length === 0 ? <p className="text-sm text-muted-foreground">No recent requests.</p> : timeOffRequests.map((request) => (
-              <div key={String(request.id)} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
-                <div><p className="font-medium">{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.request_type).replace(/_/g, " ")}</p></div>
-                <Badge variant={request.status === "approved" ? "default" : "outline"}>{String(request.status)}</Badge>
+              <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div><p className="font-medium">{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.request_type).replace(/_/g, " ")}</p></div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={request.status === "approved" ? "default" : "outline"}>{String(request.status)}</Badge>
+                    {request.status === "pending" && cancelingTimeOffId !== request.id && (
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={() => { setCancelingTimeOffId(String(request.id)); setTimeOffCancelReason(""); }}
+                      >
+                        Withdraw
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {cancelingTimeOffId === request.id && (
+                  <div className="space-y-2">
+                    <Label htmlFor={`${__fieldIds}-timeoff-withdraw-${String(request.id)}`} className="text-xs">
+                      Why you are withdrawing
+                    </Label>
+                    <Textarea
+                      id={`${__fieldIds}-timeoff-withdraw-${String(request.id)}`} rows={2}
+                      value={timeOffCancelReason} onChange={(event) => setTimeOffCancelReason(event.target.value)}
+                      placeholder="Plans changed; I can work after all."
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        disabled={timeOffCancelReason.trim().length < 5 || cancelTimeOff.isPending}
+                        onClick={() => void submitTimeOffCancellation(String(request.id))}
+                      >
+                        {cancelTimeOff.isPending ? "Withdrawing…" : "Confirm withdrawal"}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setCancelingTimeOffId(null)}>Cancel</Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      At least five characters — the reason is kept on the request.
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>

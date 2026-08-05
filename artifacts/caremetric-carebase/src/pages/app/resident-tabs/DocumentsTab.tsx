@@ -14,6 +14,7 @@ import {
   useUploadResidentDocument, type ResidentDocument,
 } from "@/hooks/useResidentDocuments";
 import { ResidentPortalWorkspace } from "@/components/residents/ResidentPortalWorkspace";
+import { AdministrativePacketCard } from "@/components/residents/AdministrativePacketCard";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import type { ResidentTabProps } from "./types";
 import { QueryError } from "@/components/QueryState";
@@ -67,6 +68,12 @@ export default function DocumentsTab({ resident, facility, canManage, canDelete 
 
   return (
     <div className="space-y-6">
+      {canManage && (
+        <AdministrativePacketCard
+          residentId={resident.id}
+          residentName={`${resident.first_name} ${resident.last_name}`}
+        />
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

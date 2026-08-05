@@ -34,6 +34,8 @@ function clean(overrides: Partial<NeedsAttentionInput> = {}): NeedsAttentionInpu
     moveInBlockers: 0,
     hospitalState: "in_facility",
     hospitalSince: null,
+    appointments: [],
+    appointmentPreparation: [],
     supportPlan: { versionNumber: 3, state: "effective", reviewDueDate: "2026-12-01" },
     pendingActivation: null,
     careProfileStale: false,
@@ -221,6 +223,146 @@ describe("hospital, agreements, contacts, and service delivery", () => {
     // Being out at hospital is a header state, not an open task -- the task begins on return.
     const cards = buildResidentNeedsAttention(clean({ hospitalState: "out_at_hospital", hospitalSince: daysAgo(1) }));
     expect(cards.map((card) => card.kind)).not.toContain("hospital_return_reconciliation");
+  });
+
+  // --- Appointments ---------------------------------------------------------------------------
+  const hoursFromNow = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000).toISOString();
+
+  function appointment(overrides: Partial<NeedsAttentionInput["appointments"][number]> = {}) {
+    return {
+      id: "ap-1",
+      resident_id: "r1",
+      appointment_type: "Cardiology",
+      provider_name: "Dr. Ellis",
+      location: "Mercy Cardiology",
+      starts_at: hoursFromNow(72),
+      expected_return_at: null,
+      pickup_at: null,
+      transportation_provider: null,
+      vehicle_identifier: null,
+      driver_employee_id: null,
+      escort_employee_id: null,
+      status: "scheduled",
+      outcome_summary: null,
+      new_order_ack_status: "not_applicable",
+      new_order_ack_at: null,
+      new_order_ack_note: null,
+      follow_up_due_at: null,
+      follow_up_completed_at: null,
+      follow_up_work_item_id: null,
+      preparation_completed_at: null,
+      cancellation_reason: null,
+      rescheduled_to_appointment_id: null,
+      ...overrides,
+    };
+  }
+
+  const prepItem = (overrides: Partial<NeedsAttentionInput["appointmentPreparation"][number]> = {}) => ({
+    id: "pi-1",
+    appointment_id: "ap-1",
+    item_kind: "document",
+    label: "Current medication list",
+    required: true,
+    ready: false,
+    ready_at: null,
+    note: null,
+    ...overrides,
+  });
+
+  it("stays quiet about preparation until the lead window opens", () => {
+    // Nobody assembles a discharge summary three days early. A card that cannot be actioned is how
+    // the whole panel gets ignored.
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({ starts_at: hoursFromNow(72) })],
+      appointmentPreparation: [prepItem()],
+    }));
+    expect(cards.map((card) => card.kind)).not.toContain("appointment_preparation");
+  });
+
+  it("raises preparation as high once the lead window opens", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({ starts_at: hoursFromNow(6) })],
+      appointmentPreparation: [prepItem()],
+    }));
+    const card = cards.find((entry) => entry.kind === "appointment_preparation");
+    expect(card?.severity).toBe("high");
+    // The card has to name the item, or the reader has to go and find out what is missing.
+    expect(card?.evidence).toContain("Current medication list");
+  });
+
+  it("escalates to urgent once the resident has left with something missing", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({ starts_at: hoursFromNow(-2) })],
+      appointmentPreparation: [prepItem()],
+    }));
+    const card = cards.find((entry) => entry.kind === "appointment_preparation");
+    expect(card?.severity).toBe("urgent");
+  });
+
+  it("says nothing about preparation once every required item is ready", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({ starts_at: hoursFromNow(6) })],
+      appointmentPreparation: [prepItem({ ready: true, ready_at: daysAgo(1) })],
+    }));
+    expect(cards.map((card) => card.kind)).not.toContain("appointment_preparation");
+  });
+
+  it("treats unacknowledged new orders as urgent", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({
+        starts_at: daysAgo(2), status: "attended", outcome_summary: "Dose changed",
+        new_order_ack_status: "pending_review",
+      })],
+    }));
+    const card = cards.find((entry) => entry.kind === "appointment_new_order");
+    expect(card?.severity).toBe("urgent");
+  });
+
+  it("does not double-report an overdue follow-up that is only waiting on the orders", () => {
+    // The unacknowledged-orders card already says this. Two cards for one action is how a panel
+    // stops being a list of things to do.
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({
+        starts_at: daysAgo(5), status: "attended", outcome_summary: "Dose changed",
+        new_order_ack_status: "pending_review", follow_up_due_at: daysAgo(1),
+      })],
+    }));
+    expect(cards.filter((card) => card.kind === "appointment_follow_up")).toHaveLength(0);
+    expect(cards.filter((card) => card.kind === "appointment_new_order")).toHaveLength(1);
+  });
+
+  it("raises an overdue follow-up when the outcome was never written down", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({
+        starts_at: daysAgo(5), status: "attended", outcome_summary: null,
+        follow_up_due_at: daysAgo(1),
+      })],
+    }));
+    const card = cards.find((entry) => entry.kind === "appointment_follow_up");
+    expect(card?.severity).toBe("high");
+  });
+
+  it("says nothing about a closed appointment, however old", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({
+        starts_at: daysAgo(400), status: "attended", outcome_summary: "Seen",
+        follow_up_due_at: daysAgo(399), follow_up_completed_at: daysAgo(398),
+      })],
+      appointmentPreparation: [prepItem()],
+    }));
+    expect(cards.map((card) => card.kind).filter((kind) => kind.startsWith("appointment"))).toEqual([]);
+  });
+
+  it("sends every appointment card to the appointments tab", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      appointments: [appointment({
+        starts_at: hoursFromNow(-2), status: "attended", outcome_summary: null,
+        new_order_ack_status: "pending_review", follow_up_due_at: daysAgo(1),
+      })],
+      appointmentPreparation: [prepItem()],
+    })).filter((card) => card.kind.startsWith("appointment"));
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) expect(card.href).toBe("/app/residents/r1?tab=appointments");
   });
 
   it("flags open signature states but not executed ones", () => {

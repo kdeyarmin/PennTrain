@@ -37,29 +37,13 @@ export function useListCertificates(
   });
 }
 
-export interface IssueCertificatePayload {
-  employeeId: string;
-  courseId: string;
-  assignmentId?: string;
-  expiresAt?: string;
-}
-
-export function useIssueCertificate() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ employeeId, courseId, assignmentId, expiresAt }: IssueCertificatePayload) => {
-      const { data, error } = await supabase.rpc("issue_certificate", {
-        p_employee_id: employeeId,
-        p_course_id: courseId,
-        p_course_assignment_id: assignmentId ?? undefined,
-        p_expires_at: expiresAt ?? undefined,
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["certificates"] }),
-  });
-}
+// A `useIssueCertificate` used to sit here, calling `issue_certificate` directly. It was removed
+// rather than given a screen. `20260711154819_atomic_course_completion_certificates.sql` moved
+// issuance inside `complete_course_assignment()` precisely because the two-call browser flow left a
+// valid completion with no certificate whenever a request failed between them, and states that the
+// older function "remains as an idempotent compatibility endpoint". Calling it from the product
+// again would mint a certificate with no completion behind it -- the exact invariant that migration
+// exists to hold. The function itself stays granted for callers outside this repository.
 
 export function useVerifyCertificate(slug: string | undefined) {
   return useQuery({

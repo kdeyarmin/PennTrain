@@ -64,7 +64,9 @@ select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 insert into p4_ids values('commit',public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0001',1,'{"progress":0.5,"completionStatus":"incomplete","successStatus":"unknown","suspendData":"bookmark","sessionTimeSeconds":60}'::jsonb));
 select is(public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0001',1,'{"progress":0.5,"completionStatus":"incomplete","successStatus":"unknown"}'::jsonb),(select id from p4_ids where key='commit'),'SCORM replay returns canonical commit');
 select is((select count(*)::integer from public.learning_runtime_commits where runtime_session_id='44000000-0000-4000-8000-000000000502'),1,'SCORM replay cannot duplicate progress');
-select throws_ok($$select public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0002',3,'{"progress":0.6}'::jsonb)$$,'40001',null,'out-of-order SCORM commits conflict');
+-- 55000, not 40001: a deterministic sequence conflict is not a serialization failure, and
+-- PostgREST retries 40001 until the request times out (see 20260804150000).
+select throws_ok($$select public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0002',3,'{"progress":0.6}'::jsonb)$$,'55000',null,'out-of-order SCORM commits conflict');
 select is(public.ingest_xapi_statement('44000000-0000-4000-8000-000000000511','44000000-0000-4000-8000-000000000502','44000000-0000-4000-8000-000000000201','https://adlnet.gov/expapi/verbs/progressed','https://cmcarebase.com/course/governed','{}','{}',now()),public.ingest_xapi_statement('44000000-0000-4000-8000-000000000511','44000000-0000-4000-8000-000000000502','44000000-0000-4000-8000-000000000201','https://adlnet.gov/expapi/verbs/progressed','https://cmcarebase.com/course/governed','{}','{}',now()),'xAPI statement replay is idempotent');
 select throws_ok($$select public.ingest_xapi_statement(gen_random_uuid(),'44000000-0000-4000-8000-000000000502','44000000-0000-4000-8000-000000000999','https://example.com/verb','https://example.com/object','{}','{}',now())$$,'42501',null,'xAPI actor must match runtime registration');
 
@@ -76,7 +78,7 @@ insert into public.learning_path_assignments(id,organization_id,facility_id,empl
 select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 select is(public.evaluate_learning_path('44000000-0000-4000-8000-000000000603',0,'{}')->'steps'->'assessment'->>'state','locked','prerequisite cannot be bypassed by direct evaluation');
 select is(public.evaluate_learning_path('44000000-0000-4000-8000-000000000603',1,'{"foundation":{"completed":true},"assessment":{"score":75}}')->'steps'->'assessment'->>'state','remediated','below-threshold outcome deterministically selects remediation');
-select throws_ok($$select public.evaluate_learning_path('44000000-0000-4000-8000-000000000603',1,'{}')$$,'40001',null,'stale adaptive state version conflicts');
+select throws_ok($$select public.evaluate_learning_path('44000000-0000-4000-8000-000000000603',1,'{}')$$,'55000',null,'stale adaptive state version conflicts');
 
 reset role;
 insert into public.offline_device_registrations(id,organization_id,profile_id,device_public_key,device_fingerprint_sha256,role_at_registration) values('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000001','44000000-0000-4000-8000-000000000103','test-public-key',repeat('d',64),'employee');

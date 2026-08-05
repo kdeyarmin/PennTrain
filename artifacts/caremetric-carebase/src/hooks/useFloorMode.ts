@@ -11,7 +11,6 @@ function invalidateFloor(queryClient: ReturnType<typeof useQueryClient>) {
   // Floor exception documentation feeds Resident 360 Needs Attention
   // (increased assistance / repeated refusals) and change-signal detection.
   queryClient.invalidateQueries({ queryKey: ["resident-service-exceptions"] });
-  queryClient.invalidateQueries({ queryKey: ["resident-change-signals"] });
 }
 
 /**

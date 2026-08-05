@@ -248,19 +248,25 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
       ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_label || row.credential_type} for ${employees.get(row.employee_id) ?? row.employee_id}`, row.status, null, row.expiration_date, `/app/employees/${row.employee_id}?tab=credentials`, { employeeId: row.employee_id, credentialType: row.credential_type })),
       ...residentItems.map((row) => evidence(`resident-compliance:${row.id}`, "resident_compliance_item", `${row.item_type.replaceAll("_", " ")} for ${residents.get(row.resident_id) ?? row.resident_id}`, row.status, null, row.due_date, `/app/residents/${row.resident_id}`, { residentId: row.resident_id, itemType: row.item_type })),
       ...workItems.map((row) => evidence(`work-item:${row.id}`, "work_item", row.title, row.state, null, row.due_at, `/app/work/${row.id}`, { priority: row.priority, sourceType: row.source_type })),
-      ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspection-items/${row.id}`, { itemType: row.item_type })),
+      ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspections/${row.id}`, { itemType: row.item_type })),
     ],
     missing: [],
   };
 }
 
-async function collectResidentCompliance(client: any, facilityId: string, asOf: string, itemType: string, overdueOnly: boolean) {
+// `itemType` accepts several types because one question can span more than one. A medical evaluation
+// is required at admission and again annually, and 20260804170000 made those separate item types
+// because they carry different intervals; asking only about `medical_evaluation` made every expired
+// annual re-evaluation invisible to the intent whose entire job is finding them.
+async function collectResidentCompliance(client: any, facilityId: string, asOf: string, itemType: string | string[], overdueOnly: boolean) {
+  const itemTypes = Array.isArray(itemType) ? itemType : [itemType];
+  const label = (value: string) => value.replaceAll("_", " ");
   // The gap filters are pushed into the query (not applied after `.limit`): filtering
   // an unordered first-200 page in memory can miss every real gap once a facility has
   // mostly-completed history, making "missing X" intents falsely report all clear.
   let query = client.from("resident_compliance_items")
     .select("id,resident_id,item_type,status,due_date,completed_date,citation_topic_id")
-    .eq("facility_id", facilityId).eq("item_type", itemType)
+    .eq("facility_id", facilityId).in("item_type", itemTypes)
     .is("completed_date", null);
   query = overdueOnly
     ? query.or(`status.eq.expired,due_date.lt.${asOf}`)
@@ -274,14 +280,14 @@ async function collectResidentCompliance(client: any, facilityId: string, asOf: 
     evidence: matching.map((row) => evidence(
       `resident-compliance:${row.id}`,
       "resident_compliance_item",
-      `${itemType.replaceAll("_", " ")} for ${names.get(row.resident_id) ?? row.resident_id}`,
+      `${label(row.item_type)} for ${names.get(row.resident_id) ?? row.resident_id}`,
       row.status,
       null,
       row.due_date,
       `/app/residents/${row.resident_id}`,
-      { residentId: row.resident_id, itemType, citationTopicId: row.citation_topic_id },
+      { residentId: row.resident_id, itemType: row.item_type, citationTopicId: row.citation_topic_id },
     )),
-    missing: matching.length === 0 ? [`No matching ${itemType.replaceAll("_", " ")} gaps were found in the facility snapshot.`] : [],
+    missing: matching.length === 0 ? [`No matching ${itemTypes.map(label).join(" or ")} gaps were found in the facility snapshot.`] : [],
   };
 }
 
@@ -315,7 +321,7 @@ async function collectCitationEvidence(client: any, facilityId: string, citation
     ...matchingViolations.map((row) => evidence(`violation:${row.id}`, "dhs_violation", row.citation_ref || row.description, row.status, row.inspection_date, row.poc_due_date, `/app/violations/${row.id}`, { description: row.description, severity: row.severity, citationTopicId: row.citation_topic_id })),
     ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_type} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, null, row.expiration_date, `/app/employees/${row.employee_id}?tab=credentials`, { citationTopicId: row.citation_topic_id })),
     ...residents.map((row) => evidence(`resident-compliance:${row.id}`, "resident_compliance_item", `${row.item_type.replaceAll("_", " ")} for ${residentMap.get(row.resident_id) ?? row.resident_id}`, row.status, null, row.due_date, `/app/residents/${row.resident_id}`, { citationTopicId: row.citation_topic_id })),
-    ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspection-items/${row.id}`, { citationTopicId: row.citation_topic_id, itemType: row.item_type })),
+    ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspections/${row.id}`, { citationTopicId: row.citation_topic_id, itemType: row.item_type })),
     ...training.map((row) => evidence(`training:${row.id}`, "training_record", `${trainingTypeMap.get(row.training_type_id)?.name ?? "Training"} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, row.completion_date, row.due_date, "/app/training-matrix", { trainingTypeId: row.training_type_id, citationTopicId: trainingTypeMap.get(row.training_type_id)?.citation_topic_id })),
   ];
   return { evidence: collected, missing: collected.length === 0 ? [`No system documentation matched “${citationQuery}”.`] : [] };
@@ -415,7 +421,7 @@ async function collectEffectivenessReviews(client: any, facilityId: string, asOf
 async function collectGrounding(client: any, facilityId: string, body: CopilotRequest, intent: CopilotIntent, asOf: string) {
   if (intent === "employee_blocked") return collectEmployeeBlocked(client, facilityId, body.employeeId);
   if (intent === "due_next_30_days") return collectDue(client, facilityId, asOf);
-  if (intent === "missing_medical_evaluations") return collectResidentCompliance(client, facilityId, asOf, "medical_evaluation", false);
+  if (intent === "missing_medical_evaluations") return collectResidentCompliance(client, facilityId, asOf, ["medical_evaluation", "annual_medical_evaluation"], false);
   if (intent === "citation_evidence") return collectCitationEvidence(client, facilityId, body.citationQuery);
   if (intent === "recurring_citations") return collectRecurringCitations(client, facilityId);
   if (intent === "readiness_score") return collectReadiness(client, facilityId);

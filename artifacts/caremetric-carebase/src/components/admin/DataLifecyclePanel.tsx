@@ -1,11 +1,14 @@
 import { useId, useMemo, useState } from "react";
 import {
+  useAuditExportManifest,
   useCreateAuditLegalHold,
   useDataLifecycleStatus,
   useListAuditLegalHolds,
+  usePlanAuditArchive,
   useReleaseAuditLegalHold,
   useRunDataLifecyclePolicy,
 } from "@/hooks/useDataLifecycle";
+import { archivePlanIssues, legalHoldWarning, shortDigest } from "@/lib/auditArchivePlan";
 import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { QueryError } from "@/components/QueryState";
@@ -29,11 +32,16 @@ export function DataLifecyclePanel() {
   const createHold = useCreateAuditLegalHold();
   const releaseHold = useReleaseAuditLegalHold();
   const runPolicy = useRunDataLifecyclePolicy();
+  const planArchive = usePlanAuditArchive();
 
   const [orgId, setOrgId] = useState("");
   const [facilityId, setFacilityId] = useState<string>("none");
   const [reason, setReason] = useState("Legal hold placed from Security & Governance console");
   const [busy, setBusy] = useState(false);
+  const [archiveFrom, setArchiveFrom] = useState("");
+  const [archiveTo, setArchiveTo] = useState("");
+  const [archiveOrgId, setArchiveOrgId] = useState("all");
+  const [plannedBatchId, setPlannedBatchId] = useState<string | null>(null);
 
   const facilitiesForOrg = useMemo(
     () => (facilitiesQ.data ?? []).filter((f) => !orgId || f.organization_id === orgId),
@@ -41,6 +49,41 @@ export function DataLifecyclePanel() {
   );
 
   const activeHolds = (holdsQ.data ?? []).filter((h) => !h.released_at);
+
+  // The date inputs give calendar days; the RPC takes instants. Taking the whole of the end day
+  // rather than its midnight means "to 31 January" includes 31 January, which is what it reads as.
+  const archiveRange = archiveFrom && archiveTo
+    ? { from: `${archiveFrom}T00:00:00.000Z`, to: `${archiveTo}T23:59:59.999Z` }
+    : null;
+  const archiveScopeOrgId = archiveOrgId === "all" ? null : archiveOrgId;
+  const manifestQ = useAuditExportManifest({
+    from: archiveRange?.from ?? "",
+    to: archiveRange?.to ?? "",
+    organizationId: archiveScopeOrgId,
+  });
+  const archiveIssues = archivePlanIssues(
+    { from: archiveRange?.from ?? "", to: archiveRange?.to ?? "" },
+    manifestQ.data?.rowCount ?? null,
+  );
+  const holdWarning = legalHoldWarning(activeHolds.length, archiveScopeOrgId !== null);
+
+  const handlePlanArchive = async () => {
+    if (!archiveRange) return;
+    try {
+      setBusy(true);
+      const batchId = await planArchive.mutateAsync({
+        from: archiveRange.from,
+        to: archiveRange.to,
+        organizationId: archiveScopeOrgId,
+      });
+      setPlannedBatchId(batchId);
+      toast({ title: "Archive batch planned", description: `${manifestQ.data?.rowCount ?? 0} rows frozen for export.` });
+    } catch (e) {
+      toast({ title: "Could not plan the archive", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!orgId || reason.trim().length < 8) {
@@ -197,6 +240,59 @@ export function DataLifecyclePanel() {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan an audit archive</CardTitle>
+          <CardDescription>
+            Freezes a date range, hashes what it contains, and records whether a legal hold covers it. The
+            plan writes nothing to the audit log itself — it is the batch an export is later made from.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${__fieldIds}-archive-from`}>From</Label>
+            <Input id={`${__fieldIds}-archive-from`} type="date" value={archiveFrom} onChange={(e) => setArchiveFrom(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${__fieldIds}-archive-to`}>To</Label>
+            <Input id={`${__fieldIds}-archive-to`} type="date" value={archiveTo} onChange={(e) => setArchiveTo(e.target.value)} />
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label htmlFor={`${__fieldIds}-archive-org`}>Scope</Label>
+            <Select value={archiveOrgId} onValueChange={setArchiveOrgId}>
+              <SelectTrigger id={`${__fieldIds}-archive-org`}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Every organization (platform-wide)</SelectItem>
+                {(orgsQ.data ?? []).map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2 space-y-2">
+            {manifestQ.data && (
+              <p className="text-sm">
+                {manifestQ.data.rowCount.toLocaleString()} audit rows · manifest {shortDigest(manifestQ.data.sha256)}
+              </p>
+            )}
+            {manifestQ.isLoading && archiveRange && <p className="text-sm text-muted-foreground">Counting rows…</p>}
+            {holdWarning && <p className="text-xs text-amber-700">{holdWarning}</p>}
+            {archiveIssues.map((issue) => <p key={issue} className="text-xs text-muted-foreground">{issue}</p>)}
+            {plannedBatchId && (
+              <p className="text-xs text-muted-foreground">Planned batch {plannedBatchId.slice(0, 8)}…</p>
+            )}
+            <Button
+              // `!manifestQ.data` is load-bearing, not belt-and-braces: until the count arrives,
+              // archivePlanIssues is handed a null rowCount and cannot report an empty range, and
+              // plan_audit_archive records a zero-row batch rather than refusing one. Clicking
+              // during the count is exactly how the empty batch this form guards against gets made.
+              disabled={busy || archiveIssues.length > 0 || planArchive.isPending || !manifestQ.data}
+              onClick={() => void handlePlanArchive()}
+            >
+              <Archive className="mr-2 h-4 w-4" />Plan archive batch
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

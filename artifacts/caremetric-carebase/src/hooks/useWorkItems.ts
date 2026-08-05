@@ -53,6 +53,9 @@ const WORK_ITEM_SELECT = `
   template:work_item_templates(id, name, approval_required, required_evidence_types)
 `;
 
+interface RpcResult { data: unknown; error: { message: string } | null }
+interface RpcClient { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<RpcResult> }
+
 function invalidateWorkItems(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
   queryClient.invalidateQueries({ queryKey: ["closed-loop-compliance"] });
@@ -198,6 +201,75 @@ export function useWorkItemActivity(id: string | undefined) {
       };
     },
     enabled: !!id,
+  });
+}
+
+export function useWorkItemTemplates() {
+  return useQuery({
+    queryKey: ["work_item_templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_item_templates")
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Open a work item by hand (BACKLOG.md G11).
+ *
+ * Every item in the queue arrived from an automatic source; there was no create path in the client
+ * at all, and `create_deduplicated_work_item` had no caller. It is the only creator that goes
+ * through a template, which is what makes closure evidence enforceable -- `transition_work_item`
+ * refuses to close an item whose template declares `required_evidence_types` until that evidence
+ * exists.
+ *
+ * It returns the existing item's id when the deduplication key is already present in the
+ * organization, so a double submit yields one item rather than two and an error rather than neither.
+ */
+export function useCreateManualWorkItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      organizationId: string;
+      facilityId: string;
+      templateKey: string;
+      sourceType: string;
+      deduplicationKey: string;
+      title: string;
+      description: string;
+      ownerProfileId: string | null;
+      priority: string | null;
+      dueAt: string | null;
+    }) => {
+      // The generated arg types declare every parameter non-nullable, but the function itself
+      // coalesces owner, priority and due_at -- null there means "use the template's default",
+      // which is the whole reason the template is chosen first.
+      const { data, error } = await (supabase as unknown as RpcClient).rpc("create_deduplicated_work_item", {
+        p_org: input.organizationId,
+        p_fac: input.facilityId,
+        p_template_key: input.templateKey,
+        // The source of a hand-opened item is the person who opened it, not a detected condition;
+        // `source_id` is `not null`, so it points at the facility the work is at.
+        p_source_type: input.sourceType,
+        p_source_id: input.facilityId,
+        p_dedupe: input.deduplicationKey,
+        p_title: input.title,
+        p_description: input.description,
+        p_owner: input.ownerProfileId,
+        // Null falls back to the template's own default rather than forcing 'normal'.
+        p_priority: input.priority,
+        p_due_at: input.dueAt,
+      });
+      if (error) throw new Error(error.message);
+      return data as string;
+    },
+    onSuccess: () => invalidateWorkItems(queryClient),
   });
 }
 

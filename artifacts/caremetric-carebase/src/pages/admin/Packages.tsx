@@ -44,6 +44,7 @@ import {
   selectPrimaryBillingPrice,
 } from "@/lib/billingCatalog";
 import { QueryError } from "@/components/QueryState";
+import { PackageEntitlementTermCard } from "@/components/billing/PackageEntitlementTermCard";
 
 // Expand a package's explicitly enabled modules so the all-inclusive CareBase bundle implies its
 // bundled operational pillars, mirroring withModuleDependencies used by the runtime access layer.
@@ -228,6 +229,7 @@ export default function Packages() {
   const { mutate: deletePrice, isPending: deletingPrice } = useDeletePackageBillingPrice();
 
   const [showPackageForm, setShowPackageForm] = useState(false);
+  const [termPackageId, setTermPackageId] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [packageForm, setPackageForm] = useState<PackageFormData>(EMPTY_PACKAGE_FORM);
@@ -577,6 +579,27 @@ export default function Packages() {
               })}</TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Contracted entitlements</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="max-w-md space-y-1.5">
+            <Label htmlFor="term-package">Package</Label>
+            <Select value={termPackageId} onValueChange={setTermPackageId}>
+              <SelectTrigger id="term-package"><SelectValue placeholder="Choose a package" /></SelectTrigger>
+              <SelectContent>
+                {(packages ?? []).map((pkg) => <SelectItem key={pkg.id} value={pkg.id}>{pkg.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <PackageEntitlementTermCard
+            packageId={termPackageId || undefined}
+            packageName={(packages ?? []).find((pkg) => pkg.id === termPackageId)?.name ?? ""}
+          />
         </CardContent>
       </Card>
 

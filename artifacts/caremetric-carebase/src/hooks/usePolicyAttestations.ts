@@ -25,18 +25,6 @@ export function useListPolicyAttestationCampaigns(filters: ListPolicyAttestation
   });
 }
 
-export function useCreatePolicyAttestationCampaign() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: PolicyAttestationCampaignInsert) => {
-      const { data, error } = await supabase.from("policy_attestation_campaigns").insert(payload).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["policy_attestation_campaigns"] }),
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Per-employee attestation rows.
 //
@@ -153,19 +141,6 @@ export function useListCampaignQuestions(campaignId: string | undefined) {
       return data;
     },
     enabled: !!campaignId,
-  });
-}
-
-export function useCreateCampaignQuestions() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (questions: PolicyCampaignQuestionInsert[]) => {
-      if (questions.length === 0) return [];
-      const { data, error } = await supabase.from("policy_campaign_questions").insert(questions).select();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["policy_campaign_questions"] }),
   });
 }
 

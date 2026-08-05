@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useRoute, useLocation, Link } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+
+// Its own chunk: only an org admin correcting a mistake on an already-completed class ever needs
+// it, which is rare, and this page is already 961 lines.
+const CompletedClassCorrectionCard = lazy(
+  () => import("@/components/training/CompletedClassCorrectionCard"),
+);
 import {
   useGetTrainingClass,
   useListClassAttendees,
@@ -13,6 +19,7 @@ import {
   useUpdateClassAttendee,
   useUpdateTrainingClass,
   useGenerateClassCheckinToken,
+  useRevokeClassCheckinTokens,
   useGenerateClassNoticePdf,
 } from "@/hooks/useTrainingClasses";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -66,6 +73,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeClassAttendance } from "@/lib/classAttendance";
+import { errorText } from "@/lib/errorText";
+import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -128,6 +137,10 @@ function QrCheckinCard({ classId }: { classId: string }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const generateToken = useGenerateClassCheckinToken();
+  const revokeTokens = useRevokeClassCheckinTokens();
+  const { toast: notify } = useToast();
+  const [revoking, setRevoking] = useState(false);
+  const [revokeReason, setRevokeReason] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -173,6 +186,41 @@ function QrCheckinCard({ classId }: { classId: string }) {
         <Link href={`/trainer/classes/${classId}/kiosk`}>
           <Button variant="outline" size="sm"><Monitor className="mr-2 h-4 w-4" /> Open Kiosk Mode</Button>
         </Link>
+        {revoking ? (
+          <div className="w-full max-w-xs space-y-2">
+            <Input
+              aria-label="Why the check-in codes are being revoked"
+              value={revokeReason}
+              onChange={(event) => setRevokeReason(event.target.value)}
+              placeholder="Why (e.g. the code was shared outside the room)"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm" variant="destructive"
+                disabled={revokeReason.trim().length < 5 || revokeTokens.isPending}
+                onClick={() => {
+                  void revokeTokens.mutateAsync({ classId, reason: revokeReason.trim() })
+                    .then(() => {
+                      notify({ title: "Check-in codes revoked", description: "Every outstanding code stops working now." });
+                      setRevoking(false); setRevokeReason("");
+                    })
+                    .catch((e: unknown) => notify({ title: "Could not revoke the codes", description: errorText(e), variant: "destructive" }));
+                }}
+              >
+                {revokeTokens.isPending ? "Revoking..." : "Confirm revoke"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setRevoking(false)}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => { setRevoking(true); setRevokeReason(""); }}>
+            Revoke outstanding codes
+          </Button>
+        )}
+        <p className="max-w-xs text-center text-[11px] text-muted-foreground">
+          Rotation is not revocation -- the current code stays valid until it rotates, so a code that
+          left the room keeps working until you revoke it.
+        </p>
       </CardContent>
     </Card>
   );
@@ -262,6 +310,10 @@ export default function ClassDetail() {
   const allAttendees = attendees ?? [];
   const attendanceSummary = useMemo(() => summarizeClassAttendance(allAttendees), [allAttendees]);
   const isDraft = cls?.status === "draft";
+  // The correction path mirrors `assert_completed_class_corrector`: platform admin, or an org_admin
+  // in the owning organization. Showing it to anyone else would offer a button the server refuses.
+  const canCorrectCompleted = cls?.status === "completed"
+    && ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   const existingEmpIds = new Set(allAttendees.map((a) => a.employee_id));
   const availableEmployees = (allEmployees ?? []).filter((e) => !existingEmpIds.has(e.id));
@@ -632,6 +684,25 @@ export default function ClassDetail() {
         </Card>
       )}
 
+      {canCorrectCompleted && cls && (
+        <Suspense fallback={null}>
+          <CompletedClassCorrectionCard
+            classId={classId}
+            className={cls.class_name}
+            location={cls.location}
+            notes={cls.notes}
+            attendees={allAttendees.map((attendee) => {
+              const employee = employeesById.get(attendee.employee_id);
+              return {
+                employee_id: attendee.employee_id,
+                attended: attendee.attended,
+                name: employee ? `${employee.last_name}, ${employee.first_name}` : attendee.employee_id,
+              };
+            })}
+          />
+        </Suspense>
+      )}
+
       {isDraft && <QrCheckinCard classId={classId} />}
       {isDraft && <MeetingNoticeCard classId={classId} />}
 
@@ -673,6 +744,26 @@ export default function ClassDetail() {
                 <p className="text-xl font-semibold">{attendanceSummary.recordsPending}</p>
               </div>
             </div>
+
+            {/* The session-registration track, which is a different model from the attendee list
+                above: capacity, a waitlist, signed attendance evidence, and an approval that
+                writes training records. All of it existed in the database and none of it had a
+                screen -- registration had a hook nothing rendered (G16.7), and attendance and
+                approval had neither. The employee list is the same active roster the attendee
+                dialog picks from; the card filters out anyone already registered. */}
+            <SessionRosterCard
+              classId={classId}
+              classStatus={cls?.status}
+              capacity={cls?.capacity}
+              employees={(allEmployees ?? []).map((employee) => ({
+                id: employee.id,
+                name: `${employee.first_name} ${employee.last_name}`,
+              }))}
+              employeeName={(employeeId) => {
+                const employee = employeesById.get(employeeId);
+                return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
+              }}
+            />
 
             {(attendanceSummary.checkedInNotMarkedPresent > 0 || attendanceSummary.presentWithoutCheckin > 0 || attendanceSummary.checkedInWithoutCheckout > 0) ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

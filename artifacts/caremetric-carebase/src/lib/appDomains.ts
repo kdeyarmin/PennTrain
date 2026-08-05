@@ -234,6 +234,8 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/training-plans", label: "Training plans", domain: "training", roles: PLATFORM_ADMIN, keywords: ["paths", "requirements", "curriculum"] },
   { path: "/admin/document-analyzer", label: "State form document analyzer", domain: "documents", roles: PLATFORM_ADMIN, keywords: ["pdf", "forms", "handwriting", "ocr", "state", "backlog", "ai", "extraction", "convert"] },
   { path: "/admin/incidents/:id", label: "Platform incident detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["incident", "complaint", "event"] },
+  { path: "/admin/complaints/:id", label: "Platform complaint detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["complaint", "grievance", "resident rights", "ombudsman"] },
+  { path: "/admin/violations/:id", label: "Platform violation detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["violation", "citation", "plan of correction", "dhs"] },
   { path: "/admin/inspections/:id", label: "Platform inspection item detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["inspection", "equipment", "physical plant"] },
   { path: "/admin/residents/:id", label: "Resident chart", domain: "residents", roles: PLATFORM_ADMIN, keywords: ["resident", "chart", "assessment", "state form"] },
   { path: "/admin/residents/:residentId/assessment-forms/:formId", label: "Platform resident assessment form", domain: "residents", roles: PLATFORM_ADMIN, keywords: ["resident", "assessment", "rasp", "asp", "state form"] },

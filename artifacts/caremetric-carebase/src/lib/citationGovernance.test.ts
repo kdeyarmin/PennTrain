@@ -3,6 +3,7 @@ import {
   CITATION_REVERIFICATION_INTERVAL_DAYS,
   citationDisplay,
   inlineCitation,
+  verificationFormIssues, supersessionFormIssues,
 } from "./citationGovernance";
 
 const TODAY = new Date("2026-07-25T12:00:00Z");
@@ -114,5 +115,58 @@ describe("citation display governance", () => {
       expect(citationDisplay({ citation_ref: "x", verification_status: status }, TODAY).citable)
         .toBe(false);
     }
+  });
+});
+
+describe("verification form issues", () => {
+  const TODAY = new Date("2026-08-04T12:00:00.000Z");
+  const good = {
+    citationRef: "2600.65",
+    sourceUrl: "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/055/chapter2600/s2600.65.html",
+    verifiedOn: "2026-08-04",
+    today: TODAY,
+  };
+
+  it("accepts a verification that carries a ref, a source, and a sane date", () => {
+    expect(verificationFormIssues(good)).toEqual([]);
+  });
+
+  it("refuses a verification with no source, in the words that say why", () => {
+    // This is the whole mechanism: a claim nobody can retrace is not evidence.
+    const issues = verificationFormIssues({ ...good, sourceUrl: "  " });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain("not evidence");
+  });
+
+  it("refuses a source that is not a URL", () => {
+    expect(verificationFormIssues({ ...good, sourceUrl: "I checked the book" })[0]).toContain("URL");
+  });
+
+  it("requires the section number", () => {
+    expect(verificationFormIssues({ ...good, citationRef: "   " })[0]).toContain("section number");
+  });
+
+  it("refuses a verification dated in the future", () => {
+    expect(verificationFormIssues({ ...good, verifiedOn: "2026-08-05" })[0]).toContain("future");
+  });
+
+  it("accepts today itself, which is the common case", () => {
+    expect(verificationFormIssues({ ...good, verifiedOn: "2026-08-04" })).toEqual([]);
+  });
+
+  it("reports every problem at once rather than one at a time", () => {
+    expect(verificationFormIssues({
+      citationRef: "", sourceUrl: "", verifiedOn: "2026-12-01", today: TODAY,
+    })).toHaveLength(3);
+  });
+});
+
+describe("supersession form issues", () => {
+  it("requires the successor reference", () => {
+    expect(supersessionFormIssues({ supersededByRef: "  " })[0]).toContain("where to look");
+  });
+
+  it("accepts a named successor", () => {
+    expect(supersessionFormIssues({ supersededByRef: "2600.66" })).toEqual([]);
   });
 });

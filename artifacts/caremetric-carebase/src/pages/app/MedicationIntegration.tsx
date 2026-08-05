@@ -21,6 +21,7 @@ import {
   useMedicationIntegration,
   useResolveMedicationIntegrationException,
   useSaveMedicationIntegrationSource,
+  useMapMedicationResident,
 } from "@/hooks/useMedicationIntegration";
 import { useListProfiles } from "@/hooks/useProfiles";
 import {
@@ -65,6 +66,8 @@ export default function MedicationIntegration() {
   const [resolutionStatus, setResolutionStatus] = useState<"acknowledged" | "resolved" | "dismissed">("acknowledged");
   const [resolutionNote, setResolutionNote] = useState("");
   const resolveException = useResolveMedicationIntegrationException();
+  const mapResident = useMapMedicationResident();
+  const [mappingResidentId, setMappingResidentId] = useState("");
   const assignException = useAssignMedicationIntegrationException();
   const profiles = useListProfiles({ organizationId: user?.organizationId ?? undefined });
   const credentials = useOrganizationIntegrationCredentials(user?.organizationId ?? undefined);
@@ -148,7 +151,7 @@ export default function MedicationIntegration() {
           <div className="grid gap-4 lg:grid-cols-2">{data.sources.length === 0 ? <Card className="lg:col-span-2"><CardContent className="py-10 text-center"><DatabaseZap className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="font-medium">No eMAR source configured</p><p className="text-sm text-muted-foreground">{canManage ? "Create a source, then bind it to an integration credential carrying the medications:write scope." : "A facility administrator must configure an eMAR source."}</p></CardContent></Card> : data.sources.map((source) => { const freshness = sourceFreshness(source); return <Card key={source.id} className={freshness.stale || source.status === "error" ? "border-destructive/60" : ""}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle>{source.name}</CardTitle><CardDescription>{source.vendor_name} · External facility {source.external_facility_id}</CardDescription></div><Badge variant={source.status === "active" ? "outline" : source.status === "error" ? "destructive" : "secondary"}>{human(source.status)}</Badge></div></CardHeader><CardContent className="space-y-2 text-sm"><p className="flex items-center gap-2">{freshness.stale ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}Last complete sync: {freshness.label}</p><p className="text-muted-foreground">Freshness target: {source.freshness_threshold_minutes} minutes</p>{source.last_error_message && <p className="text-destructive">{source.last_error_message}</p>}{!source.credential_id && <p className="text-amber-700">Setup required: bind a medications:write integration credential.</p>}</CardContent></Card>; })}</div>
 
           <Tabs defaultValue="exceptions"><TabsList><TabsTrigger value="exceptions">Exceptions ({openExceptions.length})</TabsTrigger><TabsTrigger value="orders">External orders</TabsTrigger><TabsTrigger value="administrations">Administration documentation</TabsTrigger></TabsList>
-            <TabsContent value="exceptions" className="space-y-3">{data.exceptions.length === 0 ? <Card><CardContent className="py-10 text-center"><CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-emerald-600" /><p>No integration exceptions recorded.</p></CardContent></Card> : data.exceptions.map((item) => <Card key={item.id}><CardContent className="flex flex-wrap items-start justify-between gap-4 p-4"><div><div className="mb-1 flex flex-wrap gap-2"><Badge variant={item.severity === "urgent" ? "destructive" : "outline"}>{human(item.severity)}</Badge><Badge variant="secondary">{human(item.status)}</Badge></div><p className="font-medium">{human(item.exception_type)}</p><p className="text-sm text-muted-foreground">{item.summary}</p>{item.external_resident_id && <p className="mt-1 text-xs text-muted-foreground">External resident ID: {item.external_resident_id}</p>}</div>{canManage && !["resolved", "dismissed"].includes(item.status) && <Button size="sm" variant="outline" onClick={() => { setSelectedException(item); setResolutionStatus("acknowledged"); setResolutionNote(""); }}>Review</Button>}</CardContent></Card>)}</TabsContent>
+            <TabsContent value="exceptions" className="space-y-3">{data.exceptions.length === 0 ? <Card><CardContent className="py-10 text-center"><CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-emerald-600" /><p>No integration exceptions recorded.</p></CardContent></Card> : data.exceptions.map((item) => <Card key={item.id}><CardContent className="flex flex-wrap items-start justify-between gap-4 p-4"><div><div className="mb-1 flex flex-wrap gap-2"><Badge variant={item.severity === "urgent" ? "destructive" : "outline"}>{human(item.severity)}</Badge><Badge variant="secondary">{human(item.status)}</Badge></div><p className="font-medium">{human(item.exception_type)}</p><p className="text-sm text-muted-foreground">{item.summary}</p>{item.external_resident_id && <p className="mt-1 text-xs text-muted-foreground">External resident ID: {item.external_resident_id}</p>}</div>{canManage && !["resolved", "dismissed"].includes(item.status) && <Button size="sm" variant="outline" onClick={() => { setSelectedException(item); setResolutionStatus("acknowledged"); setResolutionNote(""); setMappingResidentId(""); }}>Review</Button>}</CardContent></Card>)}</TabsContent>
             <TabsContent value="orders" className="space-y-3">{displayedOrders.map((order) => <Card key={order.id}><CardContent className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">{order.medication_display}</p><p className="text-sm text-muted-foreground">{residentNames.get(order.resident_id) ?? "Scoped resident"}</p>{order.directions && <p className="mt-2 text-sm">{order.directions}</p>}{order.schedule_display && <p className="text-sm text-muted-foreground">{order.schedule_display}</p>}</div><Badge variant="outline">{human(order.order_status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">Source updated {new Date(order.source_updated_at).toLocaleString()}</p></CardContent></Card>)}</TabsContent>
             <TabsContent value="administrations" className="space-y-3">{displayedAdministrations.map((event) => <Card key={event.id}><CardContent className="flex flex-wrap items-start justify-between gap-3 p-4"><div><p className="font-medium">{residentNames.get(event.resident_id) ?? "Scoped resident"}</p><p className="flex items-center gap-1 text-sm text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />{new Date(event.occurred_at).toLocaleString()}</p>{event.source_note && <p className="mt-2 text-sm">{event.source_note}</p>}</div><Badge variant={event.administration_status === "administered" ? "outline" : "destructive"}>{human(event.administration_status)}</Badge></CardContent></Card>)}</TabsContent>
           </Tabs>
@@ -160,6 +163,54 @@ export default function MedicationIntegration() {
       <Dialog open={!!selectedException} onOpenChange={(open) => !open && setSelectedException(null)}>
         <DialogContent><DialogHeader><DialogTitle>Review medication integration exception</DialogTitle><DialogDescription>Assign an accountable owner and SLA-backed work item, or record the operational disposition. Clinical correction remains in the external eMAR.</DialogDescription></DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor={`${__fieldIds}-owner`}>Owner</Label><Select value={exceptionOwnerId} onValueChange={setExceptionOwnerId}><SelectTrigger id={`${__fieldIds}-owner`}><SelectValue placeholder="Assign owner" /></SelectTrigger><SelectContent>{(profiles.data ?? []).filter((profile) => profile.is_active && ["org_admin", "facility_manager"].includes(profile.role)).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="med-exception-due">Due by</Label><Input id="med-exception-due" type="datetime-local" value={exceptionDueAt} onChange={(event) => setExceptionDueAt(event.target.value)} /></div><div className="sm:col-span-2"><Button variant="outline" disabled={assignException.isPending || !exceptionOwnerId || !exceptionDueAt} onClick={() => void submitAssignment()}>{assignException.isPending ? "Assigning…" : "Assign and create work item"}</Button></div></div>
+          {selectedException?.exception_type === "unmatched_resident" && selectedException.external_resident_id && (
+            <div className="space-y-2 border-t pt-4">
+              <Label htmlFor={`${__fieldIds}-map-resident`}>Map to resident</Label>
+              <p className="text-xs text-muted-foreground">
+                The eMAR is sending administration data for external id{" "}
+                <span className="font-mono">{selectedException.external_resident_id}</span>, which
+                matches nobody here. Until it is mapped, that evidence never reaches a resident&apos;s
+                chart — so acknowledging this exception does not fix it.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={mappingResidentId} onValueChange={setMappingResidentId}>
+                  <SelectTrigger id={`${__fieldIds}-map-resident`} className="sm:w-80">
+                    <SelectValue placeholder="Select the resident this refers to" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(residents.data ?? [])
+                      .filter((resident) => resident.facility_id === facilityId)
+                      .map((resident) => (
+                        <SelectItem key={resident.id} value={resident.id}>
+                          {resident.last_name}, {resident.first_name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  disabled={!mappingResidentId || mapResident.isPending}
+                  onClick={() => {
+                    if (!selectedException?.external_resident_id || !selectedException.source_id) return;
+                    mapResident.mutate({
+                      sourceId: selectedException.source_id,
+                      residentId: mappingResidentId,
+                      externalResidentId: selectedException.external_resident_id,
+                      facilityId,
+                    }, {
+                      onSuccess: () => {
+                        toast({ title: "Resident mapped", description: "The exception is resolved and future administrations will reach this resident's chart." });
+                        setSelectedException(null);
+                      },
+                      onError: (error: Error) => toast({ title: "Couldn't map the resident", description: error.message, variant: "destructive" }),
+                    });
+                  }}
+                >
+                  {mapResident.isPending ? "Mapping…" : "Map resident"}
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="space-y-4 border-t pt-4"><div className="space-y-2"><Label htmlFor={`${__fieldIds}-disposition`}>Disposition</Label><Select value={resolutionStatus} onValueChange={(value) => setResolutionStatus(value as typeof resolutionStatus)}><SelectTrigger id={`${__fieldIds}-disposition`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="acknowledged">Acknowledged / working</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="dismissed">Dismissed with reason</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label htmlFor="med-resolution-note">Resolution note</Label><Textarea id="med-resolution-note" value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} /></div></div>
           <DialogFooter><Button variant="outline" onClick={() => setSelectedException(null)}>Cancel</Button><Button disabled={resolveException.isPending || resolutionNote.trim().length < 5} onClick={() => void submitResolution()}>{resolveException.isPending ? "Saving…" : "Save disposition"}</Button></DialogFooter>
         </DialogContent>
