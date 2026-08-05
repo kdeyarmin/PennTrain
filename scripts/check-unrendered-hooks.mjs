@@ -16,9 +16,17 @@ import path from "node:path";
 // `add_appointment_preparation_item`, was introduced by the very branch that added the dormant-RPC
 // gate -- the hook was written, the surface was not, and the gate reported zero.
 //
-// The rule: an exported `use*` hook must be referenced by at least one `.tsx` file, directly or
-// through another hook that is itself reachable. A hook used only by other unreachable hooks is
-// still unreachable, so reachability is computed as a closure rather than one hop.
+// The rule: an exported `use*` hook must be referenced from a module that the application entry
+// point can actually reach, directly or through another hook that is itself reachable.
+//
+// "Referenced by some .tsx" was the first version of that rule and it was not enough, which a
+// 209-line `ReadinessForecastPanel` proved: it renders a 30/60/90-day workforce forecast, it is the
+// only caller of `get_workforce_readiness_forecast` and `route_workforce_readiness_remediation`,
+// and nothing imports the panel. Both gates passed -- the RPCs had hooks, the hooks had a .tsx --
+// and the capability was three layers deep in nothing. So reachability is now computed from the
+// import graph, seeded at `main.tsx` and following static imports and `lazy(() => import(...))`
+// alike. A file nobody imports is reported in its own right, because that is the same defect one
+// layer out.
 //
 // Legitimately-unrendered hooks belong in unrendered-hook-allowlist.json with a reason. "It will
 // have a screen soon" is not a reason; land the screen, or delete the hook.
@@ -26,6 +34,7 @@ import path from "node:path";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const CLIENT_SRC = path.join(ROOT, "artifacts", "caremetric-carebase", "src");
 const ALLOWLIST = path.join(ROOT, "scripts", "unrendered-hook-allowlist.json");
+const ENTRY = path.join(CLIENT_SRC, "main.tsx");
 
 const HOOK_DECLARATION = /export\s+function\s+(use[A-Z][A-Za-z0-9_]*)/g;
 
@@ -85,6 +94,27 @@ export function hookBodies(source) {
   return bodies;
 }
 
+/**
+ * Module specifiers this source imports, static and dynamic alike.
+ *
+ * Read from the RAW source, before comments are blanked, because an import path IS a string literal
+ * and blanking strings would erase every edge in the graph. Comments are stripped first so a
+ * commented-out import does not keep a dead file alive -- the same distinction the caller scan in
+ * check-dormant-rpcs.mjs has to make, in the opposite direction.
+ */
+export function importedSpecifiers(source) {
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+  const out = [];
+  for (const re of [
+    /\bfrom\s*["']([^"']+)["']/g,          // import x from "..."  /  export * from "..."
+    /\bimport\s*\(\s*["']([^"']+)["']/g,   // import("..."), including inside lazy()
+    /\bimport\s*["']([^"']+)["']/g,        // bare side-effect import "..."
+  ]) {
+    for (const m of code.matchAll(re)) out.push(m[1]);
+  }
+  return [...new Set(out)];
+}
+
 /** Whether `source` references `name` other than by declaring it. */
 export function referencesHook(source, name) {
   const withoutDeclaration = blankNonCode(source).replace(
@@ -117,6 +147,14 @@ if (process.argv.includes("--self-test")) {
     [() => /\buseC\b/.test(hookBodies("export function useA() { const q = 1; }\nexport function useB() { useC(); }").get("useB")), true],
     // A brace inside a string must not end the body early.
     [() => /\buseC\b/.test(hookBodies('export function useA() { const s = "}"; useC(); }').get("useA")), true],
+    // Import specifiers come from the raw source: the path is a string literal, so blanking strings
+    // would erase the graph, while a commented-out import must not keep a dead file alive.
+    [() => importedSpecifiers('import { A } from "@/x";'), ["@/x"]],
+    [() => importedSpecifiers('const P = lazy(() => import("@/pages/app/Foo"));'), ["@/pages/app/Foo"]],
+    [() => importedSpecifiers('export * from "./bar";'), ["./bar"]],
+    [() => importedSpecifiers('import "./side-effect";'), ["./side-effect"]],
+    [() => importedSpecifiers('// import { A } from "@/dead";\n'), []],
+    [() => importedSpecifiers('/* import { A } from "@/dead"; */'), []],
   ];
   let failures = 0;
   for (const [run, expected] of cases) {
@@ -131,13 +169,14 @@ if (process.argv.includes("--self-test")) {
   process.exit(0);
 }
 
-async function walk(dir, out = []) {
+async function walk(dir, options = {}, out = []) {
   let entries;
   try { entries = await readdir(dir); } catch { return out; }
   for (const entry of entries) {
     const full = path.join(dir, entry);
-    if ((await stat(full)).isDirectory()) await walk(full, out);
-    else if (/\.(ts|tsx)$/.test(full) && !full.endsWith("database.types.ts") && !/\.test\.(ts|tsx)$/.test(full)) {
+    if ((await stat(full)).isDirectory()) await walk(full, options, out);
+    else if (/\.(ts|tsx)$/.test(full) && !full.endsWith("database.types.ts")
+      && (options.includeTests || !/\.test\.(ts|tsx)$/.test(full))) {
       out.push(full);
     }
   }
@@ -146,12 +185,52 @@ async function walk(dir, out = []) {
 
 const files = await walk(CLIENT_SRC);
 const sources = new Map(await Promise.all(files.map(async (f) => [f, await readFile(f, "utf8")])));
+// A second table that also carries the test files, used only for the "is this module consumed by
+// anything at all" question below.
+const allFiles = await walk(CLIENT_SRC, { includeTests: true });
+const allSources = new Map(await Promise.all(allFiles.map(async (f) => [f, await readFile(f, "utf8")])));
 
 const declaredIn = new Map();
 const bodies = new Map();
 for (const [file, source] of sources) {
   for (const hook of exportedHooks(source)) declaredIn.set(hook, file);
   for (const [hook, body] of hookBodies(source)) bodies.set(hook, body);
+}
+
+// Resolve a specifier the way the bundler does: `@/x` is src/x, everything else is relative, and
+// an extensionless path may be a file or a directory index.
+function resolveSpecifier(fromFile, specifier, table = sources) {
+  let base;
+  if (specifier.startsWith("@/")) base = path.join(CLIENT_SRC, specifier.slice(2));
+  else if (specifier.startsWith(".")) base = path.resolve(path.dirname(fromFile), specifier);
+  else return null; // a package, not a file in this graph
+  for (const candidate of [
+    base, `${base}.ts`, `${base}.tsx`,
+    path.join(base, "index.ts"), path.join(base, "index.tsx"),
+  ]) {
+    if (table.has(candidate)) return candidate;
+  }
+  return null;
+}
+
+// Modules the application entry can actually reach. Anything outside this set is dead weight no
+// user can arrive at, however complete it looks.
+const reachableModules = new Set();
+if (sources.has(ENTRY)) {
+  const queue = [ENTRY];
+  reachableModules.add(ENTRY);
+  while (queue.length) {
+    const file = queue.pop();
+    for (const specifier of importedSpecifiers(sources.get(file) ?? "")) {
+      const target = resolveSpecifier(file, specifier);
+      if (target && !reachableModules.has(target)) {
+        reachableModules.add(target);
+        queue.push(target);
+      }
+    }
+  }
+} else {
+  throw new Error(`Unrendered-hook check cannot start: entry point ${path.relative(ROOT, ENTRY)} not found.`);
 }
 
 // A hook is reachable if a .tsx renders it, or the body of a reachable hook calls it. Iterate to a
@@ -162,6 +241,7 @@ for (const [file, source] of sources) {
 const reachable = new Set();
 for (const [hook, declaration] of declaredIn) {
   for (const [file, source] of sources) {
+    if (!reachableModules.has(file)) continue;
     if (!file.endsWith(".tsx") || (file === declaration && !declaration.endsWith(".tsx"))) continue;
     if (referencesHook(source, hook)) { reachable.add(hook); break; }
   }
@@ -173,6 +253,7 @@ while (grew) {
     if (reachable.has(hook)) continue;
     for (const caller of reachable) {
       if (caller === hook) continue;
+      if (!reachableModules.has(declaredIn.get(caller) ?? "")) continue;
       if (new RegExp(`\\b${hook}\\b`).test(bodies.get(caller) ?? "")) {
         reachable.add(hook);
         grew = true;
@@ -190,11 +271,59 @@ try {
   // An absent allowlist means nothing is excused, which is the correct default.
 }
 
+// A file NOTHING consumes is the same defect one layer out: complete-looking work with no way in.
+// Reported separately because the remedy differs -- a dead module is imported or deleted, where a
+// dead hook is rendered or deleted.
+//
+// This asks a deliberately different question from hook reachability, and so it is seeded
+// differently. Hooks are seeded at `main.tsx` alone, because "a user can reach it" is the whole
+// point. Modules are seeded at `main.tsx` PLUS every test file and the build config, because a pure
+// helper exercised only by its own unit test is tested, not dead -- `lib/bulkActions.ts` is exactly
+// that. Merging the two seeds would reopen the hole this check exists to close: a component that
+// only a test imports still has no way in for a user.
+const consumerSeeds = [
+  ENTRY,
+  ...(await walk(CLIENT_SRC, { includeTests: true })).filter((f) => /\.test\.(ts|tsx)$/.test(f)),
+];
+const consumedModules = new Set();
+for (const seed of consumerSeeds) {
+  if (!allSources.has(seed)) continue;
+  const queue = [seed];
+  consumedModules.add(seed);
+  while (queue.length) {
+    const file = queue.pop();
+    for (const specifier of importedSpecifiers(allSources.get(file) ?? "")) {
+      const target = resolveSpecifier(file, specifier, allSources);
+      if (target && !consumedModules.has(target)) {
+        consumedModules.add(target);
+        queue.push(target);
+      }
+    }
+  }
+}
+
+const deadModules = [...sources.keys()]
+  .filter((file) => !consumedModules.has(file))
+  .filter((file) => !allowlist[path.relative(ROOT, file)])
+  .sort();
+
 const findings = [];
 for (const [hook, declaration] of [...declaredIn].sort()) {
   if (reachable.has(hook)) continue;
   if (allowlist[hook]) continue;
   findings.push(`${hook}  (${path.relative(ROOT, declaration)})`);
+}
+
+if (deadModules.length) {
+  throw new Error(
+    `${deadModules.length} module(s) the application entry point cannot reach:\n` +
+      deadModules.map((f) => `  ${path.relative(ROOT, f)}`).join("\n") +
+      "\n\nImport it from something reachable, or delete it. A file nobody imports is complete-looking\n" +
+      "work with no way in -- `ReadinessForecastPanel` was 209 lines of workforce forecast, the only\n" +
+      "caller of two RPCs, and imported by nothing. See BACKLOG.md G16.25.\n" +
+      "If it is deliberately unreferenced, record its repo-relative path in\n" +
+      "scripts/unrendered-hook-allowlist.json with the reason.",
+  );
 }
 
 if (findings.length) {
@@ -210,6 +339,7 @@ if (findings.length) {
 // reports its own size and nothing else reads as "handled"; these are capabilities with no way in.
 const awaiting = Object.values(allowlist).filter((entry) => entry?.awaiting_surface).length;
 process.stdout.write(
-  `Unrendered-hook check passed (${declaredIn.size} exported hook(s), ` +
-    `${Object.keys(allowlist).length} allowlisted, ${awaiting} awaiting a surface).\n`,
+  `Unrendered-hook check passed (${declaredIn.size} exported hook(s) across ` +
+    `${reachableModules.size} reachable module(s), ${Object.keys(allowlist).length} allowlisted, ` +
+    `${awaiting} awaiting a surface).\n`,
 );

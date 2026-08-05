@@ -74,6 +74,7 @@ import {
 } from "@/lib/implementationReadiness";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { ReadinessForecastPanel } from "@/components/value-center/ReadinessForecastPanel";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
 import {
@@ -1092,6 +1093,12 @@ export default function ValueCenter() {
         </TabsContent>
 
         <TabsContent value="workforce" className="space-y-5">
+          {/* The 30/60/90-day forecast: which employees will be blocked from working, and when,
+              with the remediation routing that clears each reason. Nothing imported this panel --
+              209 lines and the only caller of two RPCs, three layers deep in nothing (BACKLOG.md
+              G16.25). It belongs above today's staffing numbers, because the whole point of it is
+              the blockers that have not happened yet. */}
+          <ReadinessForecastPanel facilityId={facilityId || undefined} />
           {!facilityId ? (
             <Empty>Select a facility to calculate qualification-aware staffing recommendations.</Empty>
           ) : staffing.isLoading ? (
