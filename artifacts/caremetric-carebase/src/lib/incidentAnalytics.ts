@@ -1,3 +1,5 @@
+import { facilityDayBounds } from "./dateUtils";
+
 export interface IncidentAnalyticsRecord {
   id: string;
   incident_type: string;
@@ -17,10 +19,19 @@ export interface IncidentAnalyticsSummary {
   topIncidentType: string | null;
 }
 
+// `today` is a FACILITY calendar day, and the incidents it is compared against are real
+// timestamptz instants -- so the end of that day has to be the facility's, not `T23:59:59Z`.
+// In Pennsylvania that literal is 19:59:59 local, so an incident reported at 20:30 was AHEAD of
+// "the end of today": daysSince returned -1, and both recency filters below are `days >= 0`, so
+// an evening incident silently dropped out of "reported in the last 7 days" and "last 30 days"
+// until the UTC date rolled over. The counts were understated for the incidents most likely to
+// still be unresolved.
 function daysSince(iso: string, today: string): number {
   const occurred = Date.parse(iso);
-  const todayTime = Date.parse(`${today}T23:59:59Z`);
-  return Math.floor((todayTime - occurred) / 86_400_000);
+  // facilityDayBounds().through is the instant the facility day ENDS (00:00 the next day), so a
+  // millisecond back from it is that day's last moment.
+  const endOfFacilityDay = Date.parse(facilityDayBounds(today).through) - 1;
+  return Math.floor((endOfFacilityDay - occurred) / 86_400_000);
 }
 
 export function summarizeIncidentAnalytics(incidents: IncidentAnalyticsRecord[], today: string): IncidentAnalyticsSummary {

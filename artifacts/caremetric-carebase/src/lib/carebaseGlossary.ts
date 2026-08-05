@@ -45,13 +45,16 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
     term: "Violation",
     category: "Compliance",
     definition: "A compliance finding or regulatory deficiency that must be tracked, remediated, and supported with documentation.",
-    relatedRoutes: [{ label: "Compliance", href: "/app/compliance" }],
+    // /app/compliance is not a route App.tsx registers -- these three sent the reader to the 404
+    // page. check-server-route-links verifies exactly this rule, but only for links built in
+    // migrations and edge functions; a client-side registry like this one is outside its scope.
+    relatedRoutes: [{ label: "Violations", href: "/app/violations" }],
   },
   {
     term: "Plan of correction",
     category: "Compliance",
     definition: "The documented remediation plan that explains how a deficiency or violation will be corrected and prevented from recurring.",
-    relatedRoutes: [{ label: "Compliance", href: "/app/compliance" }],
+    relatedRoutes: [{ label: "Violations", href: "/app/violations" }],
   },
   {
     term: "Documentation",
@@ -75,7 +78,7 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
     term: "Attestation",
     category: "Compliance",
     definition: "A user confirmation that a required review, policy acknowledgment, or compliance action has been completed truthfully.",
-    relatedRoutes: [{ label: "Compliance", href: "/app/compliance" }],
+    relatedRoutes: [{ label: "My Attestations", href: "/app/my-attestations" }],
   },
   {
     term: "Credential",
