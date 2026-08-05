@@ -114,6 +114,17 @@ export default function BackgroundChecks() {
     const employee = (employees ?? []).find((e) => e.id === editingEmployeeId);
     if (!employee) return;
 
+    // The three "_at" columns below record WHEN something was attested, and every save was
+    // stamping them `now()` whenever the flag was true -- so re-opening this profile to correct a
+    // typo in the notes moved the date the non-disqualification statement was signed, the date
+    // supervision was confirmed, and the date suitability was determined, all to today. Those are
+    // the dates a surveyor asks for on an OAPSA record, and the answer had become "the last time
+    // anyone touched this form". A flag that was already set keeps the timestamp it was set with;
+    // only a newly-set flag gets `now()`, and clearing it still clears the timestamp.
+    const existing = profileByEmployeeId.get(editingEmployeeId);
+    const stampedAt = (nowChecked: boolean, previouslyChecked: boolean | null | undefined, previousAt: string | null | undefined) =>
+      !nowChecked ? null : (previouslyChecked && previousAt ? previousAt : new Date().toISOString());
+
     const paResident = form.paResidentTwoYears === "yes" ? true : form.paResidentTwoYears === "no" ? false : null;
     const provisionalMaxDays = form.provisionalStartDate
       ? (paResident === true
@@ -130,15 +141,27 @@ export default function BackgroundChecks() {
         provisional_start_date: form.provisionalStartDate || null,
         provisional_max_days: provisionalMaxDays,
         non_disqualification_statement_signed: form.nonDisqStatementSigned,
-        non_disqualification_statement_signed_at: form.nonDisqStatementSigned ? new Date().toISOString() : null,
+        non_disqualification_statement_signed_at: stampedAt(
+          form.nonDisqStatementSigned,
+          existing?.non_disqualification_statement_signed,
+          existing?.non_disqualification_statement_signed_at,
+        ),
         supervision_attestation_confirmed: form.supervisionConfirmed,
         supervision_attestation_confirmed_by: form.supervisionConfirmed ? user.id : null,
-        supervision_attestation_confirmed_at: form.supervisionConfirmed ? new Date().toISOString() : null,
+        supervision_attestation_confirmed_at: stampedAt(
+          form.supervisionConfirmed,
+          existing?.supervision_attestation_confirmed,
+          existing?.supervision_attestation_confirmed_at,
+        ),
         supervision_attestation_notes: form.supervisionNotes || null,
         suitability_determination: form.suitabilityDetermination,
         suitability_conditions: form.suitabilityConditions || null,
         suitability_determined_by: form.suitabilityDetermination !== "pending" ? user.id : null,
-        suitability_determined_at: form.suitabilityDetermination !== "pending" ? new Date().toISOString() : null,
+        suitability_determined_at: stampedAt(
+          form.suitabilityDetermination !== "pending",
+          existing?.suitability_determination !== undefined && existing?.suitability_determination !== "pending",
+          existing?.suitability_determined_at,
+        ),
         suitability_notes: form.suitabilityNotes || null,
       });
       toast({ title: "Background check profile saved" });

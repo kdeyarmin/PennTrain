@@ -63,6 +63,11 @@ function grantState(grant: EvidenceGuestGrant): { label: string; className: stri
 }
 
 export default function EvidenceCollectionDetail() {
+  // Every labelled control on this page derives its id from here. Six were hardcoded --
+  // "guest-label", "revoke-reason", "withdraw-reason" and friends -- which are generic enough
+  // to collide with anything else mounted at the same time, and a duplicate id sends the label's
+  // click and the screen reader's announcement to whichever element the document reached first.
+  // The file already computed this prefix for one field; now it is used for all of them.
   const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -454,9 +459,9 @@ export default function EvidenceCollectionDetail() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="evidence-export">Completed export</Label>
+              <Label htmlFor={`${__fieldIds}-evidence-export`}>Completed export</Label>
               <Select value={exportJobId} onValueChange={setExportJobId}>
-                <SelectTrigger id="evidence-export"><SelectValue placeholder="Select an export" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-evidence-export`}><SelectValue placeholder="Select an export" /></SelectTrigger>
                 <SelectContent>
                   {(promotableExports ?? []).length === 0 ? (
                     <SelectItem value="none" disabled>No eligible exports for this facility</SelectItem>
@@ -472,9 +477,9 @@ export default function EvidenceCollectionDetail() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="evidence-display-name">Display name for guests</Label>
+              <Label htmlFor={`${__fieldIds}-evidence-display-name`}>Display name for guests</Label>
               <Input
-                id="evidence-display-name"
+                id={`${__fieldIds}-evidence-display-name`}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="July 2026 compliance binder"
@@ -505,9 +510,9 @@ export default function EvidenceCollectionDetail() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="withdraw-reason">Reason</Label>
+            <Label htmlFor={`${__fieldIds}-withdraw-reason`}>Reason</Label>
             <Textarea
-              id="withdraw-reason"
+              id={`${__fieldIds}-withdraw-reason`}
               value={withdrawReason}
               onChange={(e) => setWithdrawReason(e.target.value)}
               placeholder="Why is this artifact being withdrawn?"
@@ -569,9 +574,9 @@ export default function EvidenceCollectionDetail() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="guest-label">Guest name or organization</Label>
+                  <Label htmlFor={`${__fieldIds}-guest-label`}>Guest name or organization</Label>
                   <Input
-                    id="guest-label"
+                    id={`${__fieldIds}-guest-label`}
                     value={guestLabel}
                     onChange={(e) => setGuestLabel(e.target.value)}
                     placeholder="DHS surveyor - J. Smith"
@@ -579,9 +584,9 @@ export default function EvidenceCollectionDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="guest-expiry">Expires in</Label>
+                  <Label htmlFor={`${__fieldIds}-guest-expiry`}>Expires in</Label>
                   <Select value={expiresDays} onValueChange={setExpiresDays}>
-                    <SelectTrigger id="guest-expiry"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-guest-expiry`}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="7">7 days</SelectItem>
                       <SelectItem value="14">14 days</SelectItem>
@@ -631,9 +636,9 @@ export default function EvidenceCollectionDetail() {
             <DialogDescription>The link stops working immediately; the revocation is logged.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="revoke-reason">Reason</Label>
+            <Label htmlFor={`${__fieldIds}-revoke-reason`}>Reason</Label>
             <Textarea
-              id="revoke-reason"
+              id={`${__fieldIds}-revoke-reason`}
               value={revokeReason}
               onChange={(e) => setRevokeReason(e.target.value)}
               placeholder="Why is this access being revoked?"

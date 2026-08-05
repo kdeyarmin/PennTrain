@@ -59,8 +59,10 @@ export default function ResidentServicesCalendar() {
   const canManage = hasRole(user, "platform_admin", "org_admin", "facility_manager");
   const canRecord = !hasRole(user, "auditor");
   const facilities = useListFacilities({ organizationId });
-  const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
-  useEffect(() => { if (!facilityId && facilities.data?.length === 1) setFacilityId(facilities.data[0].id); }, [facilityId, facilities.data]);
+  const { facilityId, residentId, setFacilityId, setResidentId, adoptDefaultFacility } = useResidentNavigationContext();
+  // adoptDefaultFacility, not setFacilityId: the latter clears the resident, and on `?resident=X`
+  // with no facility this effect runs before the resident query resolves the facility.
+  useEffect(() => { if (!facilityId && facilities.data?.length === 1) adoptDefaultFacility(facilities.data[0].id); }, [facilityId, facilities.data]);
   const [fromDate, setFromDate] = useState(toLocalIsoDate(addDays(-7)));
   const [throughDate, setThroughDate] = useState(toLocalIsoDate(addDays(30)));
   const [eventType, setEventType] = useState("");

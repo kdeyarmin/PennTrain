@@ -52,9 +52,11 @@ export default function DietaryOperations() {
   const canManage = hasRole(user, "platform_admin", "org_admin", "facility_manager");
   const canRecord = !hasRole(user, "auditor");
   const facilities = useListFacilities({ organizationId });
-  const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
+  const { facilityId, residentId, setFacilityId, setResidentId, adoptDefaultFacility } = useResidentNavigationContext();
+  // adoptDefaultFacility, not setFacilityId: the latter clears the resident, and on `?resident=X`
+  // with no facility this effect runs before the resident query resolves the facility.
   useEffect(() => {
-    if (!facilityId && facilities.data?.length === 1) setFacilityId(facilities.data[0].id);
+    if (!facilityId && facilities.data?.length === 1) adoptDefaultFacility(facilities.data[0].id);
   }, [facilities.data, facilityId]);
   const residents = useListResidents({ facilityId, status: "active" }, { enabled: !!facilityId });
   const employees = useListEmployees({ facilityId, status: "active", organizationId }, { enabled: !!facilityId });

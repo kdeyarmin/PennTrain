@@ -107,17 +107,26 @@ export function useComplianceRequirementDetail(requirementId: string | undefined
 }
 
 /** Buildings for a facility, for the requirement editor's building selector. */
+/**
+ * Active buildings for one facility, or -- when no facility is given -- every building the caller
+ * can see. That second mode is not a convenience: `ComplianceCommandCenter` calls this with
+ * `undefined` whenever the facility filter is on "All facilities", which is its default, and then
+ * resolves each row's building NAME through the result. With the query disabled the CSV export's
+ * Building column came out empty for every row in the most common view of the page -- not marked
+ * unknown, just blank, on an export a facility hands to a surveyor. RLS scopes the unfiltered read
+ * the same way it scopes the filtered one.
+ */
 export function useComplianceFacilityBuildings(facilityId: string | undefined) {
   return useQuery({
-    queryKey: ["facility-buildings", facilityId],
-    enabled: !!facilityId,
+    queryKey: ["facility-buildings", facilityId ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("facility_buildings")
         .select("*")
-        .eq("facility_id", facilityId!)
         .eq("is_active", true)
         .order("name");
+      if (facilityId) query = query.eq("facility_id", facilityId);
+      const { data, error } = await query;
       if (error) throw error;
       return data as Tables<"facility_buildings">[];
     },

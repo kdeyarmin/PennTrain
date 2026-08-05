@@ -87,9 +87,19 @@ export default function EmployeeLifecycleCases() {
     [status, transitionFilter, page],
   );
   const cases = useEmployeeLifecycleCases(filters);
+  // Unfiltered on purpose. This list feeds two things with opposite needs: the create dialog's
+  // picker, which must only offer people who can still be transitioned, and `employeeName`, which
+  // labels EXISTING cases. Filtering the fetch to active served the first and broke the second --
+  // a termination case is precisely a case whose employee is no longer active, so the screen that
+  // reviews terminations rendered a truncated UUID where the person's name belongs. The picker
+  // narrows below instead.
   const employees = useListEmployees(
-    { organizationId: user?.organizationId ?? undefined, status: "active" },
+    { organizationId: user?.organizationId ?? undefined },
     { enabled: Boolean(user?.organizationId) || user?.role === "platform_admin" },
+  );
+  const activeEmployees = useMemo(
+    () => (employees.data ?? []).filter((employee) => employee.status === "active"),
+    [employees.data],
   );
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const createCase = useCreateEmployeeLifecycleCase();
@@ -441,7 +451,7 @@ export default function EmployeeLifecycleCases() {
               <Select value={employeeId} onValueChange={setEmployeeId}>
                 <SelectTrigger id={`${__fieldIds}-employee`}><SelectValue placeholder="Select employee" /></SelectTrigger>
                 <SelectContent>
-                  {(employees.data ?? []).map((employee) => (
+                  {activeEmployees.map((employee) => (
                     <SelectItem key={employee.id} value={employee.id}>
                       {employee.last_name}, {employee.first_name}
                     </SelectItem>
