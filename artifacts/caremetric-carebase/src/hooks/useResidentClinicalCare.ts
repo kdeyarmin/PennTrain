@@ -90,6 +90,23 @@ export function useAmendClinicalProgressNote() {
   }, (input) => input.residentId);
 }
 
+/**
+ * Marking a note entered in error (BACKLOG.md G15.14).
+ *
+ * Sign and amend were both wired; this third one was not, so a note charted against the wrong
+ * resident -- the mistake this exists for -- simply stood. It is not a delete: the server writes
+ * the prior body into `clinical_progress_note_versions` and sets the note to `entered_in_error`,
+ * which is how a clinical record is corrected without losing what it used to say.
+ */
+export function useRetractClinicalProgressNote() {
+  return useCareMutation(async (input: { residentId: string; noteId: string; reason: string }) => {
+    const { error } = await supabase.rpc("retract_clinical_progress_note" as never, {
+      p_note_id: input.noteId, p_reason: input.reason,
+    } as never);
+    if (error) throw error;
+  }, (input) => input.residentId);
+}
+
 export function useRecordClinicalAssessment() {
   return useCareMutation(async (input: {
     residentId: string; assessmentType: AssessmentType; assessedAt: string;
@@ -126,14 +143,25 @@ export function useSaveClinicalCarePlan() {
   }, (input) => input.residentId);
 }
 
+/**
+ * Create a goal, or revise one that exists.
+ *
+ * `goalId` is what makes the second half possible: `save_care_plan_goal` branches on `p_goal_id`,
+ * inserting when it is absent and updating when it is present, and nothing ever passed it. So a
+ * goal's status was rendered on the plan -- proposed, active, achieved, on hold, cancelled -- and
+ * could never leave the value it was created with. A care plan whose goals cannot be marked
+ * achieved is one that only ever grows.
+ */
 export function useSaveCarePlanGoal() {
   return useCareMutation(async (input: {
-    residentId: string; carePlanId: string; description: string; targetMeasure?: string | null; status?: string;
+    residentId: string; carePlanId: string; description: string; targetMeasure?: string | null;
+    status?: string; goalId?: string;
   }) => {
     const { error } = await supabase.rpc("save_care_plan_goal", {
       p_care_plan_id: input.carePlanId, p_description: input.description,
       ...(input.targetMeasure ? { p_target_measure: input.targetMeasure } : {}),
       ...(input.status ? { p_status: input.status } : {}),
+      ...(input.goalId ? { p_goal_id: input.goalId } : {}),
     });
     if (error) throw error;
   }, (input) => input.residentId);

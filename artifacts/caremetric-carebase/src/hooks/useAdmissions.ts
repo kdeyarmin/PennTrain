@@ -211,6 +211,35 @@ export function useUpdateAdmissionProspect() {
   });
 }
 
+/**
+ * Advancing the *funnel* stage (Phase 9a, request item 20).
+ *
+ * `update_admission_prospect` writes `stage`, the decision lifecycle. `pipeline_stage` -- the
+ * fourteen-stage sales funnel the request asked for -- is written by this RPC and by nothing else.
+ * It had no caller, so every prospect created after 20260726170000 sat at its `new_inquiry` default
+ * forever and the funnel, its conversion rates, its referral-source ROI and its weighted pipeline
+ * value were all computed over a column that never moved.
+ *
+ * Backwards moves are permitted on purpose: tours get cancelled and families go quiet, and a funnel
+ * that refuses to record a step backwards gets worked around in a spreadsheet. `stageDirection`
+ * exists so the surface can show a regression rather than refuse it.
+ */
+export function useAdvanceAdmissionPipelineStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { prospectId: string; pipelineStage: string; note?: string }) => {
+      const { data, error } = await supabase.rpc("advance_admission_pipeline_stage" as never, {
+        p_prospect_id: input.prospectId,
+        p_pipeline_stage: input.pipelineStage,
+        p_note: input.note ?? null,
+      } as never);
+      if (error) throw error;
+      return data as boolean;
+    },
+    onSuccess: () => invalidateAdmissions(queryClient),
+  });
+}
+
 export function useRecordAdmissionActivity() {
   const queryClient = useQueryClient();
   return useMutation({

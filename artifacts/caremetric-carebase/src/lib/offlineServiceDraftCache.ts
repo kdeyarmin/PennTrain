@@ -250,6 +250,19 @@ export async function saveOfflineFloorDeviceId(deviceId: string): Promise<void> 
   await request(db.transaction(META_STORE, "readwrite").objectStore(META_STORE).put({ ...metadata, deviceId }, "device"));
 }
 
+/**
+ * The registration this device already has, or undefined.
+ *
+ * Read-only on purpose: `initializeOfflineFloorDevice` creates a registration when there is none,
+ * which is exactly wrong for a caller that wants to *end* one, or to show whether one exists.
+ */
+export async function getOfflineFloorDeviceMetadata(): Promise<OfflineFloorDeviceMetadata | undefined> {
+  const db = await openDatabase();
+  return await request(
+    db.transaction(META_STORE).objectStore(META_STORE).get("device"),
+  ) as OfflineFloorDeviceMetadata | undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Drafts
 // ---------------------------------------------------------------------------

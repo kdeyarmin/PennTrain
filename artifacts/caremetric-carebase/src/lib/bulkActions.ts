@@ -1,4 +1,9 @@
-import { useMutation } from "@tanstack/react-query";
+// Result shapes for retry-safe bulk operations.
+//
+// A `useBulkAction` wrapper used to live here, generating an idempotency key and handing it to a
+// caller-supplied action. Nothing ever called it, so it was removed; the pure helpers below are the
+// part with users (and tests). A bulk surface that needs a mutation should write its own and use
+// `newIdempotencyKey`/`summarizeBulkResults`, which is what the shared value here really is.
 
 export type BulkResultStatus = "success" | "skipped" | "unauthorized" | "failed";
 
@@ -33,13 +38,4 @@ export function summarizeBulkResults(results: BulkRecordResult[], idempotencyKey
     failed: results.filter((r) => r.status === "failed").length,
     results,
   };
-}
-
-export function useBulkAction<TInput extends { ids: string[] }, TResult extends BulkActionResult>(
-  action: (input: TInput & { idempotencyKey: string; signal?: AbortSignal }) => Promise<TResult>,
-) {
-  return useMutation({
-    mutationFn: async (input: TInput & { idempotencyKey?: string; signal?: AbortSignal }) =>
-      action({ ...input, idempotencyKey: input.idempotencyKey ?? newIdempotencyKey("bulk") }),
-  });
 }

@@ -153,33 +153,13 @@ export function useRemoveIncidentStaffInvolved() {
   });
 }
 
-// Unfiltered (RLS-scoped) lookup of every notification's parent incident_id -- used to resolve
-// an alerts.incident_notification_id into a "View Incident" deep-link without a per-alert fetch.
-export function useListAllIncidentNotifications() {
-  return useQuery({
-    queryKey: ["incident_notifications", "all"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("incident_notifications").select("id, incident_id");
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-// Full (RLS-scoped) rows across every incident -- used by Reports.tsx's incident notification
-// register, the reconciliation view an inspector uses to diff CareMetric CareBase's log against the
-// regional office's own. useListAllIncidentNotifications() above stays minimal (id, incident_id
-// only) for its existing deep-link-resolution use.
-export function useListAllIncidentNotificationsDetailed() {
-  return useQuery({
-    queryKey: ["incident_notifications", "all", "detailed"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("incident_notifications").select("*").order("due_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-}
+// Two whole-table `incident_notifications` reads used to sit here and are gone. The minimal one
+// (id, incident_id) existed for deep-link resolution, and links carry the parent id directly --
+// `/app/incidents/<incident_id>` -- so there was never anything to resolve. The detailed one carried
+// a comment saying Reports.tsx's incident-notification register used it; that register is produced
+// entirely server-side by `generate_paged_compliance_report`, and Reports.tsx does not mention
+// notifications at all. The comment described an intention, and the dormant-hook gate believed it
+// until it stopped counting comments as callers.
 
 export function useListIncidentNotifications(incidentId: string | undefined) {
   return useQuery({

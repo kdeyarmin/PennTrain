@@ -63,14 +63,20 @@ export interface ClinicalChartSummary {
 export function useResidentClinicalObservations(
   residentId: string | undefined,
   observationType?: ObservationType,
+  // `p_include_retracted` defaults to false server-side and nothing ever passed it, so an
+  // observation retracted as entered-in-error vanished from every screen the moment it was
+  // retracted -- along with the amendment row recording who took it back and why. The chart offers
+  // the retraction; it has to be able to show the result.
+  includeRetracted = false,
 ) {
   return useQuery({
-    queryKey: [CLINICAL_OBSERVATIONS_KEY, residentId, observationType ?? "all"],
+    queryKey: [CLINICAL_OBSERVATIONS_KEY, residentId, observationType ?? "all", includeRetracted],
     enabled: Boolean(residentId),
     queryFn: async (): Promise<ClinicalObservation[]> => {
       const { data, error } = await supabase.rpc("get_resident_clinical_observations", {
         p_resident_id: residentId!,
         ...(observationType ? { p_observation_type: observationType } : {}),
+        ...(includeRetracted ? { p_include_retracted: true } : {}),
       });
       if (error) throw error;
       return (data ?? []) as ClinicalObservation[];
@@ -207,5 +213,33 @@ export function useClinicalChartResidentOptions() {
       }[];
     },
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Queue an observation for FHIR write-back to the resident's EHR.
+ *
+ * The `fhir-writeback` edge function drains this queue and nothing filled it: the whole write-back
+ * pipeline existed with no entry point. `queue_clinical_observation_writeback` looked reached only
+ * because the edge function names it in a comment, which is how the dormant-RPC gate missed it for
+ * as long as it did.
+ *
+ * The server refuses a retracted observation, and refuses outright unless the resident has an
+ * active patient mapping to a write-back-enabled FHIR source -- so this is offered only where that
+ * is plausible, and the refusal is surfaced verbatim rather than pre-guessed here.
+ */
+export function useQueueClinicalObservationWriteback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { residentId: string; observationId: string }) => {
+      const { data, error } = await supabase.rpc("queue_clinical_observation_writeback" as never, {
+        p_observation_id: input.observationId,
+      } as never);
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
+    },
   });
 }

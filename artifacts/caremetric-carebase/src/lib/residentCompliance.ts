@@ -34,7 +34,8 @@ export const ITEM_TYPE_LABELS: Record<string, string> = {
   initial_assessment_15day: "Initial Assessment",
   support_plan_30day: "Support Plan",
   annual_reassessment: "Annual Reassessment",
-  medical_evaluation: "Medical Evaluation",
+  medical_evaluation: "Initial Medical Evaluation",
+  annual_medical_evaluation: "Annual Medical Evaluation",
   significant_change_reassessment: "Significant Change Reassessment",
 };
 
@@ -68,7 +69,8 @@ export function getRequiredStateFormInfo(itemType: string, facilityType: string 
   const forms = isAlr ? DHS_ALR_FORMS : DHS_PCH_FORMS;
   const facilityLabel = isAlr ? "Assisted Living Facility (ALF)" : "Personal Care Home";
 
-  if (itemType === "medical_evaluation") {
+  // Both cycles are documented on the same DHS form; only the deadline and its grace differ.
+  if (itemType === "medical_evaluation" || itemType === "annual_medical_evaluation") {
     return { label: "DME (Documentation of Medical Evaluation)", url: forms.dme, sourceLabel: `PA DHS ${facilityLabel} DME form` };
   }
   if (itemType === "preadmission_screening") {

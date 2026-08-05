@@ -6,6 +6,9 @@ import {
   useQualifiedWorkforceCommand,
 } from "@/hooks/useQualifiedWorkforce";
 import type { EnterpriseJson, EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
+import { useCreateHrisImportRun, useHrisImportRuns, useHrisSourceSystems } from "@/hooks/useHrisImportRuns";
+import { HrisRowDecisions } from "@/components/admin/HrisRowDecisions";
+import { importRunIssues, importRunStatusLabel, suggestedRequestId } from "@/lib/hrisImportRuns";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useDecideOpenShiftClaim, useDecideShiftSwap, useDecideTimeOffRequest, useWorkforceSelfServiceQueues } from "@/hooks/useDailyOperations";
@@ -75,12 +78,123 @@ function CommandCard({
   );
 }
 
+/**
+ * Starting a run is the step that did not exist (BACKLOG.md G10).
+ *
+ * Validate and Apply were both wired -- to a run ID typed into a text box. `create_hris_import_run`
+ * is the only thing that mints one and had no caller, so in practice neither command was reachable:
+ * there was no way to obtain the ID they required.
+ */
+function StartImportRunCard({ onStarted }: { onStarted: (runId: string) => void }) {
+  const sources = useHrisSourceSystems();
+  const create = useCreateHrisImportRun();
+  const { toast } = useToast();
+  const [sourceSystemId, setSourceSystemId] = useState("");
+  const [requestId, setRequestId] = useState("");
+
+  const rows = sources.data ?? [];
+  const selected = rows.find((row) => row.id === sourceSystemId);
+  const issues = importRunIssues({ sourceSystemId, requestId });
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="text-base">Start an import run</CardTitle>
+        <CardDescription>
+          Opens the container a trusted adapter stages rows into. Re-submitting the same source and request
+          ID returns the run that already exists rather than importing the same extract twice.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="phase3-source">Source system</Label>
+          <Select
+            value={sourceSystemId}
+            onValueChange={(value) => {
+              setSourceSystemId(value);
+              const source = rows.find((row) => row.id === value);
+              if (source) setRequestId(suggestedRequestId(source.source_key, new Date()));
+            }}
+          >
+            <SelectTrigger id="phase3-source">
+              <SelectValue placeholder={rows.length ? "Choose a source" : "No pilot or active source configured"} />
+            </SelectTrigger>
+            <SelectContent>
+              {rows.map((row) => (
+                <SelectItem key={row.id} value={row.id}>{row.display_name} · {row.status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selected && (
+            <p className="text-xs text-muted-foreground">
+              Mode {selected.import_mode} · mapping v{selected.mapping_version}
+              {selected.last_cursor ? ` · last cursor ${selected.last_cursor}` : ""}
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phase3-request">Request ID</Label>
+          <Input id="phase3-request" value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Identifies this extract" />
+        </div>
+        <div className="md:col-span-2 space-y-2">
+          {issues.map((issue) => <p key={issue} className="text-xs text-muted-foreground">{issue}</p>)}
+          <Button
+            disabled={issues.length > 0 || create.isPending}
+            onClick={async () => {
+              try {
+                const runId = await create.mutateAsync({ sourceSystemId, requestId: requestId.trim() });
+                onStarted(runId);
+                toast({ title: "Import run started", description: "Its ID is filled in below." });
+              } catch (error) {
+                toast({
+                  title: "Import run blocked",
+                  description: error instanceof Error ? error.message : "Unknown error",
+                  variant: "destructive",
+                });
+              }
+            }}
+          >
+            Start run
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function HrisCommands() {
   const [runId, setRunId] = useState("");
+  const runs = useHrisImportRuns();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <div className="space-y-2 lg:col-span-2"><Label htmlFor="phase3-run">Import run ID</Label><Input id="phase3-run" value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="HRIS import run UUID" /></div>
+      <StartImportRunCard onStarted={setRunId} />
+      <div className="space-y-2 lg:col-span-2">
+        <Label htmlFor="phase3-run">Import run</Label>
+        {(runs.data ?? []).length > 0 ? (
+          <Select value={runId} onValueChange={setRunId}>
+            <SelectTrigger id="phase3-run"><SelectValue placeholder="Choose a run" /></SelectTrigger>
+            <SelectContent>
+              {(runs.data ?? []).map((run) => (
+                <SelectItem key={run.id} value={run.id}>
+                  {run.request_id} · {importRunStatusLabel(run.status)} · {run.staged_count} staged / {run.applied_count} applied
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input id="phase3-run" value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="No runs yet — start one above" />
+        )}
+      </div>
       <CommandCard title="Validate import" description="Re-runs deterministic validation and surfaces duplicate candidates for a human decision." rpc="validate_hris_import_run" args={{ p_import_run_id: runId }} disabled={!runId} buttonLabel="Validate staged rows" />
+      {/* Between the two commands, because that is where it belongs: Validate says it "surfaces
+          duplicate candidates for a human decision", and until now there was nowhere to make one,
+          so Apply ran with nothing decided. */}
+      {runId && (
+        <div className="rounded-lg border p-3">
+          <p className="mb-2 text-sm font-medium">Merge decisions</p>
+          <HrisRowDecisions importRunId={runId} />
+        </div>
+      )}
       <CommandCard title="Resume import" description="Applies the next idempotent batch. Re-running never credits the same source row twice." rpc="apply_hris_import_batch" args={{ p_import_run_id: runId, p_batch_size: 100 }} disabled={!runId} buttonLabel="Apply next batch" />
     </div>
   );

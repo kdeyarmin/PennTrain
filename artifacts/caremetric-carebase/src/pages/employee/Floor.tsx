@@ -14,6 +14,7 @@ import { useResidentServiceTaskQueue } from "@/hooks/useResidentServiceTasks";
 import { DocumentCareDialog } from "@/components/residents/DocumentCareDialog";
 import { UnscheduledServiceDialog } from "@/components/residents/UnscheduledServiceDialog";
 import { UnsyncedDraftsPanel } from "@/components/residents/UnsyncedDraftsPanel";
+import { OfflineServiceDeviceCard } from "@/components/offline/OfflineServiceDeviceCard";
 import { SERVICE_TASK_KIND_LABELS, type ServiceTaskKind } from "@/lib/serviceDeliveryContract";
 
 /** Flat shape returned by get_resident_service_task_queue -- not a nested requirement object. */
@@ -271,6 +272,10 @@ export default function Floor() {
           facilityId={unscheduledFor.facility_id}
         />
       )}
+
+      {/* Last on the page deliberately: this is administration of the device, not the shift. It
+          renders nothing at all until this device actually holds a registration. */}
+      <OfflineServiceDeviceCard />
     </div>
   );
 }

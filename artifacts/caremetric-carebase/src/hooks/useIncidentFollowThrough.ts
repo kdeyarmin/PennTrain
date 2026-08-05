@@ -41,8 +41,7 @@ function useIncidentWrite<TInput>(
     mutationFn: run,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["incident-follow-through", incidentId] });
-      queryClient.invalidateQueries({ queryKey: ["incident", incidentId] });
-      queryClient.invalidateQueries({ queryKey: ["incident-notifications", incidentId] });
+      queryClient.invalidateQueries({ queryKey: ["incident_notifications", incidentId] });
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
     },
   });

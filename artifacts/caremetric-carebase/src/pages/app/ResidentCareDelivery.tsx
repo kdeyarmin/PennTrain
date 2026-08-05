@@ -7,6 +7,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
 import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import { useResidentCareAnalytics, useRegisterResidentDmeItem, useScheduleResidentAppointment, useStartHospitalTransfer } from "@/hooks/useResidentCareDelivery";
+import { DmeRegisterCard } from "@/components/residents/DmeRegisterCard";
 import { QueryError } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -150,6 +151,10 @@ export default function ResidentCareDelivery() {
               <Button className="w-full" disabled={!selectedResidentId || !transferDestination || transferReason.length < 5 || transfer.isPending} onClick={() => transfer.mutate({ residentId: selectedResidentId, destination: transferDestination, reason: transferReason, transferTime: new Date().toISOString(), transportMethod: "staff_recorded" }, { onSuccess: () => toast({ title: "Transfer episode started" }) })}>Start transfer</Button>
             </CardContent>
           </Card>
+
+          <div className="xl:col-span-3">
+            <DmeRegisterCard facilityId={effectiveFacilityId || undefined} residents={residents.data ?? []} />
+          </div>
         </TabsContent>
 
         <TabsContent value="reporting" className="grid gap-4 md:grid-cols-3">

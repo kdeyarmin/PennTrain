@@ -163,6 +163,68 @@ export function recordedChanges(episode: HospitalEpisodeLike): { label: string; 
   return entries.filter((entry) => entry.detail.trim().length > 0);
 }
 
+/** The free-text change fields a return records, in the order the dialog asks for them. */
+export const RETURN_CHANGE_FIELDS = [
+  { key: "condition_changes", label: "Condition changes" },
+  { key: "diet_changes", label: "Diet changes" },
+  { key: "mobility_changes", label: "Mobility changes" },
+  { key: "skin_concerns", label: "Skin concerns" },
+  { key: "dme_changes", label: "Equipment changes" },
+] as const;
+
+export type ReturnChangeKey = typeof RETURN_CHANGE_FIELDS[number]["key"];
+
+export interface SuggestedReviewFlags {
+  assessmentReviewRequired: boolean;
+  supportPlanReviewRequired: boolean;
+  /** Why the suggestion came out this way, so the person can disagree knowingly. */
+  reason: string;
+}
+
+/**
+ * What the return form should propose for the two review-required flags.
+ *
+ * `complete_hospital_return` defaults both to true, which is the safe default for a *server*. On a
+ * form it is the wrong default to leave unexplained: a person who ticks past two pre-checked boxes
+ * on every return stops reading them, and the flags are what seed the return assessment review and
+ * gate the reconciliation. So the suggestion is derived from what the person actually typed.
+ *
+ * Any recorded change means the plan predates something. Medication reconciliation still pending or
+ * orders awaiting review means the same thing from the clinical side. With none of that, nothing on
+ * this form says the stay changed anything -- and proposing a reassessment anyway is how the
+ * proposal loses its meaning.
+ */
+export function suggestedReviewFlags(input: {
+  changes: Partial<Record<ReturnChangeKey, string | null | undefined>>;
+  medicationReconciliationStatus: string;
+  changedOrderAckStatus: string;
+}): SuggestedReviewFlags {
+  const recorded = RETURN_CHANGE_FIELDS
+    .filter((field) => (input.changes[field.key] ?? "").trim().length > 0)
+    .map((field) => field.label.toLowerCase());
+  const medicationOutstanding = input.medicationReconciliationStatus === "pending";
+  const ordersOutstanding = input.changedOrderAckStatus === "pending_review";
+
+  if (recorded.length === 0 && !medicationOutstanding && !ordersOutstanding) {
+    return {
+      assessmentReviewRequired: false,
+      supportPlanReviewRequired: false,
+      reason: "Nothing on this form records a change, so neither review is proposed. Tick them if the stay changed something this form does not capture.",
+    };
+  }
+
+  const drivers = [
+    ...recorded,
+    ...(medicationOutstanding ? ["medication reconciliation still pending"] : []),
+    ...(ordersOutstanding ? ["new orders awaiting review"] : []),
+  ];
+  return {
+    assessmentReviewRequired: true,
+    supportPlanReviewRequired: true,
+    reason: `Proposed because this return records ${drivers.join(", ")}. A plan written before the stay predates that.`,
+  };
+}
+
 export function episodeStateLabel(episode: HospitalEpisodeLike): string {
   if (episode.status === "out") return "Out at hospital";
   if (episode.status === "canceled") return "Cancelled";

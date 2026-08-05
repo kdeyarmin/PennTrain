@@ -3,10 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { errorText } from "@/lib/errorText";
 import {
   useAddSurveyEvidencePacketItem,
   useAssembleSurveyEvidencePacket,
   useIssueSurveyPacketGuestGrant,
+  useRevokeSurveyPacketGuestGrant,
+  useSurveyPacketGuestGrants,
   usePackageSurveyEvidencePacket,
   useRemoveSurveyEvidencePacketItem,
   useSurveyEvidencePacketExports,
@@ -23,6 +26,94 @@ import {
  * Split from SurveyDay.tsx so the route shell stays under the route budget while
  * packaging UI only loads when a binder is pinned.
  */
+/**
+ * Who currently holds guest access to this packet.
+ *
+ * Listing it at all is half the fix: before this, a grant was issued, its token shown once, and
+ * then it was invisible. Somebody auditing who could reach a compliance packet had nowhere to look,
+ * and `revoke_survey_packet_guest_grant` -- which exists and is complete -- had no caller.
+ *
+ * Revoked and expired grants stay on the list rather than disappearing. Who *used to* have access,
+ * and why it was taken away, is the part an auditor asks about.
+ */
+function GuestGrantList({
+  packetExportId, revoking, reason, pending,
+  onStartRevoke, onCancelRevoke, onReasonChange, onConfirmRevoke,
+}: {
+  packetExportId: string;
+  revoking: string | null;
+  reason: string;
+  pending: boolean;
+  onStartRevoke: (id: string) => void;
+  onCancelRevoke: () => void;
+  onReasonChange: (value: string) => void;
+  onConfirmRevoke: (id: string) => void;
+}) {
+  const grants = useSurveyPacketGuestGrants(packetExportId);
+  if (!grants.data?.length) return null;
+
+  const now = Date.now();
+  return (
+    <div className="space-y-1 border-t pt-2">
+      <p className="text-sm font-medium">Guest access ({grants.data.length})</p>
+      {grants.data.map((grant) => {
+        const expired = new Date(grant.expires_at).getTime() <= now;
+        const state = grant.revoked_at ? "revoked" : expired ? "expired" : "active";
+        return (
+          <div key={grant.id} className="rounded border p-2">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">
+                  {grant.guest_label}{" "}
+                  <span className={state === "active" ? "text-emerald-700 dark:text-emerald-500" : "text-muted-foreground"}>
+                    · {state}
+                  </span>
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {state === "revoked"
+                    ? `Revoked — ${grant.revocation_reason ?? "no reason recorded"}`
+                    : `Expires ${new Date(grant.expires_at).toLocaleString()}`}
+                  {" · downloaded "}{grant.download_count ?? 0}×
+                  {grant.last_downloaded_at ? ` (last ${new Date(grant.last_downloaded_at).toLocaleDateString()})` : ""}
+                </p>
+              </div>
+              {state === "active" && revoking !== grant.id && (
+                <Button size="sm" variant="outline" onClick={() => onStartRevoke(grant.id)}>
+                  Revoke
+                </Button>
+              )}
+            </div>
+            {revoking === grant.id && (
+              <div className="mt-2 space-y-1">
+                <Input
+                  className="h-8"
+                  aria-label={`Why access for ${grant.guest_label} is being revoked`}
+                  value={reason}
+                  onChange={(e) => onReasonChange(e.target.value)}
+                  placeholder="Why access is being withdrawn"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    disabled={reason.trim().length < 5 || pending}
+                    onClick={() => onConfirmRevoke(grant.id)}
+                  >
+                    {pending ? "Revoking…" : "Confirm revoke"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={onCancelRevoke}>Cancel</Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  At least five characters — the reason is kept on the grant.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SurveyDayPacketSection({
   sessionId,
   facilityId,
@@ -48,6 +139,9 @@ export default function SurveyDayPacketSection({
   const assemblePacket = useAssembleSurveyEvidencePacket();
   const packagePacket = usePackageSurveyEvidencePacket();
   const issueGuest = useIssueSurveyPacketGuestGrant();
+  const revokeGuest = useRevokeSurveyPacketGuestGrant();
+  const [revokingGrantId, setRevokingGrantId] = useState<string | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
   const [packetNote, setPacketNote] = useState("");
   const [packetCitation, setPacketCitation] = useState("");
   const [assembledManifest, setAssembledManifest] = useState<Record<string, unknown> | null>(null);
@@ -129,8 +223,8 @@ export default function SurveyDayPacketSection({
                   surveyDaySessionId: sessionId,
                   binderExportJobId: pinnedBinderJobId,
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Could not add binder", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Could not add binder", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -168,8 +262,8 @@ export default function SurveyDayPacketSection({
                   setPacketNote("");
                   setPacketCitation("");
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Could not add note", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Could not add note", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -188,8 +282,8 @@ export default function SurveyDayPacketSection({
                   setAssembledManifest(manifest);
                   toast({ title: "Packet manifest assembled" });
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Assemble failed", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Assemble failed", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -213,8 +307,8 @@ export default function SurveyDayPacketSection({
                   });
                   if (result.downloadUrl) window.open(result.downloadUrl, "_blank", "noopener");
                 })
-                .catch((e: Error) => {
-                  toast({ title: "Package failed", description: e.message, variant: "destructive" });
+                .catch((e: unknown) => {
+                  toast({ title: "Package failed", description: errorText(e), variant: "destructive" });
                 });
             }}
           >
@@ -254,8 +348,8 @@ export default function SurveyDayPacketSection({
                         description: "Copy the token now — it is shown once.",
                       });
                     })
-                    .catch((e: Error) => {
-                      toast({ title: "Guest grant failed", description: e.message, variant: "destructive" });
+                    .catch((e: unknown) => {
+                      toast({ title: "Guest grant failed", description: errorText(e), variant: "destructive" });
                     });
                 }}
               >
@@ -267,6 +361,27 @@ export default function SurveyDayPacketSection({
                 Token (copy now): {lastGuestToken}
               </p>
             )}
+            <GuestGrantList
+              packetExportId={latestExport.id}
+              revoking={revokingGrantId}
+              reason={revokeReason}
+              pending={revokeGuest.isPending}
+              onStartRevoke={(id) => { setRevokingGrantId(id); setRevokeReason(""); }}
+              onCancelRevoke={() => setRevokingGrantId(null)}
+              onReasonChange={setRevokeReason}
+              onConfirmRevoke={(id) => {
+                void revokeGuest
+                  .mutateAsync({ grantId: id, reason: revokeReason.trim() })
+                  .then(() => {
+                    setRevokingGrantId(null);
+                    setRevokeReason("");
+                    toast({ title: "Guest access revoked", description: "The link stops working immediately." });
+                  })
+                  .catch((e: unknown) => {
+                    toast({ title: "Could not revoke access", description: errorText(e), variant: "destructive" });
+                  });
+              }}
+            />
           </div>
         )}
         <ul className="space-y-1 text-sm">
@@ -284,8 +399,8 @@ export default function SurveyDayPacketSection({
                   variant="ghost"
                   disabled={removePacketItem.isPending}
                   onClick={() => {
-                    void removePacketItem.mutateAsync(item.id).catch((e: Error) => {
-                      toast({ title: "Remove failed", description: e.message, variant: "destructive" });
+                    void removePacketItem.mutateAsync(item.id).catch((e: unknown) => {
+                      toast({ title: "Remove failed", description: errorText(e), variant: "destructive" });
                     });
                   }}
                 >

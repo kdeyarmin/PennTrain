@@ -59,7 +59,6 @@ function invalidateServiceTasks(queryClient: ReturnType<typeof useQueryClient>) 
   // the resident-level exception and change detectors that consume completion_response.
   queryClient.invalidateQueries({ queryKey: ["resident-360"] });
   queryClient.invalidateQueries({ queryKey: ["resident-service-exceptions"] });
-  queryClient.invalidateQueries({ queryKey: ["resident-change-signals"] });
 }
 
 export function useResidentServiceTaskQueue(filters: ServiceTaskQueueFilters) {
@@ -185,6 +184,47 @@ export function useRecordResidentServiceTask() {
       return data;
     },
     onSuccess: () => invalidateServiceTasks(queryClient),
+  });
+}
+
+/**
+ * Raise a supervisor-review work item against a service exception (BACKLOG.md G10).
+ *
+ * `record_service_exception_follow_up` was reachable by nothing -- no client, no edge function, no
+ * other SQL.
+ *
+ * What it adds is narrower than "no route to a supervisor", and the difference matters.
+ * `record_service_task_response` already sets `supervisor_notified` from a checkbox the person
+ * documenting ticks, which is a *self-report*: it records that somebody says they told a supervisor.
+ * This function is the only thing that creates the `service-exception:<id>` work item -- a tracked
+ * row in the shared queue, with a due date, that somebody has to close. So an exception could be
+ * marked "supervisor notified" and still have no item anywhere asking anyone to do something about
+ * it, and an exception where the box was left unticked had nothing at all.
+ *
+ * The exception statuses it accepts are `resident_refused`, `resident_unavailable`, `not_completed`
+ * and `completed_late`; it refuses anything else with 22023. It is idempotent on the deduplication
+ * key, so raising it twice updates the existing item rather than making a second.
+ */
+export function useRecordServiceExceptionFollowUp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ taskId, reason }: { taskId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("record_service_exception_follow_up" as never, {
+        p_task_instance_id: taskId,
+        // The server does `coalesce(p_reason, v.note, <fallback>)`, and an empty string is not null
+        // -- sending "" would title the work item with nothing instead of falling back to the note
+        // the staff member recorded at the time.
+        p_reason: reason.trim() || null,
+      } as never);
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      invalidateServiceTasks(queryClient);
+      // The follow-up lands in the shared work queue, not in this page's own lists.
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
+    },
   });
 }
 

@@ -146,16 +146,3 @@ export function useRunDomainImport() {
   });
 }
 
-export function useRunEmployeeImport() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      csv: string;
-      fileName: string;
-      strategy: "create" | "skip" | "update";
-      mode: "validate" | "apply";
-      jobId?: string;
-    }) => runImportChunks({ ...input, domain: "employees" }),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["data-import-jobs"] }),
-  });
-}

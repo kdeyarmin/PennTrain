@@ -22,6 +22,7 @@ import {
   workQueuePresentationForRole,
 } from "@/lib/workItemQueue";
 import { QueryError } from "@/components/QueryState";
+import { CreateWorkItemDialog } from "@/components/workqueue/CreateWorkItemDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -114,6 +115,9 @@ export default function WorkQueue() {
   }, [searchInput, filters.search, setFilters]);
 
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
+  // create_deduplicated_work_item runs through assert_phase5_manager, which admits these three.
+  // Offering the button to anyone else would produce a 42501 at submit rather than a hidden control.
+  const canCreateWork = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facilityScope = effectiveScope === "facility" && filters.facilityId !== "all" ? filters.facilityId : undefined;
   const ownerScope = effectiveScope === "mine" ? user?.id : undefined;
   // In "My work" scope the queue is already pinned to the current user, so the owner dropdown is
@@ -179,6 +183,10 @@ export default function WorkQueue() {
             {presentation.description}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        {canCreateWork && (
+          <CreateWorkItemDialog organizationId={organizationId ?? null} defaultFacilityId={user?.facilityId ?? undefined} />
+        )}
         {presentation.showScopeSwitcher && (
           <div className="flex rounded-lg border p-1">
             <Button
@@ -206,6 +214,7 @@ export default function WorkQueue() {
             )}
           </div>
         )}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

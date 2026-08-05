@@ -41,7 +41,13 @@ export const PA_CITATIONS_LAST_VERIFIED = "2026-08-04";
  */
 export const CITATION_REVIEW_MAX_AGE_DAYS = 45;
 
-export type CitationVerificationStatus = "verified" | "pending_confirmation";
+/**
+ * The governed statuses `dhs_citation_topics.verification_status` may hold. Mirrored here so the
+ * display helpers below can be pure and tested, not so this module can assert one -- only
+ * `record_citation_verification()` sets that column, and it demands a named platform admin, a date
+ * and a source URL.
+ */
+export type GovernedCitationStatus = "verified" | "unverified" | "approximate" | "superseded";
 
 export type CitationModule =
   | "resident_assessment"
@@ -65,9 +71,17 @@ export interface PaRegulatoryCitation {
   modules: CitationModule[];
   sourceUrl: string;
   sourceLabel: string;
-  verification: {
-    status: CitationVerificationStatus;
-    /** Provenance: which shipped, reviewed artifact this statement was carried forward from. */
+  /**
+   * Which shipped, reviewed artifact this entry's wording was carried forward from.
+   *
+   * Deliberately NOT a verification status. This library used to carry `verification.status`, and
+   * every one of its entries said `"verified"` -- while `dhs_citation_topics.verification_status`,
+   * the governed column that only `record_citation_verification()` can set, said `approximate` or
+   * `unverified` for the same citations and still does. Two systems answering the same question
+   * differently, with the informal one always answering yes (BACKLOG.md F10). Provenance is what
+   * this module actually knows; verification is the database's to state.
+   */
+  provenance: {
     note: string;
   };
 }
@@ -89,8 +103,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     modules: ["admission", "resident_assessment"],
     sourceUrl: PA_CODE_2600,
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
-    verification: {
-      status: "verified",
+    provenance: {
       note: "Carried forward from dhs_citation_topics (20260706143020): \"Verified: 55 Pa Code 2600.224, preadmission screening within 30 days prior to admission, zero grace period.\"",
     },
   },
@@ -107,8 +120,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     modules: ["resident_assessment"],
     sourceUrl: PA_CODE_2600,
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
-    verification: {
-      status: "verified",
+    provenance: {
       note: "Carried forward from resident_compliance_rule_packs (20260706155617): initial_assessment_15day \"Zero grace, confirmed\"; annual_reassessment \"15-day grace confirmed via the 2600 RCG's general Grace Periods table (12 months + 15 days).\"",
     },
   },
@@ -125,8 +137,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     modules: ["support_plan"],
     sourceUrl: PA_CODE_2600,
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
-    verification: {
-      status: "verified",
+    provenance: {
       note: "Carried forward from dhs_citation_topics (20260706143020): \"Verified: 55 Pa Code 2600.227, support plan within 30 days of admission; revised within 30 days of completing the annual assessment or upon a significant-change reassessment.\"",
     },
   },
@@ -143,9 +154,8 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     modules: ["medical_evaluation"],
     sourceUrl: PA_CODE_2600,
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
-    verification: {
-      status: "verified",
-      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window. Recorded in resident_compliance_rule_packs (20260804000000) notes; deliberately NOT applied to that row's grace_period_days there, because the row is shared between the initial and annual cycles and the schema doesn't yet distinguish them -- see BACKLOG.md F9.",
+    provenance: {
+      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window. Applied by 20260804170000, which split the shared row into `medical_evaluation` (the initial evaluation, grace 0) and `annual_medical_evaluation` (grace 15). 20260804000000 had confirmed the figure but could not apply it, because one rule-pack row covered both cycles and the initial one is named in the exclusion list.",
     },
   },
   {
@@ -161,8 +171,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     modules: ["admission", "resident_assessment", "support_plan"],
     sourceUrl: PA_CODE_2800,
     sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
-    verification: {
-      status: "verified",
+    provenance: {
       note: "Carried forward from dhs_citation_topics and resident_compliance_rule_packs (20260706155617): \"Verified: 55 Pa Code 2800.224 covers both the initial assessment and preliminary support plan together\"; ALR standard track is 30 days before admission, not after.",
     },
   },
@@ -179,8 +188,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     modules: ["resident_assessment", "support_plan"],
     sourceUrl: PA_CODE_2800,
     sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
-    verification: {
-      status: "verified",
+    provenance: {
       note: "resident_compliance_rule_packs (20260804000000) confirms the annual-cycle grace period at 15 days via PA DHS's 2800 Regulatory Compliance Guide, p.5 Grace Periods table, which names \"Completion of ANNUAL Resident Assessments (2800.225(a)(1))\" directly in the 15-day list -- the same evidentiary standard already accepted for 2600.225 and 2800.141 in this file. The same page's exclusion list names only 2800.225(a) (the initial assessment), confirming the grace applies to the annual/significant-change cycle rather than the initial one.",
     },
   },
@@ -197,8 +205,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     modules: ["medical_evaluation"],
     sourceUrl: PA_CODE_2800,
     sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
-    verification: {
-      status: "verified",
+    provenance: {
       note: "Carried forward from dhs_citation_topics (20260706155617): \"Verified: 55 Pa Code 2800.141/2800.22(a)(1). 15-day annual grace confirmed via the 2800 RCG.\"",
     },
   },
@@ -216,6 +223,9 @@ const ITEM_TYPE_CITATIONS: Record<string, Partial<Record<FacilityType, string>>>
   annual_reassessment: { PCH: "2600.225", ALR: "2800.225" },
   significant_change_reassessment: { PCH: "2600.225", ALR: "2800.225" },
   medical_evaluation: { PCH: "2600.141", ALR: "2800.141" },
+  // Same section as the initial evaluation -- 20260804170000 split the two cycles into separate
+  // item types so each could carry its own grace period, not because they are different rules.
+  annual_medical_evaluation: { PCH: "2600.141", ALR: "2800.141" },
 };
 
 export function findCitation(citation: string): PaRegulatoryCitation | undefined {
@@ -255,10 +265,53 @@ export function isCitationLibraryStale(now: Date = new Date()): boolean {
   return citationLibraryAgeInDays(now) > CITATION_REVIEW_MAX_AGE_DAYS;
 }
 
-/** One-line attribution for rendering next to a field, including its verification posture. */
-export function citationDisplayLabel(entry: PaRegulatoryCitation): string {
-  const suffix = entry.verification.status === "pending_confirmation" ? " (unconfirmed detail)" : "";
-  return `55 Pa. Code § ${entry.citation} — ${entry.heading}${suffix}`;
+/**
+ * How a governed status reads next to a citation, or null when there is nothing to add.
+ *
+ * `verified` adds nothing: a verified citation should read as a plain citation, and a badge saying
+ * so would make the absence of one on every other entry easy to miss.
+ */
+export function governedStatusSuffix(status: GovernedCitationStatus | null | undefined): string | null {
+  switch (status) {
+    case "verified": return null;
+    case "approximate": return "approximate — not verified against the source";
+    case "superseded": return "superseded";
+    // Both an explicit `unverified` and a citation with no governed row at all. The distinction
+    // matters to whoever fixes it, not to the person reading a form.
+    default: return "not verified";
+  }
+}
+
+/**
+ * One-line attribution for rendering next to a field.
+ *
+ * The status comes from `dhs_citation_topics.verification_status` and is passed in, because this
+ * module does not know it and must not guess. Called without one, the label says "not verified" --
+ * which is the truthful default: a citation nobody has run `record_citation_verification()` for is
+ * not verified, and every entry in this library is currently in that position.
+ */
+export function citationDisplayLabel(
+  entry: PaRegulatoryCitation,
+  governedStatus?: GovernedCitationStatus | null,
+): string {
+  const suffix = governedStatusSuffix(governedStatus);
+  return `55 Pa. Code § ${entry.citation} — ${entry.heading}${suffix ? ` (${suffix})` : ""}`;
+}
+
+/** Index governed statuses by citation ref, for callers holding a `dhs_citation_topics` list. */
+export function governedStatusByCitation(
+  topics: { citation_ref: string | null; verification_status: string }[],
+): Record<string, GovernedCitationStatus> {
+  const byRef: Record<string, GovernedCitationStatus> = {};
+  for (const topic of topics) {
+    if (!topic.citation_ref) continue;
+    // A topic row can name several sections at once ("2600.65 / 2800.65"), and each of them carries
+    // that row's status.
+    for (const ref of topic.citation_ref.split("/").map((part) => part.trim())) {
+      if (ref) byRef[ref] = topic.verification_status as GovernedCitationStatus;
+    }
+  }
+  return byRef;
 }
 
 // `scripts/check-dhs-sources.mjs` covers the pacodeandbulletin.gov URLs above -- and the

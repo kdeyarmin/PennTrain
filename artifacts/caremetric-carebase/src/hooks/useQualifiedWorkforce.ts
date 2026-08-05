@@ -66,7 +66,14 @@ export function useQualifiedWorkforceCommand() {
       return data;
     },
     onSuccess: async () => {
+      // Covers HRIS_KEY too, which is ["qualified-workforce", "hris"] -- TanStack matches key
+      // elements left to right, so the shorter key is a prefix of the longer one.
       await queryClient.invalidateQueries({ queryKey: ["qualified-workforce"] });
+      // The staged rows are their own root and are not covered by the above. `validate_hris_import_run`
+      // rewrites each row's validation state and duplicate candidates, which is exactly what the
+      // merge-decision list underneath the Validate button renders; without this, clicking Validate
+      // left the decisions it just produced invisible until a reload.
+      await queryClient.invalidateQueries({ queryKey: ["hris-import-rows"] });
     },
   });
 }

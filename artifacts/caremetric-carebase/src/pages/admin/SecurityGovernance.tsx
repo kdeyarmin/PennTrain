@@ -8,6 +8,7 @@ import {
 } from "@/hooks/useSecurityAuditLog";
 import type { Tables } from "@/lib/database.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BreakGlassCard } from "@/components/admin/BreakGlassCard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -217,6 +218,11 @@ export default function SecurityGovernance() {
           )}
         </CardContent>
       </Card>
+
+      {/* Above Sensitive Activity, because break-glass is the thing that produces the sensitive
+          activity below it. Both halves were unreachable: access could not be granted, and so
+          could never have been ended early either. */}
+      <BreakGlassCard />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">

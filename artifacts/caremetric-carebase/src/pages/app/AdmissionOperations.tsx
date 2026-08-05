@@ -28,16 +28,19 @@ import {
   useListFacilityBeds,
   useListMoveInWorkspaces,
   useListReferralSources,
+  useListAdmissionActivities,
   useRecordAdmissionActivity,
   useReserveBedForProspect,
   useSetBedAvailability,
   useStartMoveInWorkspace,
   useTransitionResidentCensus,
+  useAdvanceAdmissionPipelineStage,
   useUpdateAdmissionProspect,
   type AdmissionProspectWithRelations,
   type FacilityBedWithRelations,
 } from "@/hooks/useAdmissions";
 import { QueryError } from "@/components/QueryState";
+import { SETTABLE_STAGES, pipelineStage, stageDirection } from "@/lib/admissionPipeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,7 +184,12 @@ function ProspectReviewDialog({
   const __fieldIds = useId();
   const { toast } = useToast();
   const update = useUpdateAdmissionProspect();
+  const advance = useAdvanceAdmissionPipelineStage();
   const activity = useRecordAdmissionActivity();
+  // Every call, tour and follow-up was written here and shown nowhere (BACKLOG.md G16.17), so the
+  // trail an admissions conversation depends on -- what was already tried, and how it went -- lived
+  // only in the database. It belongs directly under the form that writes it.
+  const activities = useListAdmissionActivities(prospect?.id);
   const reserve = useReserveBedForProspect();
   const startWorkspace = useStartMoveInWorkspace();
   const [stage, setStage] = useState(prospect?.stage ?? "prospect");
@@ -195,6 +203,7 @@ function ProspectReviewDialog({
   const [activityDate, setActivityDate] = useState("");
   const [lostReason, setLostReason] = useState(prospect?.lost_lead_reason ?? "");
   const [bedId, setBedId] = useState("");
+  const [funnelStage, setFunnelStage] = useState(prospect?.pipeline_stage ?? "new_inquiry");
   const isLostStage = stage === "declined" || stage === "lost";
 
   const saveReview = () => {
@@ -219,12 +228,50 @@ function ProspectReviewDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{prospect?.first_name} {prospect?.last_name}</DialogTitle><DialogDescription>Clinical, financial, tour, room reservation, and move-in decisions.</DialogDescription></DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-pipeline-stage`}>Pipeline stage</Label><Select value={stage} onValueChange={setStage}><SelectTrigger id={`${__fieldIds}-pipeline-stage`}><SelectValue /></SelectTrigger><SelectContent>{STAGES.filter(value => value !== "admitted").map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor={`${__fieldIds}-pipeline-stage`}>Decision stage</Label><Select value={stage} onValueChange={setStage}><SelectTrigger id={`${__fieldIds}-pipeline-stage`}><SelectValue /></SelectTrigger><SelectContent>{STAGES.filter(value => value !== "admitted").map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-expected-move-in-2`}>Expected move-in</Label><Input id={`${__fieldIds}-expected-move-in-2`} type="date" value={expectedDate} onChange={event => setExpectedDate(event.target.value)} /></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-clinical-review`}>Clinical review</Label><Select value={clinical} onValueChange={setClinical}><SelectTrigger id={`${__fieldIds}-clinical-review`}><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-financial-review`}>Financial review</Label><Select value={financial} onValueChange={setFinancial}><SelectTrigger id={`${__fieldIds}-financial-review`}><SelectValue /></SelectTrigger><SelectContent>{REVIEW_STATUSES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-decision-reason`}>Decision reason</Label><Input id={`${__fieldIds}-decision-reason`} value={reason} onChange={event => setReason(event.target.value)} /></div>
           {isLostStage && <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-lost-declined-reason`}>Lost / declined reason</Label><Select value={lostReason} onValueChange={setLostReason}><SelectTrigger id={`${__fieldIds}-lost-declined-reason`}><SelectValue placeholder="Select a standard reason" /></SelectTrigger><SelectContent>{LOST_REASONS.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>}
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor={`${__fieldIds}-funnel-stage`}>Funnel stage</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={funnelStage} onValueChange={setFunnelStage}>
+                <SelectTrigger id={`${__fieldIds}-funnel-stage`} className="sm:w-72"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {/* Not PIPELINE_STAGES: `advance_admission_pipeline_stage` refuses `admitted`,
+                      because admission is the move-in workflow's job -- it creates the resident
+                      record. Offering it here could only ever produce a server error. */}
+                  {SETTABLE_STAGES.map(definition => (
+                    <SelectItem key={definition.key} value={definition.key}>{definition.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                disabled={advance.isPending || funnelStage === (prospect?.pipeline_stage ?? "new_inquiry")}
+                onClick={() => prospect && advance.mutate(
+                  { prospectId: prospect.id, pipelineStage: funnelStage },
+                  {
+                    onSuccess: () => toast({ title: "Funnel stage updated" }),
+                    onError: (error: Error) => toast({ title: "Couldn't move the funnel stage", description: error.message, variant: "destructive" }),
+                  },
+                )}
+              >
+                {advance.isPending ? "Saving..." : "Move stage"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {pipelineStage(funnelStage)?.meaning}
+              {prospect && stageDirection(prospect.pipeline_stage ?? "new_inquiry", funnelStage) === "backward"
+                && " This is a step backwards, which is recorded rather than refused."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Separate from the decision stage above: a prospect can be at &quot;tour completed&quot; and
+              still be clinically unreviewed. This is the sales funnel; that one gates the bed.
+            </p>
+          </div>
           <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-notes-2`}>Notes</Label><Textarea id={`${__fieldIds}-notes-2`} value={notes} onChange={event => setNotes(event.target.value)} /></div>
         </div>
         <Button onClick={saveReview} disabled={update.isPending}>{update.isPending ? "Saving..." : "Save review"}</Button>
@@ -237,6 +284,37 @@ function ProspectReviewDialog({
             <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate ? new Date(activityDate).toISOString() : undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); } })}>Add activity</Button>
           </div>
           {activityType.startsWith("tour") && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-tour-date-amp-time`} className="text-xs text-muted-foreground">Tour date &amp; time</Label><Input id={`${__fieldIds}-tour-date-amp-time`} type="datetime-local" value={activityDate} onChange={event => setActivityDate(event.target.value)} className="w-full sm:w-72" /></div>}
+
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p>
+            {activities.isLoading ? (
+              <div className="h-10 animate-pulse rounded bg-muted" />
+            ) : (activities.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing recorded for this prospect yet.</p>
+            ) : (
+              <ul className="space-y-1">
+                {(activities.data ?? []).map((entry) => (
+                  <li key={entry.id} className="rounded border p-2 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">{humanize(entry.activity_type)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(entry.occurred_at).toLocaleString()}
+                        {entry.actor ? ` · ${entry.actor.first_name} ${entry.actor.last_name}` : ""}
+                      </span>
+                    </div>
+                    {entry.scheduled_for && (
+                      <p className="text-xs text-muted-foreground">
+                        Scheduled for {new Date(entry.scheduled_for).toLocaleString()}
+                      </p>
+                    )}
+                    {(entry.outcome || entry.notes) && (
+                      <p className="mt-0.5">{entry.outcome || entry.notes}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         {["approved", "waitlisted", "reserved"].includes(prospect?.stage ?? "") && (

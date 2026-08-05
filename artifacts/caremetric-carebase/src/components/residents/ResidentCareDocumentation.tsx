@@ -18,6 +18,7 @@ import {
   type ClinicalProgressNote,
   type ProgressNoteType,
   useAmendClinicalProgressNote,
+  useRetractClinicalProgressNote,
   useFinalizeClinicalAssessment,
   useRecordClinicalAssessment,
   useResidentClinicalCare,
@@ -33,6 +34,9 @@ function human(value: string) {
 
 const NOTE_TYPES: ProgressNoteType[] = ["nursing", "soap", "shift", "care_conference", "general"];
 const ASSESSMENT_TYPES: AssessmentType[] = ["braden", "morse_fall", "pain", "mmse", "nutrition", "adl", "mood", "custom"];
+// The five `save_care_plan_goal` accepts. The plan already rendered a goal's status; until the
+// revise path existed there was no way to move it off the value the goal was created with.
+const CARE_PLAN_GOAL_STATUSES = ["proposed", "active", "achieved", "on_hold", "cancelled"];
 
 function noteBadgeVariant(status: string): "outline" | "secondary" | "destructive" {
   if (status === "entered_in_error") return "destructive";
@@ -53,6 +57,9 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
   const [amendReason, setAmendReason] = useState("");
   const [amendBody, setAmendBody] = useState("");
   const amendNote = useAmendClinicalProgressNote();
+  const retractNote = useRetractClinicalProgressNote();
+  const [retracting, setRetracting] = useState<ClinicalProgressNote | null>(null);
+  const [retractReason, setRetractReason] = useState("");
 
   const [assessmentType, setAssessmentType] = useState<AssessmentType>("braden");
   const [assessmentScore, setAssessmentScore] = useState("");
@@ -66,8 +73,10 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
   const [planCategory, setPlanCategory] = useState("general");
   const savePlan = useSaveClinicalCarePlan();
   const [goalPlanId, setGoalPlanId] = useState<string | null>(null);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [goalDescription, setGoalDescription] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
+  const [goalStatus, setGoalStatus] = useState("active");
   const saveGoal = useSaveCarePlanGoal();
 
   const goalsByPlan = useMemo(() => {
@@ -133,11 +142,15 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
   const submitGoal = async () => {
     if (!goalPlanId || goalDescription.trim().length < 2) return;
     try {
-      await saveGoal.mutateAsync({ residentId, carePlanId: goalPlanId, description: goalDescription.trim(), targetMeasure: goalTarget.trim() || null });
-      setGoalPlanId(null); setGoalDescription(""); setGoalTarget("");
-      toast({ title: "Goal added" });
+      await saveGoal.mutateAsync({
+        residentId, carePlanId: goalPlanId, description: goalDescription.trim(),
+        targetMeasure: goalTarget.trim() || null, status: goalStatus,
+        ...(editingGoalId ? { goalId: editingGoalId } : {}),
+      });
+      setGoalPlanId(null); setEditingGoalId(null); setGoalDescription(""); setGoalTarget(""); setGoalStatus("active");
+      toast({ title: editingGoalId ? "Goal updated" : "Goal added" });
     } catch (error) {
-      toast({ title: "Goal could not be added", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      toast({ title: editingGoalId ? "Goal could not be updated" : "Goal could not be added", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
 
@@ -184,6 +197,19 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                   </div>
                   {canChart && (note.status === "signed" || note.status === "amended") && (
                     <Button size="sm" variant="ghost" onClick={() => { setAmending(note); setAmendReason(""); setAmendBody(note.body); }}><FilePenLine className="mr-1 h-3.5 w-3.5" />Amend</Button>
+                  )}
+                  {/* Amend corrects what a note says; this says the note should not exist at all --
+                      charted on the wrong resident, most often. The server keeps the prior body in
+                      a version row rather than deleting anything. */}
+                  {canChart && note.status !== "entered_in_error" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => { setRetracting(note); setRetractReason(""); }}
+                    >
+                      Entered in error
+                    </Button>
                   )}
                 </div>
                 <p className="whitespace-pre-wrap text-sm">{note.body}</p>
@@ -246,15 +272,75 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                 {(goalsByPlan.get(plan.id) ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No goals yet.</p> : (
                   <ul className="space-y-1">
                     {(goalsByPlan.get(plan.id) ?? []).map((goal) => (
-                      <li key={goal.id} className="flex items-start gap-2 text-sm"><Target className="mt-0.5 h-3.5 w-3.5 text-muted-foreground" /><span>{goal.description}{goal.target_measure ? ` — ${goal.target_measure}` : ""}</span><Badge variant="outline" className="ml-auto">{human(goal.status)}</Badge></li>
+                      <li key={goal.id} className="flex items-start gap-2 text-sm">
+                        <Target className="mt-0.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{goal.description}{goal.target_measure ? ` — ${goal.target_measure}` : ""}</span>
+                        <Badge variant="outline" className="ml-auto">{human(goal.status)}</Badge>
+                        {canChart && (
+                          <Button
+                            size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setGoalPlanId(plan.id); setEditingGoalId(goal.id);
+                              setGoalDescription(goal.description ?? "");
+                              setGoalTarget(goal.target_measure ?? "");
+                              setGoalStatus(goal.status ?? "active");
+                            }}
+                          >
+                            Revise
+                          </Button>
+                        )}
+                      </li>
                     ))}
                   </ul>
                 )}
-                {canChart && <Button size="sm" variant="ghost" onClick={() => { setGoalPlanId(plan.id); setGoalDescription(""); setGoalTarget(""); }}><Plus className="mr-1 h-3.5 w-3.5" />Add goal</Button>}
+                {canChart && <Button size="sm" variant="ghost" onClick={() => { setGoalPlanId(plan.id); setEditingGoalId(null); setGoalDescription(""); setGoalTarget(""); setGoalStatus("active"); }}><Plus className="mr-1 h-3.5 w-3.5" />Add goal</Button>}
               </CardContent>
             </Card>
           ))}
       </TabsContent>
+
+      <Dialog open={!!retracting} onOpenChange={(open) => { if (!open) setRetracting(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark this note entered in error</DialogTitle>
+            <DialogDescription>
+              The note stays in the record, marked as entered in error, and its current text is kept
+              in the note history. Use this when the note should not have been written at all — most
+              often because it was charted against the wrong resident. To correct what a note says,
+              amend it instead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label htmlFor="retract-reason">Reason</Label>
+            <Input
+              id="retract-reason"
+              value={retractReason}
+              onChange={(event) => setRetractReason(event.target.value)}
+              placeholder="Charted on the wrong resident; re-entered on the correct chart."
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRetracting(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={retractNote.isPending || retractReason.trim().length < 3}
+              onClick={() => {
+                if (!retracting) return;
+                void retractNote
+                  .mutateAsync({ residentId, noteId: retracting.id, reason: retractReason.trim() })
+                  .then(() => { setRetracting(null); setRetractReason(""); toast({ title: "Note marked entered in error" }); })
+                  .catch((error: unknown) => toast({
+                    title: "Note could not be retracted",
+                    description: error instanceof Error ? error.message : String(error),
+                    variant: "destructive",
+                  }));
+              }}
+            >
+              Mark entered in error
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!amending} onOpenChange={(open) => { if (!open) setAmending(null); }}>
         <DialogContent>
@@ -278,14 +364,21 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!goalPlanId} onOpenChange={(open) => { if (!open) setGoalPlanId(null); }}>
+      <Dialog open={!!goalPlanId} onOpenChange={(open) => { if (!open) { setGoalPlanId(null); setEditingGoalId(null); } }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add goal</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingGoalId ? "Revise goal" : "Add goal"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1"><Label htmlFor="goal-desc">Goal</Label><Input id="goal-desc" value={goalDescription} onChange={(event) => setGoalDescription(event.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor="goal-target">Target measure</Label><Input id="goal-target" value={goalTarget} onChange={(event) => setGoalTarget(event.target.value)} placeholder="e.g. No falls in 90 days" /></div>
+            <div className="space-y-1">
+              <Label htmlFor="goal-status">Status</Label>
+              <Select value={goalStatus} onValueChange={setGoalStatus}>
+                <SelectTrigger id="goal-status"><SelectValue /></SelectTrigger>
+                <SelectContent>{CARE_PLAN_GOAL_STATUSES.map((s) => <SelectItem key={s} value={s}>{human(s)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setGoalPlanId(null)}>Cancel</Button><Button disabled={saveGoal.isPending || goalDescription.trim().length < 2} onClick={() => void submitGoal()}>Add goal</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => { setGoalPlanId(null); setEditingGoalId(null); }}>Cancel</Button><Button disabled={saveGoal.isPending || goalDescription.trim().length < 2} onClick={() => void submitGoal()}>{editingGoalId ? "Save goal" : "Add goal"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </Tabs>

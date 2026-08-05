@@ -26,7 +26,12 @@ import {
   useEnterpriseTableInsert,
 } from "@/hooks/useEnterpriseFoundation";
 import { BillingPlanSelector } from "@/components/billing/BillingPlanSelector";
+import { StandingGrantsCard } from "@/components/admin/StandingGrantsCard";
+import { RoleTemplateCard } from "@/components/admin/RoleTemplateCard";
+import { useEnterpriseRoleTemplates } from "@/hooks/useEnterpriseRoleTemplates";
 import { useToast } from "@/hooks/use-toast";
+import { IntegrationRegisterCard } from "@/components/admin/IntegrationRegisterCard";
+import { ScimRegistryCard } from "@/components/admin/ScimRegistryCard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -252,6 +257,9 @@ function ScopeGrantCommand() {
   const [scopeType, setScopeType] = useState("organization");
   const [scopeId, setScopeId] = useState("");
   const [roleTemplateId, setRoleTemplateId] = useState("");
+  // Was a raw UUID text box. The templates are readable by `authenticated`, and until
+  // upsert_enterprise_role_template had a caller there were only ever six of them anyway.
+  const roleTemplates = useEnterpriseRoleTemplates();
   const [reason, setReason] = useState("");
 
   const submit = async () => {
@@ -289,8 +297,17 @@ function ScopeGrantCommand() {
           <Input id="phase2-grant-profile" value={profileId} onChange={(event) => setProfileId(event.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-role-template">Role template ID</Label>
-          <Input id="phase2-role-template" value={roleTemplateId} onChange={(event) => setRoleTemplateId(event.target.value)} />
+          <Label htmlFor="phase2-role-template">Role template</Label>
+          <Select value={roleTemplateId} onValueChange={setRoleTemplateId}>
+            <SelectTrigger id="phase2-role-template"><SelectValue placeholder="Choose a role template" /></SelectTrigger>
+            <SelectContent>
+              {(roleTemplates.data ?? []).map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  {template.name}{template.is_system_managed ? " (built-in)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${__fieldIds}-scope-type`}>Scope type</Label>
@@ -787,6 +804,7 @@ function ScimConnectionCommand() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>SCIM provisioning connection</CardTitle>
@@ -822,6 +840,10 @@ function ScimConnectionCommand() {
         <div className="md:col-span-2"><Button onClick={() => void createConnection()} disabled={command.isPending || !!issued}>Create SCIM connection</Button></div>
       </CardContent>
     </Card>
+    {/* Creating was the whole of it. Listing, rotating a credential, and attaching an SSO identity
+        that did not match on its own all had no way in. */}
+    <ScimRegistryCard />
+    </>
   );
 }
 
@@ -1063,6 +1085,7 @@ function IntegrationProvisioningCommand() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Provision an integration</CardTitle>
@@ -1106,6 +1129,12 @@ function IntegrationProvisioningCommand() {
         </div>
       </CardContent>
     </Card>
+    {/* The other half of provisioning. Nested here rather than placed beside it so both read the
+        same organization field: type an organization once, then issue or take back. Until this
+        landed, everything above was a one-way door -- issue a credential, create an endpoint, and
+        no supported way to revoke, rotate or switch either off. */}
+    {organizationId.trim() && <IntegrationRegisterCard organizationId={organizationId.trim()} />}
+    </>
   );
 }
 
@@ -1259,7 +1288,7 @@ export default function EnterpriseFoundation() {
               </TabsTrigger>
             ))}
           </TabsList>
-          <TabsContent value="scope" className="space-y-4"><ControlPlanePanel title="Hierarchy and permissions" description="Effective portfolio, regional, organization, and facility scope with explicit governed permissions." data={data.scope} /><ScopeGrantCommand /></TabsContent>
+          <TabsContent value="scope" className="space-y-4"><ControlPlanePanel title="Hierarchy and permissions" description="Effective portfolio, regional, organization, and facility scope with explicit governed permissions." data={data.scope} /><ScopeGrantCommand /><StandingGrantsCard /><RoleTemplateCard organizationId={user?.organizationId ?? null} /></TabsContent>
           <TabsContent value="workforce" className="space-y-4"><ControlPlanePanel title="Workforce lifecycle and compliance profiles" description="Effective employment state, retained documentation, profile explanations, and unresolved mappings." data={data.workforce} /><LifecycleCommand /><ComplianceProfileAssignmentCommand /></TabsContent>
           <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, approval separation, golden fixtures, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
           <TabsContent value="identity" className="space-y-4">

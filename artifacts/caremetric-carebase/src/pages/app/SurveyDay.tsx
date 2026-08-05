@@ -30,6 +30,7 @@ const SurveyDayPacketSection = lazy(() => import("@/components/survey/SurveyDayP
 import {
   useActiveSurveyDaySession, useSurveyDayWorkspace, useSurveyDayStaffRoster,
   useActivateSurveyDay, useRefreshSurveyDay, useSetSurveyDayDisposition, useCloseSurveyDay,
+  usePinSurveyDayBinder,
   type SurveyDayChecklistItem, type SurveyDayDisposition, type ReadinessState,
 } from "@/hooks/useSurveyDay";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -385,6 +386,20 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
   const { data: pinned } = useGetBinderExport(pinnedBinderJobId ?? undefined);
   const download = useBinderDownloadUrl();
   const queryClient = useQueryClient();
+  // Pinning is normally automatic -- activation pins the latest completed single-facility binder,
+  // and a trigger re-pins any binder that completes during the session. That last part is why a
+  // manual pin is needed (G16.6): a regeneration started by anyone silently replaces the binder a
+  // surveyor is being walked through, and without this there is no way back to the earlier one.
+  const pin = usePinSurveyDayBinder();
+  const { data: allBinders } = useListBinderExports({ organizationId: organizationId || undefined });
+  // The server accepts only a succeeded export whose facility_ids is exactly this facility, so the
+  // list offers exactly that and nothing else -- an option that can only fail is not an option.
+  const pinnable = (allBinders ?? []).filter((job: { id: string; status: string; facility_ids?: string[] | null }) =>
+    job.status === "succeeded"
+    && Array.isArray(job.facility_ids)
+    && job.facility_ids.length === 1
+    && job.facility_ids[0] === facilityId
+    && job.id !== pinnedBinderJobId);
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
   const packetJob = pinned as SurveyEvidencePacketJob | undefined;
@@ -431,6 +446,28 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">No binder is pinned yet. Generate one below or from the Compliance Binder page.</p>
+        )}
+        {pinnable.length > 0 && (
+          <div className="space-y-1 rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pin a different binder</p>
+            <p className="text-xs text-muted-foreground">
+              A binder that completes during the session is pinned automatically. Use this to go
+              back to an earlier one.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {pinnable.slice(0, 3).map((job: { id: string; completed_at?: string | null }) => (
+                <Button
+                  key={job.id} variant="outline" size="sm" disabled={pin.isPending}
+                  onClick={() => pin.mutate({ sessionId, binderJobId: job.id }, {
+                    onSuccess: () => toast({ title: "Binder pinned", description: "The session now points at this binder." }),
+                    onError: (e: Error) => toast({ title: "Could not pin that binder", description: e.message, variant: "destructive" }),
+                  })}
+                >
+                  {displayDate(job.completed_at ?? undefined)}
+                </Button>
+              ))}
+            </div>
+          </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
           <BinderExportButton

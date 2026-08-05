@@ -99,6 +99,72 @@ async function createAccount(
   accounts.set(role, { id: data.user.id, email, password, expectedPath });
 }
 
+// Every official PA DHS form the edge functions fill. Kept in sync with the URLs in
+// supabase/functions/_shared/dhsStateFormFill.ts consumers.
+const DHS_TEMPLATE_URLS = [
+  "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Homes-Reportable_Incident_Form-Effective-October-1-2016.pdf",
+  "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Preadmission-Screening.pdf",
+  "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Preadmission_Screening_Form.pdf",
+  "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-25-personal-care-homes-dme-reupload.pdf",
+  "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-24-assisted-living-residences-dme.pdf",
+  "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Resident_Assessment_Support_Plan_RASP.pdf",
+  "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Assessment_Support_Plan_Form.pdf",
+];
+
+/** Mirrors `dhsTemplateCacheKey` in supabase/functions/_shared/dhsStateFormFill.ts. */
+async function dhsTemplateCacheKey(url: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url));
+  const hex = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 16)}/${url.split("/").pop()}`;
+}
+
+/**
+ * A minimal but genuinely valid single-page PDF, built rather than committed as a binary.
+ *
+ * It has no AcroForm, which the fill code already handles ("No AcroForm on this download -- still
+ * store/return the unfilled official blank"). That is the point: this fixture proves the pipeline
+ * downloads, loads, fills what it can, uploads and records the path, without asserting anything
+ * about DHS's field names, which are not ours to pin.
+ */
+function minimalPdf(): Uint8Array {
+  const objects = [
+    "<</Type/Catalog/Pages 2 0 R>>",
+    "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+    "<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<<>>>>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length); // ASCII only, so string length is byte length.
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
+/**
+ * Fill the template cache before any test runs.
+ *
+ * Without this, "a reportable incident produces the official state-form PDF" asserted that
+ * `www.pa.gov` was responsive at that moment. It was not, twice, and Playwright's single retry hit
+ * the same wall -- a suite that reports a product failure when a government website is slow is
+ * reporting the wrong thing. Seeding the cache means the edge function reads from storage and the
+ * test measures what it is named after.
+ */
+async function seedDhsTemplateCache(client: SupabaseClient) {
+  const bytes = minimalPdf();
+  for (const url of DHS_TEMPLATE_URLS) {
+    const key = await dhsTemplateCacheKey(url);
+    const { error } = await client.storage
+      .from("regulatory-templates")
+      .upload(key, bytes, { contentType: "application/pdf", upsert: true });
+    if (error) throw new Error(`Could not seed the DHS template cache for ${key}: ${error.message}`);
+  }
+}
+
 test.describe("role-aware release journeys", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -107,6 +173,7 @@ test.describe("role-aware release journeys", () => {
     admin = createClient(supabaseUrl!, serviceRoleKey!, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    await seedDhsTemplateCache(admin);
 
     const suffix = String(Date.now());
     const { data: organization, error: organizationError } = await admin

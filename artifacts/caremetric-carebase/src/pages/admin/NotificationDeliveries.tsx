@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   useListNotificationDeliveries,
   useOrganizationNameMap,
@@ -13,7 +13,10 @@ import {
   useSetNotificationSpendPolicy,
   useSetNotificationChannelPolicy,
   useAcknowledgeNotificationSpendAlert,
+  useNotificationDeliveryHealth,
+  usePreviewSavedNotificationTemplate,
 } from "@/hooks/useAdminNotificationDeliveries";
+import { useAuth } from "@/lib/auth";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -113,6 +116,15 @@ export default function NotificationDeliveries() {
   const { mutateAsync: setSpendPolicy, isPending: savingSpendPolicy } = useSetNotificationSpendPolicy();
   const { mutateAsync: setChannelPolicy, isPending: savingChannelPolicy } = useSetNotificationChannelPolicy();
   const { mutate: acknowledgeSpendAlert, isPending: acknowledgingSpendAlert } = useAcknowledgeNotificationSpendAlert();
+  const { hasRole } = useAuth();
+  const isPlatformAdmin = hasRole("platform_admin");
+  const health = useNotificationDeliveryHealth(isPlatformAdmin);
+  const {
+    mutateAsync: previewSavedTemplate,
+    data: savedTemplatePreview,
+    isPending: previewingSaved,
+  } = usePreviewSavedNotificationTemplate();
+  const [previewedTemplateId, setPreviewedTemplateId] = useState<string | null>(null);
   const anyRetryInFlight = retrying || bulkRetrying;
   const selectedOperationsPolicy = operations?.policies.find(
     (item) => item.organizationId === spendOrganizationId,
@@ -220,6 +232,20 @@ export default function NotificationDeliveries() {
     body: "Sign in to review the training item securely.",
     organization_name: "Example care organization",
     action_url: "/me",
+  };
+
+  const handlePreviewSavedTemplate = async (templateId: string) => {
+    setPreviewedTemplateId(templateId);
+    try {
+      await previewSavedTemplate({ templateId, variables: previewVariables });
+    } catch (error) {
+      setPreviewedTemplateId(null);
+      toast({
+        title: "Saved template preview failed",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePreviewTemplate = async () => {
@@ -344,6 +370,51 @@ export default function NotificationDeliveries() {
           </CardContent>
         </Card>
       </div>
+
+      {isPlatformAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><Activity className="h-5 w-5" />Queue health (platform-wide)</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Whether the delivery queue is moving at all. The tiles above count outcomes; these count work
+              waiting to happen, across every organization.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {health.isError ? (
+              <QueryError what="delivery queue health" error={health.error} onRetry={() => void health.refetch()} />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                {([
+                  ["Ready to send now", health.data?.pendingReady],
+                  ["Deferred to a later attempt", health.data?.deferred],
+                  ["Processing", health.data?.processing],
+                  ["Awaiting provider final", health.data?.awaitingFinal],
+                  ["Delivered (24h)", health.data?.delivered24h],
+                  ["Failed (24h)", health.data?.failed24h],
+                  ["Final outcome unknown", health.data?.unknown],
+                  ["Signed provider events (24h)", health.data?.signedProviderEvents24h],
+                ] as const).map(([label, value]) => (
+                  <div key={label} className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="mt-1 text-2xl font-semibold">{health.isLoading ? "--" : value ?? 0}</p>
+                  </div>
+                ))}
+                <div className="rounded-lg border p-3 sm:col-span-3 xl:col-span-4">
+                  <p className="text-xs text-muted-foreground">Oldest pending or failed delivery</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {health.isLoading
+                      ? "--"
+                      : health.data?.oldestActionableAt
+                        ? new Date(health.data.oldestActionableAt).toLocaleString()
+                        : "Nothing outstanding"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {Boolean(operations?.spendAlerts.length) && (
         <Card className="border-amber-300 bg-amber-50/50">
@@ -612,12 +683,26 @@ export default function NotificationDeliveries() {
                 <TableHeader><TableRow><TableHead>Template</TableHead><TableHead>Scope</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>
                   {templates.map((template) => (
-                    <TableRow key={template.id}>
-                      <TableCell><span className="font-medium">{template.templateKey}</span><span className="text-muted-foreground"> / {template.channel} / v{template.version}</span></TableCell>
-                      <TableCell>{template.organizationId ? orgNameMap?.[template.organizationId] ?? "Organization" : "Global"}</TableCell>
-                      <TableCell><Badge variant="outline">{template.status}</Badge></TableCell>
-                      <TableCell className="text-right">{template.status !== "active" && <Button size="sm" variant="ghost" disabled={activatingTemplate} onClick={() => handleActivateTemplate(template.id)}>Activate</Button>}</TableCell>
-                    </TableRow>
+                    <Fragment key={template.id}>
+                      <TableRow>
+                        <TableCell><span className="font-medium">{template.templateKey}</span><span className="text-muted-foreground"> / {template.channel} / v{template.version}</span></TableCell>
+                        <TableCell>{template.organizationId ? orgNameMap?.[template.organizationId] ?? "Organization" : "Global"}</TableCell>
+                        <TableCell><Badge variant="outline">{template.status}</Badge></TableCell>
+                        <TableCell className="space-x-1 text-right">
+                          <Button size="sm" variant="ghost" disabled={previewingSaved} onClick={() => void handlePreviewSavedTemplate(template.id)}>Preview</Button>
+                          {template.status !== "active" && <Button size="sm" variant="ghost" disabled={activatingTemplate} onClick={() => handleActivateTemplate(template.id)}>Activate</Button>}
+                        </TableCell>
+                      </TableRow>
+                      {previewedTemplateId === template.id && savedTemplatePreview && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="bg-muted/30 text-sm">
+                            <p className="font-medium">{savedTemplatePreview.subject}</p>
+                            <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{savedTemplatePreview.body}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Rendered from the stored v{savedTemplatePreview.version}, not the draft above.</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>

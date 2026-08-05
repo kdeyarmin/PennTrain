@@ -106,7 +106,20 @@ const routeBudgets = [
   // down from 89.8 KiB when every section shipped in this one chunk). The shell now holds only
   // the header, the needs-attention panel, and the tab bar, so a step change here means a tab
   // module leaked back into the shell -- which is exactly what this budget should catch.
-  { label: "Resident Detail route", pattern: /^ResidentDetail-.+\.js$/, budget: 70 * 1024 },
+  //
+  // Raised 70 -> 80 on the Appointments-tab branch. Both figures are from building each ref the
+  // same way: main measured 61.9 KiB (88.4%, already inside the warning band from organic growth
+  // since the split), the branch 68.3 KiB (97.6%). The budget did its job first -- the branch
+  // initially measured 70.9 KiB, over the limit, because the resident shell imports the appointment
+  // read queries to feed the Needs Attention panel and was pulling the seven appointment mutations
+  // along with them. Splitting `useResidentAppointmentMutations.ts` out moved that code into the
+  // tab's own lazy chunk, where it belongs, and is the reduction this raise sits on top of.
+  //
+  // No tab module leaked: AppointmentsTab is its own 22.6 KiB chunk, mid-range against the eight
+  // siblings it joins (Overview 37.3, Support plan 25.8, Timeline 1.1). What remains in the shell
+  // is the panel's data path, which is shell code by design. Raised to ~15% headroom rather than
+  // shaved to the measurement, matching how the Survey Day and CSS budgets were sized.
+  { label: "Resident Detail route", pattern: /^ResidentDetail-.+\.js$/, budget: 80 * 1024 },
   { label: "Help Center route", pattern: /^HelpCenter-.+\.js$/, budget: 50 * 1024 },
   // Raised 30 -> 32 on the full-app-debugging branch: measured 27.7 KiB, 92.3% of the old budget.
   // Same reasoning as totalCss above -- this script gates the Railway build, so a route a couple of

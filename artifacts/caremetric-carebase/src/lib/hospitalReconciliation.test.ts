@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildReconciliationState, episodeStateLabel, RECONCILIATION_DEADLINE_HOURS, recordedChanges,
+  RETURN_CHANGE_FIELDS, suggestedReviewFlags,
   type HospitalEpisodeLike,
 } from "./hospitalReconciliation";
 
@@ -185,5 +186,64 @@ describe("state label", () => {
     expect(episodeStateLabel(episode({ status: "out" }))).toBe("Out at hospital");
     expect(episodeStateLabel(episode({ status: "canceled" }))).toBe("Cancelled");
     expect(episodeStateLabel(episode())).toBe("Returned");
+  });
+});
+
+describe("suggested review flags", () => {
+  const flags = (overrides: Parameters<typeof suggestedReviewFlags>[0]) => suggestedReviewFlags(overrides);
+  const clean = {
+    changes: {},
+    medicationReconciliationStatus: "not_applicable",
+    changedOrderAckStatus: "not_applicable",
+  };
+
+  it("proposes neither review when the form records no change at all", () => {
+    // Pre-checking both on every return is how people stop reading them, and these flags are what
+    // seed the return assessment review and gate the reconciliation.
+    const result = flags(clean);
+    expect(result.assessmentReviewRequired).toBe(false);
+    expect(result.supportPlanReviewRequired).toBe(false);
+    expect(result.reason).toContain("Tick them");
+  });
+
+  it("proposes both as soon as any change is recorded, and says which", () => {
+    const result = flags({ ...clean, changes: { diet_changes: "Now on minced and moist" } });
+    expect(result.assessmentReviewRequired).toBe(true);
+    expect(result.supportPlanReviewRequired).toBe(true);
+    expect(result.reason).toContain("diet changes");
+  });
+
+  it("ignores whitespace-only entries", () => {
+    expect(flags({ ...clean, changes: { skin_concerns: "   " } }).assessmentReviewRequired).toBe(false);
+  });
+
+  it("treats pending medication reconciliation as a change on its own", () => {
+    const result = flags({ ...clean, medicationReconciliationStatus: "pending" });
+    expect(result.assessmentReviewRequired).toBe(true);
+    expect(result.reason).toContain("medication reconciliation still pending");
+  });
+
+  it("treats orders awaiting review as a change on its own", () => {
+    const result = flags({ ...clean, changedOrderAckStatus: "pending_review" });
+    expect(result.supportPlanReviewRequired).toBe(true);
+    expect(result.reason).toContain("new orders awaiting review");
+  });
+
+  it("names every driver, not just the first", () => {
+    const result = flags({
+      changes: { diet_changes: "Minced", mobility_changes: "Now uses a walker" },
+      medicationReconciliationStatus: "pending",
+      changedOrderAckStatus: "pending_review",
+    });
+    for (const fragment of ["diet changes", "mobility changes", "medication reconciliation", "new orders"]) {
+      expect(result.reason).toContain(fragment);
+    }
+  });
+
+  it("covers every change field the dialog can write", () => {
+    // A field the dialog collects but this function ignores would silently stop proposing a review.
+    for (const field of RETURN_CHANGE_FIELDS) {
+      expect(flags({ ...clean, changes: { [field.key]: "something" } }).assessmentReviewRequired).toBe(true);
+    }
   });
 });

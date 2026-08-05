@@ -13433,6 +13433,9 @@ export type Database = {
           assessment_review_required: boolean
           bed_hold_status: string
           belongings: Json
+          changed_order_ack_at: string | null
+          changed_order_ack_by: string | null
+          changed_order_ack_note: string | null
           changed_order_ack_status: string
           condition_changes: string | null
           created_at: string
@@ -13470,6 +13473,9 @@ export type Database = {
           assessment_review_required?: boolean
           bed_hold_status?: string
           belongings?: Json
+          changed_order_ack_at?: string | null
+          changed_order_ack_by?: string | null
+          changed_order_ack_note?: string | null
           changed_order_ack_status?: string
           condition_changes?: string | null
           created_at?: string
@@ -13507,6 +13513,9 @@ export type Database = {
           assessment_review_required?: boolean
           bed_hold_status?: string
           belongings?: Json
+          changed_order_ack_at?: string | null
+          changed_order_ack_by?: string | null
+          changed_order_ack_note?: string | null
           changed_order_ack_status?: string
           condition_changes?: string | null
           created_at?: string
@@ -13541,6 +13550,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "hospital_transfer_episodes_changed_order_ack_by_fkey"
+            columns: ["changed_order_ack_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "hospital_transfer_episodes_created_by_fkey"
             columns: ["created_by"]
@@ -24093,9 +24109,87 @@ export type Database = {
           },
         ]
       }
+      resident_appointment_preparation_items: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          facility_id: string
+          id: string
+          item_kind: string
+          label: string
+          note: string | null
+          organization_id: string
+          ready: boolean
+          ready_at: string | null
+          ready_by: string | null
+          required: boolean
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          facility_id: string
+          id?: string
+          item_kind: string
+          label: string
+          note?: string | null
+          organization_id: string
+          ready?: boolean
+          ready_at?: string | null
+          ready_by?: string | null
+          required?: boolean
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          facility_id?: string
+          id?: string
+          item_kind?: string
+          label?: string
+          note?: string | null
+          organization_id?: string
+          ready?: boolean
+          ready_at?: string | null
+          ready_by?: string | null
+          required?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_appointment_preparation_items_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "resident_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointment_preparation_items_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointment_preparation_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointment_preparation_items_ready_by_fkey"
+            columns: ["ready_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_appointments: {
         Row: {
           appointment_type: string
+          cancellation_reason: string | null
           created_at: string
           created_by: string | null
           documents_required: string[]
@@ -24104,16 +24198,24 @@ export type Database = {
           escort_employee_id: string | null
           expected_return_at: string | null
           facility_id: string
+          follow_up_completed_at: string | null
+          follow_up_completed_by: string | null
           follow_up_due_at: string | null
           follow_up_work_item_id: string | null
           id: string
           location: string
+          new_order_ack_at: string | null
+          new_order_ack_by: string | null
+          new_order_ack_note: string | null
           new_order_ack_status: string
           organization_id: string
           outcome_summary: string | null
           pickup_at: string | null
           preparation_checklist: Json
+          preparation_completed_at: string | null
+          preparation_completed_by: string | null
           provider_name: string | null
+          rescheduled_to_appointment_id: string | null
           resident_id: string
           staff_notification_log: Json
           starts_at: string
@@ -24125,6 +24227,7 @@ export type Database = {
         }
         Insert: {
           appointment_type: string
+          cancellation_reason?: string | null
           created_at?: string
           created_by?: string | null
           documents_required?: string[]
@@ -24133,16 +24236,24 @@ export type Database = {
           escort_employee_id?: string | null
           expected_return_at?: string | null
           facility_id: string
+          follow_up_completed_at?: string | null
+          follow_up_completed_by?: string | null
           follow_up_due_at?: string | null
           follow_up_work_item_id?: string | null
           id?: string
           location: string
+          new_order_ack_at?: string | null
+          new_order_ack_by?: string | null
+          new_order_ack_note?: string | null
           new_order_ack_status?: string
           organization_id: string
           outcome_summary?: string | null
           pickup_at?: string | null
           preparation_checklist?: Json
+          preparation_completed_at?: string | null
+          preparation_completed_by?: string | null
           provider_name?: string | null
+          rescheduled_to_appointment_id?: string | null
           resident_id: string
           staff_notification_log?: Json
           starts_at: string
@@ -24154,6 +24265,7 @@ export type Database = {
         }
         Update: {
           appointment_type?: string
+          cancellation_reason?: string | null
           created_at?: string
           created_by?: string | null
           documents_required?: string[]
@@ -24162,16 +24274,24 @@ export type Database = {
           escort_employee_id?: string | null
           expected_return_at?: string | null
           facility_id?: string
+          follow_up_completed_at?: string | null
+          follow_up_completed_by?: string | null
           follow_up_due_at?: string | null
           follow_up_work_item_id?: string | null
           id?: string
           location?: string
+          new_order_ack_at?: string | null
+          new_order_ack_by?: string | null
+          new_order_ack_note?: string | null
           new_order_ack_status?: string
           organization_id?: string
           outcome_summary?: string | null
           pickup_at?: string | null
           preparation_checklist?: Json
+          preparation_completed_at?: string | null
+          preparation_completed_by?: string | null
           provider_name?: string | null
+          rescheduled_to_appointment_id?: string | null
           resident_id?: string
           staff_notification_log?: Json
           starts_at?: string
@@ -24211,6 +24331,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "resident_appointments_follow_up_completed_by_fkey"
+            columns: ["follow_up_completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "resident_appointments_follow_up_work_item_id_fkey"
             columns: ["follow_up_work_item_id"]
             isOneToOne: false
@@ -24218,10 +24345,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "resident_appointments_new_order_ack_by_fkey"
+            columns: ["new_order_ack_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "resident_appointments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_preparation_completed_by_fkey"
+            columns: ["preparation_completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_appointments_rescheduled_to_appointment_id_fkey"
+            columns: ["rescheduled_to_appointment_id"]
+            isOneToOne: false
+            referencedRelation: "resident_appointments"
             referencedColumns: ["id"]
           },
           {
@@ -25305,6 +25453,7 @@ export type Database = {
           facility_type: string
           grace_period_days: number
           id: string
+          instantiate_at_admission: boolean
           is_active: boolean
           item_type: string
           notes: string | null
@@ -25322,6 +25471,7 @@ export type Database = {
           facility_type: string
           grace_period_days?: number
           id?: string
+          instantiate_at_admission?: boolean
           is_active?: boolean
           item_type: string
           notes?: string | null
@@ -25339,6 +25489,7 @@ export type Database = {
           facility_type?: string
           grace_period_days?: number
           id?: string
+          instantiate_at_admission?: boolean
           is_active?: boolean
           item_type?: string
           notes?: string | null
@@ -35647,6 +35798,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      acknowledge_appointment_new_order: {
+        Args: { p_appointment_id: string; p_note: string }
+        Returns: boolean
+      }
+      acknowledge_hospital_return_new_order: {
+        Args: { p_episode_id: string; p_note: string }
+        Returns: boolean
+      }
       acknowledge_notification_spend_alert: {
         Args: { p_alert_id: string }
         Returns: undefined
@@ -35736,6 +35895,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      add_appointment_preparation_item: {
+        Args: {
+          p_appointment_id: string
+          p_item_kind: string
+          p_label: string
+          p_required?: boolean
+        }
+        Returns: string
       }
       add_binder_export_to_evidence_collection: {
         Args: {
@@ -36261,6 +36429,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assign_learning_path: {
+        Args: {
+          p_due_at?: string
+          p_employee_id: string
+          p_path_version_id: string
+        }
+        Returns: string
+      }
       assign_medication_integration_exception: {
         Args: {
           p_create_work_item?: boolean
@@ -36750,6 +36926,14 @@ export type Database = {
           p_state: Json
         }
         Returns: string
+      }
+      complete_appointment_follow_up: {
+        Args: { p_appointment_id: string; p_note?: string }
+        Returns: boolean
+      }
+      complete_appointment_preparation: {
+        Args: { p_appointment_id: string; p_note?: string }
+        Returns: boolean
       }
       complete_change_event_follow_up: {
         Args: {
@@ -39588,6 +39772,10 @@ export type Database = {
         Args: { p_reason: string; p_revision_id: string }
         Returns: string
       }
+      publish_learning_path_version: {
+        Args: { p_version_id: string }
+        Returns: string
+      }
       publish_org_announcement: {
         Args: {
           p_audience_facility_ids?: string[]
@@ -39730,6 +39918,17 @@ export type Database = {
           p_disposition: string
           p_note: string
           p_resident_id: string
+        }
+        Returns: string
+      }
+      record_certification_attempt_item: {
+        Args: {
+          p_attempt_id: string
+          p_checklist_item_id: string
+          p_evidence?: Json
+          p_notes?: string
+          p_result: string
+          p_sign?: boolean
         }
         Returns: string
       }
@@ -40312,6 +40511,10 @@ export type Database = {
           waitlist_position: number
         }[]
       }
+      register_governed_content_asset: {
+        Args: { p_asset_type: string; p_source_id: string; p_title?: string }
+        Returns: string
+      }
       register_identity_domain: {
         Args: {
           p_domain: string
@@ -40552,6 +40755,16 @@ export type Database = {
       rescan_org_exclusion_matches: {
         Args: { p_organization_id: string }
         Returns: undefined
+      }
+      reschedule_resident_appointment: {
+        Args: {
+          p_appointment_id: string
+          p_expected_return_at?: string
+          p_pickup_at?: string
+          p_reason: string
+          p_starts_at: string
+        }
+        Returns: string
       }
       reschedule_resident_service_calendar_event: {
         Args: {
@@ -41179,6 +41392,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      save_learning_path_version: {
+        Args: {
+          p_definition: Json
+          p_description?: string
+          p_name: string
+          p_path_definition_id?: string
+          p_version_id?: string
+        }
+        Returns: string
+      }
       save_medication_integration_source: {
         Args: {
           p_credential_id?: string
@@ -41392,6 +41615,10 @@ export type Database = {
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
       send_resident_compliance_reminders: { Args: never; Returns: undefined }
+      set_appointment_preparation_item: {
+        Args: { p_item_id: string; p_note?: string; p_ready: boolean }
+        Returns: boolean
+      }
       set_bed_availability: {
         Args: {
           p_bed_id: string
@@ -41710,6 +41937,14 @@ export type Database = {
         }
         Returns: string
       }
+      start_certification_attempt: {
+        Args: {
+          p_certification_version_id: string
+          p_employee_id: string
+          p_observed_at?: string
+        }
+        Returns: string
+      }
       start_confidential_incident_intake: {
         Args: {
           p_confirmation_token: string
@@ -41859,6 +42094,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_certification_attempt: {
+        Args: { p_attempt_id: string }
+        Returns: boolean
       }
       submit_governed_content_revision: {
         Args: { p_revision_id: string; p_validation_results: Json }
@@ -42154,6 +42393,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      unassign_organization_release_cohort: {
+        Args: {
+          p_cohort_id: string
+          p_feature_key: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       unpublish_course: {
         Args: { p_course_id: string; p_reason: string }
@@ -42857,3 +43105,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

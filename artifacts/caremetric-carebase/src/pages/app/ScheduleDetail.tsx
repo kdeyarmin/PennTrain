@@ -6,7 +6,7 @@ import { useParams, useLocation } from "wouter";
 const AcuityWorkloadSection = lazy(
   () => import("@/components/schedule/AcuityWorkloadSection"),
 );
-import { useGetSchedule, useGenerateScheduleAssignments, useClearAutoFilledAssignments, usePublishSchedule, useUnpublishSchedule } from "@/hooks/useSchedules";
+import { useGetSchedule, useGenerateScheduleAssignments, useClearAutoFilledAssignments, usePublishSchedule, useUnpublishSchedule, useUpdateSchedule, useDeleteSchedule } from "@/hooks/useSchedules";
 import { useGetFacility } from "@/hooks/useFacilities";
 import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListShiftDefinitions } from "@/hooks/useShiftDefinitions";
@@ -158,6 +158,12 @@ export default function ScheduleDetail() {
   const clearAutoFill = useClearAutoFilledAssignments();
   const publish = usePublishSchedule();
   const unpublish = useUnpublishSchedule();
+  // A schedule could be created, auto-filled, published and unpublished, and never corrected or
+  // removed (BACKLOG.md G16.13, G16.14). Both are draft-only here: the period bounds the assignment
+  // grid, and moving them under a published schedule would silently orphan shifts employees have
+  // already been shown. Publishing is the point at which a schedule stops being editable.
+  const updateSchedule = useUpdateSchedule();
+  const deleteSchedule = useDeleteSchedule();
   const createAssignment = useCreateShiftAssignment();
   const updateAssignment = useUpdateShiftAssignment();
   const deleteAssignment = useDeleteShiftAssignment();
@@ -179,6 +185,9 @@ export default function ScheduleDetail() {
   const [overrideTarget, setOverrideTarget] = useState<{ candidate: EligibilityCandidate; blockCode: string } | null>(null);
   const [overrideForm, setOverrideForm] = useState({ reason: "", authorityReference: "", expiresAt: "" });
   const [editForm, setEditForm] = useState({ unitId: UNASSIGNED, shiftDefinitionId: "", status: "scheduled", notes: "" });
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({ title: "", period_start: "", period_end: "" });
+  const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false);
   // Tracks which single cell's status dropdown is mid-update (rather than reusing
   // updateAssignment.isPending, which reflects the shared mutation instance and would also flip
   // true while the edit-shift modal's own Save is in flight) so only that one badge shows "…".
@@ -544,6 +553,22 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                   Clear Auto-Fill
                 </Button>
               )}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setScheduleForm({
+                    title: schedule.title ?? "",
+                    period_start: schedule.period_start,
+                    period_end: schedule.period_end,
+                  });
+                  setEditingSchedule(true);
+                }}
+              >
+                Edit details
+              </Button>
+              <Button variant="outline" onClick={() => setConfirmDeleteSchedule(true)}>
+                Delete
+              </Button>
             </>
           )}
           <Button onClick={handlePublishToggle} disabled={publish.isPending || unpublish.isPending}>
@@ -552,6 +577,57 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           </Button>
         </div>
       </div>
+
+      {editingSchedule && (
+        <Card>
+          <CardContent className="space-y-3 pt-4">
+            <p className="text-sm text-muted-foreground">
+              Only while the schedule is a draft. The period bounds the assignment grid, so changing
+              it once employees have been shown their shifts would orphan them.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor="schedule-title">Title</Label>
+                <Input id="schedule-title" value={scheduleForm.title} onChange={(e) => setScheduleForm((f) => ({ ...f, title: e.target.value }))} placeholder="Week of 12 August" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="schedule-start">Period start</Label>
+                <Input id="schedule-start" type="date" value={scheduleForm.period_start} onChange={(e) => setScheduleForm((f) => ({ ...f, period_start: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="schedule-end">Period end</Label>
+                <Input id="schedule-end" type="date" value={scheduleForm.period_end} onChange={(e) => setScheduleForm((f) => ({ ...f, period_end: e.target.value }))} />
+              </div>
+            </div>
+            {scheduleForm.period_start && scheduleForm.period_end && scheduleForm.period_end < scheduleForm.period_start && (
+              <p className="text-sm text-destructive">The period cannot end before it starts.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                disabled={
+                  updateSchedule.isPending
+                  || !scheduleForm.period_start
+                  || !scheduleForm.period_end
+                  || scheduleForm.period_end < scheduleForm.period_start
+                }
+                onClick={() => updateSchedule.mutate({
+                  id: schedule.id,
+                  title: scheduleForm.title.trim() || null,
+                  period_start: scheduleForm.period_start,
+                  period_end: scheduleForm.period_end,
+                }, {
+                  onSuccess: () => { setEditingSchedule(false); toast({ title: "Schedule updated" }); },
+                  onError: (error) => toast({ title: "Could not update the schedule", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                })}
+              >
+                {updateSchedule.isPending ? "Saving..." : "Save"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditingSchedule(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {!isDraft && (
         <p className="text-sm text-muted-foreground">
@@ -1081,6 +1157,30 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleClearAutoFill}>Clear</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDeleteSchedule} onOpenChange={setConfirmDeleteSchedule}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this schedule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {assignments?.length
+                ? `This removes the schedule and its ${assignments.length} shift assignment${assignments.length === 1 ? "" : "s"}. Nobody has been shown them -- a draft is not visible under My Schedule -- but they cannot be recovered.`
+                : "This removes the schedule. It has no shift assignments."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteSchedule.mutate(schedule.id, {
+                onSuccess: () => { toast({ title: "Schedule deleted" }); navigate("/app/schedule"); },
+                onError: (error) => toast({ title: "Could not delete the schedule", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+              })}
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

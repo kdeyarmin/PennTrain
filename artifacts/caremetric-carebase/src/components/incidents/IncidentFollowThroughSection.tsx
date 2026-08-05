@@ -16,7 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   useApproveIncidentInvestigation, useDetermineIncidentReportability,
   useIncidentFollowThrough, useSaveIncidentInvestigationStep,
+  useSetIncidentQapiConsideration,
 } from "@/hooks/useIncidentFollowThrough";
+import { useListQapiProjects } from "@/hooks/useQapi";
 import {
   buildIncidentFollowThrough, INCIDENT_STAGE_STATUS_LABELS, REPORTABILITY_STATUS_LABELS,
   ROOT_CAUSE_METHODS,
@@ -227,11 +229,134 @@ function InvestigationStepDialog({
  * is blocking. The server re-checks every rule, so a race with somebody else's edit fails rather
  * than approving on stale information.
  */
+/**
+ * The QAPI decision (BACKLOG.md G16.8).
+ *
+ * The close-loop checklist has always listed "QAPI consideration" as a stage that blocks closure,
+ * and there was no way to do it: `set_incident_qapi_consideration` had a hook nothing rendered, so
+ * an incident that needed the decision could never leave that stage. The checklist named the step
+ * and offered no button, which is the most legible form this class of gap takes.
+ *
+ * The two answers are the server's own vocabulary. `linked` demands a project in this incident's
+ * facility, so the picker offers only those and the confirm is disabled until one is chosen --
+ * offering an option that can only fail is the mistake this codebase has made before.
+ * `not_indicated` takes a note, which the server appends to the investigation findings, because a
+ * decision that quality improvement is not indicated is only worth anything with the reasoning
+ * attached.
+ */
+function QapiConsiderationDialog({
+  open, onOpenChange, incidentId, facilityId, current, currentProjectId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  incidentId: string;
+  facilityId: string | null | undefined;
+  current: string;
+  currentProjectId: string | null;
+}) {
+  const { toast } = useToast();
+  const setConsideration = useSetIncidentQapiConsideration(incidentId);
+  const projects = useListQapiProjects({ facilityId: facilityId ?? undefined });
+  const [consideration, setChoice] = useState(current === "pending" ? "linked" : current);
+  const [projectId, setProjectId] = useState(currentProjectId ?? "");
+  const [note, setNote] = useState("");
+
+  const options = projects.data ?? [];
+  const canSubmit = consideration === "linked" ? Boolean(projectId) : true;
+
+  const submit = async () => {
+    try {
+      await setConsideration.mutateAsync({
+        consideration: consideration as "linked" | "not_indicated",
+        qapiProjectId: consideration === "linked" ? projectId : undefined,
+        note: note.trim() || undefined,
+      });
+      toast({ title: consideration === "linked" ? "Linked to the QAPI project" : "Recorded as not indicated" });
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: "Could not record the QAPI decision",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>QAPI consideration</DialogTitle>
+          <DialogDescription>
+            Whether the pattern behind this incident belongs in a quality-improvement project. Either
+            answer closes the stage; only one of them opens a project.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="qapi-consideration">Decision</Label>
+            <Select value={consideration} onValueChange={setChoice}>
+              <SelectTrigger id="qapi-consideration"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="linked">Link to a QAPI project</SelectItem>
+                <SelectItem value="not_indicated">Not indicated</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {consideration === "linked" ? (
+            <div className="space-y-2">
+              <Label htmlFor="qapi-project">Project</Label>
+              <Select value={projectId} onValueChange={setProjectId}>
+                <SelectTrigger id="qapi-project">
+                  <SelectValue placeholder={options.length ? "Pick a project" : "No QAPI project exists for this facility"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>{project.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {options.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  The server refuses a link to a project outside this incident&apos;s facility, so
+                  there is nothing to offer until one exists. Open a project first, or record the
+                  decision as not indicated.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="qapi-note">Why quality improvement is not indicated</Label>
+              <Textarea
+                id="qapi-note" rows={3} value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Isolated equipment failure, resolved at source; no pattern across the quarter."
+              />
+              <p className="text-xs text-muted-foreground">
+                Kept on the investigation findings. Optional to the server, but a &ldquo;not
+                indicated&rdquo; with no reasoning is not a decision anyone can review later.
+              </p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button disabled={!canSubmit || setConsideration.isPending} onClick={() => void submit()}>
+            {setConsideration.isPending ? "Recording…" : "Record decision"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function IncidentFollowThroughSection({
-  incidentId, canManage,
+  incidentId, canManage, facilityId,
 }: {
   incidentId: string;
   canManage: boolean;
+  /** Scopes the QAPI project picker; the server refuses a project outside the incident's facility. */
+  facilityId: string | null | undefined;
 }) {
   const { toast } = useToast();
   const { data, isLoading } = useIncidentFollowThrough(incidentId);
@@ -241,6 +366,7 @@ export default function IncidentFollowThroughSection({
   const [stepOpen, setStepOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [approveNote, setApproveNote] = useState("");
+  const [qapiOpen, setQapiOpen] = useState(false);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!data?.incident) return null;
@@ -269,6 +395,8 @@ export default function IncidentFollowThroughSection({
         return { label: stage.key === "investigation" && !incident.pathway_key ? "Choose pathway" : "Record", run: () => (stage.key === "investigation" ? setPathwayOpen(true) : setStepOpen(true)) };
       case "reportability_review":
         return { label: "Determine", run: () => setReportabilityOpen(true) };
+      case "qapi_consideration":
+        return { label: "Decide", run: () => setQapiOpen(true) };
       default:
         return null;
     }
@@ -400,6 +528,14 @@ export default function IncidentFollowThroughSection({
         onOpenChange={setReportabilityOpen}
         incidentId={incidentId}
         prompts={prompts}
+      />
+      <QapiConsiderationDialog
+        open={qapiOpen}
+        onOpenChange={setQapiOpen}
+        incidentId={incidentId}
+        facilityId={facilityId}
+        current={incident.qapi_consideration}
+        currentProjectId={incident.qapi_project_id}
       />
       <InvestigationStepDialog
         open={stepOpen}

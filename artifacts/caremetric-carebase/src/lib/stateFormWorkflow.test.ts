@@ -165,16 +165,27 @@ describe("sortOpenItemsByUrgency", () => {
 });
 
 describe("listUpcomingRenewals", () => {
-  it("includes only open annual reassessments and medical evaluations inside the window", () => {
+  it("includes only open annual reassessments and annual medical evaluations inside the window", () => {
     const items = [
       item({ id: "annual-59", item_type: "annual_reassessment", due_date: "2026-09-09" }),
-      item({ id: "dme-10", item_type: "medical_evaluation", due_date: "2026-07-22" }),
+      item({ id: "dme-10", item_type: "annual_medical_evaluation", due_date: "2026-07-22" }),
       item({ id: "support-10", item_type: "support_plan_30day", due_date: "2026-07-22" }),
       item({ id: "annual-61", item_type: "annual_reassessment", due_date: "2026-09-11" }),
       item({ id: "annual-done", item_type: "annual_reassessment", status: "compliant", completed_date: "2026-07-01", due_date: "2026-07-20" }),
       item({ id: "annual-overdue", item_type: "annual_reassessment", status: "expired", due_date: "2026-07-01" }),
     ];
     expect(listUpcomingRenewals(items, TODAY, 60).map((i) => i.id)).toEqual(["dme-10", "annual-59"]);
+  });
+
+  // Since 20260804170000 `medical_evaluation` is the INITIAL evaluation, which happens once at
+  // admission. Listing it as an upcoming *renewal* would put a one-off admission task in the
+  // plan-ahead list every time a resident was admitted.
+  it("excludes the initial medical evaluation, which is not a renewal", () => {
+    const items = [
+      item({ id: "initial-dme", item_type: "medical_evaluation", due_date: "2026-07-22" }),
+      item({ id: "annual-dme", item_type: "annual_medical_evaluation", due_date: "2026-07-22" }),
+    ];
+    expect(listUpcomingRenewals(items, TODAY, 60).map((i) => i.id)).toEqual(["annual-dme"]);
   });
 });
 

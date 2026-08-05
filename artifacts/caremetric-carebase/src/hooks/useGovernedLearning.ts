@@ -21,14 +21,3 @@ export function useGovernedLearning() {
   });
 }
 
-export function useGovernedLearningCommand() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ rpc, args }: { rpc: string; args: Record<string, unknown> }) => {
-      const { data, error } = await client.rpc(rpc, args);
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["governed-learning"] }); },
-  });
-}
