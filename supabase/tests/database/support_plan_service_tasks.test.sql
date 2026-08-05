@@ -1,5 +1,5 @@
 begin;
-select plan(31);
+select plan(40);
 
 select has_table('public', 'resident_service_requirements', 'service requirements use a dedicated high-volume model');
 select has_table('public', 'resident_service_task_instances', 'scheduled service task instances exist');
@@ -255,14 +255,17 @@ select case seq
   when 4 then 'late_first'
   when 5 then 'late_second'
   when 6 then 'late_third'
-  else 'no_due_window'
+  when 7 then 'no_due_window'
+  when 8 then 'offline_on_time'
+  when 9 then 'shift_late'
+  else 'scope_probe'
 end, id
 from (
   select id, row_number() over (order by scheduled_start, id) as seq
   from public.resident_service_task_instances
   where source_assessment_form_id = '56000000-0000-4000-8000-000000000302' and status = 'scheduled'
 ) ranked
-where seq <= 7;
+where seq <= 10;
 
 -- 1. Still an executable surface. This is the fact that makes the other three consequential: an
 -- out-of-repo caller can reach it today, so every way of closing it out is a breaking change.
@@ -398,10 +401,126 @@ select ok(
   'three late services cross the seeded threshold and route to QAPI'
 );
 
+-- ---------------------------------------------------------------------------
+-- Late is decided from when the care happened, not when the row was written
+-- ---------------------------------------------------------------------------
+--
+-- The offline path documents care that already happened, sometimes hours before the device gets to
+-- say so. Deciding lateness from now() would record care given inside its window as late purely
+-- because the sync landed after it -- a false statement on a resident's service history. The
+-- occurrence time is passed in instead, which is why app_private carries the parameter.
+reset role;
+update public.resident_service_task_instances
+-- Offsets the block above did not already take; (requirement_id, scheduled_start) is unique.
+set scheduled_start = now() - interval '9 hours', scheduled_end = now() - interval '8 hours'
+where id = (select task_id from legacy_command_probe where label = 'offline_on_time');
+
+-- Called as the owner with the employee's claims still set, which is how the SECURITY DEFINER
+-- sync function reaches it. An occurrence time inside the window, on a sync that is well past it.
+select lives_ok(
+  $$select app_private.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'offline_on_time'),
+    'completed_as_planned', '{}'::jsonb, null, now() - interval '8 hours 30 minutes'
+  )$$,
+  'the implementation accepts the instant the care actually happened'
+);
+select is(
+  (select status from public.resident_service_task_instances
+   where id = (select task_id from legacy_command_probe where label = 'offline_on_time')),
+  'completed',
+  'and care given inside its window is not late just because the device synced after it'
+);
+select ok(
+  (select performed_at between scheduled_start and scheduled_end
+   from public.resident_service_task_instances
+   where id = (select task_id from legacy_command_probe where label = 'offline_on_time')),
+  'and performed_at is the occurrence time, so no correction has to follow the call'
+);
+-- The parameter is the reason this lives in app_private: on a surface granted to authenticated it
+-- would let an employee backdate care out of a window it missed.
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'app_private.record_service_task_response(uuid,text,jsonb,uuid,timestamptz)',
+    'EXECUTE'
+  ),
+  'and no browser role can reach it to backdate care out of its own missed window'
+);
+
+-- ---------------------------------------------------------------------------
+-- A documented late task leaves the shift workspace's due list
+-- ---------------------------------------------------------------------------
+--
+-- get_my_shift_workspace excluded only 'completed' and 'superseded', which was complete while every
+-- completion collapsed into 'completed'. A completed_late task would otherwise keep counting as due
+-- to the employee who just documented it.
+reset role;
+update public.resident_service_task_instances
+set scheduled_start = now() - interval '2 hours',
+    scheduled_end = now() - interval '1 hour',
+    assigned_employee_id = '56000000-0000-4000-8000-000000000111'
+where id = (select task_id from legacy_command_probe where label = 'shift_late');
+
+select pg_temp.act_as('56000000-0000-4000-8000-000000000102');
+select ok(
+  exists (
+    select 1 from jsonb_array_elements(public.get_my_shift_workspace()->'residentServiceTasks') task
+    where (task->>'id')::uuid = (select task_id from legacy_command_probe where label = 'shift_late')
+  ),
+  'an assigned task in the shift window is due before it is documented'
+);
+select lives_ok(
+  $$select public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'shift_late'),
+    'completed_as_planned', '{}'::jsonb, null
+  )$$,
+  'documenting it after its window succeeds'
+);
+select is(
+  (select status from public.resident_service_task_instances
+   where id = (select task_id from legacy_command_probe where label = 'shift_late')),
+  'completed_late',
+  'and lands completed_late, which is the case the due list had never seen'
+);
+select ok(
+  not exists (
+    select 1 from jsonb_array_elements(public.get_my_shift_workspace()->'residentServiceTasks') task
+    where (task->>'id')::uuid = (select task_id from legacy_command_probe where label = 'shift_late')
+  ),
+  'and it leaves the due list, instead of counting as outstanding for another sixteen hours'
+);
+
+-- Splitting the command in two moved its authorization one call down, which is why
+-- definer_predicates_are_tenant_scoped.test.sql now allowlists the public wrapper. That allowlist
+-- entry is only worth having if the refusal it assumes is real, so it is exercised here rather than
+-- asserted in a comment: a caller with no employee row and no manager role is still refused 42501
+-- through the public surface.
+reset role;
+select set_config('app.privileged_write', 'on', true);
+update public.profiles set role = 'employee' where id = '56000000-0000-4000-8000-000000000101';
+select set_config('app.privileged_write', 'off', true);
+
+select pg_temp.act_as('56000000-0000-4000-8000-000000000101');
+select throws_ok(
+  $$select public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'scope_probe'),
+    'completed_as_planned', '{}'::jsonb, null
+  )$$,
+  '42501',
+  null,
+  'the public wrapper still refuses a caller outside the task scope, one call above the check'
+);
+
+reset role;
+select set_config('app.privileged_write', 'on', true);
+update public.profiles set role = 'org_admin' where id = '56000000-0000-4000-8000-000000000101';
+select set_config('app.privileged_write', 'off', true);
+
 -- A kind with no due window cannot be late. 20260726050100 states this on task_kind itself ("the
 -- rest must not raise missed-window alerts") but nothing enforced it server-side, and the generator
 -- gives every requirement a window regardless of kind -- so without the gate an as_needed service
 -- would be stamped late every time it was recorded and would open a QAPI alert on the third.
+reset role;
 update public.resident_service_requirements
 set task_kind = 'as_needed'
 where source_assessment_form_id = '56000000-0000-4000-8000-000000000302';
