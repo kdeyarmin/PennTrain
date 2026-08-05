@@ -97,9 +97,17 @@ Deno.serve(async (req: Request) => {
   const binderItem = packetItems.find((i) => i.source_type === "binder_export" && i.source_id);
   const effectiveBinderId = binderItem?.source_id ?? binderJobId;
   if (effectiveBinderId) {
+    // Scoped to the resolved organization. `binder_export_job_id` arrives straight from the request
+    // body, and this read uses the service-role client, which bypasses RLS -- so without the
+    // organization_id predicate a user entitled to build a packet for their OWN org could name
+    // another tenant's binder job and have that organization's compliance binder PDF, its appendix
+    // manifest and its CSVs packaged into the signed download they receive. `orgId` is already
+    // resolved above (the caller's own org, or the packet's org for a platform_admin); the binder
+    // simply has to belong to it.
     const { data: job } = await admin.from("binder_export_jobs")
       .select("id, status, storage_bucket, storage_path, content_sha256, organization_id")
       .eq("id", effectiveBinderId)
+      .eq("organization_id", orgId)
       .maybeSingle();
     if (job?.status === "succeeded" && job.storage_path) {
       const { data: fileBlob, error: dlErr } = await admin.storage
