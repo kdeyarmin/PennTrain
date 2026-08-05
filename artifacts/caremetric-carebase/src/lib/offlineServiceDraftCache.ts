@@ -322,11 +322,47 @@ export async function readServiceDraft(draftId: string, identity: OfflineFloorId
   return decryptDraft(key, record.envelope, expectedScope);
 }
 
+/**
+ * Reads each draft independently so one unreadable record cannot hide the rest.
+ *
+ * decryptDraft throws on a scope mismatch, on any AES-GCM failure, and on assertFloorDraftAllowed
+ * rejecting the payload -- and that last one is reachable on a plain app upgrade, because a release
+ * that tightens the field guards turns drafts already sitting on the device into throwing records.
+ * Under Promise.all a single such record rejected the whole call, and all three callers propagate
+ * it: the review list went to an error state, syncing ONE draft failed because a DIFFERENT draft
+ * would not decrypt, and sync-all threw before attempting any draft at all. Meanwhile the plaintext
+ * purge clock kept running, so care documentation that was merely unreadable was deleted at
+ * UNSYNCED_PURGE_AFTER_MS without ever having been syncable.
+ *
+ * A rejected record is dropped from this lane rather than rethrown, and logged with its id so it is
+ * still diagnosable. Nothing is concealed by that: listServiceDraftEntries() is the plaintext lane
+ * the panel's counts and purge clock already run on, and it still lists the record.
+ */
+async function readDraftsIndependently<T>(
+  ids: string[],
+  read: (draftId: string) => Promise<T | undefined>,
+  lane: string,
+): Promise<T[]> {
+  const settled = await Promise.allSettled(ids.map((draftId) => read(draftId)));
+  const drafts: T[] = [];
+  settled.forEach((outcome, index) => {
+    if (outcome.status === "fulfilled") {
+      if (outcome.value !== undefined) drafts.push(outcome.value);
+      return;
+    }
+    console.warn(`[${lane}] draft ${ids[index]} could not be read and was skipped`, outcome.reason);
+  });
+  return drafts;
+}
+
 /** Full, decrypted drafts for the review list -- used only where the content itself must be shown. */
 export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Promise<OfflineFloorDraft[]> {
   const entries = await listServiceDraftEntries();
-  const drafts = await Promise.all(entries.map((entry) => readServiceDraft(entry.draftId, identity)));
-  return drafts.filter((draft): draft is OfflineFloorDraft => draft !== undefined);
+  return readDraftsIndependently(
+    entries.map((entry) => entry.draftId),
+    (draftId) => readServiceDraft(draftId, identity),
+    "offline-service-drafts",
+  );
 }
 
 export async function updateServiceDraft(
@@ -486,10 +522,14 @@ export async function readObservationDraft(
   return decryptObservation(key, record.envelope, expectedScope);
 }
 
+/** Same per-record isolation as readAllServiceDrafts -- see the comment there. */
 export async function readAllObservationDrafts(identity: OfflineFloorIdentity): Promise<OfflineObservationDraft[]> {
   const entries = await listObservationDraftEntries();
-  const drafts = await Promise.all(entries.map((entry) => readObservationDraft(entry.draftId, identity)));
-  return drafts.filter((draft): draft is OfflineObservationDraft => draft !== undefined);
+  return readDraftsIndependently(
+    entries.map((entry) => entry.draftId),
+    (draftId) => readObservationDraft(draftId, identity),
+    "offline-observation-drafts",
+  );
 }
 
 export async function updateObservationDraft(

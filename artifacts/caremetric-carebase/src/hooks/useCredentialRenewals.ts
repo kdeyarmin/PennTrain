@@ -63,6 +63,13 @@ export function useReviewCredentialRenewal() {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["credential-renewal-submissions"] });
+      // "credential-renewal-queue-summary" is a SEPARATE root, not a suffix of the key above --
+      // TanStack matches key elements, so invalidating the submissions list leaves the summary
+      // untouched. get_credential_renewal_queue_summary counts exactly what a decision changes
+      // (needsReview / uploaded / overdue buckets), and the query holds staleTime: 30_000, so the
+      // reviewer approved or rejected an item and watched the queue tiles keep the pre-decision
+      // counts.
+      client.invalidateQueries({ queryKey: ["credential-renewal-queue-summary"] });
       client.invalidateQueries({ queryKey: ["qualified-workforce"] });
       client.invalidateQueries({ queryKey: ["employee_credentials"] });
     },
@@ -91,6 +98,9 @@ export function useCreateCredentialRenewalSubmission() {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["credential-renewal-submissions"] });
+      // A new submission lands in the queue's "uploaded"/"needsReview" buckets, so the same
+      // separate-root summary has to be refreshed here too.
+      client.invalidateQueries({ queryKey: ["credential-renewal-queue-summary"] });
     },
   });
 }

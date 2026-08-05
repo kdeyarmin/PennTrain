@@ -165,9 +165,24 @@ export function useAmendClinicalObservation() {
  * writes the HIPAA chart-view access-log entry itself, so opening the chart is logged once here
  * rather than through a separate access-log call.
  */
+/**
+ * `reason` is in the key even though it does not change the payload.
+ *
+ * get_resident_clinical_chart's only use of p_minimum_necessary_reason is to pass it to
+ * log_clinical_access, which inserts one app_private.clinical_access_log row per CALL. So the
+ * reason is not a data dimension -- it is the HIPAA minimum-necessary annotation on the access
+ * record, and the log entry exists only when the RPC actually runs.
+ *
+ * The two callers pass different reasons for the same resident: ResidentClinicalChart.tsx sends
+ * "Resident clinical chart view" and MyResidentChart.tsx sends "Caregiver clinical charting".
+ * Keyed on residentId alone they shared one cache entry, so opening the second surface within
+ * staleTime served the first one's cached payload, the RPC never ran, and that access was never
+ * logged -- leaving the audit trail with one entry carrying the other surface's reason. Keying on
+ * the reason gives each surface its own entry, so each logs its own access.
+ */
 export function useResidentClinicalChartSummary(residentId: string | undefined, reason?: string) {
   return useQuery({
-    queryKey: [CLINICAL_CHART_SUMMARY_KEY, residentId],
+    queryKey: [CLINICAL_CHART_SUMMARY_KEY, residentId, reason ?? null],
     enabled: Boolean(residentId),
     queryFn: async (): Promise<ClinicalChartSummary> => {
       const { data, error } = await supabase.rpc("get_resident_clinical_chart", {

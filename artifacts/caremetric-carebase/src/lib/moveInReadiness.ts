@@ -71,9 +71,20 @@ function hasLinkedSignedStateForm(item: MoveInComplianceItemLike | undefined, do
   return documents.some((document) => document.compliance_item_id === item.id && document.is_state_form === true);
 }
 
+// `not_applicable` is in COMPLETED deliberately -- an item the resident's program does not require
+// is settled, not outstanding. Layering the signed-state-form requirement on top of that made the
+// exemption unreachable: an inapplicable item is precisely the one that will never have a state
+// form attached, so it satisfied COMPLETED, failed the evidence test, fell past OPEN, and landed on
+// "needs_review". The three rows that take the default requiresEvidence=true are all
+// `blocker: true`, so the packet kept a blocker that no action could ever clear and could never
+// reach "inspection_ready". Requiring evidence for a document that by definition does not exist is
+// the part that was wrong, not the membership in COMPLETED.
+const EVIDENCE_EXEMPT = new Set(["not_applicable"]);
+
 function itemStatus(item: MoveInComplianceItemLike | undefined, hasEvidence: boolean, requiresEvidence = true): MoveInPacketStatus {
   if (!item) return "not_ready";
-  if (COMPLETED.has(item.status) && (!requiresEvidence || hasEvidence)) return "inspection_ready";
+  const needsEvidence = requiresEvidence && !EVIDENCE_EXEMPT.has(item.status);
+  if (COMPLETED.has(item.status) && (!needsEvidence || hasEvidence)) return "inspection_ready";
   if (OPEN.has(item.status)) return "not_ready";
   return "needs_review";
 }

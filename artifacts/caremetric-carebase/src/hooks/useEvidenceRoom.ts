@@ -138,19 +138,28 @@ export function usePromotableBinderExports(facilityId: string | undefined) {
   return useQuery({
     queryKey: ["evidence", "promotable-exports", facilityId],
     queryFn: async () => {
+      // The facility predicate has to run BEFORE the limit. This used to ask for the 25 most
+      // recent succeeded exports across the whole organization and only then narrow to this
+      // facility in JavaScript, so in a multi-facility org 25 newer exports belonging to OTHER
+      // facilities pushed this facility's exports out of the window entirely and the page reported
+      // no promotable artifacts while they existed.
+      //
+      // `facility_ids` is `uuid[] not null` (20260712150000_async_compliance_binder.sql), so
+      // containment (`@>`) is the server-side form, and content_sha256 moves down with it. The
+      // one-element check stays client-side because "exactly this facility" is not expressible as
+      // an index-friendly predicate here -- but it now only ever discards multi-facility exports
+      // that already contain this facility, rather than deciding the whole result set.
       const { data, error } = await supabase
         .from("binder_export_jobs")
         .select("*")
         .eq("status", "succeeded")
+        .contains("facility_ids", [facilityId])
+        .not("content_sha256", "is", null)
         .order("completed_at", { ascending: false })
         .limit(25);
       if (error) throw error;
       return (data ?? []).filter(
-        (job) =>
-          job.content_sha256 !== null &&
-          Array.isArray(job.facility_ids) &&
-          job.facility_ids.length === 1 &&
-          job.facility_ids[0] === facilityId,
+        (job) => Array.isArray(job.facility_ids) && job.facility_ids.length === 1,
       );
     },
     enabled: !!facilityId,
