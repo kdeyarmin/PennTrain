@@ -242,7 +242,9 @@ select is(
    join public.dhs_citation_topics ct on ct.id = ci.citation_topic_id
    where ci.resident_id = '2e000000-0000-4000-8000-000000000201'
      and ci.item_type = 'annual_medical_evaluation' limit 1),
-  'ALR Medical Evaluations',
+  -- 'ALF ' since 20260805170000. The category is a label AND the key the trigger selects on, so
+  -- the rename moved both together; a stale literal here would mean untagged items in production.
+  'ALF Medical Evaluations',
   'an ALF annual evaluation is filed under medical evaluations, not reassessments');
 
 -- ---------------------------------------------------------------------------

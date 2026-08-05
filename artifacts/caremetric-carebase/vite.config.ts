@@ -50,12 +50,21 @@ export default defineConfig(({ command, mode }) => {
   // and local .env/.env.<mode> files in this directory.
   if (command === "build") {
     const env = loadEnv(mode, import.meta.dirname, "VITE_");
+    // `!env[key]` alone catches unset and "", but not " ". A whitespace-only value is TRUTHY --
+    // which is exactly the point the optional-var warning below makes -- so it passed this gate
+    // and was inlined as itself: `createClient(" ", " ")` throws at module init and the SPA is a
+    // blank page, while /health still returns 200 and Railway calls the deploy healthy. That is
+    // the failure this check exists to prevent, arriving through the one input it did not test.
+    // A Railway `${{...}}` reference that resolves to a padded value produces it without anyone
+    // typing a space.
     const missing = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_TURNSTILE_SITE_KEY"].filter(
-      (key) => !env[key],
+      (key) => !env[key] || env[key].trim() === "",
     );
     if (missing.length > 0) {
       throw new Error(
-        `Missing required build-time env var(s): ${missing.join(", ")}. ` +
+        `Missing or blank required build-time env var(s): ${missing.join(", ")}. ` +
+          "A whitespace-only value counts as blank here: it is truthy, so nothing downstream " +
+          "falls back, and the whitespace itself is inlined into the bundle. " +
           "Set them as Railway service variables (or in artifacts/caremetric-carebase/.env for local " +
           "builds) BEFORE building -- Vite inlines them into the bundle, so a bundle built " +
           "without them ships a broken app even if the vars are added to the runtime later.",
