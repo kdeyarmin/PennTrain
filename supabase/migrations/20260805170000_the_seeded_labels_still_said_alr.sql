@@ -73,6 +73,22 @@ end;
 $$;
 
 -- 2. The platform course catalog.
+--
+-- `validate_course_catalog_publication` fires BEFORE UPDATE on every published course and calls
+-- `assert_course_version_publish_ready`, whose readiness check refuses outright unless the caller
+-- is a platform admin or `app.privileged_write` is on -- so even a pure copy edit re-runs the whole
+-- publish gate, and a migration running as `postgres` fails its authorization check ("Only
+-- platform admins can inspect course publish readiness"). The GUC is the escape hatch that exists
+-- for exactly this, is transaction-local, and is the same one 20260724040747 uses to run these
+-- functions from a migration. Turned off again immediately: it is an authorization bypass, and
+-- nothing after this point should be running under it.
+--
+-- Note this does re-validate each renamed course against the publish gate. That is not a risk this
+-- migration introduces -- every one of these rows was published through the same assertion -- but
+-- it does mean a course that has drifted out of readiness since will fail here rather than quietly
+-- take the new title, which is the safer of the two outcomes.
+select set_config('app.privileged_write', 'on', true);
+
 update public.courses
 set title = 'ALF ' || substring(title from 5)
 where organization_id is null and title like 'ALR %';
@@ -80,6 +96,8 @@ where organization_id is null and title like 'ALR %';
 update public.courses
 set category = 'ALF ' || substring(category from 5)
 where organization_id is null and category like 'ALR %';
+
+select set_config('app.privileged_write', 'off', true);
 
 -- 3. The onboarding checklist template a new ALF hire is measured against.
 update public.onboarding_checklist_templates
