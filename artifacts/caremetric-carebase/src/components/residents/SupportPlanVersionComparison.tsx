@@ -33,8 +33,15 @@ export function SupportPlanVersionComparison({ plans }: { plans: ComparablePlan[
     () => [...plans].sort((a, b) => b.version_number - a.version_number),
     [plans],
   );
-  const [toId, setToId] = useState<string>(() => ordered[0]?.id ?? "");
-  const [fromId, setFromId] = useState<string>(() => ordered[1]?.id ?? "");
+  // Derived with a fallback rather than seeded once. `plans` is `query.data ?? []`, so the lazy
+  // initializers ran against an EMPTY array on first mount and stored "" -- and when the versions
+  // arrived the component rendered its comparison UI with both selects blank and no diff, on a
+  // card whose entire purpose is to open on latest-vs-previous. Falling back also self-heals if the
+  // selected version stops existing.
+  const [selectedToId, setToId] = useState<string>("");
+  const [selectedFromId, setFromId] = useState<string>("");
+  const toId = ordered.some((plan) => plan.id === selectedToId) ? selectedToId : (ordered[0]?.id ?? "");
+  const fromId = ordered.some((plan) => plan.id === selectedFromId) ? selectedFromId : (ordered[1]?.id ?? "");
   const [showUnchanged, setShowUnchanged] = useState(false);
 
   if (ordered.length < 2) {

@@ -125,6 +125,22 @@ export interface IncidentStageInput {
  */
 export const REVIEW_REQUIRED_SEVERITIES = new Set(["major", "critical"]);
 
+/**
+ * Incident kinds for which `auto_create_incident_notifications` files a state-hotline (and, for
+ * abuse and assault, a law-enforcement) notification on insert -- 55 Pa. Code 2600.16/2800.16.
+ * Every type the reporting form offers except `other`, which is a catch-all no obligation can be
+ * inferred from.
+ *
+ * Mirrored from the trigger's preset table (20260705144728) because the filing form has to know,
+ * before the row exists, whether a notification is already coming: its high-severity gate demanded
+ * a manually-added notification and would otherwise refuse to file a critical death or abuse
+ * allegation until the reporter hand-entered the very row the database was about to create.
+ */
+export const AUTO_NOTIFIED_INCIDENT_TYPES = new Set([
+  "death", "abuse_allegation", "neglect_allegation", "assault", "elopement",
+  "medication_error", "significant_injury", "fire", "environmental_emergency",
+]);
+
 /** Incident kinds that always warrant a QAPI look regardless of severity. */
 export const QAPI_ALWAYS_CONSIDERED_TYPES = new Set([
   "abuse_allegation", "neglect_allegation", "death", "elopement", "medication_error",

@@ -22,6 +22,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Plus, Search, X } from "lucid
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
+import { AUTO_NOTIFIED_INCIDENT_TYPES } from "@/lib/incidentStages";
 
 const PAGE_SIZE = 15;
 
@@ -229,13 +230,20 @@ export default function Incidents() {
       toast({ title: "Occurred-at cannot be in the future", variant: "destructive" });
       return;
     }
+    // The "(or the auto state-hotline entry)" in this message was describing a notification the
+    // check did not account for: `auto_create_incident_notifications` files one on insert for every
+    // incident type except `other`, so this refused to file a critical death or abuse allegation --
+    // the most urgent things it handles -- until the reporter hand-entered a duplicate of the row
+    // the database was about to create. The requirement only has to be enforced where nothing
+    // satisfies it automatically.
     if (
       (form.severity === "major" || form.severity === "critical")
+      && !AUTO_NOTIFIED_INCIDENT_TYPES.has(form.incidentType)
       && notificationRows.length === 0
     ) {
       toast({
         title: "Notifications required for major/critical incidents",
-        description: "Add at least one external notification (or the auto state-hotline entry) before filing a high-severity incident.",
+        description: "This incident type files no notification automatically. Add at least one external notification before filing it at this severity.",
         variant: "destructive",
       });
       return;

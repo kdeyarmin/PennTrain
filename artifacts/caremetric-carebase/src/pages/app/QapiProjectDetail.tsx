@@ -32,7 +32,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
-import { facilityToday } from "@/lib/dateUtils";
+// toDateTimeLocal, because `new Date(...).toISOString().slice(0, 16)` is a UTC wall clock and a
+// datetime-local input renders whatever it is given as LOCAL time. The two defaults below were
+// therefore drawn four or five hours ahead of the moment they meant: at 21:30 ET the "held at"
+// field opened on 01:30 the NEXT day, and submitting it recorded a QAPI meeting as held in the
+// future, on the wrong date. Reading back was already local (`new Date(held)`), so the round
+// trip disagreed with itself.
+import { facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
 import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
@@ -66,14 +72,12 @@ export default function QapiProjectDetail() {
   const [aTitle, setATitle] = useState(""),
     [aDesc, setADesc] = useState(""),
     [aOwner, setAOwner] = useState(user?.id ?? ""),
-    [aDue, setADue] = useState(
-      new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 16),
-    );
+    [aDue, setADue] = useState(toDateTimeLocal(new Date(Date.now() + 14 * 864e5)));
   const [num, setNum] = useState(""),
     [den, setDen] = useState(""),
     [mNotes, setMNotes] = useState(""),
     [mSample, setMSample] = useState(""),
-    [held, setHeld] = useState(new Date().toISOString().slice(0, 16)),
+    [held, setHeld] = useState(toDateTimeLocal()),
     [attendees, setAttendees] = useState(""),
     [meetingNotes, setMeetingNotes] = useState("");
   const [team, setTeam] = useState<Json>([]);
@@ -331,7 +335,7 @@ export default function QapiProjectDetail() {
                 onChange={(e) => setADue(e.target.value)}
               />
               <Button
-                disabled={!aTitle}
+                disabled={!aTitle || !aDue}
                 onClick={() =>
                   addAction.mutate(
                     {
@@ -454,7 +458,7 @@ export default function QapiProjectDetail() {
             />
             <Button
               className="md:col-span-2"
-              disabled={!attendees || !meetingNotes}
+              disabled={!attendees || !meetingNotes || !held}
               onClick={() =>
                 meeting.mutate(
                   {
