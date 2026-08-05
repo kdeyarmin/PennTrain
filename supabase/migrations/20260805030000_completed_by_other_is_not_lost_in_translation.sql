@@ -22,7 +22,8 @@
 --
 -- So a SQL shim would not lose the fact. It has a proven mapping to copy, written by the surface
 -- that already had to solve this problem. One caveat worth carrying: exception_details.legacy_status
--- is written and read by nothing in this repository, so the preserved fact is available to a query
+-- is written by useResidentServiceTasks and read back by nothing -- no UI surface and no query in
+-- this repository consumes it -- so the preserved fact is available to whoever goes looking for it,
 -- and to no screen.
 --
 -- WHAT ACTUALLY BLOCKS THE SHIM, AND IT IS NARROWER. record_service_task_response refuses any
