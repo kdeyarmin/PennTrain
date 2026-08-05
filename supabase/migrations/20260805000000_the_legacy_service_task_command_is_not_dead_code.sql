@@ -1,9 +1,10 @@
 -- Why public.record_resident_service_task is still here (backlog G15.13, recorded as SG-4).
 --
--- READ FROM INSIDE THIS REPOSITORY IT LOOKS LIKE DEAD CODE. Nothing calls it. `useRecordResident-
--- ServiceTask` (useResidentServiceTasks.ts) kept the old name but reaches public.record_service_-
--- task_response; the only remaining in-repo references are the pgTAP suite and the generated
--- database.types.ts. The next person sweeping unused RPCs will find exactly that and delete it.
+-- READ FROM INSIDE THIS REPOSITORY IT LOOKS LIKE DEAD CODE. Nothing calls it.
+-- `useRecordResidentServiceTask` (useResidentServiceTasks.ts) kept the old name but reaches
+-- public.record_service_task_response; the only remaining in-repo references are the pgTAP suite
+-- and the generated database.types.ts. The next person sweeping unused RPCs will find exactly
+-- that and delete it.
 --
 -- IT IS NOT DEAD CODE. 20260713160000_support_plan_service_task_automation.sql ends with
 -- `grant execute ... to authenticated` on this function and nothing has revoked it since, so it is

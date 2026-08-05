@@ -243,8 +243,10 @@ reset role;
 create temporary table legacy_command_probe(label text primary key, task_id uuid) on commit drop;
 -- Without this grant every statement below that runs as `authenticated` fails 42501 reading the
 -- probe table itself, which for the throws_ok assertion is indistinguishable from the rejection it
--- is meant to prove. Same trap citation_verification_governance.test.sql documents.
-grant all on legacy_command_probe to authenticated;
+-- is meant to prove. Same trap citation_verification_governance.test.sql documents. SELECT is the
+-- whole need -- the rows are inserted below as the owner, before any role switch -- so a later
+-- edit that tries to write the probe as `authenticated` fails rather than quietly succeeding.
+grant select on legacy_command_probe to authenticated;
 insert into legacy_command_probe(label, task_id)
 select case seq when 1 then 'legacy_by_other' when 2 then 'successor_rejects' else 'successor_no_alert' end, id
 from (
