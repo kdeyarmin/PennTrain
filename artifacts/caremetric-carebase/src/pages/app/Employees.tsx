@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { QueryError } from "@/components/QueryState";
 import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2, Upload } from "lucide-react";
-import { Link, useSearch } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
@@ -109,6 +109,7 @@ export default function Employees() {
   // Query string, e.g. "?action=add" -- distinct from the free-text `search` state above,
   // which is the employee name/role/department search box.
   const locationSearch = useSearch();
+  const [, navigate] = useLocation();
   const basePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
     : "/app/employees";
@@ -182,13 +183,22 @@ export default function Employees() {
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
     const action = params.get("action");
+    if (action !== "add" && !(action === "bulk-import" && canManage)) return;
     if (action === "add") {
       // The guided/dashboard onboarding action opens the practical combined
       // flow by default: roster record plus a linked self-service login.
       openCreate(true);
-    } else if (action === "bulk-import" && canManage) {
+    } else {
       openBulkImport();
     }
+    // Consumed, so the URL stops asserting a dialog that is no longer open. Without this the
+    // parameter outlived the dialog, and because this effect only re-runs when the query string
+    // CHANGES, following the same "Onboard employee" link a second time -- from the sidebar or the
+    // dashboard, having closed the dialog once -- set an identical search string and opened
+    // nothing. The shortcut worked once per visit and then looked broken.
+    params.delete("action");
+    const query = params.toString();
+    navigate(`${basePath}${query ? `?${query}` : ""}`, { replace: true });
   }, [locationSearch]);
 
   const openEdit = (e: React.MouseEvent, emp: Employee) => {

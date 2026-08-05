@@ -62,6 +62,7 @@ const OccupancyBoardSection = lazy(
 );
 
 import { useToast } from "@/hooks/use-toast";
+import { appPath } from "@/lib/appUrl";
 
 const STAGES = ["prospect", "applicant", "approved", "waitlisted", "reserved", "admitted", "declined", "lost"];
 const REVIEW_STATUSES = ["not_started", "in_review", "needs_information", "approved", "declined"];
@@ -325,7 +326,7 @@ function ProspectReviewDialog({
               <Button disabled={!bedId || reserve.isPending} onClick={() => prospect && reserve.mutate({ prospectId: prospect.id, bedId }, { onSuccess: () => toast({ title: "Bed reserved" }), onError: (error: Error) => toast({ title: "Couldn't reserve bed", description: error.message, variant: "destructive" }) })}><BedDouble className="mr-2 h-4 w-4" />Reserve bed</Button>
             </div>
             {prospect?.stage === "reserved" && (
-              <Button disabled={startWorkspace.isPending} onClick={() => prospect && startWorkspace.mutate(prospect.id, { onSuccess: id => { toast({ title: "Move-in workspace created" }); window.location.href = `/app/admissions/move-ins/${id}`; }, onError: (error: Error) => toast({ title: "Couldn't start move-in", description: error.message, variant: "destructive" }) })}><ClipboardList className="mr-2 h-4 w-4" />Open move-in workspace</Button>
+              <Button disabled={startWorkspace.isPending} onClick={() => prospect && startWorkspace.mutate(prospect.id, { onSuccess: id => { toast({ title: "Move-in workspace created" }); window.location.href = appPath(`/app/admissions/move-ins/${id}`); }, onError: (error: Error) => toast({ title: "Couldn't start move-in", description: error.message, variant: "destructive" }) })}><ClipboardList className="mr-2 h-4 w-4" />Open move-in workspace</Button>
             )}
           </div>
         )}
@@ -483,9 +484,13 @@ export default function AdmissionOperations() {
         </TabsContent>
       </Tabs>
 
-      <ProspectDialog open={showProspect} onClose={() => setShowProspect(false)} facilityId={facilityId === "all" ? "" : facilityId} sources={sources.data ?? []} />
+      {/* Re-keyed on open. Both dialogs are rendered unconditionally, so their field state was
+          created once at mount and never reset -- after adding a prospect the dialog closed with
+          every value still in it, and opening it for the NEXT referral showed the previous
+          person's name, date of birth, phone and contact details, pre-filled and ready to save. */}
+      <ProspectDialog key={showProspect ? "prospect-open" : "prospect-closed"} open={showProspect} onClose={() => setShowProspect(false)} facilityId={facilityId === "all" ? "" : facilityId} sources={sources.data ?? []} />
       <ProspectReviewDialog key={selectedProspect?.id} prospect={selectedProspect} availableBeds={availableBeds} onClose={() => setSelectedProspect(null)} />
-      <RoomDialog open={showRoom} onClose={() => setShowRoom(false)} facilityId={facilityId === "all" ? "" : facilityId} />
+      <RoomDialog key={showRoom ? "room-open" : "room-closed"} open={showRoom} onClose={() => setShowRoom(false)} facilityId={facilityId === "all" ? "" : facilityId} />
     </div>
   );
 }

@@ -94,3 +94,72 @@ describe("route registration coverage", () => {
     expect(sidebarPathsMissingAppPagesEntry).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// APP_PAGES promises what the route grants
+// ---------------------------------------------------------------------------------------------
+//
+// The tests above check that every navigation target IS a registered route. They do not check who
+// the route lets in. APP_PAGES.roles drives the sidebar, the command palette and canViewPath();
+// ProtectedRoute's allowedRoles decides what actually happens. Widening one without the other
+// produces a page the app offers and then refuses -- a dead end that looks like a permissions bug
+// to the person who followed it, and, in the other direction, a page hidden from someone entitled
+// to it.
+//
+// Reported as a list rather than one failing pair so a drift affecting several pages is visible in
+// one run. Routes whose roles are an inline array and routes whose roles are a named constant are
+// both resolved; the split on route boundaries matters, because a window-based regex pairs a path
+// with a LATER route's allowedRoles whenever the route between them uses the other form.
+function roleConstants(text: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const match of text.matchAll(/const ([A-Z][A-Z0-9_]*)\s*(?::[^=]*)?=\s*\[([^\]]*)\]/g)) {
+    const values = [...match[2].matchAll(/"([a-z_]+)"/g)].map((value) => value[1]);
+    if (values.length) out[match[1]] = values;
+  }
+  return out;
+}
+
+function routeAllowedRoles(): Map<string, string[] | null> {
+  const constants = roleConstants(appSource);
+  const routes = new Map<string, string[] | null>();
+  for (const chunk of appSource.split("<Route ").slice(1)) {
+    const path = chunk.match(/^path="([^"]+)"/)?.[1];
+    if (!path || routes.has(path)) continue;
+    const rolesRaw = chunk.match(/allowedRoles=\{(\[[^\]]*\]|[A-Z][A-Z0-9_]*)\}/)?.[1];
+    if (!rolesRaw) continue;
+    routes.set(path, rolesRaw.startsWith("[")
+      ? [...rolesRaw.matchAll(/"([a-z_]+)"/g)].map((value) => value[1])
+      : constants[rolesRaw] ?? null);
+  }
+  return routes;
+}
+
+describe("APP_PAGES role metadata agrees with the route guards", () => {
+  const routes = routeAllowedRoles();
+
+  it("offers no page to a role its route refuses", () => {
+    const offeredButRefused = APP_PAGES.flatMap((page) => {
+      const allowed = routes.get(stripQueryString(page.path));
+      if (!allowed) return [];
+      const extra = page.roles.filter((role) => !allowed.includes(role));
+      return extra.length
+        ? [`${page.path}: APP_PAGES offers [${extra.join(", ")}]; route allows [${allowed.join(", ")}]`]
+        : [];
+    });
+    expect(offeredButRefused).toEqual([]);
+  });
+
+  // The reverse direction is deliberately NOT asserted. A route admitting a role the page does not
+  // advertise is how two intentional postures are expressed here: trainers reach /app, /app/employees
+  // and /app/facilities but are navigated to the /trainer/* equivalents, and platform_admin can open
+  // several /app/* operator surfaces without them appearing in an admin menu built from /admin/*.
+  // Asserting that empty would encode "every route grant must be advertised", which is not the rule
+  // this app follows. The direction that always indicates a defect is the one above: a page the app
+  // offers and the route then refuses is a dead end the user cannot distinguish from a broken
+  // permission.
+
+  it("resolves a route for every registered page, so neither assertion can pass vacuously", () => {
+    const unresolved = APP_PAGES.filter((page) => !routes.has(stripQueryString(page.path)));
+    expect(unresolved.map((page) => page.path)).toEqual([]);
+  });
+});

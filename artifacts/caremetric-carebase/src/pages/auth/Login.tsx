@@ -64,6 +64,24 @@ export default function Login() {
       if (error) throw error;
       return data;
     },
+    // signInWithSSO does NOT sign anyone in: it returns the identity provider's authorization URL
+    // and the caller has to send the browser there -- the method's own documentation is `if
+    // (data?.url) window.location.href = data.url`. This mutation returned the data and dropped it,
+    // so "Continue with enterprise SSO" resolved successfully, cleared its pending state, showed no
+    // error, and left the user sitting on the login page. Enterprise sign-in could not be completed
+    // at all, and the shape of the failure -- success with nothing happening -- is why it reads as
+    // the button being broken rather than as a bug worth reporting.
+    onSuccess: (data) => {
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      toast({
+        variant: "destructive",
+        title: "Enterprise sign-in unavailable",
+        description: "No SSO connection is configured for that email domain.",
+      });
+    },
     onError: (error: Error) => {
       toast({
         variant: "destructive",
