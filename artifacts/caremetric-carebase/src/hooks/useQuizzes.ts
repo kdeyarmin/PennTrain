@@ -56,11 +56,17 @@ export function useGetQuizByBlockId(courseBlockId: string | undefined) {
   return useQuery({
     queryKey: ["quizzes", "by-block", courseBlockId],
     queryFn: async () => {
+      // maybeSingle, not single: a quiz block that has not been configured yet legitimately has no
+      // row, and `.single()` turns that into a PGRST116 error. Both callers already render the
+      // absent case -- course-detail treats `isError || !quiz` as "No quiz configured yet" -- so
+      // the failure was being USED as the empty signal, at the cost of three retries per
+      // unconfigured block and a genuine fault (a row RLS filtered out, two rows on one block)
+      // reading as "not configured yet". null now means absent, and an error means an error.
       const { data, error } = await supabase
         .from("quizzes")
         .select("*")
         .eq("course_block_id", courseBlockId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },

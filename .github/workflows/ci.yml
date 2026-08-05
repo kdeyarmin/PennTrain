@@ -25,7 +25,10 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Same exposure as planning-registers below, and worse consequences: this job also spends its
+    # whole budget on a `fetch-depth: 0` clone, and every other job is gated on its outputs, so a
+    # slow clone here does not fail one check -- it takes the run with it.
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -103,6 +106,17 @@ jobs:
             "supabase/config.toml"
             "deno.lock"
             ".github/*"
+            # Deploy and toolchain config that nothing else in this list covers. A PR touching only
+            # these set application=false AND database=false, every gated job was skipped, and
+            # ci-result aggregates a skipped job as success -- so it merged with no validation at
+            # all. railway.json/railpack.json are the start command and build plan that
+            # check:startup exercises; tsconfig.base.json is the base config every workspace
+            # extends, so it moves typecheck everywhere; .nvmrc is the Node version, and its
+            # sibling .node-version was already listed.
+            "railway.json"
+            "railpack.json"
+            "tsconfig.base.json"
+            ".nvmrc"
           )
 
           # database → local Supabase stack, advisors, types drift, Playwright e2e
@@ -122,6 +136,8 @@ jobs:
             "scripts/check-journey-coverage*"
             "scripts/seed-course-video-placeholders*"
             ".github/*"
+            # The e2e run builds CareBase, and every workspace tsconfig extends this one.
+            "tsconfig.base.json"
           )
 
           # migration-immutability → only when migration files or its checker/allowlist change
@@ -376,7 +392,14 @@ jobs:
   # mode runs for real and a drifted stamp turns the branch red.
   planning-registers:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # 10, not 5, because essentially all of it is clone time. The check itself runs in under a
+    # second; the `fetch-depth: 0` below is a full-history clone of this repository, and on
+    # 016401c that checkout took 4m59s and the 5-minute job timeout cancelled the job mid-checkout
+    # -- failing the aggregate `ci-result`, and so the PR, for a reason with no connection to the
+    # code. The retry cloned the same commit in 25s, which is the point: the budget was one slow
+    # clone from failing on any PR. Every other full-history job here already allows more
+    # (migration-immutability 10, secret-scan 15, application 25).
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:

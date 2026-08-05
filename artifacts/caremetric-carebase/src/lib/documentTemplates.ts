@@ -7,6 +7,8 @@
  * every organization, not tenant data.
  */
 
+import { facilityTypeMatchesQuery } from "./facilityTypes";
+
 export type TemplateBody =
   | { kind: "table"; columns: string[]; blankRows?: number; fixedFirstColumn?: string[] }
   | { kind: "checklist"; options: string[]; items: string[]; notes?: boolean; notesLabel?: string }
@@ -958,7 +960,7 @@ export function searchTemplates(query: string): DocumentTemplate[] {
       t.description.toLowerCase().includes(q) ||
       t.category.toLowerCase().includes(q) ||
       meta.citations.some((citation) => citation.toLowerCase().includes(q)) ||
-      meta.facilityTypes.some((facilityType) => facilityType.toLowerCase().includes(q)) ||
+      meta.facilityTypes.some((facilityType) => facilityTypeMatchesQuery(facilityType, q)) ||
       meta.binderSection.toLowerCase().includes(q)
     );
   });

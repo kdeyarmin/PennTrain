@@ -75,7 +75,12 @@ export function normalizeRuntimeCommitState(raw: Record<string, unknown>): Runti
   if (progress != null) progress = Math.min(1, Math.max(0, progress));
   if (completionStatus === "completed" && progress == null) progress = 1;
 
-  const suspend = str(raw.suspendData ?? raw.suspend_data ?? raw["cmi.suspend_data"] ?? raw["cmi.core.exit"]);
+  // NOT `cmi.core.exit`. That is SCORM's exit MODE -- "suspend", "logout", "time-out", "normal" --
+  // and it was the last fallback in this chain, so a package that set an exit mode without any
+  // suspend data had the learner's bookmark stored as the literal string "suspend". Resuming then
+  // handed the content that string as its saved state. `cmi.suspend_data` is the suspend key in
+  // both SCORM 1.2 and 2004 and is already covered; nothing else belongs here.
+  const suspend = str(raw.suspendData ?? raw.suspend_data ?? raw["cmi.suspend_data"]);
   const sessionTimeSeconds = num(raw.sessionTimeSeconds ?? raw.session_time_seconds ?? raw["cmi.session_time"]);
 
   return {

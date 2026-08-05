@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -142,14 +143,37 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const { data: employees, error: employeesError } = await callerClient
-    .from("employees")
-    .select("id, employee_number, facility_id, organization_id, status")
-    .eq("organization_id", effectiveOrgId)
-    .not("employee_number", "is", null);
-  if (employeesError) return json(req, { error: `Failed to load employees: ${employeesError.message}` }, 500);
+  // Nothing reaches a customer's tables until this job's claim is ours. The durable worker
+  // (process-data-import-jobs) cannot tell an in-progress browser apply from a stranded one, so
+  // without a claim it applies the same ledger rows this run is walking -- see G34.
+  const leaseError = await acquireImportJobLease(callerClient, jobId);
+  if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
+
+  // Paged. This is the only importer that pulls the WHOLE roster into a lookup map -- the others
+  // resolve one entity per row with .limit(1).maybeSingle() and so are immune -- and an
+  // unpaginated select is silently cut off at PostgREST's max-rows (1000 by default). Past that,
+  // employees simply missing from the map came back to the user as "Unknown employee_number: X"
+  // for a person who is plainly on the roster, with the import refusing rows it should accept and
+  // no hint that the roster read was the truncated thing.
+  const EMPLOYEE_PAGE_SIZE = 1000;
+  const employees: Array<{ id: string; employee_number: string | null; facility_id: string | null; organization_id: string; status: string }> = [];
+  for (let from = 0; ; from += EMPLOYEE_PAGE_SIZE) {
+    const { data: page, error: employeesError } = await callerClient
+      .from("employees")
+      .select("id, employee_number, facility_id, organization_id, status")
+      .eq("organization_id", effectiveOrgId)
+      .not("employee_number", "is", null)
+      .order("id", { ascending: true })
+      .range(from, from + EMPLOYEE_PAGE_SIZE - 1);
+    if (employeesError) return json(req, { error: `Failed to load employees: ${employeesError.message}` }, 500);
+    const rows = page ?? [];
+    employees.push(...rows);
+    // A short page is the last page. An exactly-full final page costs one extra empty request,
+    // which is the right trade against guessing from a count.
+    if (rows.length < EMPLOYEE_PAGE_SIZE) break;
+  }
   const employeeByNumber = new Map(
-    (employees ?? [])
+    employees
       .filter((e) => e.employee_number)
       .map((e) => [String(e.employee_number).trim().toLowerCase(), e]),
   );

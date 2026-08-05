@@ -13,6 +13,7 @@ import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { ArrowLeft, HeartPulse, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
@@ -104,6 +105,7 @@ export default function ResidentDetail() {
   );
   const appointmentPreparationQuery = useResidentAppointmentPreparation(appointmentIds);
 
+  const { toast } = useToast();
   const { mutate: updateResident } = useUpdateResident();
 
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
@@ -258,6 +260,17 @@ export default function ResidentDetail() {
                     id: resident.id,
                     status: v as typeof resident.status,
                     discharge_date: v === "discharged" ? facilityToday() : null,
+                  }, {
+                    // Discharging a resident is the most consequential control on this page and it
+                    // was the only mutation here with no error path: a refused update (RLS, or a
+                    // trigger holding the discharge until something is documented) left the Select
+                    // showing the new value until the next refetch quietly snapped it back, with
+                    // nothing said. Silence reads as success on a status change.
+                    onError: (error: Error) => toast({
+                      title: v === "discharged" ? "Could not discharge this resident" : "Could not reactivate this resident",
+                      description: error.message,
+                      variant: "destructive",
+                    }),
                   })}
                 >
                   {/* Named: an unlabelled combobox announces only its current value, so a screen

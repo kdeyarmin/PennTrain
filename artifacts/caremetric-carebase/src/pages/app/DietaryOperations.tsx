@@ -52,9 +52,11 @@ export default function DietaryOperations() {
   const canManage = hasRole(user, "platform_admin", "org_admin", "facility_manager");
   const canRecord = !hasRole(user, "auditor");
   const facilities = useListFacilities({ organizationId });
-  const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
+  const { facilityId, residentId, setFacilityId, setResidentId, adoptDefaultFacility } = useResidentNavigationContext();
+  // adoptDefaultFacility, not setFacilityId: the latter clears the resident, and on `?resident=X`
+  // with no facility this effect runs before the resident query resolves the facility.
   useEffect(() => {
-    if (!facilityId && facilities.data?.length === 1) setFacilityId(facilities.data[0].id);
+    if (!facilityId && facilities.data?.length === 1) adoptDefaultFacility(facilities.data[0].id);
   }, [facilities.data, facilityId]);
   const residents = useListResidents({ facilityId, status: "active" }, { enabled: !!facilityId });
   const employees = useListEmployees({ facilityId, status: "active", organizationId }, { enabled: !!facilityId });
@@ -99,8 +101,18 @@ export default function DietaryOperations() {
           <TabsTrigger value="food-safety"><ShieldCheck className="mr-2 h-4 w-4" />Food safety</TabsTrigger>
           <TabsTrigger value="qualifications"><Scale className="mr-2 h-4 w-4" />Qualifications</TabsTrigger>
         </TabsList>
-        <TabsContent value="resident"><ResidentNutrition residentId={residentId} residentName={resident ? `${resident.first_name} ${resident.last_name}` : ""} profile={operations.data?.profile} reviews={operations.data?.reviews ?? []} canManage={canManage} report={report} /></TabsContent>
-        <TabsContent value="monitoring"><ResidentMonitoring residentId={residentId} data={operations.data} profiles={profiles.data ?? []} canManage={canManage} canRecord={canRecord} report={report} /></TabsContent>
+        {/*
+          Keyed by resident so every per-resident form resets when the selection changes.
+          Without it React reuses one instance across residents, and ResidentNutrition's hydration
+          effect bails out (`if (!profile) return`) for a resident who has no dietary profile --
+          resident_dietary_profiles is read with maybeSingle(), so that is `null`, not a pending
+          load. The form then still held the PREVIOUS resident's diet order, food allergies,
+          texture and liquid consistency, and "Save versioned dietary profile" wrote them onto the
+          newly selected resident. Allergies and consistency are exactly the fields where the wrong
+          resident's values are a clinical-safety problem, not a data-entry annoyance.
+        */}
+        <TabsContent value="resident"><ResidentNutrition key={residentId} residentId={residentId} residentName={resident ? `${resident.first_name} ${resident.last_name}` : ""} profile={operations.data?.profile} reviews={operations.data?.reviews ?? []} canManage={canManage} report={report} /></TabsContent>
+        <TabsContent value="monitoring"><ResidentMonitoring key={residentId} residentId={residentId} data={operations.data} profiles={profiles.data ?? []} canManage={canManage} canRecord={canRecord} report={report} /></TabsContent>
         <TabsContent value="menus"><MenuOperations facilityId={facilityId} menus={operations.data?.menus ?? []} canManage={canManage} report={report} /></TabsContent>
         <TabsContent value="food-safety"><FoodSafetyOperations facilityId={facilityId} controls={operations.data?.controls ?? []} logs={operations.data?.logs ?? []} canManage={canManage} canRecord={canRecord} report={report} /></TabsContent>
         <TabsContent value="qualifications"><QualificationOperations employees={employees.data ?? []} qualifications={operations.data?.qualifications ?? []} canManage={canManage} report={report} /></TabsContent>

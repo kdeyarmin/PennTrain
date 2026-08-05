@@ -149,7 +149,13 @@ export function useStopImpersonation() {
         refresh_token: originSession.refresh_token,
       });
       if (error) {
-        sessionStorage.removeItem(STORAGE_KEY);
+        // KEEP the record. This is the restore step, and the record holds the only copy of the
+        // origin tokens -- discarding it on failure left the operator authenticated as the TARGET
+        // user with no way back and, because the banner renders off this same record, no longer
+        // any indication that the session was an impersonation at all. Retaining it keeps "Exit
+        // impersonation" retryable and keeps the amber banner up meanwhile. (Contrast the
+        // verifyOtp path in useStartImpersonation, which removes a merely PROVISIONAL record for
+        // a swap that never happened.)
         throw error;
       }
 

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readServiceDraft, saveServiceDraft } from "./offlineServiceDraftCache";
+import {
+  readAllServiceDrafts, readAllServiceDraftsWithFailures, readServiceDraft, saveServiceDraft,
+} from "./offlineServiceDraftCache";
 import type {
   OfflineChangeObservationDraft, OfflineServiceDraft, OfflineUnscheduledServiceDraft,
 } from "./offlineServiceDraftSafety";
@@ -90,6 +92,9 @@ function fakeIndexedDB() {
     if (!store) throw new Error(`Unknown object store "${name}"`);
     return {
       get: (key: unknown) => fakeRequest(() => store.data.get(key)),
+      // listServiceDraftEntries reads the whole store in one request; readAllServiceDrafts is
+      // built on it, so the read-everything path needs this to be testable at all.
+      getAll: () => fakeRequest(() => [...store.data.values()]),
       put: (value: unknown, explicitKey?: unknown) => fakeRequest(() => {
         const key = store.keyPath ? (value as Record<string, unknown>)[store.keyPath] : explicitKey;
         store.data.set(key, value);
@@ -347,5 +352,51 @@ describe("draft kinds share one store (BACKLOG.md E5 Tiers 2-3)", () => {
     expect(fake.draftStoreHas("draft-1")).toBe(true);
     expect(fake.draftStoreHas("unsched-1")).toBe(true);
     expect(fake.draftStoreHas("obs-1")).toBe(true);
+  });
+
+  // One record that will not decrypt used to reject the whole read (Promise.all), which took out
+  // the review list AND both sync paths -- so healthy, unsynced care documentation became
+  // unreachable and unsyncable while the plaintext purge clock kept counting down on it. The
+  // realistic trigger is an ordinary app upgrade: a release that tightens assertFloorDraftAllowed
+  // turns drafts already on the device into throwing records.
+  it("still returns the readable drafts when one record cannot be decrypted", async () => {
+    await saveServiceDraft(draft());
+    await saveServiceDraft(unscheduledDraft());
+    const poisoned = fake.readStoredRecord("unsched-1")!;
+    fake.writeStoredRecord("unsched-1", {
+      ...poisoned,
+      envelope: { ...(poisoned.envelope as Record<string, unknown>), ciphertext: "bm90LWEtY2lwaGVydGV4dA==" },
+    });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const drafts = await readAllServiceDrafts(identity);
+    expect(drafts.map((entry) => entry.draftId)).toEqual(["draft-1"]);
+    // Dropped, not concealed: the skip is logged against the specific draft id.
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("unsched-1"),
+      expect.anything(),
+    );
+    warn.mockRestore();
+  });
+
+  // Reviewed on #458. Logging the id to the console is not surfacing it. The header's count comes
+  // from the plaintext entry lane, which still lists an unreadable record, while the list renders
+  // only decrypted drafts -- so omitting it produced "N pending" above a row that never appeared,
+  // a "Sync now" that attempted nothing and reported success, and no way to clear it before the
+  // purge deadline. The id has to come back with the drafts for the panel to show it at all.
+  it("reports the id of a record it could not decrypt, alongside the ones it could", async () => {
+    await saveServiceDraft(draft());
+    await saveServiceDraft(unscheduledDraft());
+    const poisoned = fake.readStoredRecord("unsched-1")!;
+    fake.writeStoredRecord("unsched-1", {
+      ...poisoned,
+      envelope: { ...(poisoned.envelope as Record<string, unknown>), ciphertext: "bm90LWEtY2lwaGVydGV4dA==" },
+    });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { drafts, unreadableIds } = await readAllServiceDraftsWithFailures(identity);
+    expect(drafts.map((entry) => entry.draftId)).toEqual(["draft-1"]);
+    expect(unreadableIds).toEqual(["unsched-1"]);
+    warn.mockRestore();
   });
 });

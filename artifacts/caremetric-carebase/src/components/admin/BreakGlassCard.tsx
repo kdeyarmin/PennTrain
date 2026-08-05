@@ -58,8 +58,14 @@ export function BreakGlassCard() {
   const [revokeReason, setRevokeReason] = useState("");
 
   const expiry = expiresAt ? new Date(expiresAt) : null;
-  const expiryPast = !!expiry && expiry.getTime() <= Date.now();
-  const expiryTooFar = !!expiry && expiry.getTime() > Date.now() + MAX_HOURS * 3_600_000;
+  // Both range checks are `!!expiry && ...`, so CLEARING the field made them both false and left
+  // canGrant true -- and the grant handler then calls `new Date("").toISOString()`, which throws
+  // RangeError out of an onClick. An unparseable value does the same by a different route: every
+  // comparison against NaN is false. A usable expiry has to be its own condition, not the absence
+  // of a violated one.
+  const expiryUsable = !!expiry && !Number.isNaN(expiry.getTime());
+  const expiryPast = expiryUsable && expiry!.getTime() <= Date.now();
+  const expiryTooFar = expiryUsable && expiry!.getTime() > Date.now() + MAX_HOURS * 3_600_000;
   // Checked here as well as on the server so the refusal arrives while the field can still be
   // corrected, rather than as a failed submission with the reason buried in an error toast.
   const approverIsRequester = requestedBy.trim().length > 0 && requestedBy.trim() === user?.id;
@@ -67,7 +73,7 @@ export function BreakGlassCard() {
     && requestedBy.trim().length > 0 && !approverIsRequester
     && reason.trim().length >= MIN_REASON
     && ticket.trim().length > 0
-    && !expiryPast && !expiryTooFar;
+    && expiryUsable && !expiryPast && !expiryTooFar;
 
   return (
     <Card>

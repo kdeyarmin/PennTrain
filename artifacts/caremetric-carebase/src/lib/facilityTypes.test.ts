@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { facilityTypeLabel, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "./facilityTypes";
+import { facilityTypeLabel, facilityTypeMatchesQuery, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "./facilityTypes";
 
 describe("hasAnyFacilityType", () => {
   it("is false while facilityTypes is undefined (still loading, or role not applicable)", () => {
@@ -29,5 +29,29 @@ describe("facilityTypeLabel", () => {
   it("handles missing and forward-compatible values", () => {
     expect(facilityTypeLabel(null)).toBe("Unknown");
     expect(facilityTypeLabel("FUTURE_TYPE")).toBe("FUTURE_TYPE");
+  });
+});
+
+describe("facilityTypeMatchesQuery", () => {
+  // The stored code is "ALR" and the label is "Assisted Living Facility (ALF)". A search that only
+  // looked at the code answered to the term the product forbids showing and not to the one it
+  // displays.
+  it("matches an ALR facility by the ALF label the product actually shows", () => {
+    expect(facilityTypeMatchesQuery("ALR", "alf")).toBe(true);
+    expect(facilityTypeMatchesQuery("ALR", "assisted living")).toBe(true);
+    expect(facilityTypeMatchesQuery("ALR", "alr")).toBe(true);
+  });
+
+  // The predicate this replaced was `query.includes("alf")` -- an inverted substring test, so any
+  // query merely CONTAINING those letters returned every ALF record.
+  it("does not treat 'half' as an ALF search", () => {
+    expect(facilityTypeMatchesQuery("ALR", "half")).toBe(false);
+    expect(facilityTypeMatchesQuery("ALR", "ralf")).toBe(false);
+  });
+
+  it("still matches PCH by code and by label", () => {
+    expect(facilityTypeMatchesQuery("PCH", "pch")).toBe(true);
+    expect(facilityTypeMatchesQuery("PCH", "personal care")).toBe(true);
+    expect(facilityTypeMatchesQuery("PCH", "alf")).toBe(false);
   });
 });

@@ -179,6 +179,24 @@ describe("recorded changes", () => {
   it("returns nothing when the return recorded no changes", () => {
     expect(recordedChanges(episode())).toEqual([]);
   });
+
+  // dme_changes is in RETURN_CHANGE_FIELDS and complete_hospital_return writes it, but it was
+  // missing from both HospitalEpisodeLike and this list -- so a return whose only recorded change
+  // was new equipment read as "no changes recorded" on the section a nurse reads before revising
+  // the plan. That is the change most likely to alter a transfer-assistance service.
+  it("lists equipment changes, which the return dialog asks for", () => {
+    expect(recordedChanges(episode({ dme_changes: "Returned with a rolling walker" }))).toEqual([
+      { label: "Equipment", detail: "Returned with a rolling walker" },
+    ]);
+  });
+
+  it("covers every field the return dialog collects", () => {
+    const labels = recordedChanges(episode({
+      condition_changes: "a", diet_changes: "b", mobility_changes: "c",
+      skin_concerns: "d", dme_changes: "e",
+    })).map((entry) => entry.label);
+    expect(labels).toHaveLength(RETURN_CHANGE_FIELDS.length);
+  });
 });
 
 describe("state label", () => {

@@ -53,6 +53,33 @@ function clearImpersonationSession() {
   window.dispatchEvent(new Event(IMPERSONATION_CHANGE_EVENT));
 }
 
+/**
+ * The local-state teardown every sign-out must perform -- forced or user-initiated.
+ *
+ * `supabase.auth.signOut()` on its own only drops the Supabase session from localStorage. Three
+ * other pieces of local state outlive it, and each is a real leak:
+ *
+ *   - The impersonation record in sessionStorage, which holds the ORIGIN platform_admin's
+ *     access/refresh tokens. MainLayout's ImpersonationBanner reads that record straight back, and
+ *     its "Exit impersonation" button calls `supabase.auth.setSession(originSession)` without
+ *     checking that the impersonated session is still the live one. Leaving the record behind
+ *     therefore hands whoever uses this browser tab next a working route back into a
+ *     platform_admin session. MaintenanceGate's comment already names this as the reason a raw
+ *     `supabase.auth.signOut()` is not an acceptable sign-out.
+ *   - The react-query cache, whose keys are not all identity-scoped.
+ *   - The Supabase runtime/storage Cache Storage entries, which hold already-fetched PHI responses.
+ *
+ * useSignOut() always did all three. The forced sign-out paths each did a different subset -- the
+ * definitive-profile-absence path did neither of the first and third, which is precisely the
+ * stranded-origin-token case above. Routing them all through one function is what stops the next
+ * forced-sign-out path from picking a subset again.
+ */
+export async function clearLocalSessionState(): Promise<void> {
+  clearImpersonationSession();
+  queryClient.clear();
+  await clearSupabaseRuntimeCache();
+}
+
 // Centralized role check -- prefer this (or the useAuth().hasRole shortcut)
 // over inline `user.role === "..."` comparisons in new code. This is a UX
 // convenience only; Postgres RLS is the real authorization boundary.
@@ -384,7 +411,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!session || !isError || !isDefinitiveProfileAbsence(profileError)) return;
     (async () => {
       await supabase.auth.signOut();
-      queryClient.clear();
+      await clearLocalSessionState();
       toast({
         variant: "destructive",
         title: "Account unavailable",
@@ -402,8 +429,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!profile || profile.is_active) return;
     (async () => {
       await supabase.auth.signOut();
-      clearImpersonationSession();
-      queryClient.clear();
+      await clearLocalSessionState();
       toast({
         variant: "destructive",
         title: "Account deactivated",
@@ -422,9 +448,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         onSignOut={() => {
           void (async () => {
             await supabase.auth.signOut();
-            clearImpersonationSession();
-            queryClient.clear();
-            await clearSupabaseRuntimeCache();
+            await clearLocalSessionState();
             setLocation("/login");
           })();
         }}
@@ -458,9 +482,7 @@ export function useSignOut() {
     // Always clear, impersonating or not -- otherwise a plain sign-out during impersonation
     // leaves the admin's origin access/refresh tokens in sessionStorage, reusable by the next
     // person to use this browser tab to silently restore that platform_admin session.
-    clearImpersonationSession();
-    queryClient.clear();
-    await clearSupabaseRuntimeCache();
+    await clearLocalSessionState();
     setLocation("/login");
   };
 }

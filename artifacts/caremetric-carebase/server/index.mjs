@@ -164,6 +164,12 @@ async function handleHealth(_req, res) {
     ...SECURITY_HEADERS,
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
+    // The one response that must never be answered from a cache. This was the only path here
+    // that set no cache directive at all, which left a liveness answer at the mercy of whatever
+    // an intermediary decides a directive-less 200 may be reused for -- a cached "ok" outliving
+    // the process it described is the same false assurance the startup check above exists to
+    // prevent.
+    "Cache-Control": "no-store",
   });
   res.end(body);
 }

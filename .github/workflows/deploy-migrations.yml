@@ -52,10 +52,25 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Gate on a *successful* CI run on main, or a manual dispatch that is itself on main. This
-    # keeps production changes behind CI validation and prevents deploying an arbitrary ref.
+    # Gate on a *successful* CI run for a PUSH to THIS repository's main, or a manual dispatch that
+    # is itself on main. This keeps production changes behind CI validation and prevents deploying
+    # an arbitrary ref.
+    #
+    # The `event` and `head_repository` conditions are load-bearing, not belt-and-braces. The
+    # `on.workflow_run.branches: [main]` filter above matches the triggering run's HEAD BRANCH NAME,
+    # and CI runs on `pull_request` — including pull requests from forks. A fork PR opened from a
+    # branch the contributor happens to have called `main` therefore satisfies that filter, and the
+    # checkout below takes `github.event.workflow_run.head_sha`, which for such a run is the FORK's
+    # commit. Conclusion alone does not distinguish it: the fork's CI passes on the fork's code.
+    # That is a path from "open a PR" to "run `supabase db push` and deploy edge functions against
+    # production" on unmerged, unreviewed code. Requiring the triggering run to be a `push` on this
+    # repository closes it, because a fork PR is always `pull_request` from another repository.
     if: >-
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     environment: production
     permissions:
@@ -176,6 +191,16 @@ jobs:
           done
 
           if [ -n "${PREV_SHA}" ] && [ "${PREV_SHA}" != "${SHA}" ]; then
+            # `|| true` used to swallow the exit status here, which made an ERRORED diff
+            # indistinguishable from a diff that legitimately found nothing -- and the branch below
+            # reads "nothing" as "skip the deploy". So an unfetchable PREV_SHA (a force-push, a
+            # pruned object, a shallow fetch) silently skipped a production deploy and reported
+            # success. That is precisely the failure this workflow exists to close: its own header
+            # says migrations merged to main "could sit undeployed indefinitely". Failing that way
+            # is worse than deploying, because `supabase db push` skips migrations already applied,
+            # so proceeding when we cannot tell is idempotent while skipping is not recoverable
+            # without someone noticing.
+            DIFF_STATUS=0
             CHANGED=$(
               git diff --name-only "${PREV_SHA}" "${SHA}" -- \
                 supabase/migrations \
@@ -185,9 +210,12 @@ jobs:
                 scripts/check-migration-drift.mjs \
                 scripts/check-edge-function-drift.mjs \
                 scripts/stamp-edge-function-deploy.mjs \
-                .github/workflows/deploy-migrations.yml \
-                || true
-            )
+                .github/workflows/deploy-migrations.yml
+            ) || DIFF_STATUS=$?
+            if [ "${DIFF_STATUS}" -ne 0 ]; then
+              echo "::warning::Could not diff ${PREV_SHA}..${SHA} (git exit ${DIFF_STATUS}); deploying rather than skipping on an undetermined path check."
+              CHANGED="undetermined"
+            fi
             if [ -z "${CHANGED}" ]; then
               echo "skip=true" >> "$GITHUB_OUTPUT"
               echo "reason=no-supabase-changes" >> "$GITHUB_OUTPUT"

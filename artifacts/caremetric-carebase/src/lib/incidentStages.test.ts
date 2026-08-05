@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTO_NOTIFIED_INCIDENT_TYPES,
   buildIncidentFollowThrough,
   buildIncidentStages,
   qapiConsiderationApplies,
@@ -454,5 +455,23 @@ describe("next action and counts", () => {
     // a minor significant-injury event is not one of the always-considered kinds.
     expect(state.applicableCount).toBe(8);
     expect(state.completedCount).toBe(0);
+  });
+});
+
+describe("AUTO_NOTIFIED_INCIDENT_TYPES", () => {
+  // Mirrors the preset table in auto_create_incident_notifications (20260705144728). If a type is
+  // added to the trigger and not here, the filing form demands a manual notification that the
+  // database is about to create anyway; if a type is added here and not to the trigger, a
+  // high-severity incident files with no notification at all -- so the pair has to stay in step.
+  it("names every incident type the reporting form offers except the catch-all", () => {
+    const formOptions = [
+      "death", "elopement", "abuse_allegation", "neglect_allegation", "medication_error",
+      "significant_injury", "assault", "fire", "environmental_emergency", "other",
+    ];
+    expect(formOptions.filter((type) => !AUTO_NOTIFIED_INCIDENT_TYPES.has(type))).toEqual(["other"]);
+  });
+
+  it("does not cover 'other', which is why the manual requirement still exists", () => {
+    expect(AUTO_NOTIFIED_INCIDENT_TYPES.has("other")).toBe(false);
   });
 });

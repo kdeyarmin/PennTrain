@@ -119,8 +119,14 @@ export function UnsyncedDraftsPanel() {
   if (!entries.isLoading && !observationEntries.isLoading
     && pendingCount === 0 && reviewCount === 0) return null;
 
-  const needsReview = (drafts.data ?? []).filter((draft) => (NEEDS_REVIEW_DRAFT_STATES as string[]).includes(draft.syncState));
-  const pending = (drafts.data ?? []).filter((draft) => (UNRESOLVED_DRAFT_STATES as string[]).includes(draft.syncState));
+  const readableDrafts = drafts.data?.drafts ?? [];
+  // Records the header counts but the list cannot render, because they no longer decrypt on this
+  // device. Shown as their own row rather than omitted: the count comes from the plaintext lane,
+  // so omitting them produced "N pending" above an empty list, a "Sync now" that attempted
+  // nothing and reported success, and no way to clear them short of the purge deadline.
+  const unreadableIds = drafts.data?.unreadableIds ?? [];
+  const needsReview = readableDrafts.filter((draft) => (NEEDS_REVIEW_DRAFT_STATES as string[]).includes(draft.syncState));
+  const pending = readableDrafts.filter((draft) => (UNRESOLVED_DRAFT_STATES as string[]).includes(draft.syncState));
   const observationsNeedingReview = (observationDrafts.data ?? [])
     .filter((draft) => (NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(draft.syncState));
   const observationsPending = (observationDrafts.data ?? [])
@@ -150,6 +156,28 @@ export function UnsyncedDraftsPanel() {
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
+        {unreadableIds.map((draftId) => (
+          <div key={draftId} className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">Unreadable draft</p>
+                <p className="text-xs text-muted-foreground">
+                  This device can no longer open this saved note, so it cannot be synced. Anything it
+                  contained has to be re-entered. Dismiss it to clear it from this list.
+                </p>
+              </div>
+              <Badge variant="outline" className="shrink-0">unreadable</Badge>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={dismiss.isPending}
+              onClick={() => dismiss.mutate(draftId)}
+            >
+              Dismiss
+            </Button>
+          </div>
+        ))}
         {observationsNeedingReview.map((draft) => (
           <div key={draft.draftId} className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
             <div className="flex items-start justify-between gap-2">

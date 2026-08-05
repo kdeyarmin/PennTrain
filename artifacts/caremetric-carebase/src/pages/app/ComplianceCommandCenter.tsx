@@ -91,7 +91,10 @@ export default function ComplianceCommandCenter() {
     const p = profiles?.find((x) => x.id === id);
     return p ? `${p.first_name} ${p.last_name}` : id ? "Someone" : "Unassigned";
   };
-  const buildingName = (id: string | null | undefined) => buildings?.find((b) => b.id === id)?.name ?? "";
+  // Falls back to a marker rather than "" so a name that genuinely cannot be resolved is visible
+  // as such in the CSV instead of reading as "no building".
+  const buildingName = (id: string | null | undefined) =>
+    !id ? "" : (buildings?.find((b) => b.id === id)?.name ?? "Unknown building");
 
   const rows: Row[] = useMemo(
     () => (instancesQ.data ?? []).map((i) => ({ ...i, requirement: reqById.get(i.requirement_id) })),

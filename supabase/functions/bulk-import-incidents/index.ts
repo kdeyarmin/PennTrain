@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -91,6 +92,12 @@ Deno.serve(async (req: Request) => {
     if (!allowed.includes(existingJob.status)) return json(req, { error: `Import job in ${existingJob.status} cannot continue` }, 409);
   }
 
+  // Nothing reaches a customer's tables until this job's claim is ours. The durable worker
+  // (process-data-import-jobs) cannot tell an in-progress browser apply from a stranded one, so
+  // without a claim it applies the same ledger rows this run is walking -- see G34.
+  const leaseError = await acquireImportJobLease(callerClient, jobId);
+  if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
+
   const { data: facilities } = await callerClient.from("facilities").select("id, name").eq("organization_id", effectiveOrgId);
   const facilityByName = new Map((facilities ?? []).map((f: any) => [String(f.name).trim().toLowerCase(), f.id as string]));
 
@@ -126,7 +133,12 @@ Deno.serve(async (req: Request) => {
     if (!occurredAt) rowErrors.push("occurred_at is required");
     if (!incidentType) rowErrors.push("incident_type is required");
     if (!severity || !VALID_SEVERITY.has(severity)) rowErrors.push("severity must be low|medium|high|critical");
-    if (!summary || summary.length < 8) rowErrors.push("summary must be at least 8 characters");
+    // 10, matching BOTH apply paths: record_incident_from_import
+    // (20260714202515_carebase_integrity_foundation.sql) and the durable worker's
+    // apply_incident_import_row (20260801220000_durable_import_apply_rpcs.sql) each reject
+    // `length(btrim(narrative)) < 10`. At 8 the dry run called an 8- or 9-character summary valid
+    // and the apply then refused it -- the one thing a preview exists to rule out.
+    if (!summary || summary.length < 10) rowErrors.push("summary must be at least 10 characters");
     const facilityId = facilityName ? facilityByName.get(facilityName.toLowerCase()) : undefined;
     if (facilityName && !facilityId) rowErrors.push(`Unknown facility: ${facilityName}`);
 

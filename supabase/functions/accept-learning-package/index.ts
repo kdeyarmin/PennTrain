@@ -69,12 +69,41 @@ Deno.serve(async (req: Request) => {
   // 1. Load the package record
   const { data: pkg, error: pkgError } = await admin
     .from("learning_packages")
-    .select("id, storage_bucket, storage_path, entry_point, validation_status")
+    .select("id, organization_id, storage_bucket, storage_path, entry_point, validation_status")
     .eq("id", body.package_id)
     .single();
   if (pkgError || !pkg) return json(req, { error: "Package not found" }, 404);
   if (!["pending", "validating", "rejected"].includes(pkg.validation_status)) {
     return json(req, { error: "Package is not in an acceptable state" }, 409);
+  }
+
+  // 1a. AUTHORIZE before anything destructive runs.
+  //
+  // Having a valid session is not permission to touch THIS package. Everything between here and
+  // step 9 uses the service-role client, which bypasses RLS: it downloads the package, rewrites the
+  // zip, overwrites the stored object at its original path, and updates content_sha256. The only
+  // authorization in this function used to be accept_learning_package's own check in step 9 --
+  // after all of that had already been committed. So any authenticated user of any tenant and any
+  // role who had a learning_packages.id could have another organization's package rewritten and
+  // re-hashed, and the 400 they got back from the RPC did not undo it.
+  //
+  // RLS cannot stand in for the check here: the only SELECT policy on learning_packages
+  // (learner_packages_select) requires validation_status='accepted', and this function exists to
+  // act on pending/validating/rejected rows, so reading through the caller client would return
+  // nothing for every legitimate call. The rule is therefore restated from the RPC it precedes
+  // (accept_learning_package, 20260712023823) and evaluated with the CALLER's JWT.
+  const [{ data: isPlatformAdmin }, { data: callerOrgId }, { data: callerRole }] = await Promise.all([
+    caller.rpc("is_platform_admin"),
+    caller.rpc("current_org_id"),
+    caller.rpc("current_role"),
+  ]);
+  const mayAccept = isPlatformAdmin === true
+    || (pkg.organization_id !== null
+      && pkg.organization_id === callerOrgId
+      && ["org_admin", "facility_manager", "trainer"].includes(callerRole ?? ""));
+  if (!mayAccept) {
+    // 404, not 403: a caller who may not act on this package should not learn that the id is real.
+    return json(req, { error: "Package not found" }, 404);
   }
 
   // 2. Download the zip from storage

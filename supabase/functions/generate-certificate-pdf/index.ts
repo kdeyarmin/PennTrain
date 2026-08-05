@@ -4,20 +4,31 @@ import { PDFDocument, PDFFont, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
 import {
   CRON_SECRET_HEADER,
   requireCronRequest,
-  withCronCorsHeader,
 } from "../_shared/cronAuth.ts";
+import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
-const CORS_HEADERS = withCronCorsHeader({
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-correlation-id, x-request-id",
-});
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+/**
+ * This function serves BOTH the browser and the cron worker, so its CORS headers have to be
+ * origin-aware -- built per request, not a module constant.
+ *
+ * It previously wrapped a literal `"Access-Control-Allow-Origin": "*"` in withCronCorsHeader,
+ * whose entire job is to STRIP that header ("cron/webhook endpoints are not browser-invoked and
+ * must not advertise wildcard (or any) CORS origin", _shared/cronAuth.ts). The result was a
+ * response with no Access-Control-Allow-Origin at all -- including on the preflight -- so the
+ * browser blocked the "Prepare PDF" call that useCertificates.ts:76 makes and config.toml
+ * documents this function as serving. Every other withCronCorsHeader caller really is cron-only;
+ * generate-compliance-binder, which config.toml names as having this same dual-purpose split,
+ * already uses the origin-aware helper. This now matches it, keeping the cron secret in
+ * Allow-Headers for the worker.
+ */
+function certificateCorsHeaders(req: Request) {
+  // Not withCronCorsHeader: that helper's whole job is to REMOVE the origin, which is right for a
+  // cron-only endpoint and wrong here. The cron secret is named in Allow-Headers directly instead,
+  // so the worker's header is still permitted without erasing the browser's origin.
+  return corsHeadersForRequest(req, {
+    headers:
+      `authorization, x-client-info, apikey, content-type, x-correlation-id, x-request-id, ${CRON_SECRET_HEADER}`,
   });
 }
 
@@ -344,6 +355,12 @@ async function cancellationRequested(
 }
 
 Deno.serve(async (req: Request) => {
+  const CORS_HEADERS = certificateCorsHeaders(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    });
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
   }

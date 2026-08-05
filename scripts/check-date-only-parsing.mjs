@@ -156,29 +156,49 @@ function walk(dir) {
 
 // Returns the DATE columns this line parses as an instant. Unchanged in behaviour from the
 // original inline loop; extracted so the self-test can exercise it without touching the filesystem.
-export function offendingColumns(line, columns) {
+/**
+ * Offending call sites in `text`, as { column, index } where index is the offset of `new Date(`.
+ *
+ * Takes arbitrary text, not a line. The balanced-paren walk below never cared about newlines; only
+ * the CALLER did, and scanning line by line meant a Prettier-wrapped call --
+ *
+ *     const d = new Date(
+ *       row.effective_date,
+ *     );
+ *
+ * -- was invisible: the line holding `new Date(` has no closing paren, so the walk fell through
+ * with `arg` equal to just "new Date(", which contains no column name and was skipped. The check
+ * reported a pass on a file it had not actually examined. Formatting is not something a
+ * correctness gate may depend on.
+ */
+export function offendingCallSites(text, columns) {
   const hits = [];
   for (const column of columns) {
     // Parens are BALANCED rather than matched with [^)]*, because a wrapper like
     // String(offer.shift_date) closes early and truncates the argument -- the first version of
     // this check reported three false positives that way.
-    for (const start of [...line.matchAll(/new Date\(/g)].map((m) => m.index)) {
+    for (const start of [...text.matchAll(/new Date\(/g)].map((m) => m.index)) {
       let depth = 0;
       let end = start + "new Date(".length - 1;
-      for (let i = end; i < line.length; i += 1) {
-        if (line[i] === "(") depth += 1;
-        else if (line[i] === ")") { depth -= 1; if (depth === 0) { end = i; break; } }
+      for (let i = end; i < text.length; i += 1) {
+        if (text[i] === "(") depth += 1;
+        else if (text[i] === ")") { depth -= 1; if (depth === 0) { end = i; break; } }
       }
-      const arg = line.slice(start, end + 1);
+      const arg = text.slice(start, end + 1);
       if (!new RegExp(`\\b${column}\\b`).test(arg)) continue;
       // A pinned time is "T" followed by a digit (T00:00:00) or by a template expression
       // supplying one (T${shift.start_time}). Only the digit form was accepted at first, which
       // flagged two correct call sites.
       if (/T(\d|\$\{)/.test(arg)) continue;
-      hits.push(column);
+      hits.push({ column, index: start });
     }
   }
   return hits;
+}
+
+/** Column names only, for the self-test cases below. */
+export function offendingColumns(text, columns) {
+  return offendingCallSites(text, columns).map((hit) => hit.column);
 }
 
 if (process.argv.includes("--self-test")) {
@@ -229,6 +249,9 @@ if (process.argv.includes("--self-test")) {
     ["const d = new Date(`${offer.shift_date}T${offer.start_time}`);", []],
     ["const d = new Date(String(offer.shift_date));", ["shift_date"]],
     ["const d = new Date(row.created_at);", []],
+    // Prettier wraps a long call across lines. Scanning line by line never saw this one.
+    ["const d = new Date(\n  row.due_date,\n);", ["due_date"]],
+    ["const d = new Date(\n  `${row.due_date}T00:00:00`,\n);", []],
   ];
   for (const [line, expected] of cases) {
     const actual = offendingColumns(line, ["due_date", "shift_date"]);
@@ -283,15 +306,16 @@ for (const file of walk(SRC)) {
   const rel = relative(join(ROOT, "artifacts/caremetric-carebase"), file);
   if (SORT_ONLY_ALLOWLIST.has(rel)) continue;
   const text = readFileSync(file, "utf8");
-  text.split("\n").forEach((line, index) => {
-    for (const column of offendingColumns(line, DATE_COLUMNS)) {
-      if (TYPE_COLLISION_ALLOWLIST.get(rel)?.has(column)) continue;
-      problems.push(
-        `${rel}:${index + 1} parses the DATE column \`${column}\` as an instant. Append an `
-        + `explicit local time, e.g. new Date(\`\${row.${column}}T00:00:00\`).`,
-      );
-    }
-  });
+  // The WHOLE file, not line by line -- see offendingCallSites. Line numbers are derived from the
+  // match offset so the message is unchanged.
+  for (const { column, index } of offendingCallSites(text, DATE_COLUMNS)) {
+    if (TYPE_COLLISION_ALLOWLIST.get(rel)?.has(column)) continue;
+    const line = text.slice(0, index).split("\n").length;
+    problems.push(
+      `${rel}:${line} parses the DATE column \`${column}\` as an instant. Append an `
+      + `explicit local time, e.g. new Date(\`\${row.${column}}T00:00:00\`).`,
+    );
+  }
 }
 
 if (problems.length > 0) {

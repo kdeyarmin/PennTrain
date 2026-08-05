@@ -1,13 +1,21 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+// The shared, trusted-hop derivation. The local one this replaces took `cf-connecting-ip`
+// unconditionally -- meaningful only when Cloudflare verifiably fronts the function, and otherwise
+// just another header the caller sets -- and then fell back to the FIRST hop of x-forwarded-for,
+// which is the half of that list the caller writes. _shared/clientIp.ts exists because that is
+// exactly backwards: the LAST hop is the one the platform gateway observed and appended. This
+// endpoint is public (verify_jwt=false), and the value feeds both the per-IP rate limit and the
+// ESIGN attribution stored on the intake, so a forgeable value defeated the limit with a fresh
+// fake per request and wrote an attacker-chosen address onto a signed legal record.
+import { clientIp } from "../_shared/clientIp.ts";
 
 const json = (req: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { ...corsHeadersForRequest(req), "Content-Type": "application/json" },
 });
-const clientIp = (req: Request) => req.headers.get("cf-connecting-ip")
-  ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+
 const sha256 = async (value: string) => Array.from(
   new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))),
   (byte) => byte.toString(16).padStart(2, "0"),

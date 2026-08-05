@@ -17,6 +17,10 @@ describe("post-login redirects", () => {
   it("falls back for unsafe or recursive destinations", () => {
     expect(sanitizePostLoginPath("https://evil.example/app")).toBe("/");
     expect(sanitizePostLoginPath("//evil.example/app")).toBe("/");
+    // A backslash in the authority position parses as a forward slash, so these are the same
+    // protocol-relative URL as the line above once a browser normalizes them.
+    expect(sanitizePostLoginPath("/\\evil.example/app")).toBe("/");
+    expect(postLoginPathFromSearch("?next=%2F%5Cevil.example%2Fapp")).toBe("/");
     expect(sanitizePostLoginPath("/login?next=%2Fapp")).toBe("/");
     expect(postLoginPathFromSearch("?next=https%3A%2F%2Fevil.example%2Fapp")).toBe("/");
     expect(postLoginPathFromLocation("/login", "?next=%2Fapp", "")).toBe("/");

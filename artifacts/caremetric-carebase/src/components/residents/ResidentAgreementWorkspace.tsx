@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 export const RESIDENT_AGREEMENT_TYPES = [
   "resident_home_contract", "fee_schedule", "service_addendum", "resident_rights",
@@ -132,8 +133,7 @@ export function ResidentAgreementWorkspace({
     expiresAt: new Date(Date.now() + Math.min(30, Math.max(1, Number(guestDays) || 7)) * 86_400_000).toISOString(),
   }, {
     onSuccess: result => {
-      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-      setIssuedLink(`${window.location.origin}${base}/resident-agreement-access/${result.token}`);
+      setIssuedLink(absoluteAppUrl(`/resident-agreement-access/${result.token}`));
       setShareOpen(false);
       setGuestVersionIds([]);
       toast({ title: "External signing link created" });

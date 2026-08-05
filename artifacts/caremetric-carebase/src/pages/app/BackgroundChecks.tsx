@@ -114,6 +114,52 @@ export default function BackgroundChecks() {
     const employee = (employees ?? []).find((e) => e.id === editingEmployeeId);
     if (!employee) return;
 
+    // The "_at" columns record WHEN something was attested, and every save was stamping them
+    // `now()` whenever the flag was true -- so re-opening this profile to correct a typo in the
+    // notes moved the date the non-disqualification statement was signed, the date supervision was
+    // confirmed, and the date suitability was determined, all to today. Those are the dates a
+    // surveyor asks for on an OAPSA record, and the answer had become "the last time anyone
+    // touched this form".
+    //
+    // The actor travels WITH the timestamp. Preserving `_at` while still writing the current
+    // user into `_by` would be worse than the original bug rather than better: the pair would
+    // then disagree, attributing an attestation made in March by one administrator to whoever
+    // edited the notes in August. An attestation is one fact -- who, and when -- so it is
+    // preserved or stamped as a unit, and cleared as a unit.
+    const existing = profileByEmployeeId.get(editingEmployeeId);
+    const attestation = (
+      isSet: boolean,
+      wasSet: boolean,
+      previousAt: string | null | undefined,
+      previousBy: string | null | undefined,
+    ): { at: string | null; by: string | null } => {
+      if (!isSet) return { at: null, by: null };
+      if (wasSet && previousAt) return { at: previousAt, by: previousBy ?? null };
+      return { at: new Date().toISOString(), by: user.id };
+    };
+
+    const supervision = attestation(
+      form.supervisionConfirmed,
+      existing?.supervision_attestation_confirmed === true,
+      existing?.supervision_attestation_confirmed_at,
+      existing?.supervision_attestation_confirmed_by,
+    );
+    // A CHANGED determination is a new determination, not the old one re-saved -- so this is
+    // preserved only while the verdict itself is unchanged.
+    const suitability = attestation(
+      form.suitabilityDetermination !== "pending",
+      existing?.suitability_determination === form.suitabilityDetermination
+        && existing?.suitability_determination !== "pending",
+      existing?.suitability_determined_at,
+      existing?.suitability_determined_by,
+    );
+    const nonDisqSignedAt = attestation(
+      form.nonDisqStatementSigned,
+      existing?.non_disqualification_statement_signed === true,
+      existing?.non_disqualification_statement_signed_at,
+      null,
+    ).at;
+
     const paResident = form.paResidentTwoYears === "yes" ? true : form.paResidentTwoYears === "no" ? false : null;
     const provisionalMaxDays = form.provisionalStartDate
       ? (paResident === true
@@ -130,15 +176,15 @@ export default function BackgroundChecks() {
         provisional_start_date: form.provisionalStartDate || null,
         provisional_max_days: provisionalMaxDays,
         non_disqualification_statement_signed: form.nonDisqStatementSigned,
-        non_disqualification_statement_signed_at: form.nonDisqStatementSigned ? new Date().toISOString() : null,
+        non_disqualification_statement_signed_at: nonDisqSignedAt,
         supervision_attestation_confirmed: form.supervisionConfirmed,
-        supervision_attestation_confirmed_by: form.supervisionConfirmed ? user.id : null,
-        supervision_attestation_confirmed_at: form.supervisionConfirmed ? new Date().toISOString() : null,
+        supervision_attestation_confirmed_by: supervision.by,
+        supervision_attestation_confirmed_at: supervision.at,
         supervision_attestation_notes: form.supervisionNotes || null,
         suitability_determination: form.suitabilityDetermination,
         suitability_conditions: form.suitabilityConditions || null,
-        suitability_determined_by: form.suitabilityDetermination !== "pending" ? user.id : null,
-        suitability_determined_at: form.suitabilityDetermination !== "pending" ? new Date().toISOString() : null,
+        suitability_determined_by: suitability.by,
+        suitability_determined_at: suitability.at,
         suitability_notes: form.suitabilityNotes || null,
       });
       toast({ title: "Background check profile saved" });

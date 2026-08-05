@@ -91,10 +91,18 @@ export function createSyncBillingQuantitiesHandler({
   createClient,
   stripePost,
   stripeGet,
-  getEnv = (name) => getEnv(name),
+  // These three defaults used to be `(name) => getEnv(name)`, `() => randomUUID()` and
+  // `() => nowMs()`. A destructuring default is evaluated in the scope of the binding it
+  // initializes, so each of those called ITSELF -- infinite recursion, RangeError on the first
+  // call. index.ts injects only createClient/stripePost/stripeGet, so every production invocation
+  // took the defaults and died at the first `getEnv("SUPABASE_URL")`, immediately after the cron
+  // auth check: the Stripe quantity sync has never completed a run outside its tests, which pass
+  // precisely because handler.test.ts injects all three. Same real implementations every sibling
+  // handler uses (create-billing-session, stripe-billing-webhook, run-data-lifecycle, ...).
+  getEnv = (name) => Deno.env.get(name),
   requireCron = requireCronRequest,
-  randomUUID = () => randomUUID(),
-  nowMs = () => nowMs(),
+  randomUUID = () => crypto.randomUUID(),
+  nowMs = () => Date.now(),
 }: SyncBillingQuantitiesDependencies) {
   return async (req: Request): Promise<Response> => {
 

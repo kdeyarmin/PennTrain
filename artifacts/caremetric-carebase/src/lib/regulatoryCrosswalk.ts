@@ -180,7 +180,15 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
   }
   if (obligation.evidenceSource === "resident") {
     const records = input.residentItems ?? [];
-    const gaps = records.filter((record) => statusIs(record.status, ["missing", "overdue", "due_soon"]) || isOverdue(record.due_date, today));
+    // The same guard the physical_site branch below already carries, for the same reason: a
+    // SATISFIED row keeps its original due_date forever. An item completed even one day late is
+    // `compliant` with `due_date < today` from then on, so the bare overdue check counted it as an
+    // open gap for the rest of the resident's stay -- a crosswalk row that can never return to
+    // covered no matter what the facility does, which is worse than a miscount because there is no
+    // action that clears it.
+    const gaps = records.filter((record) =>
+      statusIs(record.status, ["missing", "overdue", "due_soon"])
+      || (!statusIs(record.status, ["compliant", "not_applicable"]) && isOverdue(record.due_date, today)));
     return summarize(records.length, gaps.length, dueDates(records), today);
   }
   if (obligation.evidenceSource === "incident") {
@@ -206,7 +214,16 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
   if (obligation.evidenceSource === "policy") {
     const policies = input.policyDocuments ?? [];
     const attestations = input.policyAttestations ?? [];
-    const gaps = [...policies.filter((policy) => !policy.current_version_id), ...attestations.filter((attestation) => statusIs(attestation.status, ["pending", "overdue"]) || isOverdue(attestation.due_date, today))];
+    // `policy_attestations.status` is only 'pending' or 'attested', and signing does not move
+    // due_date -- so without excluding the signed rows, every attestation counted as a gap forever
+    // once its date passed, and an obligation whose evidence is fully signed still reported as
+    // uncovered. Signing is the action that clears it; it has to actually clear it.
+    const gaps = [
+      ...policies.filter((policy) => !policy.current_version_id),
+      ...attestations.filter((attestation) =>
+        statusIs(attestation.status, ["pending", "overdue"])
+        || (!statusIs(attestation.status, ["attested"]) && isOverdue(attestation.due_date, today))),
+    ];
     return summarize(policies.length + attestations.length, gaps.length, dueDates(attestations), today);
   }
   const collections = input.evidenceCollections ?? [];
@@ -215,7 +232,15 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
 }
 
 function summarize(evidenceCount: number, gapCount: number, sortedDates: string[], today: string): Pick<RegulatoryCrosswalkRow, "status" | "nextDueDate" | "evidenceCount" | "gapCount"> {
-  const nextDueDate = sortedDates.find((date) => date >= today) ?? sortedDates[0] ?? null;
+  // A past date is only a meaningful "next due date" when something is actually outstanding.
+  // The unconditional `?? sortedDates[0]` fallback made sense while any past due_date implied a
+  // gap -- but the branches above now exclude SATISFIED records from the gap count (a compliant
+  // resident item keeps its original due_date forever), so a fully settled row reached
+  // `inspection_ready` while still reporting the oldest of those settled dates as what is coming
+  // next. "Inspection ready" beside a date that has already gone by reads as a contradiction, and
+  // the honest answer for a row with nothing open is that there is no next date to show.
+  const nextDueDate = sortedDates.find((date) => date >= today)
+    ?? (gapCount > 0 ? sortedDates[0] ?? null : null);
   let status: CrosswalkStatus = "inspection_ready";
   if (evidenceCount === 0) status = "missing_evidence";
   else if (gapCount > 0 && sortedDates.some((date) => date < today)) status = "overdue";

@@ -124,9 +124,15 @@ export default function Residents() {
   const residentComplianceSummary = residentSummaryQuery.data ?? EMPTY_RESIDENT_LIST_SUMMARY;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  const totalCountKnown = residentQuery.data !== undefined;
+  // Not clamped until the count is actually known. `totalCount` is `query.data?.count ?? 0` and
+  // `data` is undefined on the first render, so `totalPages` was 1 before the request came back --
+  // and this effect fired immediately, rewriting a deep-linked, bookmarked or Back-navigated
+  // `?page=7` to `?page=1` and refetching the wrong page. The clamp is for a page that no longer
+  // exists after a filter narrows the set; "we have not asked yet" is not that.
   useEffect(() => {
-    if (page > totalPages) setUrlState({ page: String(totalPages) });
-  }, [page, setUrlState, totalPages]);
+    if (totalCountKnown && page > totalPages) setUrlState({ page: String(totalPages) });
+  }, [page, setUrlState, totalCountKnown, totalPages]);
 
   // Auto-fill the create dialog's Facility field when the user is scoped to exactly one facility
   // (e.g. a facility_manager) -- saves a needless click every time; a no-op for multi-facility orgs.

@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -155,6 +156,12 @@ Deno.serve(async (req: Request) => {
       return json(req, { error: `Import job in ${existingJob.status} state cannot be ${mode === "validate" ? "previewed" : "applied"}` }, 409);
     }
   }
+
+  // Nothing reaches a customer's tables until this job's claim is ours. The durable worker
+  // (process-data-import-jobs) cannot tell an in-progress browser apply from a stranded one, so
+  // without a claim it applies the same ledger rows this run is walking -- see G34.
+  const leaseError = await acquireImportJobLease(callerClient, jobId);
+  if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
 
   // Resolved once up front rather than per-row. Queried as the caller (not a service-role client),
   // so facilities_select and employee write RLS remain the authority.

@@ -151,6 +151,11 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
   if (input.clearedForUnsupervisedDuty === false) {
     const reasons = ["Not yet cleared for unsupervised duty — may work under supervision."];
     for (const c of dueCreds) reasons.push(withExpiry(credLabel(c), c.expiration_date, "expires"));
+    // Due-soon TRAINING belongs here too. Step 5 below lists both, and this branch listed only
+    // credentials -- so an employee who was conditionally ready AND had training expiring in days
+    // saw no mention of it anywhere: this verdict replaces step 5 rather than preceding it, so the
+    // training reason was not deferred, it was dropped.
+    for (const t of dueTraining) reasons.push(`${trainLabel(t)} is due soon.`);
     return verdict("conditionally_ready", reasons);
   }
 

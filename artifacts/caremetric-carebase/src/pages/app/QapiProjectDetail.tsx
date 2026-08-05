@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, ClipboardCheck, Printer, Target } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -32,7 +32,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
-import { facilityToday } from "@/lib/dateUtils";
+// toDateTimeLocal, because `new Date(...).toISOString().slice(0, 16)` is a UTC wall clock and a
+// datetime-local input renders whatever it is given as LOCAL time. The two defaults below were
+// therefore drawn four or five hours ahead of the moment they meant: at 21:30 ET the "held at"
+// field opened on 01:30 the NEXT day, and submitting it recorded a QAPI meeting as held in the
+// future, on the wrong date. Reading back was already local (`new Date(held)`), so the round
+// trip disagreed with itself.
+import { facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
+import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
     v.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
@@ -65,16 +72,45 @@ export default function QapiProjectDetail() {
   const [aTitle, setATitle] = useState(""),
     [aDesc, setADesc] = useState(""),
     [aOwner, setAOwner] = useState(user?.id ?? ""),
-    [aDue, setADue] = useState(
-      new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 16),
-    );
+    [aDue, setADue] = useState(toDateTimeLocal(new Date(Date.now() + 14 * 864e5)));
   const [num, setNum] = useState(""),
     [den, setDen] = useState(""),
     [mNotes, setMNotes] = useState(""),
     [mSample, setMSample] = useState(""),
-    [held, setHeld] = useState(new Date().toISOString().slice(0, 16)),
+    [held, setHeld] = useState(toDateTimeLocal()),
     [attendees, setAttendees] = useState(""),
     [meetingNotes, setMeetingNotes] = useState("");
+  const [team, setTeam] = useState<Json>([]);
+  // Hydrate the plan form from the loaded project.
+  //
+  // Without this the fields sat at their hardcoded initial values no matter which project was
+  // open, and `save` sends every one of them: update_qapi_project_plan is a straight
+  // `update ... set` with `nullif(btrim(...),'')`, not a coalesce-to-existing. So pressing "Save
+  // plan" on an existing project -- to change one field, or after adding an action item -- wrote
+  // status back to 'active' (regressing a monitoring or pending_closure project and losing the
+  // closure gate it had reached), reset the method to five_whys and the frequency to monthly,
+  // blanked team_members to [], and NULLed the root-cause analysis, planned interventions, audit
+  // sample, barriers, adjustments, effectiveness determination and sustainment period. That is
+  // the narrative body of a regulatory quality-improvement record.
+  //
+  // Depends on the project id, NOT on `p` itself: every QAPI mutation on this page invalidates the
+  // project query, so re-seeding on each new object identity would wipe whatever the user had
+  // typed but not yet saved the moment they added an action item or logged a measurement.
+  useEffect(() => {
+    if (!p) return;
+    setStatus(p.status ?? "active");
+    setMethod(p.root_cause_method ?? "five_whys");
+    setRoot(p.root_cause_analysis ?? "");
+    setInterventions(p.planned_interventions ?? "");
+    setFrequency(p.measurement_frequency ?? "monthly");
+    setSample(p.audit_sample ?? "");
+    setBarriers(p.barriers ?? "");
+    setAdjustments(p.adjustments ?? "");
+    setEffectiveness(p.effectiveness_determination ?? "");
+    setSustainment(p.sustainment_period ?? "");
+    setTeam((p.team_members ?? []) as Json);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p?.id]);
   if (project.isLoading) return <p>Loading…</p>;
   if (project.isError || !p)
     return <QueryError what="QAPI project" error={project.error} />;
@@ -83,7 +119,9 @@ export default function QapiProjectDetail() {
       {
         id: p.id,
         status,
-        team: [],
+        // The project's existing team, not a fresh []. The RPC assigns team_members outright
+        // (`coalesce(p_team_members,'[]')`), so sending a literal [] cleared it on every save.
+        team,
         method,
         root,
         interventions,
@@ -297,7 +335,7 @@ export default function QapiProjectDetail() {
                 onChange={(e) => setADue(e.target.value)}
               />
               <Button
-                disabled={!aTitle}
+                disabled={!aTitle || !aDue}
                 onClick={() =>
                   addAction.mutate(
                     {
@@ -420,7 +458,7 @@ export default function QapiProjectDetail() {
             />
             <Button
               className="md:col-span-2"
-              disabled={!attendees || !meetingNotes}
+              disabled={!attendees || !meetingNotes || !held}
               onClick={() =>
                 meeting.mutate(
                   {

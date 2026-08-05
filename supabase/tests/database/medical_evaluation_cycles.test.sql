@@ -7,7 +7,7 @@
 -- "compliant" for both, which is the permissive direction.
 
 begin;
-select plan(21);
+select plan(24);
 
 -- ---------------------------------------------------------------------------
 -- Shape
@@ -242,8 +242,62 @@ select is(
    join public.dhs_citation_topics ct on ct.id = ci.citation_topic_id
    where ci.resident_id = '2e000000-0000-4000-8000-000000000201'
      and ci.item_type = 'annual_medical_evaluation' limit 1),
-  'ALR Medical Evaluations',
+  -- 'ALF ' since 20260805170000. The category is a label AND the key the trigger selects on, so
+  -- the rename moved both together; a stale literal here would mean untagged items in production.
+  'ALF Medical Evaluations',
   'an ALF annual evaluation is filed under medical evaluations, not reassessments');
+
+-- ---------------------------------------------------------------------------
+-- Which annual row a resident gets (migration 20260805160000)
+-- ---------------------------------------------------------------------------
+--
+-- 20260706155617 seeds 2800.141 on two tracks, and 20260804170000 derived one annual row from
+-- each, so ALR has TWO annual_medical_evaluation rows and they disagree about warning_days: 30 on
+-- the standard track, 14 on the expedited one. The successor lookup filtered on item_type,
+-- facility type, is_active and tenant only, then ordered by organization_id -- on which both
+-- global rows tie -- and took LIMIT 1. Which window an expedited resident's annual evaluation got
+-- was therefore the planner's choice, and it happened to be the standard row's 30.
+--
+-- The resident above is on the standard track, so the assertions before this point pin that half.
+
+insert into public.residents(
+  id, organization_id, facility_id, first_name, last_name, status, admission_date, admission_track
+) values (
+  '2e000000-0000-4000-8000-000000000203', '2e000000-0000-4000-8000-000000000001',
+  '2e000000-0000-4000-8000-000000000011', 'Exp', 'Resident', 'active', public.pa_today() - 5, 'expedited'
+);
+
+insert into public.resident_documents(
+  id, organization_id, facility_id, resident_id, storage_bucket, storage_path, file_name,
+  file_type, is_state_form, state_form_source_label, compliance_item_id, uploaded_by_profile_id
+)
+select '2e000000-0000-4000-8000-000000000303', '2e000000-0000-4000-8000-000000000001',
+       ci.facility_id, ci.resident_id, 'resident-documents', 'cycle/dme-expedited.pdf',
+       'dme-expedited.pdf', 'application/pdf', true,
+       'PA DHS DME (Documentation of Medical Evaluation)', ci.id,
+       '2e000000-0000-4000-8000-000000000101'
+from public.resident_compliance_items ci
+where ci.resident_id = '2e000000-0000-4000-8000-000000000203' and ci.item_type = 'medical_evaluation';
+
+select is(
+  (select warning_days from public.resident_compliance_items
+   where resident_id = '2e000000-0000-4000-8000-000000000203' and item_type = 'medical_evaluation'),
+  14,
+  'an expedited ALF admission takes the expedited row at instantiation -- that half was always right');
+
+select pg_temp.act_as('2e000000-0000-4000-8000-000000000101');
+select lives_ok($$select public.complete_resident_compliance_item(
+  (select id from public.resident_compliance_items
+   where resident_id = '2e000000-0000-4000-8000-000000000203' and item_type = 'medical_evaluation'),
+  '2e000000-0000-4000-8000-000000000303')$$,
+  'the expedited resident''s initial evaluation completes');
+reset role;
+
+select is(
+  (select warning_days from public.resident_compliance_items
+   where resident_id = '2e000000-0000-4000-8000-000000000203' and item_type = 'annual_medical_evaluation'),
+  14,
+  'and its annual successor keeps the expedited track rather than the standard row''s 30-day window');
 
 select * from finish();
 rollback;

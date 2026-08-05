@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 import { auditActionDescription, auditEntityLabel, auditEntityRoute } from "@/lib/auditEntityResolver";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityDateRangeBounds, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 
 // audit_log_trigger() (see supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
 // writes actions as `${tg_table_name}_${created|updated|deleted}`, e.g. "employees_created".
@@ -129,14 +129,22 @@ export default function AuditLog() {
   async function downloadExportManifest() {
     setIsExporting(true);
     try {
-      const from = dateFrom
-        ? new Date(`${dateFrom}T00:00:00`).toISOString()
-        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const toDate = dateTo ? new Date(`${dateTo}T00:00:00`) : new Date();
-      if (dateTo) toDate.setDate(toDate.getDate() + 1);
+      // `new Date("YYYY-MM-DDT00:00:00")` is the VIEWER's midnight, so the exported window moved
+      // with whoever ran the export -- an auditor on Pacific time got a manifest starting three
+      // hours later than the same dates mean to the facility, and the day the operator asked for
+      // was not the day the rows were filed under. facilityDateRangeBounds is the same half-open
+      // facility-day range the rest of the app filters timestamptz on, and its `through` already
+      // includes the whole final day, which is what the manual setDate(+1) was reaching for.
+      const bounds = dateFrom && dateTo ? facilityDateRangeBounds(dateFrom, dateTo) : null;
+      const from = bounds?.from
+        ?? (dateFrom
+          ? facilityDayBounds(dateFrom).from
+          : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+      const to = bounds?.through
+        ?? (dateTo ? facilityDayBounds(dateTo).through : new Date().toISOString());
       const { data, error } = await supabase.rpc("get_audit_export_manifest", {
         p_from: from,
-        p_to: toDate.toISOString(),
+        p_to: to,
         p_organization_id: isPlatformAdmin && orgFilter !== ORG_ALL ? orgFilter : undefined,
       });
       if (error) throw error;

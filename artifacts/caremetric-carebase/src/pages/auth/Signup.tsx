@@ -14,6 +14,7 @@ import { BAA_VERSION, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { MARKETING_TRIAL_DAYS } from "@/components/marketing/marketingPricing";
 import { usePageMeta } from "@/lib/usePageMeta";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 interface SignupForm {
   organizationName: string;
@@ -145,7 +146,7 @@ export default function Signup() {
         organizationName: form.organizationName.trim(),
         legalAccepted,
         turnstileToken,
-        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/reset-password`,
+        redirectTo: absoluteAppUrl("/reset-password"),
         serviceAgreementVersion: SERVICE_AGREEMENT_VERSION,
         baaVersion: BAA_VERSION,
       },

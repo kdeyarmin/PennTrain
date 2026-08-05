@@ -322,11 +322,64 @@ export async function readServiceDraft(draftId: string, identity: OfflineFloorId
   return decryptDraft(key, record.envelope, expectedScope);
 }
 
-/** Full, decrypted drafts for the review list -- used only where the content itself must be shown. */
-export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Promise<OfflineFloorDraft[]> {
+/**
+ * Reads each draft independently so one unreadable record cannot hide the rest.
+ *
+ * decryptDraft throws on a scope mismatch, on any AES-GCM failure, and on assertFloorDraftAllowed
+ * rejecting the payload -- and that last one is reachable on a plain app upgrade, because a release
+ * that tightens the field guards turns drafts already sitting on the device into throwing records.
+ * Under Promise.all a single such record rejected the whole call, and all three callers propagate
+ * it: the review list went to an error state, syncing ONE draft failed because a DIFFERENT draft
+ * would not decrypt, and sync-all threw before attempting any draft at all. Meanwhile the plaintext
+ * purge clock kept running, so care documentation that was merely unreadable was deleted at
+ * UNSYNCED_PURGE_AFTER_MS without ever having been syncable.
+ *
+ * A rejected record is dropped from this lane rather than rethrown, and its id is REPORTED, not
+ * just logged. An earlier version of this comment claimed nothing was concealed because
+ * listServiceDraftEntries() -- the plaintext lane the counts and purge clock run on -- still lists
+ * the record. That was the problem, not the reassurance: the header counted a draft the list could
+ * not render, so the panel said "1 pending" with no row beneath it, "Sync now" stayed enabled, and
+ * the run found nothing to attempt and reported success. Every retry did the same until the purge
+ * deadline removed the evidence. Returning the ids lets the surface show the record as unreadable
+ * and offer the one action that still works on it -- dismissal, which needs no decryption.
+ */
+async function readDraftsIndependently<T>(
+  ids: string[],
+  read: (draftId: string) => Promise<T | undefined>,
+  lane: string,
+): Promise<{ drafts: T[]; unreadableIds: string[] }> {
+  const settled = await Promise.allSettled(ids.map((draftId) => read(draftId)));
+  const drafts: T[] = [];
+  const unreadableIds: string[] = [];
+  settled.forEach((outcome, index) => {
+    if (outcome.status === "fulfilled") {
+      if (outcome.value !== undefined) drafts.push(outcome.value);
+      return;
+    }
+    unreadableIds.push(ids[index]);
+    console.warn(`[${lane}] draft ${ids[index]} could not be read`, outcome.reason);
+  });
+  return { drafts, unreadableIds };
+}
+
+/**
+ * Full, decrypted drafts for the review list, plus the ids of any record that could not be read.
+ * Used only where the content itself must be shown.
+ */
+export async function readAllServiceDraftsWithFailures(
+  identity: OfflineFloorIdentity,
+): Promise<{ drafts: OfflineFloorDraft[]; unreadableIds: string[] }> {
   const entries = await listServiceDraftEntries();
-  const drafts = await Promise.all(entries.map((entry) => readServiceDraft(entry.draftId, identity)));
-  return drafts.filter((draft): draft is OfflineFloorDraft => draft !== undefined);
+  return readDraftsIndependently(
+    entries.map((entry) => entry.draftId),
+    (draftId) => readServiceDraft(draftId, identity),
+    "offline-service-drafts",
+  );
+}
+
+/** The drafts alone, for the sync paths, which can only act on records they can read. */
+export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Promise<OfflineFloorDraft[]> {
+  return (await readAllServiceDraftsWithFailures(identity)).drafts;
 }
 
 export async function updateServiceDraft(
@@ -486,10 +539,20 @@ export async function readObservationDraft(
   return decryptObservation(key, record.envelope, expectedScope);
 }
 
-export async function readAllObservationDrafts(identity: OfflineFloorIdentity): Promise<OfflineObservationDraft[]> {
+/** Same per-record isolation as readAllServiceDrafts -- see the comment there. */
+export async function readAllObservationDraftsWithFailures(
+  identity: OfflineFloorIdentity,
+): Promise<{ drafts: OfflineObservationDraft[]; unreadableIds: string[] }> {
   const entries = await listObservationDraftEntries();
-  const drafts = await Promise.all(entries.map((entry) => readObservationDraft(entry.draftId, identity)));
-  return drafts.filter((draft): draft is OfflineObservationDraft => draft !== undefined);
+  return readDraftsIndependently(
+    entries.map((entry) => entry.draftId),
+    (draftId) => readObservationDraft(draftId, identity),
+    "offline-observation-drafts",
+  );
+}
+
+export async function readAllObservationDrafts(identity: OfflineFloorIdentity): Promise<OfflineObservationDraft[]> {
+  return (await readAllObservationDraftsWithFailures(identity)).drafts;
 }
 
 export async function updateObservationDraft(

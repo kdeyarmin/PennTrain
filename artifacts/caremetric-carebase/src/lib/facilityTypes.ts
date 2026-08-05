@@ -18,6 +18,25 @@ export function facilityTypeLabel(facilityType: string | null | undefined): stri
   return FACILITY_TYPES.find(({ value }) => value === facilityType)?.label ?? facilityType;
 }
 
+/**
+ * True when a user's search text matches this facility type by its stored CODE or its display
+ * LABEL. `loweredQuery` must already be lower-cased and trimmed.
+ *
+ * Searching a facility type is the one place the ALR/ALF split leaks into behaviour: the stored
+ * code is "ALR" and the label is "Assisted Living Facility (ALF)", so a search that only looks at
+ * the code finds nothing for "ALF" and everything for "ALR" -- it answers to the term the product
+ * forbids showing and not to the one it displays. Matching the label as well fixes both directions,
+ * and picks up "assisted living" and "personal care" for free.
+ *
+ * The inverse test (`query.includes("alf")`) is what dhsFormsLibrary used, and it is not the same
+ * thing: it matched any query CONTAINING those letters, so "half" returned every ALF form.
+ */
+export function facilityTypeMatchesQuery(facilityType: string, loweredQuery: string): boolean {
+  if (!loweredQuery) return true;
+  return facilityType.toLowerCase().includes(loweredQuery)
+    || facilityTypeLabel(facilityType).toLowerCase().includes(loweredQuery);
+}
+
 // Facility types this app's PCH/ALR-specific regulatory modules (resident RASP/ASP tracking,
 // medication-admin practicums, the administrator-qualification course, fire-drill logging) have
 // working content for -- see the resident_compliance_rule_packs migration and ROADMAP.md. Nav

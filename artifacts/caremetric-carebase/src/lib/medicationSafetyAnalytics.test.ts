@@ -38,4 +38,35 @@ describe("medication safety analytics", () => {
     expect(summary.overdueFollowUps).toBe(1);
     expect(summary.retrainingRecommendations).toBeGreaterThan(0);
   });
+
+  // 'cancelled' is a terminal corrective_actions.status alongside 'completed'
+  // (20260705021954_incidents_core.sql), and the operations-snapshot SQL that computes the same
+  // number excludes both. Counting a called-off action as overdue also drives a retraining
+  // recommendation off it, so the error does not stop at one inflated tile.
+  it("does not count a cancelled corrective action as an overdue follow-up", () => {
+    const summary = buildMedicationSafetySummary({
+      today: "2026-07-13",
+      incidents: [
+        { id: "i1", incident_type: "Medication refusal", status: "reported", occurred_at: "2026-07-10", final_report_submitted_at: null },
+      ],
+      correctiveActions: [{ id: "a1", incident_id: "i1", status: "cancelled", due_date: "2026-07-01" }],
+    });
+    expect(summary.overdueFollowUps).toBe(0);
+    expect(summary.retrainingRecommendations).toBe(0);
+    expect(summary.events[0].followUpOverdue).toBe(false);
+  });
+
+  // 'reported' and 'investigating' are the other two legal incidents.status values; only 'closed'
+  // is terminal, and it still needs the final report before the event counts as closed.
+  it("treats an investigating incident as open even with its final report filed", () => {
+    const summary = buildMedicationSafetySummary({
+      today: "2026-07-13",
+      incidents: [
+        { id: "i1", incident_type: "Wrong dose", status: "investigating", occurred_at: "2026-07-10", final_report_submitted_at: "2026-07-11" },
+      ],
+      correctiveActions: [],
+    });
+    expect(summary.events[0].status).toBe("open");
+    expect(summary.unresolvedFollowUps).toBe(1);
+  });
 });

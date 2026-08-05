@@ -3,7 +3,15 @@ const APP_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function sanitizePostLoginPath(value: string | null | undefined): string {
   if (!value) return DEFAULT_POST_LOGIN_PATH;
-  if (!value.startsWith("/") || value.startsWith("//")) return DEFAULT_POST_LOGIN_PATH;
+  // `/\` has to be rejected alongside `//`. The URL parser treats a backslash in the authority
+  // position as a forward slash, so "/\evil.example" normalizes to "//evil.example" -- a
+  // protocol-relative, cross-origin URL. Login.tsx feeds this value to wouter's setLocation, whose
+  // history.pushState refuses a cross-origin URL with a SecurityError, so a crafted
+  // `?next=/\evil.example` link broke sign-in for whoever followed it; a consumer assigning to
+  // location.href instead would have followed it off-site.
+  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) {
+    return DEFAULT_POST_LOGIN_PATH;
+  }
   if (value.startsWith("/login")) return DEFAULT_POST_LOGIN_PATH;
   return value;
 }

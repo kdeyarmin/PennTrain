@@ -65,6 +65,27 @@ describe("buildMoveInReadinessPacket", () => {
     expect(packet.blockers).toBe(0);
   });
 
+  // 'not_applicable' is a legal resident_compliance_items.status (20260704053456). A blocker row
+  // holding one can never acquire a signed state form -- that is what "not applicable" means -- so
+  // demanding one left the packet with a blocker no action could clear.
+  it("treats a not_applicable blocker item as ready without a state form", () => {
+    const complianceItems = [
+      { id: "pre", item_type: "preadmission_screening", status: "not_applicable", due_date: null, completed_date: null },
+      { id: "ia", item_type: "initial_assessment_15day", status: "compliant", due_date: "2026-07-28", completed_date: "2026-07-20" },
+      { id: "sp", item_type: "support_plan_30day", status: "compliant", due_date: "2026-08-12", completed_date: "2026-08-01" },
+    ];
+    const documents = [
+      { compliance_item_id: "ia", is_state_form: true, document_label: "RASP assessment" },
+      { compliance_item_id: "sp", is_state_form: true, document_label: "Support plan" },
+      { document_label: "Resident rights signed" },
+      { document_label: "Admission agreement signed" },
+    ];
+    const packet = buildMoveInReadinessPacket({ resident, facilityType: "PCH", complianceItems, documents, supports: [], officialContacts });
+    expect(packet.items.find((item) => item.id === "preadmission")?.status).toBe("inspection_ready");
+    expect(packet.blockers).toBe(0);
+    expect(packet.status).toBe("inspection_ready");
+  });
+
   it("flags compliant items without linked signed state forms as needs_review", () => {
     const complianceItems = [
       { id: "pre", item_type: "preadmission_screening", status: "compliant", due_date: "2026-07-13", completed_date: "2026-07-13" },

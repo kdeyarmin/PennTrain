@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { facilityDayBounds } from "@/lib/dateUtils";
 
 export function CreateWorkItemDialog({
   organizationId,
@@ -61,7 +62,12 @@ export function CreateWorkItemDialog({
     title,
     description,
     priority,
-    dueAt: dueAt ? `${dueAt}T23:59:59.999Z` : "",
+    // `dueAt` is a date-only value off a date input, meaning a FACILITY calendar day. Stamping it
+    // with a literal `Z` read it as UTC end-of-day, which in Pennsylvania is 19:59 local in summer
+    // -- so from ~8pm onward manualWorkItemIssues rejected "due today" with "The due date is in the
+    // past", on a day that had four hours left in it. facilityDayBounds().through is the UTC
+    // instant that ends the facility day, which is what "due today" actually means.
+    dueAt: dueAt ? facilityDayBounds(dueAt).through : "",
   };
   const issues = manualWorkItemIssues(form, now);
   const obligations = templateObligations(template);

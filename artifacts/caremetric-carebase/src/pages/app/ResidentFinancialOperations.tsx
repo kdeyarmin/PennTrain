@@ -50,11 +50,13 @@ export default function ResidentFinancialOperations() {
     "facility_manager",
   );
   const facilities = useListFacilities({ organizationId });
-  const { facilityId, residentId, setFacilityId, setResidentId } =
+  const { facilityId, residentId, setFacilityId, setResidentId, adoptDefaultFacility } =
     useResidentNavigationContext();
+  // adoptDefaultFacility, not setFacilityId: the latter clears the resident, and on `?resident=X`
+  // with no facility this effect runs before the resident query resolves the facility.
   useEffect(() => {
     if (!facilityId && facilities.data?.length === 1)
-      setFacilityId(facilities.data[0].id);
+      adoptDefaultFacility(facilities.data[0].id);
   }, [facilities.data, facilityId]);
   const residents = useListResidents(
     { facilityId, status: "active" },

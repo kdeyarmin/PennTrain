@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { clearLocalSessionState } from "@/lib/auth";
 import {
   describeMfaError,
   isSmsMfaEnabled,
@@ -268,6 +269,9 @@ export default function MfaSettings() {
       const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {
         await supabase.auth.signOut();
+        // Same teardown as every other sign-out: a forced one still has to drop the impersonation
+        // record, the query cache, and the cached Supabase responses.
+        await clearLocalSessionState();
         throw new Error("The factor was removed, but session assurance could not be refreshed. You were signed out for safety.");
       }
       if (enrollment?.factorId === factorId) setEnrollment(null);

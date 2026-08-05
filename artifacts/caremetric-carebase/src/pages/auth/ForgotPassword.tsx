@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -31,9 +32,8 @@ export default function ForgotPassword() {
     try {
       // Matches App.tsx's WouterRouter/publicPaths.ts convention for combining origin + base path
       // -- BASE_URL is "/" by default (root) but can be a subpath in non-root deployments.
-      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}${basePath}/reset-password`,
+        redirectTo: absoluteAppUrl("/reset-password"),
       });
     } catch {
       toast({

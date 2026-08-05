@@ -55,9 +55,22 @@ function statusIn(status: string | null | undefined, values: string[]): boolean 
   return Boolean(status && values.includes(status));
 }
 
-function severityFor(count: number, watchThreshold = 1): OperationsSeverity {
-  if (count <= 0) return "good";
-  return count >= watchThreshold ? "attention" : "watch";
+// Two outcomes, stated as two outcomes.
+//
+// This took a `watchThreshold = 1` and returned `count >= watchThreshold ? "attention" : "watch"`.
+// Every one of the sixteen call sites uses the default, and `count <= 0` has already returned by
+// then -- so the condition was `count >= 1` against a count that is always >= 1, and "watch" could
+// not be produced from anywhere in the codebase. The parameter read like a tunable dial that did
+// nothing, which is worse than no dial: `summarizePchAlrQueue`'s "Attention buckets" metric was in
+// fact just "buckets with anything open", and nobody reading `severityFor` would have known that.
+//
+// Deliberately NOT given a real threshold instead. Picking one (1-2 is watch, 3+ is attention, or
+// whatever) would change what that dashboard metric counts, and that is a product decision about
+// how a Pennsylvania facility should triage its own queues -- not something to invent inside a
+// cleanup. "watch" stays in OperationsSeverity for whoever makes that decision; what changes here
+// is only that the code no longer claims to produce it.
+function severityFor(count: number): OperationsSeverity {
+  return count > 0 ? "attention" : "good";
 }
 
 export function buildPchAlrOperationsQueue(input: PchAlrSnapshotInput): PchAlrOperationsQueueItem[] {

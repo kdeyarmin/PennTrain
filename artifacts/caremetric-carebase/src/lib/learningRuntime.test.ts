@@ -139,3 +139,19 @@ describe("helpers", () => {
     expect(XAPI_VERBS.completed).toContain("completed");
   });
 });
+
+// cmi.core.exit is the exit MODE ("suspend", "logout", "time-out"), not suspend data. It was the
+// last fallback in the suspendData chain, so a package that set an exit mode without suspend data
+// had the learner's bookmark stored as the literal string "suspend".
+describe("suspend data never comes from the exit mode", () => {
+  it("ignores cmi.core.exit", () => {
+    expect(normalizeRuntimeCommitState({ "cmi.core.exit": "suspend" }).suspendData).toBeNull();
+  });
+
+  it("still reads the real suspend key", () => {
+    expect(normalizeRuntimeCommitState({
+      "cmi.core.exit": "suspend",
+      "cmi.suspend_data": "page=7",
+    }).suspendData).toBe("page=7");
+  });
+});

@@ -2,6 +2,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { acquireImportJobLease } from "../_shared/importJobLease.ts";
+import { paToday } from "../_shared/paDay.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -116,6 +118,12 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Nothing reaches a customer's tables until this job's claim is ours. The durable worker
+  // (process-data-import-jobs) cannot tell an in-progress browser apply from a stranded one, so
+  // without a claim it applies the same ledger rows this run is walking -- see G34.
+  const leaseError = await acquireImportJobLease(callerClient, jobId);
+  if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
+
   const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
   if (offset >= rows.length) {
     return json(req, { success: true, mode, job_id: jobId, total: 0, succeeded: 0, failed: 0, results: [], totalRows: rows.length, offset, nextOffset: null });
@@ -183,7 +191,9 @@ Deno.serve(async (req: Request) => {
       else warnings.push("Existing credential matched and will be updated.");
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    // The FACILITY day, not the UTC day. Edge functions run in UTC, so after 20:00 ET this
+    // read as tomorrow -- and a credential expiring today was imported already "expired".
+    const today = paToday();
     let status = "missing";
     if (expirationDate) status = expirationDate < today ? "expired" : "compliant";
     else if (issueDate) status = "compliant";

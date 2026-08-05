@@ -1,4 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// CampaignTargetingEditor pulls in useFacilities, which imports @/lib/supabase -- and that module
+// throws at import time unless VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY are set. CI sets them as
+// job-level env vars, so this file passed there while failing on any clean checkout that just runs
+// `pnpm run test`, and a suite-level "1 failed" is easy to read past when the test COUNT is still
+// all-green (the file never gets to contribute a single test). The functions under test are pure,
+// so stub the client the way every other test whose import graph reaches it does.
+vi.mock("@/lib/supabase", () => ({ supabase: {} }));
+
 import {
   MANUAL_TARGETING,
   targetingIsValid,

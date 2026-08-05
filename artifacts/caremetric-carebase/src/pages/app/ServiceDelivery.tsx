@@ -576,7 +576,17 @@ export default function ServiceDelivery() {
         </DialogContent>
       </Dialog>
 
-      <RequirementDialog requirement={selectedRequirement} onClose={() => setSelectedRequirement(null)} />
+      {/*
+        Keyed by requirement id. This dialog is mounted unconditionally and gates itself on
+        `open={!!requirement}`, so its `useState(requirement?.x ?? default)` initializers ran once,
+        on the first render, when `selectedRequirement` was still null -- they captured the
+        DEFAULTS and nothing re-seeded them when a requirement was later selected. "Configure" then
+        showed daily / 09:00-11:00 / DCS / no instructions / two-staff off / every_task regardless
+        of what the requirement actually said, and Save wrote that over the resident's real service
+        requirement -- then regenerated the future task instances from it, as the success toast
+        says. A two-staff transfer silently becoming a one-person task is the shape of that.
+      */}
+      <RequirementDialog key={selectedRequirement?.id ?? "none"} requirement={selectedRequirement} onClose={() => setSelectedRequirement(null)} />
       <ServiceExceptionFollowUpDialog
         open={!!followUpTask}
         taskName={followUpTask?.service_name ?? "service"}

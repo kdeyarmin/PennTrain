@@ -12,6 +12,7 @@
  * Residence" / "ALR" -- the stored facilityTypes code stays "ALR" to match the rest of the app.
  */
 import type { FacilityType } from "./facilityTypes";
+import { facilityTypeMatchesQuery } from "./facilityTypes";
 
 export const DHS_FORM_CATEGORIES = [
   "Personal Care Home (PCH) Required Forms",
@@ -396,7 +397,7 @@ export function searchDhsForms(query: string): DhsForm[] {
       f.title.toLowerCase().includes(q) ||
       f.description.toLowerCase().includes(q) ||
       f.category.toLowerCase().includes(q) ||
-      f.facilityTypes.some((ft) => ft.toLowerCase().includes(q) || (ft === "ALR" && q.includes("alf"))),
+      f.facilityTypes.some((ft) => facilityTypeMatchesQuery(ft, q)),
   );
 }
 

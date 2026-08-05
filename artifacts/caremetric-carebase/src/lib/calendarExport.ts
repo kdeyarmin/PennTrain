@@ -42,7 +42,11 @@ export function buildTrainingClassesIcs(events: TrainingClassCalendarEvent[], no
       event.trainingTypeName ? `Training type: ${event.trainingTypeName}` : null,
       event.durationHours ? `Duration: ${event.durationHours} hour${event.durationHours === 1 ? "" : "s"}` : null,
       event.status ? `Status: ${event.status}` : null,
-    ].filter(Boolean).join("\\n");
+    // A REAL newline. escapeIcsText below converts it to the ICS "\\n" escape; joining on the
+    // two-character sequence first meant escapeIcsText then escaped the backslash too, emitting
+    // "\\\\n" -- which calendars render as a literal \\n in the event description instead of a
+    // line break.
+    ].filter(Boolean).join("\n");
     const location = event.location || event.facilityName || "";
 
     lines.push(
