@@ -1,0 +1,30 @@
+{
+  "_readme": [
+    "In-app path literals in migrations or edge functions that check-server-route-links.mjs must not",
+    "fail on.",
+    "",
+    "WHY THIS GATE EXISTS. The database and the edge functions build in-app links as string literals --",
+    "notification `link` columns, system-job `operator_route` values, and `search_workspace`, which",
+    "branches on role to send a platform admin to /admin/<kind>/<id>. Nothing verified those paths",
+    "exist. Three were broken: `search_workspace` emits eleven /admin/ prefixes and nine had a route,",
+    "so a platform admin searching a complaint number or a citation reference clicked the result and",
+    "landed on Not Found; and the integration webhook dispatch job's Open button pointed at",
+    "/admin/integrations, which has never been a route. No test noticed, because the link is assembled",
+    "in SQL and consumed as an opaque string -- GlobalSearch navigates `item.route` verbatim, with no",
+    "safePathForRole and no fallback.",
+    "",
+    "THE EXPECTED USE OF THIS FILE is a literal that a LATER migration supersedes. Migrations are",
+    "append-only history, so a path corrected by a later migration still appears in the original file,",
+    "and this check reads text rather than executing the schema -- it cannot tell that the row no",
+    "longer holds that value. An entry must name the superseding migration so the claim is checkable.",
+    "",
+    "It is NOT a place to excuse a link that is genuinely broken. Declare the route or correct the",
+    "link instead."
+  ],
+
+  "/admin/integrations": {
+    "reason": "Superseded. `20260711200651_phase2_signed_integration_hub.sql` seeded this as the `operator_route` of the `integration-webhook-dispatch` system job, and it has never been a declared route -- the System Jobs page renders operator_route as an Open button, so it went to Not Found. `20260805020000_an_operator_route_has_to_go_somewhere.sql` updates the row to `/admin/enterprise`, which is where the integration register, credential rotation and webhook endpoint controls actually live. The original literal remains in the older migration because migration history is append-only.",
+    "superseded_by": "20260805020000_an_operator_route_has_to_go_somewhere.sql",
+    "backlog": "G17"
+  }
+}

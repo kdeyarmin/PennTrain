@@ -541,6 +541,19 @@ function Router() {
       <Route path="/admin/incidents/:id">
         {() => <ProtectedRoute component={IncidentDetail} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
+      {/* `search_workspace` branches on role and sends a platform admin to /admin/<kind>/<id> for
+          eleven kinds. Nine had a route; complaints and violations did not, so a platform admin
+          searching a complaint number or a citation reference landed on Not Found. GlobalSearch
+          navigates the route verbatim -- no safePathForRole, no fallback -- so nothing softened it.
+          Redirecting those two to /app/... instead would not work: both are gated to
+          org_admin/facility_manager/auditor, and platform_admin is in neither set. See BACKLOG.md
+          G17. */}
+      <Route path="/admin/complaints/:id">
+        {() => <ProtectedRoute component={ComplaintDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/violations/:id">
+        {() => <ProtectedRoute component={ViolationDetail} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
       <Route path="/admin/inspections/:id">
         {() => <ProtectedRoute component={InspectionItemDetail} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
