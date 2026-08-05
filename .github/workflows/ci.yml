@@ -25,7 +25,10 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Same exposure as planning-registers below, and worse consequences: this job also spends its
+    # whole budget on a `fetch-depth: 0` clone, and every other job is gated on its outputs, so a
+    # slow clone here does not fail one check -- it takes the run with it.
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -376,7 +379,14 @@ jobs:
   # mode runs for real and a drifted stamp turns the branch red.
   planning-registers:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # 10, not 5, because essentially all of it is clone time. The check itself runs in under a
+    # second; the `fetch-depth: 0` below is a full-history clone of this repository, and on
+    # 016401c that checkout took 4m59s and the 5-minute job timeout cancelled the job mid-checkout
+    # -- failing the aggregate `ci-result`, and so the PR, for a reason with no connection to the
+    # code. The retry cloned the same commit in 25s, which is the point: the budget was one slow
+    # clone from failing on any PR. Every other full-history job here already allows more
+    # (migration-immutability 10, secret-scan 15, application 25).
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
