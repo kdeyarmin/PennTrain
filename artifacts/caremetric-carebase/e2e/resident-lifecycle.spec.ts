@@ -610,7 +610,14 @@ test.describe("resident lifecycle journey", () => {
         .select("status, performed_at, completed_by_employee_id, completion_response")
         .eq("resident_id", residentId!);
       if (error) throw error;
-      const done = data.find((row) => row.status === "completed");
+      // The completed family, not the bare status. seedScheduledTask takes the requirement's
+      // default 09:00-11:00 window, so whether this task lands as `completed` or `completed_late`
+      // depends only on the hour the suite happens to run at -- and since 20260805010000 the
+      // server stamps that difference instead of collapsing it. Matching the exact string made
+      // this assertion time-of-day dependent; matching the family is what the product itself
+      // means by completed (ServiceDelivery.tsx counts the same three).
+      const completedStatuses = ["completed", "completed_late", "completed_by_other"];
+      const done = data.find((row) => completedStatuses.includes(row.status));
       return done
         ? {
             response: done.completion_response,
