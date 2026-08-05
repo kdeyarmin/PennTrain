@@ -823,8 +823,12 @@ export default function EmployeeDetail() {
                   facilityId={employee.facility_id ?? null}
                   employeeName={`${employee.first_name} ${employee.last_name}`}
                   // The server refuses anyone but an org admin (and refuses self-grants). This only
-                  // keeps the form from offering what the server would reject.
-                  canOverride={["platform_admin", "org_admin"].includes(user?.role ?? "")}
+                  // keeps the form from offering what the server would reject -- which means it has
+                  // to check both halves. `grant_duty_eligibility_override` raises 'An override
+                  // cannot be granted to yourself' when `auth.uid() = p_profile_id`, so an org admin
+                  // on their own employee record was being offered a form that could only fail.
+                  canOverride={["platform_admin", "org_admin"].includes(user?.role ?? "")
+                    && user?.id !== employee.profile_id}
                 />
               </Suspense>
             )}
