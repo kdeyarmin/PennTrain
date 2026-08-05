@@ -233,11 +233,15 @@ select ok(
 -- The legacy command and its successor are not interchangeable (backlog SG-4)
 -- ---------------------------------------------------------------------------
 --
--- 20260805000000 records why public.record_resident_service_task is retained rather than dropped,
--- revoked, or reduced to a shim over record_service_task_response. That argument rests entirely on
--- claims about live behaviour, so they are asserted here rather than only described: a documented
--- reason that quietly stops being true is worse than no reason at all. If any assertion below
--- starts failing, the standing gap needs re-deciding, not re-dating.
+-- 20260805000000, as corrected by 20260805030000, records why public.record_resident_service_task
+-- is retained rather than dropped, revoked, or reduced to a shim over record_service_task_response.
+-- That argument rests entirely on claims about live behaviour, so they are asserted here rather
+-- than only described: a documented reason that quietly stops being true is worse than no reason at
+-- all. If any assertion below starts failing, the standing gap needs re-deciding, not re-dating.
+--
+-- All four assertions survived that correction unchanged, which is the useful part: what 20260805030000
+-- retracted was an inference drawn from them (that a shim would lose completed_by_other), not any
+-- fact they pin. See backlog SG-4, which is now the single row for this RPC.
 
 reset role;
 create temporary table legacy_command_probe(label text primary key, task_id uuid) on commit drop;
@@ -285,9 +289,14 @@ select is(
   'and records it as its own status, distinct from an ordinary completion'
 );
 
--- 4. The successor cannot express it. acceptable_completion_responses is CHECK-constrained to
--- seven values that do not include completed_by_other, so a shim has no faithful mapping -- it
--- would have to send completed_as_planned, which writes status = 'completed'.
+-- 4. The successor's response *vocabulary* cannot express it: acceptable_completion_responses is
+-- CHECK-constrained to seven values that do not include completed_by_other, so a shim has to send
+-- completed_as_planned, which writes status = 'completed'. That is a mapping, not a loss of the
+-- fact -- useResidentServiceTasks already makes this exact call and carries the original outcome in
+-- exception_details.legacy_status, which is why 20260805030000 retracts 20260805000000's claim that
+-- a shim would record an ordinary completion. What this assertion pins is the gate rather than the
+-- vocabulary: the successor rejects any response the plan does not list, and that is the rule a
+-- delegating shim would inherit and its out-of-repo callers have never been subject to.
 select throws_ok(
   $$select public.record_service_task_response(
     (select task_id from legacy_command_probe where label = 'successor_rejects'),
