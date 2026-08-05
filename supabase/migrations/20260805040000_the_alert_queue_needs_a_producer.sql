@@ -30,13 +30,23 @@
 -- on-conflict-do-nothing dedupe per (task_instance_id, alert_type) all stay as they are. This
 -- restores the producer rather than designing a second one.
 --
--- SO 20260805000000'S "ALERTING" BULLET IS NOW SUPERSEDED, and only that one. It listed four ways a
--- delegating shim over the successor would diverge from the legacy command; the alerting divergence
--- is closed here. The other three are untouched and still decide SG-4: completed_by_other has no
--- faithful successor response, the successor does not enforce the note or two-staff rules the legacy
--- command enforces, and it does enforce a plan-response rule the legacy command never had. The
--- function comments at the bottom of this file are rewritten accordingly, because the old ones now
--- assert something false ("called from exactly one place").
+-- SO THE "ALERTING" DIVERGENCE IS NOW CLOSED, and only that one. 20260805000000 listed four ways a
+-- delegating shim over the successor would diverge from the legacy command. Two of the four have
+-- since been resolved from opposite directions and neither is this migration's doing alone:
+--
+--   * completed_by_other, which 20260805000000 called the blocker, was retracted by 20260805030000
+--     on evidence -- completionResponseForServiceOutcome maps it onto completed_as_planned and
+--     useResidentServiceTasks preserves the original outcome in exception_details.legacy_status, so
+--     the fact is not lost. That retraction is not disturbed here; it is carried forward.
+--   * alerting is closed by this file, because the successor now evaluates the same thresholds.
+--
+-- What is left is what 20260805030000 identified as the narrow real blocker -- a shim inherits the
+-- successor's acceptable_completion_responses gate, so calls the legacy command accepts today start
+-- failing 22023 -- plus the note and requires_two_staff rules the successor does not enforce, which
+-- are cost rather than blocker. The function comments at the bottom of this file are rewritten
+-- accordingly, because 20260805000000's assert something false ("called from exactly one place")
+-- and 20260805030000's, written one migration before this one, necessarily still says the legacy
+-- command is the only thing that fills the queue.
 --
 -- WHY completed_late HAD TO BE PART OF THIS. Wiring the call in alone would have left one of the
 -- four seeded rules dead on arrival. app_private.evaluate_service_task_exception keys on the task's
@@ -269,7 +279,7 @@ comment on function app_private.record_service_task_response(uuid, text, jsonb, 
   'caller-supplied performed_at on a surface granted to authenticated would let an employee backdate '
   'care out of its own missed window. Only a SECURITY DEFINER function that has already checked '
   'device ownership and timestamp plausibility may pass one -- today that is exactly '
-  'public.sync_offline_service_task_draft. See 20260805010000.';
+  'public.sync_offline_service_task_draft. See 20260805040000.';
 
 -- The public signature is untouched, so the 20260726060100 grants to authenticated and service_role
 -- carry over and no PostgREST caller sees a different surface. Restated as an assertion rather than
@@ -319,26 +329,42 @@ comment on function public.record_service_task_response(uuid, text, jsonb, uuid)
   'because an online caller is documenting care as it happens: the implementation writes the status '
   'and the structured completion response, stamps completed_late for kinds that have a due window, '
   'and evaluates the facility''s exception rules so public.service_task_alerts has a producer. The '
-  'occurrence-time parameter is deliberately absent from this signature -- see 20260805010000.';
+  'occurrence-time parameter is deliberately absent from this signature -- see 20260805040000.';
 
 -- 20260805000000 recorded both of these as "the only" alert path. That stopped being true above,
 -- and a reason that quietly goes stale is the thing that migration was written to prevent.
 comment on function app_private.evaluate_service_task_exception(public.resident_service_task_instances) is
   'Threshold evaluation behind public.service_task_alerts. Called at the end of both writers of an '
   'exception status: public.record_service_task_response (every in-repo surface, wired in '
-  '20260805010000) and public.record_resident_service_task (the superseded command retained for '
+  '20260805040000) and public.record_resident_service_task (the superseded command retained for '
   'out-of-repo callers, backlog SG-4). Inserts are deduped per (task_instance_id, alert_type).';
 
+-- 20260805030000 re-issued this comment to retract 20260805000000's completed_by_other claim, and
+-- that retraction stands -- it is carried forward verbatim in substance below. But it was written
+-- one migration before this one and necessarily still says the legacy command "is the only thing
+-- that still fills the service_task_alerts queue", which is the exact sentence this migration makes
+-- false. This file is numbered 20260805040000 rather than 010000 for that reason: both orderings a
+-- deployment can take -- a fresh reset applying in version order, and a --include-all push applying
+-- what the remote is missing -- have to land on the same final text, and that only happens if the
+-- later fact is written by the later version.
 comment on function public.record_resident_service_task(uuid, text, text, boolean, uuid) is
   'SUPERSEDED by record_service_task_response but DELIBERATELY RETAINED -- do not drop, revoke, or '
-  'reduce to a shim without reading 20260805000000 (backlog SG-4). It is still granted to '
-  'authenticated, so out-of-repo callers can still reach it, and it accepts completed_by_other, '
-  'which the successor''s response vocabulary cannot express and would silently record as an '
-  'ordinary completion. It is no longer the only caller of '
-  'app_private.evaluate_service_task_exception -- 20260805010000 gave the successor that call too -- '
-  'so the alerting argument in 20260805000000 is closed; the completed_by_other and validation '
-  'arguments are not. It also still stamps completed_late without checking task_kind, which the '
-  'successor now does.';
+  'reduce to a shim without reading 20260805030000 (which corrects 20260805000000) and '
+  '20260805040000 (which corrects both on alerting). Backlog SG-4. It is still granted to '
+  'authenticated, so out-of-repo callers this repository cannot enumerate can still reach it. A '
+  'delegating shim would inherit the successor''s acceptable_completion_responses gate, so calls '
+  'this function accepts today would start failing 22023 on a rule their caller has never seen -- '
+  'that is the narrow thing that actually blocks the shim. CORRECTION carried forward from '
+  '20260805030000: completed_by_other is NOT lost in translation -- '
+  'completionResponseForServiceOutcome maps it onto completed_as_planned and '
+  'useResidentServiceTasks preserves it in exception_details as legacy_status plus a boolean, so '
+  'fidelity is not the reason this stays. FURTHER CORRECTION, 20260805040000: it is no longer the '
+  'only caller of app_private.evaluate_service_task_exception and no longer the only thing that '
+  'fills service_task_alerts -- record_service_task_response now evaluates the same thresholds, so '
+  '"alerts stop for the caller that used to get them" is no longer a cost of the shim either. What '
+  'remains is the response gate above, and the note and requires_two_staff rules the successor does '
+  'not enforce. It also still stamps completed_late without checking task_kind, which the successor '
+  'now does.';
 
 -- ---------------------------------------------------------------------------
 -- The shift workspace has to drop a late completion the way it drops any other
@@ -395,7 +421,7 @@ comment on function public.get_my_shift_workspace() is
   'The employee shift dashboard payload. residentServiceTasks excludes the whole completed family '
   '(completed, completed_late, completed_by_other) and superseded, so a documented task leaves the '
   'due list however it was completed; the exception statuses stay, because they still need '
-  'attention. See 20260805010000, which made completed_late reachable.';
+  'attention. See 20260805040000, which made completed_late reachable.';
 
 -- ---------------------------------------------------------------------------
 -- The offline path tells the command when the care happened
@@ -497,7 +523,7 @@ begin
       -- recorded care given inside its window as late whenever the device reconnected after it, and
       -- the thresholds had already counted that wrong status. Passing the instant in is not a
       -- reimplementation of record_service_task_response's row-lock/status-check path -- it is what
-      -- that path needed to be told, and the whole reason the correction existed (20260805010000).
+      -- that path needed to be told, and the whole reason the correction existed (20260805040000).
       -- An implausible client timestamp still falls back to now(), exactly as it did before.
       v_outcome := 'applied';
       v_error_message := null;
@@ -557,7 +583,7 @@ comment on function public.sync_offline_service_task_draft(uuid, uuid, text, tim
   'Syncs one offline service-documentation draft. Calls the app_private service-outcome '
   'implementation with the device''s own validated occurrence time, so performed_at, the '
   'completed_late stamp, and the exception thresholds are all decided from when the care actually '
-  'happened rather than when the device reconnected -- see 20260805010000. Block-and-flag: '
+  'happened rather than when the device reconnected -- see 20260805040000. Block-and-flag: '
   'conflict/stale/rejected leave the task untouched and are returned for the client to keep locally '
   'until a human dismisses them, never merged or retried automatically. An idempotency-key replay '
   'returns the outcome the first attempt actually produced (conflict/stale/rejected/wipe_required '

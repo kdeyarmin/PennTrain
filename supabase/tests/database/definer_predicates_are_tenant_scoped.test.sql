@@ -148,7 +148,7 @@ select is(
        'evaluate_shift_assignment_eligibility', -- reached only through assign_employee_to_shift
        -- delegates to app_private.record_service_task_response, which carries the identical
        -- manager-or-assigned-employee block from 20260726060100 and raises 42501. Split in
-       -- 20260805010000 so the occurrence-time parameter stays off a surface granted to
+       -- 20260805040000 so the occurrence-time parameter stays off a surface granted to
        -- authenticated; the refusal is asserted through this public wrapper in
        -- support_plan_service_tasks.test.sql rather than left to this comment.
        'record_service_task_response'
