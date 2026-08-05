@@ -1,5 +1,5 @@
 begin;
-select plan(24);
+select plan(31);
 
 select has_table('public', 'resident_service_requirements', 'service requirements use a dedicated high-volume model');
 select has_table('public', 'resident_service_task_instances', 'scheduled service task instances exist');
@@ -248,13 +248,21 @@ create temporary table legacy_command_probe(label text primary key, task_id uuid
 -- edit that tries to write the probe as `authenticated` fails rather than quietly succeeding.
 grant select on legacy_command_probe to authenticated;
 insert into legacy_command_probe(label, task_id)
-select case seq when 1 then 'legacy_by_other' when 2 then 'successor_rejects' else 'successor_no_alert' end, id
+select case seq
+  when 1 then 'legacy_by_other'
+  when 2 then 'successor_rejects'
+  when 3 then 'successor_alerts'
+  when 4 then 'late_first'
+  when 5 then 'late_second'
+  when 6 then 'late_third'
+  else 'no_due_window'
+end, id
 from (
   select id, row_number() over (order by scheduled_start, id) as seq
   from public.resident_service_task_instances
   where source_assessment_form_id = '56000000-0000-4000-8000-000000000302' and status = 'scheduled'
 ) ranked
-where seq <= 3;
+where seq <= 7;
 
 -- 1. Still an executable surface. This is the fact that makes the other three consequential: an
 -- out-of-repo caller can reach it today, so every way of closing it out is a breaking change.
@@ -298,25 +306,121 @@ select throws_ok(
   'the successor refuses completed_by_other, so a delegating shim would have to record something else'
 );
 
--- 5. The successor does not evaluate exception thresholds. not_completed is seeded at threshold 1
--- over 1 day, so the legacy path alerts on the first occurrence; this path produces nothing.
+-- 5. Alerting is no longer one of the divergences. 20260805010000 wired
+-- app_private.evaluate_service_task_exception into the successor, because leaving it out had left
+-- public.service_task_alerts with no in-repo producer at all. The three assertions above still
+-- decide SG-4; this one is here to state which leg of the original argument is now closed.
 select lives_ok(
   $$select public.record_service_task_response(
-    (select task_id from legacy_command_probe where label = 'successor_no_alert'),
+    (select task_id from legacy_command_probe where label = 'successor_alerts'),
     'not_completed', jsonb_build_object('note', 'Resident at an appointment.'), null
   )$$,
   'the successor records a not_completed response'
 );
--- Read the alert queue with RLS out of the way: as the employee, an empty result would prove
--- nothing about whether an alert was written.
+
+-- ---------------------------------------------------------------------------
+-- The alert queue has a producer every in-repo surface reaches (20260805010000)
+-- ---------------------------------------------------------------------------
+--
+-- Read the alert queue with RLS out of the way throughout: as the employee, an empty result would
+-- prove nothing about whether a row was written.
 reset role;
 select ok(
-  not exists (
+  exists (
     select 1 from public.service_task_alerts
-    where task_instance_id = (select task_id from legacy_command_probe where label = 'successor_no_alert')
+    where task_instance_id = (select task_id from legacy_command_probe where label = 'successor_alerts')
   ),
-  'but raises no service_task_alert, so the legacy command is still the only alert-producing path'
+  'the successor now raises a service_task_alert, so the queue has an in-repo producer'
+);
+-- not_completed is seeded at threshold 1 over 1 day routed to a supervisor, so the rule fires on the
+-- first occurrence and maps to missed_service rather than one of the routed alert types.
+select is(
+  (select alert_type from public.service_task_alerts
+   where task_instance_id = (select task_id from legacy_command_probe where label = 'successor_alerts')),
+  'missed_service',
+  'and routes it through the same rule mapping the legacy command uses'
+);
+select is(
+  (select severity from public.service_task_alerts
+   where task_instance_id = (select task_id from legacy_command_probe where label = 'successor_alerts')),
+  'critical',
+  'with the severity a non-completion carries'
 );
 
+-- The completed_late arm of that mapping was unreachable through the successor until 20260805010000:
+-- every response that is not a refusal, an unavailability, or a non-completion collapsed to a flat
+-- 'completed', so the completed_late rule seeded for every facility could never fire. Push three
+-- probe tasks' windows into the past to record genuinely late completions.
+update public.resident_service_task_instances t
+set scheduled_start = now() - (interval '1 hour' * (3 + p.seq)),
+    scheduled_end = now() - (interval '1 hour' * (1 + p.seq))
+from (
+  select task_id, row_number() over (order by label) as seq
+  from legacy_command_probe
+  where label in ('late_first', 'late_second', 'late_third', 'no_due_window')
+) p
+where t.id = p.task_id;
+
+select pg_temp.act_as('56000000-0000-4000-8000-000000000102');
+select lives_ok(
+  $$select public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'late_first'),
+    'completed_as_planned', '{}'::jsonb, null
+  )$$,
+  'the successor records a completion after the due window'
+);
+select is(
+  (select status from public.resident_service_task_instances
+   where id = (select task_id from legacy_command_probe where label = 'late_first')),
+  'completed_late',
+  'and stamps it completed_late, the status every analytic already counts and no writer produced'
+);
+-- Two more to cross the seeded 3-in-7-days threshold. Recorded without their own assertions: the
+-- fact being pinned is the alert below, not that a working command works three times.
+do $$
+begin
+  perform public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'late_second'),
+    'completed_as_planned', '{}'::jsonb, null
+  );
+  perform public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'late_third'),
+    'completed_as_planned', '{}'::jsonb, null
+  );
+end $$;
+reset role;
+select ok(
+  exists (
+    select 1 from public.service_task_alerts
+    where resident_id = '56000000-0000-4000-8000-000000000201'
+      and alert_type = 'qapi_review'
+  ),
+  'three late services cross the seeded threshold and route to QAPI'
+);
+
+-- A kind with no due window cannot be late. 20260726050100 states this on task_kind itself ("the
+-- rest must not raise missed-window alerts") but nothing enforced it server-side, and the generator
+-- gives every requirement a window regardless of kind -- so without the gate an as_needed service
+-- would be stamped late every time it was recorded and would open a QAPI alert on the third.
+update public.resident_service_requirements
+set task_kind = 'as_needed'
+where source_assessment_form_id = '56000000-0000-4000-8000-000000000302';
+
+select pg_temp.act_as('56000000-0000-4000-8000-000000000102');
+select lives_ok(
+  $$select public.record_service_task_response(
+    (select task_id from legacy_command_probe where label = 'no_due_window'),
+    'completed_as_planned', '{}'::jsonb, null
+  )$$,
+  'a kind with no due window still records a completion after its nominal window'
+);
+select is(
+  (select status from public.resident_service_task_instances
+   where id = (select task_id from legacy_command_probe where label = 'no_due_window')),
+  'completed',
+  'but is not stamped late, so it cannot feed the late-service rule'
+);
+
+reset role;
 select * from finish();
 rollback;
