@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { paToday } from "../_shared/paDay.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -103,7 +104,10 @@ Deno.serve(async (req: Request) => {
     .select("row_number, status, target_id, proposed_action").eq("job_id", jobId)
     .gte("row_number", offset + 2).lte("row_number", endIndex + 1);
   const ledgerMap = new Map((existingLedgers ?? []).map((r: any) => [r.row_number, r]));
-  const today = new Date().toISOString().slice(0, 10);
+  // The FACILITY day: this becomes admission_date for a row that does not carry one, and after
+  // 20:00 ET the UTC day is already tomorrow -- a resident admitted this evening would be
+  // recorded as admitted tomorrow, on a date the regulatory timeline is computed from.
+  const today = paToday();
 
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];

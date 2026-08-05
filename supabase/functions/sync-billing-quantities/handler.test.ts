@@ -209,3 +209,39 @@ Deno.test("sync-billing-quantities marks flat items already at qty 1 as unchange
   assertEquals(body.unchanged, 1);
   assertEquals(body.updated, 0);
 });
+
+// index.ts injects only createClient/stripePost/stripeGet, so production runs on the OPTIONAL
+// defaults -- and those were self-referential (`randomUUID = () => randomUUID()`), which is
+// infinite recursion, not a fallback. Every real invocation died with a RangeError right after the
+// cron check. It survived because no test exercised the defaults: the unconfigured cases return
+// 503 before reaching them, and the one test that goes further injects both. This omits them on
+// purpose, and the `replayed` early exit is past the point where both are called.
+Deno.test("sync-billing-quantities runs on its own default randomUUID/nowMs", async () => {
+  const handler = createSyncBillingQuantitiesHandler({
+    createClient: () => ({
+      rpc: async (name: string) => {
+        if (name === "claim_system_job_execution") {
+          return { data: [{ run_id: "run-default", should_execute: false }], error: null };
+        }
+        return { data: null, error: null };
+      },
+    }) as never,
+    stripePost: async () => ({ ok: false, status: 500, data: {} }),
+    stripeGet: async () => ({ ok: false, status: 500, data: {} }),
+    getEnv: (name: string) =>
+      name === "SUPABASE_URL" ? "https://example.test" : "test-secret",
+    requireCron: () => null,
+    // randomUUID and nowMs deliberately NOT injected.
+  });
+
+  const response = await handler(new Request("https://example.test", {
+    method: "POST",
+    body: JSON.stringify({ batchSize: 1 }),
+  }));
+  assertEquals(response.status, 200);
+  const body = await response.json() as { replayed?: boolean; correlationId?: string };
+  assertEquals(body.replayed, true);
+  // Produced by the default randomUUID rather than a header.
+  assertEquals(typeof body.correlationId, "string");
+  assertEquals((body.correlationId ?? "").length > 0, true);
+});

@@ -2,6 +2,7 @@
 /** Durable import claim loop (BACKLOG D3). Auth: the shared cron secret, like the other workers. */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import { paToday } from "../_shared/paDay.ts";
 import {
   buildAssessmentPayload,
   buildIncidentPayload,
@@ -158,7 +159,9 @@ function buildResidentPayload(normalizedRow: unknown, organizationId: string) {
     last_name: asStringOrNull(row.last_name) ?? "",
     date_of_birth: asStringOrNull(row.date_of_birth),
     room: asStringOrNull(row.room),
-    admission_date: asStringOrNull(row.admission_date) ?? new Date().toISOString().slice(0, 10),
+    // Facility day, matching bulk-import-residents: the UTC day is already tomorrow after
+    // 20:00 ET, and this is the admission date a resident's compliance timeline runs from.
+    admission_date: asStringOrNull(row.admission_date) ?? paToday(),
     preferred_name: asStringOrNull(row.preferred_name),
     status: asStringOrNull(row.status) ?? "active",
   };

@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { paToday } from "../_shared/paDay.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -183,7 +184,9 @@ Deno.serve(async (req: Request) => {
       else warnings.push("Existing credential matched and will be updated.");
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    // The FACILITY day, not the UTC day. Edge functions run in UTC, so after 20:00 ET this
+    // read as tomorrow -- and a credential expiring today was imported already "expired".
+    const today = paToday();
     let status = "missing";
     if (expirationDate) status = expirationDate < today ? "expired" : "compliant";
     else if (issueDate) status = "compliant";
