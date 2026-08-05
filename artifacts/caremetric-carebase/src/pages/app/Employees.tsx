@@ -199,7 +199,14 @@ export default function Employees() {
     params.delete("action");
     const query = params.toString();
     navigate(`${basePath}${query ? `?${query}` : ""}`, { replace: true });
-  }, [locationSearch]);
+    // canManage and basePath are in the list because the effect reads them, not because they are
+    // expected to move: ProtectedRoute holds `isLoading` true until the PROFILE resolves
+    // (`sessionLoading || (!!session && profileLoading)`) and renders FullPageLoading until then,
+    // so this component cannot mount before `user.role` is known and both values are settled.
+    // Listing them anyway costs nothing -- after the navigate above the URL carries no `action`,
+    // so any extra run returns at the guard -- and it means a role that did somehow arrive late
+    // would retry the deep link instead of stranding it.
+  }, [locationSearch, canManage, basePath]);
 
   const openEdit = (e: React.MouseEvent, emp: Employee) => {
     e.preventDefault();
