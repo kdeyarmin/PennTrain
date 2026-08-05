@@ -93,6 +93,29 @@ const SORT_ONLY_ALLOWLIST = new Set([
   "src/pages/employee/MyTrainings.tsx", // same
 ]);
 
+// Name collisions: the same column name is `date` in one table and `timestamptz` in another.
+//
+// The derivation above is deliberately over-inclusive, on the reasoning that "an extra name only
+// matters if code calls new Date() on a field of that name, which is precisely the thing worth
+// flagging". That holds right up until two tables disagree about a name, and then it does not: this
+// check works from names alone and cannot see which table an expression came from, so it reports a
+// correct instant parse as a defect.
+//
+// The answer is NOT to drop the name -- that would stop guarding the table where it really is a
+// DATE -- and it is not to rename the local so the regex misses it, which is evasion dressed as
+// refactoring. It is to state the collision here, per file and per column, naming both sides so the
+// claim can be checked. Anything not listed is still a failure.
+const TYPE_COLLISION_ALLOWLIST = new Map([
+  [
+    "src/pages/app/AdmissionOperations.tsx",
+    new Map([[
+      "scheduled_for",
+      "timestamptz on admission_activities (20260713170000); `date` on survey_rehearsals "
+      + "(20260731054000), which is where the name is derived from",
+    ]]),
+  ],
+]);
+
 function walk(dir) {
   const out = [];
   for (const entry of readdirSync(dir)) {
@@ -184,6 +207,7 @@ for (const file of walk(SRC)) {
   const text = readFileSync(file, "utf8");
   text.split("\n").forEach((line, index) => {
     for (const column of offendingColumns(line, DATE_COLUMNS)) {
+      if (TYPE_COLLISION_ALLOWLIST.get(rel)?.has(column)) continue;
       problems.push(
         `${rel}:${index + 1} parses the DATE column \`${column}\` as an instant. Append an `
         + `explicit local time, e.g. new Date(\`\${row.${column}}T00:00:00\`).`,
@@ -197,7 +221,9 @@ if (problems.length > 0) {
   for (const problem of problems) console.error(`  ${problem}`);
   process.exit(1);
 }
+const collisions = [...TYPE_COLLISION_ALLOWLIST.values()].reduce((n, m) => n + m.size, 0);
 console.log(
   `Date-only parsing check passed (${DATE_COLUMNS.length} DATE columns derived from migrations, `
-  + `${SORT_ONLY_ALLOWLIST.size} sort-only file(s) allowlisted).`,
+  + `${SORT_ONLY_ALLOWLIST.size} sort-only file(s) allowlisted, `
+  + `${collisions} name collision(s) with a timestamptz column).`,
 );

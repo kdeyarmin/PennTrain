@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, MessageSquareWarning, Plus, 
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { usePaginatedComplaints } from "@/hooks/useComplaints";
+import { ComplaintTrendsCard } from "@/components/complaints/ComplaintTrendsCard";
 import { useComplaintListSummary, EMPTY_COMPLAINT_LIST_SUMMARY } from "@/hooks/useDomainListSummaries";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -71,6 +72,10 @@ export default function Complaints() {
         {canManage && <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />New complaint</Button>}
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(metric => <Card key={metric.label}><CardContent className="flex items-center gap-3 pt-6"><metric.icon className={`h-7 w-7 ${metric.color}`} /><div><p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : metric.value}</p><p className="text-sm text-muted-foreground">{metric.label}</p></div></CardContent></Card>)}</div>
+      {/* One facility at a time: get_complaint_trends takes p_facility_id and refuses anything
+          outside scope, so this appears with a facility selected rather than offering a control
+          that would always fail on "All facilities" (BACKLOG.md G16.9). */}
+      {facilityScope && <ComplaintTrendsCard facilityId={facilityScope} />}
       <Card><CardContent className="space-y-4 pt-6">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <Select value={urlState.facility} onValueChange={value => setUrlState({ facility: value, page: "1" })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities.data?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select>

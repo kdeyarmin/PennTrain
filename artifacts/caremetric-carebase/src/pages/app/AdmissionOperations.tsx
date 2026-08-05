@@ -28,6 +28,7 @@ import {
   useListFacilityBeds,
   useListMoveInWorkspaces,
   useListReferralSources,
+  useListAdmissionActivities,
   useRecordAdmissionActivity,
   useReserveBedForProspect,
   useSetBedAvailability,
@@ -185,6 +186,10 @@ function ProspectReviewDialog({
   const update = useUpdateAdmissionProspect();
   const advance = useAdvanceAdmissionPipelineStage();
   const activity = useRecordAdmissionActivity();
+  // Every call, tour and follow-up was written here and shown nowhere (BACKLOG.md G16.17), so the
+  // trail an admissions conversation depends on -- what was already tried, and how it went -- lived
+  // only in the database. It belongs directly under the form that writes it.
+  const activities = useListAdmissionActivities(prospect?.id);
   const reserve = useReserveBedForProspect();
   const startWorkspace = useStartMoveInWorkspace();
   const [stage, setStage] = useState(prospect?.stage ?? "prospect");
@@ -279,6 +284,37 @@ function ProspectReviewDialog({
             <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate ? new Date(activityDate).toISOString() : undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); } })}>Add activity</Button>
           </div>
           {activityType.startsWith("tour") && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-tour-date-amp-time`} className="text-xs text-muted-foreground">Tour date &amp; time</Label><Input id={`${__fieldIds}-tour-date-amp-time`} type="datetime-local" value={activityDate} onChange={event => setActivityDate(event.target.value)} className="w-full sm:w-72" /></div>}
+
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p>
+            {activities.isLoading ? (
+              <div className="h-10 animate-pulse rounded bg-muted" />
+            ) : (activities.data ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing recorded for this prospect yet.</p>
+            ) : (
+              <ul className="space-y-1">
+                {(activities.data ?? []).map((entry) => (
+                  <li key={entry.id} className="rounded border p-2 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">{humanize(entry.activity_type)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(entry.occurred_at).toLocaleString()}
+                        {entry.actor ? ` · ${entry.actor.first_name} ${entry.actor.last_name}` : ""}
+                      </span>
+                    </div>
+                    {entry.scheduled_for && (
+                      <p className="text-xs text-muted-foreground">
+                        Scheduled for {new Date(entry.scheduled_for).toLocaleString()}
+                      </p>
+                    )}
+                    {(entry.outcome || entry.notes) && (
+                      <p className="mt-0.5">{entry.outcome || entry.notes}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         {["approved", "waitlisted", "reserved"].includes(prospect?.stage ?? "") && (

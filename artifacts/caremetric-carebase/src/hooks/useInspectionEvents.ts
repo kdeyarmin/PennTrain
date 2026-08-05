@@ -18,19 +18,10 @@ export function useListInspectionEvents(inspectionItemId: string | undefined) {
   });
 }
 
-// Unfiltered (RLS-scoped) lookup of every event's parent inspection_item_id -- used to resolve
-// a corrective_actions.inspection_event_id into a "View Inspection Item" deep-link without a
-// per-alert fetch.
-export function useListAllInspectionEvents() {
-  return useQuery({
-    queryKey: ["inspection_events", "all"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("inspection_events").select("id, inspection_item_id");
-      if (error) throw error;
-      return data;
-    },
-  });
-}
+// A whole-table `inspection_events` read (id, inspection_item_id) used to sit here, for the same
+// deep-link resolution as the incident-notification pair, and for the same reason it is gone: links
+// carry the parent id. `useListViolationsBySourceInspectionEvents` is the join that is actually
+// rendered, from the violation side.
 
 export function useCreateInspectionEvent() {
   const queryClient = useQueryClient();

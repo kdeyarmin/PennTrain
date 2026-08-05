@@ -10,6 +10,7 @@ import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { ReleaseCohortMembershipCard } from "@/components/admin/ReleaseCohortMembershipCard";
 import { Badge } from "@/components/ui/badge";
+import { useFeatureReleaseActive } from "@/hooks/useFeatureRelease";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,28 @@ function flagBadge(mode: string, enabled: boolean) {
   if (!enabled || mode === "off") return <Badge variant="outline">off</Badge>;
   if (mode === "global") return <Badge className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100">global</Badge>;
   return <Badge className="bg-blue-100 text-blue-900 hover:bg-blue-100">{mode}</Badge>;
+}
+
+/**
+ * What the flag actually evaluates to, for the person looking at it (BACKLOG.md G16.11).
+ *
+ * `feature_release_active` runs the whole rollout/cohort/kill-switch evaluation server-side and had
+ * no caller anywhere -- so cohort membership could be administered (G12.1/G15.1) and nothing read
+ * the result. It is wired here rather than used to gate some arbitrary screen, because inventing a
+ * product gate would be inventing a decision nobody asked for. What this page was missing is the
+ * confirmation that a change took effect: flipping a kill switch and seeing the evaluated answer
+ * turn Off in the same row is the difference between having set a flag and having killed a feature.
+ *
+ * The read fails closed, so a loading or errored evaluation reads as inactive rather than active.
+ */
+function EvaluatedState({ featureKey }: { featureKey: string }) {
+  const release = useFeatureReleaseActive(featureKey);
+  if (release.isLoading) return <span className="text-xs text-muted-foreground">checking…</span>;
+  return (
+    <Badge variant="outline" className={release.isActive ? "border-emerald-500 text-emerald-700 dark:text-emerald-500" : undefined}>
+      {release.isActive ? "Active for you" : "Off for you"}
+    </Badge>
+  );
 }
 
 export default function ReleaseFlags() {
@@ -165,6 +188,7 @@ export default function ReleaseFlags() {
               <TableRow>
                 <TableHead>Feature</TableHead>
                 <TableHead>Mode</TableHead>
+                <TableHead>Evaluated</TableHead>
                 <TableHead>Owner</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -177,6 +201,7 @@ export default function ReleaseFlags() {
                     <p className="text-xs text-muted-foreground font-mono">{flag.feature_key}</p>
                   </TableCell>
                   <TableCell>{flagBadge(flag.rollout_mode, flag.is_enabled)}</TableCell>
+                  <TableCell><EvaluatedState featureKey={flag.feature_key} /></TableCell>
                   <TableCell className="text-sm text-muted-foreground">{flag.owner}</TableCell>
                   <TableCell className="text-right space-x-1">
                     <Button size="sm" variant="outline" disabled={!!busyKey} onClick={() => void handleSetFlag(flag.feature_key, "global")}>
@@ -198,7 +223,7 @@ export default function ReleaseFlags() {
               ))}
               {!flagsQ.data?.length && !flagsQ.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-sm text-muted-foreground">No release flags registered yet.</TableCell>
+                  <TableCell colSpan={5} className="text-sm text-muted-foreground">No release flags registered yet.</TableCell>
                 </TableRow>
               ) : null}
             </TableBody>
