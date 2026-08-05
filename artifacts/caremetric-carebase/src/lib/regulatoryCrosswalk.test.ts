@@ -60,3 +60,29 @@ describe("regulatory crosswalk", () => {
     expect(baseRows().every((row) => row.canEdit === false)).toBe(true);
   });
 });
+
+describe("satisfied evidence stops counting as a gap once its due date passes", () => {
+  // A row completed even one day late keeps `due_date < today` for good. Counting that as an open
+  // gap made the crosswalk row permanently uncovered with no action available to clear it -- which
+  // is why this asserts zero gaps rather than a smaller number.
+  it("does not count a compliant resident item completed after its due date", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      residentItems: [
+        { status: "compliant", due_date: "2026-07-10", item_type: "RASP" },
+        { status: "not_applicable", due_date: "2026-06-01", item_type: "RASP" },
+      ],
+    });
+    const resident = rows.filter((row) => row.gapCount > 0 && row.evidenceCount > 0);
+    expect(resident.every((row) => row.gapCount === 0)).toBe(true);
+  });
+
+  it("does not count an attested policy attestation past its due date", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      policyDocuments: [{ current_version_id: "v1" }],
+      policyAttestations: [{ status: "attested", due_date: "2026-07-20" }],
+    });
+    expect(rows.some((row) => row.gapCount > 0)).toBe(false);
+  });
+});
