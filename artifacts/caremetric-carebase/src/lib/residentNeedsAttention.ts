@@ -166,11 +166,18 @@ const TYPED_ASSISTANCE_OR_REFUSAL = new Set([
   "resident_refused",
 ]);
 
+// The assessment-family item types, plus BOTH medical-evaluation cycles, which were missing, so an overdue or missing DME (55 Pa. Code
+// 2600.141 / 2800.141) raised no Needs Attention card at all: the one obligation whose absence a
+// surveyor reads as "care decisions rest on nothing" was the one the card could not see.
+// support_plan_30day is deliberately absent: it has its own support_plan_* cards below, and adding
+// it here would raise two cards for one obligation.
 const ASSESSMENT_ITEM_TYPES = new Set([
   "preadmission_screening",
   "initial_assessment_15day",
   "annual_reassessment",
   "significant_change_reassessment",
+  "medical_evaluation",
+  "annual_medical_evaluation",
 ]);
 
 const OPEN_COMPLIANCE_STATUSES = new Set(["missing", "expired", "due_soon", "overdue"]);
@@ -199,9 +206,30 @@ function withinWindow(at: string | null | undefined, now: Date, windowDays: numb
   return days !== null && days >= 0 && days <= windowDays;
 }
 
-function isOverdue(dueDate: string | null | undefined, now: Date): boolean {
-  const days = daysBetween(dueDate, now);
-  return days !== null && days > 0;
+/**
+ * A DATE column is overdue once the FACILITY day has moved past it.
+ *
+ * Split from the timestamptz case below because one predicate cannot serve both. This used to be
+ * `daysBetween(...) > 0` for everything -- a whole-day floor, which is a rough fit for a date and
+ * simply wrong for an instant (see isInstantOverdue).
+ */
+function isDateOverdue(dueDate: string | null | undefined, now: Date): boolean {
+  if (!dueDate) return false;
+  return dueDate.slice(0, 10) < facilityToday(now);
+}
+
+/**
+ * A timestamptz is overdue the moment it passes -- not a whole day later.
+ *
+ * `resident_change_of_condition_events.follow_up_due_at` is an instant, and flooring the gap to
+ * whole days meant a follow-up due at 09:00 counted as on-time until 09:00 the NEXT day. Every
+ * change-of-condition follow-up therefore had a silent 24-hour grace period it was never given,
+ * on the card whose entire job is to say that a resident needs looking at now.
+ */
+function isInstantOverdue(dueAt: string | null | undefined, now: Date): boolean {
+  if (!dueAt) return false;
+  const at = new Date(dueAt);
+  return !Number.isNaN(at.getTime()) && at.getTime() < now.getTime();
 }
 
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
@@ -225,7 +253,7 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
   const assessmentItems = input.complianceItems.filter((item) => ASSESSMENT_ITEM_TYPES.has(item.item_type));
   for (const item of assessmentItems) {
     if (!OPEN_COMPLIANCE_STATUSES.has(item.status)) continue;
-    const overdue = isOverdue(item.due_date, now);
+    const overdue = isDateOverdue(item.due_date, now);
     cards.push({
       id: `assessment-${item.id}`,
       kind: "assessment_overdue",
@@ -281,7 +309,7 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
       actionLabel: "Start support plan",
       href: `${base}?tab=support-plan`,
     });
-  } else if (isOverdue(input.supportPlan.reviewDueDate, now)) {
+  } else if (isDateOverdue(input.supportPlan.reviewDueDate, now)) {
     cards.push({
       id: "support-plan-review",
       kind: "support_plan_review",
@@ -322,7 +350,7 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
   // --- Change of condition --------------------------------------------------------------------
   const openChanges = input.changeEvents.filter((event) => event.status !== "closed");
   for (const event of openChanges) {
-    const overdue = isOverdue(event.follow_up_due_at, now);
+    const overdue = isInstantOverdue(event.follow_up_due_at, now);
     const age = daysBetween(event.identified_at, now);
     cards.push({
       id: `change-${event.id}`,

@@ -123,11 +123,32 @@ describe("assessment and state-form cards", () => {
     expect(cards).toEqual([]);
   });
 
-  it("ignores non-assessment compliance item types", () => {
+  // support_plan_30day is the type that is legitimately outside this card: it has dedicated
+  // support_plan_* cards, and counting it here too would raise two cards for one obligation.
+  it("ignores a compliance item type that has its own dedicated card", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      complianceItems: [{ id: "c1", item_type: "support_plan_30day", status: "missing", due_date: "2026-01-01" }],
+    }));
+    expect(cards).toEqual([]);
+  });
+
+  // This previously asserted the opposite. Both medical-evaluation cycles were absent from
+  // ASSESSMENT_ITEM_TYPES, and that set gates BOTH the assessment card and the missing-state-form
+  // card -- so a missing or overdue DME (55 Pa. Code 2600.141 / 2800.141) produced no Needs
+  // Attention card from any path. A DME is a DHS-prescribed form that care decisions rest on,
+  // which is what the card's own `why` text says it is for.
+  it("raises a card for a missing medical evaluation", () => {
     const cards = buildResidentNeedsAttention(clean({
       complianceItems: [{ id: "c1", item_type: "medical_evaluation", status: "missing", due_date: "2026-01-01" }],
     }));
-    expect(cards).toEqual([]);
+    expect(cards.map((card) => card.kind)).toContain("assessment_overdue");
+  });
+
+  it("raises one for the annual cycle too", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      complianceItems: [{ id: "c2", item_type: "annual_medical_evaluation", status: "expired", due_date: "2026-01-01" }],
+    }));
+    expect(cards.map((card) => card.kind)).toContain("assessment_overdue");
   });
 });
 
@@ -162,6 +183,28 @@ describe("change-of-condition cards", () => {
     expect(cards[0].id).toBe("change-e2");
     expect(cards[0].severity).toBe("urgent");
     expect(cards[1].severity).toBe("high");
+  });
+
+  // NOW is 12:00Z. A follow-up that came due at 09:00Z this morning is three hours past due, but
+  // the old predicate floored the gap to whole days (`daysBetween(...) > 0`), so it did not count
+  // as overdue until 09:00 TOMORROW. Every change-of-condition follow-up had a silent 24-hour
+  // grace period, on the card whose whole job is to say a resident needs looking at now.
+  it("treats a follow-up that came due earlier today as overdue", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      changeEvents: [
+        { id: "e1", category: "skin_concern", status: "open", identified_at: daysAgo(2), follow_up_due_at: "2026-07-25T09:00:00.000Z" },
+      ],
+    }));
+    expect(cards[0].severity).toBe("urgent");
+  });
+
+  it("still treats one due later today as not yet overdue", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      changeEvents: [
+        { id: "e1", category: "skin_concern", status: "open", identified_at: daysAgo(2), follow_up_due_at: "2026-07-25T18:00:00.000Z" },
+      ],
+    }));
+    expect(cards[0].severity).toBe("high");
   });
 
   it("ignores closed change events", () => {

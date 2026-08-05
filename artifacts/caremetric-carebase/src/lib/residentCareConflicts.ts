@@ -18,6 +18,7 @@
  * string match.
  */
 import type { ComparableAnswer } from "./assessmentTemplates";
+import { facilityToday } from "./dateUtils";
 
 export type CareConflictKind =
   | "transfer_assistance_mismatch"
@@ -126,21 +127,27 @@ export const DOCUMENTED_ASSISTANCE_THRESHOLD = 3;
 export const DOCUMENTED_ASSISTANCE_WINDOW_DAYS = 14;
 
 /**
- * The local calendar day an instant falls on, as "YYYY-MM-DD".
+ * The FACILITY calendar day an instant falls on, as "YYYY-MM-DD".
  *
  * Needed because DATE columns (`effective_date`) carry no time while `timestamptz` columns do, and
  * comparing the two directly is a category error: `new Date("2026-07-26")` is UTC midnight, so a
  * same-day return recorded at 09:00 EDT (13:00Z) looks LATER than a plan effective that day.
  * Everything here is reduced to a calendar day first, and "YYYY-MM-DD" strings compare correctly
  * with `<` because the format is fixed-width and big-endian.
+ *
+ * The day is the FACILITY's, not the browser's. This used to read getFullYear/getMonth/getDate,
+ * which are the viewer's local timezone -- so a return recorded at 21:00 in Pennsylvania resolved
+ * to the NEXT day for anyone whose machine was set to UTC, and the conflict detector then compared
+ * it against a plan's effective_date as though it had happened a day later than it did. The
+ * facility day is what the DATE column means and what pa_today() computes server-side; deriving it
+ * from wherever the reader happens to be sitting made the same record produce different conflicts
+ * for different staff.
  */
 function localCalendarDay(value: string | null | undefined): string | null {
   if (!value) return null;
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return null;
-  const month = String(at.getMonth() + 1).padStart(2, "0");
-  const day = String(at.getDate()).padStart(2, "0");
-  return `${at.getFullYear()}-${month}-${day}`;
+  return facilityToday(at);
 }
 
 function asEntries(value: unknown): Record<string, unknown>[] {
