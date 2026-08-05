@@ -36,7 +36,12 @@ const CLIENT_SRC = path.join(ROOT, "artifacts", "caremetric-carebase", "src");
 const ALLOWLIST = path.join(ROOT, "scripts", "unrendered-hook-allowlist.json");
 const ENTRY = path.join(CLIENT_SRC, "main.tsx");
 
-const HOOK_DECLARATION = /export\s+function\s+(use[A-Z][A-Za-z0-9_]*)/g;
+// Both declaration forms. The `const` half was missing from the first version, which meant the 20
+// hooks built by `useDietaryOperations`/`useResidentFinancialOperations`'s `rpcMutation` factory
+// were never examined at all -- and the check reported the total it *had* read as though it were
+// the total that exists. Same failure as the two gates corrected in G17.3/G19.2: reading one
+// syntactic form and treating the absence of the other as the absence of a finding.
+const HOOK_DECLARATION = /export\s+(?:function\s+|const\s+)(use[A-Z][A-Za-z0-9_]*)/g;
 
 /**
  * Blank out comments and string/template literals, preserving length so byte offsets still line up.
@@ -81,6 +86,14 @@ export function hookBodies(source) {
   const code = blankNonCode(source);
   const bodies = new Map();
   for (const match of code.matchAll(HOOK_DECLARATION)) {
+    // A `const` hook's first `{` is usually a parameter's type literal, not its body, so
+    // brace-matching from there captures the annotation and stops. Its declaration runs to the next
+    // top-level export instead, which is the real boundary for a module-level const.
+    if (/const/.test(match[0])) {
+      const next = code.indexOf("\nexport ", match.index + match[0].length);
+      bodies.set(match[1], code.slice(match.index, next === -1 ? code.length : next));
+      continue;
+    }
     const open = code.indexOf("{", match.index + match[0].length);
     if (open === -1) continue;
     let depth = 0;
@@ -118,7 +131,7 @@ export function importedSpecifiers(source) {
 /** Whether `source` references `name` other than by declaring it. */
 export function referencesHook(source, name) {
   const withoutDeclaration = blankNonCode(source).replace(
-    new RegExp(`export\\s+function\\s+${name}\\b`, "g"),
+    new RegExp(`export\\s+(?:function\\s+|const\\s+)${name}\\b`, "g"),
     " ",
   );
   return new RegExp(`\\b${name}\\b`).test(withoutDeclaration);
@@ -130,6 +143,19 @@ if (process.argv.includes("--self-test")) {
     [() => exportedHooks("export function useA() {}\nexport function useB2() {}"), ["useA", "useB2"]],
     // Not exported, and not a hook name, are both out of scope.
     [() => exportedHooks("function usePrivate() {}\nexport function helper() {}"), []],
+    // The `const` form -- the one the first version could not see at all.
+    [() => exportedHooks("export const useMade = rpcMutation(async () => {});"), ["useMade"]],
+    [() => exportedHooks("export const useTyped: Hook = () => {};"), ["useTyped"]],
+    [() => exportedHooks("const usePrivateConst = () => {};"), []],
+    // A `const` hook's body must not stop at a parameter's type literal, or a call inside it would
+    // not propagate reachability to what it calls.
+    [() => hookBodies("export const useA = f(async (i: { a: string }) => { useB(); });").get("useA")
+      .includes("useB"), true],
+    // ...and must still stop before the next declaration, so siblings cannot vouch for each other.
+    [() => hookBodies("export const useA = f(() => {});\nexport const useB = f(() => {});").get("useA")
+      .includes("useB"), false],
+    [() => referencesHook("export const useThing = f(() => {});", "useThing"), false],
+    [() => referencesHook("export const useThing = f(() => {});\nconst y = useThing();", "useThing"), true],
     [() => referencesHook("const x = useThing();", "useThing"), true],
     // A file that only declares the hook does not count as rendering it.
     [() => referencesHook("export function useThing() { return 1; }", "useThing"), false],
