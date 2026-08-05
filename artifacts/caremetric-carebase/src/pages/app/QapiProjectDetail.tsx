@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, ClipboardCheck, Printer, Target } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
 import { facilityToday } from "@/lib/dateUtils";
+import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
     v.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
@@ -75,6 +76,37 @@ export default function QapiProjectDetail() {
     [held, setHeld] = useState(new Date().toISOString().slice(0, 16)),
     [attendees, setAttendees] = useState(""),
     [meetingNotes, setMeetingNotes] = useState("");
+  const [team, setTeam] = useState<Json>([]);
+  // Hydrate the plan form from the loaded project.
+  //
+  // Without this the fields sat at their hardcoded initial values no matter which project was
+  // open, and `save` sends every one of them: update_qapi_project_plan is a straight
+  // `update ... set` with `nullif(btrim(...),'')`, not a coalesce-to-existing. So pressing "Save
+  // plan" on an existing project -- to change one field, or after adding an action item -- wrote
+  // status back to 'active' (regressing a monitoring or pending_closure project and losing the
+  // closure gate it had reached), reset the method to five_whys and the frequency to monthly,
+  // blanked team_members to [], and NULLed the root-cause analysis, planned interventions, audit
+  // sample, barriers, adjustments, effectiveness determination and sustainment period. That is
+  // the narrative body of a regulatory quality-improvement record.
+  //
+  // Depends on the project id, NOT on `p` itself: every QAPI mutation on this page invalidates the
+  // project query, so re-seeding on each new object identity would wipe whatever the user had
+  // typed but not yet saved the moment they added an action item or logged a measurement.
+  useEffect(() => {
+    if (!p) return;
+    setStatus(p.status ?? "active");
+    setMethod(p.root_cause_method ?? "five_whys");
+    setRoot(p.root_cause_analysis ?? "");
+    setInterventions(p.planned_interventions ?? "");
+    setFrequency(p.measurement_frequency ?? "monthly");
+    setSample(p.audit_sample ?? "");
+    setBarriers(p.barriers ?? "");
+    setAdjustments(p.adjustments ?? "");
+    setEffectiveness(p.effectiveness_determination ?? "");
+    setSustainment(p.sustainment_period ?? "");
+    setTeam((p.team_members ?? []) as Json);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p?.id]);
   if (project.isLoading) return <p>Loading…</p>;
   if (project.isError || !p)
     return <QueryError what="QAPI project" error={project.error} />;
@@ -83,7 +115,9 @@ export default function QapiProjectDetail() {
       {
         id: p.id,
         status,
-        team: [],
+        // The project's existing team, not a fresh []. The RPC assigns team_members outright
+        // (`coalesce(p_team_members,'[]')`), so sending a literal [] cleared it on every save.
+        team,
         method,
         root,
         interventions,

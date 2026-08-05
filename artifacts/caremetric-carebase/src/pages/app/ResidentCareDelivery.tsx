@@ -67,7 +67,30 @@ export default function ResidentCareDelivery() {
   const [transferReason, setTransferReason] = useState("");
   const [transferDestination, setTransferDestination] = useState("");
 
-  const selectedResidentId = residentId || residents.data?.[0]?.id || "";
+  // The resident the user actually chose -- no `|| residents.data?.[0]?.id` fallback.
+  //
+  // This value feeds nothing but the three write actions below, and two of them (appointment,
+  // hospital transfer) render no resident picker at all. Falling back to the first active resident
+  // meant a user who had not chosen anyone could file a hospital-transfer episode or a provider
+  // appointment against whoever happened to sort first, with nothing on screen naming them. Both
+  // cards now carry the same picker the DME card has, and the buttons stay disabled until a
+  // resident is picked.
+  const selectedResidentId = residentId || "";
+
+  // Mutations here were passing only onSuccess, so a server rejection produced no toast and no
+  // visible change -- indistinguishable from a click that did not register.
+  const reportError = (title: string) => (error: Error) =>
+    toast({ title, description: error.message, variant: "destructive" as const });
+
+  const residentPicker = (id: string) => (
+    <>
+      <Label htmlFor={id}>Resident</Label>
+      <Select value={selectedResidentId} onValueChange={setResidentId}>
+        <SelectTrigger id={id}><SelectValue placeholder="Select resident" /></SelectTrigger>
+        <SelectContent>{residents.data?.map(r => <SelectItem key={r.id} value={r.id}>{r.last_name}, {r.first_name}</SelectItem>)}</SelectContent>
+      </Select>
+    </>
+  );
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -126,29 +149,30 @@ export default function ResidentCareDelivery() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5" />Register DME</CardTitle><CardDescription>Preserves assignment history and repair/inspection documentation.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
-              <Label htmlFor="dme-resident">Resident</Label>
-              <Select value={selectedResidentId} onValueChange={setResidentId}><SelectTrigger id="dme-resident"><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{residents.data?.map(r => <SelectItem key={r.id} value={r.id}>{r.last_name}, {r.first_name}</SelectItem>)}</SelectContent></Select>
+              {residentPicker("dme-resident")}
               <Label htmlFor="equipment">Equipment type</Label>
               <Select value={equipmentType} onValueChange={setEquipmentType}><SelectTrigger id="equipment"><SelectValue /></SelectTrigger><SelectContent>{["walker","wheelchair","hospital_bed","oxygen_equipment","lift","specialty_mattress","shower_equipment","adaptive_device","other"].map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select>
-              <Button className="w-full" disabled={!effectiveFacilityId || !selectedResidentId || dme.isPending} onClick={() => dme.mutate({ facilityId: effectiveFacilityId, residentId: selectedResidentId, equipmentType }, { onSuccess: () => toast({ title: "DME item registered" }) })}>Register DME</Button>
+              <Button className="w-full" disabled={!effectiveFacilityId || !selectedResidentId || dme.isPending} onClick={() => dme.mutate({ facilityId: effectiveFacilityId, residentId: selectedResidentId, equipmentType }, { onSuccess: () => toast({ title: "DME item registered" }), onError: reportError("Couldn't register DME") })}>Register DME</Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" />Schedule appointment</CardTitle><CardDescription>Checks transportation conflicts and creates resident timeline data.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
+              {residentPicker("appointment-resident")}
               <Label htmlFor="appointment-location">Location</Label><Input id="appointment-location" value={appointmentLocation} onChange={event => setAppointmentLocation(event.target.value)} placeholder="Provider office or telehealth" />
               <Label htmlFor="appointment-date">Date and time</Label><Input id="appointment-date" type="datetime-local" value={appointmentDate} onChange={event => setAppointmentDate(event.target.value)} />
-              <Button className="w-full" disabled={!selectedResidentId || !appointmentLocation || !appointmentDate || appointment.isPending} onClick={() => appointment.mutate({ residentId: selectedResidentId, appointmentType: "provider", location: appointmentLocation, startsAt: new Date(appointmentDate).toISOString() }, { onSuccess: () => toast({ title: "Appointment scheduled" }) })}>Schedule appointment</Button>
+              <Button className="w-full" disabled={!selectedResidentId || !appointmentLocation || !appointmentDate || appointment.isPending} onClick={() => appointment.mutate({ residentId: selectedResidentId, appointmentType: "provider", location: appointmentLocation, startsAt: new Date(appointmentDate).toISOString() }, { onSuccess: () => toast({ title: "Appointment scheduled" }), onError: reportError("Couldn't schedule the appointment") })}>Schedule appointment</Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><Hospital className="h-5 w-5" />Hospital transfer out</CardTitle><CardDescription>Creates one traceable transfer episode for out-of-building status and return follow-up.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
+              {residentPicker("transfer-resident")}
               <Label htmlFor="transfer-destination">Destination</Label><Input id="transfer-destination" value={transferDestination} onChange={event => setTransferDestination(event.target.value)} placeholder="Hospital or emergency department" />
               <Label htmlFor="transfer-reason">Reason</Label><Textarea id="transfer-reason" value={transferReason} onChange={event => setTransferReason(event.target.value)} placeholder="Observed reason for transfer, not a diagnosis" />
-              <Button className="w-full" disabled={!selectedResidentId || !transferDestination || transferReason.length < 5 || transfer.isPending} onClick={() => transfer.mutate({ residentId: selectedResidentId, destination: transferDestination, reason: transferReason, transferTime: new Date().toISOString(), transportMethod: "staff_recorded" }, { onSuccess: () => toast({ title: "Transfer episode started" }) })}>Start transfer</Button>
+              <Button className="w-full" disabled={!selectedResidentId || !transferDestination || transferReason.length < 5 || transfer.isPending} onClick={() => transfer.mutate({ residentId: selectedResidentId, destination: transferDestination, reason: transferReason, transferTime: new Date().toISOString(), transportMethod: "staff_recorded" }, { onSuccess: () => toast({ title: "Transfer episode started" }), onError: reportError("Couldn't start the transfer episode") })}>Start transfer</Button>
             </CardContent>
           </Card>
 
