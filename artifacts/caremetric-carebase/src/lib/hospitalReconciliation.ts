@@ -49,6 +49,7 @@ export interface HospitalEpisodeLike {
   diet_changes?: string | null;
   mobility_changes?: string | null;
   skin_concerns?: string | null;
+  dme_changes?: string | null;
 }
 
 /** Hours after return before the reconciliation is overdue. Matches the work item's 24-hour due_at. */
@@ -159,6 +160,13 @@ export function recordedChanges(episode: HospitalEpisodeLike): { label: string; 
     { label: "Diet", detail: episode.diet_changes ?? "" },
     { label: "Mobility", detail: episode.mobility_changes ?? "" },
     { label: "Skin", detail: episode.skin_concerns ?? "" },
+    // Equipment last, matching RETURN_CHANGE_FIELDS below. It was missing from both this list and
+    // HospitalEpisodeLike even though complete_hospital_return writes hospital_transfer_episodes
+    // .dme_changes and the return dialog asks for it -- so a return whose only recorded change was
+    // new equipment (a walker the resident did not go in with, oxygen, a lift) showed "no changes
+    // recorded" on the section a nurse reads before revising the plan. That is the change most
+    // likely to alter a transfer-assistance service.
+    { label: "Equipment", detail: episode.dme_changes ?? "" },
   ];
   return entries.filter((entry) => entry.detail.trim().length > 0);
 }

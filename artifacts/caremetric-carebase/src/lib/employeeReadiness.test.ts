@@ -67,6 +67,17 @@ describe("computeEmployeeReadiness", () => {
     expect(v.reasons.join(" ").toLowerCase()).toContain("unsupervised");
   });
 
+  // The conditionally_ready verdict REPLACES the expiring_soon branch rather than preceding it, so
+  // a due-soon training reason listed only in that later branch was not deferred -- it was dropped.
+  it("still names due-soon training while conditionally ready", () => {
+    const v = computeEmployeeReadiness({
+      clearedForUnsupervisedDuty: false,
+      training: [{ label: "Fire safety", status: "due_soon", due_date: "2026-08-05" }],
+    }, TODAY);
+    expect(v.status).toBe("conditionally_ready");
+    expect(v.reasons.join(" ")).toContain("Fire safety");
+  });
+
   it("is expiring soon when eligible now but a credential renews soon", () => {
     const v = computeEmployeeReadiness({
       clearedForUnsupervisedDuty: true,
