@@ -91,13 +91,21 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
   // immediately re-assigned the action to the current user. The one selection the comment above
   // says the reporter can still make was the one the effect undid, with the dropdown snapping back
   // under them.
+  //
+  // "Once per form" is not the same as "once per mount", and the first version of this fix
+  // conflated them. All three create-mode call sites keep this component mounted across
+  // submissions, so a ref that was never cleared meant the FIRST action of a visit defaulted to
+  // the filer and every one after it silently did not -- the opposite inconsistency to the one
+  // being fixed. `resetForCreate` re-applies the default directly rather than clearing the ref,
+  // because the effect's dependencies do not change on a reset and it would never re-run.
   const defaultedAssignee = useRef(false);
+  const selfEmployeeId = () => employees?.find((e) => e.profile_id === user?.id)?.id ?? "";
   useEffect(() => {
     if (editing || !user || !employees || defaultedAssignee.current) return;
-    const self = employees.find((e) => e.profile_id === user.id);
+    const self = selfEmployeeId();
     if (self) {
       defaultedAssignee.current = true;
-      setAssigneeEmployeeId(self.id);
+      setAssigneeEmployeeId(self);
     }
   }, [editing, user, employees]);
 
@@ -110,7 +118,9 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
   const resetForCreate = () => {
     setDescription("");
     setDueDate("");
-    setAssigneeEmployeeId("");
+    // A fresh action, so the default applies again -- an explicit "Unassigned" is a choice about
+    // the action that was just filed, not a standing preference for the rest of the visit.
+    setAssigneeEmployeeId(selfEmployeeId());
     setStatus("open");
   };
 

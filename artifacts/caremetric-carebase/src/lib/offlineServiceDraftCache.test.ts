@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readAllServiceDrafts, readServiceDraft, saveServiceDraft } from "./offlineServiceDraftCache";
+import {
+  readAllServiceDrafts, readAllServiceDraftsWithFailures, readServiceDraft, saveServiceDraft,
+} from "./offlineServiceDraftCache";
 import type {
   OfflineChangeObservationDraft, OfflineServiceDraft, OfflineUnscheduledServiceDraft,
 } from "./offlineServiceDraftSafety";
@@ -374,6 +376,27 @@ describe("draft kinds share one store (BACKLOG.md E5 Tiers 2-3)", () => {
       expect.stringContaining("unsched-1"),
       expect.anything(),
     );
+    warn.mockRestore();
+  });
+
+  // Reviewed on #458. Logging the id to the console is not surfacing it. The header's count comes
+  // from the plaintext entry lane, which still lists an unreadable record, while the list renders
+  // only decrypted drafts -- so omitting it produced "N pending" above a row that never appeared,
+  // a "Sync now" that attempted nothing and reported success, and no way to clear it before the
+  // purge deadline. The id has to come back with the drafts for the panel to show it at all.
+  it("reports the id of a record it could not decrypt, alongside the ones it could", async () => {
+    await saveServiceDraft(draft());
+    await saveServiceDraft(unscheduledDraft());
+    const poisoned = fake.readStoredRecord("unsched-1")!;
+    fake.writeStoredRecord("unsched-1", {
+      ...poisoned,
+      envelope: { ...(poisoned.envelope as Record<string, unknown>), ciphertext: "bm90LWEtY2lwaGVydGV4dA==" },
+    });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { drafts, unreadableIds } = await readAllServiceDraftsWithFailures(identity);
+    expect(drafts.map((entry) => entry.draftId)).toEqual(["draft-1"]);
+    expect(unreadableIds).toEqual(["unsched-1"]);
     warn.mockRestore();
   });
 });

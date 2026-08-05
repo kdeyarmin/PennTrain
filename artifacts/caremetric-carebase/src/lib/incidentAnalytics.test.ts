@@ -26,3 +26,26 @@ it("counts an incident reported this evening in Pennsylvania", () => {
   expect(summary.reportedLast7Days).toBe(1);
   expect(summary.reportedLast30Days).toBe(1);
 });
+
+// Reviewed on #458: elapsed-ms arithmetic is not a calendar-day count. Pennsylvania's November
+// fall-back makes one day 25 hours long, so an incident seven facility dates old measured 8 and
+// fell out of an inclusive `<= 7` window for about a week after every transition.
+it("counts a seven-day-old incident across the fall-back transition", () => {
+  const summary = summarizeIncidentAnalytics(
+    // 00:30 EDT on 2026-10-27 == 04:30Z. Seven facility dates before 2026-11-03.
+    [{ id: "dst", status: "open", severity: "major", incident_type: "fall", occurred_at: "2026-10-27T04:30:00Z" }],
+    "2026-11-03",
+  );
+  expect(summary.reportedLast7Days).toBe(1);
+  expect(summary.reportedLast30Days).toBe(1);
+});
+
+it("still excludes an incident that is genuinely outside the window", () => {
+  const summary = summarizeIncidentAnalytics(
+    [{ id: "old", status: "open", severity: "major", incident_type: "fall", occurred_at: "2026-10-26T04:30:00Z" }],
+    "2026-11-03",
+  );
+  expect(summary.reportedLast7Days).toBe(0);
+  expect(summary.reportedLast30Days).toBe(1);
+});
+

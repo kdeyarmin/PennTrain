@@ -28,7 +28,7 @@ import {
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useApplyEmployeeLifecycleCase,
@@ -87,20 +87,38 @@ export default function EmployeeLifecycleCases() {
     [status, transitionFilter, page],
   );
   const cases = useEmployeeLifecycleCases(filters);
-  // Unfiltered on purpose. This list feeds two things with opposite needs: the create dialog's
-  // picker, which must only offer people who can still be transitioned, and `employeeName`, which
-  // labels EXISTING cases. Filtering the fetch to active served the first and broke the second --
-  // a termination case is precisely a case whose employee is no longer active, so the screen that
-  // reviews terminations rendered a truncated UUID where the person's name belongs. The picker
-  // narrows below instead.
-  const employees = useListEmployees(
-    { organizationId: user?.organizationId ?? undefined },
+  // Two lists, because the two consumers want different things and neither is a subset the other
+  // can be filtered out of safely.
+  //
+  // The picker offers people who can still be transitioned, so it stays server-filtered to active.
+  // Widening this one fetch to cover BOTH needs was the wrong trade -- `useListEmployees` is a
+  // single unpaginated read, silently capped at PostgREST's 1000 rows, so in an organization whose
+  // total roster (active plus every terminated record ever) exceeds the cap, inactive rows consume
+  // the alphabetical window and active staff drop out of the picker even though the active roster
+  // alone would have fitted. That is a worse failure than the one it was fixing.
+  const activeEmployeesQuery = useListEmployees(
+    { organizationId: user?.organizationId ?? undefined, status: "active" },
     { enabled: Boolean(user?.organizationId) || user?.role === "platform_admin" },
   );
-  const activeEmployees = useMemo(
-    () => (employees.data ?? []).filter((employee) => employee.status === "active"),
-    [employees.data],
+  const activeEmployees = activeEmployeesQuery.data ?? [];
+
+  // Labels for the cases actually on screen, fetched by id. A termination case is by definition a
+  // case whose employee is no longer active, so the active list cannot name them -- and this page
+  // shows one page of cases at a time, so the set is small and bounded by what is rendered.
+  // `useListEmployeesByIds` exists for exactly this ("keeps the payload proportional to the work
+  // on screen instead of the whole tenant roster").
+  const caseEmployeeIds = useMemo(
+    () => [...new Set((cases.data?.rows ?? []).map((row) => row.employee_id).filter(Boolean))],
+    [cases.data?.rows],
   );
+  const caseEmployees = useListEmployeesByIds(caseEmployeeIds);
+  const employeeNameById = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const employee of [...activeEmployees, ...(caseEmployees.data ?? [])]) {
+      byId.set(employee.id, `${employee.first_name} ${employee.last_name}`);
+    }
+    return byId;
+  }, [activeEmployees, caseEmployees.data]);
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const createCase = useCreateEmployeeLifecycleCase();
   const refreshCase = useRefreshEmployeeLifecycleCase();
@@ -109,10 +127,7 @@ export default function EmployeeLifecycleCases() {
 
   const total = cases.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const employeeName = (id: string) => {
-    const employee = employees.data?.find((row) => row.id === id);
-    return employee ? `${employee.first_name} ${employee.last_name}` : id.slice(0, 8);
-  };
+  const employeeName = (id: string) => employeeNameById.get(id) ?? id.slice(0, 8);
 
   const wizardKey = JSON.stringify({
     employeeId,

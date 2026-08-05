@@ -232,7 +232,15 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
 }
 
 function summarize(evidenceCount: number, gapCount: number, sortedDates: string[], today: string): Pick<RegulatoryCrosswalkRow, "status" | "nextDueDate" | "evidenceCount" | "gapCount"> {
-  const nextDueDate = sortedDates.find((date) => date >= today) ?? sortedDates[0] ?? null;
+  // A past date is only a meaningful "next due date" when something is actually outstanding.
+  // The unconditional `?? sortedDates[0]` fallback made sense while any past due_date implied a
+  // gap -- but the branches above now exclude SATISFIED records from the gap count (a compliant
+  // resident item keeps its original due_date forever), so a fully settled row reached
+  // `inspection_ready` while still reporting the oldest of those settled dates as what is coming
+  // next. "Inspection ready" beside a date that has already gone by reads as a contradiction, and
+  // the honest answer for a row with nothing open is that there is no next date to show.
+  const nextDueDate = sortedDates.find((date) => date >= today)
+    ?? (gapCount > 0 ? sortedDates[0] ?? null : null);
   let status: CrosswalkStatus = "inspection_ready";
   if (evidenceCount === 0) status = "missing_evidence";
   else if (gapCount > 0 && sortedDates.some((date) => date < today)) status = "overdue";

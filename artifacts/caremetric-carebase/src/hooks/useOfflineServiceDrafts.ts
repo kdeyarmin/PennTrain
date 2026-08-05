@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import {
   getOfflineFloorDeviceMetadata,
   initializeOfflineFloorDevice, isUnsyncedDraftOverdue, listServiceDraftEntries,
-  purgeExpiredServiceDrafts, readAllServiceDrafts, removeServiceDraft, saveOfflineFloorDeviceId,
+  purgeExpiredServiceDrafts, readAllServiceDrafts, readAllServiceDraftsWithFailures,
+  removeServiceDraft, saveOfflineFloorDeviceId,
   saveServiceDraft, updateServiceDraft, wipeOfflineServiceDrafts,
   type DraftListEntry, type OfflineFloorIdentity,
 } from "@/lib/offlineServiceDraftCache";
@@ -179,10 +180,12 @@ export function useUnsyncedServiceDrafts() {
   return useQuery({
     queryKey: [...QUERY_KEY, "full", user?.id],
     enabled: Boolean(user?.id && user.organizationId && user.role === "employee" && draftsSupported()),
-    queryFn: async (): Promise<OfflineFloorDraft[]> => {
-      if (!user?.id || !user.organizationId) return [];
+    // Returns the unreadable ids too, so the panel can show a record it cannot decrypt instead of
+    // counting it in the header and omitting it from the list -- see readDraftsIndependently.
+    queryFn: async (): Promise<{ drafts: OfflineFloorDraft[]; unreadableIds: string[] }> => {
+      if (!user?.id || !user.organizationId) return { drafts: [], unreadableIds: [] };
       await purgeExpiredServiceDrafts();
-      return readAllServiceDrafts(floorIdentity(user.id, user.organizationId));
+      return readAllServiceDraftsWithFailures(floorIdentity(user.id, user.organizationId));
     },
   });
 }
