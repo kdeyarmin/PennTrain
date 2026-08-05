@@ -21,6 +21,19 @@ import path from "node:path";
 //   1. The function exists in `public` (and was not dropped without being recreated).
 //   2. Every `p_*` argument passed is one the function declares.
 //   3. No argument is an explicit `null` where the parameter's default is NOT null.
+//   4. No argument is an explicit `undefined` where the parameter has NO default.
+//
+// Rule 4 is the mirror of rule 3 and closes the other half of the same trap. supabase-js drops
+// undefined keys from the request body, so an omitted argument is genuinely absent -- and PostgREST
+// resolves an RPC by the set of keys it receives, so a missing REQUIRED parameter means the function
+// cannot be resolved at all (PGRST202), not that it runs with a null.
+//
+// What rule 4 does NOT see, stated plainly rather than implied: a value that is merely *typed* as
+// possibly-undefined -- `payload.first_name` off a `Partial<>` -- reads as an ordinary expression
+// here. Removing the `as never` casts surfaces thirteen of those through typecheck; every one
+// checked so far is guarded (by `enabled:` on the query, or by callers that always pass the field),
+// so they are latent rather than live. Catching them properly needs type information this check does
+// not have. It catches the literal, which is the form a hand-written call takes.
 //
 // Rule 3 is the one with history. PostgreSQL applies a default only when the argument is OMITTED --
 // passing `null` passes null. `start_certification_attempt(p_observed_at timestamptz default now())`
@@ -62,6 +75,7 @@ const stripSqlComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(
 export function declaredParameters(sqlTexts) {
   const params = new Map();
   const nonNullDefaults = new Map();
+  const noDefaults = new Map();
   for (const text of sqlTexts) {
     const sql = stripSqlComments(text);
     for (const m of sql.matchAll(
@@ -70,21 +84,26 @@ export function declaredParameters(sqlTexts) {
       const name = m[1].toLowerCase();
       if (!params.has(name)) params.set(name, new Set());
       const defaults = new Set();
+      const required = new Set();
       // Split on commas that are not inside parentheses, so `numeric(10,2)` stays one parameter.
       for (const segment of m[2].split(/,(?![^(]*\))/)) {
         const named = segment.match(/\b(p_[a-z0-9_]*)\s+/i);
         if (named) params.get(name).add(named[1].toLowerCase());
         const withDefault = segment.match(/\b(p_[a-z0-9_]*)\s+[a-z0-9_[\]. ]+?\s+default\s+(.+)$/is);
-        if (!withDefault) continue;
+        if (!withDefault) {
+          if (named) required.add(named[1].toLowerCase());
+          continue;
+        }
         const value = withDefault[2].trim().replace(/\s+/g, " ");
         // `default null` means an explicit null is identical to omitting the argument.
         if (/^null(\s*::.*)?$/i.test(value)) continue;
         defaults.add(withDefault[1].toLowerCase());
       }
       nonNullDefaults.set(name, defaults);
+      noDefaults.set(name, required);
     }
   }
-  return { params, nonNullDefaults };
+  return { params, nonNullDefaults, noDefaults };
 }
 
 /** Function names that exist in `public` after every create/drop in filename order. */
@@ -131,6 +150,16 @@ export function isExplicitNull(expression) {
   return /^null$/i.test(expression) || /\?\?\s*null$/i.test(expression) || /:\s*null$/i.test(expression);
 }
 
+/**
+ * Whether an argument expression is an explicit `undefined`.
+ *
+ * supabase-js drops undefined keys, so this is an omission dressed as a value -- harmless for a
+ * defaulted parameter, fatal for one without a default.
+ */
+export function isExplicitUndefined(expression) {
+  return /^undefined$/i.test(expression) || /\?\?\s*undefined$/i.test(expression);
+}
+
 if (process.argv.includes("--self-test")) {
   const cases = [
     [() => [...declaredParameters(["create function public.f(p_a uuid, p_b text default now()) returns void"]).params.get("f")], ["p_a", "p_b"]],
@@ -152,6 +181,13 @@ if (process.argv.includes("--self-test")) {
     [() => isExplicitNull("value ?? null"), true],
     [() => isExplicitNull("undefined"), false],
     [() => isExplicitNull("value ?? undefined"), false],
+    [() => isExplicitUndefined("undefined"), true],
+    [() => isExplicitUndefined("value ?? undefined"), true],
+    [() => isExplicitUndefined("null"), false],
+    [() => isExplicitUndefined("value ?? null"), false],
+    // A parameter with no default is required; one with any default is not.
+    [() => [...declaredParameters(["create function public.f(p_a uuid, p_b text default null) returns void"]).noDefaults.get("f")], ["p_a"]],
+    [() => [...declaredParameters(["create function public.f(p_a uuid default gen_random_uuid()) returns void"]).noDefaults.get("f")], []],
   ];
   let failures = 0;
   for (const [run, expected] of cases) {
@@ -180,7 +216,7 @@ async function walk(dir, filter, out = []) {
 const migrationFiles = (await walk(MIGRATIONS, (f) => f.endsWith(".sql"))).sort();
 const migrationTexts = await Promise.all(migrationFiles.map((f) => readFile(f, "utf8")));
 const defined = definedFunctions(migrationTexts);
-const { params, nonNullDefaults } = declaredParameters(migrationTexts);
+const { params, nonNullDefaults, noDefaults } = declaredParameters(migrationTexts);
 
 if (defined.size < 300) {
   throw new Error(
@@ -205,9 +241,17 @@ for (const file of sourceFiles) {
     if (!call.args) continue;
     const declared = params.get(call.name) ?? new Set();
     const risky = nonNullDefaults.get(call.name) ?? new Set();
+    const required = noDefaults.get(call.name) ?? new Set();
     for (const arg of call.args) {
       if (declared.size > 0 && !declared.has(arg.name)) {
         findings.push(`${rel}: \`${call.name}\` has no parameter \`${arg.name}\`.`);
+      }
+      if (required.has(arg.name) && isExplicitUndefined(arg.value)) {
+        findings.push(
+          `${rel}: \`${call.name}\` is passed an explicit undefined for \`${arg.name}\`, which has no `
+          + "default. supabase-js drops undefined keys, so the argument is absent and PostgREST cannot "
+          + "resolve the function at all (PGRST202). Pass a value, or give the parameter a default.",
+        );
       }
       if (risky.has(arg.name) && isExplicitNull(arg.value)) {
         findings.push(
@@ -231,5 +275,6 @@ if (findings.length) {
 
 process.stdout.write(
   `RPC call-signature check passed (${defined.size} public function(s), ${sourceFiles.length} source file(s), ` +
-    `${[...nonNullDefaults.values()].filter((s) => s.size).length} with a non-null-default parameter).\n`,
+    `${[...nonNullDefaults.values()].filter((s) => s.size).length} with a non-null-default parameter, ` +
+    `${[...noDefaults.values()].filter((s) => s.size).length} with a required parameter).\n`,
 );
