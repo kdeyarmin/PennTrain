@@ -126,7 +126,12 @@ Deno.serve(async (req: Request) => {
     if (!occurredAt) rowErrors.push("occurred_at is required");
     if (!incidentType) rowErrors.push("incident_type is required");
     if (!severity || !VALID_SEVERITY.has(severity)) rowErrors.push("severity must be low|medium|high|critical");
-    if (!summary || summary.length < 8) rowErrors.push("summary must be at least 8 characters");
+    // 10, matching BOTH apply paths: record_incident_from_import
+    // (20260714202515_carebase_integrity_foundation.sql) and the durable worker's
+    // apply_incident_import_row (20260801220000_durable_import_apply_rpcs.sql) each reject
+    // `length(btrim(narrative)) < 10`. At 8 the dry run called an 8- or 9-character summary valid
+    // and the apply then refused it -- the one thing a preview exists to rule out.
+    if (!summary || summary.length < 10) rowErrors.push("summary must be at least 10 characters");
     const facilityId = facilityName ? facilityByName.get(facilityName.toLowerCase()) : undefined;
     if (facilityName && !facilityId) rowErrors.push(`Unknown facility: ${facilityName}`);
 

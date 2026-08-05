@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -29,16 +30,25 @@ Deno.serve(async (req: Request) => {
     token = url.searchParams.get("token") ?? "";
   } else {
     try {
-      const body = await req.json();
+      // Capped read. This endpoint is public (verify_jwt=false) and req.json() buffers whatever
+      // it is sent; every other public function here goes through readJsonBody for that reason.
+      const body = await readJsonBody<{ token?: unknown }>(req);
       token = typeof body?.token === "string" ? body.token : "";
-    } catch {
+    } catch (error) {
+      if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
       return json(req, { error: "Invalid JSON body" }, 400);
     }
   }
   if (token.length < 32) return json(req, { error: "token is required" }, 400);
 
   const { data, error } = await admin.rpc("resolve_survey_packet_guest_token", { p_token: token });
-  if (error) return json(req, { error: error.message }, 500);
+  // The RPC's own message is logged, not returned. This caller is unauthenticated and holds only
+  // a token, so a Postgres error string -- which can name functions, columns, or constraint
+  // identifiers -- is more than it should learn from a failed lookup.
+  if (error) {
+    console.error("resolve_survey_packet_guest_token failed", error.message);
+    return json(req, { error: "Unable to resolve this download link" }, 500);
+  }
   const resolved = (data ?? {}) as Record<string, unknown>;
   if (!resolved.allowed) {
     return json(req, { error: "Access denied", reason: resolved.reason ?? "denied" }, 403);

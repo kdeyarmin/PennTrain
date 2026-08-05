@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 import {
   decodePhase2Cursor,
   encodePhase2Cursor,
@@ -56,13 +57,18 @@ Deno.serve(async (req: Request) => {
   let commandType = "";
   let rawBody = "";
   if (isCommands) {
-    const declaredLength = Number(req.headers.get("content-length") ?? "0");
-    if (declaredLength > MAX_BODY_BYTES) {
-      return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
-    }
-    rawBody = await req.text();
-    if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-      return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId);
+    // Streamed with a hard cap, not buffered and measured afterwards. The Content-Length check
+    // alone is bypassed by a chunked request: with no such header `Number(null ?? "0")` is 0, it
+    // passed, and `await req.text()` then buffered the whole body into memory -- before the
+    // credential below is authenticated, so an unauthenticated caller could do it. readTextBody
+    // aborts the stream the moment the cap is exceeded.
+    try {
+      rawBody = await readTextBody(req, MAX_BODY_BYTES);
+    } catch (error) {
+      if (error instanceof RequestBodyError) {
+        return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, error.status, correlationId);
+      }
+      throw error;
     }
     let parsed: unknown;
     try {

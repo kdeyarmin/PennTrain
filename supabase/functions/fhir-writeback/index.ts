@@ -130,13 +130,28 @@ Deno.serve(async (req: Request) => {
         errorMessage = sanitizePhase2IntegrationError(error);
       }
 
-      const { error: completionError } = await admin.rpc("complete_fhir_writeback", {
-        p_id: row.id,
-        p_success: success,
-        p_external_resource_id: externalId,
-        p_error: errorMessage,
-      });
+      // The resource has ALREADY been POSTed by this point, so failing to record the outcome is
+      // not a neutral error: the row stays claimable and the next run sends it again, creating a
+      // duplicate in the customer's EHR. Retry the bookkeeping before giving up, and if it still
+      // fails, log the external id at error level -- that id is the only handle anyone has for
+      // reconciling the duplicate, and it exists nowhere else once this function returns.
+      let completionError = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const { error } = await admin.rpc("complete_fhir_writeback", {
+          p_id: row.id,
+          p_success: success,
+          p_external_resource_id: externalId,
+          p_error: errorMessage,
+        });
+        completionError = error;
+        if (!error) break;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+      }
       if (completionError) {
+        console.error(
+          "complete_fhir_writeback failed after retries; this row will be re-sent and may duplicate",
+          { rowId: row.id, delivered: success, externalResourceId: externalId, correlationId, error: completionError.message },
+        );
         persistenceErrors++;
         return;
       }
