@@ -58,6 +58,10 @@ export const MARKETING_EXTRA_PATHS = [
   // Retired lead-capture form; kept public so old bookmarks still resolve
   // (App.tsx redirects it to /demo).
   "/request-demo",
+  // The platform agreement and BAA. Signup.tsx links to it (target="_blank") from the consent
+  // the form requires you to tick, and /signup is itself a signed-out page -- so without this the
+  // new tab bounced straight to /login and the agreement being accepted could not be read.
+  "/legal/facility-signup",
 ] as const;
 
 const MARKETING_PATHS: readonly string[] = [
