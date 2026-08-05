@@ -73,7 +73,13 @@ export function usePlatformStatus() {
     staleTime: 60000,
     // Poll so that turning maintenance mode on actually holds already-open, non-admin sessions out
     // within about a minute (react-query has no cross-client push; the settings mutation only
-    // invalidates the admin's own tab). refetchOnWindowFocus (default) covers tab re-focus sooner.
+    // invalidates the admin's own tab).
     refetchInterval: 60000,
+    // Stated explicitly because this query cannot take the default: lib/queryClient.ts sets
+    // `refetchOnWindowFocus: false` for the whole app, so the "covers tab re-focus sooner" this
+    // comment used to claim was not happening at all -- a user returning to a backgrounded tab
+    // waited out the poll interval instead. Opting back in here is the exception the maintenance
+    // gate earns; everywhere else the app-wide default still stands.
+    refetchOnWindowFocus: true,
   });
 }

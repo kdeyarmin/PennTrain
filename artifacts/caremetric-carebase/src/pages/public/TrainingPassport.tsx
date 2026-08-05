@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
 import { QueryError } from "@/components/QueryState";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 export default function TrainingPassport() {
   const { slug } = useParams<{ slug: string }>();
@@ -15,7 +16,7 @@ export default function TrainingPassport() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   useEffect(() => {
     if (!slug) return;
-    void QRCode.toDataURL(`${window.location.origin}/passport/${slug}`, { width: 220, margin: 1 }).then(setQrCode);
+    void QRCode.toDataURL(absoluteAppUrl(`/passport/${slug}`), { width: 220, margin: 1 }).then(setQrCode);
   }, [slug]);
 
   return (

@@ -160,9 +160,15 @@ export default function Alerts() {
   const openOnPage = paginated.filter(a => a.status === "open");
   const allPageSelected = openOnPage.length > 0 && openOnPage.every(a => selectedIds.has(a.id));
 
+  const totalCountKnown = alertsPage !== undefined;
+  // Not clamped until the count is actually known. `totalCount` is `query.data?.count ?? 0` and
+  // `data` is undefined on the first render, so `totalPages` was 1 before the request came back --
+  // and this effect fired immediately, rewriting a deep-linked, bookmarked or Back-navigated
+  // `?page=7` to `?page=1` and refetching the wrong page. The clamp is for a page that no longer
+  // exists after a filter narrows the set; "we have not asked yet" is not that.
   useEffect(() => {
-    if (page > totalPages) setFilters({ page: String(totalPages) });
-  }, [page, setFilters, totalPages]);
+    if (totalCountKnown && page > totalPages) setFilters({ page: String(totalPages) });
+  }, [page, setFilters, totalCountKnown, totalPages]);
 
   const toggleSelectAll = () => {
     if (allPageSelected) {

@@ -40,6 +40,7 @@ import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLicensingWorkspace";
 import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 interface FacilityFormData {
   name: string;
@@ -392,7 +393,7 @@ export default function FacilityDetail() {
                   </p>
                 );
               }
-              const reportUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/report-safety?facility_token=${encodeURIComponent(token)}`;
+              const reportUrl = absoluteAppUrl(`/report-safety?facility_token=${encodeURIComponent(token)}`);
               return (
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                   <QrCodeImage value={reportUrl} alt="Safety report QR code" size={160} className="rounded border bg-white p-2" />

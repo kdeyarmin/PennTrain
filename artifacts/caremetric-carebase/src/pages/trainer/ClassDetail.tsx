@@ -75,6 +75,7 @@ import { useToast } from "@/hooks/use-toast";
 import { summarizeClassAttendance } from "@/lib/classAttendance";
 import { errorText } from "@/lib/errorText";
 import { SessionRosterCard } from "@/components/training/SessionRosterCard";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -153,7 +154,7 @@ function QrCheckinCard({ classId }: { classId: string }) {
         // if the server alphabet ever regressed to plain base64, an unencoded
         // '/' or '+' here would split the /checkin/:token path or decode as a
         // space. wouter decodes route params, so encoding round-trips cleanly.
-        const checkinUrl = `${window.location.origin}/checkin/${encodeURIComponent(token)}`;
+        const checkinUrl = absoluteAppUrl(`/checkin/${encodeURIComponent(token)}`);
         const dataUrl = await QRCode.toDataURL(checkinUrl, { width: 240, margin: 1 });
         if (!cancelled) { setQrDataUrl(dataUrl); setError(null); }
       } catch (e) {

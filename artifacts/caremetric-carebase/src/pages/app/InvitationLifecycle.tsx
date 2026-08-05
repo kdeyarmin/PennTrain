@@ -48,6 +48,7 @@ import {
   parseBulkInviteCsv,
 } from "@/lib/invitationLifecycle";
 import { downloadCsv } from "@/lib/dataImportCenter";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 const PAGE_SIZE = 25;
 
@@ -127,7 +128,7 @@ export default function InvitationLifecycle() {
       const results = await bulkInvite.mutateAsync({
         rows: parsed.rows,
         organizationId: user?.organizationId ?? null,
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: absoluteAppUrl("/reset-password"),
       });
       setBulkResults(results);
       const succeeded = results.filter((row) => row.success).length;

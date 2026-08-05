@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Download, QrCode } from "lucide-react";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 export function MaintenanceQrCode({ path, fileName, label }: { path: string; fileName: string; label: string }) {
   const [dataUrl, setDataUrl] = useState<string>();
 
   useEffect(() => {
-    const target = new URL(path, window.location.origin).toString();
+    // absoluteAppUrl, not `new URL(path, origin)`: the caller passes a root-relative route and
+    // this QR code is scanned from a phone that has no other way to find the app.
+    const target = absoluteAppUrl(path);
     QRCode.toDataURL(target, { width: 280, margin: 1, errorCorrectionLevel: "M" }).then(setDataUrl);
   }, [path]);
 

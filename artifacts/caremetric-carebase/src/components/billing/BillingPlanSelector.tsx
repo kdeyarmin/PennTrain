@@ -44,6 +44,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 function enabledModuleNames(features: Json | null): string[] {
   if (!features || typeof features !== "object" || Array.isArray(features)) return [];
@@ -171,7 +172,7 @@ export function BillingPlanSelector() {
       const result = await session.mutateAsync({
         organizationId,
         action: "portal",
-        returnUrl: `${window.location.origin}${isPlatformAdmin ? "/admin/enterprise" : "/app/billing"}`,
+        returnUrl: absoluteAppUrl(isPlatformAdmin ? "/admin/enterprise" : "/app/billing"),
         idempotencyKey: crypto.randomUUID(),
       });
       window.location.assign(result.data.url);
@@ -214,8 +215,8 @@ export function BillingPlanSelector() {
         action: "checkout",
         packageId: pkg.id,
         billingInterval: interval,
-        successUrl: `${window.location.origin}${returnPath}?billing=success`,
-        cancelUrl: `${window.location.origin}${returnPath}?billing=cancelled`,
+        successUrl: absoluteAppUrl(`${returnPath}?billing=success`),
+        cancelUrl: absoluteAppUrl(`${returnPath}?billing=cancelled`),
         idempotencyKey: crypto.randomUUID(),
       });
       window.location.assign(result.data.url);

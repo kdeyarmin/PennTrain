@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useResidentPortal";
 import { toLocalIsoDate } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 const PERMISSION_OPTIONS = [
   { value: "schedule", label: "Upcoming schedule" },
@@ -92,8 +93,7 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
         permissions,
         expiresAt: new Date(`${expiresOn}T23:59:59`).toISOString(),
       });
-      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-      const link = `${window.location.origin}${basePath}/resident-portal?access=${encodeURIComponent(result.access_token)}`;
+      const link = absoluteAppUrl(`/resident-portal?access=${encodeURIComponent(result.access_token)}`);
       setGeneratedLink(link);
       toast({ title: "Designated-person access created", description: "Copy the one-time link before closing this dialog." });
     } catch (error) {

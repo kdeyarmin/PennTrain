@@ -21,7 +21,12 @@ import { useListCourses } from "@/hooks/useCourses";
 import { useCreateCourseAssignment } from "@/hooks/useCourseAssignments";
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
 import { QueryError } from "@/components/QueryState";
-import { facilityToday } from "@/lib/dateUtils";
+// `new Date("2026-08-05")` is UTC midnight, which is 2026-08-04 20:00 in Pennsylvania -- so the
+// final report date a manager types was stored as the PREVIOUS day, on the one field 55 Pa. Code
+// measures a reporting deadline against. facilityDayBounds().from is the same calendar day
+// resolved the way `public.pa_today()` resolves it, and the two read-backs beside it now report
+// the facility day rather than the browser's.
+import { facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -633,7 +638,7 @@ export default function IncidentDetail() {
           <div className="flex items-center gap-2">
             <Input
               type="date"
-              value={finalReportDate || (incident.final_report_submitted_at ? incident.final_report_submitted_at.slice(0, 10) : "")}
+              value={finalReportDate || (incident.final_report_submitted_at ? facilityToday(new Date(incident.final_report_submitted_at)) : "")}
               onChange={(e) => setFinalReportDate(e.target.value)}
               className="h-9 w-48"
               disabled={!canManage}
@@ -643,7 +648,7 @@ export default function IncidentDetail() {
                 size="sm" variant="outline"
                 disabled={!finalReportDate || updatingIncident}
                 onClick={() => {
-                  updateIncident({ id: incident.id, final_report_submitted_at: new Date(finalReportDate).toISOString() });
+                  updateIncident({ id: incident.id, final_report_submitted_at: facilityDayBounds(finalReportDate).from });
                   setFinalReportDate("");
                 }}
               >
@@ -652,7 +657,7 @@ export default function IncidentDetail() {
             )}
             {incident.final_report_submitted_at && (
               <span className="text-xs text-muted-foreground">
-                Submitted {new Date(incident.final_report_submitted_at).toLocaleDateString()}
+                Submitted {facilityToday(new Date(incident.final_report_submitted_at))}
               </span>
             )}
           </div>

@@ -25,6 +25,7 @@ import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil
 
 import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 const ROLE_LABELS: Record<string, string> = {
   platform_admin: "Platform Admin",
@@ -235,7 +236,6 @@ export default function Users() {
       // Matches App.tsx's WouterRouter/publicPaths.ts convention for combining origin + base
       // path -- accepting an invite lands on /reset-password, the same page password-reset
       // links use, since both establish a session the same way.
-      const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
       inviteUser(
         {
           email: createForm.email.trim(),
@@ -243,7 +243,7 @@ export default function Users() {
           lastName: createForm.lastName.trim(),
           role: createForm.role,
           organizationId,
-          redirectTo: `${window.location.origin}${basePath}/reset-password`,
+          redirectTo: absoluteAppUrl("/reset-password"),
         },
         {
           onSuccess: () => {
