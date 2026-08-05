@@ -32,7 +32,7 @@ function invalidateResidentCare(queryClient: ReturnType<typeof useQueryClient>) 
   queryClient.invalidateQueries({ queryKey: ["resident-care-delivery"] });
   queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
-  queryClient.invalidateQueries({ queryKey: ["daily-operations"] });
+  queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
 }
 
 export function useResidentCareAnalytics(filters: { facilityId?: string; from: string; through: string }) {

@@ -150,7 +150,7 @@ export function useSetHrisImportRowDecision(importRunId: string | undefined) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["hris-import-rows", importRunId ?? null] });
-      void queryClient.invalidateQueries({ queryKey: ["hris-import-runs"] });
+      void queryClient.invalidateQueries({ queryKey: HRIS_KEY });
     },
   });
 }

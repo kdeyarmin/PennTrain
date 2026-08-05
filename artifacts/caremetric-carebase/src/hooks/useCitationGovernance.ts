@@ -67,7 +67,6 @@ function useCitationInvalidation() {
     queryClient.invalidateQueries({ queryKey: ["citation-governance-status"] });
     // The readiness table renders the qualifier from these same rows; leaving it stale would show
     // "approximate" next to a citation somebody has just verified.
-    queryClient.invalidateQueries({ queryKey: ["inspection-readiness"] });
   };
 }
 

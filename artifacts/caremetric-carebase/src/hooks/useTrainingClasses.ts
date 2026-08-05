@@ -204,7 +204,7 @@ export function useCorrectCompletedTrainingClass() {
     },
     onSuccess: (_data, input) => {
       queryClient.invalidateQueries({ queryKey: ["training_classes"] });
-      queryClient.invalidateQueries({ queryKey: ["training_class", input.classId] });
+      queryClient.invalidateQueries({ queryKey: ["training_classes", input.classId] });
     },
   });
 }
@@ -238,7 +238,6 @@ export function useCorrectCompletedClassAttendee() {
       // A correction adds or removes a training record and its hour bucket, so anything reading
       // compliance for that employee is stale.
       queryClient.invalidateQueries({ queryKey: ["training_records"] });
-      queryClient.invalidateQueries({ queryKey: ["employee_compliance"] });
     },
   });
 }
@@ -273,7 +272,7 @@ export function useRevokeClassCheckinTokens() {
       return data as number | boolean;
     },
     onSuccess: (_data, input) => {
-      queryClient.invalidateQueries({ queryKey: ["training_class", input.classId] });
+      queryClient.invalidateQueries({ queryKey: ["training_classes", input.classId] });
     },
   });
 }

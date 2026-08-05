@@ -59,7 +59,6 @@ function invalidateServiceTasks(queryClient: ReturnType<typeof useQueryClient>) 
   // the resident-level exception and change detectors that consume completion_response.
   queryClient.invalidateQueries({ queryKey: ["resident-360"] });
   queryClient.invalidateQueries({ queryKey: ["resident-service-exceptions"] });
-  queryClient.invalidateQueries({ queryKey: ["resident-change-signals"] });
 }
 
 export function useResidentServiceTaskQueue(filters: ServiceTaskQueueFilters) {
@@ -224,7 +223,7 @@ export function useRecordServiceExceptionFollowUp() {
       invalidateServiceTasks(queryClient);
       // The follow-up lands in the shared work queue, not in this page's own lists.
       queryClient.invalidateQueries({ queryKey: ["work-items"] });
-      queryClient.invalidateQueries({ queryKey: ["daily-operations"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
     },
   });
 }

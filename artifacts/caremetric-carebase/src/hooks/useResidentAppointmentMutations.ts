@@ -19,7 +19,6 @@ function useAppointmentInvalidation(residentId: string) {
     // The timeline unions appointments as of 20260804110000, and the needs-attention panel reads
     // them. Leaving either stale is how a user acts on a card they have already cleared.
     queryClient.invalidateQueries({ queryKey: ["resident-timeline", residentId] });
-    queryClient.invalidateQueries({ queryKey: ["resident-needs-attention", residentId] });
     queryClient.invalidateQueries({ queryKey: ["work-items"] });
   };
 }

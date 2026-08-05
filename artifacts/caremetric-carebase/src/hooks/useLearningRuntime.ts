@@ -68,9 +68,8 @@ export function useStartLearningRuntimeSession() {
       if (!launch.sessionId) throw new Error("Runtime launch returned no session");
       return launch;
     },
-    onSuccess: (launch) => {
-      void queryClient.invalidateQueries({ queryKey: ["learning_runtime_sessions", launch.assignmentId] });
-    },
+    // No invalidation: the launch's return value IS the session, and StandardsRuntimePlayer opens
+    // it directly. Nothing queries runtime sessions, so there is nothing to refresh.
   });
 }
 

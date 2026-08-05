@@ -103,8 +103,6 @@ function useCertificationInvalidation(employeeId: string) {
     queryClient.invalidateQueries({ queryKey: ["certification-attempts", employeeId] });
     queryClient.invalidateQueries({ queryKey: ["certification-checklist"] });
     // A passed attempt grants an employee_qualifications row, which is what duty eligibility reads.
-    queryClient.invalidateQueries({ queryKey: ["employee_qualifications"] });
-    queryClient.invalidateQueries({ queryKey: ["employee-readiness"] });
   };
 }
 
