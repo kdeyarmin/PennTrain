@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -89,6 +90,12 @@ Deno.serve(async (req: Request) => {
     const allowed = mode === "validate" ? ["uploaded", "mapping", "validated", "ready", "failed"] : ["ready", "applying", "failed"];
     if (!allowed.includes(existingJob.status)) return json(req, { error: `Import job in ${existingJob.status} cannot continue` }, 409);
   }
+
+  // Nothing reaches a customer's tables until this job's claim is ours. The durable worker
+  // (process-data-import-jobs) cannot tell an in-progress browser apply from a stranded one, so
+  // without a claim it applies the same ledger rows this run is walking -- see G34.
+  const leaseError = await acquireImportJobLease(callerClient, jobId);
+  if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
 
   const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
   if (offset >= rows.length) {
