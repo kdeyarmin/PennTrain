@@ -63,7 +63,11 @@ const DECLARATION_PATTERNS = [
 
 // plpgsql locals (`v_today date := ...`) and function parameters (`p_due_date date`) are not
 // columns. They are declared with the same syntax, and this repo prefixes both by convention.
-const NOT_A_COLUMN = /^(v_|p_)/;
+// `returns` is the RETURNS keyword of a function signature -- `returns date` and `returns timestamptz`
+// both parse as a column declaration under these patterns. Harmless while over-inclusion is the rule,
+// but it showed up as a phantom date/timestamptz name collision, which is noise in a number meant to
+// be read.
+const NOT_A_COLUMN = /^(v_|p_|returns$)/;
 
 // A floor, not a target. Purely a tripwire for a silently-broken parser.
 const MINIMUM_EXPECTED_COLUMNS = 60;
@@ -103,18 +107,42 @@ const SORT_ONLY_ALLOWLIST = new Set([
 //
 // The answer is NOT to drop the name -- that would stop guarding the table where it really is a
 // DATE -- and it is not to rename the local so the regex misses it, which is evasion dressed as
-// refactoring. It is to state the collision here, per file and per column, naming both sides so the
-// claim can be checked. Anything not listed is still a failure.
+// refactoring. It is to state, per file and per column, that this particular call site is the
+// timestamptz one. Anything not listed is still a failure.
+//
+// The entry records a JUDGEMENT ("this expression came from the timestamptz table"), never a schema
+// fact. The schema fact -- that the name is declared both ways -- is derived from the migrations and
+// re-checked on every run, because this file's whole argument against the old hand-written column
+// list was that hand-maintained schema facts drift from the schema. An entry naming a column that is
+// not actually ambiguous is a hard failure rather than a silent exemption, so if either side of the
+// collision is ever retyped this stops being quietly true.
 const TYPE_COLLISION_ALLOWLIST = new Map([
   [
     "src/pages/app/AdmissionOperations.tsx",
-    new Map([[
-      "scheduled_for",
-      "timestamptz on admission_activities (20260713170000); `date` on survey_rehearsals "
-      + "(20260731054000), which is where the name is derived from",
-    ]]),
+    new Map([["scheduled_for", "the activity trail reads admission_activities, not survey_rehearsals"]]),
   ],
 ]);
+
+// `foo timestamptz`, `foo timestamp with time zone`, and the `add column` form of each.
+const TIMESTAMPTZ_PATTERNS = [
+  /^\s*([a-z_][a-z0-9_]*)\s+timestamptz\b/,
+  /^\s*([a-z_][a-z0-9_]*)\s+timestamp\s+with\s+time\s+zone\b/,
+  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+timestamptz\b/,
+  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+timestamp\s+with\s+time\s+zone\b/,
+];
+
+export function deriveTimestamptzColumns(sqlTexts) {
+  const found = new Set();
+  for (const text of sqlTexts) {
+    for (const line of text.split("\n")) {
+      for (const pattern of TIMESTAMPTZ_PATTERNS) {
+        const match = pattern.exec(line);
+        if (match && !NOT_A_COLUMN.test(match[1])) found.add(match[1]);
+      }
+    }
+  }
+  return [...found].sort();
+}
 
 function walk(dir) {
   const out = [];
@@ -168,6 +196,32 @@ if (process.argv.includes("--self-test")) {
   for (const rejected of ["created_at", "p_due_date", "v_today", "id"]) {
     if (derived.includes(rejected)) fail(`derivation wrongly included \`${rejected}\``);
   }
+  if (deriveDateColumns(["create function f() returns date as $$ begin end; $$;"]).includes("returns")) {
+    fail("derivation treated the RETURNS keyword as a column");
+  }
+
+  // The timestamptz side, which exists only to find names declared BOTH ways.
+  const ts = deriveTimestamptzColumns([
+    "create table foo (\n  started_at timestamptz not null,\n  ended_at timestamp with time zone,\n  due date\n);",
+    "alter table foo add column if not exists closed_at timestamptz;",
+    "create function f() returns timestamptz as $$ declare v_now timestamptz; begin end; $$;",
+  ]);
+  for (const expected of ["started_at", "ended_at", "closed_at"]) {
+    if (!ts.includes(expected)) fail(`timestamptz derivation missed \`${expected}\` (got ${ts.join(", ")})`);
+  }
+  for (const rejected of ["due", "v_now", "returns"]) {
+    if (ts.includes(rejected)) fail(`timestamptz derivation wrongly included \`${rejected}\``);
+  }
+
+  // The collision set is the intersection, which is what a per-call-site entry is allowed to name.
+  const sql = [
+    "create table a (\n  scheduled_for timestamptz\n);",
+    "create table b (\n  scheduled_for date,\n  only_a_date date\n);",
+  ];
+  const ambiguous = deriveTimestamptzColumns(sql).filter((n) => deriveDateColumns(sql).includes(n));
+  if (JSON.stringify(ambiguous) !== JSON.stringify(["scheduled_for"])) {
+    fail(`collision set was [${ambiguous}], expected [scheduled_for]`);
+  }
 
   const cases = [
     ["const d = new Date(row.due_date);", ["due_date"]],
@@ -184,11 +238,35 @@ if (process.argv.includes("--self-test")) {
   }
 
   if (failures) throw new Error(`Date-only parsing self-test failed (${failures} case(s)).`);
-  process.stdout.write(`Date-only parsing self-test passed (${derived.length + cases.length} cases).\n`);
+  process.stdout.write(`Date-only parsing self-test passed (${derived.length + ts.length + cases.length + 3} cases).\n`);
   process.exit(0);
 }
 
-const DATE_COLUMNS = deriveDateColumns(readMigrations());
+const MIGRATION_TEXTS = readMigrations();
+const DATE_COLUMNS = deriveDateColumns(MIGRATION_TEXTS);
+const AMBIGUOUS_COLUMNS = new Set(
+  deriveTimestamptzColumns(MIGRATION_TEXTS).filter((name) => DATE_COLUMNS.includes(name)),
+);
+
+// A collision entry is only meaningful while the collision exists. If either side is retyped the
+// entry becomes an exemption nobody has reviewed, so it fails loudly instead.
+const staleCollisions = [];
+for (const [file, columns] of TYPE_COLLISION_ALLOWLIST) {
+  for (const column of columns.keys()) {
+    if (!AMBIGUOUS_COLUMNS.has(column)) {
+      staleCollisions.push(
+        `${file}: \`${column}\` is listed as a date/timestamptz name collision, and the migrations no `
+        + `longer declare it both ways. Remove the entry -- and if it is now a DATE everywhere, check `
+        + `that call site, because it stopped being exempt for a reason.`,
+      );
+    }
+  }
+}
+if (staleCollisions.length > 0) {
+  console.error(`Date-only parsing check failed (${staleCollisions.length} stale collision entr(ies)):\n`);
+  for (const problem of staleCollisions) console.error(`  ${problem}`);
+  process.exit(1);
+}
 
 if (DATE_COLUMNS.length < MINIMUM_EXPECTED_COLUMNS) {
   console.error(
@@ -225,5 +303,5 @@ const collisions = [...TYPE_COLLISION_ALLOWLIST.values()].reduce((n, m) => n + m
 console.log(
   `Date-only parsing check passed (${DATE_COLUMNS.length} DATE columns derived from migrations, `
   + `${SORT_ONLY_ALLOWLIST.size} sort-only file(s) allowlisted, `
-  + `${collisions} name collision(s) with a timestamptz column).`,
+  + `${collisions} of ${AMBIGUOUS_COLUMNS.size} date/timestamptz name collision(s) adjudicated).`,
 );
