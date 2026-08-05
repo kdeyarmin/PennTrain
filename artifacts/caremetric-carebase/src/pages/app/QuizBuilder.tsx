@@ -304,13 +304,31 @@ export default function QuizBuilder() {
       toast({ title: "Quiz title is required", variant: "destructive" });
       return;
     }
-    const passingScore = Number(quizForm.passingScore);
+    // `Number("")` is 0, and 0 is finite -- so the previous `Number.isFinite(...)` guard caught
+    // "abc" but waved an EMPTY field straight through as a 0% passing score, which
+    // quizzes_passing_score_check (`between 0 and 100`) accepts without complaint. Clearing the
+    // field to retype it and hitting Save made every subsequent attempt a pass, on a quiz whose
+    // result backs a training certification. Blank means "leave it alone"; anything present has to
+    // be a real number in range, and is rejected loudly rather than coerced.
+    const rawPassingScore = quizForm.passingScore.trim();
+    const passingScore = Number(rawPassingScore);
+    if (rawPassingScore && (!Number.isFinite(passingScore) || passingScore < 0 || passingScore > 100)) {
+      toast({ title: "Passing score must be a number between 0 and 100", variant: "destructive" });
+      return;
+    }
+    const rawMaxAttempts = quizForm.maxAttempts.trim();
+    const maxAttempts = Number(rawMaxAttempts);
+    if (rawMaxAttempts && (!Number.isInteger(maxAttempts) || maxAttempts < 1)) {
+      toast({ title: "Attempt limit must be a whole number of 1 or more", variant: "destructive" });
+      return;
+    }
     updateQuiz(
       {
         id: quiz.id,
         title: quizForm.title.trim(),
-        passing_score_percent: Number.isFinite(passingScore) ? passingScore : quiz.passing_score_percent,
-        max_attempts: quizForm.maxAttempts.trim() ? Number(quizForm.maxAttempts) : null,
+        passing_score_percent: rawPassingScore ? passingScore : quiz.passing_score_percent,
+        // Blank is a real choice here (unlimited attempts), unlike the score above.
+        max_attempts: rawMaxAttempts ? maxAttempts : null,
       },
       {
         onSuccess: () => { toast({ title: "Quiz updated" }); setShowEditQuiz(false); },

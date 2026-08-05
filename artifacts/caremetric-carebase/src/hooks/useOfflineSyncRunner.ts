@@ -1,3 +1,4 @@
+import { useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createRunLatch } from "@/lib/runLatch";
 import { publishCriticalReadings } from "@/lib/criticalReadingBus";
@@ -115,14 +116,32 @@ export function useRunAllOfflineSyncs() {
     return { critical, appliedAny: applied > 0, idle: false, wiped: false };
   };
 
+  // `run` has to keep a STABLE identity across renders, not just be correct when called.
+  //
+  // OfflineSyncManager's retry loop lives in a useEffect whose dependency list transitively
+  // includes this function (through its own `runOnce` useCallback). A fresh `run` on every render
+  // made that effect tear down and re-arm its setTimeout from zero on every render -- so while the
+  // caregiver kept navigating, or any of the shell's queries settled, the 30s backoff tick never
+  // reached its deadline and the backlog was never retried. That is precisely the case the
+  // manager's header comment says the timer exists for: the failure modes that produce a draft
+  // (captive portal, dead route, Supabase down) leave `navigator.onLine` true, so the `online`
+  // event never fires and the timer is the only thing left.
+  //
+  // The body is read through a ref rather than listed as dependencies: `runAll` closes over two
+  // mutation objects and the toast handle, and pinning correctness to the render-identity of all
+  // of those is the fragile version of this. The ref always holds the latest closure, so a run
+  // started from a stale callback still uses current state.
+  const runAllRef = useRef(runAll);
+  runAllRef.current = runAll;
+
   // Published here, not by the caller. The manual "Sync now" used to drop these on the floor, and
   // the latch means a manual click during a background backoff JOINS that run rather than starting
   // one the manager would observe -- so a caller-side copy is not merely duplicated, it is missable.
-  const run = (): Promise<OfflineSyncRunResult> => runLatch(async () => {
-    const result = await runAll();
+  const run = useCallback((): Promise<OfflineSyncRunResult> => runLatch(async () => {
+    const result = await runAllRef.current();
     publishCriticalReadings(result.critical);
     return result;
-  });
+  }), []);
 
   return { run, isPending: syncAll.isPending || syncAllObservations.isPending };
 }

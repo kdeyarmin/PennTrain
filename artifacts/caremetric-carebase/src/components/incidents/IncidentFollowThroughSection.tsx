@@ -537,7 +537,17 @@ export default function IncidentFollowThroughSection({
         current={incident.qapi_consideration}
         currentProjectId={incident.qapi_project_id}
       />
+      {/*
+        Re-keyed on open so the textareas seed from the incident as it is NOW, not as it was when
+        this section first mounted. The state initializers run once, and the record changes
+        underneath them: record_incident_qapi_decision APPENDS to the same column this dialog
+        edits -- `coalesce(investigation_findings || E'\n\n', '') || 'QAPI not indicated: ' ...`
+        (20260726080100_incident_pathways_and_follow_through.sql). So a manager who recorded a QAPI
+        decision and then opened "Investigation record" saw the pre-append narrative, and saving
+        wrote that back over the appended QAPI reasoning -- deleting it from the incident record.
+      */}
       <InvestigationStepDialog
+        key={stepOpen ? "investigation-open" : "investigation-closed"}
         open={stepOpen}
         onOpenChange={setStepOpen}
         incidentId={incidentId}

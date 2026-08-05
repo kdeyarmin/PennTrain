@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -86,11 +86,20 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
   // Create mode only: default the assignee to whoever's filing this, matching the pre-unification
   // behavior on IncidentDetail.tsx/InspectionItemDetail.tsx (owner_profile_id: user?.id ?? null on
   // create) -- the reporter can still clear it to "Unassigned" or hand it to someone else.
+  // Applied at most ONCE per form. `assigneeEmployeeId` was both the guard and a dependency, so
+  // choosing "Unassigned" -- which sets it back to "" -- re-ran this effect, saw a falsy value, and
+  // immediately re-assigned the action to the current user. The one selection the comment above
+  // says the reporter can still make was the one the effect undid, with the dropdown snapping back
+  // under them.
+  const defaultedAssignee = useRef(false);
   useEffect(() => {
-    if (editing || !user || !employees || assigneeEmployeeId) return;
+    if (editing || !user || !employees || defaultedAssignee.current) return;
     const self = employees.find((e) => e.profile_id === user.id);
-    if (self) setAssigneeEmployeeId(self.id);
-  }, [editing, user, employees, assigneeEmployeeId]);
+    if (self) {
+      defaultedAssignee.current = true;
+      setAssigneeEmployeeId(self.id);
+    }
+  }, [editing, user, employees]);
 
   const isEdit = !!editing;
   const submitting = creating || savingEdit;
