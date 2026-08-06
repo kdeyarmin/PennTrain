@@ -274,14 +274,19 @@ export function useUploadComplianceEvidence() {
       const path = `${instance.organization_id}/${instance.facility_id}/${instance.id}/${Date.now()}_${safeName}`;
       const upload = await supabase.storage.from("compliance-evidence").upload(path, file, { upsert: false });
       if (upload.error) throw new Error(upload.error.message);
-      return callRpc<ComplianceDocument>("attach_compliance_evidence", {
-        p_instance_id: instance.id,
-        p_storage_path: path,
-        p_file_name: file.name,
-        p_file_type: file.type || "application/octet-stream",
-        p_file_size: file.size,
-        p_document_label: label ?? null,
-      });
+      try {
+        return await callRpc<ComplianceDocument>("attach_compliance_evidence", {
+          p_instance_id: instance.id,
+          p_storage_path: path,
+          p_file_name: file.name,
+          p_file_type: file.type || "application/octet-stream",
+          p_file_size: file.size,
+          p_document_label: label ?? null,
+        });
+      } catch (error) {
+        await supabase.storage.from("compliance-evidence").remove([path]);
+        throw error;
+      }
     },
     onSuccess: () => invalidateAll(queryClient),
   });

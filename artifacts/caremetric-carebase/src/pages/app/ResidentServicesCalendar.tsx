@@ -116,13 +116,36 @@ function EventRow({ event, canManage, canRecord, onOutcome, onReschedule }: { ev
 function CreateEventDialog({ open, onOpenChange, residents, employees, vehicles }: { open: boolean; onOpenChange: (open: boolean) => void; residents: any[]; employees: any[]; vehicles: any[] }) {
   const { toast } = useToast();
   const mutation = useCreateResidentServiceCalendarEvent();
-  const [form, setForm] = useState({ residentId: "", eventType: "medical_appointment", title: "", provider: "", providerContact: "", location: "", address: "", starts: toDateTimeLocal(addDays(1)), ends: toDateTimeLocal(new Date(addDays(1).getTime() + 3_600_000)), transport: "none", vehicleId: "", vendor: "", driverId: "", externalDriver: "", escortId: "", records: "", preparation: "", notes: "" });
+  const emptyForm = () => ({
+    residentId: "",
+    eventType: "medical_appointment",
+    title: "",
+    provider: "",
+    providerContact: "",
+    location: "",
+    address: "",
+    starts: toDateTimeLocal(addDays(1)),
+    ends: toDateTimeLocal(new Date(addDays(1).getTime() + 3_600_000)),
+    transport: "none",
+    vehicleId: "",
+    vendor: "",
+    driverId: "",
+    externalDriver: "",
+    escortId: "",
+    records: "",
+    preparation: "",
+    notes: "",
+  });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   const submit = () => {
     const staff = [] as Array<Record<string, string>>;
     if (form.driverId) staff.push({ employeeId: form.driverId, role: "driver" });
     else if (form.externalDriver.trim()) staff.push({ externalName: form.externalDriver.trim(), role: "driver" });
     if (form.escortId && form.escortId !== form.driverId) staff.push({ employeeId: form.escortId, role: "accompanying_staff" });
-    mutation.mutate({ residentId: form.residentId, event: { eventType: form.eventType, title: form.title, providerName: form.provider, providerContact: form.providerContact, locationName: form.location, locationAddress: form.address, startsAt: new Date(form.starts).toISOString(), endsAt: new Date(form.ends).toISOString(), transportationMode: form.transport, vehicleId: form.vehicleId || null, transportationVendor: form.vendor, requiredRecords: list(form.records), preparationInstructions: form.preparation, notes: form.notes }, staff }, { onSuccess: () => { toast({ title: "Resident service scheduled" }); onOpenChange(false); }, onError: (error: Error) => toast({ title: "Could not schedule service", description: error.message, variant: "destructive" }) });
+    mutation.mutate({ residentId: form.residentId, event: { eventType: form.eventType, title: form.title, providerName: form.provider, providerContact: form.providerContact, locationName: form.location, locationAddress: form.address, startsAt: new Date(form.starts).toISOString(), endsAt: new Date(form.ends).toISOString(), transportationMode: form.transport, vehicleId: form.vehicleId || null, transportationVendor: form.vendor, requiredRecords: list(form.records), preparationInstructions: form.preparation, notes: form.notes }, staff }, { onSuccess: () => { toast({ title: "Resident service scheduled" }); setForm(emptyForm()); onOpenChange(false); }, onError: (error: Error) => toast({ title: "Could not schedule service", description: error.message, variant: "destructive" }) });
   };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto"><DialogHeader><DialogTitle>Schedule resident service</DialogTitle><DialogDescription>Appointments, transportation, facility/outside activities, community services, and family visits share this workflow.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><Field label="Resident"><Choice value={form.residentId} onChange={(value) => setForm({ ...form, residentId: value })} values={residents.map((item) => ({ value: item.id, label: `${item.last_name}, ${item.first_name}` }))} placeholder="Select resident" /></Field><Field label="Service type"><Choice value={form.eventType} onChange={(value) => setForm({ ...form, eventType: value })} values={EVENT_TYPES} /></Field><Field label="Title" span><Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></Field><Field label="Provider / organization"><Input value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value })} /></Field><Field label="Provider contact"><Input value={form.providerContact} onChange={(event) => setForm({ ...form, providerContact: event.target.value })} /></Field><Field label="Starts"><Input type="datetime-local" value={form.starts} onChange={(event) => setForm({ ...form, starts: event.target.value })} /></Field><Field label="Ends"><Input type="datetime-local" value={form.ends} onChange={(event) => setForm({ ...form, ends: event.target.value })} /></Field><Field label="Location"><Input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></Field><Field label="Address"><Input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></Field><Field label="Transportation"><Choice value={form.transport} onChange={(value) => setForm({ ...form, transport: value, vehicleId: value === "facility_vehicle" ? form.vehicleId : "" })} values={["none", "facility_vehicle", "family", "vendor", "public_transit", "rideshare", "walking", "other"]} /></Field>{form.transport === "facility_vehicle" ? <Field label="Vehicle"><Choice value={form.vehicleId} onChange={(value) => setForm({ ...form, vehicleId: value })} values={vehicles.filter((item) => item.status === "available").map((item) => ({ value: item.id, label: `${item.label}${item.wheelchair_accessible ? " · Accessible" : ""}` }))} placeholder="Select available vehicle" /></Field> : <Field label="Vendor / transportation detail"><Input value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} /></Field>}<Field label="Employee driver"><Choice value={form.driverId} onChange={(value) => setForm({ ...form, driverId: value, externalDriver: "" })} values={employees.map((item) => ({ value: item.id, label: `${item.first_name} ${item.last_name}` }))} placeholder="Optional employee driver" /></Field><Field label="External driver"><Input disabled={!!form.driverId} value={form.externalDriver} onChange={(event) => setForm({ ...form, externalDriver: event.target.value })} /></Field><Field label="Accompanying staff"><Choice value={form.escortId} onChange={(value) => setForm({ ...form, escortId: value })} values={employees.map((item) => ({ value: item.id, label: `${item.first_name} ${item.last_name}` }))} placeholder="Optional accompanying staff" /></Field><Field label="Records to accompany"><Input value={form.records} onChange={(event) => setForm({ ...form, records: event.target.value })} placeholder="Insurance card, MAR, referral" /></Field><Field label="Preparation instructions" span><Textarea value={form.preparation} onChange={(event) => setForm({ ...form, preparation: event.target.value })} /></Field><Field label="Notes" span><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></Field></div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={mutation.isPending || !form.residentId || form.title.trim().length < 3 || !form.starts || !form.ends || form.ends <= form.starts || (form.transport === "facility_vehicle" && !form.vehicleId)} onClick={submit}>Schedule service</Button></DialogFooter></DialogContent></Dialog>;
 }

@@ -39804,6 +39804,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      publish_policy_document_version: {
+        Args: { p_policy_document_id: string; p_version_id: string }
+        Returns: string
+      }
       publish_resident_agreement_version: {
         Args: {
           p_agreement_id?: string

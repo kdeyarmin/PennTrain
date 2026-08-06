@@ -445,11 +445,12 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
 }
 
 function CampaignRoster({ campaignId }: { campaignId: string }) {
-  const { data: attestations, isLoading } = useListPolicyAttestations({ campaignId });
+  const { data: attestations, isLoading, isError, error, refetch } = useListPolicyAttestations({ campaignId });
   const { data: employees } = useListEmployees({ status: "active" });
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
 
   if (isLoading) return <div className="space-y-1 mt-2">{[...Array(2)].map((_, i) => <div key={i} className="h-8 bg-muted animate-pulse rounded" />)}</div>;
+  if (isError) return <div className="mt-2"><QueryError what="this campaign roster" error={error} onRetry={() => void refetch()} /></div>;
   if (!attestations?.length) return <p className="text-xs text-muted-foreground italic mt-2">Not assigned to anyone yet.</p>;
 
   return (

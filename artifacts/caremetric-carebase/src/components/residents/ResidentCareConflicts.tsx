@@ -10,6 +10,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { useRecordCareConflictDisposition } from "@/hooks/useResidentCareConflicts";
 import {
@@ -39,10 +40,14 @@ export function ResidentCareConflictsPanel({
   residentId,
   conflicts,
   isLoading,
+  error,
+  onRetry,
 }: {
   residentId: string;
   conflicts: CareConflict[];
   isLoading?: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
 }) {
   const { toast } = useToast();
   const record = useRecordCareConflictDisposition();
@@ -73,6 +78,9 @@ export function ResidentCareConflictsPanel({
   };
 
   if (isLoading) return null;
+  if (error) {
+    return <QueryError what="record conflicts" error={error} onRetry={onRetry} />;
+  }
 
   return (
     <>

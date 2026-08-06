@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { facilityDateTimeToUtc } from "@/lib/dateUtils";
 import { errorText } from "@/lib/errorText";
 import {
   canRequestOverride, dutyEligibilitySummary, dutyReasons, isDutyBlocked,
@@ -85,10 +86,12 @@ export function DutyEligibilityCard({
   const summary = dutyEligibilitySummary(result);
   const overridable = canRequestOverride(result);
   const reasonTooShort = reason.trim().length < MIN_REASON_LENGTH;
-  const expiryDate = expiresOn ? new Date(`${expiresOn}T23:59:59`) : null;
+  // End of the selected Pennsylvania calendar day -- not the browser's local midnight.
+  const expiryDate = expiresOn ? facilityDateTimeToUtc(expiresOn, "23:59:59") : null;
   const expiryTooFar = !!expiryDate
     && expiryDate.getTime() > Date.now() + MAX_OVERRIDE_DAYS * 86_400_000;
   const expiryPast = !!expiryDate && expiryDate.getTime() <= Date.now();
+  const expiryMissing = !expiresOn;
 
   return (
     <Card>
@@ -189,16 +192,16 @@ export function DutyEligibilityCard({
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
-                disabled={grant.isPending || reasonTooShort || expiryPast || expiryTooFar || !facilityId}
+                disabled={grant.isPending || reasonTooShort || expiryMissing || expiryPast || expiryTooFar || !facilityId}
                 onClick={() => {
-                  if (!facilityId) return;
+                  if (!facilityId || !expiresOn || !expiryDate) return;
                   grant.mutate(
                     {
                       profileId,
                       dutyKey,
                       facilityId,
                       reason: reason.trim(),
-                      expiresAt: new Date(`${expiresOn}T23:59:59`).toISOString(),
+                      expiresAt: expiryDate.toISOString(),
                     },
                     {
                       onSuccess: () => {

@@ -151,26 +151,19 @@ export function useUploadPolicyDocumentVersion() {
   });
 }
 
-// Publishing is just: mark this version 'published' (locks it immutable via DB trigger) and
-// point the parent document's current_version_id at it. Two calls, not one RPC -- mirrors how
-// CourseDetail.tsx publishes a course_version, and keeps each write's own RLS check (version
-// update vs. document update) independently enforced rather than bundled behind a single
-// security-definer function.
+// Publishing must be one transaction: mark the version published (locks it immutable) and point
+// the parent document's current_version_id at it. Two Data API writes left a stranded published
+// version whenever the second call failed, and retrying hit the immutability trigger. Course
+// publication already uses the same one-RPC shape.
 export function usePublishPolicyDocumentVersion() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, policyDocumentId }: { id: string; policyDocumentId: string }) => {
-      const { error: versionError } = await supabase
-        .from("policy_document_versions")
-        .update({ status: "published", published_at: new Date().toISOString() })
-        .eq("id", id);
-      if (versionError) throw versionError;
-
-      const { error: docError } = await supabase
-        .from("policy_documents")
-        .update({ current_version_id: id })
-        .eq("id", policyDocumentId);
-      if (docError) throw docError;
+      const { error } = await supabase.rpc("publish_policy_document_version", {
+        p_version_id: id,
+        p_policy_document_id: policyDocumentId,
+      });
+      if (error) throw error;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["policy_documents", "versions", variables.policyDocumentId] });

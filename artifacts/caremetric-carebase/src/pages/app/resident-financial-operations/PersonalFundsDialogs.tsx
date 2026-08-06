@@ -425,7 +425,8 @@ export function FundEntryDialog({
             ? "out"
             : form.direction,
     });
-  const submit = () =>
+  const submit = () => {
+    if (!form.at || Number.isNaN(new Date(form.at).getTime())) return;
     mutation.mutate(
       {
         residentId,
@@ -448,6 +449,7 @@ export function FundEntryDialog({
       },
       report,
     );
+  };
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -573,6 +575,8 @@ export function FundEntryDialog({
             disabled={
               mutation.isPending ||
               asNumber(form.amount) <= 0 ||
+              !form.at ||
+              Number.isNaN(new Date(form.at).getTime()) ||
               form.purpose.trim().length < 3 ||
               (form.kind === "withdrawal" && form.staff === "none") ||
               (!form.acknowledged && form.note.trim().length < 5) ||

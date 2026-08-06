@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
 import { signatureDigest } from "@/lib/certificationAttempt";
@@ -109,6 +110,9 @@ export function SessionRosterCard({
   };
 
   if (registrations.isLoading) return <Skeleton className="h-32" />;
+  if (registrations.isError) {
+    return <QueryError what="the session roster" error={registrations.error} onRetry={() => void registrations.refetch()} />;
+  }
 
   return (
     <Card>

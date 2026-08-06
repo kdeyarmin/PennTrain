@@ -96,7 +96,23 @@ export default function ResidentAssessmentFormEditor() {
     id: string;
     content: ResidentAssessmentFormContent;
   } | null>(null);
+  // Serializes autosaves so an older in-flight write cannot finish after a newer one and overwrite
+  // it. Also lets finalize await every save that has already started, not only a pending timer.
+  // `lastSave` keeps the rejection of the latest attempt so a failed autosave blocks finalization
+  // instead of being swallowed by the chain's continue-after-failure latch.
+  const lastSave = useRef(Promise.resolve());
   const isReadOnly = !canManage || form?.status === "finalized";
+
+  const enqueueSave = (payload: { id: string; content: ResidentAssessmentFormContent }) => {
+    const run = lastSave.current
+      .catch(() => undefined)
+      .then(async () => {
+        await saveDraft.mutateAsync(payload);
+      });
+    lastSave.current = run;
+    return run;
+  };
+
   const flushPendingAutosave = () => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
@@ -105,7 +121,27 @@ export default function ResidentAssessmentFormEditor() {
     if (pendingSave.current) {
       const pending = pendingSave.current;
       pendingSave.current = null;
-      saveDraft.mutate(pending);
+      void enqueueSave(pending).catch((e: Error) =>
+        toast({
+          title: "Failed to save changes",
+          description: e.message,
+          variant: "destructive",
+        }),
+      );
+    }
+  };
+
+  const awaitPendingAutosave = async () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const pending = pendingSave.current;
+    pendingSave.current = null;
+    if (pending) {
+      await enqueueSave(pending);
+    } else {
+      await lastSave.current;
     }
   };
 
@@ -195,21 +231,15 @@ export default function ResidentAssessmentFormEditor() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
+      const pending = pendingSave.current;
       pendingSave.current = null;
-      saveDraft.mutate(
-        { id: formId, content: next },
-        {
-          // A failed autosave (e.g. someone else finalized this form in another tab, so RLS now
-          // rejects the update since it's no longer a draft) used to fail completely silently --
-          // the user would keep editing a form that was never actually being saved, with no
-          // indication anything was wrong until they navigated away and lost the changes.
-          onError: (e: Error) =>
-            toast({
-              title: "Failed to save changes",
-              description: e.message,
-              variant: "destructive",
-            }),
-        },
+      if (!pending) return;
+      void enqueueSave(pending).catch((e: Error) =>
+        toast({
+          title: "Failed to save changes",
+          description: e.message,
+          variant: "destructive",
+        }),
       );
     }, AUTOSAVE_DEBOUNCE_MS);
   };
@@ -222,7 +252,7 @@ export default function ResidentAssessmentFormEditor() {
     () => () => {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
-        if (pendingSave.current) saveDraft.mutate(pendingSave.current);
+        if (pendingSave.current) void enqueueSave(pendingSave.current);
       }
     },
     [],
@@ -474,22 +504,17 @@ ${text}` : text;
   const handleFinalize = async () => {
     if (!formId || !content) return;
     // finalize_resident_assessment_form() doesn't take content as an argument -- it finalizes
-    // whatever's already persisted. If the user clicks Finalize within the debounce window, flush
-    // the pending autosave first so the locked version matches what's on screen, not a stale one.
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-      pendingSave.current = null;
-      try {
-        await saveDraft.mutateAsync({ id: formId, content });
-      } catch (e) {
-        toast({
-          title: "Failed to save latest changes before finalizing",
-          description: e instanceof Error ? e.message : String(e),
-          variant: "destructive",
-        });
-        return;
-      }
+    // whatever's already persisted. Flush any debounce timer and wait for in-flight autosaves so
+    // the locked version matches what's on screen, not a stale one that finished writing later.
+    try {
+      await awaitPendingAutosave();
+    } catch (e) {
+      toast({
+        title: "Failed to save latest changes before finalizing",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+      return;
     }
     finalize.mutate(formId, {
       onSuccess: () => toast({

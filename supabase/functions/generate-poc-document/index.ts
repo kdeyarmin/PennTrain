@@ -182,6 +182,13 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
+  // Auditors can read violations, but regenerating a POC PDF overwrites storage and replaces the
+  // metadata row via the service-role client. That is a write, and it stays with the roles that
+  // already manage Plans of Correction.
+  if (!["platform_admin", "org_admin", "facility_manager"].includes(callerProfile.role)) {
+    return json(req, { error: "Only organization administrators and facility managers can generate a Plan of Correction document" }, 403);
+  }
+
   let body: { violationId?: string };
   try {
     body = await req.json();
