@@ -7,7 +7,7 @@ import {
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
 import { useToast } from "@/hooks/use-toast";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import type { MonthlyChargePreview } from "@/lib/residentBilling";
 import { Button } from "@/components/ui/button";
 import {
@@ -584,7 +584,7 @@ export function StatementDialog({
   const [form, setForm] = useState({
     start: monthStart(),
     end: today(),
-    due: toLocalIsoDate(new Date(Date.now() + 15 * 86_400_000)),
+    due: addFacilityCalendarDays(facilityToday(), 15),
   });
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>

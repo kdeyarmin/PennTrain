@@ -309,7 +309,7 @@ export default function MySchedule() {
         <Card>
           <CardHeader><CardTitle>Open shifts</CardTitle><CardDescription>Claims run through qualification, credential, training, conflict, and policy checks.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
-            {workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : openOffers.length === 0 ? <p className="text-sm text-muted-foreground">No open shifts are available.</p> : openOffers.map((offer) => (
+            {workspace.isError ? null : workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : openOffers.length === 0 ? <p className="text-sm text-muted-foreground">No open shifts are available.</p> : openOffers.map((offer) => (
               <div key={String(offer.id)} className="flex items-center justify-between gap-3 rounded-lg border p-3">
                 <div className="text-sm"><p className="font-medium">{formatDateLabel(String(offer.shift_date), { month: "short", day: "numeric" })}</p><p className="text-muted-foreground">{formatTimeLabel(String(offer.start_time))}–{formatTimeLabel(String(offer.end_time))}</p></div>
                 <Button size="sm" onClick={() => void handleClaim(String(offer.id))} disabled={claimShift.isPending}>Claim</Button>

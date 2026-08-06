@@ -61,13 +61,13 @@ interface RecordFormData {
   signNow: boolean;
 }
 
-const EMPTY_RECORD_FORM: RecordFormData = {
+const emptyRecordForm = (): RecordFormData => ({
   employeeId: "",
   templateId: "",
   evaluationDate: facilityToday(),
   overallResult: "met",
   signNow: false,
-};
+});
 
 // ---------------------------------------------------------------------------
 // Read-only detail view. Employees only ever reach a record through this same
@@ -172,7 +172,7 @@ export default function CompetencyRecords() {
   const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<RecordFormData>(EMPTY_RECORD_FORM);
+  const [form, setForm] = useState<RecordFormData>(emptyRecordForm());
   const [formEmployee, setFormEmployee] = useState<{ id: string; facility_id: string; organization_id: string } | null>(null);
   const [itemResults, setItemResults] = useState<Record<string, { result: ItemResult; notes: string }>>({});
   const [viewRecord, setViewRecord] = useState<CompetencyRecord | null>(null);
@@ -227,7 +227,7 @@ export default function CompetencyRecords() {
   }, [templateItems]);
 
   const openCreate = () => {
-    setForm(EMPTY_RECORD_FORM);
+    setForm(emptyRecordForm());
     setFormEmployee(null);
     setShowForm(true);
   };
@@ -285,7 +285,7 @@ export default function CompetencyRecords() {
         onSuccess: () => {
           toast({ title: "Competency evaluation recorded" });
           setShowForm(false);
-          setForm(EMPTY_RECORD_FORM);
+          setForm(emptyRecordForm());
         },
         onError: (e: Error) => toast({ title: "Failed to record evaluation", description: e.message, variant: "destructive" }),
       },

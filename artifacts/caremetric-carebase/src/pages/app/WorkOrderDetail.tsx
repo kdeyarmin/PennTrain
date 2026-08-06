@@ -55,8 +55,18 @@ export default function WorkOrderDetail() {
   const canVerify = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDeleteDocuments = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const { data: order, isLoading, isError, error, refetch } = useGetWorkOrder(id);
-  const { data: history } = useListWorkOrderHistory(id);
-  const { data: documents } = useListMaintenanceDocuments({ workOrderId: id });
+  const {
+    data: history,
+    isError: historyError,
+    error: historyErrorDetail,
+    refetch: refetchHistory,
+  } = useListWorkOrderHistory(id);
+  const {
+    data: documents,
+    isError: documentsError,
+    error: documentsErrorDetail,
+    refetch: refetchDocuments,
+  } = useListMaintenanceDocuments({ workOrderId: id });
   const { data: facilities } = useListFacilities();
   const { data: employees } = useListEmployees({ status: "active" });
   const { data: asset } = useGetInspectionItem(order?.inspection_item_id ?? undefined);
@@ -212,11 +222,23 @@ export default function WorkOrderDetail() {
 
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileImage className="h-5 w-5" /> Photos &amp; documents</CardTitle></CardHeader><CardContent className="space-y-4">
             {canManage && !["verified","canceled"].includes(order.status) && <div className="grid items-end gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[180px_1fr_auto]"><div><Label htmlFor={`${__fieldIds}-documentation-type`}>Documentation type</Label><Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}><SelectTrigger id={`${__fieldIds}-documentation-type`}><SelectValue /></SelectTrigger><SelectContent>{DOCUMENT_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-jpeg-png-webp-or-pdf`}>JPEG, PNG, WebP, or PDF</Label><Input id={`${__fieldIds}-jpeg-png-webp-or-pdf`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0])} /></div><Button onClick={upload} disabled={!documentFile || uploadDocument.isPending}><Upload className="mr-2 h-4 w-4" /> Upload</Button></div>}
-            {!documents?.length ? <p className="py-6 text-center text-sm text-muted-foreground">No repair documentation uploaded yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{documents.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{doc.file_name}</p><p className="text-xs text-muted-foreground">{humanize(doc.document_type)} · {new Date(doc.created_at).toLocaleDateString()}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => viewDocument(doc)}><Download className="h-4 w-4" /></Button>{canDeleteDocuments && <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocument.mutate(doc)}><Trash2 className="h-4 w-4" /></Button>}</div></div>)}</div>}
+            {documentsError ? (
+              <QueryError what="repair documentation" error={documentsErrorDetail} onRetry={() => void refetchDocuments()} />
+            ) : !documents?.length ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No repair documentation uploaded yet.</p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">{documents.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{doc.file_name}</p><p className="text-xs text-muted-foreground">{humanize(doc.document_type)} · {new Date(doc.created_at).toLocaleDateString()}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => viewDocument(doc)}><Download className="h-4 w-4" /></Button>{canDeleteDocuments && <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocument.mutate(doc)}><Trash2 className="h-4 w-4" /></Button>}</div></div>)}</div>
+            )}
           </CardContent></Card>
         </div>
 
-        <Card><CardHeader><CardTitle>Lifecycle history</CardTitle></CardHeader><CardContent><div className="space-y-4">{history?.map((event, index) => <div key={event.id} className="relative pl-6"><span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />{index < history.length - 1 && <span className="absolute bottom-[-18px] left-[4px] top-4 w-px bg-border" />}<p className="text-sm font-semibold">{humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.notes && <p className="mt-1 text-sm">{event.notes}</p>}</div>)}</div></CardContent></Card>
+        <Card><CardHeader><CardTitle>Lifecycle history</CardTitle></CardHeader><CardContent>
+          {historyError ? (
+            <QueryError what="lifecycle history" error={historyErrorDetail} onRetry={() => void refetchHistory()} />
+          ) : (
+            <div className="space-y-4">{history?.map((event, index) => <div key={event.id} className="relative pl-6"><span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />{index < (history?.length ?? 0) - 1 && <span className="absolute bottom-[-18px] left-[4px] top-4 w-px bg-border" />}<p className="text-sm font-semibold">{humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.notes && <p className="mt-1 text-sm">{event.notes}</p>}</div>)}</div>
+          )}
+        </CardContent></Card>
       </div>
 
       <Dialog open={showTransition} onOpenChange={setShowTransition}><DialogContent><DialogHeader><DialogTitle>{targetStatus === "pending_verification" ? "Complete repair and submit for verification" : `Move to ${humanize(targetStatus)}`}</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-field`}>{targetStatus === "pending_verification" ? "Repair notes *" : "Transition notes *"}</Label><Textarea id={`${__fieldIds}-field`} value={transitionNotes} onChange={(e) => setTransitionNotes(e.target.value)} /></div>{targetStatus === "pending_verification" && <><div><Label htmlFor={`${__fieldIds}-actual-cost`}>Actual cost</Label><Input id={`${__fieldIds}-actual-cost`} type="number" min="0" step="0.01" value={actualCost} onChange={(e) => setActualCost(e.target.value)} /></div><div className="grid grid-cols-2 gap-3"><div><Label htmlFor={`${__fieldIds}-downtime-started`}>Downtime started</Label><Input id={`${__fieldIds}-downtime-started`} type="datetime-local" value={downtimeStarted} onChange={(e) => setDowntimeStarted(e.target.value)} /></div><div><Label htmlFor={`${__fieldIds}-downtime-ended`}>Downtime ended</Label><Input id={`${__fieldIds}-downtime-ended`} type="datetime-local" value={downtimeEnded} onChange={(e) => setDowntimeEnded(e.target.value)} /></div></div><p className="rounded-md bg-warning/10 p-3 text-sm">This records repair completion but does not mark the item compliant. A supervisor must verify it next.</p></>}</div><DialogFooter><Button variant="outline" onClick={() => setShowTransition(false)}>Cancel</Button><Button onClick={submitTransition} disabled={transition.isPending || transitionNotes.trim().length < 3}>{targetStatus === "pending_verification" ? "Submit for verification" : "Save transition"}</Button></DialogFooter></DialogContent></Dialog>

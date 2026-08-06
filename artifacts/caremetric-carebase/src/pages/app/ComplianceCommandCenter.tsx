@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { useToast } from "@/hooks/use-toast";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -63,6 +64,7 @@ function scoreTone(score: number | null): "success" | "warning" | "danger" | "de
 
 export default function ComplianceCommandCenter() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const canManage = user?.role === "org_admin" || user?.role === "facility_manager";
 
   const [urlState, setUrlState] = useUrlState(DEFAULTS);
@@ -410,9 +412,15 @@ export default function ComplianceCommandCenter() {
                         {canManage && (
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
-                              <Button size="icon" variant="ghost" className="h-8 w-8" title="Generate upcoming occurrences" onClick={() => generateNow.mutate(r.id)}><RefreshCw className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" title="Generate upcoming occurrences" onClick={() => generateNow.mutate(r.id, {
+                                onSuccess: () => toast({ title: "Upcoming occurrences generated" }),
+                                onError: (e: Error) => toast({ title: "Could not generate occurrences", description: e.message, variant: "destructive" }),
+                              })}><RefreshCw className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" className="h-8 w-8" title="Edit" onClick={() => openEditor(r, false)}><Pencil className="h-4 w-4" /></Button>
-                              <Button size="sm" variant="ghost" onClick={() => setActive.mutate({ requirementId: r.id, active: !r.is_active })}>{r.is_active ? "Archive" : "Restore"}</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setActive.mutate({ requirementId: r.id, active: !r.is_active }, {
+                                onSuccess: () => toast({ title: r.is_active ? "Requirement archived" : "Requirement restored" }),
+                                onError: (e: Error) => toast({ title: "Could not update requirement", description: e.message, variant: "destructive" }),
+                              })}>{r.is_active ? "Archive" : "Restore"}</Button>
                             </div>
                           </TableCell>
                         )}
@@ -429,7 +437,9 @@ export default function ComplianceCommandCenter() {
         {/* ---------------- Templates ---------------- */}
         <TabsContent value="templates" className="space-y-4">
           <p className="text-sm text-muted-foreground">Reusable requirement definitions you can deploy across multiple facilities in one step.</p>
-          {templatesQ.isLoading ? <p className="p-8 text-center text-muted-foreground">Loading…</p> : (
+          {templatesQ.isLoading ? <p className="p-8 text-center text-muted-foreground">Loading…</p> : templatesQ.isError ? (
+            <QueryError what="compliance templates" error={templatesQ.error as Error} onRetry={() => { void templatesQ.refetch(); }} />
+          ) : (
             <Card>
               <CardContent className="overflow-x-auto p-0">
                 <Table>

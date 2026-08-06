@@ -52,11 +52,11 @@ interface ViolationFormData {
   pocDueDate: string;
 }
 
-const EMPTY_FORM: ViolationFormData = {
+const emptyForm = (): ViolationFormData => ({
   facilityId: "", citationTopicId: "", citationRef: "",
   inspectionDate: facilityToday(), surveyorName: "",
   description: "", severity: "moderate", pocDueDate: "",
-};
+});
 
 const VIOLATIONS_URL_DEFAULTS = { search: "", facility: "all", status: "all", page: "1" };
 
@@ -70,7 +70,7 @@ export default function Violations() {
   const page = Math.max(1, Number(urlState.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<ViolationFormData>(EMPTY_FORM);
+  const [form, setForm] = useState<ViolationFormData>(emptyForm);
   const [sourceInspectionEventId, setSourceInspectionEventId] = useState<string | null>(null);
 
   const locationSearch = useSearch();
@@ -135,7 +135,7 @@ export default function Violations() {
   }, [showForm, facilities]);
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm(emptyForm());
     setSourceInspectionEventId(null);
     setShowForm(true);
   };
@@ -146,10 +146,11 @@ export default function Violations() {
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
     if (params.get("action") === "add") {
+      const base = emptyForm();
       setForm({
-        ...EMPTY_FORM,
+        ...base,
         facilityId: params.get("facilityId") ?? "",
-        inspectionDate: params.get("inspectionDate") ?? EMPTY_FORM.inspectionDate,
+        inspectionDate: params.get("inspectionDate") ?? base.inspectionDate,
         description: params.get("description") ?? "",
         citationTopicId: params.get("citationTopicId") ?? "",
       });

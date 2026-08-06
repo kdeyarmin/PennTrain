@@ -45,11 +45,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
 
 const today = () => facilityToday();
-const ago = () => toLocalIsoDate(new Date(Date.now() - 30 * 864e5));
+const ago = () => addFacilityCalendarDays(facilityToday(), -30);
+const defaultCompletion = () => addFacilityCalendarDays(facilityToday(), 90);
 const human = (v: string) =>
   v.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 export default function QapiDashboard() {
@@ -78,10 +79,19 @@ export default function QapiDashboard() {
     [baseline, setBaseline] = useState(""),
     [objective, setObjective] = useState(""),
     [target, setTarget] = useState(""),
-    [completion, setCompletion] = useState(
-      toLocalIsoDate(new Date(Date.now() + 90 * 864e5)),
-    ),
+    [completion, setCompletion] = useState(defaultCompletion),
     [lead, setLead] = useState(user?.id ?? "");
+  const openCreate = () => {
+    setTitle("");
+    setProblem("");
+    setSource("Incident and operational trend");
+    setBaseline("");
+    setObjective("");
+    setTarget("");
+    setCompletion(defaultCompletion());
+    setLead(user?.id ?? "");
+    setOpen(true);
+  };
   const submit = () =>
     create.mutate(
       {
@@ -125,7 +135,7 @@ export default function QapiDashboard() {
             operational documentation.
           </p>
         </div>
-        <Button disabled={!fac} onClick={() => setOpen(true)}>
+        <Button disabled={!fac} onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
           New QAPI project
         </Button>
@@ -195,7 +205,7 @@ export default function QapiDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {!projects.data?.length ? (
+              {projects.isError ? null : !projects.data?.length ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   No QAPI projects yet.
                 </p>
@@ -241,7 +251,7 @@ export default function QapiDashboard() {
         </>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent key={open ? "qapi-create-open" : "qapi-create-closed"} className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create QAPI improvement project</DialogTitle>
           </DialogHeader>

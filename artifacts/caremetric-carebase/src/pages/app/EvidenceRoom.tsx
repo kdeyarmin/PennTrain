@@ -118,7 +118,7 @@ export default function EvidenceRoom() {
           <CardContent className="pt-6 flex items-center gap-3">
             <FilePen className="h-8 w-8 text-amber-600" />
             <div>
-              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.draft}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : summary.draft}</p>
               <p className="text-sm text-muted-foreground">Draft Collections</p>
             </div>
           </CardContent>
@@ -127,7 +127,7 @@ export default function EvidenceRoom() {
           <CardContent className="pt-6 flex items-center gap-3">
             <FileCheck2 className="h-8 w-8 text-green-600" />
             <div>
-              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.published}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : summary.published}</p>
               <p className="text-sm text-muted-foreground">Published Rooms</p>
             </div>
           </CardContent>
@@ -136,7 +136,7 @@ export default function EvidenceRoom() {
           <CardContent className="pt-6 flex items-center gap-3">
             <Scale className="h-8 w-8 text-red-600" />
             <div>
-              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.legalHolds}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : summary.legalHolds}</p>
               <p className="text-sm text-muted-foreground">Legal Holds</p>
             </div>
           </CardContent>

@@ -62,8 +62,20 @@ export default function ViolationDetail() {
   const { data: citationTopics } = useListCitationTopics();
   const updateViolation = useUpdateViolation();
   const { data: courses } = useListCourses();
-  const { data: correctiveActions, isLoading: correctiveLoading } = useListCorrectiveActions({ violationId: id });
-  const { data: documents, isLoading: documentsLoading } = useListViolationDocuments(id);
+  const {
+    data: correctiveActions,
+    isLoading: correctiveLoading,
+    isError: correctiveError,
+    error: correctiveErrorDetail,
+    refetch: refetchCorrective,
+  } = useListCorrectiveActions({ violationId: id });
+  const {
+    data: documents,
+    isLoading: documentsLoading,
+    isError: documentsError,
+    error: documentsErrorDetail,
+    refetch: refetchDocuments,
+  } = useListViolationDocuments(id);
 
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
   const deleteCorrectiveAction = useDeleteCorrectiveAction();
@@ -311,6 +323,8 @@ export default function ViolationDetail() {
         <CardContent className="space-y-3">
           {correctiveLoading ? (
             <Skeleton className="h-10" />
+          ) : correctiveError ? (
+            <QueryError what="corrective actions" error={correctiveErrorDetail} onRetry={() => void refetchCorrective()} />
           ) : !correctiveActions?.length ? (
             <p className="text-sm text-muted-foreground">No corrective actions recorded.</p>
           ) : (
@@ -459,6 +473,8 @@ export default function ViolationDetail() {
         <CardContent>
           {documentsLoading ? (
             <Skeleton className="h-10" />
+          ) : documentsError ? (
+            <QueryError what="violation documents" error={documentsErrorDetail} onRetry={() => void refetchDocuments()} />
           ) : !documents?.length ? (
             <p className="text-sm text-muted-foreground">No documents uploaded. Photos, corrected policies, and training records for the follow-up visit go here.</p>
           ) : (

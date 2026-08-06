@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { csvEscape } from "@/lib/csv";
-import { facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
 import { containsFilterValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -446,9 +446,7 @@ export default function Reports() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
-  const [payPeriodStart, setPayPeriodStart] = useState(() => {
-    const date = new Date(); date.setDate(date.getDate() - 13); return toLocalIsoDate(date);
-  });
+  const [payPeriodStart, setPayPeriodStart] = useState(() => addFacilityCalendarDays(facilityToday(), -13));
   const [payPeriodEnd, setPayPeriodEnd] = useState(() => facilityToday());
   const [exportingPayroll, setExportingPayroll] = useState(false);
   const [pendingReport, setPendingReport] = useState<ReportDef | null>(null);

@@ -106,7 +106,13 @@ export default function InspectionItemDetail() {
 
   const { data: item, isLoading, isError, error, refetch } = useGetInspectionItem(id);
   const { data: facilities } = useListFacilities();
-  const { data: events, isLoading: eventsLoading } = useListInspectionEvents(id);
+  const {
+    data: events,
+    isLoading: eventsLoading,
+    isError: eventsError,
+    error: eventsErrorDetail,
+    refetch: refetchEvents,
+  } = useListInspectionEvents(id);
   const {
     data: workOrders,
     isError: workOrdersError,
@@ -328,6 +334,8 @@ export default function InspectionItemDetail() {
         <CardContent>
           {eventsLoading ? (
             <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+          ) : eventsError ? (
+            <QueryError what="inspection history" error={eventsErrorDetail} onRetry={() => void refetchEvents()} />
           ) : !events?.length ? (
             <p className="text-sm text-muted-foreground">No inspections logged yet.</p>
           ) : (

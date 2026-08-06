@@ -386,14 +386,25 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
     }
   };
 
+  const resetCampaignForm = () => {
+    setName("");
+    setDueDate("");
+    setQuestions([]);
+    setTargeting(MANUAL_TARGETING);
+    setRecurrenceMonths(null);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => {
+      setOpen(next);
+      if (!next) resetCampaignForm();
+    }}>
       <DialogTrigger asChild>
         <Button disabled={!currentVersionId}>
           <Plus className="mr-2 h-4 w-4" /> New Campaign
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent key={open ? "campaign-open" : "campaign-closed"} className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Attestation Campaign</DialogTitle>
           <DialogDescription>Targets the currently published version. Assign it to employees once created.</DialogDescription>

@@ -21,7 +21,7 @@ import { buildIncidentTrends, type TrendBucket } from "@/lib/incidentTrends";
 import {
   buildQapiRecommendations, type ExistingQapiProjectLike, type QapiRecommendation,
 } from "@/lib/qapiRecommendations";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
 
 const WINDOW_OPTIONS = [
@@ -102,9 +102,7 @@ function RecommendationCard({
   const { data: profiles } = useListProfiles();
   const [open, setOpen] = useState(false);
   const [lead, setLead] = useState(user?.id ?? "");
-  const [completion, setCompletion] = useState(
-    toLocalIsoDate(new Date(Date.now() + 90 * 864e5)),
-  );
+  const [completion, setCompletion] = useState(() => addFacilityCalendarDays(facilityToday(), 90));
   const [problem, setProblem] = useState(recommendation.suggestedProblemStatement);
 
   const managers = (profiles ?? []).filter(
@@ -149,7 +147,17 @@ function RecommendationCard({
         <p className="mt-1 text-[11px] text-muted-foreground">
           Threshold: {recommendation.threshold}
         </p>
-        <Button size="sm" variant="outline" className="mt-2" onClick={() => setOpen(true)}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          onClick={() => {
+            setLead(user?.id ?? "");
+            setCompletion(addFacilityCalendarDays(facilityToday(), 90));
+            setProblem(recommendation.suggestedProblemStatement);
+            setOpen(true);
+          }}
+        >
           Open a QAPI project
         </Button>
       </div>
@@ -379,7 +387,13 @@ export default function IncidentTrendsSection({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {recommendations.length === 0 ? (
+          {projects.isError ? (
+            <QueryError
+              what="existing QAPI projects"
+              error={projects.error}
+              onRetry={() => void projects.refetch()}
+            />
+          ) : recommendations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No pattern crossed a threshold in this period. Patterns already carrying an open
               project are not repeated here.
