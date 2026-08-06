@@ -20,6 +20,7 @@ import {
   type FeatureValueType,
 } from "@/lib/packageEntitlementTerm";
 import { QueryError } from "@/components/QueryState";
+import { facilityDayBounds } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -147,9 +148,9 @@ export function PackageEntitlementTermCard({
     rawValue,
     valueType,
     reason,
-    // The date input gives a calendar day; the term starts at the beginning of it.
-    effectiveFrom: effectiveFrom ? `${effectiveFrom}T00:00:00.000Z` : "",
-    effectiveTo: effectiveTo ? `${effectiveTo}T00:00:00.000Z` : "",
+    // Date inputs are facility calendar days — not UTC midnight.
+    effectiveFrom: effectiveFrom ? facilityDayBounds(effectiveFrom).from : "",
+    effectiveTo: effectiveTo ? facilityDayBounds(effectiveTo).from : "",
     contractReference,
   };
   const issues = entitlementTermIssues(form, now);

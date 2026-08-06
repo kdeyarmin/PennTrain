@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -454,11 +454,13 @@ export default function PendingApprovals() {
   // the underlying documents/records; a document that ages out of view here still exists and
   // still shows up the moment the age toggle is switched off or the facility filter is cleared.
   const unlinkedDocuments = useMemo(() => {
-    const cutoffMs = Date.now() - UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS * 24 * 60 * 60 * 1000;
+    const cutoffIso = facilityDayBounds(
+      addFacilityCalendarDays(facilityToday(), -UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS),
+    ).from;
     return (documents ?? []).filter(d => {
       if (linkedDocumentIds.has(d.id)) return false;
       if (facilityId !== "all" && d.facility_id !== facilityId) return false;
-      if (hideOldDocuments && new Date(d.created_at).getTime() < cutoffMs) return false;
+      if (hideOldDocuments && d.created_at < cutoffIso) return false;
       return true;
     });
   }, [documents, linkedDocumentIds, facilityId, hideOldDocuments]);

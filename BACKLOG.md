@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `b55a6999` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **ninth-pass** after G143–G148. Closed guest-grant/surveyor EOD expiry, announcement/workforce/enterprise datetime-local → facility ISO, Today/InspectionReadiness/incident-trends/audit/data-lifecycle/support-ticket calendar bounds, IncidentDetail silent mutates, SupportTickets metric fail-open, InspectionItems bulk-log reset, and remaining unlabeled complaint/credential filters. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `4ef35edf` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **tenth-pass** after G149–G155. Closed WorkQueue/audit-export/entitlement-term/credential/pending-approvals/war-room/duty-override calendar bounds, lifecycle/dietary/service-delivery fail-open, onboarding silent mutate, and remaining unlabeled Selects (Reports mobile, support-plan compare, census, DataTable page-size, corrective-action status, dietary Choice). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -588,6 +588,11 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G153 | IncidentDetail silent status / findings / notifications / final report | S | done | `updateIncident` / `addNotification` / `completeNotification` toast onError; clear drafts only on success |
 | G154 | SupportTickets tiles / open count fail-open to 0 | S | done | StatCards and header open-count show "—" / unavailable while loading or on error |
 | G155 | InspectionItems bulk-log dialog + unlabeled complaint/credential filters | S | done | Reset bulk notes/result on open; aria-label on Complaints facility/status/category and CredentialRenewalInbox status |
+| G156 | WorkQueue / audit export / entitlement term / API credential calendar windows | M | done | Due filter, audit default 30d window, package term from/to, integration credential 90d EOD use facility bounds |
+| G157 | PendingApprovals age cutoff / war-room due / duty override max length | M | done | 90-day hide cutoff, ValueCenter request due (+2d EOD), duty max expiry vs facility calendar year |
+| G158 | Lifecycle / dietary / service-delivery metric fail-open | S | done | Lifecycle tiles dash while loading/holds error; dietary tabs wait for load; service tab counts dash on load/error |
+| G159 | EmployeeDetail onboarding mark-done silent mutate | S | done | `updateOnboardingItem` toasts onError |
+| G160 | Remaining unlabeled Selects (Reports/compare/census/DataTable/dietary/CAPA) | S | done | Mobile report category, support-plan from/to, census resident/status, rows-per-page, corrective status; dietary Field→Choice aria-label |
 
 ## Explicitly not now
 

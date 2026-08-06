@@ -65,7 +65,7 @@ import {
   isCustomerValueBaselineValid,
   type CustomerValueBaselineForm,
 } from "@/lib/customerValueBaseline";
-import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import {
   implementationTaskNeedsAttention,
   implementationTaskRoute,
@@ -770,7 +770,7 @@ export default function ValueCenter() {
                       title: `Documentation request ${(room.requests?.length ?? 0) + 1}`,
                       description: "Collect, verify, and attach the requested inspection documentation.",
                       priority: "high",
-                      dueAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+                      dueAt: facilityDayBounds(addFacilityCalendarDays(facilityToday(), 2)).through,
                     }), "Documentation request added")}
                   >
                     <Plus className="mr-2 h-4 w-4" /> Add request

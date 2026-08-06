@@ -605,12 +605,21 @@ export default function EmployeeDetail() {
                   status,
                   cta: canManage && item.status === "pending" ? "Mark done" : undefined,
                   onAction: canManage && item.status === "pending"
-                    ? () => updateOnboardingItem({
-                        id: item.id,
-                        status: "completed",
-                        completed_at: new Date().toISOString(),
-                        completed_by_profile_id: user?.id ?? null,
-                      })
+                    ? () => updateOnboardingItem(
+                        {
+                          id: item.id,
+                          status: "completed",
+                          completed_at: new Date().toISOString(),
+                          completed_by_profile_id: user?.id ?? null,
+                        },
+                        {
+                          onError: (e: Error) => toast({
+                            title: "Failed to mark onboarding step done",
+                            description: e.message,
+                            variant: "destructive",
+                          }),
+                        },
+                      )
                     : undefined,
                 };
               });

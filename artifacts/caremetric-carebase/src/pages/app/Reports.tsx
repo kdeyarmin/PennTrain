@@ -914,7 +914,7 @@ export default function Reports() {
           onValueChange={setCategory}
           defaultValue="All"
         >
-          <SelectTrigger className="h-10 w-full md:hidden">
+          <SelectTrigger className="h-10 w-full md:hidden" aria-label="Report category">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>

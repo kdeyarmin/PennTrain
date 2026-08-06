@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Children, cloneElement, isValidElement } from "react";
 import { ClipboardCheck, Droplets, Scale, ShieldCheck, Utensils } from "lucide-react";
 import { useAuth, hasRole } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -42,7 +42,14 @@ const futureDate = (days: number) => {
 };
 
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
-  return <div className={`space-y-1 ${className}`}><p className="text-sm font-medium leading-none">{label}</p>{children}</div>;
+  const enriched = Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const props = child.props as { "aria-label"?: string };
+    return cloneElement(child as React.ReactElement<{ "aria-label"?: string }>, {
+      "aria-label": props["aria-label"] ?? label,
+    });
+  });
+  return <div className={`space-y-1 ${className}`}><Label className="text-sm font-medium leading-none">{label}</Label>{enriched}</div>;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -97,7 +104,7 @@ export default function DietaryOperations() {
         </Field>
       </CardContent>
     </Card>
-    {!facilityId ? <Empty>Select a facility to open dietary operations.</Empty> : operations.isError ? <Empty>Dietary operations could not be loaded: {operations.error.message}</Empty> :
+    {!facilityId ? <Empty>Select a facility to open dietary operations.</Empty> : operations.isError ? <Empty>Dietary operations could not be loaded: {operations.error.message}</Empty> : operations.isLoading ? <Empty>Loading dietary operations…</Empty> :
       <Tabs defaultValue="resident" className="space-y-4">
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="resident"><Utensils className="mr-2 h-4 w-4" />Resident nutrition</TabsTrigger>
@@ -241,6 +248,6 @@ function QualificationOperations({ employees, qualifications, canManage, report 
   return <div className="grid gap-4 xl:grid-cols-[420px_1fr]"><Card><CardHeader><CardTitle>Food-service qualification</CardTitle><CardDescription>Track food handling, sanitation, allergens, manager certification, and therapeutic-diet training.</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2"><Field label="Employee" className="sm:col-span-2"><Choice disabled={!canManage} value={form.employeeId} set={(value) => setForm({ ...form, employeeId: value })} values={employees.map((employee) => ({ value: employee.id, label: `${employee.last_name}, ${employee.first_name} · ${employee.job_title ?? "Employee"}` }))} placeholder="Select employee" /></Field><Field label="Qualification"><Choice disabled={!canManage} value={form.type} set={(value) => setForm({ ...form, type: value })} values={["food_handler_certification", "sanitation_training", "allergen_awareness", "manager_certification", "therapeutic_diet_training", "other"]} /></Field><Field label="Custom label"><Input disabled={!canManage} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} /></Field><Field label="Issued"><Input disabled={!canManage} type="date" value={form.issued} onChange={(e) => setForm({ ...form, issued: e.target.value })} /></Field><Field label="Expires"><Input disabled={!canManage} type="date" value={form.expires} onChange={(e) => setForm({ ...form, expires: e.target.value })} /></Field><Field label="Status"><Choice disabled={!canManage} value={form.status} set={(value) => setForm({ ...form, status: value })} values={["compliant", "due_soon", "expired", "missing", "not_applicable"]} /></Field><Field label="Issuing authority"><Input disabled={!canManage} value={form.authority} onChange={(e) => setForm({ ...form, authority: e.target.value })} /></Field><Field label="Documentation reference" className="sm:col-span-2"><Input disabled={!canManage} value={form.evidence} onChange={(e) => setForm({ ...form, evidence: e.target.value })} /></Field><Field label="Notes" className="sm:col-span-2"><Textarea disabled={!canManage} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>{canManage && <Button className="sm:col-span-2" disabled={!form.employeeId || mutation.isPending} onClick={() => mutation.mutate({ employeeId: form.employeeId, qualificationType: form.type, qualificationLabel: form.label, issuedOn: form.issued || undefined, expiresOn: form.expires || undefined, status: form.status, issuingAuthority: form.authority, evidenceReference: form.evidence, notes: form.notes }, report("Food-service qualification saved"))}>Save qualification</Button>}</CardContent></Card><div className="space-y-4"><div className="grid grid-cols-2 gap-3"><Card><CardContent className="pt-5"><p className="text-2xl font-bold">{counts.compliant}</p><p className="text-xs text-muted-foreground">Compliant qualifications</p></CardContent></Card><Card><CardContent className="pt-5"><p className="text-2xl font-bold text-destructive">{counts.attention}</p><p className="text-xs text-muted-foreground">Due, expired, or missing</p></CardContent></Card></div><Card><CardHeader><CardTitle>Qualification roster</CardTitle></CardHeader><CardContent className="space-y-2">{qualifications.length ? qualifications.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-3 text-sm"><div><strong>{item.employee ? `${item.employee.first_name} ${item.employee.last_name}` : "Employee"}</strong><p className="text-muted-foreground">{human(item.qualification_type)}{item.expires_on ? ` · Expires ${item.expires_on}` : ""}</p></div><Badge variant={["expired", "missing"].includes(item.status) ? "destructive" : "outline"}>{human(item.status)}</Badge></div>) : <Empty>No food-service qualifications recorded.</Empty>}</CardContent></Card></div></div>;
 }
 
-function Choice({ value, set, values, disabled, placeholder, allowEmpty }: { value: string; set: (value: string) => void; values: Array<string | { value: string; label: string }>; disabled?: boolean; placeholder?: string; allowEmpty?: boolean }) {
-  return <Select value={value || undefined} onValueChange={(next) => set(next === "__empty" ? "" : next)} disabled={disabled}><SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger><SelectContent>{allowEmpty && <SelectItem value="__empty">Unassigned</SelectItem>}{values.map((item) => { const option = typeof item === "string" ? { value: item, label: human(item) } : item; return <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>; })}</SelectContent></Select>;
+function Choice({ value, set, values, disabled, placeholder, allowEmpty, "aria-label": ariaLabel }: { value: string; set: (value: string) => void; values: Array<string | { value: string; label: string }>; disabled?: boolean; placeholder?: string; allowEmpty?: boolean; "aria-label"?: string }) {
+  return <Select value={value || undefined} onValueChange={(next) => set(next === "__empty" ? "" : next)} disabled={disabled}><SelectTrigger aria-label={ariaLabel ?? placeholder}><SelectValue placeholder={placeholder} /></SelectTrigger><SelectContent>{allowEmpty && <SelectItem value="__empty">Unassigned</SelectItem>}{values.map((item) => { const option = typeof item === "string" ? { value: item, label: human(item) } : item; return <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>; })}</SelectContent></Select>;
 }

@@ -460,8 +460,8 @@ export default function ServiceDelivery() {
         <Tabs defaultValue="tasks">
           <TabsList className="h-auto flex-wrap">
             <TabsTrigger value="tasks">Service tasks</TabsTrigger>
-            <TabsTrigger value="requirements">Requirements ({requirements.data?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="alerts">Exception alerts ({alerts.data?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="requirements">Requirements ({requirements.isLoading || requirements.isError ? "—" : (requirements.data?.length ?? 0)})</TabsTrigger>
+            <TabsTrigger value="alerts">Exception alerts ({alerts.isLoading || alerts.isError ? "—" : (alerts.data?.length ?? 0)})</TabsTrigger>
           </TabsList>
           <TabsContent value="tasks" className="mt-4">{taskRows}</TabsContent>
           <TabsContent value="requirements" className="mt-4">

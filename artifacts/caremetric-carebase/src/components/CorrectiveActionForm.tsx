@@ -193,7 +193,7 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
       </div>
       {isEdit && (
         <Select value={status} onValueChange={(v) => setStatus(v as CorrectiveActionStatusValue)}>
-          <SelectTrigger className={`${inputCls} ${size === "sm" ? "w-28" : "w-36"} shrink-0`}><SelectValue /></SelectTrigger>
+          <SelectTrigger className={`${inputCls} ${size === "sm" ? "w-28" : "w-36"} shrink-0`} aria-label="Corrective action status"><SelectValue /></SelectTrigger>
           <SelectContent>
             {EDITABLE_STATUSES.map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
             {/* If the recalc job has already flagged this one overdue, keep it selectable so the

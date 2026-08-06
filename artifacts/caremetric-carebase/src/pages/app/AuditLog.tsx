@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 import { auditActionDescription, auditEntityLabel, auditEntityRoute } from "@/lib/auditEntityResolver";
-import { facilityDateRangeBounds, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateRangeBounds, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 
 // audit_log_trigger() (see supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
 // writes actions as `${tg_table_name}_${created|updated|deleted}`, e.g. "employees_created".
@@ -139,9 +139,9 @@ export default function AuditLog() {
       const from = bounds?.from
         ?? (dateFrom
           ? facilityDayBounds(dateFrom).from
-          : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+          : facilityDayBounds(addFacilityCalendarDays(facilityToday(), -30)).from);
       const to = bounds?.through
-        ?? (dateTo ? facilityDayBounds(dateTo).through : new Date().toISOString());
+        ?? (dateTo ? facilityDayBounds(dateTo).through : facilityDayBounds(facilityToday()).through);
       const { data, error } = await supabase.rpc("get_audit_export_manifest", {
         p_from: from,
         p_to: to,

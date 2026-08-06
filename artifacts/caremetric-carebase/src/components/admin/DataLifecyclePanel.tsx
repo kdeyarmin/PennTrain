@@ -50,6 +50,8 @@ export function DataLifecyclePanel() {
   );
 
   const activeHolds = (holdsQ.data ?? []).filter((h) => !h.released_at);
+  const holdsUnavailable = holdsQ.isLoading || holdsQ.isError;
+  const statusUnavailable = statusQ.isLoading;
 
   // Date inputs are facility calendar days. Bound with Pennsylvania midnight instants —
   // UTC `T00:00Z` / `T23:59Z` cut the PA evening off the "To" day.
@@ -146,7 +148,7 @@ export function DataLifecyclePanel() {
           <CardContent className="flex items-center gap-3 p-5">
             <Scale className="h-7 w-7 text-violet-600" />
             <div>
-              <p className="text-2xl font-bold">{activeHolds.length}</p>
+              <p className="text-2xl font-bold">{holdsUnavailable ? "—" : activeHolds.length}</p>
               <p className="text-sm text-muted-foreground">Active audit legal holds</p>
             </div>
           </CardContent>
@@ -155,7 +157,7 @@ export function DataLifecyclePanel() {
           <CardContent className="flex items-center gap-3 p-5">
             <Archive className="h-7 w-7 text-blue-600" />
             <div>
-              <p className="text-2xl font-bold">{statusQ.data?.archiveRows ?? 0}</p>
+              <p className="text-2xl font-bold">{statusUnavailable ? "—" : (statusQ.data?.archiveRows ?? 0)}</p>
               <p className="text-sm text-muted-foreground">Archived retained rows</p>
             </div>
           </CardContent>
@@ -164,7 +166,7 @@ export function DataLifecyclePanel() {
           <CardContent className="flex items-center gap-3 p-5">
             <Archive className="h-7 w-7 text-slate-600" />
             <div>
-              <p className="text-2xl font-bold">{statusQ.data?.policies?.length ?? 0}</p>
+              <p className="text-2xl font-bold">{statusUnavailable ? "—" : (statusQ.data?.policies?.length ?? 0)}</p>
               <p className="text-sm text-muted-foreground">Active lifecycle policies</p>
             </div>
           </CardContent>
