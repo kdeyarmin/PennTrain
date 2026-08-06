@@ -67,27 +67,42 @@ function md5(text) {
  * every freshly pushed multi-statement migration (blocking edge-function deploy
  * after a successful push). Rebuilding the joined-statements form closes that gap.
  *
- * libpg-query's stmt_location/stmt_len spans occasionally leave a single orphan
- * character in the gap after `$$;` or overrun a lone `;` into the next statement's
- * leading comment. The orphan/carry handling below matches what the CLI stores.
+ * `stmt_location` and `stmt_len` are UTF-8 BYTE offsets -- libpg-query is reporting
+ * positions in the C string it parsed, not in a JS string. `String.prototype.slice`
+ * indexes UTF-16 code units, so slicing the source with those numbers directly is
+ * only correct while the file is pure ASCII, and drifts by one index per extra byte
+ * from there on: one `·` or `—` earlier in the file shifts every later statement's
+ * span, cumulatively, and the misalignment shows up as a fabricated CONTENT
+ * mismatch for SQL that never changed. Slicing a Buffer by those offsets and
+ * decoding back is the whole fix -- and with the spans aligned, the "orphan
+ * character" the previous version chased disappears, because it was never a parser
+ * quirk.
+ *
+ * A genuine span gap remains: a bare `;` between two statements belongs to neither,
+ * and neither does a comment sitting in front of one. The CLI keeps whatever is
+ * there attached to the following statement, so the gap handling below does too.
  */
 export function supabaseStatementsJoined(sql) {
   const ast = parseSync(sql);
   const stmts = ast.stmts || [];
   if (stmts.length === 0) return sql.replace(/\s+$/, "");
 
+  // The units the parser reported its offsets in.
+  const buf = Buffer.from(sql, "utf8");
+  const sliceBytes = (from, to) => buf.subarray(from, to).toString("utf8");
+
   const parts = [];
   let carry = "";
   for (let i = 0; i < stmts.length; i++) {
     const start = stmts[i].stmt_location ?? 0;
     const len = stmts[i].stmt_len;
-    const end = len == null ? sql.length : start + len;
-    let raw = sql.slice(start, end);
+    const end = len == null ? buf.length : start + len;
+    let raw = sliceBytes(start, end);
 
     if (i > 0) {
       const prev = stmts[i - 1];
       const prevEnd = (prev.stmt_location ?? 0) + (prev.stmt_len ?? 0);
-      const gap = sql.slice(prevEnd, start);
+      const gap = sliceBytes(prevEnd, start);
       const orphan = gap.replace(/^[\s;]*/, "").replace(/[\s;]*$/, "");
       if (orphan) raw = orphan + raw;
     }
@@ -97,6 +112,7 @@ export function supabaseStatementsJoined(sql) {
     }
 
     raw = raw.replace(/;\s*$/, "");
+
     const overrun = raw.search(/\n;\s*\n/);
     if (overrun !== -1) {
       carry = raw.slice(overrun).replace(/^\n;\s*/, "");
@@ -392,6 +408,21 @@ async function runSelfTest() {
   if (!multiHashes.includes(md5(multiJoined))) {
     failures += 1;
     console.error(`✗ localContentHashes should include the statement-join hash, got ${JSON.stringify(multiHashes)}`);
+  }
+
+  // Non-ASCII earlier in the file must not shift the statements after it. The parser reports byte
+  // offsets, so each multi-byte character before a statement moves its reported span one index
+  // further from where a UTF-16 `slice` would find it -- cumulatively. Four of them here, enough
+  // that no fixed-width repair of the resulting fragments could put the text back: without
+  // Buffer-based slicing the first statement loses its tail and the rest arrive shifted.
+  const wide = "-- em dash — and a middot · and é and ü\nselect 1;\n\nrevoke all on function f() from anon;\n\ngrant execute on function f() to authenticated;\n";
+  const wideJoined = supabaseStatementsJoined(wide);
+  const wideExpected = "-- em dash — and a middot · and é and ü\nselect 1\nrevoke all on function f() from anon\ngrant execute on function f() to authenticated";
+  if (wideJoined !== wideExpected) {
+    failures += 1;
+    console.error(
+      `✗ supabaseStatementsJoined must slice by BYTE offsets, not UTF-16 indices\n    expected: ${JSON.stringify(wideExpected)}\n    actual:   ${JSON.stringify(wideJoined)}`,
+    );
   }
 
   for (const fixture of CONTENT_SELF_TEST_FIXTURES) {
