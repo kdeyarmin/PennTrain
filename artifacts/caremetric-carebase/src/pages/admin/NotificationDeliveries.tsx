@@ -105,7 +105,7 @@ export default function NotificationDeliveries() {
     channel: channelFilter !== "all" ? channelFilter : undefined,
   });
   const { data: orgNameMap } = useOrganizationNameMap();
-  const { data: operations, isLoading: operationsLoading } = useNotificationDeliveryOperations();
+  const { data: operations, isLoading: operationsLoading, isError: operationsError } = useNotificationDeliveryOperations();
   const { data: evidence, isLoading: evidenceLoading } = useNotificationDeliveryEvidence(evidenceDeliveryId);
   const { data: templates = [] } = useNotificationTemplateLibrary();
   const { mutate: retryDelivery, isPending: retrying } = useRetryNotificationDelivery();
@@ -347,25 +347,25 @@ export default function NotificationDeliveries() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="pt-5 flex items-start justify-between">
-            <div><p className="text-sm text-muted-foreground">Delivered (24h)</p><p className="text-2xl font-bold">{operationsLoading ? "--" : operations?.summary.delivered ?? 0}</p></div>
+            <div><p className="text-sm text-muted-foreground">Delivered (24h)</p><p className="text-2xl font-bold">{operationsLoading || operationsError ? "—" : operations?.summary.delivered ?? 0}</p></div>
             <CheckCircle2 className="h-5 w-5 text-green-600" />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 flex items-start justify-between">
-            <div><p className="text-sm text-muted-foreground">Actionable failures</p><p className="text-2xl font-bold">{operationsLoading ? "--" : operations?.summary.failed ?? 0}</p></div>
+            <div><p className="text-sm text-muted-foreground">Actionable failures</p><p className="text-2xl font-bold">{operationsLoading || operationsError ? "—" : operations?.summary.failed ?? 0}</p></div>
             <AlertTriangle className="h-5 w-5 text-destructive" />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 flex items-start justify-between">
-            <div><p className="text-sm text-muted-foreground">Awaiting provider final</p><p className="text-2xl font-bold">{operationsLoading ? "--" : operations?.summary.awaitingFinal ?? 0}</p></div>
+            <div><p className="text-sm text-muted-foreground">Awaiting provider final</p><p className="text-2xl font-bold">{operationsLoading || operationsError ? "—" : operations?.summary.awaitingFinal ?? 0}</p></div>
             <Activity className="h-5 w-5 text-blue-600" />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 flex items-start justify-between">
-            <div><p className="text-sm text-muted-foreground">Fallbacks (24h)</p><p className="text-2xl font-bold">{operationsLoading ? "--" : operations?.summary.fallbacks ?? 0}</p></div>
+            <div><p className="text-sm text-muted-foreground">Fallbacks (24h)</p><p className="text-2xl font-bold">{operationsLoading || operationsError ? "—" : operations?.summary.fallbacks ?? 0}</p></div>
             <Bell className="h-5 w-5 text-amber-600" />
           </CardContent>
         </Card>

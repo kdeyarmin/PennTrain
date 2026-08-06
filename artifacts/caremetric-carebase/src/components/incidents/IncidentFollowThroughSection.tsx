@@ -374,7 +374,7 @@ export default function IncidentFollowThroughSection({
   facilityId: string | null | undefined;
 }) {
   const { toast } = useToast();
-  const { data, isLoading } = useIncidentFollowThrough(incidentId);
+  const { data, isLoading, isError, error, refetch } = useIncidentFollowThrough(incidentId);
   const approve = useApproveIncidentInvestigation(incidentId);
   const [pathwayOpen, setPathwayOpen] = useState(false);
   const [reportabilityOpen, setReportabilityOpen] = useState(false);
@@ -384,6 +384,9 @@ export default function IncidentFollowThroughSection({
   const [qapiOpen, setQapiOpen] = useState(false);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isError) {
+    return <QueryError what="incident follow-through" error={error} onRetry={() => void refetch()} />;
+  }
   if (!data?.incident) return null;
 
   const incident = data.incident;

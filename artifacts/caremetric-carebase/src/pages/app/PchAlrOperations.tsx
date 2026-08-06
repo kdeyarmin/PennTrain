@@ -68,11 +68,12 @@ export default function PchAlrOperations() {
     [facilities],
   );
   const activeFacilityId = facilityId || eligibleFacilities[0]?.id || "";
-  const { data: snapshot, error: snapshotError, isFetching, refetch } = useOperationsCommandCenter(activeFacilityId || undefined);
+  const { data: snapshot, error: snapshotError, isFetching, isLoading: snapshotLoading, refetch } = useOperationsCommandCenter(activeFacilityId || undefined);
   const {
     data: portfolioSnapshot,
     error: portfolioError,
     isFetching: isPortfolioFetching,
+    isLoading: portfolioLoading,
     refetch: refetchPortfolio,
   } = usePortfolioOperationsCommandCenter();
   const operationsQueue = useMemo(
@@ -157,10 +158,10 @@ export default function PchAlrOperations() {
         <CardContent className="space-y-4">
           {portfolioError ? <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{portfolioError.message}</div> : null}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Metric title="Facilities in scope" value={portfolioSnapshot?.summary.facilityCount ?? 0} detail={`${portfolioSnapshot?.summary.activeResidents ?? 0} active residents`} />
-            <Metric title="Critical facilities" value={portfolioSnapshot?.summary.criticalFacilities ?? 0} detail="Emergency, urgent, or high-risk signals" />
-            <Metric title="Open work" value={portfolioSnapshot?.summary.openWork ?? 0} detail={`${portfolioSnapshot?.summary.urgentWork ?? 0} urgent · ${portfolioSnapshot?.summary.overdueWork ?? 0} overdue`} />
-            <Metric title="Readiness gaps" value={(portfolioSnapshot?.summary.residentReadinessGaps ?? 0) + (portfolioSnapshot?.summary.workforceGaps ?? 0)} detail="Resident and workforce requirements" />
+            <Metric title="Facilities in scope" value={portfolioError || portfolioLoading ? "—" : (portfolioSnapshot?.summary.facilityCount ?? 0)} detail={portfolioError || portfolioLoading ? "Unavailable" : `${portfolioSnapshot?.summary.activeResidents ?? 0} active residents`} />
+            <Metric title="Critical facilities" value={portfolioError || portfolioLoading ? "—" : (portfolioSnapshot?.summary.criticalFacilities ?? 0)} detail="Emergency, urgent, or high-risk signals" />
+            <Metric title="Open work" value={portfolioError || portfolioLoading ? "—" : (portfolioSnapshot?.summary.openWork ?? 0)} detail={portfolioError || portfolioLoading ? "Unavailable" : `${portfolioSnapshot?.summary.urgentWork ?? 0} urgent · ${portfolioSnapshot?.summary.overdueWork ?? 0} overdue`} />
+            <Metric title="Readiness gaps" value={portfolioError || portfolioLoading ? "—" : ((portfolioSnapshot?.summary.residentReadinessGaps ?? 0) + (portfolioSnapshot?.summary.workforceGaps ?? 0))} detail="Resident and workforce requirements" />
           </div>
           {portfolioSnapshot?.facilities.length === 0 ? (
             <p className="rounded-lg border p-4 text-sm text-muted-foreground">No active PCH or ALF facilities are available in your assigned scope.</p>
@@ -213,10 +214,10 @@ export default function PchAlrOperations() {
         <CardContent className="space-y-4">
           {snapshotError ? <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{snapshotError.message}</div> : null}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Metric title="Owned work open" value={snapshot?.workQueue.openCount ?? 0} detail={`${snapshot?.workQueue.urgentCount ?? 0} urgent · ${snapshot?.workQueue.overdueCount ?? 0} overdue`} />
-            <Metric title="Attention buckets" value={queueSummary.attentionCount} detail="Workflow groups with open risk" />
-            <Metric title="Ready buckets" value={queueSummary.readyCount} detail="No open records in this view" />
-            <Metric title="Active residents" value={snapshot?.signals.activeResidents ?? 0} detail="Current facility census in scope" />
+            <Metric title="Owned work open" value={snapshotError || snapshotLoading ? "—" : (snapshot?.workQueue.openCount ?? 0)} detail={snapshotError || snapshotLoading ? "Unavailable" : `${snapshot?.workQueue.urgentCount ?? 0} urgent · ${snapshot?.workQueue.overdueCount ?? 0} overdue`} />
+            <Metric title="Attention buckets" value={snapshotError || snapshotLoading ? "—" : queueSummary.attentionCount} detail="Workflow groups with open risk" />
+            <Metric title="Ready buckets" value={snapshotError || snapshotLoading ? "—" : queueSummary.readyCount} detail="No open records in this view" />
+            <Metric title="Active residents" value={snapshotError || snapshotLoading ? "—" : (snapshot?.signals.activeResidents ?? 0)} detail="Current facility census in scope" />
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {operationsQueue.map((item) => (
@@ -351,7 +352,7 @@ export default function PchAlrOperations() {
   );
 }
 
-function Metric({ title, value, detail }: { title: string; value: number; detail: string }) {
+function Metric({ title, value, detail }: { title: string; value: number | string; detail: string }) {
   return (
     <Card>
       <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle></CardHeader>

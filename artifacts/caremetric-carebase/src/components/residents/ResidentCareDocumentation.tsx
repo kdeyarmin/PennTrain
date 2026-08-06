@@ -253,7 +253,16 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                 </p>
               </div>
               {canChart && assessment.status === "draft" && (
-                <Button size="sm" variant="outline" disabled={finalizeAssessment.isPending} onClick={() => void finalizeAssessment.mutateAsync({ residentId, assessmentId: assessment.id })}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Finalize</Button>
+                <Button size="sm" variant="outline" disabled={finalizeAssessment.isPending} onClick={() => {
+                  void finalizeAssessment.mutateAsync({ residentId, assessmentId: assessment.id }).then(
+                    () => toast({ title: "Assessment finalized" }),
+                    (error: unknown) => toast({
+                      title: "Could not finalize assessment",
+                      description: error instanceof Error ? error.message : String(error),
+                      variant: "destructive",
+                    }),
+                  );
+                }}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Finalize</Button>
               )}
             </CardContent></Card>
           ))}
