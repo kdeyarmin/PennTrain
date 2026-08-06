@@ -553,7 +553,7 @@ export default function EmployeeDetail() {
                   return (
                     <div className="flex gap-2 pt-1">
                       <Select value={addFacilityId} onValueChange={setAddFacilityId}>
-                        <SelectTrigger className="max-w-xs"><SelectValue placeholder="Add a facility" /></SelectTrigger>
+                        <SelectTrigger className="max-w-xs" aria-label="Add facility assignment"><SelectValue placeholder="Add a facility" /></SelectTrigger>
                         <SelectContent>
                           {availableFacilities.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                         </SelectContent>

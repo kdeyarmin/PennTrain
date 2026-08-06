@@ -51,6 +51,8 @@ export default function AdminDashboard() {
     refetch: refetchDashboard,
   } = useGetPlatformAdminDashboardPage();
 
+  const healthBusy = healthLoading || healthError;
+  const dashboardBusy = dashboardLoading || dashboardError;
   const orgsByStatus = health?.orgsByStatus ?? {};
   const totalOrgs = Object.values(orgsByStatus).reduce((sum, value) => sum + (Number(value) || 0), 0);
   const activeOrgs = Number(orgsByStatus.active ?? 0);
@@ -330,8 +332,12 @@ export default function AdminDashboard() {
         <CardContent className="p-6">
           <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div className="space-y-4">
-              <Badge variant={urgentWorkItems > 0 ? "destructive" : "secondary"} className="w-fit">
-                {urgentWorkItems > 0 ? `${urgentWorkItems} item${urgentWorkItems === 1 ? "" : "s"} need attention` : "Ready to operate"}
+              <Badge variant={!healthBusy && !dashboardBusy && urgentWorkItems > 0 ? "destructive" : "secondary"} className="w-fit">
+                {healthBusy || dashboardBusy
+                  ? "Metrics unavailable"
+                  : urgentWorkItems > 0
+                    ? `${urgentWorkItems} item${urgentWorkItems === 1 ? "" : "s"} need attention`
+                    : "Ready to operate"}
               </Badge>
               <div>
                 <h2 className="text-3xl font-bold tracking-tight text-foreground">Super admin command center</h2>
@@ -376,10 +382,10 @@ export default function AdminDashboard() {
             past-due tenants lands on exactly those rows instead of the unfiltered list the
             admin then has to scan badge by badge. Values must stay in the set the column's
             check constraint allows (SUBSCRIPTION_STATUSES in Organizations.tsx). */}
-        <StatCard label="Total Organizations" value={totalOrgs} icon={Building2} tone="primary" href="/admin/organizations" />
-        <StatCard label="Active Subscriptions" value={activeOrgs} icon={CheckCircle} tone="success" href="/admin/organizations?status=active" />
-        <StatCard label="Trial Accounts" value={trialOrgs} icon={TrendingUp} tone="info" href="/admin/organizations?status=trial" />
-        <StatCard label="Past Due" value={pastDueOrgs} icon={AlertCircle} tone="warning" href="/admin/organizations?status=past_due" />
+        <StatCard label="Total Organizations" value={healthBusy ? "—" : totalOrgs} icon={Building2} tone="primary" href="/admin/organizations" />
+        <StatCard label="Active Subscriptions" value={healthBusy ? "—" : activeOrgs} icon={CheckCircle} tone="success" href="/admin/organizations?status=active" />
+        <StatCard label="Trial Accounts" value={healthBusy ? "—" : trialOrgs} icon={TrendingUp} tone="info" href="/admin/organizations?status=trial" />
+        <StatCard label="Past Due" value={healthBusy ? "—" : pastDueOrgs} icon={AlertCircle} tone="warning" href="/admin/organizations?status=past_due" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -557,7 +563,9 @@ export default function AdminDashboard() {
                   <Link key={item.label} href={item.href} className="rounded-lg border p-3 hover:bg-muted/50">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-medium">{item.label}</p>
-                      <Badge variant={item.count > 0 && item.severity === "high" ? "destructive" : "secondary"}>{item.count}</Badge>
+                      <Badge variant={!healthBusy && item.count > 0 && item.severity === "high" ? "destructive" : "secondary"}>
+                        {healthBusy ? "—" : item.count}
+                      </Badge>
                     </div>
                   </Link>
                 ))}
@@ -610,14 +618,19 @@ export default function AdminDashboard() {
         <CardContent>
           <div className="grid gap-4 xl:grid-cols-[0.8fr_0.6fr_0.6fr]">
             <div className="grid gap-3 sm:grid-cols-2">
-              {trainingOptimizationItems.map((item) => (
-                <Link key={item.label} href={item.href} className="rounded-lg border p-3 hover:bg-muted/50">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <Badge variant={item.count > 0 && item.severity === "high" ? "destructive" : item.severity === "good" ? "default" : "secondary"}>{item.count}</Badge>
-                  </div>
-                </Link>
-              ))}
+              {trainingOptimizationItems.map((item) => {
+                const busy = item.label === "Training path templates" ? dashboardBusy : healthBusy;
+                return (
+                  <Link key={item.label} href={item.href} className="rounded-lg border p-3 hover:bg-muted/50">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <Badge variant={!busy && item.count > 0 && item.severity === "high" ? "destructive" : !busy && item.severity === "good" ? "default" : "secondary"}>
+                        {busy ? "—" : item.count}
+                      </Badge>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
 
             <div className="rounded-lg border p-4">

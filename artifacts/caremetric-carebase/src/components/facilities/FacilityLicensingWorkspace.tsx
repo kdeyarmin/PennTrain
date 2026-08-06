@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Children, cloneElement, isValidElement, useState } from "react";
 import { Plus, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ import {
   type LicensingRecord,
 } from "@/hooks/useFacilityLicensing";
 import { useToast } from "@/hooks/use-toast";
-import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityDaysUntil, facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
 
 type Kind = "license" | "condition" | "waiver" | "filing";
 type Form = Record<string, string>;
@@ -52,9 +52,8 @@ const LICENSE_TYPE_LABELS: Record<string, string> = {
 
 function dueTone(date: unknown) {
   if (!date) return "outline" as const;
-  const days = Math.ceil(
-    (new Date(String(date)).getTime() - Date.now()) / 86_400_000,
-  );
+  const days = facilityDaysUntil(String(date));
+  if (days === null) return "outline" as const;
   return days < 0
     ? ("destructive" as const)
     : days <= 60
@@ -832,10 +831,18 @@ function Field({
   children: React.ReactNode;
   span?: boolean;
 }) {
+  // Visual label stays a plain <p>; clone aria-label onto Choice/Input children for a11y.
+  const enriched = Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const props = child.props as { "aria-label"?: string };
+    return cloneElement(child as React.ReactElement<{ "aria-label"?: string }>, {
+      "aria-label": props["aria-label"] ?? label,
+    });
+  });
   return (
     <div className={`space-y-1 ${span ? "sm:col-span-2" : ""}`}>
       <p className="text-sm font-medium leading-none">{label}</p>
-      {children}
+      {enriched}
     </div>
   );
 }
@@ -844,15 +851,17 @@ function Choice({
   set,
   values,
   labels,
+  "aria-label": ariaLabel,
 }: {
   value: string;
   set: (value: string) => void;
   values: string[];
   labels?: Record<string, string>;
+  "aria-label"?: string;
 }) {
   return (
     <Select value={value} onValueChange={set}>
-      <SelectTrigger>
+      <SelectTrigger aria-label={ariaLabel}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

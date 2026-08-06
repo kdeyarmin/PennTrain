@@ -661,7 +661,7 @@ export default function NotificationDeliveries() {
               </Select>
               <Input value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} placeholder="template_key" />
               <Select value={templateChannel} onValueChange={(value) => setTemplateChannel(value as "email" | "sms")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Template channel"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
               </Select>
             </div>
@@ -717,7 +717,7 @@ export default function NotificationDeliveries() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Select value={spendOrganizationId} onValueChange={setSpendOrganizationId}>
-              <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+              <SelectTrigger aria-label="Spend organization"><SelectValue placeholder="Select organization" /></SelectTrigger>
               <SelectContent>{Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent>
             </Select>
             <div className="grid gap-3 sm:grid-cols-2">

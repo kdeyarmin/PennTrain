@@ -144,7 +144,7 @@ function EnrollCohortDialog({
                 </div>
               ) : (
                 <Select value={classId} onValueChange={setClassId}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Class">
                     <SelectValue placeholder="Choose a class" />
                   </SelectTrigger>
                   <SelectContent>

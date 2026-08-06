@@ -13,7 +13,8 @@ import {
   type AcuityShiftLike,
 } from "./acuityWorkload";
 
-const AS_OF = new Date("2026-07-25T12:00:00Z");
+// Noon Eastern so facilityToday(AS_OF) is stably 2026-07-25 (not near the midnight ET boundary).
+const AS_OF = new Date("2026-07-25T16:00:00Z");
 
 function resident(id: string, overrides: Partial<AcuityResidentLike> = {}): AcuityResidentLike {
   return {

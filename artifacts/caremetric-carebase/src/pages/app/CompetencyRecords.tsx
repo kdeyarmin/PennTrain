@@ -486,7 +486,7 @@ export default function CompetencyRecords() {
                           <p className="text-sm font-medium">{idx + 1}. {item.item_text}</p>
                           <div className="flex items-center gap-3">
                             <Select value={current.result} onValueChange={(v) => setItemField(item.id, "result", v)}>
-                              <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-8 w-32" aria-label={`Checklist result for item ${idx + 1}`}><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {ITEM_RESULT_OPTIONS.map((o) => (
                                   <SelectItem key={o} value={o}>{humanize(o)}</SelectItem>

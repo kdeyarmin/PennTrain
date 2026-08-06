@@ -60,7 +60,7 @@ export function DegreeSelect({
   }
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-8 text-xs w-40">
+      <SelectTrigger className="h-8 text-xs w-40" aria-label="Degree">
         <SelectValue placeholder="Degree" />
       </SelectTrigger>
       <SelectContent>
@@ -147,7 +147,7 @@ export function FrequencyPartyFields({
           }}
           disabled={disabled}
         >
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-8 text-xs" aria-label="Frequency">
             <SelectValue placeholder="Frequency" />
           </SelectTrigger>
           <SelectContent>
@@ -177,7 +177,7 @@ export function FrequencyPartyFields({
           }}
           disabled={disabled}
         >
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-8 text-xs" aria-label="Responsible party">
             <SelectValue placeholder="Responsible party" />
           </SelectTrigger>
           <SelectContent>

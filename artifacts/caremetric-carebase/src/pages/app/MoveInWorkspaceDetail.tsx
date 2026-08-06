@@ -236,7 +236,7 @@ export default function MoveInWorkspaceDetail() {
                     },
                   )}
                 >
-                  <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                  <SelectTrigger aria-label="Task owner"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                   <SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{profiles?.filter(profile => profile.is_active).map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent>
                 </Select>
                 <p className="mt-1 text-xs text-muted-foreground">{task.due_at ? `Due ${new Date(task.due_at).toLocaleString()}` : "No due date"}</p>

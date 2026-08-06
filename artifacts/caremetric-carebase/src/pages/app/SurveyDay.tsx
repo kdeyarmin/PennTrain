@@ -391,7 +391,7 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
                       { onError: (e: Error) => toast({ title: "Could not save disposition", description: e.message, variant: "destructive" }) },
                     )}
                   >
-                    <SelectTrigger><SelectValue placeholder="Set disposition" /></SelectTrigger>
+                    <SelectTrigger aria-label="Survey item disposition"><SelectValue placeholder="Set disposition" /></SelectTrigger>
                     <SelectContent>{DISPOSITIONS.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}</SelectContent>
                   </Select>
                   {item.disposition && <p className="mt-1 text-xs text-muted-foreground">Recorded {displayDate(item.dispositionAt)}</p>}

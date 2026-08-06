@@ -99,7 +99,7 @@ export function Section1Tab({
                         updateField({ planResponsibleParty: v })
                       }
                     >
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-xs" aria-label="Responsible party">
                         <SelectValue placeholder="Responsible party" />
                       </SelectTrigger>
                       <SelectContent>

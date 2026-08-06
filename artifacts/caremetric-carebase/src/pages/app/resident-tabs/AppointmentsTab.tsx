@@ -109,7 +109,7 @@ function AddPreparationItem({ appointmentId, residentId }: { appointmentId: stri
     <div className="mt-2 space-y-2 rounded border p-2">
       <div className="flex flex-wrap gap-2">
         <Select value={kind} onValueChange={(value) => setKind(value as typeof kind)}>
-          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-36 text-xs" aria-label="Prepare kind"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="document">Document</SelectItem>
             <SelectItem value="equipment">Equipment</SelectItem>

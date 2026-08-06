@@ -221,7 +221,7 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Assign to</span>
                     <Select value={instance.responsible_profile_id ?? UNASSIGNED} onValueChange={handleAssign}>
-                      <SelectTrigger className="h-8 w-52"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 w-52" aria-label="Assign to"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                         {orgProfiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}

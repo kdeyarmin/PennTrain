@@ -343,7 +343,7 @@ export function ResidentAdministrativeMaster({
               <div className="flex items-center justify-between"><h3 className="font-semibold">Contacts and legal authority</h3><Button type="button" variant="outline" size="sm" onClick={() => setContacts((rows) => [...rows, emptyContact(rows.length)])}><Plus className="mr-1 h-3.5 w-3.5" /> Add contact</Button></div>
               {contacts.map((contact, index) => (
                 <div key={contact.id || index} className="grid gap-2 rounded-md border p-3 md:grid-cols-4">
-                  <Select value={contact.contact_type} onValueChange={(value) => updateContact(index, { contact_type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTACT_TYPES.map((type) => <SelectItem key={type} value={type}>{humanize(type)}</SelectItem>)}</SelectContent></Select>
+                  <Select value={contact.contact_type} onValueChange={(value) => updateContact(index, { contact_type: value })}><SelectTrigger aria-label="Contact type"><SelectValue /></SelectTrigger><SelectContent>{CONTACT_TYPES.map((type) => <SelectItem key={type} value={type}>{humanize(type)}</SelectItem>)}</SelectContent></Select>
                   <Input placeholder="Name / organization" value={contact.name} onChange={(e) => updateContact(index, { name: e.target.value })} />
                   <Input placeholder="Relationship" value={contact.relationship} onChange={(e) => updateContact(index, { relationship: e.target.value })} />
                   <Input placeholder="Legal authority" value={contact.legal_authority} onChange={(e) => updateContact(index, { legal_authority: e.target.value })} />

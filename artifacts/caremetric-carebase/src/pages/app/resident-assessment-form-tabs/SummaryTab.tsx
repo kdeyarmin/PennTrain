@@ -413,7 +413,7 @@ export function SummaryTab({
                             })
                           }
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs" aria-label="No-signature reason">
                             <SelectValue placeholder="Reason" />
                           </SelectTrigger>
                           <SelectContent>

@@ -276,7 +276,7 @@ export default function OrganizationDetail() {
             <div className="pt-2 space-y-1.5">
               <span className="text-xs text-muted-foreground">Change package</span>
               <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage || isSuspended}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectTrigger className="h-9" aria-label="Change package"><SelectValue placeholder="No package" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No package</SelectItem>
                   {packages?.map(pkg => (

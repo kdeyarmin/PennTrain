@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Car, CheckCircle2, Clock3, MapPin, Plus, UserRound } from "lucide-react";
 import { useAuth, hasRole } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -48,7 +48,15 @@ const facilityDefaultAt = (days: number, timeHHmm = "09:00") =>
 // the create dialog and on a follow-up whose due field was cleared before it was added.
 
 function Field({ label, children, span = false }: { label: string; children: React.ReactNode; span?: boolean }) {
-  return <div className={`space-y-1 ${span ? "sm:col-span-2" : ""}`}><p className="text-sm font-medium leading-none">{label}</p>{children}</div>;
+  // Visual label stays a plain <p>; clone aria-label onto Choice/Input children for a11y.
+  const enriched = Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const props = child.props as { "aria-label"?: string };
+    return cloneElement(child as React.ReactElement<{ "aria-label"?: string }>, {
+      "aria-label": props["aria-label"] ?? label,
+    });
+  });
+  return <div className={`space-y-1 ${span ? "sm:col-span-2" : ""}`}><p className="text-sm font-medium leading-none">{label}</p>{enriched}</div>;
 }
 
 function Choice({ value, onChange, values, placeholder, disabled, "aria-label": ariaLabel }: { value: string; onChange: (value: string) => void; values: Array<string | { value: string; label: string }>; placeholder?: string; disabled?: boolean; "aria-label"?: string }) {
