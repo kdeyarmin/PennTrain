@@ -6,7 +6,7 @@ import {
   useUpsertResidentPersonalFundPayeeProfile,
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toDateTimeLocal } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -435,7 +435,7 @@ export function FundEntryDialog({
           direction: form.direction,
           amount: asNumber(form.amount),
           purpose: form.purpose,
-          transactionAt: new Date(form.at).toISOString(),
+          transactionAt: facilityDateTimeLocalToUtcIso(form.at),
           staffEmployeeId: form.staff === "none" ? null : form.staff,
           receiptDocumentId: form.receipt === "none" ? null : form.receipt,
           residentAcknowledged: form.acknowledged,

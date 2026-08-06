@@ -15,6 +15,7 @@ import {
   useRescheduleAppointment, useScheduleAppointmentForResident,
 } from "@/hooks/useResidentAppointmentMutations";
 import type { AppointmentLike } from "@/lib/residentAppointments";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 import { errorText } from "@/lib/errorText";
 
 /**
@@ -64,9 +65,9 @@ export function ScheduleAppointmentDialog({
       await schedule.mutateAsync({
         appointmentType: appointmentType.trim(),
         location: location.trim(),
-        startsAt: new Date(startsAt).toISOString(),
-        expectedReturnAt: expectedReturnAt ? new Date(expectedReturnAt).toISOString() : undefined,
-        pickupAt: pickupAt ? new Date(pickupAt).toISOString() : undefined,
+        startsAt: facilityDateTimeLocalToUtcIso(startsAt),
+        expectedReturnAt: expectedReturnAt ? facilityDateTimeLocalToUtcIso(expectedReturnAt) : undefined,
+        pickupAt: pickupAt ? facilityDateTimeLocalToUtcIso(pickupAt) : undefined,
         providerName: providerName.trim() || undefined,
         transportationProvider: transportationProvider.trim() || undefined,
         vehicleIdentifier: vehicleIdentifier.trim() || undefined,
@@ -191,7 +192,7 @@ export function RecordAppointmentOutcomeDialog({
         appointmentId: appointment.id,
         status,
         outcomeSummary: summary.trim() || undefined,
-        followUpDueAt: followUpDueAt ? new Date(followUpDueAt).toISOString() : undefined,
+        followUpDueAt: followUpDueAt ? facilityDateTimeLocalToUtcIso(followUpDueAt) : undefined,
         // A closed outcome cannot raise an acknowledgement. `record_appointment_outcome` opens a
         // follow-up work item for `pending_review`, while `appointmentStage` reads the row as
         // closed and the Appointments tab stops offering the Close follow-up action -- so the pair
@@ -407,7 +408,7 @@ export function RescheduleAppointmentDialog({
     try {
       await reschedule.mutateAsync({
         appointmentId: appointment.id,
-        startsAt: new Date(startsAt).toISOString(),
+        startsAt: facilityDateTimeLocalToUtcIso(startsAt),
         reason: reason.trim(),
       });
       toast({ title: "Appointment rescheduled", description: "The replacement inherits the transport and preparation list." });

@@ -486,6 +486,16 @@ Deno.serve(async (req: Request) => {
 
   const { data: facility, error: facilityError } = await callerClient.from("facilities").select("id,organization_id,name,facility_type,state").eq("id", body.facilityId).single();
   if (facilityError || !facility) return json(req, { error: "Facility not found or outside caller scope" }, 404);
+  // facilities_select RLS is org-wide, but grounding tables and durable copilot receipts are
+  // assignment-scoped for facility_manager — without this check an unassigned manager gets empty
+  // evidence without error and a confident false "all clear" (same rationale as voice-tools).
+  if (profile.role === "facility_manager") {
+    const { data: assigned, error: assignedError } = await callerClient
+      .rpc("is_assigned_to_facility", { target_facility_id: facility.id });
+    if (assignedError || assigned !== true) {
+      return json(req, { error: "Facility not found or outside caller scope" }, 404);
+    }
+  }
   if (!["PCH", "ALR"].includes(facility.facility_type)) {
     return json(req, { error: "The compliance copilot is limited to PCH and ALF facilities." }, 400);
   }

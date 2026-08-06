@@ -96,7 +96,7 @@ export default function InspectionReadiness() {
   const { data: inspectionItems, isLoading: inspectionLoading, isError: inspectionError } = useListInspectionItems({ facilityId: activeFacilityId || undefined, isActive: true });
   const { data: incidents, isLoading: incidentsLoading, isError: incidentsError } = useListIncidents({ facilityId: activeFacilityId || undefined });
   const { data: correctiveActions, isLoading: actionsLoading, isError: actionsError } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
-  const { data: policyAttestations, isLoading: attestationsLoading, isError: attestationsError } = useListPolicyAttestations({});
+  const { data: policyAttestations, isLoading: attestationsLoading, isError: attestationsError } = useListPolicyAttestations({ facilityId: activeFacilityId || undefined });
   const { data: administratorProfiles, isLoading: adminProfilesLoading, isError: adminProfilesError } = useListAdministratorProfiles(user?.organizationId ?? undefined);
   const { data: administratorCeEntries, isLoading: adminCeLoading, isError: adminCeError } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
   const { data: residents } = useListResidents({ facilityId: activeFacilityId || undefined });
@@ -196,7 +196,7 @@ export default function InspectionReadiness() {
       case "policies": {
         if (attestationsLoading) return { level: "unknown", detail: "loading policy attestations" };
         if (attestationsError) return { level: "unknown", detail: "could not load policy attestations" };
-        const rows = (policyAttestations ?? []).filter((a) => a.facility_id === activeFacilityId);
+        const rows = policyAttestations ?? [];
         const overdue = rows.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
         return overdue.length === 0 ? { level: "ready" } : { level: "attention", detail: `${overdue.length} overdue` };
       }

@@ -2,7 +2,7 @@ import { useId, useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, MessageSquareText, Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toDateTimeLocal } from "@/lib/dateUtils";
 import {
   useAddComplaintCorrectiveAction,
   useAddComplaintInterview,
@@ -29,7 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 
 const local = (value: string | null) => value ? toDateTimeLocal(new Date(value)) : "";
-const iso = (value: string) => value ? new Date(value).toISOString() : undefined;
+const iso = (value: string) => value ? facilityDateTimeLocalToUtcIso(value) : undefined;
 
 export default function ComplaintDetail() {
   const __fieldIds = useId();
@@ -149,7 +149,7 @@ function InterviewDialog({ open, onOpenChange, complaintId, mutation }: { open: 
   const atValid = Boolean(at) && !Number.isNaN(new Date(at).getTime());
   const submit = () => {
     if (!atValid) return;
-    mutation.mutate({ complaintId, interviewedAt: new Date(at).toISOString(), personName: name, relationship, notes }, { onSuccess: () => { toast({ title: "Interview recorded" }); onOpenChange(false); setName(""); setRelationship(""); setNotes(""); }, onError: (error: Error) => toast({ title: "Could not record interview", description: error.message, variant: "destructive" }) });
+    mutation.mutate({ complaintId, interviewedAt: facilityDateTimeLocalToUtcIso(at), personName: name, relationship, notes }, { onSuccess: () => { toast({ title: "Interview recorded" }); onOpenChange(false); setName(""); setRelationship(""); setNotes(""); }, onError: (error: Error) => toast({ title: "Could not record interview", description: error.message, variant: "destructive" }) });
   };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Record interview</DialogTitle></DialogHeader><div className="space-y-3"><div className="space-y-1"><Label htmlFor={`${__fieldIds}-date-and-time`}>Date and time</Label><Input id={`${__fieldIds}-date-and-time`} type="datetime-local" value={at} onChange={event => setAt(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-person-interviewed`}>Person interviewed</Label><Input id={`${__fieldIds}-person-interviewed`} value={name} onChange={event => setName(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-relationship-to-case`}>Relationship to case</Label><Input id={`${__fieldIds}-relationship-to-case`} value={relationship} onChange={event => setRelationship(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-interview-notes`}>Interview notes</Label><Textarea id={`${__fieldIds}-interview-notes`} value={notes} onChange={event => setNotes(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!atValid || name.trim().length < 2 || relationship.trim().length < 2 || notes.trim().length < 5 || mutation.isPending} onClick={submit}>Record interview</Button></DialogFooter></DialogContent></Dialog>;
 }
@@ -160,7 +160,7 @@ function ActionDialog({ open, onOpenChange, complaintId, profiles, mutation }: {
   const dueValid = Boolean(due) && !Number.isNaN(new Date(due).getTime());
   const submit = () => {
     if (!dueValid) return;
-    mutation.mutate({ complaintId, title, description, ownerProfileId: owner, priority, dueAt: new Date(due).toISOString() }, { onSuccess: () => { toast({ title: "Corrective action assigned", description: "The action is now in Operational Work." }); onOpenChange(false); setTitle(""); setDescription(""); }, onError: (error: Error) => toast({ title: "Could not assign action", description: error.message, variant: "destructive" }) });
+    mutation.mutate({ complaintId, title, description, ownerProfileId: owner, priority, dueAt: facilityDateTimeLocalToUtcIso(due), }, { onSuccess: () => { toast({ title: "Corrective action assigned", description: "The action is now in Operational Work." }); onOpenChange(false); setTitle(""); setDescription(""); }, onError: (error: Error) => toast({ title: "Could not assign action", description: error.message, variant: "destructive" }) });
   };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Add corrective action</DialogTitle></DialogHeader><div className="space-y-3"><div className="space-y-1"><Label htmlFor={`${__fieldIds}-title`}>Title</Label><Input id={`${__fieldIds}-title`} value={title} onChange={event => setTitle(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-description`}>Description</Label><Textarea id={`${__fieldIds}-description`} value={description} onChange={event => setDescription(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-owner`}>Owner</Label><Select value={owner} onValueChange={setOwner}><SelectTrigger id={`${__fieldIds}-owner`}><SelectValue placeholder="Select owner" /></SelectTrigger><SelectContent>{profiles.filter(profile => profile.is_active).map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label htmlFor={`${__fieldIds}-priority`}>Priority</Label><Select value={priority} onValueChange={setPriority}><SelectTrigger id={`${__fieldIds}-priority`}><SelectValue /></SelectTrigger><SelectContent>{["low", "normal", "high", "urgent"].map(value => <SelectItem key={value} value={value}>{humanizeComplaint(value)}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-due`}>Due</Label><Input id={`${__fieldIds}-due`} type="datetime-local" value={due} onChange={event => setDue(event.target.value)} /></div></div></div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!dueValid || title.trim().length < 3 || description.trim().length < 5 || !owner || mutation.isPending} onClick={submit}>Assign action</Button></DialogFooter></DialogContent></Dialog>;
 }
@@ -171,7 +171,7 @@ function MonitoringDialog({ open, onOpenChange, complaintId, mutation }: { open:
   const atValid = Boolean(at) && !Number.isNaN(new Date(at).getTime());
   const submit = () => {
     if (!atValid) return;
-    mutation.mutate({ complaintId, observedAt: new Date(at).toISOString(), observations, concern, actionTaken: action }, { onSuccess: () => { toast({ title: "Monitoring entry recorded" }); onOpenChange(false); setObservations(""); setConcern(false); setAction(""); }, onError: (error: Error) => toast({ title: "Could not record monitoring", description: error.message, variant: "destructive" }) });
+    mutation.mutate({ complaintId, observedAt: facilityDateTimeLocalToUtcIso(at), observations, concern, actionTaken: action }, { onSuccess: () => { toast({ title: "Monitoring entry recorded" }); onOpenChange(false); setObservations(""); setConcern(false); setAction(""); }, onError: (error: Error) => toast({ title: "Could not record monitoring", description: error.message, variant: "destructive" }) });
   };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent><DialogHeader><DialogTitle>Record nonretaliation monitoring</DialogTitle></DialogHeader><div className="space-y-3"><div className="space-y-1"><Label htmlFor={`${__fieldIds}-observed-at`}>Observed at</Label><Input id={`${__fieldIds}-observed-at`} type="datetime-local" value={at} onChange={event => setAt(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-observations`}>Observations</Label><Textarea id={`${__fieldIds}-observations`} value={observations} onChange={event => setObservations(event.target.value)} /></div><label className="flex items-center gap-2 text-sm"><Checkbox checked={concern} onCheckedChange={value => setConcern(value === true)} />Retaliation concern identified</label>{concern && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-action-taken`}>Action taken *</Label><Textarea id={`${__fieldIds}-action-taken`} value={action} onChange={event => setAction(event.target.value)} /></div>}</div><DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={!atValid || observations.trim().length < 5 || (concern && action.trim().length < 5) || mutation.isPending} onClick={submit}>Record monitoring</Button></DialogFooter></DialogContent></Dialog>;
 }
