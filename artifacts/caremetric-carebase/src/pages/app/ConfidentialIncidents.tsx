@@ -105,7 +105,7 @@ export default function ConfidentialIncidents() {
           <CardContent className="pt-6 flex items-center gap-3">
             <Inbox className="h-8 w-8 text-blue-600" />
             <div>
-              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.awaitingTriage}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : summary.awaitingTriage}</p>
               <p className="text-sm text-muted-foreground">Awaiting Triage</p>
             </div>
           </CardContent>
@@ -114,7 +114,7 @@ export default function ConfidentialIncidents() {
           <CardContent className="pt-6 flex items-center gap-3">
             <FolderSearch className="h-8 w-8 text-amber-600" />
             <div>
-              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.investigating}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : summary.investigating}</p>
               <p className="text-sm text-muted-foreground">Under Investigation</p>
             </div>
           </CardContent>
@@ -123,7 +123,7 @@ export default function ConfidentialIncidents() {
           <CardContent className="pt-6 flex items-center gap-3">
             <AlertTriangle className="h-8 w-8 text-red-600" />
             <div>
-              <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : summary.criticalOpen}</p>
+              <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : summary.criticalOpen}</p>
               <p className="text-sm text-muted-foreground">Critical Open</p>
             </div>
           </CardContent>

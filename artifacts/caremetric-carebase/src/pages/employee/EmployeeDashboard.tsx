@@ -328,7 +328,7 @@ export default function EmployeeDashboard() {
                 <div className="flex items-center gap-3">
                   <CheckCircle className="h-8 w-8 text-green-600" />
                   <div>
-                    <p className="text-2xl font-bold">{isLoading ? "—" : compliant}</p>
+                    <p className="text-2xl font-bold">{isLoading || recordsError ? "—" : compliant}</p>
                     <p className="text-sm text-muted-foreground">Compliant</p>
                   </div>
                 </div>
@@ -339,7 +339,7 @@ export default function EmployeeDashboard() {
                 <div className="flex items-center gap-3">
                   <Clock className="h-8 w-8 text-yellow-600" />
                   <div>
-                    <p className="text-2xl font-bold">{isLoading ? "—" : dueSoon}</p>
+                    <p className="text-2xl font-bold">{isLoading || recordsError ? "—" : dueSoon}</p>
                     <p className="text-sm text-muted-foreground">Due Soon</p>
                   </div>
                 </div>
@@ -350,7 +350,7 @@ export default function EmployeeDashboard() {
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="h-8 w-8 text-red-600" />
                   <div>
-                    <p className="text-2xl font-bold">{isLoading ? "—" : expired}</p>
+                    <p className="text-2xl font-bold">{isLoading || recordsError ? "—" : expired}</p>
                     <p className="text-sm text-muted-foreground">Expired</p>
                   </div>
                 </div>
@@ -361,7 +361,7 @@ export default function EmployeeDashboard() {
                 <div className="flex items-center gap-3">
                   <FileCheck2 className="h-8 w-8 text-blue-600" />
                   <div>
-                    <p className="text-2xl font-bold">{employeeLoading || attestationsLoading ? "—" : pendingAttestations.length}</p>
+                    <p className="text-2xl font-bold">{employeeLoading || attestationsLoading || attestationsError ? "—" : pendingAttestations.length}</p>
                     <p className="text-sm text-muted-foreground">Attestations Due</p>
                   </div>
                 </div>

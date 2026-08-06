@@ -485,15 +485,22 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
         toast({ title: `Cleared ${count} auto-filled shift(s)` });
         setShowClearConfirm(false);
       },
+      onError: (e: Error) => toast({ title: "Could not clear auto-fill", description: e.message, variant: "destructive" }),
     });
   }
 
   function handlePublishToggle() {
     if (!schedule) return;
     if (schedule.status === "draft") {
-      publish.mutate(schedule.id, { onSuccess: () => toast({ title: "Schedule published -- employees can now see it" }) });
+      publish.mutate(schedule.id, {
+        onSuccess: () => toast({ title: "Schedule published -- employees can now see it" }),
+        onError: (e: Error) => toast({ title: "Could not publish schedule", description: e.message, variant: "destructive" }),
+      });
     } else {
-      unpublish.mutate(schedule.id, { onSuccess: () => toast({ title: "Schedule moved back to draft" }) });
+      unpublish.mutate(schedule.id, {
+        onSuccess: () => toast({ title: "Schedule moved back to draft" }),
+        onError: (e: Error) => toast({ title: "Could not unpublish schedule", description: e.message, variant: "destructive" }),
+      });
     }
   }
 

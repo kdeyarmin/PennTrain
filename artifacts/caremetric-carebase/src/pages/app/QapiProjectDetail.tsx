@@ -38,7 +38,7 @@ import { QueryError } from "@/components/QueryState";
 // field opened on 01:30 the NEXT day, and submitting it recorded a QAPI meeting as held in the
 // future, on the wrong date. Reading back was already local (`new Date(held)`), so the round
 // trip disagreed with itself.
-import { facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeToUtc, facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
 import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
@@ -72,7 +72,7 @@ export default function QapiProjectDetail() {
   const [aTitle, setATitle] = useState(""),
     [aDesc, setADesc] = useState(""),
     [aOwner, setAOwner] = useState(user?.id ?? ""),
-    [aDue, setADue] = useState(toDateTimeLocal(new Date(Date.now() + 14 * 864e5)));
+    [aDue, setADue] = useState(() => toDateTimeLocal(facilityDateTimeToUtc(addFacilityCalendarDays(facilityToday(), 14), "17:00:00")));
   const [num, setNum] = useState(""),
     [den, setDen] = useState(""),
     [mNotes, setMNotes] = useState(""),
@@ -298,14 +298,18 @@ export default function QapiProjectDetail() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {activity.data?.actions.map((a: any) => (
+            {activity.isError ? (
+              <QueryError what="QAPI action items" error={activity.error} onRetry={() => void activity.refetch()} />
+            ) : (
+              activity.data?.actions.map((a: any) => (
               <div key={a.id} className="rounded border p-3">
                 <p className="font-medium">{a.work_item?.title}</p>
                 <Badge variant="outline">
                   {human(a.work_item?.state ?? "")}
                 </Badge>
               </div>
-            ))}
+            ))
+            )}
             <div className="space-y-2 print:hidden">
               <Input
                 placeholder="Action title"
@@ -351,6 +355,8 @@ export default function QapiProjectDetail() {
                         toast({ title: "Action added" });
                         setATitle("");
                       },
+                      onError: (e: Error) =>
+                        toast({ title: "Could not add action", description: e.message, variant: "destructive" }),
                     },
                   )
                 }
@@ -366,7 +372,10 @@ export default function QapiProjectDetail() {
             <CardTitle>Measurements</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {activity.data?.measurements.map((m: any) => (
+            {activity.isError ? (
+              <QueryError what="QAPI measurements" error={activity.error} onRetry={() => void activity.refetch()} />
+            ) : (
+              activity.data?.measurements.map((m: any) => (
               <div key={m.id} className="rounded border p-3">
                 <p className="font-medium">
                   {m.period_start}–{m.period_end}: {m.result_value}
@@ -375,7 +384,8 @@ export default function QapiProjectDetail() {
                   {m.result_notes}
                 </p>
               </div>
-            ))}
+            ))
+            )}
             <div className="grid gap-2 sm:grid-cols-2 print:hidden">
               <Input
                 type="number"
@@ -415,6 +425,8 @@ export default function QapiProjectDetail() {
                     },
                     {
                       onSuccess: () => toast({ title: "Measurement recorded" }),
+                      onError: (e: Error) =>
+                        toast({ title: "Could not record measurement", description: e.message, variant: "destructive" }),
                     },
                   )
                 }
@@ -431,14 +443,18 @@ export default function QapiProjectDetail() {
           <CardTitle>QAPI meeting notes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {activity.data?.meetings.map((m: any) => (
+          {activity.isError ? (
+            <QueryError what="QAPI meeting notes" error={activity.error} onRetry={() => void activity.refetch()} />
+          ) : (
+            activity.data?.meetings.map((m: any) => (
             <div key={m.id} className="rounded border p-3">
               <p className="font-medium">
                 {new Date(m.held_at).toLocaleString()} · {m.attendees}
               </p>
               <p>{m.notes}</p>
             </div>
-          ))}
+          ))
+          )}
           <div className="grid gap-2 md:grid-cols-2 print:hidden">
             <Input
               type="datetime-local"
@@ -469,7 +485,11 @@ export default function QapiProjectDetail() {
                     barriers,
                     adjustments,
                   },
-                  { onSuccess: () => toast({ title: "Meeting note added" }) },
+                  {
+                    onSuccess: () => toast({ title: "Meeting note added" }),
+                    onError: (e: Error) =>
+                      toast({ title: "Could not add meeting note", description: e.message, variant: "destructive" }),
+                  },
                 )
               }
             >

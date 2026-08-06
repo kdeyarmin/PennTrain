@@ -428,9 +428,9 @@ export default function ServiceDelivery() {
       </Alert>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="flex items-center gap-3 pt-6"><Clock3 className="h-8 w-8 text-blue-600" /><div><p className="text-2xl font-bold">{queue.isLoading ? "—" : scheduled}</p><p className="text-sm text-muted-foreground">Scheduled</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-3 pt-6"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><p className="text-2xl font-bold">{queue.isLoading ? "—" : completed}</p><p className="text-sm text-muted-foreground">Completed</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-3 pt-6"><AlertTriangle className="h-8 w-8 text-amber-600" /><div><p className="text-2xl font-bold">{queue.isLoading ? "—" : exceptions}</p><p className="text-sm text-muted-foreground">Exceptions</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><Clock3 className="h-8 w-8 text-blue-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : scheduled}</p><p className="text-sm text-muted-foreground">Scheduled</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : completed}</p><p className="text-sm text-muted-foreground">Completed</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><AlertTriangle className="h-8 w-8 text-amber-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : exceptions}</p><p className="text-sm text-muted-foreground">Exceptions</p></div></CardContent></Card>
       </div>
 
       <Card>

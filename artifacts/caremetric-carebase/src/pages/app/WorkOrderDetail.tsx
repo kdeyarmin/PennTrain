@@ -227,7 +227,10 @@ export default function WorkOrderDetail() {
             ) : !documents?.length ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No repair documentation uploaded yet.</p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2">{documents.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{doc.file_name}</p><p className="text-xs text-muted-foreground">{humanize(doc.document_type)} · {new Date(doc.created_at).toLocaleDateString()}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => viewDocument(doc)}><Download className="h-4 w-4" /></Button>{canDeleteDocuments && <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocument.mutate(doc)}><Trash2 className="h-4 w-4" /></Button>}</div></div>)}</div>
+              <div className="grid gap-2 sm:grid-cols-2">{documents.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{doc.file_name}</p><p className="text-xs text-muted-foreground">{humanize(doc.document_type)} · {new Date(doc.created_at).toLocaleDateString()}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => viewDocument(doc)}><Download className="h-4 w-4" /></Button>{canDeleteDocuments && <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteDocument.mutate(doc, {
+                  onSuccess: () => toast({ title: "Documentation removed" }),
+                  onError: (e: Error) => toast({ title: "Could not remove documentation", description: e.message, variant: "destructive" }),
+                })}><Trash2 className="h-4 w-4" /></Button>}</div></div>)}</div>
             )}
           </CardContent></Card>
         </div>
