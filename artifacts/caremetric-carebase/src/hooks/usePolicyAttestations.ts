@@ -51,6 +51,7 @@ export function useListPolicyAttestationCampaigns(filters: ListPolicyAttestation
 export interface ListPolicyAttestationsFilters {
   campaignId?: string;
   employeeId?: string;
+  facilityId?: string;
   status?: PolicyAttestation["status"];
 }
 
@@ -66,13 +67,26 @@ export function useListPolicyAttestations(filters: ListPolicyAttestationsFilters
   return useQuery({
     queryKey: ["policy_attestations", filters],
     queryFn: async () => {
-      let query = supabase.from("policy_attestations").select("*").order("due_date", { ascending: true, nullsFirst: false });
-      if (filters.campaignId) query = query.eq("campaign_id", filters.campaignId);
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // PostgREST caps a single response. Page until exhausted so readiness / crosswalk views do
+      // not silently under-count overdue attestations once a campaign fans out past max-rows.
+      const pageSize = 1000;
+      const rows: PolicyAttestation[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("policy_attestations")
+          .select("*")
+          .order("due_date", { ascending: true, nullsFirst: false })
+          .range(from, from + pageSize - 1);
+        if (filters.campaignId) query = query.eq("campaign_id", filters.campaignId);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });

@@ -1,3 +1,5 @@
+import { facilityDateTimeLocalToUtcIso } from "./dateUtils";
+
 export interface TimeOffRequestValidationResult {
   startsAtIso: string;
   endsAtIso: string;
@@ -29,7 +31,7 @@ export function normalizeTimeOffRequestWindow(startsAt: string, endsAt: string):
   if (error) throw new Error(error);
 
   return {
-    startsAtIso: new Date(startsAt).toISOString(),
-    endsAtIso: new Date(endsAt).toISOString(),
+    startsAtIso: facilityDateTimeLocalToUtcIso(startsAt),
+    endsAtIso: facilityDateTimeLocalToUtcIso(endsAt),
   };
 }

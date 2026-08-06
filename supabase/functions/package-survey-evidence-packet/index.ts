@@ -79,6 +79,19 @@ Deno.serve(async (req: Request) => {
   if (!orgId) return json(req, { error: "Organization required" }, 400);
   const facilityId = body.facility_id ?? packetItems[0].facility_id ?? null;
 
+  // Service-role binder downloads below bypass storage RLS -- refuse packaging for an FM who is
+  // not assigned to the target facility (mirrors record_survey_evidence_packet_export).
+  if (profile.role === "facility_manager") {
+    if (!facilityId) {
+      return json(req, { error: "facility_id is required for facility managers" }, 400);
+    }
+    const { data: assigned, error: assignError } = await caller.rpc("is_assigned_to_facility", {
+      target_facility_id: facilityId,
+    });
+    if (assignError) return json(req, { error: assignError.message }, 500);
+    if (!assigned) return json(req, { error: "Not authorized for this facility" }, 403);
+  }
+
   const zip = new StreamingZipWriter();
   const chunks: Uint8Array[] = [];
   const reader = zip.readable.getReader();
@@ -223,12 +236,24 @@ Deno.serve(async (req: Request) => {
     p_item_count: packetItems.length,
     p_manifest: packageManifest,
   });
-  if (recordError) return json(req, { error: recordError.message }, 500);
+  if (recordError) {
+    // Best-effort cleanup so a failed ledger write does not leave an orphan ZIP.
+    const { error: cleanupError } = await admin.storage.from("survey-evidence-packets").remove([storagePath]);
+    if (cleanupError) {
+      return json(req, {
+        error: `${recordError.message} (also failed to remove uploaded package: ${cleanupError.message})`,
+      }, 500);
+    }
+    return json(req, { error: recordError.message }, 500);
+  }
 
-  // Signed download for the authenticated operator
-  const { data: signed } = await admin.storage
+  // Signed download for the authenticated operator -- fail hard rather than success with null URL.
+  const { data: signed, error: signedError } = await admin.storage
     .from("survey-evidence-packets")
     .createSignedUrl(storagePath, 3600);
+  if (signedError || !signed?.signedUrl) {
+    return json(req, { error: signedError?.message ?? "failed to create signed url" }, 500);
+  }
 
   return json(req, {
     success: true,
@@ -237,7 +262,7 @@ Deno.serve(async (req: Request) => {
     contentSha256,
     byteSize: zipBytes.byteLength,
     itemCount: packetItems.length,
-    downloadUrl: signed?.signedUrl ?? null,
+    downloadUrl: signed.signedUrl,
     manifest: packageManifest,
   });
 });

@@ -28,7 +28,7 @@ import {
   OBSERVATION_SYNC_MESSAGES, useSaveOfflineObservationDraft, useSyncOfflineObservationDraft,
 } from "@/hooks/useOfflineObservationDrafts";
 import type { OfflineObservationSyncOutcome } from "@/lib/offlineObservationDraftSafety";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { usePageTitle } from "@/lib/pageTitle";
 import {
   OBSERVATION_CONFIG,
@@ -128,8 +128,10 @@ export default function MyResidentChart() {
     // A datetime-local input can be cleared to "", and new Date("").toISOString() throws a
     // RangeError. This used to escape as an unhandled rejection: no toast, dialog still open,
     // reading gone. Validate before building anything.
-    const observedAtDate = new Date(observedAt);
-    if (Number.isNaN(observedAtDate.getTime())) {
+    let observedAtIso: string;
+    try {
+      observedAtIso = facilityDateTimeLocalToUtcIso(observedAt);
+    } catch {
       toast({ title: "Enter when the reading was taken", variant: "destructive" });
       return;
     }
@@ -152,7 +154,7 @@ export default function MyResidentChart() {
           ? `${residentName} \u00b7 Room ${summary.data.resident.room}`
           : residentName,
         observationType,
-        observedAt: observedAtDate.toISOString(),
+        observedAt: observedAtIso,
         valueNumeric: numeric,
         valueSecondary: secondary,
         // Gated on isCustom for the same reason customLabel is: free text is only ever an input for

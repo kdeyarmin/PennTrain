@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   daysUntil,
   facilityDateRangeBounds,
+  facilityDateTimeLocalToUtcIso,
   facilityDateTimeToUtc,
   facilityDayBounds,
   facilityDaysUntil,
@@ -80,6 +81,11 @@ describe("facilityDayBounds", () => {
   it("facilityDateTimeToUtc lands on Eastern midnight for the given day", () => {
     expect(facilityDateTimeToUtc("2026-07-15", "00:00:00").toISOString()).toBe("2026-07-15T04:00:00.000Z");
     expect(facilityDateTimeToUtc("2026-01-15", "00:00:00").toISOString()).toBe("2026-01-15T05:00:00.000Z");
+  });
+
+  it("facilityDateTimeLocalToUtcIso reads datetime-local as Eastern wall clock", () => {
+    expect(facilityDateTimeLocalToUtcIso("2026-07-15T09:30")).toBe("2026-07-15T13:30:00.000Z");
+    expect(facilityDateTimeLocalToUtcIso("2026-01-15T09:30")).toBe("2026-01-15T14:30:00.000Z");
   });
 
   it("facilityDateRangeBounds includes the full through day", () => {

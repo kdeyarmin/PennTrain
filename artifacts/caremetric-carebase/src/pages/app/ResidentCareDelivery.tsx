@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+
 import { Link } from "wouter";
 import { Activity, AlertTriangle, ClipboardCheck, HeartPulse, Hospital, PackageCheck, RefreshCw, Stethoscope } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -162,7 +164,7 @@ export default function ResidentCareDelivery() {
               {residentPicker("appointment-resident")}
               <Label htmlFor="appointment-location">Location</Label><Input id="appointment-location" value={appointmentLocation} onChange={event => setAppointmentLocation(event.target.value)} placeholder="Provider office or telehealth" />
               <Label htmlFor="appointment-date">Date and time</Label><Input id="appointment-date" type="datetime-local" value={appointmentDate} onChange={event => setAppointmentDate(event.target.value)} />
-              <Button className="w-full" disabled={!selectedResidentId || !appointmentLocation || !appointmentDate || appointment.isPending} onClick={() => appointment.mutate({ residentId: selectedResidentId, appointmentType: "provider", location: appointmentLocation, startsAt: new Date(appointmentDate).toISOString() }, { onSuccess: () => toast({ title: "Appointment scheduled" }), onError: reportError("Couldn't schedule the appointment") })}>Schedule appointment</Button>
+              <Button className="w-full" disabled={!selectedResidentId || !appointmentLocation || !appointmentDate || appointment.isPending} onClick={() => appointment.mutate({ residentId: selectedResidentId, appointmentType: "provider", location: appointmentLocation, startsAt: facilityDateTimeLocalToUtcIso(appointmentDate) }, { onSuccess: () => toast({ title: "Appointment scheduled" }), onError: reportError("Couldn't schedule the appointment") })}>Schedule appointment</Button>
             </CardContent>
           </Card>
 

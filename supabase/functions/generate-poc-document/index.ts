@@ -182,6 +182,13 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Caller profile not found or inactive" }, 403);
   }
 
+  // Auditors can read violations, but regenerating a POC PDF overwrites storage and replaces the
+  // metadata row via the service-role client. That is a write, and it stays with the roles that
+  // already manage Plans of Correction.
+  if (!["platform_admin", "org_admin", "facility_manager"].includes(callerProfile.role)) {
+    return json(req, { error: "Only organization administrators and facility managers can generate a Plan of Correction document" }, 403);
+  }
+
   let body: { violationId?: string };
   try {
     body = await req.json();
@@ -246,25 +253,40 @@ Deno.serve(async (req: Request) => {
   });
   if (uploadError) return json(req, { error: uploadError.message }, 500);
 
-  // Keep exactly one 'poc' document row per violation (the generated PDF supersedes any prior
-  // draft) -- delete-then-insert rather than upsert since there's no natural conflict key besides
-  // violation_id, and evidence rows (document_type='evidence') must be left untouched. The delete
-  // error is checked: a silently failed delete followed by a successful insert would leave
-  // duplicate 'poc' rows for the violation.
-  const { error: deleteError } = await adminClient.from("violation_documents").delete().eq("violation_id", violationId).eq("document_type", "poc");
-  if (deleteError) return json(req, { error: deleteError.message }, 500);
-  const { error: docError } = await adminClient.from("violation_documents").insert({
-    organization_id: violation.organization_id,
-    facility_id: violation.facility_id,
-    violation_id: violationId,
-    storage_bucket: DOCUMENTS_BUCKET,
-    storage_path: path,
-    file_name: "Plan of Correction.pdf",
-    file_type: "application/pdf",
-    document_type: "poc",
-    uploaded_by_profile_id: callerUser.id,
-  });
-  if (docError) return json(req, { error: docError.message }, 500);
+  // Update the existing 'poc' row in place when present. Delete-then-insert left a window where
+  // insert failure after a successful delete dropped the metadata while storage still held the
+  // PDF. Evidence rows (document_type='evidence') are left untouched by filtering on 'poc'.
+  const { data: existingPoc, error: existingPocError } = await adminClient
+    .from("violation_documents")
+    .select("id")
+    .eq("violation_id", violationId)
+    .eq("document_type", "poc")
+    .maybeSingle();
+  if (existingPocError) return json(req, { error: existingPocError.message }, 500);
+
+  if (existingPoc?.id) {
+    const { error: docError } = await adminClient.from("violation_documents").update({
+      storage_bucket: DOCUMENTS_BUCKET,
+      storage_path: path,
+      file_name: "Plan of Correction.pdf",
+      file_type: "application/pdf",
+      uploaded_by_profile_id: callerUser.id,
+    }).eq("id", existingPoc.id);
+    if (docError) return json(req, { error: docError.message }, 500);
+  } else {
+    const { error: docError } = await adminClient.from("violation_documents").insert({
+      organization_id: violation.organization_id,
+      facility_id: violation.facility_id,
+      violation_id: violationId,
+      storage_bucket: DOCUMENTS_BUCKET,
+      storage_path: path,
+      file_name: "Plan of Correction.pdf",
+      file_type: "application/pdf",
+      document_type: "poc",
+      uploaded_by_profile_id: callerUser.id,
+    });
+    if (docError) return json(req, { error: docError.message }, 500);
+  }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)

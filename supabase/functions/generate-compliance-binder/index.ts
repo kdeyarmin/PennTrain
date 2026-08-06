@@ -4,6 +4,7 @@ import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1
 import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { paToday } from "../_shared/paDay.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { facilityTypeLabel } from "../_shared/facilityTypes.ts";
 
 const BINDER_JOB_KEY = "binder-export-generation";
 const BINDER_BUCKET = "binder-exports";
@@ -774,7 +775,7 @@ async function buildBinderPdf(
     facilities.map((f) => {
       const census = residentCountByFacility.get(f.id) ?? { total: 0, sdcu: 0, hospice: 0 };
       return [
-        f.name, f.facility_type, f.license_number ?? "—", String(activeCountByFacility.get(f.id) ?? 0),
+        f.name, facilityTypeLabel(f.facility_type), f.license_number ?? "—", String(activeCountByFacility.get(f.id) ?? 0),
         String(census.total), String(census.sdcu), String(census.hospice),
       ];
     }),

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+
 import { AlertTriangle, ClipboardList, Eye, FileCheck2, Loader2, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -173,7 +175,7 @@ function RequestsCard({ sessionId, packet, readOnly }: {
       sessionId,
       requestText: text.trim(),
       surveyorId: surveyorId || undefined,
-      dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+      dueAt: dueAt ? facilityDateTimeLocalToUtcIso(dueAt) : undefined,
     },
     {
       onSuccess: () => { setText(""); setDueAt(""); },

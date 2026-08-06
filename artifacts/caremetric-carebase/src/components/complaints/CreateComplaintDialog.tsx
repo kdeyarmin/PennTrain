@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toDateTimeLocal } from "@/lib/dateUtils";
 import { useCreateComplaint } from "@/hooks/useComplaints";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -74,7 +74,7 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
   };
   const submit = () => create.mutate({
     facilityId,
-    dateReceived: new Date(dateReceived).toISOString(),
+    dateReceived: facilityDateTimeLocalToUtcIso(dateReceived),
     methodReceived: method,
     complainantType,
     complainantName: name.trim() || undefined,

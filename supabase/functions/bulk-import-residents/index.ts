@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
+import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
 import { paToday } from "../_shared/paDay.ts";
 
 function json(req: Request, body: unknown, status = 200) {
@@ -97,8 +98,13 @@ Deno.serve(async (req: Request) => {
   const leaseError = await acquireImportJobLease(callerClient, jobId);
   if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
 
-  const { data: facilities } = await callerClient.from("facilities").select("id, name").eq("organization_id", effectiveOrgId);
-  const facilityByName = new Map((facilities ?? []).map((f: any) => [String(f.name).trim().toLowerCase(), f.id as string]));
+  let facilities;
+  try {
+    facilities = await listImportFacilitiesForCaller(callerClient, effectiveOrgId, profile.role as string, user.id);
+  } catch (facilitiesError) {
+    return json(req, { error: `Failed to load facilities: ${facilitiesError instanceof Error ? facilitiesError.message : String(facilitiesError)}` }, 500);
+  }
+  const facilityByName = new Map(facilities.map((f: any) => [String(f.name).trim().toLowerCase(), f.id as string]));
 
   const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
   if (offset >= rows.length) {

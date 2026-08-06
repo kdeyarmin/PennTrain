@@ -141,7 +141,10 @@ export function useUploadDocument() {
         .select()
         .single();
       if (error) {
-        await supabase.storage.from(bucket).remove([path]);
+        const { error: cleanupError } = await supabase.storage.from(bucket).remove([path]);
+        if (cleanupError) {
+          throw new Error(`${error.message} (also failed to remove uploaded file: ${cleanupError.message})`);
+        }
         throw error;
       }
       return data;
@@ -164,7 +167,10 @@ export function useDeleteDocument() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (doc: TrainingDocument) => {
-      await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
+      // Storage returns { error } rather than throwing. Deleting metadata first would leave an
+      // undiscoverable orphan file in the private bucket whenever remove fails.
+      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
+      if (storageError) throw new Error(storageError.message);
       const { error } = await supabase.from("training_documents").delete().eq("id", doc.id);
       if (error) throw error;
     },

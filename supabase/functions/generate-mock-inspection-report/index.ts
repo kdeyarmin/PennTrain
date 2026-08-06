@@ -1,6 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { facilityTypeLabel } from "../_shared/facilityTypes.ts";
 
 function json(req: Request, body: unknown, status: number) { return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) } }); }
 function clean(value: unknown) { return String(value ?? "").replace(/[^\x20-\x7E\n]/g, " ").replace(/\s+/g, " ").trim(); }
@@ -27,7 +28,7 @@ Deno.serve(async (req: Request) => {
   function line(text: string, options: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb>; indent?: number } = {}) {
     const size = options.size ?? 9; for (const value of wrap(text, options.indent ? 84 : 92)) { if (y < 50) newPage(); page.drawText(value, { x: 42 + (options.indent ?? 0), y, size, font: options.font ?? regular, color: options.color ?? rgb(0.12,0.12,0.12) }); y -= size + 4; }
   }
-  newPage(); line(`${run.facilities?.name ?? "Facility"} | ${run.facilities?.facility_type ?? ""} | ${run.facilities?.state ?? ""}`, { font: bold, size: 11 });
+  newPage(); line(`${run.facilities?.name ?? "Facility"} | ${facilityTypeLabel(run.facilities?.facility_type)} | ${run.facilities?.state ?? ""}`, { font: bold, size: 11 });
   line(`As of ${run.as_of_date}. Generated ${new Date(run.completed_at || run.created_at).toISOString()}.`);
   line(`Summary: ${run.passed_count} pass, ${run.attention_count} attention, ${run.indeterminate_count} manual review.`, { font: bold });
   line("Draft readiness assessment only. Findings are grounded in the cited CareBase rows and governed rule sources recorded with the run; a qualified reviewer must confirm them before regulator use.", { color: rgb(0.55,0.25,0.04) }); y -= 8;

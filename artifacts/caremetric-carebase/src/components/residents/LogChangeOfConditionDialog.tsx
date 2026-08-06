@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useCreateResidentChangeEvent } from "@/hooks/useResidentChangeEvents";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 
 export interface ChangeOfConditionResidentOption {
   id: string;
@@ -82,7 +82,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
       {
         residentId: targetResidentId,
         category,
-        identifiedAt: new Date(identifiedAt).toISOString(),
+        identifiedAt: facilityDateTimeLocalToUtcIso(identifiedAt),
         immediateObservations: observations.trim(),
         immediateActionTaken: immediateAction.trim(),
         providerNotificationStatus: providerStatus,
@@ -93,7 +93,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
         monitoringFrequency: monitoringFrequency.trim() || null,
         monitoringDurationHours: monitoringInstructions.trim() && Number.isFinite(Number(monitoringHours)) ? Number(monitoringHours) : null,
         assignedProfileId: assignedProfileId || user?.id || null,
-        followUpDueAt: new Date(followUpDueAt).toISOString(),
+        followUpDueAt: facilityDateTimeLocalToUtcIso(followUpDueAt),
         incidentDecision,
         reassessmentRequired,
         supportPlanRevisionRequired,

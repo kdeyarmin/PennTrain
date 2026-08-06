@@ -590,6 +590,23 @@ export default function ClassDetail() {
         </div>
         {isDraft && (
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              disabled={updateTrainingClass.isPending}
+              onClick={() => {
+                if (!classId) return;
+                updateTrainingClass.mutate(
+                  { id: classId, status: "scheduled" },
+                  {
+                    onSuccess: () => toast({ title: "Class open for enrollment" }),
+                    onError: (error: Error) =>
+                      toast({ title: "Could not open class for enrollment", description: error.message, variant: "destructive" }),
+                  },
+                );
+              }}
+            >
+              Open for enrollment
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="text-destructive">
@@ -748,10 +765,9 @@ export default function ClassDetail() {
 
             {/* The session-registration track, which is a different model from the attendee list
                 above: capacity, a waitlist, signed attendance evidence, and an approval that
-                writes training records. All of it existed in the database and none of it had a
-                screen -- registration had a hook nothing rendered (G16.7), and attendance and
-                approval had neither. The employee list is the same active roster the attendee
-                dialog picks from; the card filters out anyone already registered. */}
+                writes training records. Walk-in attendance (draft) and enrollment (scheduled)
+                are separate; Open for enrollment bridges them so SessionRosterCard is not a
+                permanently disabled panel on a newly created class. */}
             <SessionRosterCard
               classId={classId}
               classStatus={cls?.status}
@@ -765,6 +781,12 @@ export default function ClassDetail() {
                 return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
               }}
             />
+            {isDraft && (
+              <p className="text-sm text-muted-foreground">
+                Session enrollment stays closed while this class is a draft. Use Open for enrollment
+                above when the session should accept registrations and waitlist approvals.
+              </p>
+            )}
 
             {(attendanceSummary.checkedInNotMarkedPresent > 0 || attendanceSummary.presentWithoutCheckin > 0 || attendanceSummary.checkedInWithoutCheckout > 0) ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

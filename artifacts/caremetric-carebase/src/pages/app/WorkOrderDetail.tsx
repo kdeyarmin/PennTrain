@@ -2,7 +2,7 @@ import { useId, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, CheckCircle2, Clock3, DollarSign, Download, FileImage, Pause, Pencil, Play, ShieldCheck, Trash2, Upload, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { humanize } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -117,8 +117,8 @@ export default function WorkOrderDetail() {
       targetStatus,
       notes: transitionNotes,
       actualCost: actualCost ? Number(actualCost) : null,
-      downtimeStartedAt: downtimeStarted ? new Date(downtimeStarted).toISOString() : null,
-      downtimeEndedAt: downtimeEnded ? new Date(downtimeEnded).toISOString() : null,
+      downtimeStartedAt: downtimeStarted ? facilityDateTimeLocalToUtcIso(downtimeStarted) : null,
+      downtimeEndedAt: downtimeEnded ? facilityDateTimeLocalToUtcIso(downtimeEnded) : null,
     }, {
       onSuccess: () => { setShowTransition(false); toast({ title: targetStatus === "pending_verification" ? "Work submitted for supervisor verification" : `Work order moved to ${humanize(targetStatus)}` }); },
       onError: (error: Error) => toast({ title: "Transition failed", description: error.message, variant: "destructive" }),
@@ -140,7 +140,7 @@ export default function WorkOrderDetail() {
       temporaryProtectiveAction: edit.protectiveAction,
       assignedEmployeeId: edit.employeeId === "none" ? null : edit.employeeId,
       externalVendor: edit.vendor,
-      targetCompletionAt: edit.target ? new Date(edit.target).toISOString() : null,
+      targetCompletionAt: edit.target ? facilityDateTimeLocalToUtcIso(edit.target) : null,
       partsNeeded: edit.parts,
       estimatedCost: edit.estimatedCost ? Number(edit.estimatedCost) : null,
       residentImpact: edit.residentImpact,

@@ -31,7 +31,7 @@ import {
 } from "@/hooks/useIntegrationCredentials";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { Link } from "wouter";
 
 function human(value: string) {
@@ -125,7 +125,7 @@ export default function MedicationIntegration() {
   const submitAssignment = async () => {
     if (!selectedException || !exceptionOwnerId || !exceptionDueAt) return;
     try {
-      await assignException.mutateAsync({ exceptionId: selectedException.id, facilityId, ownerProfileId: exceptionOwnerId, dueAt: new Date(exceptionDueAt).toISOString(), serviceLevelMinutes: 1440 });
+      await assignException.mutateAsync({ exceptionId: selectedException.id, facilityId, ownerProfileId: exceptionOwnerId, dueAt: facilityDateTimeLocalToUtcIso(exceptionDueAt), serviceLevelMinutes: 1440 });
       toast({ title: "Exception assigned with a linked work item" });
       setSelectedException(null); setExceptionOwnerId("");
     } catch (error) {

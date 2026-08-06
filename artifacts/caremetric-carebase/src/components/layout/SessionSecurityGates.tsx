@@ -97,6 +97,32 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     </div>;
   }
 
+  // Fail closed when the lock check itself fails. Rendering children here would let a refresh
+  // during an existing lock bypass the overlay whenever the RPC is unavailable.
+  if (user && persistedLock.isError) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-destructive/10">
+              <LockKeyhole className="h-6 w-6 text-destructive" />
+            </div>
+            <CardTitle>Session security unavailable</CardTitle>
+            <CardDescription>
+              CareBase could not verify whether this session is locked. Retry the check, or sign out.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Button onClick={() => void persistedLock.refetch()}>Retry</Button>
+            <Button variant="ghost" onClick={() => void signOut()}>
+              <LogOut className="mr-2 h-4 w-4" />Sign out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <>
       {children}
@@ -128,8 +154,47 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
     },
     staleTime: 60_000,
   });
+
+  // Enrollment and step-up live on this route; the gate must never block it, including while the
+  // policy query is still loading or has failed.
+  if (location === "/account/security") return children;
+
+  // Fail closed while loading and after errors. `mustVerify` used to be false whenever data was
+  // absent, so privileged workspaces rendered during the initial request and permanently after any
+  // RPC/MFA failure.
+  if (policy.isLoading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background" role="status">
+        <Loader2 className="h-7 w-7 animate-spin text-primary" />
+        <span className="sr-only">Checking multi-factor policy</span>
+      </div>
+    );
+  }
+
+  if (policy.isError) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-background px-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader className="text-center">
+            <ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" />
+            <CardTitle role="heading" aria-level={1}>Multi-factor policy unavailable</CardTitle>
+            <CardDescription>
+              CareBase could not confirm whether your organization requires a second verification
+              step. Retry the check, open account security, or sign out.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Button onClick={() => void policy.refetch()}>Retry</Button>
+            <Button asChild variant="outline"><Link href="/account/security">Open account security</Link></Button>
+            <Button variant="ghost" onClick={() => void signOut()}>Sign out</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const mustVerify = policy.data?.requirement.required && policy.data.assurance.currentLevel !== "aal2";
-  if (!mustVerify || location === "/account/security") return children;
+  if (!mustVerify) return children;
   return (
     <div className="min-h-screen grid place-items-center bg-background px-4">
       {/* A real heading role: CardTitle renders a div, which left this full-screen gate invisible to

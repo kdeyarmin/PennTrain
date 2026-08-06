@@ -2,7 +2,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { paToday } from "../_shared/paDay.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
-const ROLES = new Set(["platform_admin","org_admin","facility_manager","trainer","auditor"]);
+const ROLES = new Set(["platform_admin","org_admin","facility_manager","trainer"]);
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -32,6 +32,16 @@ Deno.serve(async (req: Request) => {
   if (!body.facilityId) return json(req, { error: "facilityId is required" }, 400);
   const { data: facility } = await caller.from("facilities").select("id,name,facility_type,state").eq("id", body.facilityId).single();
   if (!facility) return json(req, { error: "Facility not found or outside scope" }, 404);
+
+  // facilities_select is org-wide; durable mock_inspection_runs are facility-scoped. Auditors are
+  // read-only elsewhere, and FM/trainer must be assigned (same pattern as voice-tools / fire-drill).
+  if (profile.role === "facility_manager" || profile.role === "trainer") {
+    const { data: assigned, error: assignError } = await caller.rpc("is_assigned_to_facility", {
+      target_facility_id: facility.id,
+    });
+    if (assignError) return json(req, { error: assignError.message }, 500);
+    if (assigned !== true) return json(req, { error: "Not authorized for this facility" }, 403);
+  }
   const { data: items, error: itemError } = await caller.from("entrance_conference_items")
     .select("id,category,prompt,data_source,sort_order,item_types")
     .eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${(await caller.from("profiles").select("organization_id").eq("id", user.id).single()).data?.organization_id}`)

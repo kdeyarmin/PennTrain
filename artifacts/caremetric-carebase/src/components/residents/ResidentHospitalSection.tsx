@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
@@ -113,6 +114,9 @@ export default function ResidentHospitalSection({
   const [ackNote, setAckNote] = useState("");
 
   const episode = episodes.data?.[0];
+  if (episodes.isError) {
+    return <QueryError what="hospital transfers" error={episodes.error} onRetry={() => void episodes.refetch()} />;
+  }
   if (!episode) return null;
 
   const returnReviewFinal = (reviews ?? []).some((review) =>
