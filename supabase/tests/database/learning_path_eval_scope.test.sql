@@ -41,12 +41,12 @@ begin
   set local role authenticated;
 end $$;
 
-select pg_temp.act_as('2b000000-0000-4000-8000-000000000101');
-insert into public.learning_path_definitions(id, organization_id, name, status)
-values ('2b000000-0000-4000-8000-000000000601', '2b000000-0000-4000-8000-000000000001', 'Eval Path', 'published');
--- Direct insert under privileged write so this suite does not depend on the authoring RPCs.
+-- Direct insert as postgres (privileged write) so this suite does not depend on the authoring RPCs.
+-- Must reset role before these inserts: authenticated has no INSERT on learning_path_definitions.
 select set_config('app.privileged_write', 'on', true);
 reset role;
+insert into public.learning_path_definitions(id, organization_id, name, status)
+values ('2b000000-0000-4000-8000-000000000601', '2b000000-0000-4000-8000-000000000001', 'Eval Path', 'published');
 insert into public.learning_path_versions(
   id, path_definition_id, organization_id, version_number, state, definition, definition_sha256, published_by, published_at
 ) values (
