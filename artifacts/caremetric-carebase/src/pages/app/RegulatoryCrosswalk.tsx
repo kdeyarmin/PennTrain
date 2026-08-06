@@ -174,19 +174,19 @@ export default function RegulatoryCrosswalk() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-5">
           <Select value={activeFacilityId} onValueChange={setFacilityId}>
-            <SelectTrigger><SelectValue placeholder="Facility" /></SelectTrigger>
+            <SelectTrigger aria-label="Facility"><SelectValue placeholder="Facility" /></SelectTrigger>
             <SelectContent>{(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={facilityType} onValueChange={(value) => setFacilityType(value as FacilityProgram | "all")}>
-            <SelectTrigger><SelectValue placeholder="Facility type" /></SelectTrigger>
+            <SelectTrigger aria-label="Facility type"><SelectValue placeholder="Facility type" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All facility types</SelectItem><SelectItem value="PCH">PCH</SelectItem><SelectItem value="ALR">ALF</SelectItem></SelectContent>
           </Select>
           <Select value={status} onValueChange={(value) => setStatus(value as CrosswalkStatus | "all")}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All statuses</SelectItem>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={evidenceSource} onValueChange={(value) => setEvidenceSource(value as CrosswalkEvidenceSource | "all")}>
-            <SelectTrigger><SelectValue placeholder="Documentation source" /></SelectTrigger>
+            <SelectTrigger aria-label="Documentation source"><SelectValue placeholder="Documentation source" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All sources</SelectItem>{Object.entries(SOURCE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
           </Select>
           <Input value={citation} onChange={(event) => setCitation(event.target.value)} placeholder="Citation or requirement" />

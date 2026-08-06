@@ -22,6 +22,7 @@ import { QueryError } from "@/components/QueryState";
 import { useAcknowledgeShiftReportEntry, useCreateShiftReportEntry, useMyShiftWorkspace, useRecordShiftCallOff } from "@/hooks/useDailyOperations";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
+import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 
 function CountBadge({ count }: { count: number }) {
   return <Badge variant={count ? "default" : "outline"}>{count}</Badge>;
@@ -44,17 +45,19 @@ export default function MyShift() {
 
   const reportHandoff = () => {
     if (!shift?.facility_id || !shift?.id || !handoffDraft?.narrative.trim()) return;
-    const periodStart = new Date(`${shift.shift_date}T${shift.start_time}`);
-    const periodEnd = new Date(`${shift.shift_date}T${shift.end_time}`);
-    if (periodEnd <= periodStart) periodEnd.setDate(periodEnd.getDate() + 1);
+    const startTime = shift.start_time.slice(0, 5);
+    const endTime = shift.end_time.slice(0, 5);
+    const endDate = endTime <= startTime
+      ? addFacilityCalendarDays(shift.shift_date, 1)
+      : shift.shift_date;
     createHandoff.mutate({
       facilityId: shift.facility_id,
       unitId: shift.unit_id,
       shiftAssignmentId: shift.id,
       category: handoffDraft.category,
       priority: handoffDraft.priority,
-      periodStart: periodStart.toISOString(),
-      periodEnd: periodEnd.toISOString(),
+      periodStart: facilityDateTimeLocalToUtcIso(`${shift.shift_date}T${startTime}`),
+      periodEnd: facilityDateTimeLocalToUtcIso(`${endDate}T${endTime}`),
       narrative: handoffDraft.narrative.trim(),
       requiresAcknowledgement: handoffDraft.priority !== "normal",
     }, {

@@ -43,7 +43,7 @@ import {
 import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Eraser, Loader2, Pill, Plus, Send, Sparkles, Undo2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
-import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso, addFacilityCalendarDays } from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios, summarizeMedAdminCoverage } from "@/lib/scheduleAnalytics";
 import { QueryError } from "@/components/QueryState";
 
@@ -297,17 +297,23 @@ export default function ScheduleDetail() {
 function openOverride(candidate: EligibilityCandidate, blockCode: string) {
   const shiftDef = activeShiftDefs.find((s) => s.id === addForm.shiftDefinitionId);
   const defaultExpiresAt = (() => {
-    if (!addTarget || !shiftDef) return new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const start = new Date(`${addTarget.date}T${shiftDef.start_time}`);
-    const end = new Date(`${addTarget.date}T${shiftDef.end_time}`);
-    if (end <= start) end.setDate(end.getDate() + 1);
-    return end;
+    if (!addTarget || !shiftDef) {
+      return toFacilityDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000));
+    }
+    const startTime = shiftDef.start_time.slice(0, 5);
+    const endTime = shiftDef.end_time.slice(0, 5);
+    // Overnight shifts end on the next Pennsylvania calendar day — do not parse
+    // `YYYY-MM-DDTHH:mm` with the browser Date constructor (wrong zone).
+    const endDate = endTime <= startTime
+      ? addFacilityCalendarDays(addTarget.date, 1)
+      : addTarget.date;
+    return `${endDate}T${endTime}`;
   })();
 
   setOverrideForm({
     reason: "",
     authorityReference: "",
-    expiresAt: toFacilityDateTimeLocal(defaultExpiresAt),
+    expiresAt: defaultExpiresAt,
   });
   setOverrideTarget({ candidate, blockCode });
 }

@@ -306,12 +306,16 @@ export function FundOpenDialog({
 }) {
   const mutation = useOpenResidentPersonalFundAccount();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     opened: today(),
     balance: "0",
     acknowledged: true,
     note: "",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent>
@@ -609,11 +613,15 @@ export function ReconcileDialog({
 }) {
   const mutation = useReconcileResidentPersonalFunds();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     end: today(),
     counted: String(balance),
     notes: "",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open, balance]);
   const variance = asNumber(form.counted) - balance;
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>

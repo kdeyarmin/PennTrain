@@ -12,6 +12,7 @@ import { useClinicalChartResidentOptions } from "@/hooks/useClinicalObservations
 import { useResidentPhotoUrls } from "@/hooks/useResidentPhotos";
 import { useResidentServiceTaskQueue } from "@/hooks/useResidentServiceTasks";
 import { filterResidentOptions, type ClinicalChartResidentOption } from "@/lib/clinicalObservations";
+import { facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 
 /** Only the resident id is needed here; the queue's full row shape belongs to Floor. */
 interface QueueResidentRow { resident_id: string }
@@ -47,12 +48,9 @@ export default function MyResidents() {
   const options = useClinicalChartResidentOptions();
   const photos = useResidentPhotoUrls();
 
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  const { from: dayFrom, through: dayThrough } = facilityDayBounds(facilityToday());
   // No status filter: a task already documented still means this resident is on today's assignment.
-  const queue = useResidentServiceTaskQueue({ from: dayStart.toISOString(), through: dayEnd.toISOString() });
+  const queue = useResidentServiceTaskQueue({ from: dayFrom, through: dayThrough });
 
   // Gate the grouped/ungrouped choice on the queue settling. The roster RPC is a single-table scan
   // and the task queue joins task instances, so the roster usually resolves first -- without this the

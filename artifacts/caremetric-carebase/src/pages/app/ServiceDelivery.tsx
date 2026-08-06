@@ -438,7 +438,7 @@ export default function ServiceDelivery() {
           <Input type="date" value={date} onChange={event => setDate(event.target.value)} aria-label="Service date" />
           {!isEmployee && (
             <Select value={facilityId} onValueChange={setFacilityId}>
-              <SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger>
+              <SelectTrigger aria-label="Facility"><SelectValue placeholder="All facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All facilities</SelectItem>
                 {facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
@@ -446,7 +446,7 @@ export default function ServiceDelivery() {
             </Select>
           )}
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger><SelectValue placeholder="All statuses" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}

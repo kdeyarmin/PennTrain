@@ -85,13 +85,13 @@ export default function DietaryOperations() {
       <CardContent className="grid gap-3 pt-6 md:grid-cols-2">
         <Field label="Facility">
           <Select value={facilityId} onValueChange={setFacilityId}>
-            <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent>
           </Select>
         </Field>
         <Field label="Resident">
           <Select value={residentId} onValueChange={setResidentId} disabled={!facilityId}>
-            <SelectTrigger><SelectValue placeholder="Select resident for resident operations" /></SelectTrigger>
+            <SelectTrigger aria-label="Resident"><SelectValue placeholder="Select resident for resident operations" /></SelectTrigger>
             <SelectContent>{residents.data?.map((item) => <SelectItem key={item.id} value={item.id}>{item.last_name}, {item.first_name}{item.room ? ` · Room ${item.room}` : ""}</SelectItem>)}</SelectContent>
           </Select>
         </Field>

@@ -150,7 +150,7 @@ export default function QapiDashboard() {
       <Card>
         <CardContent className="pt-6">
           <Select value={fac} onValueChange={setFac}>
-            <SelectTrigger className="max-w-sm">
+            <SelectTrigger className="max-w-sm" aria-label="Facility">
               <SelectValue placeholder="Select facility" />
             </SelectTrigger>
             <SelectContent>

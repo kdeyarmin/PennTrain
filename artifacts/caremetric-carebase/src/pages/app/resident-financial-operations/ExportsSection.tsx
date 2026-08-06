@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import {
   useCreateResidentAccountingExport,
@@ -71,11 +71,15 @@ export function ExportDialog({
 }) {
   const mutation = useCreateResidentAccountingExport();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     start: monthStart(),
     end: today(),
     format: "csv",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent>

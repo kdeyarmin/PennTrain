@@ -279,7 +279,7 @@ export default function EmployeeLifecycleCases() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
           <Select value={status} onValueChange={(value) => { setStatus(value); setPage(0); }}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {EMPLOYEE_LIFECYCLE_CASE_STATUSES.map((value) => (
@@ -288,7 +288,7 @@ export default function EmployeeLifecycleCases() {
             </SelectContent>
           </Select>
           <Select value={transitionFilter} onValueChange={(value) => { setTransitionFilter(value); setPage(0); }}>
-            <SelectTrigger><SelectValue placeholder="Transition" /></SelectTrigger>
+            <SelectTrigger aria-label="Transition"><SelectValue placeholder="Transition" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All transitions</SelectItem>
               {EMPLOYEE_LIFECYCLE_TRANSITIONS.map((value) => (

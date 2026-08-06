@@ -315,7 +315,7 @@ export default function ComprehensiveReport() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={facilityId} onValueChange={setFacilityId}>
-              <SelectTrigger className="w-full sm:w-56">
+              <SelectTrigger className="w-full sm:w-56" aria-label="Facility">
                 <SelectValue placeholder="All Facilities" />
               </SelectTrigger>
               <SelectContent>

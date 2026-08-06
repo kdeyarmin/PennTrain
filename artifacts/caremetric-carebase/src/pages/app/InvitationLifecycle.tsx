@@ -184,7 +184,7 @@ export default function InvitationLifecycle() {
             />
           </div>
           <Select value={status} onValueChange={(value) => { setStatus(value); setPage(0); }}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {INVITATION_STATUSES.map((value) => (
@@ -193,7 +193,7 @@ export default function InvitationLifecycle() {
             </SelectContent>
           </Select>
           <Select value={role} onValueChange={(value) => { setRole(value); setPage(0); }}>
-            <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
+            <SelectTrigger aria-label="Role"><SelectValue placeholder="Role" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All roles</SelectItem>
               {INVITATION_ROLES.map((value) => (

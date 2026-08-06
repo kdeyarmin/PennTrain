@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 import {
   useAssignOrganizationCohort, useOrganizationCohortMemberships, useReleaseCohorts,
   useUnassignOrganizationCohort, type OrganizationCohortMembership,
@@ -108,7 +109,7 @@ export function ReleaseCohortMembershipCard() {
             cohortId,
             featureKey: featureKey.trim(),
             reason: reason.trim(),
-            expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : undefined,
+            expiresAt: expiresAt ? facilityDateTimeLocalToUtcIso(`${expiresAt}T23:59`) : undefined,
           }, {
             onSuccess: () => { setReason(""); toast({ title: "Organization added to the cohort" }); },
             onError: (error) => toast({ title: "Assignment blocked", description: errorText(error), variant: "destructive" }),

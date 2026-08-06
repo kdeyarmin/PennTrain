@@ -49,7 +49,14 @@ function NewPolicyDocumentDialog() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => {
+      setOpen(next);
+      if (!next) {
+        setTitle("");
+        setCategory("");
+        setDescription("");
+      }
+    }}>
       <DialogTrigger asChild>
         <Button><Plus className="mr-2 h-4 w-4" /> New Policy Document</Button>
       </DialogTrigger>

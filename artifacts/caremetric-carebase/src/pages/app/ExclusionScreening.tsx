@@ -170,7 +170,7 @@ export default function ExclusionScreening() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5" /> Matches ({sorted.length})</CardTitle>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-48" aria-label="Status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="pending_review">Pending Review</SelectItem>
                 <SelectItem value="confirmed_exclusion">Confirmed Exclusion</SelectItem>

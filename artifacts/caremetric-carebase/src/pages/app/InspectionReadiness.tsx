@@ -405,7 +405,7 @@ export default function InspectionReadiness() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={activeFacilityId} onValueChange={setFacilityId}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger className="w-56" aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>{(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
           </Select>
           <Button asChild variant="outline">

@@ -203,7 +203,7 @@ export default function PchAlrOperations() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Refresh
               </Button>
               <Select value={activeFacilityId} onValueChange={setFacilityId}>
-                <SelectTrigger className="w-64"><SelectValue placeholder="Select facility" /></SelectTrigger>
+                <SelectTrigger className="w-64" aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
                 <SelectContent>
                   {eligibleFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
                 </SelectContent>

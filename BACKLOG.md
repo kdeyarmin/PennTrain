@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `9bf14021` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **sixth-pass** after G111–G130. Closed remaining facility datetime-local round-trips (CoC / create complaint / rights ack), practicum `facilityYear`, maintenance/work-order dialog resets + locations QueryError, CCC/Dashboard/Emergency/InspectionReadiness metric fail-open, and more unlabeled filter Selects. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `fd621755` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **seventh-pass** after G131–G136. Closed shift wall-clock → facility ISO (ScheduleDetail / MyShift), Floor/MyResidents facility-day queues, break-glass + cohort expiry facility parsing, financial/policy/export dialog resets, med-exception due sticky, QAPI form clears, and more unlabeled filter Selects. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -569,6 +569,12 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G134 | Work-order transition/verify dialogs kept downtime & notes | S | done | Clear downtime + verification fields when opening transition/verify |
 | G135 | CCC / Dashboard / Emergency / InspectionReadiness metric fail-open | S | done | CCC StatCards dash while loading; Dashboard score null until data (not 100%); Emergency tiles dash while loading; special-care card QueryError on source failure |
 | G136 | Remaining unlabeled filter Selects (a11y) | S | done | aria-label on TrainingMatrix, CCC, Documents, CourseAssignments, Violations, MyTrainings, MedAdminRoster, PendingApprovals, Practicums, BackgroundChecks, CompetencyRecords, TrainerClasses, Users, ComplianceBinder, ValueCenter, SurveyDay |
+| G137 | Shift wall-clock still browser-zone for override/handoff | M | done | `ScheduleDetail` override expiry and `MyShift` handoff period use facility date+time → `facilityDateTimeLocalToUtcIso` (overnight via `addFacilityCalendarDays`) |
+| G138 | Floor / My Residents task queue used browser midnight | S | done | Both use `facilityDayBounds(facilityToday())` for the queue window |
+| G139 | Break-glass + release-cohort expiry browser-local | S | done | `BreakGlassCard` defaults/submit via facility datetime helpers; cohort date-only expiry uses facility `T23:59` |
+| G140 | Financial / export / policy create dialogs stale on reopen | S | done | Receivables Rate/Entry/Monthly/Statement, FundOpen/Reconcile, ExportDialog reset on open; PolicyDocuments clears on close |
+| G141 | Med-exception due sticky; QAPI measure/meeting/action forms stick | S | done | Reset due on Review/assign success; clear QAPI measurement, meeting, and action drafts on success |
+| G142 | More unlabeled operational filter Selects | S | done | AdmissionOperations, ServiceDelivery, ChangeOfConditionQueue, Dietary, QAPI, Inspection*, PCH/ALF ops, lifecycle/import/crosswalk/exclusion filters + QAPI form Selects |
 
 ## Explicitly not now
 
