@@ -20,15 +20,21 @@ export function useListCorrectiveActions(filters: ListCorrectiveActionsFilters =
   return useQuery({
     queryKey: ["corrective_actions", filters],
     queryFn: async () => {
-      let query = supabase.from("corrective_actions").select("*").order("due_date");
-      if (filters.incidentId) query = query.eq("incident_id", filters.incidentId);
-      if (filters.inspectionEventId) query = query.eq("inspection_event_id", filters.inspectionEventId);
-      if (filters.violationId) query = query.eq("violation_id", filters.violationId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const pageSize = 1000;
+      const rows: CorrectiveAction[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("corrective_actions").select("*").order("due_date").range(from, from + pageSize - 1);
+        if (filters.incidentId) query = query.eq("incident_id", filters.incidentId);
+        if (filters.inspectionEventId) query = query.eq("inspection_event_id", filters.inspectionEventId);
+        if (filters.violationId) query = query.eq("violation_id", filters.violationId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
   });
 }

@@ -186,7 +186,12 @@ export function useSendSupportTicketMessage() {
         .single();
       if (error) {
         if ("attachment_path" in attachment && typeof attachment.attachment_path === "string") {
-          await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+          const { error: cleanupError } = await supabase.storage
+            .from(ATTACHMENT_BUCKET)
+            .remove([attachment.attachment_path]);
+          if (cleanupError) {
+            throw new Error(`${error.message} (also failed to remove uploaded file: ${cleanupError.message})`);
+          }
         }
         throw error;
       }

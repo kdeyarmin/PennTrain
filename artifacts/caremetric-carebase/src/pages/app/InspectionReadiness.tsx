@@ -89,16 +89,16 @@ export default function InspectionReadiness() {
   );
   const { data: checklistItems } = useListEntranceConferenceItems();
 
-  const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined, status: "active" });
-  const { data: trainingRecords } = useListTrainingRecords({ facilityId: activeFacilityId || undefined });
+  const { data: employees, isLoading: employeesLoading, isError: employeesError } = useListEmployees({ facilityId: activeFacilityId || undefined, status: "active" });
+  const { data: trainingRecords, isLoading: trainingLoading, isError: trainingError } = useListTrainingRecords({ facilityId: activeFacilityId || undefined });
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: credentials } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined });
-  const { data: inspectionItems } = useListInspectionItems({ facilityId: activeFacilityId || undefined, isActive: true });
-  const { data: incidents } = useListIncidents({ facilityId: activeFacilityId || undefined });
-  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
-  const { data: policyAttestations } = useListPolicyAttestations({});
-  const { data: administratorProfiles } = useListAdministratorProfiles(user?.organizationId ?? undefined);
-  const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
+  const { data: credentials, isLoading: credentialsLoading, isError: credentialsError } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined });
+  const { data: inspectionItems, isLoading: inspectionLoading, isError: inspectionError } = useListInspectionItems({ facilityId: activeFacilityId || undefined, isActive: true });
+  const { data: incidents, isLoading: incidentsLoading, isError: incidentsError } = useListIncidents({ facilityId: activeFacilityId || undefined });
+  const { data: correctiveActions, isLoading: actionsLoading, isError: actionsError } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
+  const { data: policyAttestations, isLoading: attestationsLoading, isError: attestationsError } = useListPolicyAttestations({});
+  const { data: administratorProfiles, isLoading: adminProfilesLoading, isError: adminProfilesError } = useListAdministratorProfiles(user?.organizationId ?? undefined);
+  const { data: administratorCeEntries, isLoading: adminCeLoading, isError: adminCeError } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
   const { data: residents } = useListResidents({ facilityId: activeFacilityId || undefined });
   const { data: units } = useListFacilityUnits({ facilityId: activeFacilityId || undefined });
   const { data: schedulePreferences } = useListEmployeeSchedulePreferences({ facilityId: activeFacilityId || undefined });
@@ -138,10 +138,14 @@ export default function InspectionReadiness() {
   function readinessFor(item: EntranceConferenceItem): { level: ReadinessLevel; detail?: string } {
     switch (item.data_source) {
       case "roster": {
+        if (employeesLoading) return { level: "unknown", detail: "loading staff roster" };
+        if (employeesError) return { level: "unknown", detail: "could not load staff roster" };
         const count = employees?.length ?? 0;
         return count > 0 ? { level: "ready", detail: `${count} active` } : { level: "attention", detail: "no active staff on file" };
       }
       case "training": {
+        if (trainingLoading) return { level: "unknown", detail: "loading training records" };
+        if (trainingError) return { level: "unknown", detail: "could not load training records" };
         // Renewals insert fresh rows and leave prior ones "expired" forever, so
         // only the current record per (employee, training type) may count here.
         const rows = selectCurrentTrainingRecords(trainingRecords ?? []);
@@ -151,6 +155,8 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "credentials": {
+        if (credentialsLoading) return { level: "unknown", detail: "loading credentials" };
+        if (credentialsError) return { level: "unknown", detail: "could not load credentials" };
         const rows = (credentials ?? []).filter((c) => HEALTH_CREDENTIAL_TYPES.includes(c.credential_type));
         const outstanding = rows.filter((c) => c.status === "expired" || c.status === "due_soon" || c.status === "missing");
         return outstanding.length === 0
@@ -158,6 +164,8 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "background_checks": {
+        if (credentialsLoading) return { level: "unknown", detail: "loading background checks" };
+        if (credentialsError) return { level: "unknown", detail: "could not load background checks" };
         const rows = (credentials ?? []).filter((c) => BACKGROUND_CHECK_CREDENTIAL_TYPES.includes(c.credential_type));
         const outstanding = rows.filter((c) => c.status === "expired" || c.status === "due_soon" || c.status === "missing");
         return outstanding.length === 0
@@ -165,6 +173,8 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "inspections": {
+        if (inspectionLoading) return { level: "unknown", detail: "loading inspection items" };
+        if (inspectionError) return { level: "unknown", detail: "could not load inspection items" };
         const rows = inspectionItems ?? [];
         const outstanding = rows.filter((i) => i.status === "expired" || i.status === "due_soon" || i.status === "missing");
         return outstanding.length === 0
@@ -172,6 +182,8 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "incidents": {
+        if (incidentsLoading || actionsLoading) return { level: "unknown", detail: "loading incidents" };
+        if (incidentsError || actionsError) return { level: "unknown", detail: "could not load incidents" };
         const openIncidents = (incidents ?? []).filter(
           (i) => i.occurred_at >= oneYearAgo && !i.final_report_submitted_at
         );
@@ -182,6 +194,8 @@ export default function InspectionReadiness() {
         return outstanding === 0 ? { level: "ready" } : { level: "attention", detail: `${outstanding} outstanding` };
       }
       case "policies": {
+        if (attestationsLoading) return { level: "unknown", detail: "loading policy attestations" };
+        if (attestationsError) return { level: "unknown", detail: "could not load policy attestations" };
         const rows = (policyAttestations ?? []).filter((a) => a.facility_id === activeFacilityId);
         const overdue = rows.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
         return overdue.length === 0 ? { level: "ready" } : { level: "attention", detail: `${overdue.length} overdue` };
@@ -190,6 +204,8 @@ export default function InspectionReadiness() {
         if (!activeFacility || !(activeFacility.facility_type === "PCH" || activeFacility.facility_type === "ALR")) {
           return { level: "unknown", detail: "not a PCH/ALF facility" };
         }
+        if (adminProfilesLoading || adminCeLoading) return { level: "unknown", detail: "loading administrator records" };
+        if (adminProfilesError || adminCeError) return { level: "unknown", detail: "could not load administrator records" };
         const { summary } = buildBestAdministratorRulePack(activeFacility.facility_type, {
           profiles: administratorProfiles ?? [],
           ceEntries: administratorCeEntries ?? [],
@@ -215,7 +231,7 @@ export default function InspectionReadiness() {
         detail: result.detail,
       };
     }),
-    [checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents, correctiveActions, policyAttestations, administratorProfiles, administratorCeEntries, activeFacility, activeFacilityId, oneYearAgo, today],
+    [checklistItems, employees, employeesLoading, employeesError, trainingRecords, trainingLoading, trainingError, credentials, credentialsLoading, credentialsError, inspectionItems, inspectionLoading, inspectionError, incidents, incidentsLoading, incidentsError, correctiveActions, actionsLoading, actionsError, policyAttestations, attestationsLoading, attestationsError, administratorProfiles, adminProfilesLoading, adminProfilesError, administratorCeEntries, adminCeLoading, adminCeError, activeFacility, activeFacilityId, oneYearAgo, today],
   );
 
   const actionQueue = useMemo(() => buildInspectionReadinessActions({

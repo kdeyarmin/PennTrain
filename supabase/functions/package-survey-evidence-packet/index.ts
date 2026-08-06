@@ -223,12 +223,24 @@ Deno.serve(async (req: Request) => {
     p_item_count: packetItems.length,
     p_manifest: packageManifest,
   });
-  if (recordError) return json(req, { error: recordError.message }, 500);
+  if (recordError) {
+    // Best-effort cleanup so a failed ledger write does not leave an orphan ZIP.
+    const { error: cleanupError } = await admin.storage.from("survey-evidence-packets").remove([storagePath]);
+    if (cleanupError) {
+      return json(req, {
+        error: `${recordError.message} (also failed to remove uploaded package: ${cleanupError.message})`,
+      }, 500);
+    }
+    return json(req, { error: recordError.message }, 500);
+  }
 
-  // Signed download for the authenticated operator
-  const { data: signed } = await admin.storage
+  // Signed download for the authenticated operator -- fail hard rather than success with null URL.
+  const { data: signed, error: signedError } = await admin.storage
     .from("survey-evidence-packets")
     .createSignedUrl(storagePath, 3600);
+  if (signedError || !signed?.signedUrl) {
+    return json(req, { error: signedError?.message ?? "failed to create signed url" }, 500);
+  }
 
   return json(req, {
     success: true,
@@ -237,7 +249,7 @@ Deno.serve(async (req: Request) => {
     contentSha256,
     byteSize: zipBytes.byteLength,
     itemCount: packetItems.length,
-    downloadUrl: signed?.signedUrl ?? null,
+    downloadUrl: signed.signedUrl,
     manifest: packageManifest,
   });
 });

@@ -71,7 +71,7 @@ export default function Settings() {
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: settings, isLoading, isError, error, refetch } = useGetOrganizationSettings(user?.organizationId ?? undefined);
-  const { mutate: upsertSettings, isPending: saving } = useUpsertOrganizationSettings();
+  const { mutate: upsertSettings, mutateAsync: upsertSettingsAsync, isPending: saving } = useUpsertOrganizationSettings();
   const { data: deliveries } = useListNotificationDeliveries(15);
   const { mutate: recalculateCompliance, isPending: recalculating } = useRecalculateOrgCompliance();
   const exports = useOrganizationExports(user?.organizationId);
@@ -137,6 +137,7 @@ export default function Settings() {
 
     const ext = file.name.split(".").pop() ?? "png";
     const path = `${user.organizationId}/logo.${ext}`;
+    const previousPath = logoPath;
     setLogoUploading(true);
     try {
       const { error: uploadError } = await supabase.storage
@@ -144,15 +145,25 @@ export default function Settings() {
         .upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
 
+      try {
+        await upsertSettingsAsync({ organization_id: user.organizationId, branding_logo_path: path });
+      } catch (saveError) {
+        // Settings never pointed at the new object -- remove it when it is a different key than
+        // the prior logo so a failed save does not leave an orphan (png vs jpg) or a UI that
+        // shows a path the DB does not store.
+        if (path !== previousPath) {
+          const { error: cleanupError } = await supabase.storage.from(LOGO_BUCKET).remove([path]);
+          if (cleanupError) {
+            throw new Error(
+              `${saveError instanceof Error ? saveError.message : "Failed to save logo path"} (also failed to remove uploaded file: ${cleanupError.message})`,
+            );
+          }
+        }
+        throw saveError;
+      }
+
       setLogoPath(path);
-      upsertSettings(
-        { organization_id: user.organizationId, branding_logo_path: path },
-        {
-          onSuccess: () => toast({ title: "Logo uploaded" }),
-          onError: (err: Error) =>
-            toast({ title: "Logo uploaded, but failed to save", description: err.message, variant: "destructive" }),
-        },
-      );
+      toast({ title: "Logo uploaded" });
     } catch (err) {
       toast({
         title: "Logo upload failed",

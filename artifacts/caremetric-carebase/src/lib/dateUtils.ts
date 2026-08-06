@@ -82,6 +82,20 @@ export function facilityDateTimeToUtc(isoDate: string, timeHms = "00:00:00"): Da
 }
 
 /**
+ * Interpret a `<input type="datetime-local">` value (`YYYY-MM-DDTHH:mm`) as Pennsylvania
+ * facility wall clock and return a UTC ISO string. `new Date(value).toISOString()` would use
+ * the browser's zone instead.
+ */
+export function facilityDateTimeLocalToUtcIso(value: string): string {
+  const [datePart, rawTime = "00:00"] = value.split("T");
+  if (!DATE_ONLY_PATTERN.test(datePart)) {
+    throw new Error(`expected YYYY-MM-DDTHH:mm, got ${value}`);
+  }
+  const timeHms = rawTime.length === 5 ? `${rawTime}:00` : rawTime;
+  return facilityDateTimeToUtc(datePart, timeHms).toISOString();
+}
+
+/**
  * Half-open `[from, through)` UTC instants covering one Pennsylvania calendar day.
  * Use for timestamptz range filters so "today" means the facility day, not the browser day.
  */
