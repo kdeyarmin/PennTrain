@@ -1,3 +1,5 @@
+import { facilityToday } from "./dateUtils";
+
 export interface SupportTicketAnalyticsRecord {
   id: string;
   status: string;
@@ -16,10 +18,18 @@ export interface SupportTicketAnalyticsSummary {
   oldestOpenTicketId: string | null;
 }
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Calendar-day age on the Pennsylvania facility calendar (same shape as incidentAnalytics).
+ * A UTC `T23:59:59Z` end-of-day cut PA evening tickets out of "today".
+ */
 function ageDays(iso: string, today: string): number {
-  const start = Date.parse(iso);
-  const end = Date.parse(`${today}T23:59:59Z`);
-  return Math.max(0, Math.floor((end - start) / 86_400_000));
+  const createdDay = facilityToday(new Date(iso));
+  if (!DATE_ONLY.test(createdDay) || !DATE_ONLY.test(today)) return Number.NaN;
+  return Math.round(
+    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${createdDay}T00:00:00Z`)) / 86_400_000,
+  );
 }
 
 export function summarizeSupportTicketAnalytics(tickets: SupportTicketAnalyticsRecord[], today: string): SupportTicketAnalyticsSummary {

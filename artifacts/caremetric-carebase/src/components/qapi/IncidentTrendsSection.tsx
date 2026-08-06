@@ -22,7 +22,7 @@ import { buildIncidentTrends, type TrendBucket } from "@/lib/incidentTrends";
 import {
   buildQapiRecommendations, type ExistingQapiProjectLike, type QapiRecommendation,
 } from "@/lib/qapiRecommendations";
-import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateRangeBounds, facilityToday } from "@/lib/dateUtils";
 
 const WINDOW_OPTIONS = [
   { value: "30", label: "Last 30 days" },
@@ -233,9 +233,11 @@ export default function IncidentTrendsSection({
   const [drill, setDrill] = useState<{ label: string; incidentIds: string[] } | null>(null);
 
   const range = useMemo(() => {
-    const to = new Date();
-    const from = new Date(to.getTime() - Number(windowDays) * 864e5);
-    return { from: from.toISOString(), to: to.toISOString() };
+    const throughDate = facilityToday();
+    const fromDate = addFacilityCalendarDays(throughDate, -Number(windowDays));
+    // Half-open facility range: from start of fromDate through end of today.
+    const bounds = facilityDateRangeBounds(fromDate, throughDate);
+    return { from: bounds.from, to: bounds.through };
   }, [windowDays]);
 
   const records = useIncidentTrendRecords({ facilityId, from: range.from, to: range.to });
@@ -286,7 +288,7 @@ export default function IncidentTrendsSection({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Select value={windowDays} onValueChange={setWindowDays}>
-                <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 w-44" aria-label="Trend window"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {WINDOW_OPTIONS.map((entry) => (
                     <SelectItem key={entry.value} value={entry.value}>{entry.label}</SelectItem>

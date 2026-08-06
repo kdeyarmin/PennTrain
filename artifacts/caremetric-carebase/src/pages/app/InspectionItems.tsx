@@ -357,7 +357,7 @@ export default function InspectionItems() {
         {canManage && selectedIds.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3 bg-muted/30">
             <p className="text-sm">{selectedIds.length} selected</p>
-            <Button size="sm" onClick={() => setBulkLogOpen(true)}>
+            <Button size="sm" onClick={() => { setBulkNotes(""); setBulkResult("pass"); setBulkLogOpen(true); }}>
               <ClipboardCheck className="mr-2 h-4 w-4" /> Log inspection on selected
             </Button>
           </div>

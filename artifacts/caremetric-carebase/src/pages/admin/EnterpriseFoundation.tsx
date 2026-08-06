@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   Building2,
@@ -996,7 +996,7 @@ function BillingOverrideCommand() {
           p_organization_id: organizationId,
           p_override_state: overrideState,
           p_reason: reason.trim(),
-          p_expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+          p_expires_at: expiresAt ? facilityDateTimeLocalToUtcIso(expiresAt) : null,
         },
       });
       setReason("");

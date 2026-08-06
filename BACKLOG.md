@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `8c0404cd` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **eighth-pass** after G137–G142. Closed services-calendar facility-day grouping, adaptive-path/guest-link facility EOD expiry, support-plan activation/oneYearOut facility calendar, overview empty-on-error, dialog resets (FHIR/move-in/care plan/incident follow-through/admin master), complaint trends calendar math, and more unlabeled admin/ops filter Selects. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `b55a6999` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **ninth-pass** after G143–G148. Closed guest-grant/surveyor EOD expiry, announcement/workforce/enterprise datetime-local → facility ISO, Today/InspectionReadiness/incident-trends/audit/data-lifecycle/support-ticket calendar bounds, IncidentDetail silent mutates, SupportTickets metric fail-open, InspectionItems bulk-log reset, and remaining unlabeled complaint/credential filters. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -581,6 +581,13 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G146 | Resident overview empty-on-error under failure banner | S | done | Informal supports error copy; admin master tiles/lists take `dataUnavailable` instead of zero/none |
 | G147 | Stale create dialogs: FHIR, move-in guest, care plan, incident follow-through, admin master add | S | done | Reset on open; incident reportability/investigation/QAPI dialogs rehydrate when reopened |
 | G148 | Complaint trends + remaining unlabeled admin/ops Selects | S | done | Trends window via `addFacilityCalendarDays`; aria-label on Organizations/SupportTickets/AiLog/NotificationDeliveries, ResidentCompliance, Reports, EmergencyEventDetail |
+| G149 | Evidence / surveyor guest grant expiry used browser `Date.now()+Nd` | M | done | Collection + Survey Day packet grants expire at facility EOD via `addFacilityCalendarDays` / `facilityDayBounds` |
+| G150 | Announcements / workforce / enterprise datetime-local → browser ISO | M | done | Announcement expiry, schedule-eligibility starts/ends, billing override expiry use `facilityDateTimeLocalToUtcIso` |
+| G151 | Today / InspectionReadiness / incident trends / audit / lifecycle calendar bounds | M | done | Work-item `dueBefore`, oneYearAgo, trends window, audit date filters, archive range use facility day/range bounds |
+| G152 | Support-ticket age used UTC `T23:59:59Z` | M | done | `supportTicketAnalytics.ageDays` matches incident calendar-day math via `facilityToday` |
+| G153 | IncidentDetail silent status / findings / notifications / final report | S | done | `updateIncident` / `addNotification` / `completeNotification` toast onError; clear drafts only on success |
+| G154 | SupportTickets tiles / open count fail-open to 0 | S | done | StatCards and header open-count show "—" / unavailable while loading or on error |
+| G155 | InspectionItems bulk-log dialog + unlabeled complaint/credential filters | S | done | Reset bulk notes/result on open; aria-label on Complaints facility/status/category and CredentialRenewalInbox status |
 
 ## Explicitly not now
 

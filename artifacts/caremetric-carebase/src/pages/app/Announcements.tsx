@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 
 const ROLES = ["org_admin", "facility_manager", "trainer", "employee", "auditor"] as const;
 
@@ -55,7 +56,7 @@ export default function Announcements() {
       body,
       audienceRoles: roles,
       audienceFacilityIds: facilityIds,
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+      expiresAt: expiresAt ? facilityDateTimeLocalToUtcIso(expiresAt) : null,
     }, {
       onSuccess: () => {
         setTitle(""); setBody(""); setRoles([]); setFacilityIds([]); setExpiresAt("");

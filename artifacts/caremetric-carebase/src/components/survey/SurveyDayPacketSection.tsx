@@ -21,6 +21,7 @@ import {
   type SurveyEvidencePacketJob,
 } from "@/lib/surveyEvidencePacket";
 import { QueryError } from "@/components/QueryState";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 
 /**
  * Lazy Survey Day section: packet selection, zip package, and surveyor guest grant.
@@ -345,7 +346,7 @@ export default function SurveyDayPacketSection({
                 variant="outline"
                 disabled={issueGuest.isPending || guestLabel.trim().length < 2}
                 onClick={() => {
-                  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                  const expires = facilityDayBounds(addFacilityCalendarDays(facilityToday(), 7)).through;
                   void issueGuest
                     .mutateAsync({
                       packetExportId: latestExport.id,

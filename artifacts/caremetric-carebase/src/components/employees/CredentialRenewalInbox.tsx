@@ -187,7 +187,7 @@ export function CredentialRenewalInbox({
           </div>
           <div className="flex flex-wrap gap-2">
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-44" aria-label="Credential renewal status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {STATUSES.map((value) => (

@@ -271,8 +271,11 @@ export default function IncidentDetail() {
           {canManage && (
             <>
             {hasPchAlr && <IncidentQapiEscalation incident={incident} />}
-            <Select value={incident.status} onValueChange={(v) => updateIncident({ id: incident.id, status: v as typeof incident.status })}>
-              <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+            <Select value={incident.status} onValueChange={(v) => updateIncident(
+              { id: incident.id, status: v as typeof incident.status },
+              { onError: (e: Error) => toast({ title: "Failed to update status", description: e.message, variant: "destructive" }) },
+            )}>
+              <SelectTrigger className="w-40 h-9" aria-label="Incident status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {["reported", "investigating", "closed"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
               </SelectContent>
@@ -333,7 +336,14 @@ export default function IncidentDetail() {
               <Textarea id={`${__fieldIds}-findings`}
                 key={`findings:${incident.investigation_findings ?? ""}`}
                 defaultValue={incident.investigation_findings ?? ""}
-                onBlur={(e) => { if (e.target.value !== (incident.investigation_findings ?? "")) updateIncident({ id: incident.id, investigation_findings: e.target.value || null }); }}
+                onBlur={(e) => {
+                  if (e.target.value !== (incident.investigation_findings ?? "")) {
+                    updateIncident(
+                      { id: incident.id, investigation_findings: e.target.value || null },
+                      { onError: (err: Error) => toast({ title: "Failed to save findings", description: err.message, variant: "destructive" }) },
+                    );
+                  }
+                }}
                 placeholder="Investigation findings"
               />
             </div>
@@ -342,7 +352,14 @@ export default function IncidentDetail() {
               <Textarea id={`${__fieldIds}-root-cause`}
                 key={`root-cause:${incident.root_cause ?? ""}`}
                 defaultValue={incident.root_cause ?? ""}
-                onBlur={(e) => { if (e.target.value !== (incident.root_cause ?? "")) updateIncident({ id: incident.id, root_cause: e.target.value || null }); }}
+                onBlur={(e) => {
+                  if (e.target.value !== (incident.root_cause ?? "")) {
+                    updateIncident(
+                      { id: incident.id, root_cause: e.target.value || null },
+                      { onError: (err: Error) => toast({ title: "Failed to save root cause", description: err.message, variant: "destructive" }) },
+                    );
+                  }
+                }}
                 placeholder="Root cause analysis"
               />
             </div>
@@ -458,13 +475,18 @@ export default function IncidentDetail() {
                         size="sm"
                         disabled={completingNotification}
                         onClick={() => {
-                          completeNotification({
-                            id: n.id, incidentId: incident.id, completedByProfileId: user!.id,
-                            notificationMethod: completeMethod.trim() || undefined,
-                            recipient: completeRecipient.trim() || undefined,
-                            referenceNumber: completeReference.trim() || undefined,
-                          });
-                          setCompletingId(null);
+                          completeNotification(
+                            {
+                              id: n.id, incidentId: incident.id, completedByProfileId: user!.id,
+                              notificationMethod: completeMethod.trim() || undefined,
+                              recipient: completeRecipient.trim() || undefined,
+                              referenceNumber: completeReference.trim() || undefined,
+                            },
+                            {
+                              onSuccess: () => setCompletingId(null),
+                              onError: (e: Error) => toast({ title: "Failed to mark notified", description: e.message, variant: "destructive" }),
+                            },
+                          );
                         }}
                       >
                         {completingNotification ? "Saving..." : "Mark Notified"}
@@ -489,11 +511,14 @@ export default function IncidentDetail() {
               </div>
               <Button
                 size="sm"
-                onClick={() => addNotification({
-                  incident_id: incident.id, notification_type: newNotificationType,
-                  due_at: new Date(Date.now() + Number(newNotificationHours || 24) * 3600_000).toISOString(),
-                  organization_id: incident.organization_id, facility_id: incident.facility_id,
-                })}
+                onClick={() => addNotification(
+                  {
+                    incident_id: incident.id, notification_type: newNotificationType,
+                    due_at: new Date(Date.now() + Number(newNotificationHours || 24) * 3600_000).toISOString(),
+                    organization_id: incident.organization_id, facility_id: incident.facility_id,
+                  },
+                  { onError: (e: Error) => toast({ title: "Failed to add notification", description: e.message, variant: "destructive" }) },
+                )}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -687,8 +712,13 @@ export default function IncidentDetail() {
                 size="sm" variant="outline"
                 disabled={!finalReportDate || updatingIncident}
                 onClick={() => {
-                  updateIncident({ id: incident.id, final_report_submitted_at: facilityDayBounds(finalReportDate).from });
-                  setFinalReportDate("");
+                  updateIncident(
+                    { id: incident.id, final_report_submitted_at: facilityDayBounds(finalReportDate).from },
+                    {
+                      onSuccess: () => setFinalReportDate(""),
+                      onError: (e: Error) => toast({ title: "Failed to record submission date", description: e.message, variant: "destructive" }),
+                    },
+                  );
                 }}
               >
                 {incident.final_report_submitted_at ? "Update Submission Date" : "Record Submission"}

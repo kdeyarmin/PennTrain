@@ -17,6 +17,7 @@ import { getTodayDestinations } from "@/lib/todayWorkspace";
 import { buildHomeMetrics, firstCall, highlightMetrics } from "@/lib/homeMetrics";
 import { groupByCategory, workItemSourceLabel } from "@/lib/workItemSources";
 import { formatTimestampLabel, latestQueryUpdatedAt } from "@/lib/freshness";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { useListWorkItems } from "@/hooks/useWorkItems";
@@ -79,7 +80,11 @@ export default function Today() {
   const facilityId = isManager ? (validSelection || facilityList[0]?.id) : (validSelection || undefined);
   // Keep the React Query key stable for the life of this page. Rebuilding an ISO timestamp
   // during every render creates a distinct key on every render and can continuously refetch.
-  const dueBefore = useMemo(() => new Date(Date.now() + 7 * 86_400_000).toISOString(), []);
+  // Bound is facility end-of-day seven calendar days out — not browser `Date.now() + 7d`.
+  const dueBefore = useMemo(
+    () => facilityDayBounds(addFacilityCalendarDays(facilityToday(), 7)).through,
+    [],
+  );
   const operations = useDailyOperationsCommandCenter(facilityId);
   const work = useListWorkItems({ facilityId, dueBefore });
   const alerts = useListAlerts({ facilityId, status: "open" });

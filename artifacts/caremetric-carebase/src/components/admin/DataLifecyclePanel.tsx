@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Archive, Scale } from "lucide-react";
+import { facilityDateRangeBounds } from "@/lib/dateUtils";
 
 export function DataLifecyclePanel() {
   const __fieldIds = useId();
@@ -50,10 +51,13 @@ export function DataLifecyclePanel() {
 
   const activeHolds = (holdsQ.data ?? []).filter((h) => !h.released_at);
 
-  // The date inputs give calendar days; the RPC takes instants. Taking the whole of the end day
-  // rather than its midnight means "to 31 January" includes 31 January, which is what it reads as.
+  // Date inputs are facility calendar days. Bound with Pennsylvania midnight instants —
+  // UTC `T00:00Z` / `T23:59Z` cut the PA evening off the "To" day.
   const archiveRange = archiveFrom && archiveTo
-    ? { from: `${archiveFrom}T00:00:00.000Z`, to: `${archiveTo}T23:59:59.999Z` }
+    ? (() => {
+        const bounds = facilityDateRangeBounds(archiveFrom, archiveTo);
+        return { from: bounds.from, to: bounds.through };
+      })()
     : null;
   const archiveScopeOrgId = archiveOrgId === "all" ? null : archiveOrgId;
   const manifestQ = useAuditExportManifest({

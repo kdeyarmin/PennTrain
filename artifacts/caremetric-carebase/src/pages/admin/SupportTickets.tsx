@@ -61,16 +61,18 @@ export default function SupportTickets() {
   });
   // Independent of statusFilter/search -- deriving this from the (possibly filtered) list above
   // would read as 0 whenever a non-"open" filter or search term is active.
-  const { data: openTicketsData } = useListSupportTickets({ status: "open" });
-  const { data: allTicketsData } = useListSupportTickets({});
+  const openTicketsQuery = useListSupportTickets({ status: "open" });
+  const allTicketsQuery = useListSupportTickets({});
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: profileNameMap } = useProfileNameMap();
 
   const { data: ticketsData, isLoading } = ticketsQuery;
   const tickets = ticketsData ?? [];
-  const openCount = openTicketsData?.length ?? 0;
+  const metricsUnavailable = allTicketsQuery.isLoading || allTicketsQuery.isError;
+  const openCountUnavailable = openTicketsQuery.isLoading || openTicketsQuery.isError;
+  const openCount = openTicketsQuery.data?.length ?? 0;
   const supportSummary = useMemo(() => summarizeSupportTicketAnalytics(
-    (allTicketsData ?? []).map((ticket) => ({
+    (allTicketsQuery.data ?? []).map((ticket) => ({
       id: ticket.id,
       status: ticket.status,
       priority: ticket.priority,
@@ -78,48 +80,51 @@ export default function SupportTickets() {
       last_message_at: ticket.last_message_at,
     })),
     facilityToday(),
-  ), [allTicketsData]);
+  ), [allTicketsQuery.data]);
 
   return (
     <div className="space-y-6">
       <div className="page-header !mb-0">
         <h1>Support Tickets</h1>
         <p>
-          Requests submitted from every organization's Help Center -- {openCount} awaiting first response.
+          Requests submitted from every organization's Help Center
+          {openCountUnavailable
+            ? " — open-ticket count unavailable."
+            : ` -- ${openCount} awaiting first response.`}
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
           label="Open tickets"
-          value={supportSummary.open}
-          hint={`${supportSummary.total} total support requests.`}
+          value={metricsUnavailable ? "—" : supportSummary.open}
+          hint={metricsUnavailable ? "Ticket metrics unavailable." : `${supportSummary.total} total support requests.`}
           icon={Inbox}
           tone="info"
           onClick={() => setUrlState({ status: "open" })}
         />
         <StatCard
           label="In progress"
-          value={supportSummary.inProgress}
-          hint={`Average active age: ${supportSummary.averageAgeDays} days.`}
+          value={metricsUnavailable ? "—" : supportSummary.inProgress}
+          hint={metricsUnavailable ? "Ticket metrics unavailable." : `Average active age: ${supportSummary.averageAgeDays} days.`}
           icon={Clock}
           tone="warning"
           onClick={() => setUrlState({ status: "in_progress" })}
         />
         <StatCard
           label="Urgent active"
-          value={<span className="text-destructive">{supportSummary.urgentOpen}</span>}
-          hint={`${supportSummary.staleOpen} active tickets have been quiet 3+ days.`}
+          value={metricsUnavailable ? "—" : <span className="text-destructive">{supportSummary.urgentOpen}</span>}
+          hint={metricsUnavailable ? "Ticket metrics unavailable." : `${supportSummary.staleOpen} active tickets have been quiet 3+ days.`}
           icon={AlertTriangle}
           tone="danger"
         />
         <StatCard
           label="Oldest active"
-          value={supportSummary.oldestOpenTicketId ? "Needs review" : "—"}
+          value={metricsUnavailable ? "—" : (supportSummary.oldestOpenTicketId ? "Needs review" : "—")}
           icon={History}
-          hint={supportSummary.oldestOpenTicketId ? (
+          hint={metricsUnavailable ? "Ticket metrics unavailable." : (supportSummary.oldestOpenTicketId ? (
             <Link href={`/admin/support-tickets/${supportSummary.oldestOpenTicketId}`} className="text-primary hover:underline">Open oldest active ticket</Link>
-          ) : "No active tickets."}
+          ) : "No active tickets.")}
         />
       </div>
 

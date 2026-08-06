@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { facilityDayBounds } from "@/lib/dateUtils";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { rangeFor } from "@/lib/utils";
@@ -56,10 +57,10 @@ export function useListAuditLogsPaginated(filters: ListAuditLogsPaginatedFilters
       if (filters.entityType) query = query.eq("entity_type", filters.entityType);
       if (filters.entityId) query = query.eq("entity_id", filters.entityId);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      // .lte() on the bare date would exclude same-day rows after midnight, since created_at is a
-      // full timestamp -- anchor the "To" bound at the end of that day instead.
-      if (filters.dateFrom) query = query.gte("created_at", `${filters.dateFrom}T00:00:00.000Z`);
-      if (filters.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59.999Z`);
+      // Date inputs are facility calendar days. Bound them with Pennsylvania midnight instants —
+      // UTC `T00:00Z` / `T23:59Z` cut the PA evening off the "To" day.
+      if (filters.dateFrom) query = query.gte("created_at", facilityDayBounds(filters.dateFrom).from);
+      if (filters.dateTo) query = query.lt("created_at", facilityDayBounds(filters.dateTo).through);
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       query = query.range(from, to);
       const { data, error, count } = await query;

@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import {
   ArrowLeft, Copy, FileCheck2, FolderLock, History, Link2, Loader2, Plus, Scale, ShieldOff, Undo2,
 } from "lucide-react";
@@ -180,7 +180,12 @@ export default function EvidenceCollectionDetail() {
   };
 
   const handleIssueGrant = () => {
-    const expiresAt = new Date(Date.now() + Number(expiresDays) * 24 * 60 * 60 * 1000).toISOString();
+    const days = Number(expiresDays);
+    if (!Number.isFinite(days) || days <= 0) {
+      toast({ title: "Invalid expiration", description: "Guest days must be a positive number", variant: "destructive" });
+      return;
+    }
+    const expiresAt = facilityDayBounds(addFacilityCalendarDays(facilityToday(), days)).through;
     issueGrant.mutate(
       { collectionId: collection.id, guestLabel: guestLabel.trim(), artifactIds: selectedArtifactIds, expiresAt },
       {
