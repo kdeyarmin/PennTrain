@@ -24,7 +24,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,6 +41,8 @@ const futureDate = (days: number) => {
 };
 
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+  // Visual label stays a plain <p> (this page's dense Choice/Input grid isn't wired with htmlFor ids).
+  // Clone aria-label onto the control so assistive tech still gets the field name.
   const enriched = Children.map(children, (child) => {
     if (!isValidElement(child)) return child;
     const props = child.props as { "aria-label"?: string };
@@ -49,7 +50,7 @@ function Field({ label, children, className = "" }: { label: string; children: R
       "aria-label": props["aria-label"] ?? label,
     });
   });
-  return <div className={`space-y-1 ${className}`}><Label className="text-sm font-medium leading-none">{label}</Label>{enriched}</div>;
+  return <div className={`space-y-1 ${className}`}><p className="text-sm font-medium leading-none">{label}</p>{enriched}</div>;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
