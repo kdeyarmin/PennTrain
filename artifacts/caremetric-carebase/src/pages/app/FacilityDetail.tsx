@@ -147,8 +147,19 @@ export default function FacilityDetail() {
   } = useListInspectionItems({ facilityId: id, isActive: true });
   const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(user?.organizationId ?? undefined);
   const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
-  const { data: units } = useListFacilityUnits({ facilityId: id });
-  const { data: schedulePreferences } = useListEmployeeSchedulePreferences({ facilityId: id });
+  const unitsQuery = useListFacilityUnits({ facilityId: id });
+  const schedulePreferencesQuery = useListEmployeeSchedulePreferences({ facilityId: id });
+  const { data: units } = unitsQuery;
+  const { data: schedulePreferences } = schedulePreferencesQuery;
+  const specialCareBusy =
+    residentsLoading
+    || recordsLoading
+    || unitsQuery.isLoading
+    || schedulePreferencesQuery.isLoading
+    || residentsError
+    || recordsError
+    || unitsQuery.isError
+    || schedulePreferencesQuery.isError;
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
   // Renewal cycles insert fresh training rows and leave prior ones "expired"; the
@@ -487,19 +498,35 @@ export default function FacilityDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-3xl font-bold">{specialCareSummary.staffingGapCount}</p>
-                  <p className="text-xs text-muted-foreground">staff training gap(s) for designated units</p>
+              {specialCareBusy ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-3xl font-bold">—</p>
+                    <p className="text-xs text-muted-foreground">staff training gap(s) for designated units</p>
+                  </div>
+                  <Badge variant="outline">
+                    {residentsError || recordsError || unitsQuery.isError || schedulePreferencesQuery.isError
+                      ? "Unavailable"
+                      : "Loading"}
+                  </Badge>
                 </div>
-                <Badge variant={specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
-                  {specialCareSummary.status.replaceAll("_", " ")}
-                </Badge>
-              </div>
-              <div className="mt-3 text-xs text-muted-foreground space-y-1">
-                <p>{specialCareSummary.designatedUnits.length} designated unit(s); {specialCareSummary.residentPlacements} resident placement(s)</p>
-                <p>{specialCareSummary.trainedStaffCount} of {specialCareSummary.assignedStaffCount} assigned staff have current dementia/special-care training documentation.</p>
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-3xl font-bold">{specialCareSummary.staffingGapCount}</p>
+                      <p className="text-xs text-muted-foreground">staff training gap(s) for designated units</p>
+                    </div>
+                    <Badge variant={specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
+                      {specialCareSummary.status.replaceAll("_", " ")}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground space-y-1">
+                    <p>{specialCareSummary.designatedUnits.length} designated unit(s); {specialCareSummary.residentPlacements} resident placement(s)</p>
+                    <p>{specialCareSummary.trainedStaffCount} of {specialCareSummary.assignedStaffCount} assigned staff have current dementia/special-care training documentation.</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
