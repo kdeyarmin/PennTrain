@@ -294,7 +294,7 @@ export default function Facilities() {
         </div>
       )}
 
-      <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setEditId(null); } }}>
+      <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setEditId(null); setForm(EMPTY_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? "Edit Facility" : "Add Facility"}</DialogTitle>

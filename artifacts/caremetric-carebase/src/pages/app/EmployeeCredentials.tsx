@@ -522,7 +522,7 @@ export default function EmployeeCredentials() {
         )}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(EMPTY_FORM); setEditing(null); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Credential" : "Add Credential"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">

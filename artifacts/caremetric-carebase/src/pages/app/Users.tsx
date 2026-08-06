@@ -655,7 +655,7 @@ export default function Users() {
         <span>{filtered.length} user{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showCreate} onOpenChange={o => { if (!o) setShowCreate(false); }}>
+      <Dialog open={showCreate} onOpenChange={o => { if (!o) { setShowCreate(false); setCreateForm({ email: "", password: randomPassword(), firstName: "", lastName: "", role: assignableRoles[0] ?? "employee", organizationId: "none" }); setInviteMode(true); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{inviteMode ? "Invite User" : "Add User"}</DialogTitle>

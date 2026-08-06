@@ -910,7 +910,7 @@ export default function EmployeeDetail() {
         )}
       </Tabs>
 
-      <Dialog open={showEditEmp} onOpenChange={o => { if (!o) setShowEditEmp(false); }}>
+      <Dialog open={showEditEmp} onOpenChange={o => { if (!o) { setShowEditEmp(false); setEmpForm(EMPTY_EMPLOYEE_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
           <EmployeeFormFields form={empForm} onChange={field} facilities={facilities} facilityFieldMode="edit-fixed" />
@@ -921,7 +921,7 @@ export default function EmployeeDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showRecordTraining} onOpenChange={o => { if (!o) setShowRecordTraining(false); }}>
+      <Dialog open={showRecordTraining} onOpenChange={o => { if (!o) { setShowRecordTraining(false); setTrainingForm({ trainingTypeId: "", completionDate: todayISO(), hours: "", trainerName: "", documentId: "" }); setTrainerSelection(NONE_TRAINER); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Record Training</DialogTitle>

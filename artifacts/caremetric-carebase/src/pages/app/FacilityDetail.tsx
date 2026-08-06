@@ -812,7 +812,7 @@ export default function FacilityDetail() {
         </Card>
       )}
 
-      <Dialog open={showEdit} onOpenChange={o => { if (!o) setShowEdit(false); }}>
+      <Dialog open={showEdit} onOpenChange={o => { if (!o) { setShowEdit(false); setForm(EMPTY_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Facility</DialogTitle>

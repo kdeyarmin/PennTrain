@@ -456,7 +456,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
         <PlanProgressSection plan={plan} />
       </div>
 
-      <Dialog open={showAddItem} onOpenChange={(o) => { if (!o) setShowAddItem(false); }}>
+      <Dialog open={showAddItem} onOpenChange={(o) => { if (!o) { setShowAddItem(false); setAddItemForm(EMPTY_ADD_ITEM_FORM); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Add Plan Item</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -749,7 +749,7 @@ export default function TrainingPlans() {
         <span>{filtered.length} training plan{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showPlanForm} onOpenChange={(o) => { if (!o) { setShowPlanForm(false); setEditingPlan(null); } }}>
+      <Dialog open={showPlanForm} onOpenChange={(o) => { if (!o) { setShowPlanForm(false); setEditingPlan(null); setPlanForm(EMPTY_PLAN_FORM); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingPlan ? "Edit Training Plan" : "New Training Plan"}</DialogTitle>

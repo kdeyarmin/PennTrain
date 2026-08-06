@@ -202,7 +202,7 @@ export default function TrainingTypes() {
         </CardContent>
       </Card>
 
-      <Dialog open={showForm} onOpenChange={o => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setForm(EMPTY_FORM); setEditingId(null); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Training Type" : "Add Training Type"}</DialogTitle>

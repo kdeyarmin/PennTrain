@@ -576,7 +576,7 @@ export default function QuizBuilder() {
       </Dialog>
 
       {/* Add/edit question */}
-      <Dialog open={showQuestionDialog} onOpenChange={o => { if (!o) setShowQuestionDialog(false); }}>
+      <Dialog open={showQuestionDialog} onOpenChange={o => { if (!o) { setShowQuestionDialog(false); setQuestionForm(EMPTY_QUESTION_FORM); setEditingQuestion(null); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingQuestion ? "Edit Question" : "Add Question"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

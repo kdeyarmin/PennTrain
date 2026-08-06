@@ -313,7 +313,7 @@ export default function Violations() {
         </div>
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(emptyForm()); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Record Cited Violation</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

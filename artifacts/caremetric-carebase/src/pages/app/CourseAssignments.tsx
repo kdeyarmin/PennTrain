@@ -738,7 +738,15 @@ export default function CourseAssignments() {
         </div>
       )}
 
-      <Dialog open={showAssignForm} onOpenChange={o => { if (!o) setShowAssignForm(false); }}>
+      <Dialog open={showAssignForm} onOpenChange={o => {
+        if (!o) {
+          setShowAssignForm(false);
+          setAssignForm(EMPTY_ASSIGN_FORM);
+          setSelectedEmployeeIds(new Set());
+          setAssignEmployeeSearch("");
+          setAssignFacilityFilter("all");
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assign Training</DialogTitle>

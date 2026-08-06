@@ -268,7 +268,7 @@ export default function Organizations() {
         </CardContent>
       </Card>
 
-      <Dialog open={showForm} onOpenChange={o => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setForm(EMPTY_ORG); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Organization</DialogTitle>

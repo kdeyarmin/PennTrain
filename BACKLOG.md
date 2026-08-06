@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `7405a9b0` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **sixteenth-pass** after G178–G181. Closed facility-calendar windows for needs-attention / care-conflicts / change-detection, receivable aging + certificate expiry, incident/support analytics age helpers, and sticky create-dialog drafts on Incidents/Courses/Residents. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `ae07cf57` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **seventeenth-pass** after G182–G185. Closed time-off window validation to facility wall clock (not browser zone) and sticky create/edit dialog drafts across TrainingTypes, credentials, violations, inspection items, facilities, competency templates, course assignments, and Organizations. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -618,6 +618,8 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G183 | Receivable aging + MyCertificates expiry browser math | M | done | `facilityDaysUntil` for AR days-past-due and certificate expired badge |
 | G184 | Incident/support analytics age still used UTC midnight ms | S | done | Delegate to `facilityDaysUntil` (DST-safe facility calendar) |
 | G185 | Incidents / Courses / Residents create dialogs sticky | S | done | Reset form to empty on dialog close |
+| G186 | Time-off window error used browser `Date` for datetime-local | M | done | Validate start/end via `facilityDateTimeLocalToUtcIso` instants |
+| G187 | Sticky create/edit dialogs across admin/app surfaces | S | done | Reset form (+ edit id) on close for TrainingTypes/credentials/violations/inspection items/facilities/templates/assignments/orgs/users/employee detail/facility detail/plans/packages/quiz |
 
 ## Explicitly not now
 
