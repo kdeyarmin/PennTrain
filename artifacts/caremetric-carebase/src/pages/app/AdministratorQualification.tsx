@@ -189,9 +189,11 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               <CardTitle>Administrator rule pack</CardTitle>
               <CardDescription>Facility-type-specific PCH/ALF qualification, CE, orientation, and designee coverage documentation for inspection binders.</CardDescription>
             </div>
-            <Badge className={administratorRuleSummary.ready ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
-              {administratorRuleSummary.status.replaceAll("_", " ")}
-            </Badge>
+            {!qualificationFailure && (
+              <Badge className={administratorRuleSummary.ready ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
+                {administratorRuleSummary.status.replaceAll("_", " ")}
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

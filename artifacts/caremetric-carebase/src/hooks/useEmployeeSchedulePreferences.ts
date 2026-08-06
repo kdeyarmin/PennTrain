@@ -14,7 +14,10 @@ export interface ListEmployeeSchedulePreferencesFilters {
   facilityId?: string;
 }
 
-export function useListEmployeeSchedulePreferences(filters: ListEmployeeSchedulePreferencesFilters = {}) {
+export function useListEmployeeSchedulePreferences(
+  filters: ListEmployeeSchedulePreferencesFilters = {},
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["employee_schedule_preferences", filters],
     queryFn: async () => {
@@ -25,6 +28,7 @@ export function useListEmployeeSchedulePreferences(filters: ListEmployeeSchedule
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled,
   });
 }
 

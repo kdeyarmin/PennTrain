@@ -10,7 +10,7 @@ export interface ListFacilityUnitsFilters {
   facilityId?: string;
 }
 
-export function useListFacilityUnits(filters: ListFacilityUnitsFilters = {}) {
+export function useListFacilityUnits(filters: ListFacilityUnitsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["facility_units", filters],
     queryFn: async () => {
@@ -20,7 +20,8 @@ export function useListFacilityUnits(filters: ListFacilityUnitsFilters = {}) {
       if (error) throw error;
       return data;
     },
-    enabled: filters.facilityId === undefined || !!filters.facilityId,
+    // Empty-string facilityId is a common "not chosen yet" sentinel; do not fetch unscoped.
+    enabled: options.enabled ?? (filters.facilityId === undefined || !!filters.facilityId),
   });
 }
 

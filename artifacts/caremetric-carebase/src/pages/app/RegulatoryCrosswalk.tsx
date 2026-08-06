@@ -65,8 +65,13 @@ export default function RegulatoryCrosswalk() {
   const { data: inspectionItems, ...inspectionItemsQuery } = useListInspectionItems({ facilityId: activeFacilityId || undefined });
   const { data: violations, ...violationsQuery } = useListViolations({ facilityId: activeFacilityId || undefined });
   const { data: policyDocuments, ...policyDocumentsQuery } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
-  const { data: policyAttestations } = useListPolicyAttestations({});
-  const { data: evidenceCollections } = useListEvidenceCollections({ organizationId: user?.organizationId ?? undefined });
+  const { data: policyAttestations, ...policyAttestationsQuery } = useListPolicyAttestations(
+    {},
+    { enabled: Boolean(activeFacilityId) },
+  );
+  const { data: evidenceCollections, ...evidenceCollectionsQuery } = useListEvidenceCollections({
+    organizationId: user?.organizationId ?? undefined,
+  });
   const governedRules = useActiveRegulatoryRules();
 
   const rows = useMemo(() => buildRegulatoryCrosswalkRows({
@@ -120,6 +125,7 @@ export default function RegulatoryCrosswalk() {
   const crosswalkQueries = [
     trainingRecordsQuery, credentialsQuery, residentItemsQuery, incidentsQuery,
     correctiveActionsQuery, inspectionItemsQuery, violationsQuery, policyDocumentsQuery,
+    policyAttestationsQuery, evidenceCollectionsQuery, governedRules,
   ];
   const crosswalkFailure = crosswalkQueries.find((query) => query.isError);
 
@@ -137,15 +143,19 @@ export default function RegulatoryCrosswalk() {
           <h1 className="text-2xl font-bold tracking-tight">Chapter 2600 / 2800 Regulatory Crosswalk</h1>
           <p className="text-muted-foreground">Citation-by-citation map from PCH/ALF obligations to live CareBase documentation, owners, due dates, and binder destinations.</p>
         </div>
-        <Button variant="outline" onClick={downloadCsv}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+        <Button variant="outline" onClick={downloadCsv} disabled={Boolean(crosswalkFailure)}>
+          <Download className="mr-2 h-4 w-4" />Export CSV
+        </Button>
       </div>
 
+      {!crosswalkFailure && (
       <div className="grid gap-4 md:grid-cols-4">
         <SummaryCard title="Inspection-ready" value={summary.ready} icon="ready" />
         <SummaryCard title="Needs attention" value={summary.attention} />
         <SummaryCard title="Missing documentation" value={summary.missing} icon="warning" />
         <SummaryCard title="Overdue" value={summary.overdue} icon="danger" />
       </div>
+      )}
 
       <Alert variant={rows.every((row) => row.governedRule) ? "default" : "destructive"}>
         <ShieldAlert className="h-4 w-4" />

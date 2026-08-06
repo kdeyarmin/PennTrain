@@ -116,11 +116,35 @@ export default function FacilityDetail() {
     error: residentsErrorDetail,
     refetch: refetchResidents,
   } = useListResidents({ facilityId: id });
-  const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ facilityId: id });
+  const {
+    data: trainingRecords,
+    isLoading: recordsLoading,
+    isError: recordsError,
+    error: recordsErrorDetail,
+    refetch: refetchRecords,
+  } = useListTrainingRecords({ facilityId: id });
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ facilityId: id });
-  const { data: incidents, isLoading: incidentsLoading } = useListIncidents({ facilityId: id });
-  const { data: inspectionItems, isLoading: inspectionsLoading } = useListInspectionItems({ facilityId: id, isActive: true });
+  const {
+    data: practicums,
+    isLoading: practicumsLoading,
+    isError: practicumsError,
+    error: practicumsErrorDetail,
+    refetch: refetchPracticums,
+  } = useListPracticums({ facilityId: id });
+  const {
+    data: incidents,
+    isLoading: incidentsLoading,
+    isError: incidentsError,
+    error: incidentsErrorDetail,
+    refetch: refetchIncidents,
+  } = useListIncidents({ facilityId: id });
+  const {
+    data: inspectionItems,
+    isLoading: inspectionsLoading,
+    isError: inspectionsError,
+    error: inspectionsErrorDetail,
+    refetch: refetchInspections,
+  } = useListInspectionItems({ facilityId: id, isActive: true });
   const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(user?.organizationId ?? undefined);
   const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
   const { data: units } = useListFacilityUnits({ facilityId: id });
@@ -488,6 +512,8 @@ export default function FacilityDetail() {
           <CardContent>
             {recordsLoading ? (
               <Skeleton className="h-16" />
+            ) : recordsError ? (
+              <QueryError what="training compliance" error={recordsErrorDetail} onRetry={() => void refetchRecords()} />
             ) : relevantRecords.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
                 <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -516,6 +542,8 @@ export default function FacilityDetail() {
           <CardContent>
             {practicumsLoading ? (
               <Skeleton className="h-16" />
+            ) : practicumsError ? (
+              <QueryError what="practicums" error={practicumsErrorDetail} onRetry={() => void refetchPracticums()} />
             ) : !practicums?.length ? (
               <div className="text-center py-6 text-muted-foreground">
                 <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -549,6 +577,8 @@ export default function FacilityDetail() {
           <CardContent>
             {recordsLoading ? (
               <Skeleton className="h-16" />
+            ) : recordsError ? (
+              <QueryError what="upcoming due dates" error={recordsErrorDetail} onRetry={() => void refetchRecords()} />
             ) : !dueSoonRecords.length ? (
               <div className="text-center py-6 text-muted-foreground">
                 <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -576,6 +606,8 @@ export default function FacilityDetail() {
           <CardContent>
             {recordsLoading ? (
               <Skeleton className="h-16" />
+            ) : recordsError ? (
+              <QueryError what="expired training" error={recordsErrorDetail} onRetry={() => void refetchRecords()} />
             ) : !expiredRecords.length ? (
               <div className="text-center py-6 text-muted-foreground">
                 <XCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -615,6 +647,8 @@ export default function FacilityDetail() {
             <CardContent>
               {incidentsLoading ? (
                 <Skeleton className="h-16" />
+              ) : incidentsError ? (
+                <QueryError what="open incidents" error={incidentsErrorDetail} onRetry={() => void refetchIncidents()} />
               ) : (() => {
                 const openIncidents = (incidents ?? []).filter(i => i.status !== "closed");
                 return openIncidents.length === 0 ? (
@@ -662,6 +696,8 @@ export default function FacilityDetail() {
           <CardContent>
             {inspectionsLoading ? (
               <Skeleton className="h-16" />
+            ) : inspectionsError ? (
+              <QueryError what="inspection items" error={inspectionsErrorDetail} onRetry={() => void refetchInspections()} />
             ) : !inspectionItems?.length ? (
               <div className="text-center py-6 text-muted-foreground">
                 <Flame className="h-8 w-8 mx-auto mb-2 opacity-40" />

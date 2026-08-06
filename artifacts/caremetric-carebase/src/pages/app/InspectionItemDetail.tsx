@@ -107,7 +107,12 @@ export default function InspectionItemDetail() {
   const { data: item, isLoading, isError, error, refetch } = useGetInspectionItem(id);
   const { data: facilities } = useListFacilities();
   const { data: events, isLoading: eventsLoading } = useListInspectionEvents(id);
-  const { data: workOrders } = useListWorkOrders({ inspectionItemId: id });
+  const {
+    data: workOrders,
+    isError: workOrdersError,
+    error: workOrdersErrorDetail,
+    refetch: refetchWorkOrders,
+  } = useListWorkOrders({ inspectionItemId: id });
   const { mutate: updateItem } = useUpdateInspectionItem();
   const { mutate: createEvent, isPending: creatingEvent } = useCreateInspectionEvent();
   const nonPassEventIds = (events ?? []).filter((e) => e.result !== "pass").map((e) => e.id);
@@ -297,7 +302,9 @@ export default function InspectionItemDetail() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Wrench className="h-5 w-5" /> Environmental Work Orders</CardTitle></CardHeader>
           <CardContent>
-            {!workOrders?.length ? (
+            {workOrdersError ? (
+              <QueryError what="work orders" error={workOrdersErrorDetail} onRetry={() => void refetchWorkOrders()} />
+            ) : !workOrders?.length ? (
               <p className="text-sm text-muted-foreground">No work orders are linked to this item. Failed inspections will create one automatically.</p>
             ) : (
               <div className="space-y-2">

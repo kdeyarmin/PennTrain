@@ -108,7 +108,11 @@ export default function Alerts() {
           toast({ title: action === "resolve" ? "Alert resolved" : "Alert dismissed", variant: "success" });
           setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
         },
-        onError: () => toast({ variant: "destructive", title: "Action failed" }),
+        onError: (error) => toast({
+          variant: "destructive",
+          title: "Action failed",
+          description: error instanceof Error ? error.message : String(error),
+        }),
         onSettled: () => setPendingId(null),
       },
     );
@@ -128,7 +132,11 @@ export default function Alerts() {
           toast({ title: `${ids.length} alert(s) ${targetStatus}`, variant: "success" });
           setSelectedIds(new Set());
         },
-        onError: () => toast({ variant: "destructive", title: `Bulk ${targetStatus === "resolved" ? "resolve" : "dismiss"} failed` }),
+        onError: (error) => toast({
+          variant: "destructive",
+          title: `Bulk ${targetStatus === "resolved" ? "resolve" : "dismiss"} failed`,
+          description: error instanceof Error ? error.message : String(error),
+        }),
         onSettled: () => setPendingBulkStatus(null),
       },
     );

@@ -3,6 +3,7 @@ import { AlertTriangle, Building2, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { supabase } from "@/lib/supabase";
 
 interface OccupancyBoard {
@@ -64,10 +65,19 @@ function useOccupancyBoard(facilityId: string | undefined) {
  * place. A facility that believes it has room it is not licensed for finds out at a survey.
  */
 export default function OccupancyBoardSection({ facilityId }: { facilityId: string | undefined }) {
-  const { data, isLoading } = useOccupancyBoard(facilityId);
+  const { data, isLoading, isError, error, refetch } = useOccupancyBoard(facilityId);
 
   if (!facilityId) return null;
   if (isLoading) return <Skeleton className="h-56 w-full" />;
+  if (isError) {
+    return (
+      <QueryError
+        what="the occupancy board"
+        error={error}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
   if (!data) return null;
 
   const occupied = data.census.occupyingABed;

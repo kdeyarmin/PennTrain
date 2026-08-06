@@ -16,7 +16,7 @@ export interface ListCorrectiveActionsFilters {
   status?: string;
 }
 
-export function useListCorrectiveActions(filters: ListCorrectiveActionsFilters = {}) {
+export function useListCorrectiveActions(filters: ListCorrectiveActionsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["corrective_actions", filters],
     queryFn: async () => {
@@ -30,6 +30,7 @@ export function useListCorrectiveActions(filters: ListCorrectiveActionsFilters =
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled,
   });
 }
 

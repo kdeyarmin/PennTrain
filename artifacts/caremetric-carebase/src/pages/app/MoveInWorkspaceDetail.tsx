@@ -224,7 +224,16 @@ export default function MoveInWorkspaceDetail() {
                 <Select
                   value={task.owner_profile_id ?? "unassigned"}
                   disabled={!canManage}
-                  onValueChange={ownerId => assignTask.mutate({ taskId: task.id, ownerProfileId: ownerId === "unassigned" ? null : ownerId, dueAt: task.due_at })}
+                  onValueChange={ownerId => assignTask.mutate(
+                    { taskId: task.id, ownerProfileId: ownerId === "unassigned" ? null : ownerId, dueAt: task.due_at },
+                    {
+                      onError: (error) => toast({
+                        title: "Could not update task owner",
+                        description: error instanceof Error ? error.message : String(error),
+                        variant: "destructive",
+                      }),
+                    },
+                  )}
                 >
                   <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
                   <SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{profiles?.filter(profile => profile.is_active).map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent>
@@ -248,7 +257,25 @@ export default function MoveInWorkspaceDetail() {
               <div key={grant.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
                 <div><p className="font-medium">{grant.guest_label}</p><p className="text-xs text-muted-foreground">{grant.allowed_task_ids.length} scoped task(s) · expires {new Date(grant.expires_at).toLocaleString()}</p></div>
                 <Badge variant="outline">{grant.revoked_at ? "Revoked" : new Date(grant.expires_at) <= new Date() ? "Expired" : grant.accepted_at ? "Accepted" : "Issued"}</Badge>
-                {canManage && !grant.revoked_at && <Button size="sm" variant="outline" onClick={() => revokeGrant.mutate({ grantId: grant.id, reason: "Coordinator revoked guest access" })}>Revoke</Button>}
+                {canManage && !grant.revoked_at && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={revokeGrant.isPending}
+                    onClick={() => revokeGrant.mutate(
+                      { grantId: grant.id, reason: "Coordinator revoked guest access" },
+                      {
+                        onError: (error) => toast({
+                          title: "Could not revoke guest access",
+                          description: error instanceof Error ? error.message : String(error),
+                          variant: "destructive",
+                        }),
+                      },
+                    )}
+                  >
+                    Revoke
+                  </Button>
+                )}
               </div>
             ))}
           </CardContent>
@@ -256,7 +283,11 @@ export default function MoveInWorkspaceDetail() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Move-in history</CardTitle><CardDescription>Append-only task assignment, documentation, approval, exception, and guest-signature events.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
-            {!history.data?.length ? <p className="text-sm text-muted-foreground">No task events yet.</p> : history.data.slice(0, 20).map(event => (
+            {history.isError ? (
+              <QueryError what="move-in history" error={history.error} onRetry={() => void history.refetch()} />
+            ) : !history.data?.length ? (
+              <p className="text-sm text-muted-foreground">No task events yet.</p>
+            ) : history.data.slice(0, 20).map(event => (
               <div key={event.id} className="flex justify-between gap-3 border-b pb-2 text-sm">
                 <div><p className="font-medium">{humanize(event.event_type)}{event.resulting_state ? ` · ${humanize(event.resulting_state)}` : ""}</p><p className="text-xs text-muted-foreground">{event.reason}</p></div>
                 <span className="shrink-0 text-xs text-muted-foreground">{new Date(event.occurred_at).toLocaleString()}</span>

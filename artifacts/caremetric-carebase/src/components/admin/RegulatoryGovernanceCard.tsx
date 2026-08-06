@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { facilityToday } from "@/lib/dateUtils";
 import { errorText } from "@/lib/errorText";
 import { signatureDigest } from "@/lib/certificationAttempt";
 import {
@@ -36,7 +37,8 @@ import {
 export function RegulatoryGovernanceCard() {
   const { toast } = useToast();
   const [ruleKey, setRuleKey] = useState("");
-  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
+  // Facility calendar day (America/New_York), not UTC -- after ~20:00 ET the ISO slice is tomorrow.
+  const [asOf, setAsOf] = useState(facilityToday);
   const [lookedUp, setLookedUp] = useState(false);
   const snapshot = useRegulatoryRuleSnapshot(ruleKey.trim(), asOf, lookedUp);
 

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { facilityToday } from "@/lib/dateUtils";
 import { errorText } from "@/lib/errorText";
 import {
   canRequestOverride, dutyEligibilitySummary, dutyReasons, isDutyBlocked,
@@ -23,10 +24,16 @@ import {
 const MAX_OVERRIDE_DAYS = 365;
 const MIN_REASON_LENGTH = 10;
 
+/** Add whole calendar days to a YYYY-MM-DD without crossing a timezone boundary. */
+function addCalendarDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day + days));
+  return `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(utc.getUTCDate()).padStart(2, "0")}`;
+}
+
 function defaultExpiry(): string {
-  const date = new Date();
-  date.setDate(date.getDate() + 90);
-  return date.toISOString().slice(0, 10);
+  // Facility day + 90, not `toISOString().slice` on a local Date (that can shift across ET evening).
+  return addCalendarDays(facilityToday(), 90);
 }
 
 /**

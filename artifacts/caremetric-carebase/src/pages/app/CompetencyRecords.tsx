@@ -76,7 +76,13 @@ const EMPTY_RECORD_FORM: RecordFormData = {
 // surfaces showing identical information.
 // ---------------------------------------------------------------------------
 function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | null; onClose: () => void }) {
-  const { data: recordItems, isLoading: itemsLoading } = useListCompetencyRecordItems(record?.id);
+  const {
+    data: recordItems,
+    isLoading: itemsLoading,
+    isError: itemsError,
+    error: itemsErrorDetail,
+    refetch: refetchItems,
+  } = useListCompetencyRecordItems(record?.id);
   const { data: templateItems } = useListCompetencyTemplateItems(record?.template_id);
   const { data: employee } = useGetEmployee(record?.employee_id);
   const { data: templates } = useListCompetencyTemplates();
@@ -125,6 +131,8 @@ function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | nu
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
                 </div>
+              ) : itemsError ? (
+                <QueryError what="checklist items" error={itemsErrorDetail} onRetry={() => void refetchItems()} />
               ) : !recordItems || recordItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No checklist items were recorded.</p>
               ) : (

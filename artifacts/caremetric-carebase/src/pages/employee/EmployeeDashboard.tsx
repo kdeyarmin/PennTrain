@@ -86,7 +86,13 @@ export default function EmployeeDashboard() {
   // SELECT policy but not insert/update), so this dashboard only ever reads
   // them here. There is no create/edit UI for competency records anywhere in
   // the employee-facing pages.
-  const { data: competencyRecords, isLoading: competencyLoading } = useListCompetencyRecords(
+  const {
+    data: competencyRecords,
+    isLoading: competencyLoading,
+    isError: competencyError,
+    error: competencyErrorDetail,
+    refetch: refetchCompetency,
+  } = useListCompetencyRecords(
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
@@ -123,7 +129,13 @@ export default function EmployeeDashboard() {
   // schedules with status = 'published' (see MySchedule.tsx, which uses the same
   // employeeId+fromDate filter and ascending shift_date/start_time order), so `shifts[0]` here is
   // simply the soonest upcoming published shift with no extra client-side filtering needed.
-  const { data: shifts, isLoading: shiftsLoading } = useListShiftAssignments(
+  const {
+    data: shifts,
+    isLoading: shiftsLoading,
+    isError: shiftsError,
+    error: shiftsErrorDetail,
+    refetch: refetchShifts,
+  } = useListShiftAssignments(
     { employeeId: employee?.id, fromDate: todayIso() },
     { enabled: !!employee?.id },
   );
@@ -396,6 +408,8 @@ export default function EmployeeDashboard() {
               <CardContent>
                 {employeeLoading || shiftsLoading ? (
                   <div className="h-16 bg-muted animate-pulse rounded" />
+                ) : shiftsError ? (
+                  <QueryError what="your upcoming shifts" error={shiftsErrorDetail} onRetry={() => void refetchShifts()} />
                 ) : nextShift ? (
                   <Link href="/me/schedule" className="block rounded-lg border p-3 hover:bg-muted/40 transition-colors">
                     <div className="flex items-center justify-between gap-3">
@@ -502,6 +516,8 @@ export default function EmployeeDashboard() {
                 <div className="space-y-2">
                   {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
                 </div>
+              ) : competencyError ? (
+                <QueryError what="competency evaluations" error={competencyErrorDetail} onRetry={() => void refetchCompetency()} />
               ) : recentCompetencyRecords.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No competency evaluations on file yet.</p>
               ) : (

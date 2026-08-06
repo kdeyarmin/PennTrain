@@ -19,6 +19,7 @@ import {
   buildReconciliationState, episodeStateLabel, recordedChanges, type HospitalEpisodeLike,
 } from "@/lib/hospitalReconciliation";
 import { formatDateForDisplay } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 import RecordHospitalReturnDialog from "@/components/residents/RecordHospitalReturnDialog";
 
 function useHospitalEpisodes(residentId: string) {
@@ -112,6 +113,16 @@ export default function ResidentHospitalSection({
   const [acknowledging, setAcknowledging] = useState<HospitalEpisodeLike | null>(null);
   const [ackNote, setAckNote] = useState("");
 
+  if (episodes.isLoading) return null;
+  if (episodes.isError) {
+    return (
+      <QueryError
+        what="hospital episodes"
+        error={episodes.error}
+        onRetry={() => void episodes.refetch()}
+      />
+    );
+  }
   const episode = episodes.data?.[0];
   if (!episode) return null;
 

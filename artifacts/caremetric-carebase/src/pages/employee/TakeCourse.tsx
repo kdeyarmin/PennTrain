@@ -331,15 +331,22 @@ useEffect(() => {
       video_state: videoStateRef.current as unknown as Json,
       learning_tools: learningToolsRef.current as unknown as Json,
     };
+    const onProgressError = (error: Error) => {
+      toast({
+        title: "Could not save progress",
+        description: error.message,
+        variant: "destructive",
+      });
+    };
     if (mode === "immediate") {
-      upsertProgress.mutate(payload);
+      upsertProgress.mutate(payload, { onError: onProgressError });
       return;
     }
     // debounce path handled by the effect below via timer calling this with immediate
-    upsertProgress.mutate(payload);
+    upsertProgress.mutate(payload, { onError: onProgressError });
   }, [
     resumed, assignment, canMutateEvidence, completeAssignment.isPending, blocks, stepIndex,
-    videoStateLoadedForId, lessonToolsLoadedForId, assignmentId, upsertProgress,
+    videoStateLoadedForId, lessonToolsLoadedForId, assignmentId, upsertProgress, toast,
   ]);
 
   // Trailing debounce for high-frequency writers (video ticks + notes).
@@ -360,11 +367,17 @@ useEffect(() => {
 
   // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4).
   useEffect(() => {
-    if (canMutateEvidence && assignment?.status === "assigned" && !startAssignment.isPending) {
-      startAssignment.mutate(assignment.id);
+    if (canMutateEvidence && assignment?.status === "assigned" && !startAssignment.isPending && !startAssignment.isError) {
+      startAssignment.mutate(assignment.id, {
+        onError: (error) => toast({
+          title: "Could not start this assignment",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        }),
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignment?.id, assignment?.status, canMutateEvidence]);
+  }, [assignment?.id, assignment?.status, canMutateEvidence, startAssignment.isPending, startAssignment.isError]);
 
   // Mobile-safe flush when the tab is backgrounded.
   useEffect(() => {

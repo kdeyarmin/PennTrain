@@ -290,6 +290,12 @@ function ProspectReviewDialog({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p>
             {activities.isLoading ? (
               <div className="h-10 animate-pulse rounded bg-muted" />
+            ) : activities.isError ? (
+              <QueryError
+                what="prospect activity history"
+                error={activities.error}
+                onRetry={() => void activities.refetch()}
+              />
             ) : (activities.data ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing recorded for this prospect yet.</p>
             ) : (

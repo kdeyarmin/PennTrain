@@ -89,19 +89,70 @@ export default function InspectionReadiness() {
   );
   const { data: checklistItems } = useListEntranceConferenceItems();
 
-  const { data: employees } = useListEmployees({ facilityId: activeFacilityId || undefined, status: "active" });
-  const { data: trainingRecords } = useListTrainingRecords({ facilityId: activeFacilityId || undefined });
+  // Every checklist chip grades a source query. Without `enabled` + error/loading gates, a failed
+  // or still-pending fetch collapses to `[]` and reads as "Ready" -- the worst answer a survey-prep
+  // page can give. Facility-scoped lists wait for a facility; attestations stay org-wide (RLS) and
+  // are filtered to the active facility below.
+  const facilityListsEnabled = Boolean(activeFacilityId);
+  const employeesQuery = useListEmployees(
+    { facilityId: activeFacilityId || undefined, status: "active" },
+    { enabled: facilityListsEnabled },
+  );
+  const trainingRecordsQuery = useListTrainingRecords(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: facilityListsEnabled },
+  );
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: credentials } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined });
-  const { data: inspectionItems } = useListInspectionItems({ facilityId: activeFacilityId || undefined, isActive: true });
-  const { data: incidents } = useListIncidents({ facilityId: activeFacilityId || undefined });
-  const { data: correctiveActions } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
-  const { data: policyAttestations } = useListPolicyAttestations({});
-  const { data: administratorProfiles } = useListAdministratorProfiles(user?.organizationId ?? undefined);
-  const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
-  const { data: residents } = useListResidents({ facilityId: activeFacilityId || undefined });
-  const { data: units } = useListFacilityUnits({ facilityId: activeFacilityId || undefined });
-  const { data: schedulePreferences } = useListEmployeeSchedulePreferences({ facilityId: activeFacilityId || undefined });
+  const credentialsQuery = useListEmployeeCredentials(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: facilityListsEnabled },
+  );
+  const inspectionItemsQuery = useListInspectionItems(
+    { facilityId: activeFacilityId || undefined, isActive: true },
+    { enabled: facilityListsEnabled },
+  );
+  const incidentsQuery = useListIncidents(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: facilityListsEnabled },
+  );
+  const correctiveActionsQuery = useListCorrectiveActions(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: facilityListsEnabled },
+  );
+  const policyAttestationsQuery = useListPolicyAttestations({}, { enabled: facilityListsEnabled });
+  const administratorProfilesQuery = useListAdministratorProfiles(user?.organizationId ?? undefined);
+  const administratorCeEntriesQuery = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
+  const residentsQuery = useListResidents(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: facilityListsEnabled },
+  );
+  const unitsQuery = useListFacilityUnits(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: facilityListsEnabled },
+  );
+  const schedulePreferencesQuery = useListEmployeeSchedulePreferences(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: facilityListsEnabled },
+  );
+
+  const { data: employees } = employeesQuery;
+  const { data: trainingRecords } = trainingRecordsQuery;
+  const { data: credentials } = credentialsQuery;
+  const { data: inspectionItems } = inspectionItemsQuery;
+  const { data: incidents } = incidentsQuery;
+  const { data: correctiveActions } = correctiveActionsQuery;
+  const { data: policyAttestations } = policyAttestationsQuery;
+  const { data: administratorProfiles } = administratorProfilesQuery;
+  const { data: administratorCeEntries } = administratorCeEntriesQuery;
+  const { data: residents } = residentsQuery;
+  const { data: units } = unitsQuery;
+  const { data: schedulePreferences } = schedulePreferencesQuery;
+
+  const checklistSourceFailure = [
+    employeesQuery, trainingRecordsQuery, credentialsQuery, inspectionItemsQuery,
+    incidentsQuery, correctiveActionsQuery, policyAttestationsQuery,
+    administratorProfilesQuery, administratorCeEntriesQuery,
+  ].find((query) => query.isError);
 
 
   const overall = useMemo(() => {
@@ -135,13 +186,28 @@ export default function InspectionReadiness() {
     trainingTypes: trainingTypes ?? [],
   }), [units, residents, schedulePreferences, trainingRecords, trainingTypes]);
 
+  function sourceState(
+    query: { isError: boolean; isPending: boolean; isFetching: boolean; data: unknown },
+  ): ReadinessLevel | null {
+    if (query.isError) return "unknown";
+    // Disabled queries (no facility yet) and first-load pending both leave data undefined.
+    if (query.data === undefined && (query.isPending || query.isFetching || !facilityListsEnabled)) {
+      return "unknown";
+    }
+    return null;
+  }
+
   function readinessFor(item: EntranceConferenceItem): { level: ReadinessLevel; detail?: string } {
     switch (item.data_source) {
       case "roster": {
+        const blocked = sourceState(employeesQuery);
+        if (blocked) return { level: blocked, detail: employeesQuery.isError ? "staff data unavailable" : "loading staff" };
         const count = employees?.length ?? 0;
         return count > 0 ? { level: "ready", detail: `${count} active` } : { level: "attention", detail: "no active staff on file" };
       }
       case "training": {
+        const blocked = sourceState(trainingRecordsQuery);
+        if (blocked) return { level: blocked, detail: trainingRecordsQuery.isError ? "training data unavailable" : "loading training" };
         // Renewals insert fresh rows and leave prior ones "expired" forever, so
         // only the current record per (employee, training type) may count here.
         const rows = selectCurrentTrainingRecords(trainingRecords ?? []);
@@ -151,6 +217,8 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "credentials": {
+        const blocked = sourceState(credentialsQuery);
+        if (blocked) return { level: blocked, detail: credentialsQuery.isError ? "credential data unavailable" : "loading credentials" };
         const rows = (credentials ?? []).filter((c) => HEALTH_CREDENTIAL_TYPES.includes(c.credential_type));
         const outstanding = rows.filter((c) => c.status === "expired" || c.status === "due_soon" || c.status === "missing");
         return outstanding.length === 0
@@ -158,6 +226,8 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "background_checks": {
+        const blocked = sourceState(credentialsQuery);
+        if (blocked) return { level: blocked, detail: credentialsQuery.isError ? "background-check data unavailable" : "loading background checks" };
         const rows = (credentials ?? []).filter((c) => BACKGROUND_CHECK_CREDENTIAL_TYPES.includes(c.credential_type));
         const outstanding = rows.filter((c) => c.status === "expired" || c.status === "due_soon" || c.status === "missing");
         return outstanding.length === 0
@@ -165,6 +235,8 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "inspections": {
+        const blocked = sourceState(inspectionItemsQuery);
+        if (blocked) return { level: blocked, detail: inspectionItemsQuery.isError ? "inspection data unavailable" : "loading inspections" };
         const rows = inspectionItems ?? [];
         const outstanding = rows.filter((i) => i.status === "expired" || i.status === "due_soon" || i.status === "missing");
         return outstanding.length === 0
@@ -172,6 +244,15 @@ export default function InspectionReadiness() {
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "incidents": {
+        const blocked = sourceState(incidentsQuery) ?? sourceState(correctiveActionsQuery);
+        if (blocked) {
+          return {
+            level: blocked,
+            detail: (incidentsQuery.isError || correctiveActionsQuery.isError)
+              ? "incident data unavailable"
+              : "loading incidents",
+          };
+        }
         const openIncidents = (incidents ?? []).filter(
           (i) => i.occurred_at >= oneYearAgo && !i.final_report_submitted_at
         );
@@ -182,6 +263,8 @@ export default function InspectionReadiness() {
         return outstanding === 0 ? { level: "ready" } : { level: "attention", detail: `${outstanding} outstanding` };
       }
       case "policies": {
+        const blocked = sourceState(policyAttestationsQuery);
+        if (blocked) return { level: blocked, detail: policyAttestationsQuery.isError ? "attestation data unavailable" : "loading attestations" };
         const rows = (policyAttestations ?? []).filter((a) => a.facility_id === activeFacilityId);
         const overdue = rows.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
         return overdue.length === 0 ? { level: "ready" } : { level: "attention", detail: `${overdue.length} overdue` };
@@ -189,6 +272,15 @@ export default function InspectionReadiness() {
       case "administrator": {
         if (!activeFacility || !(activeFacility.facility_type === "PCH" || activeFacility.facility_type === "ALR")) {
           return { level: "unknown", detail: "not a PCH/ALF facility" };
+        }
+        const blocked = sourceState(administratorProfilesQuery) ?? sourceState(administratorCeEntriesQuery);
+        if (blocked) {
+          return {
+            level: blocked,
+            detail: (administratorProfilesQuery.isError || administratorCeEntriesQuery.isError)
+              ? "administrator data unavailable"
+              : "loading administrator record",
+          };
         }
         const { summary } = buildBestAdministratorRulePack(activeFacility.facility_type, {
           profiles: administratorProfiles ?? [],
@@ -215,7 +307,20 @@ export default function InspectionReadiness() {
         detail: result.detail,
       };
     }),
-    [checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents, correctiveActions, policyAttestations, administratorProfiles, administratorCeEntries, activeFacility, activeFacilityId, oneYearAgo, today],
+    [
+      checklistItems, employees, trainingRecords, credentials, inspectionItems, incidents,
+      correctiveActions, policyAttestations, administratorProfiles, administratorCeEntries,
+      activeFacility, activeFacilityId, oneYearAgo, today, facilityListsEnabled,
+      employeesQuery.isError, employeesQuery.isPending, employeesQuery.isFetching,
+      trainingRecordsQuery.isError, trainingRecordsQuery.isPending, trainingRecordsQuery.isFetching,
+      credentialsQuery.isError, credentialsQuery.isPending, credentialsQuery.isFetching,
+      inspectionItemsQuery.isError, inspectionItemsQuery.isPending, inspectionItemsQuery.isFetching,
+      incidentsQuery.isError, incidentsQuery.isPending, incidentsQuery.isFetching,
+      correctiveActionsQuery.isError, correctiveActionsQuery.isPending, correctiveActionsQuery.isFetching,
+      policyAttestationsQuery.isError, policyAttestationsQuery.isPending, policyAttestationsQuery.isFetching,
+      administratorProfilesQuery.isError, administratorProfilesQuery.isPending, administratorProfilesQuery.isFetching,
+      administratorCeEntriesQuery.isError, administratorCeEntriesQuery.isPending, administratorCeEntriesQuery.isFetching,
+    ],
   );
 
   const actionQueue = useMemo(() => buildInspectionReadinessActions({
@@ -311,6 +416,19 @@ export default function InspectionReadiness() {
       </div>
 
       <SurfacePurpose purpose="Inspection Readiness owns survey prep: clear readiness gaps → binder → documentation room. Survey Day owns the live entrance conference once the surveyor arrives." />
+
+      {checklistSourceFailure && (
+        <QueryError
+          what="inspection readiness checklist sources"
+          error={checklistSourceFailure.error}
+          onRetry={() => void Promise.all([
+            employeesQuery.refetch(), trainingRecordsQuery.refetch(), credentialsQuery.refetch(),
+            inspectionItemsQuery.refetch(), incidentsQuery.refetch(), correctiveActionsQuery.refetch(),
+            policyAttestationsQuery.refetch(), administratorProfilesQuery.refetch(),
+            administratorCeEntriesQuery.refetch(),
+          ])}
+        />
+      )}
 
       <SurveyPrepChecklist
         facilityId={activeFacilityId}
@@ -544,7 +662,7 @@ export default function InspectionReadiness() {
         <CardContent className="space-y-6">
           <p className="text-sm text-muted-foreground">
             Modeled on general PA DHS entrance-conference practice for personal care homes / assisted living
-            residences -- not a verbatim reproduction of the current DHS Entrance Conference Guide. Keep your own
+            facilities -- not a verbatim reproduction of the current DHS Entrance Conference Guide. Keep your own
             copy on hand and compare item wording before a real inspection.
           </p>
           {groupedChecklist.map(([category, items]) => (

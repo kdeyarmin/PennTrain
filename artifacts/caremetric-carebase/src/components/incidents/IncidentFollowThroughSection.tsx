@@ -524,12 +524,19 @@ export default function IncidentFollowThroughSection({
         currentAnswers={(incident.pathway_answers ?? {}) as TemplateAnswers}
       />
       <ReportabilityDialog
+        key={reportabilityOpen ? "reportability-open" : "reportability-closed"}
         open={reportabilityOpen}
         onOpenChange={setReportabilityOpen}
         incidentId={incidentId}
         prompts={prompts}
       />
+      {/*
+        Re-keyed on open for the same reason as InvestigationStepDialog below: `not_indicated`
+        APPENDS into investigation_findings, and the choice/project/note state is seeded once from
+        props. Without a remount, a second open can re-append the note or save a stale project id.
+      */}
       <QapiConsiderationDialog
+        key={qapiOpen ? "qapi-open" : "qapi-closed"}
         open={qapiOpen}
         onOpenChange={setQapiOpen}
         incidentId={incidentId}

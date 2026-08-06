@@ -22,6 +22,7 @@ import {
   buildQapiRecommendations, type ExistingQapiProjectLike, type QapiRecommendation,
 } from "@/lib/qapiRecommendations";
 import { toLocalIsoDate } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 
 const WINDOW_OPTIONS = [
   { value: "30", label: "Last 30 days" },
@@ -249,6 +250,15 @@ export default function IncidentTrendsSection({
   const effectiveness = trends.correctiveActionEffectiveness;
 
   if (records.isLoading) return <Skeleton className="h-72 w-full" />;
+  if (records.isError) {
+    return (
+      <QueryError
+        what="incident trends"
+        error={records.error}
+        onRetry={() => void records.refetch()}
+      />
+    );
+  }
 
   return (
     <>

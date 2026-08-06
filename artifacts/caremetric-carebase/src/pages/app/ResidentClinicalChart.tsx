@@ -352,6 +352,8 @@ export default function ResidentClinicalChart() {
           </Alert>
           {fhir.isLoading ? (
             <Card><CardContent className="p-4"><Skeleton className="h-6 w-full" /></CardContent></Card>
+          ) : fhir.isError ? (
+            <QueryError what="medications" error={fhir.error} onRetry={() => void fhir.refetch()} />
           ) : (fhir.data?.medications ?? []).length === 0 ? (
             <Card><CardContent className="py-10 text-center"><Pill className="mx-auto mb-2 h-7 w-7 text-muted-foreground" /><p className="font-medium">No medications ingested</p><p className="text-sm text-muted-foreground">Connect a FHIR source and map this resident to see medications here.</p></CardContent></Card>
           ) : (fhir.data?.medications ?? []).map((medication) => (
@@ -372,7 +374,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" />Allergies</CardTitle><CardDescription>Ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {(fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
+              {fhir.isError ? <QueryError what="allergies" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.allergies ?? []).map((allergy) => (
                     <div key={allergy.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
@@ -387,7 +389,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Diagnoses / problem list</CardTitle><CardDescription>Conditions ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {(fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
+              {fhir.isError ? <QueryError what="diagnoses" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.conditions ?? []).map((condition) => (
                     <div key={condition.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">

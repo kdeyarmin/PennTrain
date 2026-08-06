@@ -20,6 +20,7 @@ import {
   extractSurveyEvidencePacketCitation,
   type SurveyEvidencePacketJob,
 } from "@/lib/surveyEvidencePacket";
+import { QueryError } from "@/components/QueryState";
 
 /**
  * Lazy Survey Day section: packet selection, zip package, and surveyor guest grant.
@@ -50,6 +51,16 @@ function GuestGrantList({
   onConfirmRevoke: (id: string) => void;
 }) {
   const grants = useSurveyPacketGuestGrants(packetExportId);
+  if (grants.isLoading) return null;
+  if (grants.isError) {
+    return (
+      <QueryError
+        what="survey packet guest grants"
+        error={grants.error}
+        onRetry={() => void grants.refetch()}
+      />
+    );
+  }
   if (!grants.data?.length) return null;
 
   const now = Date.now();
