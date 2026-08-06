@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `ae07cf57` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **seventeenth-pass** after G182–G185. Closed time-off window validation to facility wall clock (not browser zone) and sticky create/edit dialog drafts across TrainingTypes, credentials, violations, inspection items, facilities, competency templates, course assignments, and Organizations. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `6787bf5c` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **eighteenth-pass** after G186–G187. Closed remaining sticky Maintenance/TrainerClasses/PIN/Quiz/WorkOrder dialog drafts. Facility-calendar and unlabeled-Select families exhausted for this review (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -620,6 +620,7 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G185 | Incidents / Courses / Residents create dialogs sticky | S | done | Reset form to empty on dialog close |
 | G186 | Time-off window error used browser `Date` for datetime-local | M | done | Validate start/end via `facilityDateTimeLocalToUtcIso` instants |
 | G187 | Sticky create/edit dialogs across admin/app surfaces | S | done | Reset form (+ edit id) on close for TrainingTypes/credentials/violations/inspection items/facilities/templates/assignments/orgs/users/employee detail/facility detail/plans/packages/quiz |
+| G188 | Remaining sticky dialogs: maintenance / trainer / PIN / WO | S | done | Reset order/location/schedule forms, trainer class form, PIN, quiz meta, WO transition/verify drafts on close |
 
 ## Explicitly not now
 

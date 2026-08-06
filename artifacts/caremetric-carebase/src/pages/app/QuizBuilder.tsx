@@ -549,7 +549,7 @@ export default function QuizBuilder() {
       </Card>
 
       {/* Edit quiz metadata */}
-      <Dialog open={showEditQuiz} onOpenChange={o => { if (!o) setShowEditQuiz(false); }}>
+      <Dialog open={showEditQuiz} onOpenChange={o => { if (!o) { setShowEditQuiz(false); setQuizForm({ title: "", passingScore: "80", maxAttempts: "" }); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Edit Quiz</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

@@ -1022,7 +1022,7 @@ export default function EmployeeDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showSetPin} onOpenChange={setShowSetPin}>
+      <Dialog open={showSetPin} onOpenChange={(o) => { if (!o) { setShowSetPin(false); setPinValue(""); } else setShowSetPin(true); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Set Check-In PIN</DialogTitle>
