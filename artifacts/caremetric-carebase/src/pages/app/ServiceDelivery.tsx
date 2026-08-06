@@ -428,9 +428,9 @@ export default function ServiceDelivery() {
       </Alert>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="flex items-center gap-3 pt-6"><Clock3 className="h-8 w-8 text-blue-600" /><div><p className="text-2xl font-bold">{queue.isLoading ? "—" : scheduled}</p><p className="text-sm text-muted-foreground">Scheduled</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-3 pt-6"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><p className="text-2xl font-bold">{queue.isLoading ? "—" : completed}</p><p className="text-sm text-muted-foreground">Completed</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-3 pt-6"><AlertTriangle className="h-8 w-8 text-amber-600" /><div><p className="text-2xl font-bold">{queue.isLoading ? "—" : exceptions}</p><p className="text-sm text-muted-foreground">Exceptions</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><Clock3 className="h-8 w-8 text-blue-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : scheduled}</p><p className="text-sm text-muted-foreground">Scheduled</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : completed}</p><p className="text-sm text-muted-foreground">Completed</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><AlertTriangle className="h-8 w-8 text-amber-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : exceptions}</p><p className="text-sm text-muted-foreground">Exceptions</p></div></CardContent></Card>
       </div>
 
       <Card>
@@ -515,7 +515,13 @@ export default function ServiceDelivery() {
                           <p className="mt-1 text-sm">{item.resident ? `${item.resident.first_name} ${item.resident.last_name}` : "Resident"} · {item.task?.service_name}</p>
                           <p className="text-sm text-muted-foreground">{item.message}</p>
                         </div>
-                        {isManager && <div className="flex gap-2">{item.alert_type === "change_of_condition_review" && <Button size="sm" onClick={() => setChangeReviewAlert(item)}>Start change review</Button>}<Button size="sm" variant="outline" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "acknowledged" })}>Acknowledge</Button><Button size="sm" variant="outline" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "resolved" })}>Resolve</Button></div>}
+                        {isManager && <div className="flex gap-2">{item.alert_type === "change_of_condition_review" && <Button size="sm" onClick={() => setChangeReviewAlert(item)}>Start change review</Button>}<Button size="sm" variant="outline" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "acknowledged" }, {
+                          onSuccess: () => toast({ title: "Alert acknowledged" }),
+                          onError: (error: Error) => toast({ title: "Couldn't acknowledge alert", description: error.message, variant: "destructive" }),
+                        })}>Acknowledge</Button><Button size="sm" variant="outline" onClick={() => resolveAlert.mutate({ alertId: item.id, status: "resolved" }, {
+                          onSuccess: () => toast({ title: "Alert resolved" }),
+                          onError: (error: Error) => toast({ title: "Couldn't resolve alert", description: error.message, variant: "destructive" }),
+                        })}>Resolve</Button></div>}
                       </div>
                     ))}
                   </div>

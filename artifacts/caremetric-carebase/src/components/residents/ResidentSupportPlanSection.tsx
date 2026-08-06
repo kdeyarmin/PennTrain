@@ -37,6 +37,7 @@ import {
   type SupportPlanState,
 } from "@/lib/supportPlanLifecycle";
 import { SupportPlanVersionComparison } from "@/components/residents/SupportPlanVersionComparison";
+import { QueryError } from "@/components/QueryState";
 import {
   COMPLETION_RESPONSE_LABELS, defaultResponsesForKind, SERVICE_TASK_KIND_LABELS,
   type CompletionResponse, type ServiceTaskKind,
@@ -421,6 +422,12 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
         {/* Plan versions */}
         {plansQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : plansQuery.isError ? (
+          <QueryError
+            what="support plans"
+            error={plansQuery.error}
+            onRetry={() => void plansQuery.refetch()}
+          />
         ) : plans.length === 0 ? (
           <p className="text-sm text-muted-foreground">No support plan yet. {canManage ? "Start a draft to begin, or check a finalized assessment for a proposed plan." : ""}</p>
         ) : (

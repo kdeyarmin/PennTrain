@@ -113,10 +113,17 @@ export default function ResidentHospitalSection({
   const [acknowledging, setAcknowledging] = useState<HospitalEpisodeLike | null>(null);
   const [ackNote, setAckNote] = useState("");
 
-  const episode = episodes.data?.[0];
+  if (episodes.isLoading) return null;
   if (episodes.isError) {
-    return <QueryError what="hospital transfers" error={episodes.error} onRetry={() => void episodes.refetch()} />;
+    return (
+      <QueryError
+        what="hospital episodes"
+        error={episodes.error}
+        onRetry={() => void episodes.refetch()}
+      />
+    );
   }
+  const episode = episodes.data?.[0];
   if (!episode) return null;
 
   const returnReviewFinal = (reviews ?? []).some((review) =>

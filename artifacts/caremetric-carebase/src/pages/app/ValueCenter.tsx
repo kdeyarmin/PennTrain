@@ -65,7 +65,7 @@ import {
   isCustomerValueBaselineValid,
   type CustomerValueBaselineForm,
 } from "@/lib/customerValueBaseline";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import {
   implementationTaskNeedsAttention,
   implementationTaskRoute,
@@ -302,12 +302,8 @@ export default function ValueCenter() {
   const profiles = useListProfiles({ organizationId });
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
   const facilityId = selectedFacilityId || facilities.data?.[0]?.id || "";
-  const today = toLocalIsoDate(new Date());
-  const through = useMemo(() => {
-    const date = new Date();
-    date.setDate(date.getDate() + 30);
-    return toLocalIsoDate(date);
-  }, []);
+  const today = facilityToday();
+  const through = useMemo(() => addFacilityCalendarDays(facilityToday(), 30), []);
 
   const workspace = useProductValueWorkspace(facilityId || undefined);
   const value = useCustomerValueDashboard(organizationId);

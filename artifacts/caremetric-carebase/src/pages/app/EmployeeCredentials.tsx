@@ -95,7 +95,13 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
   const __fieldIds = useId();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { data: documents, isLoading } = useListCredentialDocuments({ credentialId: credential.id });
+  const {
+    data: documents,
+    isLoading,
+    isError: documentsError,
+    error: documentsErrorDetail,
+    refetch: refetchDocuments,
+  } = useListCredentialDocuments({ credentialId: credential.id });
   const uploadDocument = useUploadCredentialDocument();
   const getSignedUrl = useCredentialDocumentSignedUrl();
   const deleteDocument = useDeleteCredentialDocument();
@@ -152,6 +158,8 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
       </div>
       {isLoading ? (
         <div className="h-10 bg-muted animate-pulse rounded" />
+      ) : documentsError ? (
+        <QueryError what="credential documents" error={documentsErrorDetail} onRetry={() => void refetchDocuments()} />
       ) : !documents?.length ? (
         <p className="text-sm text-muted-foreground">No documents uploaded for this credential.</p>
       ) : (

@@ -208,7 +208,7 @@ export default function MySchedule() {
           <CardDescription>Only published shifts are shown. Swap candidates are limited to your facility and remain subject to manager approval.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {shiftsError ? null : isLoading ? (
             <div className="space-y-2">{[...Array(4)].map((_, index) => <div key={index} className="h-20 animate-pulse rounded bg-muted" />)}</div>
           ) : upcoming.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No upcoming shifts published yet.</p>
@@ -309,7 +309,7 @@ export default function MySchedule() {
         <Card>
           <CardHeader><CardTitle>Open shifts</CardTitle><CardDescription>Claims run through qualification, credential, training, conflict, and policy checks.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
-            {workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : openOffers.length === 0 ? <p className="text-sm text-muted-foreground">No open shifts are available.</p> : openOffers.map((offer) => (
+            {workspace.isError ? null : workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : openOffers.length === 0 ? <p className="text-sm text-muted-foreground">No open shifts are available.</p> : openOffers.map((offer) => (
               <div key={String(offer.id)} className="flex items-center justify-between gap-3 rounded-lg border p-3">
                 <div className="text-sm"><p className="font-medium">{formatDateLabel(String(offer.shift_date), { month: "short", day: "numeric" })}</p><p className="text-muted-foreground">{formatTimeLabel(String(offer.start_time))}–{formatTimeLabel(String(offer.end_time))}</p></div>
                 <Button size="sm" onClick={() => void handleClaim(String(offer.id))} disabled={claimShift.isPending}>Claim</Button>
@@ -328,7 +328,7 @@ export default function MySchedule() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {timeOffRequests.length === 0 ? <p className="text-sm text-muted-foreground">No recent requests.</p> : timeOffRequests.map((request) => (
+            {workspace.isError ? null : workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : timeOffRequests.length === 0 ? <p className="text-sm text-muted-foreground">No recent requests.</p> : timeOffRequests.map((request) => (
               <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div><p className="font-medium">{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.request_type).replace(/_/g, " ")}</p></div>

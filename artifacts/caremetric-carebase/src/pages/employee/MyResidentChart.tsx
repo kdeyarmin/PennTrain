@@ -285,8 +285,8 @@ export default function MyResidentChart() {
           <ShieldCheck className="h-4 w-4" />
           <AlertTitle>Clinical data consent: {summary.data.resident.clinicalDataConsent.replace(/_/gu, " ")}</AlertTitle>
           <AlertDescription>
-            Record and share clinical information consistent with this resident&apos;s consent posture and the
-            HIPAA minimum-necessary standard.
+            You can still chart for this resident. Outbound disclosure (EHR write-back, clinical export,
+            and family portal documents) stays blocked until a manager records granted consent.
           </AlertDescription>
         </Alert>
       )}

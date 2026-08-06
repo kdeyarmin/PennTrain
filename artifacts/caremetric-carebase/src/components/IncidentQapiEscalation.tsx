@@ -6,7 +6,7 @@ import { useListProfiles } from "@/hooks/useProfiles";
 import { useCreateQapiProject, useListQapiProjects } from "@/hooks/useQapi";
 import type { Incident } from "@/hooks/useIncidents";
 import { humanize } from "@/lib/utils";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,9 +20,7 @@ import { ArrowUpRight, ClipboardList } from "lucide-react";
 // existing project is shown/opened instead of creating a duplicate. Render only for managers on a
 // PCH/ALF org (the QAPI routes are facility-type gated); the parent gates on that.
 function ninetyDaysOut(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 90);
-  return toLocalIsoDate(d);
+  return addFacilityCalendarDays(facilityToday(), 90);
 }
 
 export function IncidentQapiEscalation({ incident }: { incident: Incident }) {

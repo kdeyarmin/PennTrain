@@ -19,7 +19,7 @@ export interface ListIncidentsFilters {
   status?: string;
 }
 
-export function useListIncidents(filters: ListIncidentsFilters = {}) {
+export function useListIncidents(filters: ListIncidentsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["incidents", filters],
     queryFn: async () => {
@@ -39,6 +39,7 @@ export function useListIncidents(filters: ListIncidentsFilters = {}) {
       }
       return rows;
     },
+    enabled: options.enabled,
   });
 }
 

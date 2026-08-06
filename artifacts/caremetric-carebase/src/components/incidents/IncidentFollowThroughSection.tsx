@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import {
   useApproveIncidentInvestigation, useDetermineIncidentReportability,
@@ -262,7 +263,9 @@ function QapiConsiderationDialog({
   const [note, setNote] = useState("");
 
   const options = projects.data ?? [];
-  const canSubmit = consideration === "linked" ? Boolean(projectId) : true;
+  const canSubmit = consideration === "linked"
+    ? Boolean(projectId) && !projects.isError && !projects.isLoading
+    : true;
 
   const submit = async () => {
     try {
@@ -306,22 +309,34 @@ function QapiConsiderationDialog({
           {consideration === "linked" ? (
             <div className="space-y-2">
               <Label htmlFor="qapi-project">Project</Label>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger id="qapi-project">
-                  <SelectValue placeholder={options.length ? "Pick a project" : "No QAPI project exists for this facility"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>{project.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {options.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  The server refuses a link to a project outside this incident&apos;s facility, so
-                  there is nothing to offer until one exists. Open a project first, or record the
-                  decision as not indicated.
-                </p>
+              {projects.isError ? (
+                <QueryError what="QAPI projects" error={projects.error} onRetry={() => void projects.refetch()} />
+              ) : (
+                <>
+                  <Select value={projectId} onValueChange={setProjectId} disabled={projects.isLoading}>
+                    <SelectTrigger id="qapi-project">
+                      <SelectValue placeholder={
+                        projects.isLoading
+                          ? "Loading projects…"
+                          : options.length
+                            ? "Pick a project"
+                            : "No QAPI project exists for this facility"
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>{project.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!projects.isLoading && options.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      The server refuses a link to a project outside this incident&apos;s facility, so
+                      there is nothing to offer until one exists. Open a project first, or record the
+                      decision as not indicated.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           ) : (
@@ -359,7 +374,7 @@ export default function IncidentFollowThroughSection({
   facilityId: string | null | undefined;
 }) {
   const { toast } = useToast();
-  const { data, isLoading } = useIncidentFollowThrough(incidentId);
+  const { data, isLoading, isError, error, refetch } = useIncidentFollowThrough(incidentId);
   const approve = useApproveIncidentInvestigation(incidentId);
   const [pathwayOpen, setPathwayOpen] = useState(false);
   const [reportabilityOpen, setReportabilityOpen] = useState(false);
@@ -369,6 +384,9 @@ export default function IncidentFollowThroughSection({
   const [qapiOpen, setQapiOpen] = useState(false);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isError) {
+    return <QueryError what="incident follow-through" error={error} onRetry={() => void refetch()} />;
+  }
   if (!data?.incident) return null;
 
   const incident = data.incident;
@@ -524,12 +542,19 @@ export default function IncidentFollowThroughSection({
         currentAnswers={(incident.pathway_answers ?? {}) as TemplateAnswers}
       />
       <ReportabilityDialog
+        key={reportabilityOpen ? "reportability-open" : "reportability-closed"}
         open={reportabilityOpen}
         onOpenChange={setReportabilityOpen}
         incidentId={incidentId}
         prompts={prompts}
       />
+      {/*
+        Re-keyed on open for the same reason as InvestigationStepDialog below: `not_indicated`
+        APPENDS into investigation_findings, and the choice/project/note state is seeded once from
+        props. Without a remount, a second open can re-append the note or save a stale project id.
+      */}
       <QapiConsiderationDialog
+        key={qapiOpen ? "qapi-open" : "qapi-closed"}
         open={qapiOpen}
         onOpenChange={setQapiOpen}
         incidentId={incidentId}

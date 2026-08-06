@@ -246,7 +246,7 @@ export function AdaptivePathsPanel() {
       {versions.isError && (
         <QueryError what="learning paths" error={versions.error} onRetry={() => void versions.refetch()} />
       )}
-      {!versions.isLoading && rows.length === 0 && (
+      {!versions.isLoading && !versions.isError && rows.length === 0 && (
         <p className="text-sm text-muted-foreground">No path versions yet. Author one above to start.</p>
       )}
 
@@ -359,7 +359,7 @@ export function AdaptivePathsPanel() {
             {assignments.isError && (
               <QueryError what="assignments" error={assignments.error} onRetry={() => void assignments.refetch()} />
             )}
-            {!assignments.isLoading && (assignments.data ?? []).length === 0 && (
+            {!assignments.isLoading && !assignments.isError && (assignments.data ?? []).length === 0 && (
               <p className="text-sm text-muted-foreground">Nobody is on this path version yet.</p>
             )}
             {(assignments.data ?? []).map((assignment) => (

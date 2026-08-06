@@ -21,6 +21,8 @@ export interface ResidentPortalSnapshot {
   designatedPersonName?: string;
   relationship?: string;
   permissions?: string[];
+  clinicalDisclosureAllowed?: boolean;
+  clinicalDataConsent?: string;
   resident?: { displayName: string; room: string | null };
   facility?: { name: string; phone: string | null; address: string };
   schedule?: Array<{

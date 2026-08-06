@@ -171,7 +171,7 @@ export default function CertificationAttemptSection({
           <div className="space-y-2">
             <Label htmlFor="certification-version">Start an observation</Label>
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={versionId} onValueChange={setVersionId}>
+              <Select value={versionId} onValueChange={setVersionId} disabled={versions.isLoading || versions.isError}>
                 <SelectTrigger id="certification-version" className="sm:w-96">
                   <SelectValue placeholder="Select a published checklist" />
                 </SelectTrigger>
@@ -183,15 +183,17 @@ export default function CertificationAttemptSection({
                   ))}
                 </SelectContent>
               </Select>
-              <Button disabled={!versionId || start.isPending} onClick={() => void startAttempt()}>
+              <Button disabled={!versionId || start.isPending || versions.isError || versions.isLoading} onClick={() => void startAttempt()}>
                 {start.isPending ? "Starting…" : "Start observation"}
               </Button>
             </div>
-            {(versions.data ?? []).length === 0 && !versions.isLoading && (
+            {versions.isError ? (
+              <QueryError what="published checklists" error={versions.error} onRetry={() => void versions.refetch()} />
+            ) : (versions.data ?? []).length === 0 && !versions.isLoading ? (
               <p className="text-xs text-muted-foreground">
                 No published checklist is currently effective, so there is nothing to observe against.
               </p>
-            )}
+            ) : null}
           </div>
         ) : (
           <div className="space-y-4">
@@ -205,7 +207,9 @@ export default function CertificationAttemptSection({
               </span>
             </div>
 
-            {checklist.isLoading ? <Skeleton className="h-24" /> : (
+            {checklist.isLoading ? <Skeleton className="h-24" /> : checklist.isError ? (
+              <QueryError what="certification checklist" error={checklist.error} onRetry={() => void checklist.refetch()} />
+            ) : (
               <ul className="space-y-2">
                 {(checklist.data ?? []).map(({ item, recorded }) => (
                   <li key={item.id} className="rounded-md border p-2">
@@ -256,7 +260,7 @@ export default function CertificationAttemptSection({
               </ul>
             )}
 
-            {outstanding.length > 0 && (
+            {!checklist.isError && outstanding.length > 0 && (
               <div className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
                 <p className="font-medium">Outstanding before this can be decided</p>
                 <ul className="mt-1 space-y-0.5">
@@ -270,8 +274,14 @@ export default function CertificationAttemptSection({
             {openAttempt.status === "in_progress" && (
               <Button
                 variant="outline" size="sm"
-                disabled={outstanding.length > 0 || submit.isPending}
-                title={outstanding.length > 0 ? "Complete every checklist item first." : undefined}
+                disabled={checklist.isError || checklist.isLoading || outstanding.length > 0 || submit.isPending}
+                title={
+                  checklist.isError || checklist.isLoading
+                    ? "Load the checklist before submitting."
+                    : outstanding.length > 0
+                      ? "Complete every checklist item first."
+                      : undefined
+                }
                 onClick={() => void submitAttempt()}
               >
                 {submit.isPending ? "Submitting…" : "Submit observation"}
@@ -306,15 +316,21 @@ export default function CertificationAttemptSection({
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  disabled={Boolean(issue) || outstanding.length > 0 || approve.isPending}
-                  title={outstanding.length > 0 ? "Complete every checklist item first." : undefined}
+                  disabled={Boolean(issue) || checklist.isError || checklist.isLoading || outstanding.length > 0 || approve.isPending}
+                  title={
+                    checklist.isError || checklist.isLoading
+                      ? "Load the checklist before deciding."
+                      : outstanding.length > 0
+                        ? "Complete every checklist item first."
+                        : undefined
+                  }
                   onClick={() => void decide("passed")}
                 >
                   Pass
                 </Button>
                 <Button
                   size="sm" variant="outline"
-                  disabled={Boolean(issue) || outstanding.length > 0 || approve.isPending}
+                  disabled={Boolean(issue) || checklist.isError || checklist.isLoading || outstanding.length > 0 || approve.isPending}
                   onClick={() => void decide("failed")}
                 >
                   Fail

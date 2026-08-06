@@ -511,8 +511,12 @@ export default function ClassDetail() {
       await deleteClass.mutateAsync(classId);
       toast({ title: "Class deleted" });
       navigate("/trainer/classes");
-    } catch {
-      toast({ title: "Failed to delete class", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Failed to delete class",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
     }
   }
 

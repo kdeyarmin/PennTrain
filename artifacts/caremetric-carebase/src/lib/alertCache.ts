@@ -4,6 +4,36 @@ export interface AlertCacheRow {
   [key: string]: unknown;
 }
 
+export interface AlertStatusResultRow {
+  id: string;
+  status: string;
+  message?: string;
+}
+
+/**
+ * `bulk_update_alert_status` returns a JSON envelope
+ * `{ idempotencyKey, total, succeeded, skipped, unauthorized, failed, results: [...] }`.
+ * Treat a bare array as a defensive fallback so a future signature change cannot re-break the UI.
+ */
+export function parseBulkAlertStatusResult(data: unknown): AlertStatusResultRow[] {
+  if (Array.isArray(data)) {
+    return data.filter(
+      (row): row is AlertStatusResultRow =>
+        !!row && typeof row === "object" && typeof (row as AlertStatusResultRow).id === "string"
+          && typeof (row as AlertStatusResultRow).status === "string",
+    );
+  }
+  if (data && typeof data === "object" && Array.isArray((data as { results?: unknown }).results)) {
+    return parseBulkAlertStatusResult((data as { results: unknown }).results);
+  }
+  return [];
+}
+
+/** Rows the RPC marks as rejected (not success/skipped). */
+export function rejectedAlertStatusResults(rows: readonly AlertStatusResultRow[]): AlertStatusResultRow[] {
+  return rows.filter((row) => row.status === "failed" || row.status === "unauthorized");
+}
+
 interface PaginatedAlertCache {
   rows: AlertCacheRow[];
   count: number;

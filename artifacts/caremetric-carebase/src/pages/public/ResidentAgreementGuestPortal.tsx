@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { useToast } from "@/hooks/use-toast";
 
 const SESSION_TOKEN_KEY = "carebase-resident-agreement-token";
 
@@ -30,6 +31,7 @@ const blankResponse = (signerRole = "designated_person") => ({
 
 export default function ResidentAgreementGuestPortal() {
   const __fieldIds = useId();
+  const { toast } = useToast();
   const { token: routeToken } = useParams<{ token?: string }>();
   const [token] = useState(() => consumePublicAccessToken(
     routeToken,
@@ -44,11 +46,27 @@ export default function ResidentAgreementGuestPortal() {
   const [selected, setSelected] = useState<Agreement | null>(null);
   const [response, setResponse] = useState(blankResponse);
 
-  const acceptTerms = () => token && accept.mutate(token, { onSuccess: () => setAcceptedLocally(true) });
+  const acceptTerms = () => token && accept.mutate(token, {
+    onSuccess: () => setAcceptedLocally(true),
+    onError: (error) => toast({
+      title: "Could not accept terms",
+      description: error instanceof Error ? error.message : String(error),
+      variant: "destructive",
+    }),
+  });
   const submit = () => {
     if (!token || !selected) return;
     respond.mutate({ token, versionId: selected.versionId, ...response }, {
-      onSuccess: () => { setSelected(null); setResponse(blankResponse(workspace.data?.signerRole)); },
+      onSuccess: () => {
+        setSelected(null);
+        setResponse(blankResponse(workspace.data?.signerRole));
+        toast({ title: "Response recorded" });
+      },
+      onError: (error) => toast({
+        title: "Could not submit response",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      }),
     });
   };
   // Every failure from the workspace RPC uses errcode 42501 (invalid, revoked,

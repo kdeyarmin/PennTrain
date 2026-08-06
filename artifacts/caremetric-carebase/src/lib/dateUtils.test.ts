@@ -6,6 +6,7 @@ import {
   facilityDateTimeToUtc,
   facilityDayBounds,
   facilityDaysUntil,
+  addFacilityCalendarDays,
   facilityToday,
   formatDateForDisplay,
   formatDueDistance,
@@ -60,6 +61,14 @@ describe("facilityToday", () => {
   it("zero-pads so the result compares and sorts as a date string", () => {
     expect(facilityToday(new Date("2026-03-05T17:00:00Z"))).toBe("2026-03-05");
     expect(facilityToday(new Date("2026-11-09T17:00:00Z"))).toBe("2026-11-09");
+  });
+});
+
+describe("addFacilityCalendarDays", () => {
+  it("adds and subtracts whole calendar days across month boundaries", () => {
+    expect(addFacilityCalendarDays("2026-01-20", 15)).toBe("2026-02-04");
+    expect(addFacilityCalendarDays("2026-03-01", -30)).toBe("2026-01-30");
+    expect(addFacilityCalendarDays("2026-12-31", 1)).toBe("2027-01-01");
   });
 });
 

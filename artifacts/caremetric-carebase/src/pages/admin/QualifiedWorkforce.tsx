@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { QueryError } from "@/components/QueryState";
 import { CredentialRenewalInbox } from "@/components/employees/CredentialRenewalInbox";
 
 
@@ -117,7 +118,15 @@ function StartImportRunCard({ onStarted }: { onStarted: (runId: string) => void 
             }}
           >
             <SelectTrigger id="phase3-source">
-              <SelectValue placeholder={rows.length ? "Choose a source" : "No pilot or active source configured"} />
+              <SelectValue placeholder={
+                sources.isError
+                  ? "Could not load sources"
+                  : sources.isLoading
+                    ? "Loading sources…"
+                    : rows.length
+                      ? "Choose a source"
+                      : "No pilot or active source configured"
+              } />
             </SelectTrigger>
             <SelectContent>
               {rows.map((row) => (
@@ -125,6 +134,9 @@ function StartImportRunCard({ onStarted }: { onStarted: (runId: string) => void 
               ))}
             </SelectContent>
           </Select>
+          {sources.isError && (
+            <QueryError what="HRIS source systems" error={sources.error} onRetry={() => void sources.refetch()} />
+          )}
           {selected && (
             <p className="text-xs text-muted-foreground">
               Mode {selected.import_mode} · mapping v{selected.mapping_version}
@@ -341,7 +353,7 @@ function WorkforceSelfServiceQueue() {
         <CardContent className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All assigned facilities</SelectItem>{(facilities.data ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></CardContent>
       </Card>
       {queues.isError ? <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Queue unavailable</AlertTitle><AlertDescription>{queues.error instanceof Error ? queues.error.message : "Could not load the queue."}</AlertDescription></Alert> : null}
-      {queues.isLoading ? <div className="flex justify-center p-8"><RefreshCw className="h-5 w-5 animate-spin" /></div> : (
+      {queues.isLoading ? <div className="flex justify-center p-8"><RefreshCw className="h-5 w-5 animate-spin" /></div> : queues.isError ? null : (
         <div className="grid gap-4 xl:grid-cols-3">
           <Card><CardHeader><CardTitle className="text-base">Time off ({queues.data?.timeOff.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.timeOff ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No pending requests.</p> : (queues.data?.timeOff ?? []).map((request) => <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(request.employees)}</p><p>{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.reason ?? "No reason provided")}</p><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: true, title: "Approve time off" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: false, title: "Deny time off" })}>Deny</Button></div></div>)}</CardContent></Card>
           <Card><CardHeader><CardTitle className="text-base">Open-shift claims ({queues.data?.openShiftClaims.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.openShiftClaims ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No claims awaiting review.</p> : (queues.data?.openShiftClaims ?? []).map((claim) => { const offer = claim.open_shift_opportunities as Record<string, unknown> | null; return <div key={String(claim.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(claim.employees)}</p><p>{offer?.shift_date ? new Date(`${String(offer.shift_date)}T12:00:00`).toLocaleDateString() : "Open shift"} · {String(offer?.start_time ?? "")}–{String(offer?.end_time ?? "")}</p><Badge variant="outline">{String(claim.claim_status).replace(/_/g, " ")}</Badge><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: true, title: "Approve open-shift claim" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: false, title: "Reject open-shift claim" })}>Reject</Button></div></div>; })}</CardContent></Card>

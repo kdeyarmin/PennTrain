@@ -13,6 +13,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { QueryError } from "@/components/QueryState";
+import { facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import {
   useCitationGovernanceStatus, useCitationTopics, useRecordCitationSuperseded,
@@ -45,8 +46,8 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 function todayForInput(): string {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  // Facility calendar day (America/New_York), matching server `pa_today()` / other as-of defaults.
+  return facilityToday();
 }
 
 function VerifyDialog({

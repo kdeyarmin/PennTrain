@@ -2,7 +2,12 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
-import { applyAlertCachePatch, type AlertCacheRow } from "@/lib/alertCache";
+import {
+  applyAlertCachePatch,
+  parseBulkAlertStatusResult,
+  rejectedAlertStatusResults,
+  type AlertCacheRow,
+} from "@/lib/alertCache";
 
 export type Alert = Tables<"alerts">;
 type AlertListView = Tables<"alert_list_rows">;
@@ -100,13 +105,39 @@ export function useAlertRealtime(organizationId?: string) {
   }, [organizationId, queryClient]);
 }
 
+async function updateAlertStatusesViaRpc(ids: string[], status: string, reason?: string | null) {
+  // Routed through bulk_update_alert_status rather than a direct table update (BACKLOG.md G10).
+  // The RPC writes an `alerts_bulk_status_updated` audit_logs row per alert, stamps
+  // `resolved_at` when the status becomes 'resolved', and authorizes each alert against the
+  // caller's facility assignment. Single-row resolve/dismiss used to skip all three, so a
+  // one-click resolve left no audit trail and looked like a nightly sweep resolution.
+  const { data, error } = await supabase.rpc("bulk_update_alert_status" as never, {
+    p_alert_ids: ids,
+    p_status: status,
+    p_reason: reason ?? null,
+  } as never);
+  if (error) throw error;
+  // The RPC returns `{ results: [...] }`, not the bare array. Parsing the envelope as an array
+  // made every bulk action throw client-side after a successful write.
+  const results = parseBulkAlertStatusResult(data);
+  const rejected = rejectedAlertStatusResults(results);
+  if (rejected.length > 0) {
+    throw new Error(
+      ids.length === 1
+        ? (rejected[0].message ?? rejected[0].status)
+        : `${rejected.length} of ${ids.length} alert(s) could not be updated: ${rejected[0].message ?? rejected[0].status}`,
+    );
+  }
+  return results;
+}
+
 export function useUpdateAlert() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }: AlertUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("alerts").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
+      const status = payload.status;
+      if (!status) throw new Error("A target status is required for an alert update.");
+      return updateAlertStatusesViaRpc([id], status, (payload as { reason?: string }).reason);
     },
     onMutate: async ({ id, ...payload }) => {
       await queryClient.cancelQueries({ queryKey: ALERTS_KEY });
@@ -121,32 +152,9 @@ export function useBulkUpdateAlerts() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ ids, ...payload }: AlertUpdate & { ids: string[] }) => {
-      // Routed through bulk_update_alert_status rather than a direct table update (BACKLOG.md G10).
-      // The RPC existed and had no caller, while this hook wrote straight to the table -- which RLS
-      // authorizes, but which skips three things the RPC does: it writes an
-      // `alerts_bulk_status_updated` audit_logs row per alert, it stamps `resolved_at` when the
-      // status becomes 'resolved', and it authorizes each alert individually against the caller's
-      // facility assignment. The audit gap is the sharp one: dismissing alerts in bulk is exactly
-      // what a surveyor asks about, and it was leaving no trail. The resolved_at gap meant a
-      // human-resolved alert was indistinguishable from one the nightly sweep resolved.
       const status = (payload as { status?: string }).status;
       if (!status) throw new Error("A target status is required for a bulk alert update.");
-      const { data, error } = await supabase.rpc("bulk_update_alert_status" as never, {
-        p_alert_ids: ids,
-        p_status: status,
-        p_reason: (payload as { reason?: string }).reason ?? null,
-      } as never);
-      if (error) throw error;
-      // The RPC reports per-alert outcomes instead of failing the batch, so a partial result must
-      // not be reported as a clean success.
-      const results = (data ?? []) as { id: string; status: string; message?: string }[];
-      const rejected = results.filter((row) => row.status === "failed" || row.status === "unauthorized");
-      if (rejected.length > 0) {
-        throw new Error(
-          `${rejected.length} of ${ids.length} alert(s) could not be updated: ${rejected[0].message ?? rejected[0].status}`,
-        );
-      }
-      return results;
+      return updateAlertStatusesViaRpc(ids, status, (payload as { reason?: string }).reason);
     },
     onMutate: async ({ ids, ...payload }) => {
       await queryClient.cancelQueries({ queryKey: ALERTS_KEY });

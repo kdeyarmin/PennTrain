@@ -60,7 +60,7 @@ function AttestationStatusBadge({ attestation }: { attestation: PolicyAttestatio
 function VersionsTab({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: versions, isLoading } = useListPolicyDocumentVersions(documentId);
+  const { data: versions, isLoading, isError, error, refetch } = useListPolicyDocumentVersions(documentId);
   const uploadVersion = useUploadPolicyDocumentVersion();
   const publishVersion = usePublishPolicyDocumentVersion();
   const getSignedUrl = usePolicyDocumentSignedUrl();
@@ -119,6 +119,8 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
       <CardContent>
         {isLoading ? (
           <div className="space-y-2">{[...Array(2)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}</div>
+        ) : isError ? (
+          <QueryError what="policy versions" error={error} onRetry={() => void refetch()} />
         ) : !versions?.length ? (
           <p className="text-sm text-muted-foreground text-center py-6">No versions uploaded yet.</p>
         ) : (
@@ -178,6 +180,13 @@ function CampaignQuestions({ campaignId }: { campaignId: string }) {
   const rows = questions.data ?? [];
 
   if (questions.isLoading) return <div className="mt-3 h-10 animate-pulse rounded bg-muted" />;
+  if (questions.isError) {
+    return (
+      <div className="mt-3">
+        <QueryError what="campaign questions" error={questions.error} onRetry={() => void questions.refetch()} />
+      </div>
+    );
+  }
   if (rows.length === 0) {
     return (
       <p className="mt-3 text-xs text-muted-foreground">
@@ -386,14 +395,25 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
     }
   };
 
+  const resetCampaignForm = () => {
+    setName("");
+    setDueDate("");
+    setQuestions([]);
+    setTargeting(MANUAL_TARGETING);
+    setRecurrenceMonths(null);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => {
+      setOpen(next);
+      if (!next) resetCampaignForm();
+    }}>
       <DialogTrigger asChild>
         <Button disabled={!currentVersionId}>
           <Plus className="mr-2 h-4 w-4" /> New Campaign
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent key={open ? "campaign-open" : "campaign-closed"} className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Attestation Campaign</DialogTitle>
           <DialogDescription>Targets the currently published version. Assign it to employees once created.</DialogDescription>
@@ -445,12 +465,18 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
 }
 
 function CampaignRoster({ campaignId }: { campaignId: string }) {
-  const { data: attestations, isLoading, isError, error, refetch } = useListPolicyAttestations({ campaignId });
+  const {
+    data: attestations,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useListPolicyAttestations({ campaignId });
   const { data: employees } = useListEmployees({ status: "active" });
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
 
   if (isLoading) return <div className="space-y-1 mt-2">{[...Array(2)].map((_, i) => <div key={i} className="h-8 bg-muted animate-pulse rounded" />)}</div>;
-  if (isError) return <div className="mt-2"><QueryError what="this campaign roster" error={error} onRetry={() => void refetch()} /></div>;
+  if (isError) return <QueryError what="campaign assignments" error={error} onRetry={() => void refetch()} className="mt-2" />;
   if (!attestations?.length) return <p className="text-xs text-muted-foreground italic mt-2">Not assigned to anyone yet.</p>;
 
   return (
@@ -469,7 +495,7 @@ function CampaignRoster({ campaignId }: { campaignId: string }) {
 }
 
 function CampaignsTab({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
-  const { data: campaigns, isLoading } = useListPolicyAttestationCampaigns({ policyDocumentId: documentId });
+  const { data: campaigns, isLoading, isError, error, refetch } = useListPolicyAttestationCampaigns({ policyDocumentId: documentId });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assignTarget, setAssignTarget] = useState<{ id: string; versionId: string; dueDate: string | null } | null>(null);
 
@@ -488,6 +514,8 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
           )}
           {isLoading ? (
             <div className="space-y-2">{[...Array(2)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}</div>
+          ) : isError ? (
+            <QueryError what="attestation campaigns" error={error} onRetry={() => void refetch()} />
           ) : !campaigns?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">No campaigns yet.</p>
           ) : (

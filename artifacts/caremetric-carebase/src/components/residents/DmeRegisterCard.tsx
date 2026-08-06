@@ -233,7 +233,7 @@ export function DmeRegisterCard({
         {!facilityId && <p className="text-sm text-muted-foreground">Choose a facility to see its register.</p>}
         {items.isError && <QueryError what="DME items" error={items.error} onRetry={() => void items.refetch()} />}
         {facilityId && items.isLoading && <p className="text-sm text-muted-foreground">Loading register…</p>}
-        {facilityId && !items.isLoading && rows.length === 0 && (
+        {facilityId && !items.isLoading && !items.isError && rows.length === 0 && (
           <p className="text-sm text-muted-foreground">No equipment registered at this facility.</p>
         )}
         {rows.map((item) => (

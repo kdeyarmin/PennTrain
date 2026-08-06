@@ -40,13 +40,15 @@ export function ResidentCareConflictsPanel({
   residentId,
   conflicts,
   isLoading,
+  isError,
   error,
   onRetry,
 }: {
   residentId: string;
   conflicts: CareConflict[];
   isLoading?: boolean;
-  error?: Error | null;
+  isError?: boolean;
+  error?: unknown;
   onRetry?: () => void;
 }) {
   const { toast } = useToast();
@@ -78,9 +80,6 @@ export function ResidentCareConflictsPanel({
   };
 
   if (isLoading) return null;
-  if (error) {
-    return <QueryError what="record conflicts" error={error} onRetry={onRetry} />;
-  }
 
   return (
     <>
@@ -95,7 +94,7 @@ export function ResidentCareConflictsPanel({
                 Where two records about this resident disagree, with both sides shown.
               </CardDescription>
             </div>
-            {conflicts.length > 0 && (
+            {!isError && conflicts.length > 0 && (
               <Badge variant="outline" className="border-destructive text-destructive">
                 {conflicts.length} open
               </Badge>
@@ -103,7 +102,9 @@ export function ResidentCareConflictsPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {conflicts.length === 0 ? (
+          {isError ? (
+            <QueryError what="care records for conflict detection" error={error} onRetry={onRetry} />
+          ) : conflicts.length === 0 ? (
             <p className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
               No disagreements detected between this resident's assessment, plan, header, and documentation.

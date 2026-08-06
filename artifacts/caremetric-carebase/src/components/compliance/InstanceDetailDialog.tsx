@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -17,6 +17,7 @@ import {
   categoryLabel, chapterLabel, effectiveStatus, recurrenceLabel, statusBadgeClassName, statusLabel,
 } from "@/lib/complianceCommandCenter";
 import { formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,7 +71,13 @@ function actionsForStatus(status: string, requiresReview: boolean): ActionDef[] 
 
 export function InstanceDetailDialog({ open, onOpenChange, requirementId, instanceId, canManage }: Props) {
   const { toast } = useToast();
-  const { data: detail, isLoading } = useComplianceRequirementDetail(open ? requirementId : undefined);
+  const {
+    data: detail,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useComplianceRequirementDetail(open ? requirementId : undefined);
   const { data: facilities } = useListFacilities();
   const { data: profiles } = useListProfiles();
 
@@ -82,6 +89,12 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
 
   const [note, setNote] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // One dialog stays mounted while the selected instance changes; clear the note so a prior
+  // instance's text cannot ride into the next transition / "add note" submit.
+  useEffect(() => {
+    if (open) setNote("");
+  }, [open, instanceId]);
 
   const requirement = detail?.requirement;
   const instance = useMemo(() => detail?.instances.find((i) => i.id === instanceId), [detail, instanceId]);
@@ -169,7 +182,9 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
           </DialogTitle>
         </DialogHeader>
 
-        {isLoading || !instance || !requirement ? (
+        {isError ? (
+          <QueryError what="this requirement occurrence" error={error} onRetry={() => void refetch()} />
+        ) : isLoading || !instance || !requirement ? (
           <p className="py-8 text-center text-muted-foreground">Loading…</p>
         ) : (
           <div className="space-y-5">
@@ -241,7 +256,10 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
                         <span className="truncate">{doc.document_label || doc.file_name}</span>
                       </button>
                       {canManage && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeDoc.mutate(doc)}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeDoc.mutate(doc, {
+                          onSuccess: () => toast({ title: "Evidence removed" }),
+                          onError: (e: Error) => toast({ title: "Could not remove evidence", description: e.message, variant: "destructive" }),
+                        })}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}

@@ -96,6 +96,7 @@ export default function MedAdminRoster() {
       </div>
 
 
+      {!rosterFailure && (
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><AlertTriangle className="h-4 w-4" />Medication events</CardTitle></CardHeader>
@@ -114,7 +115,9 @@ export default function MedAdminRoster() {
           <CardContent><p className="text-3xl font-bold">{medicationSafety.retrainingRecommendations}</p><p className="text-xs text-muted-foreground">Review competency/course assignment</p></CardContent>
         </Card>
       </div>
+      )}
 
+      {!rosterFailure && (
       <Card>
         <CardHeader>
           <CardTitle>Medication safety pattern review</CardTitle>
@@ -135,7 +138,9 @@ export default function MedAdminRoster() {
           )}
         </CardContent>
       </Card>
+      )}
 
+      {!rosterFailure && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -210,6 +215,7 @@ export default function MedAdminRoster() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

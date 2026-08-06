@@ -42,6 +42,18 @@ export function facilityToday(now = new Date()): string {
 }
 
 /**
+ * Add (or subtract) whole calendar days to a facility `YYYY-MM-DD` without touching wall-clock
+ * timezone. Use for defaults like "due in 15 days" / "metrics from 30 days ago" that must agree
+ * with `pa_today()` arithmetic rather than `Date.now() + N * 864e5` in the browser zone.
+ */
+export function addFacilityCalendarDays(isoDate: string, days: number): string {
+  const match = DATE_ONLY_PATTERN.exec(isoDate);
+  if (!match) throw new Error(`expected YYYY-MM-DD, got ${isoDate}`);
+  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days));
+  return `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(utc.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
  * Offset of `timeZone` relative to UTC at the given instant, in milliseconds
  * (positive when the zone is ahead of UTC). Used only to invert wall-clock
  * facility times into UTC instants for timestamptz range filters.

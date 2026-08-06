@@ -71,7 +71,7 @@ export default function Complaints() {
         <div><h1 className="flex items-center gap-2 text-2xl font-bold"><MessageSquareWarning className="h-6 w-6" />Complaints, Grievances & Resident Rights</h1><p className="text-muted-foreground">Separate case management with safety escalation, investigation, response, appeal, nonretaliation monitoring, and closure approval.</p></div>
         {canManage && <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4" />New complaint</Button>}
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(metric => <Card key={metric.label}><CardContent className="flex items-center gap-3 pt-6"><metric.icon className={`h-7 w-7 ${metric.color}`} /><div><p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : metric.value}</p><p className="text-sm text-muted-foreground">{metric.label}</p></div></CardContent></Card>)}</div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(metric => <Card key={metric.label}><CardContent className="flex items-center gap-3 pt-6"><metric.icon className={`h-7 w-7 ${metric.color}`} /><div><p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : metric.value}</p><p className="text-sm text-muted-foreground">{metric.label}</p></div></CardContent></Card>)}</div>
       {/* One facility at a time: get_complaint_trends takes p_facility_id and refuses anything
           outside scope, so this appears with a facility selected rather than offering a control
           that would always fail on "All facilities" (BACKLOG.md G16.9). */}

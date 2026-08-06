@@ -116,11 +116,35 @@ export default function FacilityDetail() {
     error: residentsErrorDetail,
     refetch: refetchResidents,
   } = useListResidents({ facilityId: id });
-  const { data: trainingRecords, isLoading: recordsLoading, isError: recordsError, error: recordsErrorDetail, refetch: refetchRecords } = useListTrainingRecords({ facilityId: id });
+  const {
+    data: trainingRecords,
+    isLoading: recordsLoading,
+    isError: recordsError,
+    error: recordsErrorDetail,
+    refetch: refetchRecords,
+  } = useListTrainingRecords({ facilityId: id });
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, error: practicumsErrorDetail, refetch: refetchPracticums } = useListPracticums({ facilityId: id });
-  const { data: incidents, isLoading: incidentsLoading, isError: incidentsError, error: incidentsErrorDetail, refetch: refetchIncidents } = useListIncidents({ facilityId: id });
-  const { data: inspectionItems, isLoading: inspectionsLoading, isError: inspectionsError, error: inspectionsErrorDetail, refetch: refetchInspections } = useListInspectionItems({ facilityId: id, isActive: true });
+  const {
+    data: practicums,
+    isLoading: practicumsLoading,
+    isError: practicumsError,
+    error: practicumsErrorDetail,
+    refetch: refetchPracticums,
+  } = useListPracticums({ facilityId: id });
+  const {
+    data: incidents,
+    isLoading: incidentsLoading,
+    isError: incidentsError,
+    error: incidentsErrorDetail,
+    refetch: refetchIncidents,
+  } = useListIncidents({ facilityId: id });
+  const {
+    data: inspectionItems,
+    isLoading: inspectionsLoading,
+    isError: inspectionsError,
+    error: inspectionsErrorDetail,
+    refetch: refetchInspections,
+  } = useListInspectionItems({ facilityId: id, isActive: true });
   const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(user?.organizationId ?? undefined);
   const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
   const { data: units } = useListFacilityUnits({ facilityId: id });

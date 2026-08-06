@@ -231,7 +231,7 @@ export default function GuestAccessCenter() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.data?.rows.length ?? "—"}</p><p className="text-sm text-muted-foreground">Grants in view</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading ? "—" : activeCount}</p><p className="text-sm text-muted-foreground">Active in view</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading || grantsQuery.isError ? "—" : activeCount}</p><p className="text-sm text-muted-foreground">Active in view</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{canManage ? "Revoke" : "View"}</p><p className="text-sm text-muted-foreground">{canManage ? "Managers may revoke with reason" : "Read-only for auditors"}</p></CardContent></Card>
       </div>
 

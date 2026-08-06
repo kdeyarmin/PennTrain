@@ -1,5 +1,5 @@
 import { useToast } from "@/hooks/use-toast";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 
 export const human = (value: string) =>
   value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -7,7 +7,8 @@ export const money = (value: number | string | null | undefined) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
     Number(value ?? 0),
   );
-export const today = () => toLocalIsoDate(new Date());
+/** Facility calendar day — must agree with `pa_today()` for statement due dates / period ends. */
+export const today = () => facilityToday();
 export const monthStart = () => `${today().slice(0, 7)}-01`;
 export const asNumber = (value: string) => Number.parseFloat(value || "0") || 0;
 

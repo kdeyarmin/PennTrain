@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useGetResident } from "@/hooks/useResidents";
 import {
+  type ClinicalDataConsent,
   type ClinicalObservation,
   type ObservationType,
   useAmendClinicalObservation,
@@ -22,6 +23,7 @@ import {
   useRecordClinicalObservation,
   useResidentClinicalChartSummary,
   useResidentClinicalObservations,
+  useSetResidentClinicalDataConsent,
 } from "@/hooks/useClinicalObservations";
 import { useResidentFhirClinical } from "@/hooks/useFhirIntegration";
 import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDocumentation";
@@ -63,6 +65,8 @@ export default function ResidentClinicalChart() {
   usePageTitle(`${residentName} · Clinical chart`);
 
   const canChart = ["platform_admin", "org_admin", "facility_manager", "employee"].includes(user?.role ?? "");
+  const canManageConsent = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const disclosureAllowed = resident.data?.clinical_data_consent === "granted";
 
   const [recordOpen, setRecordOpen] = useState(false);
   const [observationType, setObservationType] = useState<ObservationType>("blood_pressure");
@@ -79,6 +83,8 @@ export default function ResidentClinicalChart() {
   const [retractReason, setRetractReason] = useState("");
   const amend = useAmendClinicalObservation();
   const queueWriteback = useQueueClinicalObservationWriteback();
+  const setConsent = useSetResidentClinicalDataConsent();
+  const [consentReason, setConsentReason] = useState("");
 
   const config = OBSERVATION_CONFIG[observationType];
   const isCustom = observationType === "custom";
@@ -174,13 +180,76 @@ export default function ResidentClinicalChart() {
         )}
       </div>
 
-      {resident.data && resident.data.clinical_data_consent !== "granted" && (
+      {resident.data && (
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertTitle>Clinical data consent: {resident.data.clinical_data_consent.replace(/_/gu, " ")}</AlertTitle>
-          <AlertDescription>
-            Record and share clinical information consistent with this resident&apos;s consent posture and the
-            HIPAA minimum-necessary standard. Update the consent status on the resident record when it changes.
+          <AlertTitle>
+            Clinical data consent: {resident.data.clinical_data_consent.replace(/_/gu, " ")}
+          </AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              Charting stays available regardless of this posture. Outbound disclosure — FHIR write-back,
+              organization clinical export, and designated-person portal documents — requires{" "}
+              <span className="font-medium">granted</span> consent.
+            </p>
+            {canManageConsent && id && (
+              <div className="flex flex-wrap items-end gap-2 pt-1">
+                <div className="space-y-1">
+                  <Label htmlFor={`${__fieldIds}-clinical-consent`}>Update consent</Label>
+                  <Select
+                    value={resident.data.clinical_data_consent}
+                    onValueChange={(value) => {
+                      const next = value as ClinicalDataConsent;
+                      if (next === "restricted" || next === "revoked") {
+                        if (consentReason.trim().length < 3) {
+                          toast({
+                            title: "Reason required",
+                            description: "Add a short reason before restricting or revoking disclosure consent.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                      }
+                      setConsent.mutate(
+                        { residentId: id, consent: next, reason: consentReason.trim() || null },
+                        {
+                          onSuccess: () => {
+                            toast({ title: "Clinical disclosure consent updated" });
+                            setConsentReason("");
+                          },
+                          onError: (error) =>
+                            toast({
+                              title: "Could not update consent",
+                              description: error instanceof Error ? error.message : String(error),
+                              variant: "destructive",
+                            }),
+                        },
+                      );
+                    }}
+                    disabled={setConsent.isPending}
+                  >
+                    <SelectTrigger id={`${__fieldIds}-clinical-consent`} className="w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not_recorded">Not recorded</SelectItem>
+                      <SelectItem value="granted">Granted</SelectItem>
+                      <SelectItem value="restricted">Restricted</SelectItem>
+                      <SelectItem value="revoked">Revoked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-[220px] flex-1 space-y-1">
+                  <Label htmlFor={`${__fieldIds}-consent-reason`}>Reason (required to restrict/revoke)</Label>
+                  <Input
+                    id={`${__fieldIds}-consent-reason`}
+                    value={consentReason}
+                    onChange={(event) => setConsentReason(event.target.value)}
+                    placeholder="Representative withdrew authorization"
+                  />
+                </div>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -352,6 +421,8 @@ export default function ResidentClinicalChart() {
           </Alert>
           {fhir.isLoading ? (
             <Card><CardContent className="p-4"><Skeleton className="h-6 w-full" /></CardContent></Card>
+          ) : fhir.isError ? (
+            <QueryError what="medications" error={fhir.error} onRetry={() => void fhir.refetch()} />
           ) : (fhir.data?.medications ?? []).length === 0 ? (
             <Card><CardContent className="py-10 text-center"><Pill className="mx-auto mb-2 h-7 w-7 text-muted-foreground" /><p className="font-medium">No medications ingested</p><p className="text-sm text-muted-foreground">Connect a FHIR source and map this resident to see medications here.</p></CardContent></Card>
           ) : (fhir.data?.medications ?? []).map((medication) => (
@@ -372,7 +443,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" />Allergies</CardTitle><CardDescription>Ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {(fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
+              {fhir.isError ? <QueryError what="allergies" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.allergies ?? []).map((allergy) => (
                     <div key={allergy.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
@@ -387,7 +458,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Diagnoses / problem list</CardTitle><CardDescription>Conditions ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {(fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
+              {fhir.isError ? <QueryError what="diagnoses" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.conditions ?? []).map((condition) => (
                     <div key={condition.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
@@ -459,13 +530,12 @@ export default function ResidentClinicalChart() {
                       <div className="flex flex-wrap items-center gap-1">
                         <Button
                           size="sm" variant="ghost" className="text-muted-foreground"
-                          disabled={queueWriteback.isPending}
+                          disabled={queueWriteback.isPending || !disclosureAllowed}
+                          title={disclosureAllowed ? undefined : "Requires granted clinical data consent"}
                           onClick={() => queueWriteback.mutate({ residentId: id!, observationId: observation.id }, {
                             onSuccess: () => toast({ title: "Queued for write-back", description: "It will be sent to the resident's EHR on the next run." }),
-                            // The server refuses unless the resident has an active mapping to a
-                            // write-back-enabled FHIR source, and says which of those is missing.
-                            // That is a better message than anything guessable here, so it is shown
-                            // verbatim rather than hidden behind a pre-emptive disable.
+                            // The server refuses unless consent is granted and the resident has an active
+                            // mapping to a write-back-enabled FHIR source.
                             onError: (error) => toast({ title: "Not queued", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
                           })}
                         >

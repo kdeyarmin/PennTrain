@@ -96,7 +96,8 @@ export default function ResidentCareConflictsSection({
       residentId={residentId}
       conflicts={conflicts}
       isLoading={sourcesLoading}
-      error={sourceError instanceof Error ? sourceError : sourceError ? new Error(String(sourceError)) : null}
+      isError={Boolean(sourceError)}
+      error={sourceError}
       onRetry={() => {
         void careHeader.refetch();
         void assessments.refetch();

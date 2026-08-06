@@ -82,19 +82,22 @@ export function FacilityLicensingWorkspace({
       String(item.status),
     ),
   );
+  const dueWithin90 = (() => {
+    const [year, month, day] = facilityToday().split("-").map(Number);
+    const utc = new Date(Date.UTC(year, month - 1, day + 90));
+    return `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(utc.getUTCDate()).padStart(2, "0")}`;
+  })();
   const dueFilings =
     data?.filings.filter(
       (item) =>
         !["accepted", "not_required"].includes(String(item.status)) &&
-        String(item.due_on) <=
-          toLocalIsoDate(new Date(Date.now() + 90 * 86_400_000)),
+        String(item.due_on) <= dueWithin90,
     ).length ?? 0;
   const dueWaivers =
     data?.waivers.filter(
       (item) =>
         ["requested", "active"].includes(String(item.status)) &&
-        String(item.renewal_due_on ?? item.expires_on ?? "9999-12-31") <=
-          toLocalIsoDate(new Date(Date.now() + 90 * 86_400_000)),
+        String(item.renewal_due_on ?? item.expires_on ?? "9999-12-31") <= dueWithin90,
     ).length ?? 0;
 
   const openEditor = (kind: Kind, record?: LicensingRecord) => {

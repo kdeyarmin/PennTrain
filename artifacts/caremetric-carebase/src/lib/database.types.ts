@@ -41858,6 +41858,10 @@ export type Database = {
         Args: { p_enabled: boolean; p_schedule_id: string }
         Returns: boolean
       }
+      set_resident_clinical_data_consent: {
+        Args: { p_consent: string; p_reason?: string; p_resident_id: string }
+        Returns: string
+      }
       set_survey_day_checklist_disposition: {
         Args: {
           p_disposition: string
@@ -43109,4 +43113,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

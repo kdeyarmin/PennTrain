@@ -104,10 +104,34 @@ export default function IncidentDetail() {
     { facilityId: incident?.facility_id },
     { enabled: !!incident?.facility_id },
   );
-  const { data: staffInvolved, isLoading: staffLoading } = useListIncidentStaffInvolved(id);
-  const { data: notifications, isLoading: notificationsLoading } = useListIncidentNotifications(id);
-  const { data: correctiveActions, isLoading: correctiveLoading } = useListCorrectiveActions({ incidentId: id });
-  const { data: documents, isLoading: documentsLoading } = useListIncidentDocuments(id);
+  const {
+    data: staffInvolved,
+    isLoading: staffLoading,
+    isError: staffError,
+    error: staffErrorDetail,
+    refetch: refetchStaff,
+  } = useListIncidentStaffInvolved(id);
+  const {
+    data: notifications,
+    isLoading: notificationsLoading,
+    isError: notificationsError,
+    error: notificationsErrorDetail,
+    refetch: refetchNotifications,
+  } = useListIncidentNotifications(id);
+  const {
+    data: correctiveActions,
+    isLoading: correctiveLoading,
+    isError: correctiveError,
+    error: correctiveErrorDetail,
+    refetch: refetchCorrective,
+  } = useListCorrectiveActions({ incidentId: id });
+  const {
+    data: documents,
+    isLoading: documentsLoading,
+    isError: documentsError,
+    error: documentsErrorDetail,
+    refetch: refetchDocuments,
+  } = useListIncidentDocuments(id);
   const { data: courses } = useListCourses();
 
   const { mutate: updateIncident, isPending: updatingIncident } = useUpdateIncident();
@@ -301,7 +325,13 @@ export default function IncidentDetail() {
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-findings`} className="text-[13px]">Findings</Label>
+              {/*
+                Re-keyed when the stored findings change. Follow-through QAPI decisions APPEND into
+                this column; without a remount the uncontrolled defaultValue stays pre-append and
+                blur can write that stale text back over the appended reasoning.
+              */}
               <Textarea id={`${__fieldIds}-findings`}
+                key={`findings:${incident.investigation_findings ?? ""}`}
                 defaultValue={incident.investigation_findings ?? ""}
                 onBlur={(e) => { if (e.target.value !== (incident.investigation_findings ?? "")) updateIncident({ id: incident.id, investigation_findings: e.target.value || null }); }}
                 placeholder="Investigation findings"
@@ -310,6 +340,7 @@ export default function IncidentDetail() {
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-root-cause`} className="text-[13px]">Root Cause</Label>
               <Textarea id={`${__fieldIds}-root-cause`}
+                key={`root-cause:${incident.root_cause ?? ""}`}
                 defaultValue={incident.root_cause ?? ""}
                 onBlur={(e) => { if (e.target.value !== (incident.root_cause ?? "")) updateIncident({ id: incident.id, root_cause: e.target.value || null }); }}
                 placeholder="Root cause analysis"
@@ -327,6 +358,8 @@ export default function IncidentDetail() {
         <CardContent className="space-y-3">
           {staffLoading ? (
             <Skeleton className="h-10" />
+          ) : staffError ? (
+            <QueryError what="staff involved" error={staffErrorDetail} onRetry={() => void refetchStaff()} />
           ) : !staffInvolved?.length ? (
             <p className="text-sm text-muted-foreground">No staff recorded.</p>
           ) : (
@@ -382,6 +415,8 @@ export default function IncidentDetail() {
         <CardContent className="space-y-3">
           {notificationsLoading ? (
             <Skeleton className="h-10" />
+          ) : notificationsError ? (
+            <QueryError what="notifications" error={notificationsErrorDetail} onRetry={() => void refetchNotifications()} />
           ) : !notifications?.length ? (
             <p className="text-sm text-muted-foreground">No notifications scheduled.</p>
           ) : (
@@ -475,6 +510,8 @@ export default function IncidentDetail() {
         <CardContent className="space-y-3">
           {correctiveLoading ? (
             <Skeleton className="h-10" />
+          ) : correctiveError ? (
+            <QueryError what="corrective actions" error={correctiveErrorDetail} onRetry={() => void refetchCorrective()} />
           ) : !correctiveActions?.length ? (
             <p className="text-sm text-muted-foreground">No corrective actions recorded.</p>
           ) : (
@@ -603,6 +640,8 @@ export default function IncidentDetail() {
         <CardContent>
           {documentsLoading ? (
             <Skeleton className="h-10" />
+          ) : documentsError ? (
+            <QueryError what="incident documents" error={documentsErrorDetail} onRetry={() => void refetchDocuments()} />
           ) : !documents?.length ? (
             <p className="text-sm text-muted-foreground">No documents uploaded.</p>
           ) : (

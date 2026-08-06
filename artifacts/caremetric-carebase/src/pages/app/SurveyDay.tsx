@@ -299,30 +299,54 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
 }) {
   const { toast } = useToast();
   const setDisposition = useSetSurveyDayDisposition();
-  const { data: employees } = useListEmployees({ facilityId, status: "active" });
-  const { data: training } = useListTrainingRecords({ facilityId });
-  const { data: credentials } = useListEmployeeCredentials({ facilityId });
-  const { data: inspections } = useListInspectionItems({ facilityId, isActive: true });
+  // Same contract as InspectionReadiness: a failed or still-pending source must never grade Ready.
+  const employeesQuery = useListEmployees({ facilityId, status: "active" }, { enabled: Boolean(facilityId) });
+  const trainingQuery = useListTrainingRecords({ facilityId }, { enabled: Boolean(facilityId) });
+  const credentialsQuery = useListEmployeeCredentials({ facilityId }, { enabled: Boolean(facilityId) });
+  const inspectionsQuery = useListInspectionItems({ facilityId, isActive: true }, { enabled: Boolean(facilityId) });
+  const { data: employees } = employeesQuery;
+  const { data: training } = trainingQuery;
+  const { data: credentials } = credentialsQuery;
+  const { data: inspections } = inspectionsQuery;
+
+  function sourceBlocked(
+    query: { isError: boolean; data: unknown },
+    unavailable: string,
+  ): { level: ReadinessState; detail: string } | null {
+    if (query.isError) return { level: "unknown", detail: unavailable };
+    if (query.data === undefined) return { level: "unknown", detail: "loading" };
+    return null;
+  }
 
   function liveReadiness(dataSource: string, itemTypes: string[] | null): { level: ReadinessState; detail?: string } {
     switch (dataSource) {
       case "roster": {
+        const blocked = sourceBlocked(employeesQuery, "staff data unavailable");
+        if (blocked) return blocked;
         const count = employees?.length ?? 0;
         return count > 0 ? { level: "ready", detail: `${count} active` } : { level: "attention", detail: "no active staff" };
       }
       case "training": {
+        const blocked = sourceBlocked(trainingQuery, "training data unavailable");
+        if (blocked) return blocked;
         const n = (training ?? []).filter((r: any) => OUTSTANDING.includes(r.status)).length;
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       case "credentials": {
+        const blocked = sourceBlocked(credentialsQuery, "credential data unavailable");
+        if (blocked) return blocked;
         const n = (credentials ?? []).filter((c: any) => HEALTH_CREDENTIAL_TYPES.includes(c.credential_type) && OUTSTANDING.includes(c.status)).length;
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       case "background_checks": {
+        const blocked = sourceBlocked(credentialsQuery, "background-check data unavailable");
+        if (blocked) return blocked;
         const n = (credentials ?? []).filter((c: any) => BACKGROUND_CREDENTIAL_TYPES.includes(c.credential_type) && OUTSTANDING.includes(c.status)).length;
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       case "inspections": {
+        const blocked = sourceBlocked(inspectionsQuery, "inspection data unavailable");
+        if (blocked) return blocked;
         // Only count inspection items whose type this checklist row actually covers (its item_types
         // snapshot). Without this, one unrelated overdue inspection would flip every inspection
         // prompt -- fire drills, extinguisher/alarm checks, emergency plan -- to Attention.

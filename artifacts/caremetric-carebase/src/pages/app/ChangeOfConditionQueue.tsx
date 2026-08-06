@@ -120,7 +120,7 @@ export default function ChangeOfConditionQueue() {
           { label: "Follow-up overdue", value: overdueCount, icon: Clock3, color: "text-red-600" },
           { label: "Emergency transfers", value: emergencyCount, icon: Siren, color: "text-amber-600" },
           { label: "Supervisor review", value: reviewCount, icon: CheckCircle2, color: "text-purple-600" },
-        ].map(metric => <Card key={metric.label}><CardContent className="flex items-center gap-3 pt-6"><metric.icon className={`h-7 w-7 ${metric.color}`} /><div><p className="text-2xl font-bold">{events.isLoading ? "—" : metric.value}</p><p className="text-sm text-muted-foreground">{metric.label}</p></div></CardContent></Card>)}
+        ].map(metric => <Card key={metric.label}><CardContent className="flex items-center gap-3 pt-6"><metric.icon className={`h-7 w-7 ${metric.color}`} /><div><p className="text-2xl font-bold">{events.isLoading || events.isError ? "—" : metric.value}</p><p className="text-sm text-muted-foreground">{metric.label}</p></div></CardContent></Card>)}
       </div>
 
       <Card>

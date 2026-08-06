@@ -1,5 +1,5 @@
 begin;
-select plan(33);
+select plan(41);
 
 -- Structure + hardened grants -----------------------------------------------------------
 select has_table('public', 'fhir_writeback_queue', 'outbound FHIR write-back queue exists');
@@ -54,6 +54,11 @@ insert into public.employees(
 insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
   ('e5000000-0000-4000-8000-000000000301', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'Rosa', 'Resident', public.pa_today() - 30, 'active'),
   ('e5000000-0000-4000-8000-000000000302', 'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 'Remy', 'Resident', public.pa_today() - 20, 'active');
+-- Disclosure paths require granted consent; charting does not. Seed the mapped resident as granted
+-- so the existing write-back happy path still exercises enqueue/drain.
+update public.residents
+set clinical_data_consent = 'granted'
+where id = 'e5000000-0000-4000-8000-000000000301';
 
 -- A write-back-enabled FHIR source + patient mapping for resident 301 (but not 302).
 insert into public.fhir_integration_sources(
@@ -227,6 +232,65 @@ select is(
    where id = (select id from wb_ids where key = 'wb1')),
   'sent:ext-obs-1',
   'a completed write-back is marked sent with the external resource id'
+);
+
+-- Clinical disclosure consent gates write-back; charting stays open.
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$select public.set_resident_clinical_data_consent(
+    'e5000000-0000-4000-8000-000000000301', 'revoked', 'Representative withdrew disclosure authorization')$$,
+  'org admin can revoke clinical disclosure consent'
+);
+select throws_ok(
+  $$select public.queue_clinical_observation_writeback((select id from wb_ids where key = 'o1'))$$,
+  '42501', null,
+  'write-back enqueue is refused when clinical disclosure consent is not granted'
+);
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000102');
+select lives_ok(
+  $$select public.record_clinical_observation(
+    'e5000000-0000-4000-8000-000000000301', 'temperature', now(), 36.8, null, null, 'Cel')$$,
+  'charting remains allowed after disclosure consent is revoked'
+);
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$select public.set_resident_clinical_data_consent(
+    'e5000000-0000-4000-8000-000000000301', 'granted', null)$$,
+  'org admin can restore granted clinical disclosure consent'
+);
+reset role;
+insert into public.fhir_writeback_queue(
+  organization_id, facility_id, source_id, resident_id, fhir_patient_id,
+  resource_type, origin_kind, origin_id, fhir_payload, status, target_url
+) values (
+  'e5000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011',
+  'e5000000-0000-4000-8000-000000000401', 'e5000000-0000-4000-8000-000000000301', 'patient-301',
+  'Observation', 'clinical_observation', 'e5000000-0000-4000-8000-0000000004fd',
+  '{"resourceType":"Observation"}'::jsonb, 'pending', 'https://fhir.test.invalid/r4'
+);
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$select public.set_resident_clinical_data_consent(
+    'e5000000-0000-4000-8000-000000000301', 'restricted', 'Limited disclosure authorization')$$,
+  'org admin can restrict clinical disclosure consent'
+);
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000000', 'service_role');
+select is(
+  (select count(*)::integer from public.claim_fhir_writeback_batch(10, 300)),
+  0,
+  'drain claims nothing when the resident no longer has granted disclosure consent'
+);
+reset role;
+select is(
+  (select status from public.fhir_writeback_queue where origin_id = 'e5000000-0000-4000-8000-0000000004fd'),
+  'skipped',
+  'pending write-backs for non-granted consent are marked skipped rather than left forever'
+);
+select pg_temp.act_as('e5000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$select public.set_resident_clinical_data_consent(
+    'e5000000-0000-4000-8000-000000000301', 'granted', null)$$,
+  'restore granted consent before remaining write-back drain tests'
 );
 
 -- A write-back stuck in_flight past the staleness window is reclaimed (self-healing drain).

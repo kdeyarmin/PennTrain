@@ -7,6 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
 import {
@@ -50,6 +51,9 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
   const linkNeedsCandidate = decision === "link" && !employeeId;
 
   if (rows.isLoading) return <Skeleton className="h-24" />;
+  if (rows.isError) {
+    return <QueryError what="HRIS staged rows" error={rows.error} onRetry={() => void rows.refetch()} />;
+  }
   const data = rows.data ?? [];
   if (data.length === 0) {
     return <p className="text-sm text-muted-foreground">This run has no staged rows yet. Validate it first.</p>;

@@ -61,13 +61,13 @@ interface RecordFormData {
   signNow: boolean;
 }
 
-const EMPTY_RECORD_FORM: RecordFormData = {
+const emptyRecordForm = (): RecordFormData => ({
   employeeId: "",
   templateId: "",
   evaluationDate: facilityToday(),
   overallResult: "met",
   signNow: false,
-};
+});
 
 // ---------------------------------------------------------------------------
 // Read-only detail view. Employees only ever reach a record through this same
@@ -76,7 +76,13 @@ const EMPTY_RECORD_FORM: RecordFormData = {
 // surfaces showing identical information.
 // ---------------------------------------------------------------------------
 function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | null; onClose: () => void }) {
-  const { data: recordItems, isLoading: itemsLoading } = useListCompetencyRecordItems(record?.id);
+  const {
+    data: recordItems,
+    isLoading: itemsLoading,
+    isError: itemsError,
+    error: itemsErrorDetail,
+    refetch: refetchItems,
+  } = useListCompetencyRecordItems(record?.id);
   const { data: templateItems } = useListCompetencyTemplateItems(record?.template_id);
   const { data: employee } = useGetEmployee(record?.employee_id);
   const { data: templates } = useListCompetencyTemplates();
@@ -125,6 +131,8 @@ function RecordDetailDialog({ record, onClose }: { record: CompetencyRecord | nu
                 <div className="space-y-2">
                   {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
                 </div>
+              ) : itemsError ? (
+                <QueryError what="checklist items" error={itemsErrorDetail} onRetry={() => void refetchItems()} />
               ) : !recordItems || recordItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No checklist items were recorded.</p>
               ) : (
@@ -164,7 +172,7 @@ export default function CompetencyRecords() {
   const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<RecordFormData>(EMPTY_RECORD_FORM);
+  const [form, setForm] = useState<RecordFormData>(emptyRecordForm());
   const [formEmployee, setFormEmployee] = useState<{ id: string; facility_id: string; organization_id: string } | null>(null);
   const [itemResults, setItemResults] = useState<Record<string, { result: ItemResult; notes: string }>>({});
   const [viewRecord, setViewRecord] = useState<CompetencyRecord | null>(null);
@@ -219,7 +227,7 @@ export default function CompetencyRecords() {
   }, [templateItems]);
 
   const openCreate = () => {
-    setForm(EMPTY_RECORD_FORM);
+    setForm(emptyRecordForm());
     setFormEmployee(null);
     setShowForm(true);
   };
@@ -277,7 +285,7 @@ export default function CompetencyRecords() {
         onSuccess: () => {
           toast({ title: "Competency evaluation recorded" });
           setShowForm(false);
-          setForm(EMPTY_RECORD_FORM);
+          setForm(emptyRecordForm());
         },
         onError: (e: Error) => toast({ title: "Failed to record evaluation", description: e.message, variant: "destructive" }),
       },

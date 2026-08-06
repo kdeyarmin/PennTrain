@@ -69,7 +69,15 @@ export default function OccupancyBoardSection({ facilityId }: { facilityId: stri
 
   if (!facilityId) return null;
   if (isLoading) return <Skeleton className="h-56 w-full" />;
-  if (isError) return <QueryError what="occupancy" error={error} onRetry={() => void refetch()} />;
+  if (isError) {
+    return (
+      <QueryError
+        what="the occupancy board"
+        error={error}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
   if (!data) return null;
 
   const occupied = data.census.occupyingABed;

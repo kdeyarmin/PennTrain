@@ -3,6 +3,7 @@ import { AlertTriangle, Info, Scale } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { useScheduleAcuityRoster } from "@/hooks/useSchedulingEligibility";
 import {
   ADVISORY_NOTICE, buildAcuityWorkload, residentsRequiringTwoStaff,
@@ -17,7 +18,7 @@ import {
  * the factors it is made of, and nothing here prints a staff count.
  */
 export default function AcuityWorkloadSection({ scheduleId }: { scheduleId: string }) {
-  const { data, isLoading } = useScheduleAcuityRoster(scheduleId);
+  const { data, isLoading, isError, error, refetch } = useScheduleAcuityRoster(scheduleId);
 
   const workloads = useMemo(() => buildAcuityWorkload({
     residents: data?.residents ?? [],
@@ -25,6 +26,9 @@ export default function AcuityWorkloadSection({ scheduleId }: { scheduleId: stri
   }), [data]);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isError) {
+    return <QueryError what="acuity workload" error={error} onRetry={() => void refetch()} />;
+  }
   if (!data) return null;
 
   const twoStaff = residentsRequiringTwoStaff(data.residents ?? []);

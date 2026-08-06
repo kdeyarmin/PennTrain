@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { QueryError } from "@/components/QueryState";
 import { money, today } from "./resident-financial-operations/helpers";
 import { Choice, Empty, Field, Summary } from "./resident-financial-operations/primitives";
 import BillingCommandCenter from "./resident-financial-operations/BillingCommandCenter";
@@ -306,7 +307,15 @@ export default function ResidentFinancialOperations() {
                   Create accounting export
                 </Button>
               )}
-              <Exports items={exports.data ?? []} />
+              {exports.isError ? (
+                <QueryError
+                  what="accounting exports"
+                  error={exports.error}
+                  onRetry={() => void exports.refetch()}
+                />
+              ) : (
+                <Exports items={exports.data ?? []} />
+              )}
             </TabsContent>
             <TabsContent value="history">
               <HistoryList items={data?.history ?? []} />

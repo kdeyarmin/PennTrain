@@ -20,7 +20,7 @@ import {
   useSaveResidentPaymentLink,
   useShareResidentPortalDocument,
 } from "@/hooks/useResidentPortal";
-import { facilityDateTimeToUtc, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeToUtc, facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { absoluteAppUrl } from "@/lib/appUrl";
 
@@ -34,9 +34,7 @@ const PERMISSION_OPTIONS = [
 ] as const;
 
 function defaultExpiry() {
-  const [year, month, day] = facilityToday().split("-").map(Number);
-  const next = new Date(Date.UTC(year, month - 1, day + 30));
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+  return addFacilityCalendarDays(facilityToday(), 30);
 }
 
 function grantStatus(grant: ResidentPortalGrant) {

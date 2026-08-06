@@ -308,7 +308,9 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
                   <p className="text-xs text-muted-foreground mt-1">Hard requirements: {[...profile.required_qualification_keys, ...profile.required_credential_types].join(", ")}</p>
                 )}
               </button>
-              <Button variant="ghost" size="icon" onClick={() => del.mutate(profile.id)} aria-label="Delete service workload profile">
+              <Button variant="ghost" size="icon" onClick={() => del.mutate(profile.id, {
+                onError: (e: Error) => toast({ title: "Couldn't delete workload profile", description: e.message, variant: "destructive" }),
+              })} aria-label="Delete service workload profile">
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
@@ -321,7 +323,7 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
 
 function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organizationId: string }) {
   const { toast } = useToast();
-  const { data: units, isLoading } = useListFacilityUnits({ facilityId });
+  const { data: units, isLoading, isError, error, refetch } = useListFacilityUnits({ facilityId });
   const create = useCreateFacilityUnit();
   const update = useUpdateFacilityUnit();
   const del = useDeleteFacilityUnit();
@@ -337,6 +339,9 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
       }
     );
   }
+
+  const mutateError = (title: string) => (e: Error) =>
+    toast({ title, description: e.message, variant: "destructive" as const });
 
   return (
     <Card>
@@ -369,6 +374,8 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
         </div>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : isError ? (
+          <QueryError what="facility units" error={error} onRetry={() => void refetch()} />
         ) : !units || units.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">No units yet -- add your facility's wings above.</p>
         ) : (
@@ -381,10 +388,10 @@ function UnitsPanel({ facilityId, organizationId }: { facilityId: string; organi
                   {!u.is_active && <Badge variant="secondary">Inactive</Badge>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: u.id, is_active: !u.is_active })}>
+                  <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: u.id, is_active: !u.is_active }, { onError: mutateError("Couldn't update unit") })}>
                     {u.is_active ? "Deactivate" : "Activate"}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => del.mutate(u.id)} aria-label="Delete unit">
+                  <Button variant="ghost" size="icon" onClick={() => del.mutate(u.id, { onError: mutateError("Couldn't delete unit") })} aria-label="Delete unit">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -402,12 +409,14 @@ const COLOR_PRESETS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#
 function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organizationId: string }) {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: shifts, isLoading } = useListShiftDefinitions({ facilityId });
+  const { data: shifts, isLoading, isError, error, refetch } = useListShiftDefinitions({ facilityId });
   const create = useCreateShiftDefinition();
   const update = useUpdateShiftDefinition();
   const del = useDeleteShiftDefinition();
   const [form, setForm] = useState({ name: "", startTime: "07:00", endTime: "15:00", color: COLOR_PRESETS[0] });
   const [deleteTarget, setDeleteTarget] = useState<ShiftDefinition | null>(null);
+  const mutateError = (title: string) => (e: Error) =>
+    toast({ title, description: e.message, variant: "destructive" as const });
 
   function handleAdd() {
     if (!form.name.trim()) return;
@@ -470,6 +479,8 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
         </div>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : isError ? (
+          <QueryError what="shift types" error={error} onRetry={() => void refetch()} />
         ) : !shifts || shifts.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">No shift types yet -- add your typical shifts above.</p>
         ) : (
@@ -485,7 +496,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
                   {!s.is_active && <Badge variant="secondary">Inactive</Badge>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: s.id, is_active: !s.is_active })}>
+                  <Button variant="ghost" size="sm" onClick={() => update.mutate({ id: s.id, is_active: !s.is_active }, { onError: mutateError("Couldn't update shift type") })}>
                     {s.is_active ? "Deactivate" : "Activate"}
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(s)} aria-label="Delete shift type">
@@ -541,7 +552,12 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
   // useListEmployeeSchedulePreferences takes a single employeeId, so that list (below) only shows
   // once exactly one employee is checked above.
   const singleEmployeeId = employeeIds.size === 1 ? [...employeeIds][0] : undefined;
-  const { data: preferences } = useListEmployeeSchedulePreferences({ employeeId: singleEmployeeId, facilityId });
+  const {
+    data: preferences,
+    isError: preferencesError,
+    error: preferencesErrorDetail,
+    refetch: refetchPreferences,
+  } = useListEmployeeSchedulePreferences({ employeeId: singleEmployeeId, facilityId });
   const create = useCreateEmployeeSchedulePreference();
   const del = useDeleteEmployeeSchedulePreference();
   // A pattern could be added and deleted but never amended (BACKLOG.md G16.16), so correcting one
@@ -712,7 +728,9 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
             {singleEmployeeId && (
               <div className="space-y-2">
                 <p className="text-sm font-medium leading-none text-xs text-muted-foreground" >Existing patterns</p>
-                {(preferences ?? []).length === 0 ? (
+                {preferencesError ? (
+                  <QueryError what="schedule patterns" error={preferencesErrorDetail} onRetry={() => void refetchPreferences()} />
+                ) : (preferences ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
                 ) : (
                   (preferences ?? []).map((p: EmployeeSchedulePreference) => (
@@ -741,7 +759,9 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                               <Pencil className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)} aria-label="Delete schedule pattern">
+                          <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id, {
+                            onError: (e: Error) => toast({ title: "Couldn't delete schedule pattern", description: e.message, variant: "destructive" }),
+                          })} aria-label="Delete schedule pattern">
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>

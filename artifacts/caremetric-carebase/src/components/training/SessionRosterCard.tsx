@@ -111,7 +111,22 @@ export function SessionRosterCard({
 
   if (registrations.isLoading) return <Skeleton className="h-32" />;
   if (registrations.isError) {
-    return <QueryError what="the session roster" error={registrations.error} onRetry={() => void registrations.refetch()} />;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardCheck className="h-5 w-5" />Session roster
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QueryError
+            what="session registrations"
+            error={registrations.error}
+            onRetry={() => void registrations.refetch()}
+          />
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

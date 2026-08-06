@@ -163,7 +163,7 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
           onRetry={() => void Promise.all(overviewQueries.map((query) => query.refetch()))}
         />
       )}
-      {isTrackedFacilityType && (
+      {isTrackedFacilityType && !overviewFailure && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">

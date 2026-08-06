@@ -16,11 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { useToast } from "@/hooks/use-toast";
 
 const SESSION_TOKEN_KEY = "carebase-move-in-guest-token";
 
 export default function MoveInGuestPortal() {
   const __fieldIds = useId();
+  const { toast } = useToast();
   const { token: routeToken } = useParams<{ token?: string }>();
   const [token] = useState(() => consumePublicAccessToken(
     routeToken,
@@ -39,7 +41,14 @@ export default function MoveInGuestPortal() {
 
   const acceptTerms = () => {
     if (!token) return;
-    accept.mutate(token, { onSuccess: () => setAcceptedLocally(true) });
+    accept.mutate(token, {
+      onSuccess: () => setAcceptedLocally(true),
+      onError: (error) => toast({
+        title: "Could not accept terms",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      }),
+    });
   };
 
   const signTask = () => {
@@ -50,7 +59,13 @@ export default function MoveInGuestPortal() {
         setSignerName("");
         setRelationship("");
         setAttestation("");
+        toast({ title: "Signature recorded" });
       },
+      onError: (error) => toast({
+        title: "Could not record signature",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      }),
     });
   };
 

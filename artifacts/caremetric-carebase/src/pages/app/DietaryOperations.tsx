@@ -30,11 +30,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
+import { facilityToday } from "@/lib/dateUtils";
 
 const human = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const commaList = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
-const futureDate = (days: number) => toLocalIsoDate(new Date(Date.now() + days * 86_400_000));
+/** Facility calendar day + N days (YYYY-MM-DD arithmetic). */
+const futureDate = (days: number) => {
+  const [year, month, day] = facilityToday().split("-").map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day + days));
+  return `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(utc.getUTCDate()).padStart(2, "0")}`;
+};
 
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
   return <div className={`space-y-1 ${className}`}><p className="text-sm font-medium leading-none">{label}</p>{children}</div>;

@@ -13,7 +13,7 @@ export interface ListInspectionItemsFilters {
   isActive?: boolean;
 }
 
-export function useListInspectionItems(filters: ListInspectionItemsFilters = {}) {
+export function useListInspectionItems(filters: ListInspectionItemsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["inspection_items", filters],
     queryFn: async () => {
@@ -32,6 +32,7 @@ export function useListInspectionItems(filters: ListInspectionItemsFilters = {})
       }
       return rows;
     },
+    enabled: options.enabled,
   });
 }
 

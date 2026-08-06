@@ -228,7 +228,7 @@ export default function WorkQueue() {
             <CardContent className="flex items-center gap-3 pt-6">
               <metric.icon className={`h-7 w-7 ${metric.className}`} />
               <div>
-                <p className="text-2xl font-bold">{summaryQuery.isLoading ? "—" : metric.value}</p>
+                <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : metric.value}</p>
                 <p className="text-sm text-muted-foreground">{metric.label}</p>
               </div>
             </CardContent>
