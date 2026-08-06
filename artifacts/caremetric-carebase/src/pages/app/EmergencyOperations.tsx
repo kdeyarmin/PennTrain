@@ -577,7 +577,7 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "resource"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Add emergency resource</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Select value={resourceType} onValueChange={setResourceType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["relocation_site","transportation_vendor","utility_contact","medication_emar_vendor","emergency_service","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={resourceType} onValueChange={setResourceType}><SelectTrigger aria-label="Resource type"><SelectValue /></SelectTrigger><SelectContent>{["relocation_site","transportation_vendor","utility_contact","medication_emar_vendor","emergency_service","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Resource name" value={resourceName} onChange={(event) => setResourceName(event.target.value)} />
             <Input placeholder="Contact name" value={contactName} onChange={(event) => setContactName(event.target.value)} />
             <Input placeholder="Phone" value={phone} onChange={(event) => setPhone(event.target.value)} />
@@ -594,13 +594,13 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "inventory"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent><DialogHeader><DialogTitle>Add emergency inventory</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Select value={inventoryType} onValueChange={setInventoryType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["food","water","generator_fuel","medication_continuity","batteries","first_aid","sanitation","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={inventoryType} onValueChange={setInventoryType}><SelectTrigger aria-label="Inventory type"><SelectValue /></SelectTrigger><SelectContent>{["food","water","generator_fuel","medication_continuity","batteries","first_aid","sanitation","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Item name" value={itemName} onChange={(event) => setItemName(event.target.value)} />
             <Input type="number" placeholder="Quantity" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
             <Input placeholder="Unit" value={unit} onChange={(event) => setUnit(event.target.value)} />
             <Input type="number" placeholder="Minimum quantity" value={minimumQuantity} onChange={(event) => setMinimumQuantity(event.target.value)} />
             <Input type="date" value={expirationDate} onChange={(event) => setExpirationDate(event.target.value)} />
-            <Select value={inventoryStatus} onValueChange={setInventoryStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["ready","low","expired","unavailable"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={inventoryStatus} onValueChange={setInventoryStatus}><SelectTrigger aria-label="Inventory status"><SelectValue /></SelectTrigger><SelectContent>{["ready","low","expired","unavailable"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Storage location" value={inventoryLocation} onChange={(event) => setInventoryLocation(event.target.value)} />
           </div>
           <DialogFooter><Button onClick={submitInventory} disabled={!itemName || !quantity || !unit || addInventory.isPending}>Add inventory</Button></DialogFooter>
@@ -610,8 +610,8 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "assignment"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent><DialogHeader><DialogTitle>Add emergency staff assignment</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{employees.data?.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} · {employee.job_title}</SelectItem>)}</SelectContent></Select>
-            <Select value={emergencyRole} onValueChange={setEmergencyRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["incident_commander","resident_accountability","staff_accountability","evacuation_lead","transportation_lead","communications_lead","medication_continuity","utilities_lead","logistics","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger aria-label="Assignment employee"><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{employees.data?.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} · {employee.job_title}</SelectItem>)}</SelectContent></Select>
+            <Select value={emergencyRole} onValueChange={setEmergencyRole}><SelectTrigger aria-label="Emergency role"><SelectValue /></SelectTrigger><SelectContent>{["incident_commander","resident_accountability","staff_accountability","evacuation_lead","transportation_lead","communications_lead","medication_continuity","utilities_lead","logistics","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Textarea placeholder="Responsibility" value={responsibility} onChange={(event) => setResponsibility(event.target.value)} />
             <Button type="button" variant={isBackup ? "default" : "outline"} onClick={() => setIsBackup((value) => !value)}>{isBackup ? "Backup assignment" : "Primary assignment"}</Button>
           </div>

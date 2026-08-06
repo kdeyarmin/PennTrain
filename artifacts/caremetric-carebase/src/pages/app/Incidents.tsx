@@ -494,7 +494,7 @@ export default function Incidents() {
                     onValueChange={(v) => setForm((f) => ({ ...f, residentId: v, residentIdentifierOther: "" }))}
                     disabled={!form.facilityId}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-9" aria-label="Incident resident">
                       <SelectValue placeholder={form.facilityId ? "Select resident (optional)" : "Select a facility first"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -528,13 +528,13 @@ export default function Incidents() {
               {staffRows.map((row, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Select value={row.employeeId} onValueChange={(v) => setStaffRows((rs) => rs.map((r, i) => i === idx ? { ...r, employeeId: v } : r))}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select employee" /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Staff employee"><SelectValue placeholder="Select employee" /></SelectTrigger>
                     <SelectContent>
                       {employees?.map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={row.involvementType} onValueChange={(v) => setStaffRows((rs) => rs.map((r, i) => i === idx ? { ...r, involvementType: v as StaffRow["involvementType"] } : r))}>
-                    <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 w-40" aria-label="Staff involvement"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {["involved_party", "witness", "first_responder", "reporter"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                     </SelectContent>
@@ -561,7 +561,7 @@ export default function Incidents() {
               {notificationRows.map((row, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Select value={row.notificationType} onValueChange={(v) => setNotificationRows((rs) => rs.map((r, i) => i === idx ? { ...r, notificationType: v as NotificationRow["notificationType"] } : r))}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                     </SelectContent>

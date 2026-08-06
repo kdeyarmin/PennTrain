@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `73fe0363` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **twelfth-pass** after G161–G165. Closed administrator CE / meal lookback / citation staleness facility calendar, AdminDashboard/ReleaseFlags/MyCourses fail-open, HelpCenter + investigation-approve dialog resets, and unlabeled Selects (emergency activate, incident staff/notifications/retrain, Users role, ServiceDelivery assign). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `be885134` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirteenth-pass** after G166–G169. Closed Residents/Maintenance summary fail-open, care-level + compliance-command facility day math, and unlabeled Selects across incident create, violation retrain, emergency resource/inventory/assignment, CoC notifications, work-item deps/status, schedule patterns, admissions activity/bed, and pending-approval manual link. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -602,6 +602,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G167 | AdminDashboard / ReleaseFlags / MyCourses metric fail-open | S | done | Operating Priorities + flag/kill tiles dash on load/error; offline library QueryError + dash count |
 | G168 | HelpCenter ticket + investigation approve dialog drafts sticky | S | done | Reset ticket form on open/cancel; clear approve note on open/close |
 | G169 | Unlabeled Selects: emergency activate / incident staff / Users role / assign | S | done | Event mode/type, staff/involvement/notification/retrain, role-for-name, assign-staff; HelpCenter category/priority |
+| G170 | Residents / Maintenance summary tiles fail-open to 0 | S | done | Dash while summary/orders/schedules loading or on error |
+| G171 | Care-level review + compliance CCC used browser `daysUntil` | M | done | Rate-in-force / overdue / due-soon via `facilityDaysUntil` (+ facility-stable test `now`) |
+| G172 | Unlabeled Selects: incident create / violation retrain / emergency ops / CoC | S | done | Create-form staff/notification/resident; violation retrain; resource/inventory/assignment; CoC party/status |
+| G173 | Unlabeled Selects: work-item / schedule pattern / admissions / pending approvals | S | done | Dependency + status; pattern shift/unit; activity type + bed; manual employee/training type |
 
 ## Explicitly not now
 

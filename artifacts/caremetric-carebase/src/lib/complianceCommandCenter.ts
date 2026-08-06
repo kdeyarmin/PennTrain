@@ -2,7 +2,7 @@
 // facility compliance requirement register. Labels, badge classes, cadence formatting, effective
 // status derivation, roll-up summaries, and the facility compliance score all live here so they can
 // be unit-tested without a database and shared between the dashboard, drill-downs, and CSV export.
-import { daysUntil } from "@/lib/dateUtils";
+import { facilityDaysUntil } from "@/lib/dateUtils";
 
 export const COMPLIANCE_CATEGORIES = [
   { value: "resident_records", label: "Resident records" },
@@ -131,7 +131,7 @@ export interface InstanceLike {
 export function effectiveStatus(instance: InstanceLike, today: Date = new Date()): ComplianceStatus {
   const s = instance.status;
   if (s === "not_started" || s === "in_progress" || s === "awaiting_review") {
-    const d = daysUntil(instance.due_date, today);
+    const d = facilityDaysUntil(instance.due_date, today);
     if (d !== null && d < 0) return "overdue";
   }
   return (COMPLIANCE_STATUSES as readonly string[]).includes(s) ? (s as ComplianceStatus) : "not_started";
@@ -145,7 +145,7 @@ export function isOverdue(instance: InstanceLike, today: Date = new Date()): boo
 export function isDueSoon(instance: InstanceLike, today: Date = new Date()): boolean {
   const status = effectiveStatus(instance, today);
   if (status !== "not_started" && status !== "in_progress") return false;
-  const d = daysUntil(instance.due_date, today);
+  const d = facilityDaysUntil(instance.due_date, today);
   if (d === null || d < 0) return false;
   return d <= (instance.warning_days ?? 14);
 }

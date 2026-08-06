@@ -398,7 +398,7 @@ export default function WorkItemDetail() {
               {isManager && (
                 <div className="grid gap-2 border-t pt-4 sm:grid-cols-[1fr_160px_auto]">
                   <Select value={dependencyId} onValueChange={setDependencyId}>
-                    <SelectTrigger><SelectValue placeholder="Select related work" /></SelectTrigger>
+                    <SelectTrigger aria-label="Related work item"><SelectValue placeholder="Select related work" /></SelectTrigger>
                     <SelectContent>
                       {candidateDependencies?.filter(candidate => candidate.id !== work.id).map(candidate => (
                         <SelectItem key={candidate.id} value={candidate.id}>{candidate.title}</SelectItem>
@@ -406,7 +406,7 @@ export default function WorkItemDetail() {
                     </SelectContent>
                   </Select>
                   <Select value={dependencyType} onValueChange={setDependencyType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Dependency type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="blocks">Blocks</SelectItem>
                       <SelectItem value="relates_to">Relates to</SelectItem>
@@ -583,7 +583,7 @@ export default function WorkItemDetail() {
               <CardContent className="space-y-3">
                 {allowedTransitions.length > 0 && (
                   <Select value={targetState} onValueChange={setTargetState}>
-                    <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
+                    <SelectTrigger aria-label="New work item status"><SelectValue placeholder="Select new status" /></SelectTrigger>
                     <SelectContent>
                       {allowedTransitions.map(state => (
                         <SelectItem key={state} value={state}>{WORK_ITEM_STATE_LABELS[state]}</SelectItem>

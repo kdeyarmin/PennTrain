@@ -244,7 +244,7 @@ function UnlinkedDocumentRow({
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Employee *</label>
             <Select value={manualEmployeeId} onValueChange={setManualEmployeeId}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
+              <SelectTrigger className="h-9" aria-label="Employee"><SelectValue placeholder="Select employee" /></SelectTrigger>
               <SelectContent>
                 {facilityEmployees.map(e => (
                   <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
@@ -256,7 +256,7 @@ function UnlinkedDocumentRow({
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Training Type *</label>
           <Select value={trainingTypeId} onValueChange={setTrainingTypeId}>
-            <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+            <SelectTrigger className="h-9" aria-label="Training type"><SelectValue placeholder="Select training type" /></SelectTrigger>
             <SelectContent>
               {trainingTypes.map(t => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>

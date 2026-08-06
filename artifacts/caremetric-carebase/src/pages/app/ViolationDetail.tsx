@@ -403,7 +403,7 @@ export default function ViolationDetail() {
               {assignRetraining ? (
                 <div className="flex items-center gap-2">
                   <Select value={retrainEmployeeId} onValueChange={setRetrainEmployeeId}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Retraining staff member"><SelectValue placeholder="Select staff member" /></SelectTrigger>
                     <SelectContent>
                       {facilityEmployees.map((e) => (
                         <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>
@@ -411,7 +411,7 @@ export default function ViolationDetail() {
                     </SelectContent>
                   </Select>
                   <Select value={retrainCourseId} onValueChange={setRetrainCourseId}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select training item" /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Retraining course"><SelectValue placeholder="Select training item" /></SelectTrigger>
                     <SelectContent>
                       {(courses ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
                     </SelectContent>

@@ -238,10 +238,10 @@ export default function Maintenance() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card><CardContent className="pt-5"><Wrench className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{isError ? "—" : openCount}</p><p className="text-sm text-muted-foreground">Open work orders</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><AlertTriangle className="h-5 w-5 text-destructive" /><p className="mt-2 text-2xl font-bold">{isError ? "—" : overdueCount}</p><p className="text-sm text-muted-foreground">Past target completion</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><ShieldAlert className="h-5 w-5 text-warning" /><p className="mt-2 text-2xl font-bold">{isError ? "—" : verificationCount}</p><p className="text-sm text-muted-foreground">Awaiting supervisor verification</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><CalendarClock className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{schedulesError ? "—" : (schedules ?? []).filter((s) => s.is_active).length}</p><p className="text-sm text-muted-foreground">Active PM schedules</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><Wrench className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{isLoading || isError ? "—" : openCount}</p><p className="text-sm text-muted-foreground">Open work orders</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><AlertTriangle className="h-5 w-5 text-destructive" /><p className="mt-2 text-2xl font-bold">{isLoading || isError ? "—" : overdueCount}</p><p className="text-sm text-muted-foreground">Past target completion</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><ShieldAlert className="h-5 w-5 text-warning" /><p className="mt-2 text-2xl font-bold">{isLoading || isError ? "—" : verificationCount}</p><p className="text-sm text-muted-foreground">Awaiting supervisor verification</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><CalendarClock className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{schedulesLoading || schedulesError ? "—" : (schedules ?? []).filter((s) => s.is_active).length}</p><p className="text-sm text-muted-foreground">Active PM schedules</p></CardContent></Card>
       </div>
 
       <Tabs defaultValue="orders" className="space-y-4">

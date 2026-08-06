@@ -707,13 +707,13 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Select value={shiftDefinitionId} onValueChange={setShiftDefinitionId}>
-                  <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+                  <SelectTrigger aria-label="Pattern shift"><SelectValue placeholder="Shift" /></SelectTrigger>
                   <SelectContent>
                     {activeShiftDefs.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={unitId} onValueChange={setUnitId}>
-                  <SelectTrigger><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
+                  <SelectTrigger aria-label="Pattern unit"><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
                   <SelectContent>
                     {activeUnits.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                   </SelectContent>
@@ -781,13 +781,13 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <Select value={editShiftId} onValueChange={setEditShiftId}>
-                              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+                              <SelectTrigger aria-label="Pattern shift"><SelectValue placeholder="Shift" /></SelectTrigger>
                               <SelectContent>
                                 {activeShiftDefs.map((sd) => <SelectItem key={sd.id} value={sd.id}>{sd.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                             <Select value={editUnitId} onValueChange={setEditUnitId}>
-                              <SelectTrigger><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
+                              <SelectTrigger aria-label="Pattern unit"><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
                               <SelectContent>
                                 {activeUnits.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                               </SelectContent>

@@ -282,7 +282,7 @@ function ProspectReviewDialog({
         <div className="space-y-3 border-t pt-4">
           <h3 className="font-semibold">Contact and tour activity</h3>
           <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
-            <Select value={activityType} onValueChange={setActivityType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["contact_attempt", "tour_scheduled", "tour_completed", "tour_canceled", "note"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={activityType} onValueChange={setActivityType}><SelectTrigger aria-label="Activity type"><SelectValue /></SelectTrigger><SelectContent>{["contact_attempt", "tour_scheduled", "tour_completed", "tour_canceled", "note"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
             <Input value={activityNotes} onChange={event => setActivityNotes(event.target.value)} placeholder="Outcome or notes" />
             <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate ? facilityDateTimeLocalToUtcIso(activityDate) : undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); }, onError: (error: Error) => toast({ title: "Couldn't record activity", description: error.message, variant: "destructive" }) })}>Add activity</Button>
           </div>
@@ -330,7 +330,7 @@ function ProspectReviewDialog({
           <div className="space-y-3 border-t pt-4">
             <h3 className="font-semibold">Room and move-in</h3>
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-              <Select value={bedId} onValueChange={setBedId}><SelectTrigger><SelectValue placeholder="Choose available bed" /></SelectTrigger><SelectContent>{availableBeds.filter(bed => bed.facility_id === prospect?.facility_id).map(bed => <SelectItem key={bed.id} value={bed.id}>{bed.room?.building?.name} · Room {bed.room?.room_number} · Bed {bed.bed_label}</SelectItem>)}</SelectContent></Select>
+              <Select value={bedId} onValueChange={setBedId}><SelectTrigger aria-label="Available bed"><SelectValue placeholder="Choose available bed" /></SelectTrigger><SelectContent>{availableBeds.filter(bed => bed.facility_id === prospect?.facility_id).map(bed => <SelectItem key={bed.id} value={bed.id}>{bed.room?.building?.name} · Room {bed.room?.room_number} · Bed {bed.bed_label}</SelectItem>)}</SelectContent></Select>
               <Button disabled={!bedId || reserve.isPending} onClick={() => prospect && reserve.mutate({ prospectId: prospect.id, bedId }, { onSuccess: () => toast({ title: "Bed reserved" }), onError: (error: Error) => toast({ title: "Couldn't reserve bed", description: error.message, variant: "destructive" }) })}><BedDouble className="mr-2 h-4 w-4" />Reserve bed</Button>
             </div>
             {prospect?.stage === "reserved" && (

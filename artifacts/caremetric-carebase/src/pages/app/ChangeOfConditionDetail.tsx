@@ -280,8 +280,8 @@ export default function ChangeOfConditionDetail() {
               </div>
               {canContribute && event.status !== "closed" && (
                 <div className="grid gap-2 border-t pt-4 sm:grid-cols-2">
-                  <Select value={notificationParty} onValueChange={setNotificationParty}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="provider">Provider</SelectItem><SelectItem value="designated_person">Designated person</SelectItem></SelectContent></Select>
-                  <Select value={notificationStatus} onValueChange={setNotificationStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["completed", "unable_to_reach", "not_required", "pending"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
+                  <Select value={notificationParty} onValueChange={setNotificationParty}><SelectTrigger aria-label="Notification party"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="provider">Provider</SelectItem><SelectItem value="designated_person">Designated person</SelectItem></SelectContent></Select>
+                  <Select value={notificationStatus} onValueChange={setNotificationStatus}><SelectTrigger aria-label="Notification status"><SelectValue /></SelectTrigger><SelectContent>{["completed", "unable_to_reach", "not_required", "pending"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
                   <Input value={notificationMethod} onChange={input => setNotificationMethod(input.target.value)} placeholder="Method" />
                   <Input value={notificationContact} onChange={input => setNotificationContact(input.target.value)} placeholder="Contact name / office" />
                   <Textarea className="sm:col-span-2" value={notificationNotes} onChange={input => setNotificationNotes(input.target.value)} placeholder="Notification notes" />
