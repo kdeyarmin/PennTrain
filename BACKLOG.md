@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `8705966b` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c` after #461: **fourth-pass full-app review.** Closed G111–G121 (State Forms / complaint-closure / admissions / Needs Attention fail-open, credential/admissions metric zeros, facility datetime-local defaults, silent portal/agreement/offline mutates, practicum empty-on-error). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `dc53a29f` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **fifth-pass hunt** after G111–G121. Open G122–G130 (incident browser-zone occurred-at + zeroed summary tiles; remaining facility datetime-local defaults; unlabeled e2e filter Selects; silent shift delete; stale emergency/portal/med-source dialogs). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -554,6 +554,15 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G119 | Employee practicum empty-on-error; practicum year browser/UTC | S | done | Annual Practicum card said "No practicum record" on fetch failure; year used `getFullYear()`. QueryError + `facilityYear()` (RetrainingMonitor too) |
 | G120 | Evidence Room create dialog kept prior name/purpose | S | done | Cancel left form state; reopen showed last draft. Reset on open + remount key |
 | G121 | Journey-end filter Selects failed critical a11y (e2e) | S | done | Org-admin Guest Access and facility-manager Confidential Reports axe scans failed on unlabeled `SelectTrigger`s. `aria-label` on those filters; guest grants-in-view tile also dashes on error |
+| G122 | Incident create `occurredAt` still browser-zone | M | todo | `Incidents.tsx` `toLocalDatetimeInputValue` uses `getFullYear`/`getHours` then submits via `facilityDateTimeLocalToUtcIso` — wall clock shifts when browser ≠ America/New_York |
+| G123 | Clinical chart / employee chart observation defaults browser-zone | M | todo | `ResidentClinicalChart.tsx` / `MyResidentChart.tsx` default + reset `observedAt` with `toDateTimeLocal` then `facilityDateTimeLocalToUtcIso` on submit |
+| G124 | Work order / services calendar / schedule override TZ round-trip | M | todo | `WorkOrderDetail` loads/saves target with `toDateTimeLocal`↔`facilityDateTimeLocalToUtcIso`; `ResidentServicesCalendar` create/reschedule/follow-up due same; `ScheduleDetail` override `expiresAt` same |
+| G125 | Agreement / personal funds / med exception / complaint / QAPI TZ defaults | M | todo | `ResidentAgreementWorkspace` effectiveAt; `PersonalFundsDialogs` transaction `at`; `MedicationIntegration` exceptionDueAt; `ComplaintDetail` interview/monitoring/due; `QapiProjectDetail` held (+ aDue via browser `toDateTimeLocal` of facility UTC) |
+| G126 | Incident summary tiles zero on error | S | todo | `Incidents.tsx` uses `incidentSummaryQuery.data ?? EMPTY_…` for Open/Major/Recent tiles while list shows QueryError — reads as 0 open / "No open incidents" |
+| G127 | Unlabeled high-traffic filter Selects (e2e) | S | todo | No `aria-label` / Label association: Incidents (4), Residents (2), Employees (2), EvidenceRoom (2), EmployeeCredentials (3), Alerts (3), Maintenance (2), TrainingMatrix (3), MyCourses status, StateFormsCenter facility |
+| G128 | ScheduleDetail shift delete silent onError | S | todo | `handleDelete` `deleteAssignment.mutate` only `onSuccess` — failed remove leaves dialog open with no toast |
+| G129 | Emergency ops dialogs keep form after cancel | S | todo | Plan/event/profile/resource/inventory dialogs only `setDialog(null)` — reopen shows prior draft (emergency activation summary risk) |
+| G130 | Portal payment + med source + personal-funds txn dialogs stale | S | todo | `ResidentPortalWorkspace` payment cancel; `MedicationIntegration` source dialog; `PersonalFundsDialogs` TransactionDialog — no reset/key on reopen |
 
 ## Explicitly not now
 
