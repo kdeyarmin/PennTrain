@@ -427,7 +427,7 @@ export default function Incidents() {
         )}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(emptyForm()); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Report Incident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

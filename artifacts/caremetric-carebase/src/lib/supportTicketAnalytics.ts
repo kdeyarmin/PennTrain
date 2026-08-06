@@ -1,4 +1,4 @@
-import { facilityToday } from "./dateUtils";
+import { facilityDaysUntil, facilityToday } from "./dateUtils";
 
 export interface SupportTicketAnalyticsRecord {
   id: string;
@@ -27,9 +27,8 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 function ageDays(iso: string, today: string): number {
   const createdDay = facilityToday(new Date(iso));
   if (!DATE_ONLY.test(createdDay) || !DATE_ONLY.test(today)) return Number.NaN;
-  return Math.round(
-    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${createdDay}T00:00:00Z`)) / 86_400_000,
-  );
+  const until = facilityDaysUntil(createdDay, new Date(`${today}T16:00:00Z`));
+  return until === null ? Number.NaN : -until;
 }
 
 export function summarizeSupportTicketAnalytics(tickets: SupportTicketAnalyticsRecord[], today: string): SupportTicketAnalyticsSummary {

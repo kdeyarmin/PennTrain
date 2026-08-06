@@ -333,7 +333,7 @@ export default function Residents() {
         )}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(EMPTY_FORM); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Resident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

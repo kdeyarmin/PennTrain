@@ -15,7 +15,7 @@
 //
 // Pure and injectable-clock, in the style of moveInReadiness.ts / careLevelReview.ts.
 
-import { facilityToday } from "./dateUtils";
+import { addFacilityCalendarDays, facilityDaysUntil, facilityToday } from "./dateUtils";
 import {
   buildPreparationState, followUpIsOverdue, followUpOutstanding,
   type AppointmentLike, type AppointmentPreparationItemLike,
@@ -196,9 +196,15 @@ export const UNAVAILABLE_CARDS: { label: string; blockedBy: string }[] = [];
 
 function daysBetween(from: string | null | undefined, now: Date): number | null {
   if (!from) return null;
-  const at = new Date(from);
-  if (Number.isNaN(at.getTime())) return null;
-  return Math.floor((now.getTime() - at.getTime()) / 86_400_000);
+  const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+  const day = DATE_ONLY.test(from)
+    ? from
+    : Number.isFinite(Date.parse(from))
+      ? facilityToday(new Date(from))
+      : null;
+  if (!day) return null;
+  const until = facilityDaysUntil(day, now);
+  return until === null ? null : -until;
 }
 
 function withinWindow(at: string | null | undefined, now: Date, windowDays: number): boolean {
@@ -387,15 +393,16 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
 
   // Falls are counted from both incidents and change events, because a fall without injury is
   // routinely recorded only as a condition change. Counting one source would undercount the cluster.
-  const fallWindowStart = now.getTime() - FALL_CLUSTER_WINDOW_DAYS * 86_400_000;
+  const fallCutoffDay = addFacilityCalendarDays(facilityToday(now), -FALL_CLUSTER_WINDOW_DAYS);
+  const today = facilityToday(now);
   const recentFalls = [
     ...input.incidents
       .filter((incident) => /fall/i.test(incident.incident_type))
       .map((incident) => incident.occurred_at),
     ...input.changeEvents.filter((event) => event.category === "fall").map((event) => event.identified_at),
   ].filter((at) => {
-    const time = new Date(at).getTime();
-    return !Number.isNaN(time) && time >= fallWindowStart && time <= now.getTime();
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(at) ? at : Number.isFinite(Date.parse(at)) ? facilityToday(new Date(at)) : null;
+    return !!day && day >= fallCutoffDay && day <= today;
   });
   if (recentFalls.length >= FALL_CLUSTER_COUNT) {
     cards.push({
@@ -404,7 +411,7 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
       severity: "urgent",
       title: `${formatCount(recentFalls.length, "fall")} in ${FALL_CLUSTER_WINDOW_DAYS} days`,
       why: "Repeat falls indicate the current fall-prevention interventions are not working.",
-      evidence: `${formatCount(recentFalls.length, "fall record")} across incidents and condition changes since ${facilityToday(new Date(fallWindowStart))}.`,
+      evidence: `${formatCount(recentFalls.length, "fall record")} across incidents and condition changes since ${fallCutoffDay}.`,
       owner: "Administrator",
       dueDate: null,
       since: recentFalls.sort()[0] ?? null,

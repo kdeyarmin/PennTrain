@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
 import { Award, ExternalLink, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityDaysUntil, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { useMyTrainingPassport } from "@/hooks/useProductExperience";
 
 // Certificate PDFs render on a background job queue; while one is still pending/processing,
 // poll the list so the action button flips to "Download" without a manual refresh.
 const PDF_POLL_INTERVAL_MS = 15_000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function MyCertificates() {
   const { user } = useAuth();
@@ -51,7 +52,14 @@ export default function MyCertificates() {
   const allCertificates = certificates ?? [];
 
   function isExpired(expiresAt: string | null) {
-    return !!expiresAt && new Date(expiresAt).getTime() < Date.now();
+    if (!expiresAt) return false;
+    const day = DATE_ONLY.test(expiresAt)
+      ? expiresAt
+      : Number.isFinite(Date.parse(expiresAt))
+        ? facilityToday(new Date(expiresAt))
+        : null;
+    if (!day) return false;
+    return (facilityDaysUntil(day) ?? 0) < 0;
   }
 
   const handleDownload = async (certificateId: string) => {

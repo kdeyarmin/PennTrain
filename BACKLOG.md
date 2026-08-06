@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `d5fcb082` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **fifteenth-pass** after G174–G177. Closed facility-calendar day math across administrator rule packs, incident investigation overdue, citation-library age, care-profile age, enterprise grant age, DME inspection due, compliance/assignment/credential analytics, and competency-evaluation dialog reset. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `7405a9b0` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **sixteenth-pass** after G178–G181. Closed facility-calendar windows for needs-attention / care-conflicts / change-detection, receivable aging + certificate expiry, incident/support analytics age helpers, and sticky create-dialog drafts on Incidents/Courses/Residents. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -614,6 +614,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G179 | Investigation overdue / citation age / care-profile age ms math | M | done | Facility calendar age for incident trends, citation library, care header staleness |
 | G180 | Grant age / DME inspection / analytics `daysUntil` browser math | M | done | Enterprise grant label, DME inspection due, course/credential/compliance/state-form analytics |
 | G181 | CompetencyRecords create dialog sticky drafts | S | done | Reset form/employee/item results on dialog close |
+| G182 | Needs-attention / care-conflicts / change-detection ms windows | M | done | Facility day age + rolling windows for falls, assistance, change signals |
+| G183 | Receivable aging + MyCertificates expiry browser math | M | done | `facilityDaysUntil` for AR days-past-due and certificate expired badge |
+| G184 | Incident/support analytics age still used UTC midnight ms | S | done | Delegate to `facilityDaysUntil` (DST-safe facility calendar) |
+| G185 | Incidents / Courses / Residents create dialogs sticky | S | done | Reset form to empty on dialog close |
 
 ## Explicitly not now
 

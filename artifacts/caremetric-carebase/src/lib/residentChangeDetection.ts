@@ -15,6 +15,8 @@
  * record.
  */
 
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "./dateUtils";
+
 export type ChangeSignalKind =
   | "increased_assistance"
   | "multiple_falls"
@@ -133,13 +135,19 @@ export interface ChangeDetectionInput {
 
 function withinWindow(at: string | null | undefined, now: Date, days: number): boolean {
   if (!at) return false;
-  const time = new Date(at).getTime();
-  if (Number.isNaN(time)) return false;
-  return time >= now.getTime() - days * 86_400_000 && time <= now.getTime();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(at)
+    ? at
+    : Number.isFinite(Date.parse(at))
+      ? facilityToday(new Date(at))
+      : null;
+  if (!day) return false;
+  const cutoff = addFacilityCalendarDays(facilityToday(now), -days);
+  const today = facilityToday(now);
+  return day >= cutoff && day <= today;
 }
 
 function windowStart(now: Date, days: number): string {
-  return new Date(now.getTime() - days * 86_400_000).toISOString();
+  return facilityDayBounds(addFacilityCalendarDays(facilityToday(now), -days)).from;
 }
 
 function plural(count: number, singular: string): string {
