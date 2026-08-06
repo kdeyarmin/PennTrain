@@ -20,9 +20,6 @@
   "20260704200000": {
     "reason": "Product rebrand rewrote this deployed file: the only differences are string literals carrying the pre-rebrand vocabulary (training -> course; training item' -> course'). Verified 2026-07-27 that no statement, predicate, or grant differs."
   },
-  "20260704210000": {
-    "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
-  },
   "20260704220000": {
     "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
   },
@@ -307,9 +304,6 @@
   },
   "20260801065028": {
     "reason": "Ledger divergence after recent apply: the DO existence-guard for the out-of-band app_private.exclusion_list_entries_dedup_backup_20260712 table (plus surrounding comments) was recorded differently from the committed file. Live catalog matches this file's intent (RLS enabled on the 7 tables; the guard is a no-op where the table is absent). No runtime change."
-  },
-  "20260801220000": {
-    "reason": "Ledger divergence after recent apply of the four D3 import_apply_* SECURITY DEFINER RPCs. Local file is the reviewed source; production functions match the committed bodies (org-scoped validation, service_role-only, verified_by null for system apply). Divergence is in recorded statements vs file, not live behavior."
   },
   "20260802010000": {
     "reason": "Ledger divergence after recent apply of the SG-2 PA 2600/2800 regulatory_rule_pack_templates seed. Local file is the counsel-cleared source; live templates match (template_key, fixtures, calculation_parameters). Divergence is in recorded statements vs file."
