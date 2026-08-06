@@ -18,6 +18,7 @@ import {
   useSaveLearningPathVersion,
 } from "@/hooks/useLearningPaths";
 import { useListEmployees } from "@/hooks/useEmployees";
+import { facilityDayBounds } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -342,7 +343,7 @@ export function AdaptivePathsPanel() {
                     await assign.mutateAsync({
                       employeeId: assignEmployeeId,
                       pathVersionId: selected.id,
-                      dueAt: dueAt ? `${dueAt}T23:59:59.999Z` : null,
+                      dueAt: dueAt ? facilityDayBounds(dueAt).through : null,
                     });
                     toast({ title: "Path assigned" });
                     setAssignEmployeeId("");

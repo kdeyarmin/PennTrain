@@ -219,7 +219,9 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Informal Supports</p>
-            {informalSupportsLoading ? (
+            {informalSupportsQuery.isError ? (
+              <p className="text-sm text-destructive">Could not load informal supports.</p>
+            ) : informalSupportsLoading ? (
               <Skeleton className="h-6" />
             ) : !informalSupports?.length ? (
               <p className="text-sm text-muted-foreground">None on file.</p>
@@ -239,6 +241,7 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
         documents={documents ?? []}
         data={administrativeMaster}
         canManage={canManage}
+        dataUnavailable={administrativeMasterQuery.isError || administrativeMasterQuery.isLoading}
       />
 
       <Dialog open={showContactsDialog} onOpenChange={setShowContactsDialog}>

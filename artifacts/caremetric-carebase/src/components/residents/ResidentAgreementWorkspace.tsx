@@ -14,7 +14,7 @@ import {
 } from "@/hooks/useResidentAgreements";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -130,7 +130,7 @@ export function ResidentAgreementWorkspace({
     guestLabel,
     signerRole: guestSignerRole,
     versionIds: guestVersionIds,
-    expiresAt: new Date(Date.now() + Math.min(30, Math.max(1, Number(guestDays) || 7)) * 86_400_000).toISOString(),
+    expiresAt: facilityDayBounds(addFacilityCalendarDays(facilityToday(), Math.min(30, Math.max(1, Number(guestDays) || 7)))).through,
   }, {
     onSuccess: result => {
       setIssuedLink(absoluteAppUrl(`/resident-agreement-access/${result.token}`));

@@ -137,7 +137,7 @@ export default function SupportTickets() {
               />
             </div>
             <Select value={statusFilter} onValueChange={(v) => setUrlState({ status: v })}>
-              <SelectTrigger className="w-40 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger className="w-40 h-9" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="open">Open</SelectItem>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle, CheckCircle2, CircleDashed, Circle, ClipboardCheck, Clock, ShieldQuestion,
 } from "lucide-react";
@@ -49,6 +49,13 @@ function ReportabilityDialog({
   const determine = useDetermineIncidentReportability(incidentId);
   const [status, setStatus] = useState<ReportabilityStatus | "">("");
   const [rationale, setRationale] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setStatus("");
+      setRationale("");
+    }
+  }, [open]);
 
   const submit = async () => {
     if (status !== "reportable" && status !== "not_reportable") return;
@@ -142,6 +149,14 @@ function InvestigationStepDialog({
   const [findings, setFindings] = useState(initial.findings);
   const [rootCause, setRootCause] = useState(initial.rootCause);
   const [method, setMethod] = useState(initial.rootCauseMethod);
+
+  useEffect(() => {
+    if (!open) return;
+    setImmediateResponse(initial.immediateResponse);
+    setFindings(initial.findings);
+    setRootCause(initial.rootCause);
+    setMethod(initial.rootCauseMethod);
+  }, [open, initial]);
 
   const submit = async () => {
     try {
@@ -261,6 +276,13 @@ function QapiConsiderationDialog({
   const [consideration, setChoice] = useState(current === "pending" ? "linked" : current);
   const [projectId, setProjectId] = useState(currentProjectId ?? "");
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setChoice(current === "pending" ? "linked" : current);
+    setProjectId(currentProjectId ?? "");
+    setNote("");
+  }, [open, current, currentProjectId]);
 
   const options = projects.data ?? [];
   const canSubmit = consideration === "linked"

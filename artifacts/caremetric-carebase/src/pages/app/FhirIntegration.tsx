@@ -160,7 +160,7 @@ export default function FhirIntegration() {
           <Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${workspace.isFetching ? "animate-spin" : ""}`} />Refresh
           </Button>
-          {canManage && <Button onClick={() => setSourceDialogOpen(true)}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}
+          {canManage && <Button onClick={() => { setSourceName(""); setVendorName(""); setExternalFacilityId(""); setFhirBaseUrl(""); setCredentialId(""); setFreshnessMinutes("60"); setSourceDialogOpen(true); }}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}
         </div>
       </div>
 

@@ -447,7 +447,7 @@ export default function NotificationDeliveries() {
               />
             </div>
             <Select value={statusFilter} onValueChange={(v) => setUrlState({ status: v })}>
-              <SelectTrigger className="w-36 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger className="w-36 h-9" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
@@ -460,7 +460,7 @@ export default function NotificationDeliveries() {
               </SelectContent>
             </Select>
             <Select value={channelFilter} onValueChange={(v) => setUrlState({ channel: v })}>
-              <SelectTrigger className="w-32 h-9"><SelectValue placeholder="All Channels" /></SelectTrigger>
+              <SelectTrigger className="w-32 h-9" aria-label="Channel"><SelectValue placeholder="All Channels" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Channels</SelectItem>
                 <SelectItem value="email">Email</SelectItem>
@@ -653,7 +653,7 @@ export default function NotificationDeliveries() {
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <Select value={templateScope} onValueChange={setTemplateScope}>
-                <SelectTrigger><SelectValue placeholder="Scope" /></SelectTrigger>
+                <SelectTrigger aria-label="Scope"><SelectValue placeholder="Scope" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="global">Global default</SelectItem>
                   {Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}

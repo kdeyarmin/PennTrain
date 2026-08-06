@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `fd621755` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **seventh-pass** after G131–G136. Closed shift wall-clock → facility ISO (ScheduleDetail / MyShift), Floor/MyResidents facility-day queues, break-glass + cohort expiry facility parsing, financial/policy/export dialog resets, med-exception due sticky, QAPI form clears, and more unlabeled filter Selects. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `8c0404cd` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **eighth-pass** after G137–G142. Closed services-calendar facility-day grouping, adaptive-path/guest-link facility EOD expiry, support-plan activation/oneYearOut facility calendar, overview empty-on-error, dialog resets (FHIR/move-in/care plan/incident follow-through/admin master), complaint trends calendar math, and more unlabeled admin/ops filter Selects. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -575,6 +575,12 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G140 | Financial / export / policy create dialogs stale on reopen | S | done | Receivables Rate/Entry/Monthly/Statement, FundOpen/Reconcile, ExportDialog reset on open; PolicyDocuments clears on close |
 | G141 | Med-exception due sticky; QAPI measure/meeting/action forms stick | S | done | Reset due on Review/assign success; clear QAPI measurement, meeting, and action drafts on success |
 | G142 | More unlabeled operational filter Selects | S | done | AdmissionOperations, ServiceDelivery, ChangeOfConditionQueue, Dietary, QAPI, Inspection*, PCH/ALF ops, lifecycle/import/crosswalk/exclusion filters + QAPI form Selects |
+| G143 | Services calendar agenda grouped by browser day | M | done | Group + day headers use `facilityToday` / `formatDateForDisplay`; filter Choices get aria-labels |
+| G144 | Adaptive path + guest-link expiry used UTC/ms arithmetic | M | done | Path due via `facilityDayBounds().through`; move-in + agreement guest links use facility calendar EOD |
+| G145 | Support-plan activation / oneYearOut browser calendar | S | done | `isActivationOverdue` compares facility `YYYY-MM-DD`; `oneYearOut` uses `addFacilityCalendarDays` |
+| G146 | Resident overview empty-on-error under failure banner | S | done | Informal supports error copy; admin master tiles/lists take `dataUnavailable` instead of zero/none |
+| G147 | Stale create dialogs: FHIR, move-in guest, care plan, incident follow-through, admin master add | S | done | Reset on open; incident reportability/investigation/QAPI dialogs rehydrate when reopened |
+| G148 | Complaint trends + remaining unlabeled admin/ops Selects | S | done | Trends window via `addFacilityCalendarDays`; aria-label on Organizations/SupportTickets/AiLog/NotificationDeliveries, ResidentCompliance, Reports, EmergencyEventDetail |
 
 ## Explicitly not now
 

@@ -28,6 +28,7 @@ import {
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useListResidentDocuments, useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 import { QueryError } from "@/components/QueryState";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -161,7 +162,7 @@ export default function MoveInWorkspaceDetail() {
       workspaceId: data.id,
       guestLabel,
       taskIds: guestTaskIds,
-      expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
+      expiresAt: facilityDayBounds(addFacilityCalendarDays(facilityToday(), days)).through,
     }, {
       onSuccess: result => {
         const link = `${window.location.origin}/move-in-access/${result.token}`;
@@ -180,7 +181,7 @@ export default function MoveInWorkspaceDetail() {
           <h1 className="text-2xl font-bold">{data.resident?.first_name} {data.resident?.last_name} move-in</h1>
           <Badge variant="outline">{humanize(data.state)}</Badge>
         </div>
-        <p className="text-muted-foreground">{data.facility?.name} · Room {data.resident?.room ?? "—"} · Target {new Date(`${data.target_move_in_date}T00:00:00`).toLocaleDateString()}</p>
+        <p className="text-muted-foreground">{data.facility?.name} · Room {data.resident?.room ?? "—"} · Target {formatDateForDisplay(data.target_move_in_date)}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -251,7 +252,7 @@ export default function MoveInWorkspaceDetail() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" />Family and designated-person access</CardTitle><CardDescription>Issue expiring, task-scoped links for external signatures. Access and signing are logged.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
-            {canManage && <Button onClick={() => setGuestOpen(true)}><FileSignature className="mr-2 h-4 w-4" />Create guest signing link</Button>}
+            {canManage && <Button onClick={() => { setGuestLabel(""); setGuestTaskIds([]); setGuestDays("7"); setGuestOpen(true); }}><FileSignature className="mr-2 h-4 w-4" />Create guest signing link</Button>}
             {issuedLink && <div className="flex gap-2 rounded-md border p-2"><Input readOnly value={issuedLink} /><Button size="icon" variant="outline" onClick={() => navigator.clipboard.writeText(issuedLink)}><Copy className="h-4 w-4" /></Button></div>}
             {grants.isError ? (
               <QueryError what="guest signing links" error={grants.error} onRetry={() => void grants.refetch()} />

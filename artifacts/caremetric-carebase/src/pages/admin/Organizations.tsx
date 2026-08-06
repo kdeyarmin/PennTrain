@@ -201,7 +201,7 @@ export default function Organizations() {
               />
             </div>
             <Select value={urlState.status} onValueChange={v => setUrlState({ status: v })}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger className="w-44" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 {SUBSCRIPTION_STATUSES.map(s => (
@@ -210,7 +210,7 @@ export default function Organizations() {
               </SelectContent>
             </Select>
             <Select value={urlState.plan} onValueChange={v => setUrlState({ plan: v })}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="All Plans" /></SelectTrigger>
+              <SelectTrigger className="w-44" aria-label="Plan"><SelectValue placeholder="All Plans" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Plans</SelectItem>
                 {planOptions.map(p => (

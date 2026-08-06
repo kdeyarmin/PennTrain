@@ -204,7 +204,7 @@ describe("version comparison", () => {
 });
 
 describe("isActivationOverdue", () => {
-  const today = new Date(2026, 6, 26); // 26 July 2026, local
+  const today = "2026-07-26";
 
   it("is true once the effective date has passed", () => {
     expect(isActivationOverdue("2026-07-24", today)).toBe(true);
@@ -225,10 +225,9 @@ describe("isActivationOverdue", () => {
     expect(isActivationOverdue(undefined, today)).toBe(false);
   });
 
-  // Regression guard: `new Date("2026-07-26")` is UTC midnight, which is 25 July in any western
-  // zone -- a plan effective today would then read as NOT overdue, hiding the button precisely
-  // when it is needed.
-  it("compares calendar dates, not UTC instants", () => {
-    expect(isActivationOverdue("2026-07-26", new Date(2026, 6, 26, 1, 0, 0))).toBe(true);
+  // Regression guard: compare facility calendar YYYY-MM-DD strings, not UTC-parsed Date instants
+  // that shift the day west of Greenwich.
+  it("compares facility calendar dates, not UTC instants", () => {
+    expect(isActivationOverdue("2026-07-26", "2026-07-26")).toBe(true);
   });
 });

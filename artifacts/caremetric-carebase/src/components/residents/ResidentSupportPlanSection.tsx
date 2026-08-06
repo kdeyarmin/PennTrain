@@ -20,7 +20,7 @@ import {
   type ResidentSupportPlan,
   type SupportPlanProposal,
 } from "@/hooks/useResidentCareDelivery";
-import { facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -212,9 +212,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   );
 
   function oneYearOut(from: string): string {
-    const d = new Date(`${from}T00:00:00`);
-    d.setFullYear(d.getFullYear() + 1);
-    return toLocalIsoDate(d);
+    return addFacilityCalendarDays(from, 365);
   }
 
   async function startDraft() {
@@ -518,7 +516,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                               {acknowledgmentsForEffective.map((row) => (
                                 <li key={row.id} className="text-muted-foreground">
                                   {profileName(row.profile_id)}
-                                  {" · "}{formatDateForDisplay(toLocalIsoDate(new Date(row.acknowledged_at)))}
+                                  {" · "}{formatDateForDisplay(facilityToday(new Date(row.acknowledged_at)))}
                                   {row.note ? ` — ${row.note}` : ""}
                                 </li>
                               ))}

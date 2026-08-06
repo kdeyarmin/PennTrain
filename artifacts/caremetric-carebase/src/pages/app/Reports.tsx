@@ -833,8 +833,7 @@ export default function Reports() {
             </Link>
           </Button>
           <Select value={facilityId} onValueChange={setFacilityId}>
-            <SelectTrigger className="w-full sm:w-52">
-              <SelectValue placeholder="All Facilities" />
+            <SelectTrigger className="w-full sm:w-52" aria-label="Facility"><SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
