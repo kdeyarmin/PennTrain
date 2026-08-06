@@ -79,6 +79,19 @@ Deno.serve(async (req: Request) => {
   if (!orgId) return json(req, { error: "Organization required" }, 400);
   const facilityId = body.facility_id ?? packetItems[0].facility_id ?? null;
 
+  // Service-role binder downloads below bypass storage RLS -- refuse packaging for an FM who is
+  // not assigned to the target facility (mirrors record_survey_evidence_packet_export).
+  if (profile.role === "facility_manager") {
+    if (!facilityId) {
+      return json(req, { error: "facility_id is required for facility managers" }, 400);
+    }
+    const { data: assigned, error: assignError } = await caller.rpc("is_assigned_to_facility", {
+      target_facility_id: facilityId,
+    });
+    if (assignError) return json(req, { error: assignError.message }, 500);
+    if (!assigned) return json(req, { error: "Not authorized for this facility" }, 403);
+  }
+
   const zip = new StreamingZipWriter();
   const chunks: Uint8Array[] = [];
   const reader = zip.readable.getReader();
