@@ -43,7 +43,7 @@ import {
 import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Eraser, Loader2, Pill, Plus, Send, Sparkles, Undo2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios, summarizeMedAdminCoverage } from "@/lib/scheduleAnalytics";
 import { QueryError } from "@/components/QueryState";
 
@@ -316,7 +316,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
       scopeId: addForm.shiftDefinitionId,
       reason: overrideForm.reason,
       authorityReference: overrideForm.authorityReference,
-      expiresAt: new Date(overrideForm.expiresAt).toISOString(),
+      expiresAt: facilityDateTimeLocalToUtcIso(overrideForm.expiresAt),
     }, {
       onSuccess: () => {
         toast({ title: "Bounded override approved", description: "The reason, authority, scope, expiration, and approver were audit logged.", variant: "success" });

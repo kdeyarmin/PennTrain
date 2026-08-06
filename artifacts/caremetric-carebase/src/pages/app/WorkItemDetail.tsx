@@ -1,4 +1,6 @@
 import { useId, useEffect, useMemo, useState } from "react";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+
 import { Link, useParams } from "wouter";
 import {
   AlertTriangle,
@@ -163,7 +165,7 @@ export default function WorkItemDetail() {
         workItemId: work.id,
         ownerProfileId: ownerId,
         priority,
-        dueAt: new Date(dueAt).toISOString(),
+        dueAt: facilityDateTimeLocalToUtcIso(dueAt),
       },
       {
         onSuccess: () => toast({ title: "Assignment updated" }),

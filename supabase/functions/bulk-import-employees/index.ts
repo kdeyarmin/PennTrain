@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
+import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -163,14 +164,18 @@ Deno.serve(async (req: Request) => {
   const leaseError = await acquireImportJobLease(callerClient, jobId);
   if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
 
-  // Resolved once up front rather than per-row. Queried as the caller (not a service-role client),
-  // so facilities_select and employee write RLS remain the authority.
-  const { data: orgFacilities, error: facilitiesError } = await callerClient
-    .from("facilities")
-    .select("id, name")
-    .eq("organization_id", effectiveOrgId);
-  if (facilitiesError) return json(req, { error: `Failed to load facilities: ${facilitiesError.message}` }, 500);
-  const facilityIdByName = new Map((orgFacilities ?? []).map((facility) => [facility.name.trim().toLowerCase(), facility.id as string]));
+  // facilities_select is org-wide; assignment-scope the map so validate cannot green-light
+  // other-facility rows that the durable service-role worker would then apply.
+  let orgFacilities;
+  try {
+    orgFacilities = await listImportFacilitiesForCaller(
+      callerClient, effectiveOrgId, callerProfile.role as string, callerUser.id,
+    );
+  } catch (facilitiesError) {
+    return json(req, { error: `Failed to load facilities: ${facilitiesError instanceof Error ? facilitiesError.message : String(facilitiesError)}` }, 500);
+  }
+  const allowedFacilityIds = new Set(orgFacilities.map((facility) => facility.id));
+  const facilityIdByName = new Map(orgFacilities.map((facility) => [facility.name.trim().toLowerCase(), facility.id]));
 
   const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
   if (offset >= rows.length) {
@@ -241,6 +246,7 @@ Deno.serve(async (req: Request) => {
       else facility_id = resolved;
     }
     if (facility_id && !UUID_PATTERN.test(facility_id)) rowErrors.push("facility_id is not a valid UUID");
+    else if (facility_id && !allowedFacilityIds.has(facility_id)) rowErrors.push("facility is outside your assigned scope");
 
     const normalized = {
       organization_id: effectiveOrgId,

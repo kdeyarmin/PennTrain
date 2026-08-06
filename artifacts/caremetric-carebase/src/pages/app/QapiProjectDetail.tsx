@@ -38,7 +38,7 @@ import { QueryError } from "@/components/QueryState";
 // field opened on 01:30 the NEXT day, and submitting it recorded a QAPI meeting as held in the
 // future, on the wrong date. Reading back was already local (`new Date(held)`), so the round
 // trip disagreed with itself.
-import { facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityToday, toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
@@ -344,7 +344,7 @@ export default function QapiProjectDetail() {
                       description: aDesc,
                       type: "systemic",
                       owner: aOwner,
-                      due: new Date(aDue).toISOString(),
+                      due: facilityDateTimeLocalToUtcIso(aDue),
                     },
                     {
                       onSuccess: () => {
@@ -463,7 +463,7 @@ export default function QapiProjectDetail() {
                 meeting.mutate(
                   {
                     id: p.id,
-                    held: new Date(held).toISOString(),
+                    held: facilityDateTimeLocalToUtcIso(held),
                     attendees,
                     notes: meetingNotes,
                     barriers,

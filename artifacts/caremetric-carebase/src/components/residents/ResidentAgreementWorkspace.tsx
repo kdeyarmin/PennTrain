@@ -14,7 +14,7 @@ import {
 } from "@/hooks/useResidentAgreements";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,7 +107,7 @@ export function ResidentAgreementWorkspace({
       residentId, agreementId: agreementForm.agreementId || undefined,
       agreementType: agreementForm.agreementType, title: agreementForm.title,
       versionLabel: agreementForm.versionLabel, contentText: agreementForm.contentText,
-      effectiveAt: new Date(agreementForm.effectiveAt).toISOString(), requiredSignerRoles: roles,
+      effectiveAt: facilityDateTimeLocalToUtcIso(agreementForm.effectiveAt), requiredSignerRoles: roles,
       documentId: agreementForm.documentId === "none" ? undefined : agreementForm.documentId,
       amendmentReason: agreementForm.amendmentReason || undefined,
     }, {

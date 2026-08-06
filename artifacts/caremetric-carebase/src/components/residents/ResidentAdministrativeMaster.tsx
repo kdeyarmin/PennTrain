@@ -19,7 +19,7 @@ import {
   useUpsertResidentLegalRecord,
   useUpsertResidentPropertyItem,
 } from "@/hooks/useResidentAdministrativeMaster";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { humanize } from "@/lib/utils";
 import {
@@ -161,7 +161,7 @@ export function ResidentAdministrativeMaster({
           ...profile,
           food_allergies: profile.food_allergies.split(",").map((item) => item.trim()).filter(Boolean),
           resident_rights_acknowledged_at: profile.resident_rights_acknowledged_at
-            ? new Date(profile.resident_rights_acknowledged_at).toISOString() : "",
+            ? facilityDateTimeLocalToUtcIso(profile.resident_rights_acknowledged_at) : "",
         },
         contacts: contacts.filter((contact) => contact.name.trim()).map((contact, sort_order) => ({
           ...contact,

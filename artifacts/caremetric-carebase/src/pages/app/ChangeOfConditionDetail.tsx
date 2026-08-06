@@ -1,4 +1,6 @@
 import { useId, useState } from "react";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+
 import { Link, useParams } from "wouter";
 import {
   Activity,
@@ -326,7 +328,7 @@ export default function ChangeOfConditionDetail() {
                 <div className="space-y-2 border-t pt-3">
                   <Textarea value={followUpResult} onChange={input => setFollowUpResult(input.target.value)} placeholder="Follow-up results" />
                   <div className="space-y-1"><Label htmlFor={`${__fieldIds}-optional-next-follow-up`}>Optional next follow-up</Label><Input id={`${__fieldIds}-optional-next-follow-up`} type="datetime-local" value={nextDueAt} onChange={input => setNextDueAt(input.target.value)} /></div>
-                  <Button disabled={followUpResult.trim().length < 3 || completeFollowUp.isPending} onClick={() => completeFollowUp.mutate({ followUpId: openFollowUp.id, result: followUpResult, nextFollowUpDueAt: nextDueAt ? new Date(nextDueAt).toISOString() : null }, { onSuccess: () => { toast({ title: nextDueAt ? "Follow-up completed and next check scheduled" : "Follow-up submitted for supervisor review" }); setFollowUpResult(""); setNextDueAt(""); }, onError: (error: Error) => toast({ title: "Couldn't complete follow-up", description: error.message, variant: "destructive" }) })}>Complete follow-up</Button>
+                  <Button disabled={followUpResult.trim().length < 3 || completeFollowUp.isPending} onClick={() => completeFollowUp.mutate({ followUpId: openFollowUp.id, result: followUpResult, nextFollowUpDueAt: nextDueAt ? facilityDateTimeLocalToUtcIso(nextDueAt) : null }, { onSuccess: () => { toast({ title: nextDueAt ? "Follow-up completed and next check scheduled" : "Follow-up submitted for supervisor review" }); setFollowUpResult(""); setNextDueAt(""); }, onError: (error: Error) => toast({ title: "Couldn't complete follow-up", description: error.message, variant: "destructive" }) })}>Complete follow-up</Button>
                 </div>
               )}
             </CardContent>

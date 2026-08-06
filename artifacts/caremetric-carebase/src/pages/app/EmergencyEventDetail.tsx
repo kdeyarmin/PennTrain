@@ -1,4 +1,6 @@
 import { useId, useEffect, useMemo, useState } from "react";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+
 import { Link, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -152,7 +154,7 @@ export default function EmergencyEventDetail() {
       eventId: id,
       eventType: timelineType,
       description: timelineDescription,
-      occurredAt: new Date(timelineAt || Date.now()).toISOString(),
+      occurredAt: timelineAt ? facilityDateTimeLocalToUtcIso(timelineAt) : new Date().toISOString(),
     },
     {
       onSuccess: () => {
@@ -197,7 +199,7 @@ export default function EmergencyEventDetail() {
       description: actionDescription,
       ownerProfileId: actionOwner,
       priority: actionPriority,
-      dueAt: new Date(actionDueAt || Date.now()).toISOString(),
+      dueAt: actionDueAt ? facilityDateTimeLocalToUtcIso(actionDueAt) : new Date().toISOString(),
     },
     {
       onSuccess: () => {
