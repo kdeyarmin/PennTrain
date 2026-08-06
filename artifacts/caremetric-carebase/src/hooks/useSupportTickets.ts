@@ -38,17 +38,29 @@ export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
   return useQuery({
     queryKey: ["support_tickets", filters],
     queryFn: async () => {
-      let query = supabase.from("support_tickets").select("*").order("last_message_at", { ascending: false });
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      const search = filters.search?.trim();
-      if (search) {
-        const like = containsFilterValue(search);
-        query = query.or(`subject.ilike.${like},category.ilike.${like}`);
+      // PostgREST caps a single response. Page until exhausted so open-count / analytics / queue
+      // views do not silently drop older tickets once the table grows past max-rows.
+      const pageSize = 1000;
+      const rows: Tables<"support_tickets">[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("support_tickets")
+          .select("*")
+          .order("last_message_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        const search = filters.search?.trim();
+        if (search) {
+          const like = containsFilterValue(search);
+          query = query.or(`subject.ilike.${like},category.ilike.${like}`);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      return rows;
     },
   });
 }
@@ -93,9 +105,9 @@ async function uploadTicketAttachment(organizationId: string, ticketId: string, 
   };
 }
 
-// Two inserts, not one RPC -- same "each write gets its own independently-enforced RLS check"
-// convention as usePublishPolicyDocumentVersion: the ticket insert and the first message insert
-// are each gated by their own policy (support_tickets_insert / support_ticket_messages_insert).
+// Ticket + first message are still two inserts (each with its own RLS). If the message path fails
+// after the ticket exists, delete the ticket so the UI's failure does not leave an empty shell
+// that a retry then duplicates.
 export function useCreateSupportTicket() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -107,19 +119,27 @@ export function useCreateSupportTicket() {
         .single();
       if (ticketError) throw ticketError;
 
-      const attachment = file ? await uploadTicketAttachment(organizationId, ticket.id, file) : {};
+      try {
+        const attachment = file ? await uploadTicketAttachment(organizationId, ticket.id, file) : {};
 
-      const { error: messageError } = await supabase
-        .from("support_ticket_messages")
-        .insert({ ticket_id: ticket.id, organization_id: ticket.organization_id, sender_id: createdBy, body: message, ...attachment });
-      if (messageError) {
-        if ("attachment_path" in attachment && typeof attachment.attachment_path === "string") {
-          await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+        const { error: messageError } = await supabase
+          .from("support_ticket_messages")
+          .insert({ ticket_id: ticket.id, organization_id: ticket.organization_id, sender_id: createdBy, body: message, ...attachment });
+        if (messageError) {
+          if ("attachment_path" in attachment && typeof attachment.attachment_path === "string") {
+            const { error: cleanupError } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+            if (cleanupError) {
+              throw new Error(`${messageError.message} (also failed to remove uploaded file: ${cleanupError.message})`);
+            }
+          }
+          throw messageError;
         }
-        throw messageError;
-      }
 
-      return ticket;
+        return ticket;
+      } catch (error) {
+        await supabase.from("support_tickets").delete().eq("id", ticket.id);
+        throw error;
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["support_tickets"] }),
   });

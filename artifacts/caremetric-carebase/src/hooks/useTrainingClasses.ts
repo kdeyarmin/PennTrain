@@ -63,10 +63,19 @@ export function useClassAttendeeCounts() {
   return useQuery({
     queryKey: ["training_class_attendees", "all-counts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("training_class_attendees").select("class_id");
-      if (error) throw error;
+      // PostgREST caps a single select. Page through every attendee row so list-view counts stay
+      // accurate once total attendees exceed max-rows (commonly 1000).
+      const pageSize = 1000;
       const counts: Record<string, number> = {};
-      for (const row of data) counts[row.class_id] = (counts[row.class_id] ?? 0) + 1;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("training_class_attendees")
+          .select("class_id")
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        for (const row of data ?? []) counts[row.class_id] = (counts[row.class_id] ?? 0) + 1;
+        if (!data || data.length < pageSize) break;
+      }
       return counts;
     },
   });
