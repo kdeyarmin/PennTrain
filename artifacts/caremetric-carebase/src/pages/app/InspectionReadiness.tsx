@@ -157,6 +157,8 @@ export default function InspectionReadiness() {
   const specialCareSourceFailure = [
     unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery,
   ].find((query) => query.isError);
+  const specialCareBusy = [unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery]
+    .some((query) => query.isLoading || (query.data === undefined && (query.isPending || query.isFetching)));
 
 
   const overall = useMemo(() => {
@@ -562,20 +564,20 @@ export default function InspectionReadiness() {
             ) : (
               <>
             <div>
-              <p className="text-2xl font-bold">{specialCareSummary.designatedUnits.length}</p>
+              <p className="text-2xl font-bold">{specialCareBusy ? "—" : specialCareSummary.designatedUnits.length}</p>
               <p className="text-xs text-muted-foreground">designated unit(s)</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{specialCareSummary.residentPlacements}</p>
+              <p className="text-2xl font-bold">{specialCareBusy ? "—" : specialCareSummary.residentPlacements}</p>
               <p className="text-xs text-muted-foreground">resident placement(s)</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{specialCareSummary.staffingGapCount}</p>
+              <p className="text-2xl font-bold">{specialCareBusy ? "—" : specialCareSummary.staffingGapCount}</p>
               <p className="text-xs text-muted-foreground">training/staffing gap(s)</p>
             </div>
             <div>
-              <Badge variant={specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
-                {specialCareSummary.status.replaceAll("_", " ")}
+              <Badge variant={!specialCareBusy && specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
+                {specialCareBusy ? "Loading" : specialCareSummary.status.replaceAll("_", " ")}
               </Badge>
               <p className="mt-2 text-xs text-muted-foreground">
                 Uses unit designation, SDCU resident placement, schedule preferences, and dementia/special-care training records.
