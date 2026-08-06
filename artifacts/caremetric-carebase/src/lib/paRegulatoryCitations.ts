@@ -28,6 +28,7 @@
  * Facility (ALF)" even where the regulation's own title says "Assisted Living Residence". The
  * stored facility-type code stays "ALR".
  */
+import { facilityDaysUntil } from "./dateUtils";
 import type { FacilityType } from "./facilityTypes";
 
 /** Human review date for this catalog. Surfaced in the UI so the library shows its own staleness. */
@@ -257,8 +258,10 @@ export function citationsForModule(
 }
 
 export function citationLibraryAgeInDays(now: Date = new Date()): number {
-  const verified = new Date(`${PA_CITATIONS_LAST_VERIFIED}T00:00:00Z`);
-  return Math.floor((now.getTime() - verified.getTime()) / 86_400_000);
+  const until = facilityDaysUntil(PA_CITATIONS_LAST_VERIFIED, now);
+  if (until === null) return 0;
+  // Normalize -0 from `-facilityDaysUntil(...)` so Object.is / vitest `toBe(0)` stay clean.
+  return until === 0 ? 0 : -until;
 }
 
 export function isCitationLibraryStale(now: Date = new Date()): boolean {

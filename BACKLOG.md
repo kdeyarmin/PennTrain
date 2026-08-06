@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `86e69444` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **fourteenth-pass** after G170–G173. Closed license due-tone + acuity settling facility day math, AdminDashboard org/credential/training fail-open, Field/Choice aria-label cloning (licensing + financial ops + services calendar), and remaining unlabeled Selects (emergency comms, notification templates, survey disposition, competency checklist, assessment form fields, etc.). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `d5fcb082` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **fifteenth-pass** after G174–G177. Closed facility-calendar day math across administrator rule packs, incident investigation overdue, citation-library age, care-profile age, enterprise grant age, DME inspection due, compliance/assignment/credential analytics, and competency-evaluation dialog reset. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -610,6 +610,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G175 | AdminDashboard org tiles + urgent badge fail-open to 0 / Ready | S | done | Dash org/credential/training counts while health/dashboard loading or error; badge says Metrics unavailable |
 | G176 | Field/Choice unlabeled in licensing, financial ops, services calendar | S | done | Clone aria-label onto Choice/Input; Choice SelectTrigger accepts aria-label |
 | G177 | Remaining unlabeled Selects (comms, templates, survey, assessment…) | S | done | Emergency audience/delivery/channel; notification channel/org; package; task owner; disposition; checklist; assessment degree/freq/party; class picker; portal request type; etc. |
+| G178 | Administrator rule pack CE/due used UTC `addDays`/`daysBetween` | M | done | `addFacilityCalendarDays` + `facilityDaysUntil` for CE window and due-soon |
+| G179 | Investigation overdue / citation age / care-profile age ms math | M | done | Facility calendar age for incident trends, citation library, care header staleness |
+| G180 | Grant age / DME inspection / analytics `daysUntil` browser math | M | done | Enterprise grant label, DME inspection due, course/credential/compliance/state-form analytics |
+| G181 | CompetencyRecords create dialog sticky drafts | S | done | Reset form/employee/item results on dialog close |
 
 ## Explicitly not now
 

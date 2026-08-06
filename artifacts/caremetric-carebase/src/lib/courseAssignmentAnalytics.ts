@@ -1,3 +1,5 @@
+import { facilityDaysUntil } from "./dateUtils";
+
 export interface CourseAssignmentAnalyticsRecord {
   id: string;
   status: string;
@@ -17,9 +19,8 @@ export interface CourseAssignmentAnalyticsSummary {
 }
 
 function daysUntil(date: string, today: string): number {
-  const todayTime = Date.parse(`${today}T00:00:00Z`);
-  const dateTime = Date.parse(`${date}T00:00:00Z`);
-  return Math.ceil((dateTime - todayTime) / 86_400_000);
+  const anchor = new Date(`${today}T16:00:00Z`);
+  return facilityDaysUntil(date, anchor) ?? 0;
 }
 
 export function summarizeCourseAssignmentAnalytics(assignments: CourseAssignmentAnalyticsRecord[], today: string): CourseAssignmentAnalyticsSummary {

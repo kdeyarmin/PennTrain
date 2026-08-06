@@ -1,3 +1,4 @@
+import { facilityDaysUntil } from "./dateUtils";
 import { getRequiredStateFormInfo } from "./residentCompliance";
 import { isDigitalFormEligible } from "./residentAssessmentFormSchema";
 
@@ -258,9 +259,9 @@ export function deriveStateFormWorkflow(
 // Queue ordering for the State Forms Center
 
 function daysUntil(date: string, today: string): number {
-  // Bare "YYYY-MM-DD" date columns; parse both at UTC midnight so the difference is a whole-day
-  // count regardless of the viewer's timezone (same approach as residentComplianceAnalytics.ts).
-  return Math.ceil((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  // Bare "YYYY-MM-DD" date columns — facility calendar day difference.
+  const anchor = new Date(`${today}T16:00:00Z`);
+  return facilityDaysUntil(date, anchor) ?? 0;
 }
 
 // Group ordering: expired (most overdue first) < missing < due_soon (nearest due first) <

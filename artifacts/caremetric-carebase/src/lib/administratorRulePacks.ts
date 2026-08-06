@@ -1,4 +1,5 @@
 import type { FacilityType } from "./facilityTypes";
+import { addFacilityCalendarDays, facilityDaysUntil } from "./dateUtils";
 
 export type AdministratorRuleStatus = "compliant" | "due_soon" | "expired" | "missing";
 
@@ -40,16 +41,11 @@ export interface AdministratorRulePackRequirement {
 const CE_WINDOW_DAYS = 365;
 const DUE_SOON_DAYS = 30;
 
-function addDays(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
+/** Facility-calendar days from `startIso` to `endIso` (both `YYYY-MM-DD`). */
 function daysBetween(startIso: string, endIso: string): number {
-  const start = new Date(`${startIso}T00:00:00Z`).getTime();
-  const end = new Date(`${endIso}T00:00:00Z`).getTime();
-  return Math.ceil((end - start) / 86_400_000);
+  // Anchor `now` at noon UTC on the start day so facilityToday matches the date-only input.
+  const anchor = new Date(`${startIso}T16:00:00Z`);
+  return facilityDaysUntil(endIso, anchor) ?? 0;
 }
 
 function statusFromDueDate(dueDate: string | null, today: string, present: boolean): AdministratorRuleStatus {
@@ -61,7 +57,7 @@ function statusFromDueDate(dueDate: string | null, today: string, present: boole
 }
 
 function rollingCe(ceEntries: AdministratorRulePackCeEntry[], today: string) {
-  const cutoff = addDays(today, -CE_WINDOW_DAYS);
+  const cutoff = addFacilityCalendarDays(today, -CE_WINDOW_DAYS);
   return ceEntries
     .filter((entry) => entry.completed_date >= cutoff && entry.completed_date <= today)
     .reduce((sum, entry) => sum + Number(entry.hours), 0);
@@ -118,7 +114,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     });
   }
 
-  const ceCutoff = addDays(evidence.today, -CE_WINDOW_DAYS);
+  const ceCutoff = addFacilityCalendarDays(evidence.today, -CE_WINDOW_DAYS);
   const ceWindowEntries = ceEntries.filter((entry) => entry.completed_date >= ceCutoff && entry.completed_date <= evidence.today);
   const ceHours = rollingCe(ceEntries, evidence.today);
   // The CE requirement lapses on the first day the trailing-365-day total drops
@@ -132,7 +128,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     for (const entry of sortedByDate) {
       remaining -= Number(entry.hours);
       if (remaining < 24) {
-        ceDueDate = addDays(entry.completed_date, CE_WINDOW_DAYS);
+        ceDueDate = addFacilityCalendarDays(entry.completed_date, CE_WINDOW_DAYS);
         break;
       }
     }

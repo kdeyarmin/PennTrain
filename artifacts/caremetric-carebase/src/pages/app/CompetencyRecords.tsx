@@ -425,7 +425,14 @@ export default function CompetencyRecords() {
         <span>{allRecords.length} record{allRecords.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => {
+        if (!o) {
+          setShowForm(false);
+          setForm(emptyRecordForm());
+          setFormEmployee(null);
+          setItemResults({});
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Competency Evaluation</DialogTitle>

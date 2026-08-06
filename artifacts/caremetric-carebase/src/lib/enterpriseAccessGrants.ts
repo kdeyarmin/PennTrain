@@ -6,6 +6,8 @@
  * server stays the authority and re-checks all of them.
  */
 
+import { facilityDaysUntil, facilityToday } from "./dateUtils";
+
 export interface EndGrantInput {
   reason: string;
   /** ISO instant the access stops. */
@@ -43,7 +45,9 @@ export function endGrantIssues(input: EndGrantInput): string[] {
 export function grantAgeLabel(effectiveFrom: string, now: Date): string {
   const start = Date.parse(effectiveFrom);
   if (Number.isNaN(start)) return "unknown age";
-  const days = Math.floor((now.getTime() - start) / 86_400_000);
+  const until = facilityDaysUntil(facilityToday(new Date(start)), now);
+  if (until === null) return "unknown age";
+  const days = -until;
   if (days < 0) return "not yet effective";
   if (days === 0) return "standing since today";
   if (days === 1) return "standing 1 day";

@@ -17,6 +17,8 @@
  * so a repair request does not leave equipment marked serviceable.
  */
 
+import { facilityDaysUntil, facilityToday } from "./dateUtils";
+
 export type DmeEventType =
   | "assigned"
   | "inspected"
@@ -163,7 +165,8 @@ export function dmeInspectionState(
   if (Number.isNaN(last)) {
     return { dueInDays: null, overdue: true, label: `Never inspected (every ${frequency} days)` };
   }
-  const elapsedDays = Math.floor((now.getTime() - last) / 86_400_000);
+  const until = facilityDaysUntil(facilityToday(new Date(last)), now);
+  const elapsedDays = until === null ? 0 : -until;
   const dueInDays = frequency - elapsedDays;
   if (dueInDays < 0) {
     return { dueInDays, overdue: true, label: `Inspection overdue by ${Math.abs(dueInDays)} days` };

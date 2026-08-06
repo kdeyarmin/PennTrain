@@ -6,6 +6,8 @@
 // scanning it at 3am; "Not assessed" reads as what it is -- an open question. That distinction is
 // the whole reason these fields are enumerated instead of free text.
 
+import { facilityDaysUntil, facilityToday } from "./dateUtils";
+
 export type CareHeaderTone = "neutral" | "attention" | "critical";
 
 export interface ResidentCareHeader {
@@ -280,9 +282,10 @@ export function careHeaderFields(header: ResidentCareHeader): CareHeaderField[] 
  */
 export function careProfileAgeInDays(asOf: string | null, now: Date = new Date()): number | null {
   if (!asOf) return null;
-  const reviewed = new Date(asOf);
-  if (Number.isNaN(reviewed.getTime())) return null;
-  return Math.floor((now.getTime() - reviewed.getTime()) / 86_400_000);
+  const reviewedMs = Date.parse(asOf);
+  if (!Number.isFinite(reviewedMs)) return null;
+  const until = facilityDaysUntil(facilityToday(new Date(reviewedMs)), now);
+  return until === null ? null : -until;
 }
 
 /**
