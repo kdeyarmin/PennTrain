@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `8705966b` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c` after #461: **fourth-pass full-app review.** Closed G111–G120 (State Forms / complaint-closure / admissions / Needs Attention fail-open, credential/admissions metric zeros, facility datetime-local defaults, silent portal/agreement/offline mutates, practicum empty-on-error). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `8705966b` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c` after #461: **fourth-pass full-app review.** Closed G111–G121 (State Forms / complaint-closure / admissions / Needs Attention fail-open, credential/admissions metric zeros, facility datetime-local defaults, silent portal/agreement/offline mutates, practicum empty-on-error). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -553,6 +553,7 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G118 | Designated-person schedule respond + offline remove silent | S | done | Portal Confirm/Change/Cannot-attend and MyCourses single offline remove had no failure UI. Error text / toast |
 | G119 | Employee practicum empty-on-error; practicum year browser/UTC | S | done | Annual Practicum card said "No practicum record" on fetch failure; year used `getFullYear()`. QueryError + `facilityYear()` (RetrainingMonitor too) |
 | G120 | Evidence Room create dialog kept prior name/purpose | S | done | Cancel left form state; reopen showed last draft. Reset on open + remount key |
+| G121 | Journey-end filter Selects failed critical a11y (e2e) | S | done | Org-admin Guest Access and facility-manager Confidential Reports axe scans failed on unlabeled `SelectTrigger`s. `aria-label` on those filters; guest grants-in-view tile also dashes on error |
 
 ## Explicitly not now
 

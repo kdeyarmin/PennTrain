@@ -230,7 +230,7 @@ export default function GuestAccessCenter() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.data?.rows.length ?? "—"}</p><p className="text-sm text-muted-foreground">Grants in view</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading || grantsQuery.isError ? "—" : (grantsQuery.data?.rows.length ?? 0)}</p><p className="text-sm text-muted-foreground">Grants in view</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading || grantsQuery.isError ? "—" : activeCount}</p><p className="text-sm text-muted-foreground">Active in view</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{canManage ? "Revoke" : "View"}</p><p className="text-sm text-muted-foreground">{canManage ? "Managers may revoke with reason" : "Read-only for auditors"}</p></CardContent></Card>
       </div>
@@ -244,7 +244,7 @@ export default function GuestAccessCenter() {
 
       <div className="filter-bar premium-card flex flex-wrap gap-2">
         <Select value={kindFilter} onValueChange={setKindFilter}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-48" aria-label="Grant type"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All grant types</SelectItem>
             {(Object.keys(KIND_LABEL) as GrantKind[]).map((k) => (
@@ -253,7 +253,7 @@ export default function GuestAccessCenter() {
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-40" aria-label="Grant status"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active only</SelectItem>
             <SelectItem value="inactive">Revoked / expired</SelectItem>
