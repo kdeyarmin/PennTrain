@@ -138,6 +138,33 @@ export function toDateTimeLocal(value: Date | string = new Date()): string {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
+/**
+ * Convert a Date or ISO timestamp to a Pennsylvania facility-wall-clock `YYYY-MM-DDTHH:mm`
+ * string for `<input type="datetime-local">`. Pair with `facilityDateTimeLocalToUtcIso` on
+ * submit — `toDateTimeLocal` answers in the browser zone, which is the wrong default when the
+ * field is later interpreted as America/New_York.
+ */
+export function toFacilityDateTimeLocal(value: Date | string = new Date()): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) throw new Error(`invalid datetime: ${String(value)}`);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: FACILITY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+/** Pennsylvania calendar year — the twin of `facilityToday().slice(0, 4)`. */
+export function facilityYear(now = new Date()): number {
+  return Number(facilityToday(now).slice(0, 4));
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**

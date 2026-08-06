@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `92e9ba90` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-6b8e` after merging #460 and parallel G97–G106 leftovers: **combined follow-on reviews after #458/#459.** #460 closed G57–G61. This branch closed G62–G110 (empty⇒ready scoring, silent mutates, clinical disclosure consent, and the later empty⇒success leftovers). Regenerated `database.types.ts` for `set_resident_clinical_data_consent`. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `8705966b` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c` after #461: **fourth-pass full-app review.** Closed G111–G120 (State Forms / complaint-closure / admissions / Needs Attention fail-open, credential/admissions metric zeros, facility datetime-local defaults, silent portal/agreement/offline mutates, practicum empty-on-error). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -543,6 +543,16 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G108 | Silent mutates: shift ack, PM pause, announcements, admissions, finalize | S | done | MyShift acknowledge, Maintenance pause/resume, Announcements mark-seen, Admission activity/referral source, assessment finalize now toast onError |
 | G109 | Guest portals accept/sign silent on failure | S | done | Move-in and resident-agreement guest portals only handled onSuccess. Toast accept/sign/respond errors |
 | G110 | Employee search empty copy beside load error | S | done | `!isLoading && length===0` still said "No employees match" when query failed (error text already shown). Require `!isError` |
+| G111 | State Forms Center empty⇒"all current" on load failure | S | done | QueryError banner existed but tiles still showed zeros and Needs Action rendered green CheckCircle "All state forms are current". Dash tiles + skip empty-success while `queueFailure` |
+| G112 | Complaint closure readiness fail-open on activity error | S | done | `activity.data?.actions ?? []` made failed activity load score "Corrective actions complete". Unknown (unavailable) until activity loads |
+| G113 | Admissions metrics/census empty-on-error; silent bed hold | S | done | Metric strip always `(data ?? [])` zeros; census tab mapped with no `isError`; `setBed.mutate` only onSuccess. Dash + QueryError + onError toast |
+| G114 | Resident Needs Attention all-clear when care header fails | S | done | `careHeader.data` falsy ⇒ `cards=[]` ⇒ green "Nothing open…". Panel takes `isError`/`onRetry` |
+| G115 | Credential summary tiles zeroed on list error | S | done | List had QueryError; Expired/Due soon/Missing/Gaps still showed 0. Show "—" while loading/error |
+| G116 | Facility datetime-local defaults still browser-zone | M | done | Emergency ops/event detail, hospital return, WorkItemDetail due display used browser `datetime-local` then `facilityDateTimeLocalToUtcIso`. Added `toFacilityDateTimeLocal` / `facilityYear`; wire callers |
+| G117 | Silent agreement revoke / copy delivery; stale share dialog | S | done | `revokeGrant` and `markCopy` lacked onError; External link reopen kept prior guest versions. Toast + reset on open |
+| G118 | Designated-person schedule respond + offline remove silent | S | done | Portal Confirm/Change/Cannot-attend and MyCourses single offline remove had no failure UI. Error text / toast |
+| G119 | Employee practicum empty-on-error; practicum year browser/UTC | S | done | Annual Practicum card said "No practicum record" on fetch failure; year used `getFullYear()`. QueryError + `facilityYear()` (RetrainingMonitor too) |
+| G120 | Evidence Room create dialog kept prior name/purpose | S | done | Cancel left form state; reopen showed last draft. Reset on open + remount key |
 
 ## Explicitly not now
 

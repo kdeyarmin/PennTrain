@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -91,11 +91,9 @@ const ORDER_OPTIONS = [
   { value: "not_applicable", label: "No new or changed orders" },
 ];
 
-/** `datetime-local` wants local wall-clock with no zone; toISOString would shift it. */
+/** `datetime-local` wants facility wall-clock with no zone; pair with facilityDateTimeLocalToUtcIso. */
 function localNowForInput(): string {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  return toFacilityDateTimeLocal();
 }
 
 export default function RecordHospitalReturnDialog({

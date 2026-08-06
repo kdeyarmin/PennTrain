@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useState } from "react";
-import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 
 import { Link, useParams } from "wouter";
 import {
@@ -47,10 +47,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const human = (value: string) =>
   value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const localDateTime = () => {
-  const value = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000);
-  return value.toISOString().slice(0, 16);
-};
+const localDateTime = () => toFacilityDateTimeLocal();
 const accountabilityStatuses = ["present", "evacuated", "relocated", "sheltering", "not_present", "unaccounted"];
 
 export default function EmergencyEventDetail() {
@@ -92,10 +89,7 @@ export default function EmergencyEventDetail() {
   const [actionDescription, setActionDescription] = useState("");
   const [actionOwner, setActionOwner] = useState(user?.id ?? "");
   const [actionPriority, setActionPriority] = useState("high");
-  const [actionDueAt, setActionDueAt] = useState(() => {
-    const date = new Date(Date.now() + 7 * 86_400_000 - new Date().getTimezoneOffset() * 60_000);
-    return date.toISOString().slice(0, 16);
-  });
+  const [actionDueAt, setActionDueAt] = useState(() => `${addFacilityCalendarDays(facilityToday(), 7)}T17:00`);
   const [transitionReason, setTransitionReason] = useState("");
 
   useEffect(() => {

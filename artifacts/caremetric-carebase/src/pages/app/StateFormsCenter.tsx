@@ -188,7 +188,10 @@ export default function StateFormsCenter() {
         {tiles.map((tile) => (
           <Card key={tile.label}>
             <CardContent className="pt-4 pb-3">
-              <p className={`text-2xl font-bold ${tile.tone}`}>{tile.value}</p>
+              {/* Failed loads must not read as zeros — same class as Complaints/WorkQueue tiles. */}
+              <p className={`text-2xl font-bold ${queueFailure ? "text-muted-foreground" : tile.tone}`}>
+                {isLoading || queueFailure ? "—" : tile.value}
+              </p>
               <p className="text-xs text-muted-foreground">{tile.label}</p>
             </CardContent>
           </Card>
@@ -211,6 +214,8 @@ export default function StateFormsCenter() {
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
           </div>
+        ) : queueFailure ? (
+          <p className="text-sm text-muted-foreground">Action queue unavailable until the load above succeeds.</p>
         ) : openItems.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center">
@@ -232,7 +237,9 @@ export default function StateFormsCenter() {
           Starting a reassessment pre-fills last year's finalized answers so only what changed
           needs revising.
         </p>
-        {!isLoading && upcomingRenewals.length === 0 ? (
+        {queueFailure ? (
+          <p className="text-sm text-muted-foreground">Renewal list unavailable until the load above succeeds.</p>
+        ) : !isLoading && upcomingRenewals.length === 0 ? (
           <p className="text-sm text-muted-foreground">No renewals due in the next {RENEWAL_WINDOW_DAYS} days.</p>
         ) : (
           <div className="space-y-2">{upcomingRenewals.map(renderItemRow)}</div>

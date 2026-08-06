@@ -290,7 +290,13 @@ export default function ResidentDetail() {
           <p className="text-sm text-muted-foreground">Discharged {formatDateOnly(resident.discharge_date)}</p>
         )}
 
-        <ResidentNeedsAttentionPanel cards={needsAttentionCards} isLoading={needsAttentionLoading} />
+        <ResidentNeedsAttentionPanel
+          cards={needsAttentionCards}
+          isLoading={needsAttentionLoading}
+          isError={careHeader.isError}
+          error={careHeader.error instanceof Error ? careHeader.error : null}
+          onRetry={() => void careHeader.refetch()}
+        />
 
         <Suspense fallback={null}>
           <ResidentCareConflictsSection

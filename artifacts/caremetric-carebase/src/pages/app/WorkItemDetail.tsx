@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useState } from "react";
-import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 
 import { Link, useParams } from "wouter";
 import {
@@ -63,9 +63,7 @@ function formatTimestamp(value: string | null): string {
 }
 
 function toDateTimeLocal(value: string): string {
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  return toFacilityDateTimeLocal(value);
 }
 
 function actorName(actor: { first_name: string; last_name: string } | null): string {

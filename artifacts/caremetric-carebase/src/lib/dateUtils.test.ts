@@ -8,8 +8,10 @@ import {
   facilityDaysUntil,
   addFacilityCalendarDays,
   facilityToday,
+  facilityYear,
   formatDateForDisplay,
   formatDueDistance,
+  toFacilityDateTimeLocal,
   toLocalIsoDate,
 } from "./dateUtils";
 
@@ -61,6 +63,27 @@ describe("facilityToday", () => {
   it("zero-pads so the result compares and sorts as a date string", () => {
     expect(facilityToday(new Date("2026-03-05T17:00:00Z"))).toBe("2026-03-05");
     expect(facilityToday(new Date("2026-11-09T17:00:00Z"))).toBe("2026-11-09");
+  });
+});
+
+describe("toFacilityDateTimeLocal", () => {
+  it("formats an instant as Pennsylvania wall clock for datetime-local inputs", () => {
+    // 2026-07-27T00:56Z = 2026-07-26 20:56 EDT
+    expect(toFacilityDateTimeLocal(new Date("2026-07-27T00:56:00Z"))).toBe("2026-07-26T20:56");
+  });
+
+  it("round-trips through facilityDateTimeLocalToUtcIso for an EDT afternoon", () => {
+    const local = toFacilityDateTimeLocal(new Date("2026-07-15T18:30:00Z"));
+    expect(local).toBe("2026-07-15T14:30");
+    expect(facilityDateTimeLocalToUtcIso(local)).toBe("2026-07-15T18:30:00.000Z");
+  });
+});
+
+describe("facilityYear", () => {
+  it("follows the Pennsylvania calendar year across the UTC midnight gap", () => {
+    // Still 2025-12-31 in ET when UTC has already rolled to 2026.
+    expect(facilityYear(new Date("2026-01-01T03:00:00Z"))).toBe(2025);
+    expect(facilityYear(new Date("2026-01-01T05:00:00Z"))).toBe(2026);
   });
 });
 

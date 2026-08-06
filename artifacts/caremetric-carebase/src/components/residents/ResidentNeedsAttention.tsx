@@ -3,6 +3,7 @@ import { CheckCircle2, Info, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import {
   summarizeNeedsAttention, UNAVAILABLE_CARDS,
@@ -50,9 +51,15 @@ function AttentionCard({ card }: { card: NeedsAttentionCard }) {
 export function ResidentNeedsAttentionPanel({
   cards,
   isLoading,
+  isError,
+  error,
+  onRetry,
 }: {
   cards: NeedsAttentionCard[];
   isLoading?: boolean;
+  isError?: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
 }) {
   const summary = summarizeNeedsAttention(cards);
 
@@ -66,7 +73,7 @@ export function ResidentNeedsAttentionPanel({
             </CardTitle>
             <CardDescription>What requires action for this resident today, highest priority first.</CardDescription>
           </div>
-          {!isLoading && summary.total > 0 && (
+          {!isLoading && !isError && summary.total > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {summary.urgent > 0 && <Badge variant="outline" className="border-destructive text-destructive">{summary.urgent} urgent</Badge>}
               {summary.high > 0 && <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-500">{summary.high} high</Badge>}
@@ -81,6 +88,8 @@ export function ResidentNeedsAttentionPanel({
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
           </>
+        ) : isError ? (
+          <QueryError what="needs-attention signals" error={error} onRetry={onRetry} />
         ) : cards.length === 0 ? (
           <p className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />

@@ -107,7 +107,7 @@ export default function EvidenceRoom() {
           </p>
         </div>
         {canManage && (
-          <Button onClick={() => { setFacilityId(facilities?.[0]?.id ?? ""); setShowCreate(true); }}>
+          <Button onClick={() => { setFacilityId(facilities?.[0]?.id ?? ""); setName(""); setPurpose(""); setShowCreate(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New collection
           </Button>
         )}
@@ -238,7 +238,7 @@ export default function EvidenceRoom() {
         </CardContent>
       </Card>
 
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog key={showCreate ? "create-open" : "create-closed"} open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New documentation collection</DialogTitle>

@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, facilityYear } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -251,7 +251,7 @@ export default function RetrainingMonitor() {
   const facilitiesQuery = useListFacilities();
   // Only active med-admin staff -- matches what buildFacilityRetrainingStatus counts.
   const employeesQuery = useListEmployees({ status: "active", administersMedications: true });
-  const practicumsQuery = useListPracticums({ year: new Date().getFullYear() });
+  const practicumsQuery = useListPracticums({ year: facilityYear() });
   const { data: facilities, isLoading: facilitiesLoading } = facilitiesQuery;
   const { data: employees, isLoading: employeesLoading } = employeesQuery;
   const { data: practicums, isLoading: practicumsLoading } = practicumsQuery;

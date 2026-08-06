@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
-import { facilityToday, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { facilityToday, facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -56,10 +56,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const human = (value: string) =>
   value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const localDateTime = () => {
-  const value = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000);
-  return value.toISOString().slice(0, 16);
-};
+const localDateTime = () => toFacilityDateTimeLocal();
 
 type DialogName = "plan" | "event" | "profile" | "resource" | "inventory" | "assignment" | null;
 

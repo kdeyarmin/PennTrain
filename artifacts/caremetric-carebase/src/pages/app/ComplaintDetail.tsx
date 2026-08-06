@@ -93,7 +93,13 @@ export default function ComplaintDetail() {
     onSuccess: () => { toast({ title: status === "closed" ? "Complaint closed with approval" : "Complaint case updated" }); setReason(""); },
     onError: (error: Error) => toast({ title: "Could not update complaint", description: error.message, variant: "destructive" }),
   });
-  const openActions = (activity.data?.actions ?? []).filter(action => action.work_item && !["closed", "canceled"].includes(action.work_item.state));
+  // Activity load failure must not score as "no open actions" / monitoring satisfied — that is
+  // ready-on-error for a database-enforced closure checklist.
+  const activityReady = !activity.isError && activity.data !== undefined;
+  const openActions = activityReady
+    ? activity.data.actions.filter(action => action.work_item && !["closed", "canceled"].includes(action.work_item.state))
+    : null;
+  const monitoringEntries = activityReady ? activity.data.monitoring.length : null;
 
   return (
     <div className="space-y-6">
@@ -101,13 +107,18 @@ export default function ComplaintDetail() {
       {c.incident && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Reportable incident workflow linked</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{humanizeComplaint(c.incident.incident_type)} · {humanizeComplaint(c.incident.severity)} · {humanizeComplaint(c.incident.status)}</span><Button asChild size="sm" variant="outline"><Link href={`/app/incidents/${c.incident.id}`}>Open incident</Link></Button></AlertDescription></Alert>}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2"><CardHeader><CardTitle>Complaint intake</CardTitle></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Complainant</p><p className="font-medium">{c.is_anonymous ? "Anonymous" : c.complainant_name}</p><p className="text-sm text-muted-foreground">{humanizeComplaint(c.complainant_type)} · {humanizeComplaint(c.method_received)}</p></div><div><p className="text-xs text-muted-foreground">Resident</p><p className="font-medium">{c.resident ? `${c.resident.first_name} ${c.resident.last_name}` : "No resident linked"}</p><p className="text-sm text-muted-foreground">{c.resident?.room ? `Room ${c.resident.room}` : ""}</p></div><div><p className="text-xs text-muted-foreground">Category</p><p className="font-medium">{humanizeComplaint(c.category)}</p></div><div><p className="text-xs text-muted-foreground">Immediate risk</p><Badge variant={["high", "imminent"].includes(c.immediate_risk) ? "destructive" : "outline"}>{humanizeComplaint(c.immediate_risk)}</Badge></div></div><div><p className="text-xs text-muted-foreground">Concern</p><p className="whitespace-pre-wrap text-sm">{c.description}</p></div>{c.immediate_action_taken && <div><p className="text-xs text-muted-foreground">Immediate protective action</p><p className="whitespace-pre-wrap text-sm">{c.immediate_action_taken}</p></div>}{c.reportable_concerns.length > 0 && <div><p className="text-xs text-muted-foreground">Reportability indicators</p><div className="mt-1 flex flex-wrap gap-1">{c.reportable_concerns.map(value => <Badge key={value} variant="destructive">{humanizeComplaint(value)}</Badge>)}</div></div>}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Closure readiness</CardTitle><CardDescription>Database-enforced requirements</CardDescription></CardHeader><CardContent className="space-y-2 text-sm">{[
+        <Card><CardHeader><CardTitle>Closure readiness</CardTitle><CardDescription>Database-enforced requirements</CardDescription></CardHeader><CardContent className="space-y-2 text-sm">
+          {activity.isError && (
+            <QueryError what="closure activity" error={activity.error} onRetry={() => void activity.refetch()} />
+          )}
+          {[
           [!!acknowledgement, "Acknowledgement recorded"], [investigator !== "none", "Investigator assigned"],
           [notes.trim().length >= 10, "Investigation notes complete"], [findings.trim().length >= 10, "Findings complete"],
           [writtenResponse.trim().length >= 10 && !!writtenResponseDate, "Written response recorded"],
-          [openActions.length === 0, "Corrective actions complete"],
-          [!monitoringRequired || (!!monitoringUntil && new Date(monitoringUntil) <= new Date() && (activity.data?.monitoring.length ?? 0) > 0), "Nonretaliation monitoring complete"],
-        ].map(([ready, label]) => <div key={String(label)} className="flex items-center gap-2">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span>{String(label)}</span></div>)}</CardContent></Card>
+          [openActions === null ? null : openActions.length === 0, "Corrective actions complete"],
+          [monitoringEntries === null ? null : (!monitoringRequired || (!!monitoringUntil && new Date(monitoringUntil) <= new Date() && monitoringEntries > 0)), "Nonretaliation monitoring complete"],
+        ].map(([ready, label]) => <div key={String(label)} className="flex items-center gap-2">{ready === null ? <AlertTriangle className="h-4 w-4 text-muted-foreground" /> : ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className={ready === null ? "text-muted-foreground" : undefined}>{String(label)}{ready === null ? " (unavailable)" : ""}</span></div>)}
+        </CardContent></Card>
       </div>
 
       <Card><CardHeader><CardTitle>Investigation, response & closure</CardTitle><CardDescription>Auditors can review this record; only authorized managers can change it.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
