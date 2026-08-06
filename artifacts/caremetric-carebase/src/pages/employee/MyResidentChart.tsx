@@ -28,7 +28,7 @@ import {
   OBSERVATION_SYNC_MESSAGES, useSaveOfflineObservationDraft, useSyncOfflineObservationDraft,
 } from "@/hooks/useOfflineObservationDrafts";
 import type { OfflineObservationSyncOutcome } from "@/lib/offlineObservationDraftSafety";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { usePageTitle } from "@/lib/pageTitle";
 import {
   OBSERVATION_CONFIG,
@@ -71,7 +71,7 @@ export default function MyResidentChart() {
   const [valueText, setValueText] = useState("");
   const [customLabel, setCustomLabel] = useState("");
   const [unit, setUnit] = useState(OBSERVATION_CONFIG.blood_pressure.unit);
-  const [observedAt, setObservedAt] = useState(() => toDateTimeLocal(new Date()));
+  const [observedAt, setObservedAt] = useState(() => toFacilityDateTimeLocal());
   const [note, setNote] = useState("");
 
   const [retracting, setRetracting] = useState<ClinicalObservation | null>(null);
@@ -103,7 +103,7 @@ export default function MyResidentChart() {
     setObservationType("blood_pressure");
     setUnit(OBSERVATION_CONFIG.blood_pressure.unit);
     setValueNumeric(""); setValueSecondary(""); setValueText(""); setCustomLabel(""); setNote("");
-    setObservedAt(toDateTimeLocal(new Date()));
+    setObservedAt(toFacilityDateTimeLocal());
   };
 
   /** Opens the record dialog with one type preselected -- the bedside path (see QUICK_OBSERVATION_TYPES). */

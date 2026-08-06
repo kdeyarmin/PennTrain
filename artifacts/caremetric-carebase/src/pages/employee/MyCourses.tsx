@@ -146,7 +146,7 @@ export default function MyCourses() {
         </CardHeader>
         <CardContent className="space-y-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Status">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>

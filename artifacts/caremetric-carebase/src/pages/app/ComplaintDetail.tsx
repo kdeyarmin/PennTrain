@@ -2,7 +2,7 @@ import { useId, useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, MessageSquareText, Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityDateTimeToUtc, facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import {
   useAddComplaintCorrectiveAction,
   useAddComplaintInterview,
@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const local = (value: string | null) => value ? toDateTimeLocal(new Date(value)) : "";
+const local = (value: string | null) => value ? toFacilityDateTimeLocal(value) : "";
 const iso = (value: string) => value ? facilityDateTimeLocalToUtcIso(value) : undefined;
 
 export default function ComplaintDetail() {
@@ -156,7 +156,7 @@ export default function ComplaintDetail() {
 
 function InterviewDialog({ open, onOpenChange, complaintId, mutation }: { open: boolean; onOpenChange: (open: boolean) => void; complaintId: string; mutation: ReturnType<typeof useAddComplaintInterview> }) {
   const __fieldIds = useId();
-  const { toast } = useToast(); const [at, setAt] = useState(() => toDateTimeLocal()); const [name, setName] = useState(""); const [relationship, setRelationship] = useState(""); const [notes, setNotes] = useState("");
+  const { toast } = useToast(); const [at, setAt] = useState(() => toFacilityDateTimeLocal()); const [name, setName] = useState(""); const [relationship, setRelationship] = useState(""); const [notes, setNotes] = useState("");
   const atValid = Boolean(at) && !Number.isNaN(new Date(at).getTime());
   const submit = () => {
     if (!atValid) return;
@@ -167,7 +167,7 @@ function InterviewDialog({ open, onOpenChange, complaintId, mutation }: { open: 
 
 function ActionDialog({ open, onOpenChange, complaintId, profiles, mutation }: { open: boolean; onOpenChange: (open: boolean) => void; complaintId: string; profiles: Array<{ id: string; first_name: string; last_name: string; is_active: boolean }>; mutation: ReturnType<typeof useAddComplaintCorrectiveAction> }) {
   const __fieldIds = useId();
-  const { toast } = useToast(); const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [owner, setOwner] = useState(""); const [priority, setPriority] = useState("high"); const [due, setDue] = useState(() => toDateTimeLocal(facilityDateTimeToUtc(addFacilityCalendarDays(facilityToday(), 14), "17:00:00")));
+  const { toast } = useToast(); const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [owner, setOwner] = useState(""); const [priority, setPriority] = useState("high"); const [due, setDue] = useState(() => `${addFacilityCalendarDays(facilityToday(), 14)}T17:00`);
   const dueValid = Boolean(due) && !Number.isNaN(new Date(due).getTime());
   const submit = () => {
     if (!dueValid) return;
@@ -178,7 +178,7 @@ function ActionDialog({ open, onOpenChange, complaintId, profiles, mutation }: {
 
 function MonitoringDialog({ open, onOpenChange, complaintId, mutation }: { open: boolean; onOpenChange: (open: boolean) => void; complaintId: string; mutation: ReturnType<typeof useAddComplaintMonitoring> }) {
   const __fieldIds = useId();
-  const { toast } = useToast(); const [at, setAt] = useState(() => toDateTimeLocal()); const [observations, setObservations] = useState(""); const [concern, setConcern] = useState(false); const [action, setAction] = useState("");
+  const { toast } = useToast(); const [at, setAt] = useState(() => toFacilityDateTimeLocal()); const [observations, setObservations] = useState(""); const [concern, setConcern] = useState(false); const [action, setAction] = useState("");
   const atValid = Boolean(at) && !Number.isNaN(new Date(at).getTime());
   const submit = () => {
     if (!atValid) return;

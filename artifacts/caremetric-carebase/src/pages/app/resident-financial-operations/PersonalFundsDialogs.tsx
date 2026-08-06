@@ -6,7 +6,7 @@ import {
   useUpsertResidentPersonalFundPayeeProfile,
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
-import { facilityDateTimeLocalToUtcIso, toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -401,12 +401,12 @@ export function FundEntryDialog({
 }) {
   const mutation = usePostResidentPersonalFundTransaction();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     kind: "deposit",
     direction: "in",
     amount: "",
     purpose: "",
-    at: toDateTimeLocal(new Date()),
+    at: toFacilityDateTimeLocal(),
     staff: "none",
     receipt: "none",
     acknowledged: true,
@@ -414,6 +414,10 @@ export function FundEntryDialog({
     target: "none",
     reason: "",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   const kind = (value: string) =>
     setForm({
       ...form,

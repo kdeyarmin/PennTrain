@@ -43,7 +43,7 @@ import {
 import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Eraser, Loader2, Pill, Plus, Send, Sparkles, Undo2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios, summarizeMedAdminCoverage } from "@/lib/scheduleAnalytics";
 import { QueryError } from "@/components/QueryState";
 
@@ -307,7 +307,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
   setOverrideForm({
     reason: "",
     authorityReference: "",
-    expiresAt: toDateTimeLocal(defaultExpiresAt),
+    expiresAt: toFacilityDateTimeLocal(defaultExpiresAt),
   });
   setOverrideTarget({ candidate, blockCode });
 }
@@ -471,6 +471,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
         toast({ title: "Shift removed" });
         setEditTarget(null);
       },
+      onError: (e: Error) => toast({ title: "Couldn't remove shift", description: e.message, variant: "destructive" }),
     });
   }
 

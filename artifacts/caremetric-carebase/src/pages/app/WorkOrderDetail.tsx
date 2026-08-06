@@ -2,7 +2,7 @@ import { useId, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, CheckCircle2, Clock3, DollarSign, Download, FileImage, Pause, Pencil, Play, ShieldCheck, Trash2, Upload, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { humanize } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -96,7 +96,7 @@ export default function WorkOrderDetail() {
 
   useEffect(() => {
     if (!order) return;
-    const localTarget = order.target_completion_at ? toDateTimeLocal(order.target_completion_at) : "";
+    const localTarget = order.target_completion_at ? toFacilityDateTimeLocal(order.target_completion_at) : "";
     setEdit({
       locationDetail: order.location_detail ?? "", roomNumber: order.room_number ?? "",
       safetyRisk: order.safety_risk, priority: order.priority,

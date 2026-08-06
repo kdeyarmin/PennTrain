@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { addFacilityCalendarDays, facilityDateRangeBounds, facilityDateTimeLocalToUtcIso, facilityToday, toDateTimeLocal, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateRangeBounds, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal, toLocalIsoDate } from "@/lib/dateUtils";
 
 const EVENT_TYPES = [
   "medical_appointment", "dental_appointment", "behavioral_health_appointment",
@@ -35,9 +35,11 @@ const EVENT_TYPES = [
 ];
 const human = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const list = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
-const addDays = (days: number) => new Date(Date.now() + days * 86_400_000);
 const defaultFromDate = () => addFacilityCalendarDays(facilityToday(), -7);
 const defaultThroughDate = () => addFacilityCalendarDays(facilityToday(), 30);
+/** Facility wall-clock datetime-local default N calendar days ahead at HH:mm. */
+const facilityDefaultAt = (days: number, timeHHmm = "09:00") =>
+  `${addFacilityCalendarDays(facilityToday(), days)}T${timeHHmm}`;
 
 // The submit gates below all check the datetime-local fields are NON-EMPTY, not only that the end
 // is after the start. Clearing "Starts" leaves any non-empty end string greater than "", so the
@@ -126,8 +128,8 @@ function CreateEventDialog({ open, onOpenChange, residents, employees, vehicles 
     providerContact: "",
     location: "",
     address: "",
-    starts: toDateTimeLocal(addDays(1)),
-    ends: toDateTimeLocal(new Date(addDays(1).getTime() + 3_600_000)),
+    starts: facilityDefaultAt(1, "09:00"),
+    ends: facilityDefaultAt(1, "10:00"),
     transport: "none",
     vehicleId: "",
     vendor: "",
@@ -159,10 +161,10 @@ function OutcomeDialog({ event, onClose, profiles }: { event: ResidentServiceCal
   const [reason, setReason] = useState("");
   const [instructions, setInstructions] = useState("");
   const [next, setNext] = useState("");
-  const [draft, setDraft] = useState({ title: "", description: "", owner: "", due: toDateTimeLocal(addDays(3)), priority: "high" });
+  const [draft, setDraft] = useState({ title: "", description: "", owner: "", due: facilityDefaultAt(3, "17:00"), priority: "high" });
   const [followUps, setFollowUps] = useState<Array<typeof draft>>([]);
   useEffect(() => { if (event) { setStatus("completed"); setReason(""); setInstructions(""); setNext(""); setFollowUps([]); } }, [event]);
-  const add = () => { setFollowUps((items) => [...items, draft]); setDraft({ title: "", description: "", owner: "", due: toDateTimeLocal(addDays(3)), priority: "high" }); };
+  const add = () => { setFollowUps((items) => [...items, draft]); setDraft({ title: "", description: "", owner: "", due: facilityDefaultAt(3, "17:00"), priority: "high" }); };
   const submit = () => { if (!event) return; mutation.mutate({ eventId: event.id, status, resolvedAt: new Date().toISOString(), reason, returnInstructions: instructions, followUps: followUps.map((item) => ({ title: item.title, description: item.description, ownerProfileId: item.owner || null, dueAt: facilityDateTimeLocalToUtcIso(item.due), priority: item.priority })), nextAppointmentAt: next ? facilityDateTimeLocalToUtcIso(next) : undefined }, { onSuccess: () => { toast({ title: "Calendar outcome recorded", description: followUps.length ? `${followUps.length} follow-up work item${followUps.length === 1 ? "" : "s"} created.` : undefined }); onClose(); }, onError: (error: Error) => toast({ title: "Could not record outcome", description: error.message, variant: "destructive" }) }); };
   return <Dialog open={!!event} onOpenChange={(open) => !open && onClose()}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto"><DialogHeader><DialogTitle>Record outcome · {event?.title}</DialogTitle><DialogDescription>Document completion, cancellation or no-show, return instructions, next appointment, and each required follow-up.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><Field label="Outcome"><Choice value={status} onChange={setStatus} values={["completed", "canceled", "no_show"]} /></Field><Field label="Next appointment"><Input type="datetime-local" value={next} onChange={(input) => setNext(input.target.value)} /></Field><Field label="Outcome reason" span><Textarea value={reason} onChange={(input) => setReason(input.target.value)} placeholder={status === "completed" ? "Completion note" : "Required cancellation or no-show reason"} /></Field><Field label="Return instructions" span><Textarea value={instructions} onChange={(input) => setInstructions(input.target.value)} /></Field><div className="rounded-lg border p-3 sm:col-span-2"><p className="mb-3 font-medium">New follow-up work</p><div className="grid gap-2 sm:grid-cols-2"><Input placeholder="Task title" value={draft.title} onChange={(input) => setDraft({ ...draft, title: input.target.value })} /><Input placeholder="Description" value={draft.description} onChange={(input) => setDraft({ ...draft, description: input.target.value })} /><Choice value={draft.owner} onChange={(value) => setDraft({ ...draft, owner: value })} values={profiles.filter((profile) => profile.is_active).map((profile) => ({ value: profile.id, label: `${profile.first_name} ${profile.last_name}` }))} placeholder="Optional owner" /><Input type="datetime-local" value={draft.due} onChange={(input) => setDraft({ ...draft, due: input.target.value })} /><Choice value={draft.priority} onChange={(value) => setDraft({ ...draft, priority: value })} values={["urgent", "high", "normal", "low"]} /><Button type="button" variant="outline" disabled={draft.title.trim().length < 3 || draft.description.trim().length < 5 || !draft.due} onClick={add}>Add follow-up</Button></div>{followUps.length > 0 && <div className="mt-3 space-y-1">{followUps.map((item, index) => <div key={`${item.title}-${index}`} className="flex justify-between rounded bg-muted/50 p-2 text-sm"><span>{item.title} · {new Date(item.due).toLocaleString()}</span><button type="button" className="text-destructive" onClick={() => setFollowUps((items) => items.filter((_, itemIndex) => itemIndex !== index))}>Remove</button></div>)}</div>}</div></div><DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending || (status !== "completed" && reason.trim().length < 5)} onClick={submit}>Record outcome</Button></DialogFooter></DialogContent></Dialog>;
 }
@@ -173,7 +175,7 @@ function RescheduleDialog({ event, onClose }: { event: ResidentServiceCalendarEv
   const [starts, setStarts] = useState("");
   const [ends, setEnds] = useState("");
   const [reason, setReason] = useState("");
-  useEffect(() => { if (event) { setStarts(toDateTimeLocal(event.starts_at)); setEnds(toDateTimeLocal(event.ends_at)); setReason(""); } }, [event]);
+  useEffect(() => { if (event) { setStarts(toFacilityDateTimeLocal(event.starts_at)); setEnds(toFacilityDateTimeLocal(event.ends_at)); setReason(""); } }, [event]);
   return <Dialog open={!!event} onOpenChange={(open) => !open && onClose()}><DialogContent><DialogHeader><DialogTitle>Reschedule {event?.title}</DialogTitle><DialogDescription>Vehicle and staff conflicts are checked before the new time is accepted.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><Field label="Starts"><Input type="datetime-local" value={starts} onChange={(input) => setStarts(input.target.value)} /></Field><Field label="Ends"><Input type="datetime-local" value={ends} onChange={(input) => setEnds(input.target.value)} /></Field><Field label="Reason" span><Textarea value={reason} onChange={(input) => setReason(input.target.value)} /></Field></div><DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!event || mutation.isPending || reason.trim().length < 5 || !starts || !ends || ends <= starts} onClick={() => event && mutation.mutate({ eventId: event.id, startsAt: facilityDateTimeLocalToUtcIso(starts), endsAt: facilityDateTimeLocalToUtcIso(ends), reason }, { onSuccess: () => { toast({ title: "Service rescheduled" }); onClose(); }, onError: (error: Error) => toast({ title: "Could not reschedule service", description: error.message, variant: "destructive" }) })}>Reschedule</Button></DialogFooter></DialogContent></Dialog>;
 }
 

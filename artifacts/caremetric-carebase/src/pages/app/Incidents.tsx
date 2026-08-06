@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useRef, useState } from "react";
-import { facilityDateTimeLocalToUtcIso, facilityToday } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   useCreateIncident, type Incident, type IncidentInsert,
@@ -37,11 +37,6 @@ const NOTIFICATION_TYPE_OPTIONS = [
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
-function toLocalDatetimeInputValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -85,7 +80,7 @@ interface IncidentFormData {
 // long-stale timestamp instead of the current time.
 function emptyForm(): IncidentFormData {
   return {
-    facilityId: "", incidentType: "other", occurredAt: toLocalDatetimeInputValue(new Date()),
+    facilityId: "", incidentType: "other", occurredAt: toFacilityDateTimeLocal(),
     residentId: "", residentIdentifierOther: "", locationDetail: "", narrative: "", severity: "moderate",
   };
 }
@@ -303,24 +298,24 @@ export default function Incidents() {
       <div className="grid gap-4 md:grid-cols-4">
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Open incidents</p>
-          <p className="mt-1 text-2xl font-semibold">{incidentSummary.open}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.criticalOpen} critical remain open.</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.open}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : `${incidentSummary.criticalOpen} critical remain open.`}</p>
         </div>
         <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setUrlState({ severity: "critical", page: "1" })}>
           <p className="text-xs font-medium text-muted-foreground">Major / critical</p>
-          <p className="mt-1 text-2xl font-semibold text-destructive">{incidentSummary.majorOrCritical}</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.majorOrCritical}</p>
           <p className="mt-1 text-xs text-muted-foreground">High-severity events in this view.</p>
         </button>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Recent volume</p>
-          <p className="mt-1 text-2xl font-semibold">{incidentSummary.reportedLast7Days}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.reportedLast30Days} reported in 30 days.</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.reportedLast7Days}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : `${incidentSummary.reportedLast30Days} reported in 30 days.`}</p>
         </div>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Most common type</p>
-          <p className="mt-1 text-lg font-semibold">{incidentSummary.topIncidentType ? humanize(incidentSummary.topIncidentType) : "—"}</p>
+          <p className="mt-1 text-lg font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : (incidentSummary.topIncidentType ? humanize(incidentSummary.topIncidentType) : "—")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {incidentSummary.oldestOpenIncidentId ? (
+            {incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.oldestOpenIncidentId ? (
               <Link href={`/app/incidents/${incidentSummary.oldestOpenIncidentId}`} className="text-primary hover:underline">Review oldest open incident</Link>
             ) : "No open incidents in this view."}
           </p>
@@ -339,28 +334,28 @@ export default function Incidents() {
             />
           </div>
           <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.resident} onValueChange={(v) => setUrlState({ resident: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Residents" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Resident"><SelectValue placeholder="All Residents" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Residents</SelectItem>
               {allResidents?.map((resident) => <SelectItem key={resident.id} value={resident.id}>{resident.last_name}, {resident.first_name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.severity} onValueChange={(v) => setUrlState({ severity: v, page: "1" })}>
-            <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Severities" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Severity"><SelectValue placeholder="All Severities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Severities</SelectItem>
               {["minor", "moderate", "major", "critical"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
-            <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {["reported", "investigating", "closed"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}

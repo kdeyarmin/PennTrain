@@ -30,7 +30,7 @@ import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDo
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/lib/pageTitle";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import {
   OBSERVATION_CONFIG,
   OBSERVATION_ORDER,
@@ -75,7 +75,7 @@ export default function ResidentClinicalChart() {
   const [valueText, setValueText] = useState("");
   const [customLabel, setCustomLabel] = useState("");
   const [unit, setUnit] = useState(OBSERVATION_CONFIG.blood_pressure.unit);
-  const [observedAt, setObservedAt] = useState(() => toDateTimeLocal(new Date()));
+  const [observedAt, setObservedAt] = useState(() => toFacilityDateTimeLocal());
   const [note, setNote] = useState("");
   const record = useRecordClinicalObservation();
 
@@ -99,7 +99,7 @@ export default function ResidentClinicalChart() {
     setObservationType("blood_pressure");
     setUnit(OBSERVATION_CONFIG.blood_pressure.unit);
     setValueNumeric(""); setValueSecondary(""); setValueText(""); setCustomLabel(""); setNote("");
-    setObservedAt(toDateTimeLocal(new Date()));
+    setObservedAt(toFacilityDateTimeLocal());
   };
 
   const submitObservation = async () => {

@@ -199,7 +199,7 @@ export default function StateFormsCenter() {
       </div>
 
       <Select value={facilityId} onValueChange={(v) => { setFacilityId(v); setExpandedItemId(null); }}>
-        <SelectTrigger className="w-56"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+        <SelectTrigger className="w-56" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Facilities</SelectItem>
           {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}

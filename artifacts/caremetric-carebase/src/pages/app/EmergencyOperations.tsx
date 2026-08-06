@@ -162,6 +162,52 @@ export default function EmergencyOperations() {
     setDialog("profile");
   };
 
+
+  const openDialog = (name: DialogName) => {
+    if (name === "plan") {
+      setPlanTitle("All-Hazards Emergency Plan");
+      setPlanEffectiveDate(facilityToday());
+      setPlanSummary("");
+      setEvacuationProcedure("");
+      setAccountabilityProcedure("");
+      setNotificationProcedure("");
+      setContinuityProcedure("");
+    } else if (name === "event") {
+      setEventMode("drill");
+      setEventType("fire");
+      setEventStartedAt(localDateTime());
+      setEventSummary("");
+      setEventLocation("");
+      setAssemblyPoint("");
+      setCommanderId(user?.id ?? "");
+    } else if (name === "resource") {
+      setResourceType("relocation_site");
+      setResourceName("");
+      setContactName("");
+      setPhone("");
+      setEmail("");
+      setAddress("");
+      setCapacity("");
+      setContractReference("");
+      setAvailabilityNotes("");
+    } else if (name === "inventory") {
+      setInventoryType("water");
+      setItemName("");
+      setQuantity("");
+      setUnit("");
+      setMinimumQuantity("");
+      setExpirationDate("");
+      setInventoryStatus("ready");
+      setInventoryLocation("");
+    } else if (name === "assignment") {
+      setEmployeeId("");
+      setEmergencyRole("resident_accountability");
+      setResponsibility("");
+      setIsBackup(false);
+    }
+    setDialog(name);
+  };
+
   const submitPlan = () =>
     publishPlan.mutate(
       {
@@ -315,10 +361,10 @@ export default function EmergencyOperations() {
         </div>
         {canManage && facilityId && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setDialog("plan")}>
+            <Button variant="outline" onClick={() => openDialog("plan")}>
               <FileCheck2 className="mr-2 h-4 w-4" /> New plan version
             </Button>
-            <Button onClick={() => setDialog("event")}>
+            <Button onClick={() => openDialog("event")}>
               <Siren className="mr-2 h-4 w-4" /> Activate event or drill
             </Button>
           </div>
@@ -328,7 +374,7 @@ export default function EmergencyOperations() {
       <Card>
         <CardContent className="pt-6">
           <Select value={facilityId} onValueChange={setFacilityId}>
-            <SelectTrigger className="max-w-sm"><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger className="max-w-sm" aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>
               {facilities.data?.filter((facility) => facility.is_active).map((facility) => (
                 <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
@@ -451,7 +497,7 @@ export default function EmergencyOperations() {
                     {readiness.data?.assignments.map((assignment) => (
                       <div key={assignment.id} className="rounded border p-3 text-sm"><p className="font-medium">{assignment.employee?.first_name} {assignment.employee?.last_name}</p><p>{human(assignment.emergency_role)}{assignment.is_backup ? " · Backup" : ""}</p><p className="text-muted-foreground">{assignment.responsibility}</p></div>
                     ))}
-                    {canManage && <Button className="w-full" variant="outline" onClick={() => setDialog("assignment")}><Plus className="mr-2 h-4 w-4" /> Add assignment</Button>}
+                    {canManage && <Button className="w-full" variant="outline" onClick={() => openDialog("assignment")}><Plus className="mr-2 h-4 w-4" /> Add assignment</Button>}
                   </CardContent>
                 </Card>
                 <Card>
@@ -460,7 +506,7 @@ export default function EmergencyOperations() {
                     {readiness.data?.resources.map((resource) => (
                       <div key={resource.id} className="rounded border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">{resource.name}</p><Badge variant="outline">{human(resource.resource_type)}</Badge></div><p className="text-muted-foreground">{resource.phone || resource.email || resource.address || "No contact details"}</p></div>
                     ))}
-                    {canManage && <Button className="w-full" variant="outline" onClick={() => setDialog("resource")}><Plus className="mr-2 h-4 w-4" /> Add resource</Button>}
+                    {canManage && <Button className="w-full" variant="outline" onClick={() => openDialog("resource")}><Plus className="mr-2 h-4 w-4" /> Add resource</Button>}
                   </CardContent>
                 </Card>
                 <Card>
@@ -469,7 +515,7 @@ export default function EmergencyOperations() {
                     {readiness.data?.inventory.map((item) => (
                       <div key={item.id} className="rounded border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">{item.item_name}</p><Badge variant={item.status === "ready" ? "outline" : "destructive"}>{human(item.status)}</Badge></div><p>{String(item.quantity)} {item.unit} · minimum {String(item.minimum_quantity)}</p><p className="text-muted-foreground">{item.location || "Location not recorded"}</p></div>
                     ))}
-                    {canManage && <Button className="w-full" variant="outline" onClick={() => setDialog("inventory")}><Plus className="mr-2 h-4 w-4" /> Add inventory</Button>}
+                    {canManage && <Button className="w-full" variant="outline" onClick={() => openDialog("inventory")}><Plus className="mr-2 h-4 w-4" /> Add inventory</Button>}
                   </CardContent>
                 </Card>
               </div>

@@ -38,7 +38,7 @@ import { QueryError } from "@/components/QueryState";
 // field opened on 01:30 the NEXT day, and submitting it recorded a QAPI meeting as held in the
 // future, on the wrong date. Reading back was already local (`new Date(held)`), so the round
 // trip disagreed with itself.
-import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityDateTimeToUtc, facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
@@ -72,12 +72,12 @@ export default function QapiProjectDetail() {
   const [aTitle, setATitle] = useState(""),
     [aDesc, setADesc] = useState(""),
     [aOwner, setAOwner] = useState(user?.id ?? ""),
-    [aDue, setADue] = useState(() => toDateTimeLocal(facilityDateTimeToUtc(addFacilityCalendarDays(facilityToday(), 14), "17:00:00")));
+    [aDue, setADue] = useState(() => `${addFacilityCalendarDays(facilityToday(), 14)}T17:00`);
   const [num, setNum] = useState(""),
     [den, setDen] = useState(""),
     [mNotes, setMNotes] = useState(""),
     [mSample, setMSample] = useState(""),
-    [held, setHeld] = useState(toDateTimeLocal()),
+    [held, setHeld] = useState(toFacilityDateTimeLocal()),
     [attendees, setAttendees] = useState(""),
     [meetingNotes, setMeetingNotes] = useState("");
   const [team, setTeam] = useState<Json>([]);

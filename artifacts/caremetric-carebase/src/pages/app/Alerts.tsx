@@ -220,7 +220,7 @@ export default function Alerts() {
           />
         </div>
         <Select value={status} onValueChange={v => { setFilters({ status: v, page: "1" }); setSelectedIds(new Set()); }}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Status">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -230,7 +230,7 @@ export default function Alerts() {
           </SelectContent>
         </Select>
         <Select value={severity} onValueChange={v => setFilters({ severity: v, page: "1" })}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Severity">
             <SelectValue placeholder="All Severities" />
           </SelectTrigger>
           <SelectContent>
@@ -241,7 +241,7 @@ export default function Alerts() {
           </SelectContent>
         </Select>
         <Select value={facilityId} onValueChange={v => setFilters({ facilityId: v, page: "1" })}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Facility">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>

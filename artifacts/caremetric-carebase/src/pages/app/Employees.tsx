@@ -435,7 +435,7 @@ export default function Employees() {
             />
           </div>
           <Select value={facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
-            <SelectTrigger className="w-full h-9 bg-card sm:w-48">
+            <SelectTrigger className="w-full h-9 bg-card sm:w-48" aria-label="Facility">
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
@@ -446,7 +446,7 @@ export default function Employees() {
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={v => setUrlState({ status: v, page: "1" })}>
-            <SelectTrigger className="w-full h-9 bg-card sm:w-40">
+            <SelectTrigger className="w-full h-9 bg-card sm:w-40" aria-label="Status">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>

@@ -31,7 +31,7 @@ import {
 } from "@/hooks/useIntegrationCredentials";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso, addFacilityCalendarDays, facilityToday} from "@/lib/dateUtils";
 import { Link } from "wouter";
 
 function human(value: string) {
@@ -76,7 +76,7 @@ export default function MedicationIntegration() {
     [credentials.data],
   );
   const [exceptionOwnerId, setExceptionOwnerId] = useState("");
-  const [exceptionDueAt, setExceptionDueAt] = useState(() => toDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000)));
+  const [exceptionDueAt, setExceptionDueAt] = useState(() => `${addFacilityCalendarDays(facilityToday(), 1)}T09:00`);
   const { toast } = useToast();
 
   const unboundCredentialValue = "__unbound__";
@@ -137,7 +137,7 @@ export default function MedicationIntegration() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><h1 className="text-2xl font-bold tracking-tight">Medication Integration</h1><p className="text-muted-foreground">Monitor read-only eMAR synchronization, resident matching, and non-routine administration documentation.</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${workspace.isFetching ? "animate-spin" : ""}`} />Refresh</Button>{canManage && <Button onClick={() => setSourceDialogOpen(true)}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}</div>
+        <div className="flex gap-2"><Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${workspace.isFetching ? "animate-spin" : ""}`} />Refresh</Button>{canManage && <Button onClick={() => { setSourceName(""); setVendorName(""); setExternalFacilityId(""); setCredentialId(""); setFreshnessMinutes("60"); setSourceDialogOpen(true); }}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}</div>
       </div>
 
       <Alert><DatabaseZap className="h-4 w-4" /><AlertTitle>External clinical source of truth</AlertTitle><AlertDescription>CareBase displays normalized records received from a connected eMAR. Medication orders and administrations cannot be prescribed, changed, or back-entered here. Confirm clinical details and correct discrepancies in the source eMAR.</AlertDescription></Alert>

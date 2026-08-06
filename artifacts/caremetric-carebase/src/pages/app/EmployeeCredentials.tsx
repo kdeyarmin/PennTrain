@@ -414,21 +414,21 @@ export default function EmployeeCredentials() {
       <div className="premium-card">
         <div className="filter-bar">
           <Select value={facilityFilter} onValueChange={(v) => setFilters({ facilityFilter: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={employeeFilter} onValueChange={(v) => setFilters({ employeeFilter: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Employees" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Employee"><SelectValue placeholder="All Employees" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Employees</SelectItem>
               {(employees ?? []).map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={(v) => setFilters({ statusFilter: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {["compliant", "due_soon", "expired", "missing", "not_applicable"].map((s) => (
