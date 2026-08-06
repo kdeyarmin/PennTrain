@@ -512,7 +512,7 @@ export default function Users() {
                         <td>
                           {editable ? (
                             <Select value={p.role} onValueChange={v => requestRoleChange(p, v)} disabled={adminUpdating}>
-                              <SelectTrigger className="h-8 w-40 text-xs bg-card">
+                              <SelectTrigger className="h-8 w-40 text-xs bg-card" aria-label={`Role for ${p.first_name} ${p.last_name}`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -613,7 +613,7 @@ export default function Users() {
                         <span className="text-xs font-medium text-muted-foreground">Role</span>
                         {editable ? (
                           <Select value={p.role} onValueChange={v => requestRoleChange(p, v)} disabled={adminUpdating}>
-                            <SelectTrigger className="h-9 w-44 bg-card text-xs"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-9 w-44 bg-card text-xs" aria-label={`Role for ${p.first_name} ${p.last_name}`}><SelectValue /></SelectTrigger>
                             <SelectContent>{assignableRoles.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
                           </Select>
                         ) : (

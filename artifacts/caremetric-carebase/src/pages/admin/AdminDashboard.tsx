@@ -405,12 +405,12 @@ export default function AdminDashboard() {
           <div className="grid gap-3 md:grid-cols-3">
             <Link href="/admin/notifications?status=failed" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-2 text-sm font-medium"><Send className="h-4 w-4 text-red-600" /> Failed notifications</div>
-              <p className="mt-2 text-2xl font-bold">{health?.notificationDeliveriesFailed ?? 0}</p>
+              <p className="mt-2 text-2xl font-bold">{healthLoading || healthError ? "—" : (health?.notificationDeliveriesFailed ?? 0)}</p>
               <p className="text-xs text-muted-foreground">Fix delivery issues before users miss required training reminders.</p>
             </Link>
             <Link href="/admin/security" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4 text-blue-600" /> Governance checks</div>
-              <p className="mt-2 text-2xl font-bold">{suspendedOrgs}</p>
+              <p className="mt-2 text-2xl font-bold">{healthLoading || healthError ? "—" : suspendedOrgs}</p>
               <p className="text-xs text-muted-foreground">Suspended organizations to review before enabling or expanding access.</p>
             </Link>
             <Link href="/admin/help-content" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">

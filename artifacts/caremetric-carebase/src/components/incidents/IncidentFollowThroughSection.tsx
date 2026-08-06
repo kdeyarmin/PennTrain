@@ -535,7 +535,7 @@ export default function IncidentFollowThroughSection({
               <Button
                 size="sm"
                 disabled={state.blockingClosure.length > 0 || Boolean(incident.administrator_approved_at) || approve.isPending}
-                onClick={() => setApproveOpen(true)}
+                onClick={() => { setApproveNote(""); setApproveOpen(true); }}
                 title={state.blockingClosure.length > 0
                   ? `Outstanding: ${state.blockingClosure.map((stage) => stage.label).join(", ")}`
                   : undefined}
@@ -606,7 +606,7 @@ export default function IncidentFollowThroughSection({
         }}
       />
 
-      <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
+      <Dialog open={approveOpen} onOpenChange={(open) => { setApproveOpen(open); if (!open) setApproveNote(""); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Approve the investigation</DialogTitle>
@@ -620,7 +620,7 @@ export default function IncidentFollowThroughSection({
             <Textarea id="approval-note" rows={3} value={approveNote} onChange={(event) => setApproveNote(event.target.value)} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApproveOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setApproveOpen(false); setApproveNote(""); }}>Cancel</Button>
             <Button onClick={submitApproval} disabled={approve.isPending}>
               {approve.isPending ? "Approving..." : "Approve"}
             </Button>

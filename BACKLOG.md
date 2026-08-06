@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `eb822575` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **eleventh-pass** after G156–G160. Closed homeMetrics/Reports/ScheduleDetail facility calendar windows, IncidentDetail add-staff onError, stale dialog drafts (inspection log, work-order edit, bulk invite, class attendees, PoC verify), and unlabeled Selects (EmployeeSearchSelect, Documents upload, SupportTicketDetail). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `73fe0363` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **twelfth-pass** after G161–G165. Closed administrator CE / meal lookback / citation staleness facility calendar, AdminDashboard/ReleaseFlags/MyCourses fail-open, HelpCenter + investigation-approve dialog resets, and unlabeled Selects (emergency activate, incident staff/notifications/retrain, Users role, ServiceDelivery assign). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -598,6 +598,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G163 | IncidentDetail add-staff silent mutate | S | done | Toast onError; clear employee picker only on success |
 | G164 | Stale dialogs: inspection log, work-order edit, bulk invite, attendees, PoC verify | S | done | Reset on open/close for each surface |
 | G165 | Unlabeled Selects: EmployeeSearchSelect / Documents upload / ticket detail | S | done | aria-label when filter label empty; upload facility/employee/type; ticket status/priority |
+| G166 | Administrator CE window / meal lookback / citation staleness browser calendar | M | done | Rolling CE cutoff, meal `served_at` lookback, citation `isStale`/future-check use facility day math |
+| G167 | AdminDashboard / ReleaseFlags / MyCourses metric fail-open | S | done | Operating Priorities + flag/kill tiles dash on load/error; offline library QueryError + dash count |
+| G168 | HelpCenter ticket + investigation approve dialog drafts sticky | S | done | Reset ticket form on open/cancel; clear approve note on open/close |
+| G169 | Unlabeled Selects: emergency activate / incident staff / Users role / assign | S | done | Event mode/type, staff/involvement/notification/retrain, role-for-name, assign-staff; HelpCenter category/priority |
 
 ## Explicitly not now
 

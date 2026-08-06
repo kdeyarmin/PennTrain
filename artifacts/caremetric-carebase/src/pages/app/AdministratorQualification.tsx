@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, FileCheck2, Send, Upload, Trash2, Download } from "lucide-react";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
-import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { supabase } from "@/lib/supabase";
 import { QueryError } from "@/components/QueryState";
@@ -108,9 +108,8 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
 
   const rollingTotal = useMemo(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - ROLLING_WINDOW_DAYS);
-    const cutoffStr = toLocalIsoDate(cutoff);
+    // Trailing window on the Pennsylvania facility calendar — not browser `setDate(-365)`.
+    const cutoffStr = addFacilityCalendarDays(facilityToday(), -ROLLING_WINDOW_DAYS);
     return (ceEntries ?? [])
       .filter((e) => e.completed_date >= cutoffStr)
       .reduce((sum, e) => sum + Number(e.hours), 0);

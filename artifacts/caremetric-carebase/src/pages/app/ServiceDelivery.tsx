@@ -372,7 +372,7 @@ export default function ServiceDelivery() {
                         });
                       }}
                     >
-                      <SelectTrigger className="w-44"><SelectValue placeholder="Assign staff" /></SelectTrigger>
+                      <SelectTrigger className="w-44" aria-label="Assign staff"><SelectValue placeholder="Assign staff" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="unassigned">Assign staff</SelectItem>
                         {(employees ?? []).filter(employee => employee.facility_id === task.facility_id).map(employee => (

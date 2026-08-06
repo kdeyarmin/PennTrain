@@ -399,13 +399,13 @@ export default function IncidentDetail() {
           {canManage && (
             <div className="flex items-center gap-2 pt-2 border-t">
               <Select value={newStaffEmployee} onValueChange={setNewStaffEmployee}>
-                <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select employee" /></SelectTrigger>
+                <SelectTrigger className="h-9 flex-1" aria-label="Staff employee"><SelectValue placeholder="Select employee" /></SelectTrigger>
                 <SelectContent>
                   {employees?.map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={newStaffRole} onValueChange={(v) => setNewStaffRole(v as typeof newStaffRole)}>
-                <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 w-40" aria-label="Staff involvement"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["involved_party", "witness", "first_responder", "reporter"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                 </SelectContent>
@@ -505,7 +505,7 @@ export default function IncidentDetail() {
           {canManage && (
             <div className="flex items-center gap-2 pt-2 border-t">
               <Select value={newNotificationType} onValueChange={(v) => setNewNotificationType(v as typeof newNotificationType)}>
-                <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                 </SelectContent>
@@ -586,7 +586,7 @@ export default function IncidentDetail() {
               {assignRetraining ? (
                 <div className="flex items-center gap-2">
                   <Select value={retrainEmployeeId} onValueChange={setRetrainEmployeeId}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Retraining staff member"><SelectValue placeholder="Select staff member" /></SelectTrigger>
                     <SelectContent>
                       {(staffInvolved ?? []).map((s) => {
                         const emp = employeeById.get(s.employee_id);
@@ -595,7 +595,7 @@ export default function IncidentDetail() {
                     </SelectContent>
                   </Select>
                   <Select value={retrainCourseId} onValueChange={setRetrainCourseId}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select training item" /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Retraining course"><SelectValue placeholder="Select training item" /></SelectTrigger>
                     <SelectContent>
                       {(courses ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
                     </SelectContent>

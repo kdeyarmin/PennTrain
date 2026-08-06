@@ -12,10 +12,14 @@
  * the uncertainty travels with the number instead of being stripped off at the UI boundary.
  */
 
+import { addFacilityCalendarDays, facilityToday } from "./dateUtils";
+
 export type CitationVerificationStatus = "verified" | "unverified" | "approximate" | "superseded";
 
 /** Matches `v_reverify_days` in 20260726200000_citation_verification_governance.sql. */
 export const CITATION_REVERIFICATION_INTERVAL_DAYS = 365;
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface CitationLike {
   citation_ref: string | null;
@@ -36,11 +40,10 @@ export interface CitationDisplay {
 }
 
 function isStale(verifiedOn: string | null | undefined, today: Date): boolean {
-  if (!verifiedOn) return false;
-  const verified = new Date(`${verifiedOn}T00:00:00`);
-  if (Number.isNaN(verified.valueOf())) return false;
-  const days = Math.floor((today.valueOf() - verified.valueOf()) / 86_400_000);
-  return days > CITATION_REVERIFICATION_INTERVAL_DAYS;
+  if (!verifiedOn || !DATE_ONLY.test(verifiedOn)) return false;
+  // Facility calendar days — browser-local `T00:00:00` midnight flips near PA evening.
+  const dueBy = addFacilityCalendarDays(verifiedOn, CITATION_REVERIFICATION_INTERVAL_DAYS);
+  return facilityToday(today) > dueBy;
 }
 
 export function citationDisplay(topic: CitationLike, today: Date = new Date()): CitationDisplay {
@@ -129,10 +132,9 @@ export function verificationFormIssues(input: {
     issues.push("The source must be a URL, so the next person can open what you read.");
   }
   if (input.verifiedOn) {
-    const verified = new Date(`${input.verifiedOn}T00:00:00`);
-    if (Number.isNaN(verified.valueOf())) {
+    if (!DATE_ONLY.test(input.verifiedOn)) {
       issues.push("Verification date is not a real date.");
-    } else if (verified.valueOf() > (input.today ?? new Date()).valueOf()) {
+    } else if (input.verifiedOn > facilityToday(input.today ?? new Date())) {
       issues.push("Verification date cannot be in the future.");
     }
   }
