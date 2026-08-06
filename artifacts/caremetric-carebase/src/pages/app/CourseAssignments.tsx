@@ -490,26 +490,26 @@ export default function CourseAssignments() {
         <div className="grid gap-4 md:grid-cols-4">
           <div className="premium-card p-4">
             <p className="text-xs font-medium text-muted-foreground">Visible completion</p>
-            <p className="mt-1 text-2xl font-semibold">{assignmentSummary.completionRate}%</p>
-            <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.completed} of {assignmentSummary.total} on this page complete.</p>
+            <p className="mt-1 text-2xl font-semibold">{isLoading ? "—" : `${assignmentSummary.completionRate}%`}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{isLoading ? "Loading this page…" : `${assignmentSummary.completed} of ${assignmentSummary.total} on this page complete.`}</p>
           </div>
           <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => { setStatusFilter("overdue"); setPage(1); }}>
             <p className="text-xs font-medium text-muted-foreground">Overdue on page</p>
-            <p className="mt-1 text-2xl font-semibold text-destructive">{assignmentSummary.overdue}</p>
+            <p className={`mt-1 text-2xl font-semibold ${isLoading ? "" : "text-destructive"}`}>{isLoading ? "—" : assignmentSummary.overdue}</p>
             <p className="mt-1 text-xs text-muted-foreground">Click to filter all overdue assignments.</p>
           </button>
           <div className="premium-card p-4">
             <p className="text-xs font-medium text-muted-foreground">Due within 7 days</p>
-            <p className="mt-1 text-2xl font-semibold">{assignmentSummary.dueWithin7Days}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.inProgress} in progress · {assignmentSummary.assigned} not started</p>
+            <p className="mt-1 text-2xl font-semibold">{isLoading ? "—" : assignmentSummary.dueWithin7Days}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{isLoading ? "Loading this page…" : `${assignmentSummary.inProgress} in progress · ${assignmentSummary.assigned} not started`}</p>
           </div>
           <div className="premium-card p-4">
             <p className="text-xs font-medium text-muted-foreground">Oldest overdue</p>
             <p className="mt-1 text-lg font-semibold">
-              {assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
+              {isLoading ? "—" : assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {assignmentSummary.oldestOverdueAssignmentId ? (
+              {isLoading ? "Loading this page…" : assignmentSummary.oldestOverdueAssignmentId ? (
                 <button type="button" className="text-primary hover:underline" onClick={() => setProgressAssignmentId(assignmentSummary.oldestOverdueAssignmentId)}>
                   Open progress details
                 </button>

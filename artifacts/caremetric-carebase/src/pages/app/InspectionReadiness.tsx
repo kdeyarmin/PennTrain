@@ -102,7 +102,8 @@ export default function InspectionReadiness() {
     { facilityId: activeFacilityId || undefined },
     { enabled: facilityListsEnabled },
   );
-  const { data: trainingTypes } = useListTrainingTypes();
+  const trainingTypesQuery = useListTrainingTypes();
+  const { data: trainingTypes } = trainingTypesQuery;
   const credentialsQuery = useListEmployeeCredentials(
     { facilityId: activeFacilityId || undefined },
     { enabled: facilityListsEnabled },
@@ -155,9 +156,9 @@ export default function InspectionReadiness() {
   ].find((query) => query.isError);
 
   const specialCareSourceFailure = [
-    unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery,
+    unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery, trainingTypesQuery,
   ].find((query) => query.isError);
-  const specialCareBusy = [unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery]
+  const specialCareBusy = [unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery, trainingTypesQuery]
     .some((query) => query.isLoading || (query.data === undefined && (query.isPending || query.isFetching)));
 
 
@@ -558,6 +559,7 @@ export default function InspectionReadiness() {
                     void residentsQuery.refetch();
                     void schedulePreferencesQuery.refetch();
                     void trainingRecordsQuery.refetch();
+                    void trainingTypesQuery.refetch();
                   }}
                 />
               </div>

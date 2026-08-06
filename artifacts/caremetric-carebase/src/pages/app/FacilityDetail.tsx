@@ -123,7 +123,8 @@ export default function FacilityDetail() {
     error: recordsErrorDetail,
     refetch: refetchRecords,
   } = useListTrainingRecords({ facilityId: id });
-  const { data: trainingTypes } = useListTrainingTypes();
+  const trainingTypesQuery = useListTrainingTypes();
+  const { data: trainingTypes } = trainingTypesQuery;
   const {
     data: practicums,
     isLoading: practicumsLoading,
@@ -156,10 +157,12 @@ export default function FacilityDetail() {
     || recordsLoading
     || unitsQuery.isLoading
     || schedulePreferencesQuery.isLoading
+    || trainingTypesQuery.isLoading
     || residentsError
     || recordsError
     || unitsQuery.isError
-    || schedulePreferencesQuery.isError;
+    || schedulePreferencesQuery.isError
+    || trainingTypesQuery.isError;
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
   // Renewal cycles insert fresh training rows and leave prior ones "expired"; the
@@ -505,7 +508,7 @@ export default function FacilityDetail() {
                     <p className="text-xs text-muted-foreground">staff training gap(s) for designated units</p>
                   </div>
                   <Badge variant="outline">
-                    {residentsError || recordsError || unitsQuery.isError || schedulePreferencesQuery.isError
+                    {residentsError || recordsError || unitsQuery.isError || schedulePreferencesQuery.isError || trainingTypesQuery.isError
                       ? "Unavailable"
                       : "Loading"}
                   </Badge>
