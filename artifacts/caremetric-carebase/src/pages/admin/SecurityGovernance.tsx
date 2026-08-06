@@ -107,7 +107,7 @@ export default function SecurityGovernance() {
   });
   const { data: profileNameMap } = useProfileNameMap();
   const { data: coverageData, isLoading: coverageLoading } = useAuditCoverage();
-  const { data: governance } = useAuditGovernanceStatus();
+  const { data: governance, isLoading: governanceLoading, isError: governanceError } = useAuditGovernanceStatus();
 
   const logs = logsData ?? [];
   const profileNames = profileNameMap ?? {};
@@ -115,6 +115,7 @@ export default function SecurityGovernance() {
     (entry) => entry.contains_regulated_data || !entry.has_required_trigger,
   );
   const coverageGaps = regulatedCoverage.filter((entry) => !entry.has_required_trigger);
+  const governanceUnavailable = governanceLoading || governanceError;
 
   return (
     <div className="space-y-6">
@@ -130,7 +131,7 @@ export default function SecurityGovernance() {
           <CardContent className="flex items-center gap-3 p-5">
             <ShieldCheck className="h-7 w-7 text-emerald-600" />
             <div>
-              <p className="text-2xl font-bold">v{governance?.hashVersion ?? 2}</p>
+              <p className="text-2xl font-bold">{governanceUnavailable ? "—" : `v${governance?.hashVersion ?? 2}`}</p>
               <p className="text-sm text-muted-foreground">Audit hash format</p>
             </div>
           </CardContent>
@@ -139,7 +140,7 @@ export default function SecurityGovernance() {
           <CardContent className="flex items-center gap-3 p-5">
             <ShieldAlert className="h-7 w-7 text-red-600" />
             <div>
-              <p className="text-2xl font-bold">{governance?.openIntegrityIssues ?? 0}</p>
+              <p className="text-2xl font-bold">{governanceUnavailable ? "—" : (governance?.openIntegrityIssues ?? 0)}</p>
               <p className="text-sm text-muted-foreground">Open integrity issues</p>
             </div>
           </CardContent>
@@ -148,7 +149,7 @@ export default function SecurityGovernance() {
           <CardContent className="flex items-center gap-3 p-5">
             <Scale className="h-7 w-7 text-violet-600" />
             <div>
-              <p className="text-2xl font-bold">{governance?.activeLegalHolds ?? 0}</p>
+              <p className="text-2xl font-bold">{governanceUnavailable ? "—" : (governance?.activeLegalHolds ?? 0)}</p>
               <p className="text-sm text-muted-foreground">Active legal holds</p>
             </div>
           </CardContent>
@@ -157,7 +158,7 @@ export default function SecurityGovernance() {
           <CardContent className="flex items-center gap-3 p-5">
             <Archive className="h-7 w-7 text-blue-600" />
             <div>
-              <p className="text-2xl font-bold">{governance?.plannedArchives ?? 0}</p>
+              <p className="text-2xl font-bold">{governanceUnavailable ? "—" : (governance?.plannedArchives ?? 0)}</p>
               <p className="text-sm text-muted-foreground">Archive batches planned</p>
             </div>
           </CardContent>

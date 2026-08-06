@@ -328,7 +328,7 @@ export default function MySchedule() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {timeOffRequests.length === 0 ? <p className="text-sm text-muted-foreground">No recent requests.</p> : timeOffRequests.map((request) => (
+            {workspace.isError ? null : workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : timeOffRequests.length === 0 ? <p className="text-sm text-muted-foreground">No recent requests.</p> : timeOffRequests.map((request) => (
               <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div><p className="font-medium">{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.request_type).replace(/_/g, " ")}</p></div>

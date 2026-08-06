@@ -284,7 +284,7 @@ function ProspectReviewDialog({
           <div className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
             <Select value={activityType} onValueChange={setActivityType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["contact_attempt", "tour_scheduled", "tour_completed", "tour_canceled", "note"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
             <Input value={activityNotes} onChange={event => setActivityNotes(event.target.value)} placeholder="Outcome or notes" />
-            <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate ? facilityDateTimeLocalToUtcIso(activityDate) : undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); } })}>Add activity</Button>
+            <Button variant="outline" disabled={activity.isPending || (!activityNotes.trim() && !activityDate)} onClick={() => prospect && activity.mutate({ prospectId: prospect.id, activityType, notes: activityNotes, outcome: activityNotes, scheduledFor: activityDate ? facilityDateTimeLocalToUtcIso(activityDate) : undefined }, { onSuccess: () => { toast({ title: "Activity recorded" }); setActivityNotes(""); setActivityDate(""); }, onError: (error: Error) => toast({ title: "Couldn't record activity", description: error.message, variant: "destructive" }) })}>Add activity</Button>
           </div>
           {activityType.startsWith("tour") && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-tour-date-amp-time`} className="text-xs text-muted-foreground">Tour date &amp; time</Label><Input id={`${__fieldIds}-tour-date-amp-time`} type="datetime-local" value={activityDate} onChange={event => setActivityDate(event.target.value)} className="w-full sm:w-72" /></div>}
 
@@ -469,7 +469,7 @@ export default function AdmissionOperations() {
               {canManage && organizationId && (
                 <div className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4">
                   <div className="space-y-1"><Label htmlFor="quick-referral-source" className="text-xs">Quick-add referral source</Label><Input id="quick-referral-source" placeholder="e.g. Regional Hospital" className="w-64" /></div>
-                  <Button variant="outline" onClick={() => { const input = document.getElementById("quick-referral-source") as HTMLInputElement | null; if (!input?.value.trim()) return; createSource.mutate({ organizationId, name: input.value.trim(), sourceType: "other" }, { onSuccess: () => { toast({ title: "Referral source added" }); input.value = ""; } }); }}>Add source</Button>
+                  <Button variant="outline" onClick={() => { const input = document.getElementById("quick-referral-source") as HTMLInputElement | null; if (!input?.value.trim()) return; createSource.mutate({ organizationId, name: input.value.trim(), sourceType: "other" }, { onSuccess: () => { toast({ title: "Referral source added" }); input.value = ""; }, onError: (error: Error) => toast({ title: "Couldn't add referral source", description: error.message, variant: "destructive" }) }); }}>Add source</Button>
                 </div>
               )}
             </CardContent>

@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { QueryError } from "@/components/QueryState";
 import { CredentialRenewalInbox } from "@/components/employees/CredentialRenewalInbox";
 
 
@@ -117,7 +118,15 @@ function StartImportRunCard({ onStarted }: { onStarted: (runId: string) => void 
             }}
           >
             <SelectTrigger id="phase3-source">
-              <SelectValue placeholder={rows.length ? "Choose a source" : "No pilot or active source configured"} />
+              <SelectValue placeholder={
+                sources.isError
+                  ? "Could not load sources"
+                  : sources.isLoading
+                    ? "Loading sources…"
+                    : rows.length
+                      ? "Choose a source"
+                      : "No pilot or active source configured"
+              } />
             </SelectTrigger>
             <SelectContent>
               {rows.map((row) => (
@@ -125,6 +134,9 @@ function StartImportRunCard({ onStarted }: { onStarted: (runId: string) => void 
               ))}
             </SelectContent>
           </Select>
+          {sources.isError && (
+            <QueryError what="HRIS source systems" error={sources.error} onRetry={() => void sources.refetch()} />
+          )}
           {selected && (
             <p className="text-xs text-muted-foreground">
               Mode {selected.import_mode} · mapping v{selected.mapping_version}

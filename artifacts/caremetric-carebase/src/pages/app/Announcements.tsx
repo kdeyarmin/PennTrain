@@ -100,7 +100,7 @@ export default function Announcements() {
             <CardHeader className="pb-3">
               <div className="flex flex-wrap items-start justify-between gap-2"><div><CardTitle className="flex items-center gap-2 text-lg"><BellRing className="h-4 w-4" />{announcement.title}</CardTitle><CardDescription>Published {new Date(announcement.published_at).toLocaleString()}</CardDescription></div>{canPublish && <ReadSummary announcementId={announcement.id} />}</div>
             </CardHeader>
-            <CardContent className="space-y-3"><p className="whitespace-pre-wrap text-sm">{announcement.body}</p><Button variant="outline" size="sm" onClick={() => announcements.markSeen.mutate(announcement.id, { onSuccess: () => toast({ title: "Marked as seen" }) })}><CheckCheck className="mr-2 h-4 w-4" />Mark seen</Button></CardContent>
+            <CardContent className="space-y-3"><p className="whitespace-pre-wrap text-sm">{announcement.body}</p><Button variant="outline" size="sm" onClick={() => announcements.markSeen.mutate(announcement.id, { onSuccess: () => toast({ title: "Marked as seen" }), onError: (error) => toast({ title: "Could not mark as seen", description: error instanceof Error ? error.message : String(error), variant: "destructive" }) })}><CheckCheck className="mr-2 h-4 w-4" />Mark seen</Button></CardContent>
           </Card>
         ))}</div>
       ) : <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">No active announcements.</CardContent></Card>}

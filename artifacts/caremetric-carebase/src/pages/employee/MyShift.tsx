@@ -163,7 +163,14 @@ export default function MyShift() {
                 <div key={item.id} className="rounded-lg border p-3">
                   <div className="flex items-center justify-between gap-2"><Badge>{String(item.priority).replace(/_/g, " ")}</Badge><span className="text-xs text-muted-foreground">{String(item.category).replace(/_/g, " ")}</span></div>
                   <p className="mt-2 text-sm">{item.narrative}</p>
-                  {item.requires_acknowledgement && <Button size="sm" variant="outline" className="mt-3 min-h-10" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate(String(item.id))}>Acknowledge</Button>}
+                  {item.requires_acknowledgement && <Button size="sm" variant="outline" className="mt-3 min-h-10" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate(String(item.id), {
+                    onSuccess: () => toast({ title: "Acknowledged" }),
+                    onError: (error) => toast({
+                      title: "Could not acknowledge",
+                      description: error instanceof Error ? error.message : String(error),
+                      variant: "destructive",
+                    }),
+                  })}>Acknowledge</Button>}
                 </div>
               ))}
             </CardContent>

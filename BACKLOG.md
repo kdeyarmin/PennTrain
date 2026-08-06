@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `b17a1265` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-6b8e` after merging #460: **combined follow-on reviews after #458/#459.** #460 closed G57–G61 (auth holes, packet/POC/import facility scope, readiness fail-open, FM DEFINER writers, and the drift-checker UTF-8 byte-offset bug). This branch then closed G62–G100: empty⇒ready scoring, RPC return-shape mismatches, always-mounted dialogs, facility-day vs UTC defaults, fetch failures rendered as empty compliance answers, clinical disclosure consent (Snapshot #4), and more empty⇒success / silent-mutate masks. **Headline on this branch:** `useBulkUpdateAlerts` treated the `bulk_update_alert_status` JSON envelope as a bare array; bulk and single-row resolve now share one envelope-aware RPC path. Generated `database.types.ts` regenerated for `set_resident_clinical_data_consent`. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `PLACEHOLDER` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-6b8e` after merging #460 and parallel G97–G106 leftovers: **combined follow-on reviews after #458/#459.** #460 closed G57–G61. This branch closed G62–G110 (empty⇒ready scoring, silent mutates, clinical disclosure consent, and the later empty⇒success leftovers). Regenerated `database.types.ts` for `set_resident_clinical_data_consent`. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -532,7 +532,17 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G97 | HRIS staged rows failed load = validate first | S | done | Only isLoading checked; error showed "no staged rows yet". QueryError first |
 | G98 | Acuity workload failed fetch vanished | S | done | `!data` returned null on error with no feedback. QueryError instead |
 | G99 | Offline draft dismiss/sync silent on failure | S | done | UnsyncedDraftsPanel dismiss/sync mutateAsync had no onError toast. Surface failures |
-| G100 | Shadow differences failed load = none recorded; portal expiry browser-local | S | done | RegulatoryGovernance empty-masked differences; ResidentPortalWorkspace defaultExpiry used browser local +30. QueryError + `addFacilityCalendarDays(facilityToday(), 30)` |---
+| G100 | Shadow differences failed load = none recorded; portal expiry browser-local | S | done | RegulatoryGovernance empty-masked differences; ResidentPortalWorkspace defaultExpiry used browser local +30. QueryError + `addFacilityCalendarDays(facilityToday(), 30)` 
+| G101 | Incident follow-through vanished on fetch failure | S | done | `if (!data?.incident) return null` with no isError hid the close-loop checklist. QueryError first |
+| G102 | Certification versions empty-masked load failure | S | done | Versions error claimed "no published checklist". QueryError + disable Start until versions load |
+| G103 | Retraining enroll dialog empty-masked class load | S | done | Failed classes query showed "No scheduled…". QueryError before empty |
+| G104 | HRIS start-run source picker lied on load failure | S | done | Placeholder claimed no source configured when sources failed. QueryError + honest placeholder |
+| G105 | My Schedule time-off empty on workspace error | S | done | Time-off card showed "No recent requests" while open-shifts already skipped empty on error. Mirror |
+| G106 | Move-in guest links tile zeroed / list blank on error | S | done | Active guest links used `?? 0`; list only mapped data. Dash + QueryError |
+| G107 | PCH/ALF ops, notification, security tiles zeroed on error | S | done | Portfolio/facility metrics, notification ops tiles, and governance tiles showed 0/v2 on failure. Show "—" |
+| G108 | Silent mutates: shift ack, PM pause, announcements, admissions, finalize | S | done | MyShift acknowledge, Maintenance pause/resume, Announcements mark-seen, Admission activity/referral source, assessment finalize now toast onError |
+| G109 | Guest portals accept/sign silent on failure | S | done | Move-in and resident-agreement guest portals only handled onSuccess. Toast accept/sign/respond errors |
+| G110 | Employee search empty copy beside load error | S | done | `!isLoading && length===0` still said "No employees match" when query failed (error text already shown). Require `!isError` |
 
 ## Explicitly not now
 

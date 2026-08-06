@@ -132,6 +132,8 @@ function EnrollCohortDialog({
               <Label id={`${__fieldIds}-scheduled-class`}>Scheduled class</Label>
               {classes.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading classes…</p>
+              ) : classes.isError ? (
+                <QueryError what="scheduled classes" error={classes.error} onRetry={() => void classes.refetch()} />
               ) : (classes.data ?? []).length === 0 ? (
                 <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                   No scheduled or in-progress classes at this facility.{" "}

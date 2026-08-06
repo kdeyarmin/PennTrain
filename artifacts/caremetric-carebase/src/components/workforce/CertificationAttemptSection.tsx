@@ -171,7 +171,7 @@ export default function CertificationAttemptSection({
           <div className="space-y-2">
             <Label htmlFor="certification-version">Start an observation</Label>
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={versionId} onValueChange={setVersionId}>
+              <Select value={versionId} onValueChange={setVersionId} disabled={versions.isLoading || versions.isError}>
                 <SelectTrigger id="certification-version" className="sm:w-96">
                   <SelectValue placeholder="Select a published checklist" />
                 </SelectTrigger>
@@ -183,15 +183,17 @@ export default function CertificationAttemptSection({
                   ))}
                 </SelectContent>
               </Select>
-              <Button disabled={!versionId || start.isPending} onClick={() => void startAttempt()}>
+              <Button disabled={!versionId || start.isPending || versions.isError || versions.isLoading} onClick={() => void startAttempt()}>
                 {start.isPending ? "Starting…" : "Start observation"}
               </Button>
             </div>
-            {(versions.data ?? []).length === 0 && !versions.isLoading && (
+            {versions.isError ? (
+              <QueryError what="published checklists" error={versions.error} onRetry={() => void versions.refetch()} />
+            ) : (versions.data ?? []).length === 0 && !versions.isLoading ? (
               <p className="text-xs text-muted-foreground">
                 No published checklist is currently effective, so there is nothing to observe against.
               </p>
-            )}
+            ) : null}
           </div>
         ) : (
           <div className="space-y-4">

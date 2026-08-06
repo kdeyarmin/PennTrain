@@ -187,7 +187,7 @@ export default function MoveInWorkspaceDetail() {
         <Card><CardContent className="pt-6"><p className="text-2xl font-bold">{progress}%</p><p className="text-sm text-muted-foreground">Ready</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-2xl font-bold">{readyCount}</p><p className="text-sm text-muted-foreground">Completed / approved</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-2xl font-bold text-amber-700">{blockers}</p><p className="text-sm text-muted-foreground">Remaining blockers</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-2xl font-bold">{grants.data?.filter(grant => !grant.revoked_at && new Date(grant.expires_at) > new Date()).length ?? 0}</p><p className="text-sm text-muted-foreground">Active guest links</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-2xl font-bold">{grants.isLoading || grants.isError ? "—" : (grants.data?.filter(grant => !grant.revoked_at && new Date(grant.expires_at) > new Date()).length ?? 0)}</p><p className="text-sm text-muted-foreground">Active guest links</p></CardContent></Card>
       </div>
 
       {data.state === "ready" && (
@@ -253,7 +253,9 @@ export default function MoveInWorkspaceDetail() {
           <CardContent className="space-y-3">
             {canManage && <Button onClick={() => setGuestOpen(true)}><FileSignature className="mr-2 h-4 w-4" />Create guest signing link</Button>}
             {issuedLink && <div className="flex gap-2 rounded-md border p-2"><Input readOnly value={issuedLink} /><Button size="icon" variant="outline" onClick={() => navigator.clipboard.writeText(issuedLink)}><Copy className="h-4 w-4" /></Button></div>}
-            {grants.data?.map(grant => (
+            {grants.isError ? (
+              <QueryError what="guest signing links" error={grants.error} onRetry={() => void grants.refetch()} />
+            ) : grants.data?.map(grant => (
               <div key={grant.id} className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
                 <div><p className="font-medium">{grant.guest_label}</p><p className="text-xs text-muted-foreground">{grant.allowed_task_ids.length} scoped task(s) · expires {new Date(grant.expires_at).toLocaleString()}</p></div>
                 <Badge variant="outline">{grant.revoked_at ? "Revoked" : new Date(grant.expires_at) <= new Date() ? "Expired" : grant.accepted_at ? "Accepted" : "Issued"}</Badge>
