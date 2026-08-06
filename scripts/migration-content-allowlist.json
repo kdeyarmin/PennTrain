@@ -313,5 +313,11 @@
   },
   "20260802010000": {
     "reason": "Ledger divergence after recent apply of the SG-2 PA 2600/2800 regulatory_rule_pack_templates seed. Local file is the counsel-cleared source; live templates match (template_key, fixtures, calculation_parameters). Divergence is in recorded statements vs file."
+  },
+  "20260802080000": {
+    "reason": "Post-deploy edit to COMMENTS only. Verified 2026-08-05 against the statements recorded in supabase_migrations.schema_migrations on the live project: strip `--` comments and collapse whitespace on both sides and they are byte-identical (md5 95701bcb82168cf92987e3cd8d6e0704, 5746 chars). The raw forms differ only in commentary volume (deployed 11376 chars, file 10618), so nothing about what runs changed."
+  },
+  "20260804200000": {
+    "reason": "Post-deploy edit to COMMENTS only. Verified 2026-08-05 the same way as 20260802080000: comment-stripped and whitespace-collapsed, both sides are byte-identical (md5 5571b58daacc1266aeb899f17fc6f628, 137 chars). This migration is almost entirely commentary -- 137 characters of SQL under 2816 characters of deployed text -- so editing the prose moved the hash a long way while the two statements it applies are unchanged."
   }
 }

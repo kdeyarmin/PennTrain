@@ -97,6 +97,25 @@ export function supabaseStatementsJoined(sql) {
     }
 
     raw = raw.replace(/;\s*$/, "");
+
+    // libpg-query sometimes reports a statement one character LATE: its span starts one character
+    // into the statement and ends one character into the NEXT one. The gap-orphan handling above
+    // recovers the stolen leading character, but the trailing one is still attached here -- so a
+    // plain `revoke ...;` / `grant ...` pair reassembles as `... anon; g` + `rant execute ...` and
+    // fabricates CONTENT drift for a file whose SQL never changed (observed on
+    // 20260804110000_resident_appointment_lifecycle.sql). Carry that fragment to the next
+    // statement, where its own orphan handling puts it back together.
+    //
+    // Deliberately narrow: only a short alphabetic fragment, with nothing else after the
+    // terminator. A real statement never follows its own `;` inside one span, and this shape
+    // cannot be one -- which keeps the rule away from dollar-quoted bodies whose last `;` is
+    // genuinely internal.
+    const splitToken = raw.match(/;(\s*[A-Za-z]{1,3})$/);
+    if (splitToken) {
+      carry = splitToken[1].trim() + carry;
+      raw = raw.slice(0, raw.length - splitToken[0].length);
+    }
+
     const overrun = raw.search(/\n;\s*\n/);
     if (overrun !== -1) {
       carry = raw.slice(overrun).replace(/^\n;\s*/, "");
