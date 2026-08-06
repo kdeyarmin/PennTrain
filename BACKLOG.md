@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `PLACEHOLDER` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-6b8e` after merging #460 and parallel G97–G106 leftovers: **combined follow-on reviews after #458/#459.** #460 closed G57–G61. This branch closed G62–G110 (empty⇒ready scoring, silent mutates, clinical disclosure consent, and the later empty⇒success leftovers). Regenerated `database.types.ts` for `set_resident_clinical_data_consent`. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `92e9ba90` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-6b8e` after merging #460 and parallel G97–G106 leftovers: **combined follow-on reviews after #458/#459.** #460 closed G57–G61. This branch closed G62–G110 (empty⇒ready scoring, silent mutates, clinical disclosure consent, and the later empty⇒success leftovers). Regenerated `database.types.ts` for `set_resident_clinical_data_consent`. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
