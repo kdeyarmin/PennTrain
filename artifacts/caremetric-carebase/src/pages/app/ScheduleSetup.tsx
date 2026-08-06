@@ -552,7 +552,12 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
   // useListEmployeeSchedulePreferences takes a single employeeId, so that list (below) only shows
   // once exactly one employee is checked above.
   const singleEmployeeId = employeeIds.size === 1 ? [...employeeIds][0] : undefined;
-  const { data: preferences } = useListEmployeeSchedulePreferences({ employeeId: singleEmployeeId, facilityId });
+  const {
+    data: preferences,
+    isError: preferencesError,
+    error: preferencesErrorDetail,
+    refetch: refetchPreferences,
+  } = useListEmployeeSchedulePreferences({ employeeId: singleEmployeeId, facilityId });
   const create = useCreateEmployeeSchedulePreference();
   const del = useDeleteEmployeeSchedulePreference();
   // A pattern could be added and deleted but never amended (BACKLOG.md G16.16), so correcting one
@@ -723,7 +728,9 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
             {singleEmployeeId && (
               <div className="space-y-2">
                 <p className="text-sm font-medium leading-none text-xs text-muted-foreground" >Existing patterns</p>
-                {(preferences ?? []).length === 0 ? (
+                {preferencesError ? (
+                  <QueryError what="schedule patterns" error={preferencesErrorDetail} onRetry={() => void refetchPreferences()} />
+                ) : (preferences ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
                 ) : (
                   (preferences ?? []).map((p: EmployeeSchedulePreference) => (
@@ -752,7 +759,9 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                               <Pencil className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id)} aria-label="Delete schedule pattern">
+                          <Button variant="ghost" size="icon" onClick={() => del.mutate(p.id, {
+                            onError: (e: Error) => toast({ title: "Couldn't delete schedule pattern", description: e.message, variant: "destructive" }),
+                          })} aria-label="Delete schedule pattern">
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>

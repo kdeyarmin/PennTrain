@@ -208,7 +208,7 @@ export default function MySchedule() {
           <CardDescription>Only published shifts are shown. Swap candidates are limited to your facility and remain subject to manager approval.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {shiftsError ? null : isLoading ? (
             <div className="space-y-2">{[...Array(4)].map((_, index) => <div key={index} className="h-20 animate-pulse rounded bg-muted" />)}</div>
           ) : upcoming.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No upcoming shifts published yet.</p>

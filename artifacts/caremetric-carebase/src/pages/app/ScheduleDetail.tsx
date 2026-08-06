@@ -136,7 +136,13 @@ export default function ScheduleDetail() {
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
   const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
   const { data: assignments, isLoading: assignmentsLoading } = useListShiftAssignments({ scheduleId: id });
-  const { data: serviceWorkload } = useScheduleServiceWorkload(id);
+  const {
+    data: serviceWorkload,
+    isLoading: serviceWorkloadLoading,
+    isError: serviceWorkloadError,
+    error: serviceWorkloadErrorDetail,
+    refetch: refetchServiceWorkload,
+  } = useScheduleServiceWorkload(id);
 
   // Med-admin "who can pass meds today" signal, joined onto whoever is actually scheduled this
   // period -- reuses the same hook MedAdminRoster.tsx is built on (see useMedAdminAuthorization.ts)
@@ -757,20 +763,24 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                   Operational demand from active residents, support-plan services, two-person work, escorts, safety checks, secured-unit coverage, and known appointment or transportation tasks. This is not a medical-acuity score.
                 </p>
               </div>
-              <Badge variant={(serviceWorkload?.coverageGapCount ?? 0) > 0 ? "destructive" : "secondary"}>
-                {serviceWorkload?.coverageGapCount ?? 0} coverage gaps
+              <Badge variant={serviceWorkloadError || serviceWorkloadLoading ? "secondary" : (serviceWorkload?.coverageGapCount ?? 0) > 0 ? "destructive" : "secondary"}>
+                {serviceWorkloadError || serviceWorkloadLoading ? "—" : `${serviceWorkload?.coverageGapCount ?? 0} coverage gaps`}
               </Badge>
             </div>
+            {serviceWorkloadError ? (
+              <QueryError what="service workload" error={serviceWorkloadErrorDetail} onRetry={() => void refetchServiceWorkload()} />
+            ) : (
+            <>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                ["Active residents", serviceWorkload?.activeResidents ?? activeResidentCount],
-                ["Support-plan services", serviceWorkload?.supportPlanServices ?? 0],
-                ["Two-person services", serviceWorkload?.twoPersonTransfers ?? 0],
-                ["Escorts", serviceWorkload?.escorts ?? 0],
-                ["Safety checks", serviceWorkload?.safetyChecks ?? 0],
-                ["Appointments / transport", serviceWorkload?.appointmentTransportationDemand ?? 0],
-                ["Secured-unit residents", serviceWorkload?.securedUnitResidents ?? 0],
-                ["Configured unit-shifts", serviceWorkload?.coverageRows.length ?? 0],
+                ["Active residents", serviceWorkloadLoading ? "—" : (serviceWorkload?.activeResidents ?? activeResidentCount)],
+                ["Support-plan services", serviceWorkloadLoading ? "—" : (serviceWorkload?.supportPlanServices ?? 0)],
+                ["Two-person services", serviceWorkloadLoading ? "—" : (serviceWorkload?.twoPersonTransfers ?? 0)],
+                ["Escorts", serviceWorkloadLoading ? "—" : (serviceWorkload?.escorts ?? 0)],
+                ["Safety checks", serviceWorkloadLoading ? "—" : (serviceWorkload?.safetyChecks ?? 0)],
+                ["Appointments / transport", serviceWorkloadLoading ? "—" : (serviceWorkload?.appointmentTransportationDemand ?? 0)],
+                ["Secured-unit residents", serviceWorkloadLoading ? "—" : (serviceWorkload?.securedUnitResidents ?? 0)],
+                ["Configured unit-shifts", serviceWorkloadLoading ? "—" : (serviceWorkload?.coverageRows.length ?? 0)],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-lg border bg-background p-3">
                   <p className="text-xs text-muted-foreground">{label}</p>
@@ -778,7 +788,9 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                 </div>
               ))}
             </div>
-            {(serviceWorkload?.coverageRows.length ?? 0) === 0 ? (
+            {serviceWorkloadLoading ? (
+              <p className="text-xs text-muted-foreground">Loading service workload…</p>
+            ) : (serviceWorkload?.coverageRows.length ?? 0) === 0 ? (
               <p className="text-xs text-muted-foreground">
                 Configure qualification and service-workload requirements in Scheduling Setup to compare scheduled qualified coverage against each unit and shift.
               </p>
@@ -816,6 +828,8 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                   </tbody>
                 </table>
               </div>
+            )}
+            </>
             )}
           </div>
           {(scheduleAnalytics.unitDayCoverageGaps > 0 || scheduleAnalytics.employeesOver40Hours.length > 0 || staffingRatios.isBelowTarget || staffingRatios.daysBelowMinimumStaffing.length > 0) && (

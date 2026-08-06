@@ -60,7 +60,7 @@ function AttestationStatusBadge({ attestation }: { attestation: PolicyAttestatio
 function VersionsTab({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: versions, isLoading } = useListPolicyDocumentVersions(documentId);
+  const { data: versions, isLoading, isError, error, refetch } = useListPolicyDocumentVersions(documentId);
   const uploadVersion = useUploadPolicyDocumentVersion();
   const publishVersion = usePublishPolicyDocumentVersion();
   const getSignedUrl = usePolicyDocumentSignedUrl();
@@ -119,6 +119,8 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
       <CardContent>
         {isLoading ? (
           <div className="space-y-2">{[...Array(2)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}</div>
+        ) : isError ? (
+          <QueryError what="policy versions" error={error} onRetry={() => void refetch()} />
         ) : !versions?.length ? (
           <p className="text-sm text-muted-foreground text-center py-6">No versions uploaded yet.</p>
         ) : (
@@ -486,7 +488,7 @@ function CampaignRoster({ campaignId }: { campaignId: string }) {
 }
 
 function CampaignsTab({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
-  const { data: campaigns, isLoading } = useListPolicyAttestationCampaigns({ policyDocumentId: documentId });
+  const { data: campaigns, isLoading, isError, error, refetch } = useListPolicyAttestationCampaigns({ policyDocumentId: documentId });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assignTarget, setAssignTarget] = useState<{ id: string; versionId: string; dueDate: string | null } | null>(null);
 
@@ -505,6 +507,8 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
           )}
           {isLoading ? (
             <div className="space-y-2">{[...Array(2)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}</div>
+          ) : isError ? (
+            <QueryError what="attestation campaigns" error={error} onRetry={() => void refetch()} />
           ) : !campaigns?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">No campaigns yet.</p>
           ) : (
