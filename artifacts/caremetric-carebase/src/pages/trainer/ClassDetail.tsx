@@ -997,7 +997,7 @@ export default function ClassDetail() {
 
       {cls.roster_document_id && <RosterDocumentCard documentId={cls.roster_document_id} />}
 
-      <Dialog open={showAddAttendees} onOpenChange={setShowAddAttendees}>
+      <Dialog open={showAddAttendees} onOpenChange={(open) => { setShowAddAttendees(open); if (!open) { setSelectedEmps([]); setEmpSearch(""); } }}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Add Attendees</DialogTitle>

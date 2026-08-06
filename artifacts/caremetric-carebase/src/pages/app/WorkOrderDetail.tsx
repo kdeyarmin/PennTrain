@@ -199,7 +199,17 @@ export default function WorkOrderDetail() {
           <p className="mt-3 max-w-3xl text-lg">{order.problem_description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canManage && !["verified","canceled"].includes(order.status) && <Button variant="outline" onClick={() => setShowEdit(true)}><Pencil className="mr-2 h-4 w-4" /> Edit details</Button>}
+          {canManage && !["verified","canceled"].includes(order.status) && <Button variant="outline" onClick={() => {
+            const localTarget = order.target_completion_at ? toFacilityDateTimeLocal(order.target_completion_at) : "";
+            setEdit({
+              locationDetail: order.location_detail ?? "", roomNumber: order.room_number ?? "",
+              safetyRisk: order.safety_risk, priority: order.priority,
+              protectiveAction: order.temporary_protective_action ?? "", employeeId: order.assigned_employee_id ?? "none",
+              vendor: order.external_vendor ?? "", target: localTarget, parts: order.parts_needed ?? "",
+              estimatedCost: order.estimated_cost == null ? "" : String(order.estimated_cost), residentImpact: order.resident_impact ?? "",
+            });
+            setShowEdit(true);
+          }}><Pencil className="mr-2 h-4 w-4" /> Edit details</Button>}
           {canManage && order.status === "open" && <Button onClick={() => openTransition(order.assigned_employee_id ? "assigned" : "in_progress")}><Play className="mr-2 h-4 w-4" /> Start work</Button>}
           {canManage && order.status === "assigned" && <Button onClick={() => openTransition("in_progress")}><Play className="mr-2 h-4 w-4" /> Begin repair</Button>}
           {canManage && order.status === "in_progress" && <><Button variant="outline" onClick={() => openTransition("on_hold")}><Pause className="mr-2 h-4 w-4" /> Put on hold</Button><Button onClick={() => openTransition("pending_verification")}><CheckCircle2 className="mr-2 h-4 w-4" /> Complete repair</Button></>}

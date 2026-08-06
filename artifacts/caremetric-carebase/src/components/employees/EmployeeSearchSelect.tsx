@@ -107,7 +107,7 @@ export function EmployeeSearchSelect({
         onValueChange={(v) => emit(v === emptyValue ? "" : v)}
         disabled={disabled}
       >
-        <SelectTrigger className="h-9">
+        <SelectTrigger className="h-9" aria-label={label || placeholder}>
           <SelectValue placeholder={query.isLoading ? "Loading…" : placeholder} />
         </SelectTrigger>
         <SelectContent>

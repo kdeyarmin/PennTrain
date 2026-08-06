@@ -266,7 +266,7 @@ export default function InspectionItemDetail() {
             </Button>
           )}
           {canManage && <Button asChild variant="outline"><Link href={`/app/maintenance?action=add&assetId=${item.id}`}><Wrench className="mr-2 h-4 w-4" /> New Work Order</Link></Button>}
-          {canManage && <Button onClick={() => setShowEventForm(true)}><Plus className="mr-2 h-4 w-4" /> Log Inspection</Button>}
+          {canManage && <Button onClick={() => { resetEventForm(); setShowEventForm(true); }}><Plus className="mr-2 h-4 w-4" /> Log Inspection</Button>}
         </div>
       </div>
 
@@ -435,7 +435,7 @@ export default function InspectionItemDetail() {
         </div>
       )}
 
-      <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) { setShowEventForm(false); setShowValidation(false); } }}>
+      <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) { setShowEventForm(false); resetEventForm(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -561,7 +561,7 @@ export default function InspectionItemDetail() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowEventForm(false); setShowValidation(false); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowEventForm(false); resetEventForm(); }}>Cancel</Button>
             <Button onClick={handleLogEvent} disabled={creatingEvent} className="shadow-sm">
               {creatingEvent ? "Saving..." : "Log Inspection"}
             </Button>

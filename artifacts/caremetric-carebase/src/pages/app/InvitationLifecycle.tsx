@@ -161,7 +161,7 @@ export default function InvitationLifecycle() {
             <Link href="/app/users"><Users className="mr-2 h-4 w-4" /> User directory</Link>
           </Button>
           {canManage && (
-            <Button onClick={() => { setBulkOpen(true); setBulkResults(null); }}>
+            <Button onClick={() => { setBulkCsv(""); setBulkResults(null); setBulkOpen(true); }}>
               <MailPlus className="mr-2 h-4 w-4" /> Bulk invite
             </Button>
           )}
@@ -333,7 +333,7 @@ export default function InvitationLifecycle() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+      <Dialog open={bulkOpen} onOpenChange={(open) => { setBulkOpen(open); if (!open) { setBulkCsv(""); setBulkResults(null); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Bulk invite</DialogTitle>

@@ -275,7 +275,7 @@ export default function Documents() {
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Facility</label>
               <Select value={uploadFacility} onValueChange={setUploadFacility}>
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-52" aria-label="Upload facility">
                   <SelectValue placeholder="Select facility" />
                 </SelectTrigger>
                 <SelectContent>
@@ -288,7 +288,7 @@ export default function Documents() {
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Employee (optional)</label>
               <Select value={uploadEmployee} onValueChange={setUploadEmployee}>
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-52" aria-label="Upload employee">
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
                 <SelectContent>
@@ -302,7 +302,7 @@ export default function Documents() {
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Document Type</label>
               <Select value={uploadDocType} onValueChange={setUploadDocType}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-48" aria-label="Upload document type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

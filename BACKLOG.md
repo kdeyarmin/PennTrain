@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `e0a2b59b` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **tenth-pass** after G149–G155. Closed WorkQueue/audit-export/entitlement-term/credential/pending-approvals/war-room/duty-override calendar bounds, lifecycle/dietary/service-delivery fail-open, onboarding silent mutate, and remaining unlabeled Selects (Reports mobile, support-plan compare, census, DataTable page-size, corrective-action status, dietary Choice). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `eb822575` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **eleventh-pass** after G156–G160. Closed homeMetrics/Reports/ScheduleDetail facility calendar windows, IncidentDetail add-staff onError, stale dialog drafts (inspection log, work-order edit, bulk invite, class attendees, PoC verify), and unlabeled Selects (EmployeeSearchSelect, Documents upload, SupportTicketDetail). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -593,6 +593,11 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G158 | Lifecycle / dietary / service-delivery metric fail-open | S | done | Lifecycle tiles dash while loading/holds error; dietary tabs wait for load; service tab counts dash on load/error |
 | G159 | EmployeeDetail onboarding mark-done silent mutate | S | done | `updateOnboardingItem` toasts onError |
 | G160 | Remaining unlabeled Selects (Reports/compare/census/DataTable/dietary/CAPA) | S | done | Mobile report category, support-plan from/to, census resident/status, rows-per-page, corrective status; dietary Field→Choice aria-label |
+| G161 | Home metrics due-today / due-week used browser EOD + ms | M | done | `buildHomeMetrics` uses facility day/range `through` bounds |
+| G162 | Reports default date window + ScheduleDetail override fallback | M | done | Default −12/+6 months via facility calendar; override fallback tomorrow facility `T23:59` |
+| G163 | IncidentDetail add-staff silent mutate | S | done | Toast onError; clear employee picker only on success |
+| G164 | Stale dialogs: inspection log, work-order edit, bulk invite, attendees, PoC verify | S | done | Reset on open/close for each surface |
+| G165 | Unlabeled Selects: EmployeeSearchSelect / Documents upload / ticket detail | S | done | aria-label when filter label empty; upload facility/employee/type; ticket status/priority |
 
 ## Explicitly not now
 

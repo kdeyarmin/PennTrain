@@ -414,8 +414,13 @@ export default function IncidentDetail() {
                 size="sm"
                 disabled={!newStaffEmployee}
                 onClick={() => {
-                  addStaff({ incident_id: incident.id, employee_id: newStaffEmployee, involvement_type: newStaffRole, organization_id: incident.organization_id, facility_id: incident.facility_id });
-                  setNewStaffEmployee("");
+                  addStaff(
+                    { incident_id: incident.id, employee_id: newStaffEmployee, involvement_type: newStaffRole, organization_id: incident.organization_id, facility_id: incident.facility_id },
+                    {
+                      onSuccess: () => setNewStaffEmployee(""),
+                      onError: (e: Error) => toast({ title: "Failed to add staff member", description: e.message, variant: "destructive" }),
+                    },
+                  );
                 }}
               >
                 <Plus className="h-4 w-4" />

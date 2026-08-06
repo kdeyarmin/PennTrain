@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { csvEscape } from "@/lib/csv";
-import { addFacilityCalendarDays, facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { containsFilterValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -366,13 +366,19 @@ function supportsAutoDateDefault(reportId: string): boolean {
 // reports read: due/expired/occurred dates), but with a forward buffer too: "Training Due Soon"
 // and "Expiring Certifications" filter for dates in the *next* 90 days, and a purely backward
 // window would silently zero those reports out by default.
+/** Shift a facility YYYY-MM-DD by whole calendar months (clamped to the target month's last day). */
+function addFacilityCalendarMonths(isoDate: string, months: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const anchor = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0)).getUTCDate();
+  const clamped = Math.min(day, lastDay);
+  return `${anchor.getUTCFullYear()}-${String(anchor.getUTCMonth() + 1).padStart(2, "0")}-${String(clamped).padStart(2, "0")}`;
+}
+
 function defaultDateWindow(): { from: string; to: string } {
-  const now = new Date();
-  const from = new Date(now);
-  from.setMonth(from.getMonth() - 12);
-  const to = new Date(now);
-  to.setMonth(to.getMonth() + 6);
-  return { from: toLocalIsoDate(from), to: toLocalIsoDate(to) };
+  // Facility calendar months — not browser `setMonth` / `toLocalIsoDate`.
+  const today = facilityToday();
+  return { from: addFacilityCalendarMonths(today, -12), to: addFacilityCalendarMonths(today, 6) };
 }
 
 // csvEscape also neutralizes formula injection (leading = + - @) for user-entered text.

@@ -118,7 +118,7 @@ export function PocLifecycleActions({
           </>
         )}
         {status === "corrected" && (
-          <Button size="sm" variant="outline" disabled={pending} onClick={() => setShowVerify(true)}>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => { setNotes(""); setShowVerify(true); }}>
             Mark Verified (Effectiveness Review)
           </Button>
         )}
@@ -148,7 +148,7 @@ export function PocLifecycleActions({
         </div>
       )}
 
-      <AlertDialog open={showVerify} onOpenChange={(open) => { if (!open) setShowVerify(false); }}>
+      <AlertDialog open={showVerify} onOpenChange={(open) => { if (!open) { setShowVerify(false); setNotes(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Effectiveness review</AlertDialogTitle>

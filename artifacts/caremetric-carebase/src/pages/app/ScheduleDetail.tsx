@@ -43,7 +43,7 @@ import {
 import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Eraser, Loader2, Pill, Plus, Send, Sparkles, Undo2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
-import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso, addFacilityCalendarDays } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios, summarizeMedAdminCoverage } from "@/lib/scheduleAnalytics";
 import { QueryError } from "@/components/QueryState";
 
@@ -298,7 +298,8 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
   const shiftDef = activeShiftDefs.find((s) => s.id === addForm.shiftDefinitionId);
   const defaultExpiresAt = (() => {
     if (!addTarget || !shiftDef) {
-      return toFacilityDateTimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000));
+      // Tomorrow facility EOD — not browser `Date.now() + 24h`.
+      return `${addFacilityCalendarDays(facilityToday(), 1)}T23:59`;
     }
     const startTime = shiftDef.start_time.slice(0, 5);
     const endTime = shiftDef.end_time.slice(0, 5);
