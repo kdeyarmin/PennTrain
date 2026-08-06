@@ -168,19 +168,20 @@ describe("daysUntil", () => {
 });
 
 describe("formatDueDistance", () => {
-  const today = new Date(2026, 6, 12, 9, 30);
+  // Noon UTC stays on the same Pennsylvania calendar day (EDT).
+  const now = new Date("2026-07-12T12:00:00Z");
 
-  it("phrases future, today, and overdue distances", () => {
-    expect(formatDueDistance("2026-07-12", today)).toBe("today");
-    expect(formatDueDistance("2026-07-13", today)).toBe("tomorrow");
-    expect(formatDueDistance("2026-07-19", today)).toBe("in 7 days");
-    expect(formatDueDistance("2026-07-11", today)).toBe("1 day overdue");
-    expect(formatDueDistance("2026-07-05", today)).toBe("7 days overdue");
+  it("phrases future, today, and overdue distances on the facility calendar", () => {
+    expect(formatDueDistance("2026-07-12", now)).toBe("today");
+    expect(formatDueDistance("2026-07-13", now)).toBe("tomorrow");
+    expect(formatDueDistance("2026-07-19", now)).toBe("in 7 days");
+    expect(formatDueDistance("2026-07-11", now)).toBe("1 day overdue");
+    expect(formatDueDistance("2026-07-05", now)).toBe("7 days overdue");
   });
 
   it("returns null when there is no usable date", () => {
-    expect(formatDueDistance(null, today)).toBeNull();
-    expect(formatDueDistance("not-a-date", today)).toBeNull();
+    expect(formatDueDistance(null, now)).toBeNull();
+    expect(formatDueDistance("not-a-date", now)).toBeNull();
   });
 });
 

@@ -217,9 +217,13 @@ export function facilityDaysUntil(value: string | null | undefined, now = new Da
 /**
  * Short urgency phrase meant to follow an absolute due date, e.g. "Due Jul 15, 2026 · in 3
  * days" / "· today" / "· 2 days overdue". Returns null when there is no usable date.
+ *
+ * Uses the Pennsylvania facility calendar (`facilityDaysUntil`) so the phrase agrees with
+ * `pa_today()` and the numeric due-tone styling beside it. Bare Postgres `date` values only —
+ * timestamps fall through to null (callers should pass the calendar date column).
  */
-export function formatDueDistance(value: string | null | undefined, today = new Date()): string | null {
-  const days = daysUntil(value, today);
+export function formatDueDistance(value: string | null | undefined, now = new Date()): string | null {
+  const days = facilityDaysUntil(value, now);
   if (days === null) return null;
   if (days < 0) return days === -1 ? "1 day overdue" : `${-days} days overdue`;
   if (days === 0) return "today";

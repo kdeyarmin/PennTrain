@@ -302,6 +302,8 @@ export function SummaryTab({
                     <div className="space-y-1" role="group" aria-labelledby={`${fieldIds}-participant-${i}-relationship`}>
                       <Label id={`${fieldIds}-participant-${i}-relationship`} className="text-[11px]">Relationship</Label>
                       <QuickFillSelect
+                        id={`${fieldIds}-participant-${i}-relationship-quick`}
+                        aria-label={`Quick fill relationship for participant ${i + 1}`}
                         className="h-8 text-xs"
                         placeholder="Quick fill…"
                         options={RELATIONSHIP_OPTIONS}

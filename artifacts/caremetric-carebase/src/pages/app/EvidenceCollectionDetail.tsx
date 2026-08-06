@@ -366,6 +366,7 @@ export default function EvidenceCollectionDetail() {
               onClick={() => {
                 setSelectedArtifactIds(activeArtifacts.map((a) => a.id));
                 setGuestLabel("");
+                setExpiresDays("14");
                 setShowIssueGrant(true);
               }}
               disabled={activeArtifacts.length === 0}
@@ -544,6 +545,8 @@ export default function EvidenceCollectionDetail() {
           if (!open) {
             setShowIssueGrant(false);
             setIssuedGrant(null);
+            setGuestLabel("");
+            setExpiresDays("14");
           }
         }}
       >

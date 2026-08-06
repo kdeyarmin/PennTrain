@@ -461,10 +461,10 @@ export default function DocumentAnalyzer() {
       )}
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Uploaded</p><p className="text-2xl font-bold">{summary.total}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Processing</p><p className="text-2xl font-bold">{summary.inProgress}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Ready</p><p className="text-2xl font-bold">{summary.ready}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Approved</p><p className="text-2xl font-bold">{summary.approved}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Uploaded</p><p className="text-2xl font-bold">{jobsQuery.isError || jobsQuery.isLoading ? "—" : summary.total}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Processing</p><p className="text-2xl font-bold">{jobsQuery.isError || jobsQuery.isLoading ? "—" : summary.inProgress}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Ready</p><p className="text-2xl font-bold">{jobsQuery.isError || jobsQuery.isLoading ? "—" : summary.ready}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Approved</p><p className="text-2xl font-bold">{jobsQuery.isError || jobsQuery.isLoading ? "—" : summary.approved}</p></CardContent></Card>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[460px_1fr]">

@@ -286,10 +286,10 @@ export default function SystemJobs() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Healthy" value={healthy} icon={CheckCircle2} tone="success" />
-        <StatCard label="Stale" value={stale} icon={Clock3} tone="danger" />
-        <StatCard label="Failed or partial" value={failed} icon={AlertTriangle} tone="warning" />
-        <StatCard label="Running" value={active} icon={Activity} tone="info" />
+        <StatCard label="Healthy" value={isError || isLoading ? "—" : healthy} icon={CheckCircle2} tone="success" />
+        <StatCard label="Stale" value={isError || isLoading ? "—" : stale} icon={Clock3} tone="danger" />
+        <StatCard label="Failed or partial" value={isError || isLoading ? "—" : failed} icon={AlertTriangle} tone="warning" />
+        <StatCard label="Running" value={isError || isLoading ? "—" : active} icon={Activity} tone="info" />
       </div>
 
       <FailedBillingEventsCard />

@@ -78,7 +78,7 @@ export function ServiceExceptionFollowUpDialog({
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>Cancel</Button>
+          <Button variant="outline" onClick={() => { setReason(""); onOpenChange(false); }} disabled={pending}>Cancel</Button>
           <Button
             disabled={pending}
             onClick={async () => { await onConfirm(reason.trim()); setReason(""); }}

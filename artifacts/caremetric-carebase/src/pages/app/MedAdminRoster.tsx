@@ -61,6 +61,7 @@ export default function MedAdminRoster() {
   const rosterQueries = [facilitiesQuery, employeesQuery, incidentsQuery, correctiveActionsQuery];
   const rosterFailure = rosterQueries.find((query) => query.isError)
     ?? (medAuthIsError ? { isError: true as const, error: medAuthError } : undefined);
+  const safetyBusy = incidentsQuery.isLoading || correctiveActionsQuery.isLoading || !!rosterFailure;
 
   return (
     <div className="space-y-6">
@@ -100,19 +101,19 @@ export default function MedAdminRoster() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><AlertTriangle className="h-4 w-4" />Medication events</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{medicationSafety.totalEvents}</p><p className="text-xs text-muted-foreground">Filtered incident log</p></CardContent>
+          <CardContent><p className="text-3xl font-bold">{safetyBusy ? "—" : medicationSafety.totalEvents}</p><p className="text-xs text-muted-foreground">Filtered incident log</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><ClipboardCheck className="h-4 w-4" />Open follow-up</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{medicationSafety.unresolvedFollowUps}</p><p className="text-xs text-muted-foreground">No final report yet</p></CardContent>
+          <CardContent><p className="text-3xl font-bold">{safetyBusy ? "—" : medicationSafety.unresolvedFollowUps}</p><p className="text-xs text-muted-foreground">No final report yet</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><AlertTriangle className="h-4 w-4" />Overdue actions</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold text-destructive">{medicationSafety.overdueFollowUps}</p><p className="text-xs text-muted-foreground">Corrective actions past due</p></CardContent>
+          <CardContent><p className={`text-3xl font-bold ${safetyBusy ? "" : "text-destructive"}`}>{safetyBusy ? "—" : medicationSafety.overdueFollowUps}</p><p className="text-xs text-muted-foreground">Corrective actions past due</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><Pill className="h-4 w-4" />Retraining signals</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{medicationSafety.retrainingRecommendations}</p><p className="text-xs text-muted-foreground">Review competency/course assignment</p></CardContent>
+          <CardContent><p className="text-3xl font-bold">{safetyBusy ? "—" : medicationSafety.retrainingRecommendations}</p><p className="text-xs text-muted-foreground">Review competency/course assignment</p></CardContent>
         </Card>
       </div>
       )}
@@ -124,7 +125,9 @@ export default function MedAdminRoster() {
           <CardDescription>Structured event analytics from incidents and corrective actions. Repeated wrong-dose, wrong-medication, wrong-resident, and documentation events flag retraining review.</CardDescription>
         </CardHeader>
         <CardContent>
-          {medicationSafety.totalEvents === 0 ? (
+          {safetyBusy ? (
+            <p className="text-sm text-muted-foreground">Loading medication safety patterns…</p>
+          ) : medicationSafety.totalEvents === 0 ? (
             <p className="text-sm text-muted-foreground">No medication safety incidents found for this facility filter.</p>
           ) : (
             <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-5">

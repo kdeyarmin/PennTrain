@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { daysUntil, formatDateForDisplay, formatDueDistance, facilityYear } from "@/lib/dateUtils";
+import { facilityDaysUntil, formatDateForDisplay, formatDueDistance, facilityYear } from "@/lib/dateUtils";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListPracticums } from "@/hooks/usePracticums";
@@ -268,7 +268,7 @@ export default function EmployeeDashboard() {
               {upcomingDeadlines.map((item) => {
                 const Meta = DEADLINE_KIND_META[item.kind];
                 const Icon = Meta.icon;
-                const days = daysUntil(item.dueDate);
+                const days = facilityDaysUntil(item.dueDate);
                 const urgent = days !== null && days <= 7;
                 const overdue = days !== null && days < 0;
                 return (

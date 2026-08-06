@@ -980,7 +980,7 @@ export default function Reports() {
           </Button>
         )}
         {canManageViews && (
-          <Button variant="outline" size="sm" className="h-10 justify-center text-xs sm:col-span-2 lg:col-span-1" onClick={() => setShowSaveView(true)}>
+          <Button variant="outline" size="sm" className="h-10 justify-center text-xs sm:col-span-2 lg:col-span-1" onClick={() => { setSaveViewName(""); setShowSaveView(true); }}>
             <BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />
             Save view
           </Button>
@@ -1024,7 +1024,7 @@ export default function Reports() {
         </div>
       )}
 
-      <Dialog open={showSaveView} onOpenChange={(o) => { if (!o) setShowSaveView(false); }}>
+      <Dialog open={showSaveView} onOpenChange={(o) => { if (!o) { setShowSaveView(false); setSaveViewName(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Save current view</DialogTitle>
@@ -1045,7 +1045,7 @@ export default function Reports() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSaveView(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowSaveView(false); setSaveViewName(""); }}>Cancel</Button>
             <Button onClick={handleSaveCurrentView} disabled={savingView || saveViewName.trim().length < 3}>
               {savingView ? "Saving..." : "Save View"}
             </Button>

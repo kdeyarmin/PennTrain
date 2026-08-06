@@ -7,6 +7,7 @@ import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
+import { useToast } from "@/hooks/use-toast";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { AuthUser } from "@/lib/auth";
@@ -516,6 +517,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const [location] = useLocation();
   const handleLogout = useSignOut();
+  const { toast } = useToast();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   const organizationSettings = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const navigation = useNavigationWorkspace();
@@ -576,7 +578,15 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     if (!currentNavItem) return;
     const next = new Set(pinnedPages);
     if (next.has(currentNavItem.href)) next.delete(currentNavItem.href); else next.add(currentNavItem.href);
-    navigation.setFavorites.mutate([...next]);
+    navigation.setFavorites.mutate([...next], {
+      onError: (error: Error) => {
+        toast({
+          title: "Couldn't update pinned pages",
+          description: error.message,
+          variant: "destructive",
+        });
+      },
+    });
   };
 
   const trimmedFilter = filter.trim().toLowerCase();

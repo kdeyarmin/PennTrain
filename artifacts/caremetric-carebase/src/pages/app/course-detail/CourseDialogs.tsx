@@ -104,7 +104,10 @@ export function UnpublishCourseDialog({
   isPending: boolean;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => {
+      if (!next) setUnpublishReason("");
+      onOpenChange(next);
+    }}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Unpublish this course?</DialogTitle></DialogHeader>
         <div className="space-y-3 py-2">
@@ -122,7 +125,7 @@ export function UnpublishCourseDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={() => { setUnpublishReason(""); onClose(); }}>Cancel</Button>
           <Button variant="destructive" onClick={onUnpublish} disabled={isPending || unpublishReason.trim().length < 8}>
             {isPending ? "Unpublishing..." : "Unpublish course"}
           </Button>

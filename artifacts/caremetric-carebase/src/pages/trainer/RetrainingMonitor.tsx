@@ -350,7 +350,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <Building2 className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{totalFacilities}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : totalFacilities}</p>
               <p className="text-sm text-muted-foreground">Total Facilities</p>
             </div>
           </CardContent>
@@ -359,7 +359,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <ShieldCheck className="h-8 w-8 text-green-600" />
             <div>
-              <p className="text-2xl font-bold">{compliantFacilities}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : compliantFacilities}</p>
               <p className="text-sm text-muted-foreground">Fully Compliant</p>
             </div>
           </CardContent>
@@ -368,7 +368,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <AlertTriangle className="h-8 w-8 text-red-600" />
             <div>
-              <p className="text-2xl font-bold">{criticalFacilities}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : criticalFacilities}</p>
               <p className="text-sm text-muted-foreground">Need Attention</p>
             </div>
           </CardContent>
@@ -377,7 +377,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <Users className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{totalCandidates}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : totalCandidates}</p>
               <p className="text-sm text-muted-foreground">Staff to enroll</p>
             </div>
           </CardContent>

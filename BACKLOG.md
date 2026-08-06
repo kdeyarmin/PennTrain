@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `6787bf5c` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **eighteenth-pass** after G186–G187. Closed remaining sticky Maintenance/TrainerClasses/PIN/Quiz/WorkOrder dialog drafts. Facility-calendar and unlabeled-Select families exhausted for this review (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `6d7cdb56` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **nineteenth-pass** after G188. Closed sticky agreement/report/guest/exception/unpublish drafts; migrated employee due-tone + `formatDueDistance`/`isWithinWindow` to facility calendar; dashed fail-open tiles on RetrainingMonitor/SystemJobs/DocumentAnalyzer/MedAdminRoster; named relationship QuickFill; toasted sidebar pin failures. Remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -621,6 +621,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G186 | Time-off window error used browser `Date` for datetime-local | M | done | Validate start/end via `facilityDateTimeLocalToUtcIso` instants |
 | G187 | Sticky create/edit dialogs across admin/app surfaces | S | done | Reset form (+ edit id) on close for TrainingTypes/credentials/violations/inspection items/facilities/templates/assignments/orgs/users/employee detail/facility detail/plans/packages/quiz |
 | G188 | Remaining sticky dialogs: maintenance / trainer / PIN / WO | S | done | Reset order/location/schedule forms, trainer class form, PIN, quiz meta, WO transition/verify drafts on close |
+| G189 | Sticky agreement share / copy-delivery / report save / guest expiry / exception / unpublish drafts | S | done | Reset signer role, delivery method, save-view name, expiresDays, Cancel reason, unpublish reason on close |
+| G190 | Employee due-tone + formatDueDistance / readiness window still browser-local | M | done | `facilityDaysUntil` for employee pages; `formatDueDistance` + `isWithinWindow` on facility calendar |
+| G191 | RetrainingMonitor / SystemJobs / DocumentAnalyzer / MedAdminRoster metric fail-open | S | done | Dash ("—") tiles while loading/error; med-safety body waits for load |
+| G192 | Relationship QuickFill unlabeled + sidebar pin silent mutate | S | done | `aria-label` on participant relationship QuickFill; toast pin failures |
 
 ## Explicitly not now
 

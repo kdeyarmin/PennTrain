@@ -17,7 +17,7 @@ import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileCheck2, ExternalLink, Loader2 } from "lucide-react";
-import { facilityToday, formatDateForDisplay, formatDueDistance, daysUntil } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay, formatDueDistance, facilityDaysUntil } from "@/lib/dateUtils";
 
 function fmtDate(iso: string | null): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -148,7 +148,7 @@ export default function MyAttestations() {
             <div className="space-y-2">
               {sorted.map((a) => {
                 const dueDistance = a.status === "pending" ? formatDueDistance(a.due_date) : null;
-                const daysLeft = a.status === "pending" ? daysUntil(a.due_date) : null;
+                const daysLeft = a.status === "pending" ? facilityDaysUntil(a.due_date) : null;
                 const dueTone =
                   daysLeft !== null && daysLeft < 0
                     ? "text-destructive font-medium"

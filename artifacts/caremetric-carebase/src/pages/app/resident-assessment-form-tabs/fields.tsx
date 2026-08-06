@@ -84,6 +84,7 @@ export function QuickFillSelect({
   placeholder,
   className,
   disabled,
+  "aria-label": ariaLabel,
 }: {
   id?: string;
   options: { value: string; label: string }[];
@@ -91,10 +92,11 @@ export function QuickFillSelect({
   placeholder: string;
   className?: string;
   disabled?: boolean;
+  "aria-label"?: string;
 }) {
   return (
     <Select value="" onValueChange={onPick} disabled={disabled}>
-      <SelectTrigger id={id} className={className}>
+      <SelectTrigger id={id} className={className} aria-label={ariaLabel}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

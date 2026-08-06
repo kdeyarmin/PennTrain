@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
+import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -188,7 +188,7 @@ export default function MyCourses() {
                 // Urgency only matters while the work is still open -- a completed training item's old
                 // due date shouldn't shout "overdue."
                 const dueDistance = a.status !== "completed" ? formatDueDistance(a.due_date) : null;
-                const daysLeft = daysUntil(a.due_date);
+                const daysLeft = facilityDaysUntil(a.due_date);
                 const dueTone =
                   daysLeft !== null && daysLeft < 0
                     ? "text-destructive font-medium"
