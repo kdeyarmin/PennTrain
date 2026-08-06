@@ -77,6 +77,9 @@ export default function ResidentCareConflictsSection({
       residentId={residentId}
       conflicts={conflicts}
       isLoading={careHeader.isLoading}
+      isError={careHeader.isError}
+      error={careHeader.error}
+      onRetry={() => void careHeader.refetch()}
     />
   );
 }

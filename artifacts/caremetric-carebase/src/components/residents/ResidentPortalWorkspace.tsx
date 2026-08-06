@@ -20,7 +20,7 @@ import {
   useSaveResidentPaymentLink,
   useShareResidentPortalDocument,
 } from "@/hooks/useResidentPortal";
-import { toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { absoluteAppUrl } from "@/lib/appUrl";
 
@@ -34,9 +34,7 @@ const PERMISSION_OPTIONS = [
 ] as const;
 
 function defaultExpiry() {
-  const date = new Date();
-  date.setDate(date.getDate() + 30);
-  return toLocalIsoDate(date);
+  return addFacilityCalendarDays(facilityToday(), 30);
 }
 
 function grantStatus(grant: ResidentPortalGrant) {

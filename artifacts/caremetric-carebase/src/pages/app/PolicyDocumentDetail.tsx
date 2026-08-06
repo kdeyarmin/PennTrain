@@ -180,6 +180,13 @@ function CampaignQuestions({ campaignId }: { campaignId: string }) {
   const rows = questions.data ?? [];
 
   if (questions.isLoading) return <div className="mt-3 h-10 animate-pulse rounded bg-muted" />;
+  if (questions.isError) {
+    return (
+      <div className="mt-3">
+        <QueryError what="campaign questions" error={questions.error} onRetry={() => void questions.refetch()} />
+      </div>
+    );
+  }
   if (rows.length === 0) {
     return (
       <p className="mt-3 text-xs text-muted-foreground">

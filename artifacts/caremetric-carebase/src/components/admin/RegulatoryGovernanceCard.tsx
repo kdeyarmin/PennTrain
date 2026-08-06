@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
 import { errorText } from "@/lib/errorText";
@@ -127,13 +128,23 @@ export function RegulatoryGovernanceCard() {
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             <GitCompare className="h-3.5 w-3.5" />Shadow differences
           </p>
-          {(differences.data ?? []).length === 0 && (
+          {differences.isLoading && (
+            <p className="text-sm text-muted-foreground">Loading shadow differences…</p>
+          )}
+          {differences.isError && (
+            <QueryError
+              what="shadow differences"
+              error={differences.error}
+              onRetry={() => void differences.refetch()}
+            />
+          )}
+          {!differences.isLoading && !differences.isError && (differences.data ?? []).length === 0 && (
             <p className="text-sm text-muted-foreground">
               No shadow run has recorded a difference. Runs are recorded by the rule engine, not from
               here.
             </p>
           )}
-          {(differences.data ?? []).map((difference) => (
+          {!differences.isError && (differences.data ?? []).map((difference) => (
             <div key={difference.id} className="space-y-2 rounded border p-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium">{difference.subject_reference}</span>

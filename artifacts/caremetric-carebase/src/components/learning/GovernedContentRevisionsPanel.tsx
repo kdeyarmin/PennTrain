@@ -442,7 +442,7 @@ export function GovernedContentRevisionsPanel() {
 
       <RegisterAssetCard governedSourceIds={governedSourceIds} />
 
-      {!assets.isLoading && rows.length === 0 && (
+      {!assets.isLoading && !assets.isError && rows.length === 0 && (
         <p className="text-sm text-muted-foreground">
           No course is under governed publication control yet. Register one above to start.
         </p>
@@ -471,7 +471,7 @@ export function GovernedContentRevisionsPanel() {
               <QueryError what="revisions" error={revisions.error} onRetry={() => void revisions.refetch()} />
             )}
             {revisions.isLoading && <p className="text-sm text-muted-foreground">Loading revisions…</p>}
-            {!revisions.isLoading && (revisions.data ?? []).length === 0 && selected && (
+            {!revisions.isLoading && !revisions.isError && (revisions.data ?? []).length === 0 && selected && (
               <p className="text-sm text-muted-foreground">
                 <FileCheck2 className="mr-1 inline h-4 w-4" />
                 No revisions yet — this asset is governed but has never been changed under governance.

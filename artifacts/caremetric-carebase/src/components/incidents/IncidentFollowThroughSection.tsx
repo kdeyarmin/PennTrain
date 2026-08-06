@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import {
   useApproveIncidentInvestigation, useDetermineIncidentReportability,
@@ -262,7 +263,9 @@ function QapiConsiderationDialog({
   const [note, setNote] = useState("");
 
   const options = projects.data ?? [];
-  const canSubmit = consideration === "linked" ? Boolean(projectId) : true;
+  const canSubmit = consideration === "linked"
+    ? Boolean(projectId) && !projects.isError && !projects.isLoading
+    : true;
 
   const submit = async () => {
     try {
@@ -306,22 +309,34 @@ function QapiConsiderationDialog({
           {consideration === "linked" ? (
             <div className="space-y-2">
               <Label htmlFor="qapi-project">Project</Label>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger id="qapi-project">
-                  <SelectValue placeholder={options.length ? "Pick a project" : "No QAPI project exists for this facility"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>{project.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {options.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  The server refuses a link to a project outside this incident&apos;s facility, so
-                  there is nothing to offer until one exists. Open a project first, or record the
-                  decision as not indicated.
-                </p>
+              {projects.isError ? (
+                <QueryError what="QAPI projects" error={projects.error} onRetry={() => void projects.refetch()} />
+              ) : (
+                <>
+                  <Select value={projectId} onValueChange={setProjectId} disabled={projects.isLoading}>
+                    <SelectTrigger id="qapi-project">
+                      <SelectValue placeholder={
+                        projects.isLoading
+                          ? "Loading projects…"
+                          : options.length
+                            ? "Pick a project"
+                            : "No QAPI project exists for this facility"
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>{project.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!projects.isLoading && options.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      The server refuses a link to a project outside this incident&apos;s facility, so
+                      there is nothing to offer until one exists. Open a project first, or record the
+                      decision as not indicated.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           ) : (

@@ -172,7 +172,13 @@ export function UnsyncedDraftsPanel() {
               size="sm"
               variant="outline"
               disabled={dismiss.isPending}
-              onClick={() => dismiss.mutate(draftId)}
+              onClick={() => dismiss.mutate(draftId, {
+                onError: (error) => toast({
+                  title: "Could not dismiss draft",
+                  description: error instanceof Error ? error.message : String(error),
+                  variant: "destructive",
+                }),
+              })}
             >
               Dismiss
             </Button>
@@ -200,7 +206,15 @@ export function UnsyncedDraftsPanel() {
                 size="sm"
                 variant="ghost"
                 disabled={dismissObservation.isPending}
-                onClick={() => void dismissObservation.mutateAsync(draft.draftId)}
+                onClick={() => {
+                  void dismissObservation.mutateAsync(draft.draftId).catch((error: unknown) => {
+                    toast({
+                      title: "Could not dismiss reading",
+                      description: error instanceof Error ? error.message : String(error),
+                      variant: "destructive",
+                    });
+                  });
+                }}
               >
                 <X className="mr-2 h-3.5 w-3.5" />Dismiss
               </Button>
@@ -238,7 +252,15 @@ export function UnsyncedDraftsPanel() {
                 variant="ghost"
                 className="shrink-0"
                 disabled={!isOnline || syncOneObservation.isPending}
-                onClick={() => void syncOneObservation.mutateAsync(draft.draftId)}
+                onClick={() => {
+                  void syncOneObservation.mutateAsync(draft.draftId).catch((error: unknown) => {
+                    toast({
+                      title: "Could not sync reading",
+                      description: error instanceof Error ? error.message : String(error),
+                      variant: "destructive",
+                    });
+                  });
+                }}
               >
                 Sync
               </Button>
@@ -266,7 +288,15 @@ export function UnsyncedDraftsPanel() {
                 size="sm"
                 variant="ghost"
                 disabled={dismiss.isPending}
-                onClick={() => void dismiss.mutateAsync(draft.draftId)}
+                onClick={() => {
+                  void dismiss.mutateAsync(draft.draftId).catch((error: unknown) => {
+                    toast({
+                      title: "Could not dismiss draft",
+                      description: error instanceof Error ? error.message : String(error),
+                      variant: "destructive",
+                    });
+                  });
+                }}
               >
                 <X className="mr-2 h-3.5 w-3.5" />Dismiss
               </Button>
@@ -304,7 +334,15 @@ export function UnsyncedDraftsPanel() {
                 variant="ghost"
                 className="shrink-0"
                 disabled={!isOnline || syncOne.isPending}
-                onClick={() => void syncOne.mutateAsync(draft.draftId)}
+                onClick={() => {
+                  void syncOne.mutateAsync(draft.draftId).catch((error: unknown) => {
+                    toast({
+                      title: "Could not sync draft",
+                      description: error instanceof Error ? error.message : String(error),
+                      variant: "destructive",
+                    });
+                  });
+                }}
               >
                 Sync
               </Button>
