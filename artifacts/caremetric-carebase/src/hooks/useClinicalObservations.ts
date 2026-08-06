@@ -258,3 +258,26 @@ export function useQueueClinicalObservationWriteback() {
     },
   });
 }
+
+export type ClinicalDataConsent = "not_recorded" | "granted" | "restricted" | "revoked";
+
+/** Manager-only: set the resident's outbound clinical disclosure consent posture. */
+export function useSetResidentClinicalDataConsent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { residentId: string; consent: ClinicalDataConsent; reason?: string | null }) => {
+      const { data, error } = await supabase.rpc("set_resident_clinical_data_consent" as never, {
+        p_resident_id: input.residentId,
+        p_consent: input.consent,
+        p_reason: input.reason ?? null,
+      } as never);
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: ["residents"] });
+      void queryClient.invalidateQueries({ queryKey: ["residents", input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+    },
+  });
+}

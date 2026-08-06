@@ -76,7 +76,7 @@ Data model (delivered in M2 — FHIR medication lane):
 - **Write audit.** `public.audit_log_trigger()` on clinical tables → `public.audit_logs`.
 - **Read audit.** PHI reads route through RPCs that write `app_private.clinical_access_log` with a
   `minimum_necessary_reason` and access kind (chart/domain/export/print).
-- **Consent does not gate documentation — decided 2026-08, previously open.** `clinical_data_consent`
+- **Consent does not gate documentation — decided 2026-08.** `clinical_data_consent`
   is surfaced wherever clinical data is charted and is deliberately *not* a write-block, including at
   `revoked`. A consent posture governs **disclosure** of PHI, not whether the facility may record the
   care it actually delivered: refusing a vital sign would put a hole in a clinical record the facility
@@ -84,11 +84,14 @@ Data model (delivered in M2 — FHIR medication lane):
   while doing nothing for the privacy interest, which is about who the data reaches. Treatment and
   operations uses do not turn on authorization; revocation applies to authorizations for disclosures
   beyond them.
-  **Where it should bind instead — still open.** The disclosure paths do not consult it today: FHIR
-  write-back (`queue_clinical_observation_writeback`), organization export, and the designated-person
-  portal are all genuine outbound disclosures and none check the posture. That is the real gap, and
-  it is the one worth closing. As with the Terms language below, this reading should be confirmed by
-  counsel before it is relied on as settled.
+  **Where it binds — decided 2026-08 (counsel cleared).** Outbound disclosure requires
+  `clinical_data_consent = 'granted'`. The shared helper
+  `app_private.assert_clinical_disclosure_allowed` / `clinical_disclosure_allowed` is consulted by:
+  FHIR write-back (`queue_clinical_observation_writeback` + `claim_fhir_writeback_batch`),
+  organization export of clinical/FHIR resident-keyed rows (`export_organization_table`), and the
+  designated-person portal (document share/download; schedule preparation instructions; documents
+  list). Managers set the posture via `set_resident_clinical_data_consent` on the clinical chart.
+  Charting RPCs intentionally do **not** call this helper.
 - **Consent / minimum-necessary.** `residents.clinical_data_consent`; employees limited to
   assigned-facility residents; capability gated by `clinical.ehr`.
 - **Resident photo (M7).** `20260803120000` adds the first `employee` branch to

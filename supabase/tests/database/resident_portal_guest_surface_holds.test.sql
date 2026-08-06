@@ -20,11 +20,11 @@ insert into public.organizations(id, name, slug, subscription_status) values
   ('da000000-0000-4000-8000-000000000001', 'Guest Org', 'guest-org', 'active');
 insert into public.facilities(id, organization_id, name, facility_type) values
   ('da000000-0000-4000-8000-000000000011', 'da000000-0000-4000-8000-000000000001', 'Guest Facility', 'PCH');
-insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status) values
+insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status, clinical_data_consent) values
   ('da000000-0000-4000-8000-000000000201', 'da000000-0000-4000-8000-000000000001',
-   'da000000-0000-4000-8000-000000000011', 'Grace', 'Resident', public.pa_today() - 200, 'active'),
+   'da000000-0000-4000-8000-000000000011', 'Grace', 'Resident', public.pa_today() - 200, 'active', 'granted'),
   ('da000000-0000-4000-8000-000000000202', 'da000000-0000-4000-8000-000000000001',
-   'da000000-0000-4000-8000-000000000011', 'Other', 'Resident', public.pa_today() - 150, 'active');
+   'da000000-0000-4000-8000-000000000011', 'Other', 'Resident', public.pa_today() - 150, 'active', 'granted');
 
 insert into auth.users(
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
