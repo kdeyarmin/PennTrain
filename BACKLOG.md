@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `4ef35edf` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **tenth-pass** after G149–G155. Closed WorkQueue/audit-export/entitlement-term/credential/pending-approvals/war-room/duty-override calendar bounds, lifecycle/dietary/service-delivery fail-open, onboarding silent mutate, and remaining unlabeled Selects (Reports mobile, support-plan compare, census, DataTable page-size, corrective-action status, dietary Choice). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `e0a2b59b` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **tenth-pass** after G149–G155. Closed WorkQueue/audit-export/entitlement-term/credential/pending-approvals/war-room/duty-override calendar bounds, lifecycle/dietary/service-delivery fail-open, onboarding silent mutate, and remaining unlabeled Selects (Reports mobile, support-plan compare, census, DataTable page-size, corrective-action status, dietary Choice). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
