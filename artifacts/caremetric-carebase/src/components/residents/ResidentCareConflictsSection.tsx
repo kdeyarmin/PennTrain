@@ -21,10 +21,29 @@ export default function ResidentCareConflictsSection({
   residentHref: string;
 }) {
   const careHeader = useResidentCareHeader(residentId);
-  const { data: assessmentReviews } = useResidentAssessmentReviews(residentId);
-  const { data: conflictDispositions } = useResidentConflictDispositions(residentId);
-  const { data: supportPlans } = useResidentSupportPlans(residentId);
-  const { data: serviceExceptions } = useResidentServiceExceptions(residentId);
+  const assessments = useResidentAssessmentReviews(residentId);
+  const dispositions = useResidentConflictDispositions(residentId);
+  const plans = useResidentSupportPlans(residentId);
+  const exceptions = useResidentServiceExceptions(residentId);
+
+  const assessmentReviews = assessments.data;
+  const conflictDispositions = dispositions.data;
+  const supportPlans = plans.data;
+  const serviceExceptions = exceptions.data;
+
+  const sourceError =
+    (careHeader.isError ? careHeader.error : null)
+    ?? (assessments.isError ? assessments.error : null)
+    ?? (dispositions.isError ? dispositions.error : null)
+    ?? (plans.isError ? plans.error : null)
+    ?? (exceptions.isError ? exceptions.error : null);
+
+  const sourcesLoading =
+    careHeader.isLoading
+    || assessments.isLoading
+    || dispositions.isLoading
+    || plans.isLoading
+    || exceptions.isLoading;
 
   // Conflicts are derived from current records on every render rather than stored, so a
   // disagreement that returns after being resolved reappears instead of staying dismissed. Only the
@@ -33,7 +52,7 @@ export default function ResidentCareConflictsSection({
   const latestReviewTemplate = latestFinalReview ? getTemplate(latestFinalReview.template_key) : undefined;
   const activePlan = (supportPlans ?? []).find((plan) => plan.state === "active") ?? null;
 
-  const conflicts = careHeader.data
+  const conflicts = !sourceError && careHeader.data
     ? applyConflictDispositions(
       detectResidentCareConflicts({
         residentId,
@@ -76,10 +95,16 @@ export default function ResidentCareConflictsSection({
     <ResidentCareConflictsPanel
       residentId={residentId}
       conflicts={conflicts}
-      isLoading={careHeader.isLoading}
-      isError={careHeader.isError}
-      error={careHeader.error}
-      onRetry={() => void careHeader.refetch()}
+      isLoading={sourcesLoading}
+      isError={Boolean(sourceError)}
+      error={sourceError}
+      onRetry={() => {
+        void careHeader.refetch();
+        void assessments.refetch();
+        void dispositions.refetch();
+        void plans.refetch();
+        void exceptions.refetch();
+      }}
     />
   );
 }

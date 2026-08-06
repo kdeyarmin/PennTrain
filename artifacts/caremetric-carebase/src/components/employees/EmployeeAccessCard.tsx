@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { facilityDateTimeToUtc } from "@/lib/dateUtils";
 import { useEmployeeAccessActive } from "@/hooks/useEmployeeAccess";
 
 /**
@@ -32,10 +33,11 @@ export function EmployeeAccessCard({
 }) {
   const [asOf, setAsOf] = useState("");
   const now = useEmployeeAccessActive(hasLinkedAccount ? employeeId : undefined);
-  // Asked at the end of that day, because "did they have access on the 3rd" means during the 3rd.
+  // Asked at the end of that Pennsylvania calendar day, because "did they have access on the 3rd"
+  // means during the 3rd at the facility -- not at the viewer's browser midnight.
   const historic = useEmployeeAccessActive(
     hasLinkedAccount ? employeeId : undefined,
-    asOf ? new Date(`${asOf}T23:59:59`).toISOString() : undefined,
+    asOf ? facilityDateTimeToUtc(asOf, "23:59:59").toISOString() : undefined,
   );
 
   return (

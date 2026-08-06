@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { useIncidentTrendRecords } from "@/hooks/useIncidentTrends";
@@ -22,7 +23,6 @@ import {
   buildQapiRecommendations, type ExistingQapiProjectLike, type QapiRecommendation,
 } from "@/lib/qapiRecommendations";
 import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
-import { QueryError } from "@/components/QueryState";
 
 const WINDOW_OPTIONS = [
   { value: "30", label: "Last 30 days" },
@@ -252,8 +252,10 @@ export default function IncidentTrendsSection({
   const recommendations = useMemo(() => buildQapiRecommendations({
     trends,
     windowLabel,
-    existingProjects: (projects.data ?? []) as unknown as ExistingQapiProjectLike[],
-  }), [trends, windowLabel, projects.data]);
+    existingProjects: projects.isError
+      ? []
+      : (projects.data ?? []) as unknown as ExistingQapiProjectLike[],
+  }), [trends, windowLabel, projects.data, projects.isError]);
 
   const effectiveness = trends.correctiveActionEffectiveness;
 

@@ -607,7 +607,7 @@ export default function FacilityDetail() {
             {recordsLoading ? (
               <Skeleton className="h-16" />
             ) : recordsError ? (
-              <QueryError what="expired training" error={recordsErrorDetail} onRetry={() => void refetchRecords()} />
+              <QueryError what="recently expired training" error={recordsErrorDetail} onRetry={() => void refetchRecords()} />
             ) : !expiredRecords.length ? (
               <div className="text-center py-6 text-muted-foreground">
                 <XCircle className="h-8 w-8 mx-auto mb-2 opacity-40" />

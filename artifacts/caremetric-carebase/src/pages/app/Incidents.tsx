@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useRef, useState } from "react";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   useCreateIncident, type Incident, type IncidentInsert,
@@ -259,7 +259,7 @@ export default function Incidents() {
       organization_id: facility.organization_id,
       facility_id: facility.id,
       incident_type: form.incidentType,
-      occurred_at: new Date(form.occurredAt).toISOString(),
+      occurred_at: facilityDateTimeLocalToUtcIso(form.occurredAt),
       resident_id: form.residentId && form.residentId !== RESIDENT_OTHER ? form.residentId : null,
       resident_identifier: residentIdentifier,
       resident_identifier_snapshot: form.residentId === RESIDENT_OTHER ? residentIdentifier : null,

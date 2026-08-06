@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Activity, CheckCircle2, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { QueryError } from "@/components/QueryState";
 import { supabase } from "@/lib/supabase";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useListResidentChangeEvents } from "@/hooks/useResidentChangeEvents";
@@ -108,47 +109,67 @@ export default function ResidentChangeSignalsSection({
   residentId: string;
   residentHref: string;
 }) {
-  const { data: serviceExceptions } = useResidentServiceExceptions(residentId);
-  const { data: unscheduled } = useResidentUnscheduledServices(residentId, 50);
-  const { data: changeEvents } = useListResidentChangeEvents({ residentId });
-  const { data: incidents } = useListIncidents({ residentId });
+  const serviceExceptions = useResidentServiceExceptions(residentId);
+  const unscheduled = useResidentUnscheduledServices(residentId, 50);
+  const changeEvents = useListResidentChangeEvents({ residentId });
+  const incidents = useListIncidents({ residentId });
   const { meals, weights, hospital } = useDetectionSupplements(residentId);
 
-  const signals = detectResidentChangeSignals({
-    serviceExceptions: (serviceExceptions ?? []).map((entry) => ({
-      completion_response: entry.completion_response,
-      documented_assistance_level: entry.documented_assistance_level,
-      service_name: entry.service_name,
-      at: entry.performed_at ?? entry.scheduled_start,
-    })),
-    unscheduledServices: (unscheduled ?? []).map((entry) => ({
-      service_kind: entry.service_kind,
-      occurred_at: entry.occurred_at,
-    })),
-    changeEvents: (changeEvents ?? []).map((entry) => ({
-      category: entry.category,
-      identified_at: entry.identified_at,
-      status: entry.status,
-    })),
-    incidents: (incidents ?? []).map((entry) => ({
-      incident_type: entry.incident_type,
-      occurred_at: entry.occurred_at,
-    })),
-    // intake_percent is 0-100; the detector works in a 0..1 ratio.
-    mealRecords: (meals.data ?? []).map((entry) => ({
-      intake_ratio: entry.intake_percent === null ? null : entry.intake_percent / 100,
-      recorded_at: entry.served_at,
-    })),
-    weightReadings: (weights.data ?? []).map((entry) => ({
-      weight_lbs: Number(entry.weight_lbs),
-      measured_at: entry.measured_at,
-    })),
-    hospitalEpisodes: (hospital.data ?? []).map((entry) => ({
-      transfer_time: entry.transfer_time,
-      destination: entry.destination,
-      status: entry.status,
-    })),
-  });
+  const sourceError =
+    (serviceExceptions.isError ? serviceExceptions.error : null)
+    ?? (unscheduled.isError ? unscheduled.error : null)
+    ?? (changeEvents.isError ? changeEvents.error : null)
+    ?? (incidents.isError ? incidents.error : null)
+    ?? (meals.isError ? meals.error : null)
+    ?? (weights.isError ? weights.error : null)
+    ?? (hospital.isError ? hospital.error : null);
+
+  const sourcesLoading =
+    serviceExceptions.isLoading
+    || unscheduled.isLoading
+    || changeEvents.isLoading
+    || incidents.isLoading
+    || meals.isLoading
+    || weights.isLoading
+    || hospital.isLoading;
+
+  const signals = sourceError || sourcesLoading
+    ? []
+    : detectResidentChangeSignals({
+      serviceExceptions: (serviceExceptions.data ?? []).map((entry) => ({
+        completion_response: entry.completion_response,
+        documented_assistance_level: entry.documented_assistance_level,
+        service_name: entry.service_name,
+        at: entry.performed_at ?? entry.scheduled_start,
+      })),
+      unscheduledServices: (unscheduled.data ?? []).map((entry) => ({
+        service_kind: entry.service_kind,
+        occurred_at: entry.occurred_at,
+      })),
+      changeEvents: (changeEvents.data ?? []).map((entry) => ({
+        category: entry.category,
+        identified_at: entry.identified_at,
+        status: entry.status,
+      })),
+      incidents: (incidents.data ?? []).map((entry) => ({
+        incident_type: entry.incident_type,
+        occurred_at: entry.occurred_at,
+      })),
+      // intake_percent is 0-100; the detector works in a 0..1 ratio.
+      mealRecords: (meals.data ?? []).map((entry) => ({
+        intake_ratio: entry.intake_percent === null ? null : entry.intake_percent / 100,
+        recorded_at: entry.served_at,
+      })),
+      weightReadings: (weights.data ?? []).map((entry) => ({
+        weight_lbs: Number(entry.weight_lbs),
+        measured_at: entry.measured_at,
+      })),
+      hospitalEpisodes: (hospital.data ?? []).map((entry) => ({
+        transfer_time: entry.transfer_time,
+        destination: entry.destination,
+        status: entry.status,
+      })),
+    });
   const summary = summarizeChangeSignals(signals);
 
   return (
@@ -172,7 +193,23 @@ export default function ResidentChangeSignalsSection({
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {signals.length === 0 ? (
+        {sourceError ? (
+          <QueryError
+            what="change patterns"
+            error={sourceError instanceof Error ? sourceError : new Error(String(sourceError))}
+            onRetry={() => {
+              void serviceExceptions.refetch();
+              void unscheduled.refetch();
+              void changeEvents.refetch();
+              void incidents.refetch();
+              void meals.refetch();
+              void weights.refetch();
+              void hospital.refetch();
+            }}
+          />
+        ) : sourcesLoading ? (
+          <div className="h-20 animate-pulse rounded-md bg-muted" />
+        ) : signals.length === 0 ? (
           <p className="flex items-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
             No patterns detected in this resident's recent records.

@@ -45,27 +45,34 @@ export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {},
       if (sortedEmployeeIds && sortedEmployeeIds.length === 0) return [] as TrainingRecord[];
       if (sortedTrainingTypeIds && sortedTrainingTypeIds.length === 0) return [] as TrainingRecord[];
 
-      let query = supabase.from("employee_training_records").select("*").order("due_date");
-      if (sortedEmployeeIds && sortedEmployeeIds.length > 0) {
-        query = query.in("employee_id", sortedEmployeeIds);
-      } else if (filters.employeeId) {
-        query = query.eq("employee_id", filters.employeeId);
+      // PostgREST caps a single response. Page until exhausted so readiness / roster views do not
+      // silently under-count outstanding training once a facility grows past max-rows.
+      const pageSize = 1000;
+      const rows: TrainingRecord[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("employee_training_records").select("*").order("due_date").range(from, from + pageSize - 1);
+        if (sortedEmployeeIds && sortedEmployeeIds.length > 0) {
+          query = query.in("employee_id", sortedEmployeeIds);
+        } else if (filters.employeeId) {
+          query = query.eq("employee_id", filters.employeeId);
+        }
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.approvalStatus) query = query.eq("approval_status", filters.approvalStatus);
+        if (sortedTrainingTypeIds && sortedTrainingTypeIds.length > 0) {
+          query = query.in("training_type_id", sortedTrainingTypeIds);
+        }
+        if (filters.hasExternalCertificateDocument) {
+          // PendingApprovals builds a Set of already-linked document ids from this column.
+          // Restricting to non-null keeps that Set correct without downloading every training row.
+          query = query.not("external_certificate_document_id", "is", null);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
       }
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.approvalStatus) query = query.eq("approval_status", filters.approvalStatus);
-      if (sortedTrainingTypeIds && sortedTrainingTypeIds.length > 0) {
-        query = query.in("training_type_id", sortedTrainingTypeIds);
-      }
-      // PendingApprovals builds a Set of already-linked document ids from this column. Restricting
-      // to non-null values keeps that Set correct without downloading every training row in the
-      // tenant (most of which have never been tied to an external certificate upload).
-      if (filters.hasExternalCertificateDocument) {
-        query = query.not("external_certificate_document_id", "is", null);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      return rows;
     },
     enabled: options.enabled,
   });

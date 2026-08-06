@@ -424,18 +424,21 @@ export default function CourseDetail() {
       // SCORM/xAPI zips also register into the governed learning package control plane so
       // Accept/Quarantine on Governed Learning can make them launchable.
       if (blockForm.block_type === "scorm" && selectedVersion && file.name.toLowerCase().endsWith(".zip")) {
+        let packagePath: string | null = null;
+        let uploadedNewObject = false;
         try {
           const buf = await file.arrayBuffer();
           const digest = await crypto.subtle.digest("SHA-256", buf);
           const sha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
           const orgId = course.organization_id ?? courseDocumentUploadFacility.organization_id;
-          const packagePath = `${orgId}/${selectedVersion.id}/${sha}.zip`;
+          packagePath = `${orgId}/${selectedVersion.id}/${sha}.zip`;
           const { error: pkgUploadError } = await supabase.storage
             .from("learning-packages")
             .upload(packagePath, file, { contentType: "application/zip", upsert: false });
           if (pkgUploadError && !String(pkgUploadError.message).toLowerCase().includes("already exists")) {
             throw pkgUploadError;
           }
+          uploadedNewObject = !pkgUploadError;
           await registerLearningPackage.mutateAsync({
             courseVersionId: selectedVersion.id,
             standardType: "scorm_1_2",
@@ -449,6 +452,17 @@ export default function CourseDetail() {
             description: `${file.name} is pending accept on Governed Learning → Standards.`,
           });
         } catch (regErr) {
+          if (uploadedNewObject && packagePath) {
+            const { error: cleanupError } = await supabase.storage.from("learning-packages").remove([packagePath]);
+            if (cleanupError) {
+              toast({
+                title: "Document attached; package register incomplete",
+                description: `${(regErr as Error).message} (also failed to remove uploaded package: ${cleanupError.message})`,
+                variant: "destructive",
+              });
+              return;
+            }
+          }
           toast({
             title: "Document attached; package register incomplete",
             description: (regErr as Error).message,

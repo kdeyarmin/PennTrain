@@ -17,14 +17,20 @@ export function useListInspectionItems(filters: ListInspectionItemsFilters = {},
   return useQuery({
     queryKey: ["inspection_items", filters],
     queryFn: async () => {
-      let query = supabase.from("inspection_items").select("*").order("next_due_date");
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.itemKind) query = query.eq("item_kind", filters.itemKind);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.isActive !== undefined) query = query.eq("is_active", filters.isActive);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const pageSize = 1000;
+      const rows: InspectionItem[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("inspection_items").select("*").order("next_due_date").range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.itemKind) query = query.eq("item_kind", filters.itemKind);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.isActive !== undefined) query = query.eq("is_active", filters.isActive);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });

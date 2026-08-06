@@ -23,15 +23,21 @@ export function useListIncidents(filters: ListIncidentsFilters = {}, options: { 
   return useQuery({
     queryKey: ["incidents", filters],
     queryFn: async () => {
-      let query = supabase.from("incidents").select("*").order("occurred_at", { ascending: false });
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.residentId) query = query.eq("resident_id", filters.residentId);
-      if (filters.incidentType) query = query.eq("incident_type", filters.incidentType);
-      if (filters.severity) query = query.eq("severity", filters.severity);
-      if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const pageSize = 1000;
+      const rows: Incident[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("incidents").select("*").order("occurred_at", { ascending: false }).range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.residentId) query = query.eq("resident_id", filters.residentId);
+        if (filters.incidentType) query = query.eq("incident_type", filters.incidentType);
+        if (filters.severity) query = query.eq("severity", filters.severity);
+        if (filters.status) query = query.eq("status", filters.status);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });

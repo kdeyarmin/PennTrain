@@ -30,7 +30,7 @@ import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDo
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/lib/pageTitle";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import {
   OBSERVATION_CONFIG,
   OBSERVATION_ORDER,
@@ -113,7 +113,7 @@ export default function ResidentClinicalChart() {
       await record.mutateAsync({
         residentId: id,
         observationType,
-        observedAt: new Date(observedAt).toISOString(),
+        observedAt: facilityDateTimeLocalToUtcIso(observedAt),
         valueNumeric: numeric,
         valueSecondary: valueSecondary.trim() === "" ? null : Number(valueSecondary),
         valueText: valueText.trim() || null,

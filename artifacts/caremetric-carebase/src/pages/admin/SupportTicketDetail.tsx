@@ -52,7 +52,7 @@ export default function SupportTicketDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: ticket, isLoading, isError, error, refetch } = useGetSupportTicket(id);
-  const { data: messages, isLoading: messagesLoading } = useListSupportTicketMessages(id);
+  const { data: messages, isLoading: messagesLoading, isError: messagesError, error: messagesErrorDetail, refetch: refetchMessages } = useListSupportTicketMessages(id);
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: profileNameMap } = useProfileNameMap();
   const { mutate: sendMessage, isPending: sending } = useSendSupportTicketMessage();
@@ -156,6 +156,8 @@ export default function SupportTicketDetail() {
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
             </div>
+          ) : messagesError ? (
+            <QueryError what="this conversation" error={messagesErrorDetail} onRetry={() => void refetchMessages()} />
           ) : (
             <div className="space-y-3">
               {messages?.map((m) => (
@@ -175,9 +177,9 @@ export default function SupportTicketDetail() {
           )}
 
           <div className="space-y-2 pt-2 border-t">
-            <Textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={3} placeholder="Reply to the requester..." />
+            <Textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={3} placeholder="Reply to the requester..." disabled={messagesError} />
             <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={messagesError}>
                 <Paperclip className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace File" : "Attach File"}
               </Button>
               {file && (
@@ -196,7 +198,7 @@ export default function SupportTicketDetail() {
               />
             </div>
             <div className="flex justify-end">
-              <Button size="sm" onClick={handleSend} disabled={sending || !reply.trim()}>
+              <Button size="sm" onClick={handleSend} disabled={sending || messagesError || !reply.trim()}>
                 <Send className="h-3.5 w-3.5 mr-1.5" /> Send Reply
               </Button>
             </div>

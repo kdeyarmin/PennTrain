@@ -6,7 +6,7 @@ import {
   useUpsertResidentPersonalFundPayeeProfile,
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
-import { toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toDateTimeLocal } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -425,7 +425,8 @@ export function FundEntryDialog({
             ? "out"
             : form.direction,
     });
-  const submit = () =>
+  const submit = () => {
+    if (!form.at || Number.isNaN(new Date(form.at).getTime())) return;
     mutation.mutate(
       {
         residentId,
@@ -434,7 +435,7 @@ export function FundEntryDialog({
           direction: form.direction,
           amount: asNumber(form.amount),
           purpose: form.purpose,
-          transactionAt: new Date(form.at).toISOString(),
+          transactionAt: facilityDateTimeLocalToUtcIso(form.at),
           staffEmployeeId: form.staff === "none" ? null : form.staff,
           receiptDocumentId: form.receipt === "none" ? null : form.receipt,
           residentAcknowledged: form.acknowledged,
@@ -448,6 +449,7 @@ export function FundEntryDialog({
       },
       report,
     );
+  };
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -573,6 +575,8 @@ export function FundEntryDialog({
             disabled={
               mutation.isPending ||
               asNumber(form.amount) <= 0 ||
+              !form.at ||
+              Number.isNaN(new Date(form.at).getTime()) ||
               form.purpose.trim().length < 3 ||
               (form.kind === "withdrawal" && form.staff === "none") ||
               (!form.acknowledged && form.note.trim().length < 5) ||

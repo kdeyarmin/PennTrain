@@ -39804,6 +39804,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      publish_policy_document_version: {
+        Args: { p_policy_document_id: string; p_version_id: string }
+        Returns: string
+      }
       publish_resident_agreement_version: {
         Args: {
           p_agreement_id?: string
@@ -41854,6 +41858,10 @@ export type Database = {
         Args: { p_enabled: boolean; p_schedule_id: string }
         Returns: boolean
       }
+      set_resident_clinical_data_consent: {
+        Args: { p_consent: string; p_reason?: string; p_resident_id: string }
+        Returns: string
+      }
       set_survey_day_checklist_disposition: {
         Args: {
           p_disposition: string
@@ -43105,4 +43113,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

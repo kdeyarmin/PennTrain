@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { QueryError } from "@/components/QueryState";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
@@ -19,7 +20,6 @@ import {
   buildReconciliationState, episodeStateLabel, recordedChanges, type HospitalEpisodeLike,
 } from "@/lib/hospitalReconciliation";
 import { formatDateForDisplay } from "@/lib/dateUtils";
-import { QueryError } from "@/components/QueryState";
 import RecordHospitalReturnDialog from "@/components/residents/RecordHospitalReturnDialog";
 
 function useHospitalEpisodes(residentId: string) {

@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { AlertTriangle, CalendarClock, Plus, RefreshCw, Search, ShieldAlert, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityToday, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -153,7 +153,7 @@ export default function Maintenance() {
       temporaryProtectiveAction: orderForm.protectiveAction || null,
       assignedEmployeeId: orderForm.employeeId === "none" ? null : orderForm.employeeId,
       externalVendor: orderForm.vendor || null,
-      targetCompletionAt: orderForm.target ? new Date(orderForm.target).toISOString() : null,
+      targetCompletionAt: orderForm.target ? facilityDateTimeLocalToUtcIso(orderForm.target) : null,
       partsNeeded: orderForm.parts || null,
       estimatedCost: orderForm.estimatedCost ? Number(orderForm.estimatedCost) : null,
       residentImpact: orderForm.residentImpact || null,

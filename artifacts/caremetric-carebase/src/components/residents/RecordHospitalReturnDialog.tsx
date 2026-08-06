@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -150,7 +152,7 @@ export default function RecordHospitalReturnDialog({
     try {
       await complete.mutateAsync({
         episodeId,
-        returnTime: new Date(returnTime).toISOString(),
+        returnTime: facilityDateTimeLocalToUtcIso(returnTime),
         dischargeDocumentId: dischargeDocumentId || undefined,
         changedOrderAckStatus: orderStatus,
         medicationReconciliationStatus: medicationStatus,

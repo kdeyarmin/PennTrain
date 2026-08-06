@@ -25,14 +25,20 @@ export function useListEmployeeCredentials(filters: ListEmployeeCredentialsFilte
   return useQuery({
     queryKey: ["employee_credentials", filters],
     queryFn: async () => {
-      let query = supabase.from("employee_credentials").select("*").order("expiration_date");
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.credentialType) query = query.eq("credential_type", filters.credentialType);
-      if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const pageSize = 1000;
+      const rows: EmployeeCredential[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("employee_credentials").select("*").order("expiration_date").range(from, from + pageSize - 1);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.credentialType) query = query.eq("credential_type", filters.credentialType);
+        if (filters.status) query = query.eq("status", filters.status);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });

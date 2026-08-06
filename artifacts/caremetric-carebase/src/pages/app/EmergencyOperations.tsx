@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityToday, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -195,7 +195,7 @@ export default function EmergencyOperations() {
         facilityId,
         eventMode,
         eventType,
-        startedAt: new Date(eventStartedAt || Date.now()).toISOString(),
+        startedAt: eventStartedAt ? facilityDateTimeLocalToUtcIso(eventStartedAt) : new Date().toISOString(),
         summary: eventSummary,
         locationDescription: eventLocation,
         assemblyPoint,

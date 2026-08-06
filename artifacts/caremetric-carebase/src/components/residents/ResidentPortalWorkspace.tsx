@@ -20,7 +20,7 @@ import {
   useSaveResidentPaymentLink,
   useShareResidentPortalDocument,
 } from "@/hooks/useResidentPortal";
-import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeToUtc, facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { absoluteAppUrl } from "@/lib/appUrl";
 
@@ -89,7 +89,7 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
         relationshipLabel: relationship.trim(),
         contactEmail: email.trim() || undefined,
         permissions,
-        expiresAt: new Date(`${expiresOn}T23:59:59`).toISOString(),
+        expiresAt: facilityDateTimeToUtc(expiresOn, "23:59:59").toISOString(),
       });
       const link = absoluteAppUrl(`/resident-portal?access=${encodeURIComponent(result.access_token)}`);
       setGeneratedLink(link);
@@ -104,11 +104,27 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
     setExpiresOn(defaultExpiry()); setPermissions(["schedule", "messages"]);
   };
 
+  const closeRevoke = () => {
+    setRevokeTarget(null);
+    setRevokeReason("");
+  };
+
+  const closeShare = () => {
+    setShareTarget(null);
+    setDocumentId("");
+    setDocumentLabel("");
+  };
+
+  const closeReply = () => {
+    setReplyTarget(null);
+    setReplyBody("");
+  };
+
   const submitRevoke = async () => {
     if (!revokeTarget) return;
     try {
       await revokeGrant.mutateAsync({ grantId: revokeTarget.id, residentId, reason: revokeReason.trim() });
-      setRevokeTarget(null); setRevokeReason(""); toast({ title: "Portal access revoked" });
+      closeRevoke(); toast({ title: "Portal access revoked" });
     } catch (error) {
       toast({ title: "Access could not be revoked", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
@@ -119,7 +135,7 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
     const document = workspace.data?.residentDocuments.find((item) => item.id === documentId);
     try {
       await shareDocument.mutateAsync({ grantId: shareTarget.id, residentId, documentId, displayLabel: documentLabel.trim() || document?.document_label || document?.file_name || "Shared document", share: true });
-      setShareTarget(null); setDocumentId(""); setDocumentLabel(""); toast({ title: "Document added to portal list" });
+      closeShare(); toast({ title: "Document added to portal list" });
     } catch (error) {
       toast({ title: "Document could not be shared", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
@@ -129,7 +145,7 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
     if (!replyTarget || replyBody.trim().length < 1) return;
     try {
       await reply.mutateAsync({ grantId: replyTarget.id, residentId, body: replyBody.trim() });
-      setReplyTarget(null); setReplyBody(""); toast({ title: "Portal reply sent" });
+      closeReply(); toast({ title: "Portal reply sent" });
     } catch (error) {
       toast({ title: "Reply could not be sent", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
@@ -137,7 +153,7 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
 
   const submitPaymentLink = async () => {
     try {
-      await savePaymentLink.mutateAsync({ residentId, providerName: paymentProvider.trim(), secureUrl: paymentUrl.trim(), amountDue: Number(paymentAmount), expiresAt: new Date(`${paymentExpires}T23:59:59`).toISOString() });
+      await savePaymentLink.mutateAsync({ residentId, providerName: paymentProvider.trim(), secureUrl: paymentUrl.trim(), amountDue: Number(paymentAmount), expiresAt: facilityDateTimeToUtc(paymentExpires, "23:59:59").toISOString() });
       setPaymentOpen(false); setPaymentProvider(""); setPaymentUrl(""); setPaymentAmount(""); setPaymentExpires(defaultExpiry());
       toast({ title: "Secure resident payment link saved" });
     } catch (error) {
@@ -167,11 +183,11 @@ export function ResidentPortalWorkspace({ residentId }: { residentId: string }) 
 
       <Dialog open={createOpen} onOpenChange={(open) => open ? setCreateOpen(true) : resetCreate()}><DialogContent><DialogHeader><DialogTitle>Create designated-person access</DialogTitle><DialogDescription>The person must accept the current portal terms before any resident information appears.</DialogDescription></DialogHeader>{generatedLink ? <div className="space-y-3"><Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>One-time access link</AlertTitle><AlertDescription>This raw token is not stored. Copy it now and send it through an approved secure channel.</AlertDescription></Alert><div className="flex gap-2"><Input aria-label="Generated portal link" readOnly value={generatedLink} /><Button type="button" size="icon" variant="outline" aria-label="Copy portal link" onClick={() => { void navigator.clipboard.writeText(generatedLink); toast({ title: "Portal link copied" }); }}><Copy className="h-4 w-4" /></Button></div></div> : <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="portal-name">Designated person</Label><Input id="portal-name" value={name} onChange={(event) => setName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="portal-relationship">Relationship / authority</Label><Input id="portal-relationship" value={relationship} onChange={(event) => setRelationship(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="portal-email">Email (reference only)</Label><Input id="portal-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="portal-expiry">Expires on</Label><Input id="portal-expiry" type="date" value={expiresOn} onChange={(event) => setExpiresOn(event.target.value)} /></div><fieldset className="space-y-2 sm:col-span-2"><legend className="text-sm font-medium">Allowed information</legend>{PERMISSION_OPTIONS.map((option) => <label key={option.value} className="flex items-center gap-2 text-sm"><Checkbox checked={permissions.includes(option.value)} onCheckedChange={(checked) => setPermissions((current) => checked === true ? [...current, option.value] : current.filter((value) => value !== option.value))} /><span>{option.label}</span></label>)}</fieldset></div>}<DialogFooter><Button variant="outline" onClick={resetCreate}>{generatedLink ? "Done" : "Cancel"}</Button>{!generatedLink && <Button disabled={createGrant.isPending || name.trim().length < 2 || relationship.trim().length < 2 || permissions.length === 0 || !expiresOn} onClick={() => void submitCreate()}>{createGrant.isPending ? "Creating…" : "Create access"}</Button>}</DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}><DialogContent><DialogHeader><DialogTitle>Revoke portal access</DialogTitle><DialogDescription>The link will stop working immediately. Existing access documentation remains append-only.</DialogDescription></DialogHeader><div className="space-y-2"><Label htmlFor="portal-revoke-reason">Reason</Label><Textarea id="portal-revoke-reason" value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} /></div><DialogFooter><Button variant="outline" onClick={() => setRevokeTarget(null)}>Cancel</Button><Button variant="destructive" disabled={revokeGrant.isPending || revokeReason.trim().length < 5} onClick={() => void submitRevoke()}>Revoke access</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!revokeTarget} onOpenChange={(open) => !open && closeRevoke()}><DialogContent><DialogHeader><DialogTitle>Revoke portal access</DialogTitle><DialogDescription>The link will stop working immediately. Existing access documentation remains append-only.</DialogDescription></DialogHeader><div className="space-y-2"><Label htmlFor="portal-revoke-reason">Reason</Label><Textarea id="portal-revoke-reason" value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} /></div><DialogFooter><Button variant="outline" onClick={closeRevoke}>Cancel</Button><Button variant="destructive" disabled={revokeGrant.isPending || revokeReason.trim().length < 5} onClick={() => void submitRevoke()}>Revoke access</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={!!shareTarget} onOpenChange={(open) => !open && setShareTarget(null)}><DialogContent><DialogHeader><DialogTitle>Share document listing</DialogTitle><DialogDescription>The portal will show the selected document metadata only. Do not use this for documents that require a different disclosure workflow.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label htmlFor={`${__fieldIds}-resident-document`}>Resident document</Label><Select value={documentId} onValueChange={(value) => { setDocumentId(value); const document = portalData.residentDocuments.find((item) => item.id === value); setDocumentLabel(document?.document_label || document?.file_name || ""); }}><SelectTrigger id={`${__fieldIds}-resident-document`}><SelectValue placeholder="Select document" /></SelectTrigger><SelectContent>{portalData.residentDocuments.map((document) => <SelectItem key={document.id} value={document.id}>{document.document_label || document.file_name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="portal-document-label">Portal label</Label><Input id="portal-document-label" value={documentLabel} onChange={(event) => setDocumentLabel(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => setShareTarget(null)}>Cancel</Button><Button disabled={shareDocument.isPending || !documentId || documentLabel.trim().length < 2} onClick={() => void submitShare()}>Share listing</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!shareTarget} onOpenChange={(open) => !open && closeShare()}><DialogContent><DialogHeader><DialogTitle>Share document listing</DialogTitle><DialogDescription>The portal will show the selected document metadata only. Do not use this for documents that require a different disclosure workflow.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label htmlFor={`${__fieldIds}-resident-document`}>Resident document</Label><Select value={documentId} onValueChange={(value) => { setDocumentId(value); const document = portalData.residentDocuments.find((item) => item.id === value); setDocumentLabel(document?.document_label || document?.file_name || ""); }}><SelectTrigger id={`${__fieldIds}-resident-document`}><SelectValue placeholder="Select document" /></SelectTrigger><SelectContent>{portalData.residentDocuments.map((document) => <SelectItem key={document.id} value={document.id}>{document.document_label || document.file_name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="portal-document-label">Portal label</Label><Input id="portal-document-label" value={documentLabel} onChange={(event) => setDocumentLabel(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={closeShare}>Cancel</Button><Button disabled={shareDocument.isPending || !documentId || documentLabel.trim().length < 2} onClick={() => void submitShare()}>Share listing</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={!!replyTarget} onOpenChange={(open) => !open && setReplyTarget(null)}><DialogContent><DialogHeader><DialogTitle>Reply in portal</DialogTitle><DialogDescription>This message will be visible only through the active, consented portal grant.</DialogDescription></DialogHeader><div className="space-y-2"><Label htmlFor="portal-reply">Message</Label><Textarea id="portal-reply" value={replyBody} onChange={(event) => setReplyBody(event.target.value)} /></div><DialogFooter><Button variant="outline" onClick={() => setReplyTarget(null)}>Cancel</Button><Button disabled={reply.isPending || replyBody.trim().length < 1} onClick={() => void submitReply()}>Send reply</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={!!replyTarget} onOpenChange={(open) => !open && closeReply()}><DialogContent><DialogHeader><DialogTitle>Reply in portal</DialogTitle><DialogDescription>This message will be visible only through the active, consented portal grant.</DialogDescription></DialogHeader><div className="space-y-2"><Label htmlFor="portal-reply">Message</Label><Textarea id="portal-reply" value={replyBody} onChange={(event) => setReplyBody(event.target.value)} /></div><DialogFooter><Button variant="outline" onClick={closeReply}>Cancel</Button><Button disabled={reply.isPending || replyBody.trim().length < 1} onClick={() => void submitReply()}>Send reply</Button></DialogFooter></DialogContent></Dialog>
 
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}><DialogContent><DialogHeader><DialogTitle>Secure resident payment link</DialogTitle><DialogDescription>Use only a facility-approved HTTPS payment provider. CareBase displays the link but never handles card or bank details.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="portal-payment-provider">Provider</Label><Input id="portal-payment-provider" value={paymentProvider} onChange={(event) => setPaymentProvider(event.target.value)} placeholder="Approved payment portal" /></div><div className="space-y-2"><Label htmlFor="portal-payment-amount">Amount due</Label><Input id="portal-payment-amount" type="number" min="0" step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></div><div className="space-y-2 sm:col-span-2"><Label htmlFor="portal-payment-url">Secure HTTPS URL</Label><Input id="portal-payment-url" type="url" value={paymentUrl} onChange={(event) => setPaymentUrl(event.target.value)} placeholder="https://payments.example.com/..." /></div><div className="space-y-2"><Label htmlFor="portal-payment-expiry">Expires on</Label><Input id="portal-payment-expiry" type="date" value={paymentExpires} onChange={(event) => setPaymentExpires(event.target.value)} /></div></div><DialogFooter><Button variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button><Button disabled={savePaymentLink.isPending || paymentProvider.trim().length < 2 || !paymentUrl.startsWith("https://") || Number(paymentAmount) < 0 || !paymentExpires} onClick={() => void submitPaymentLink()}>{savePaymentLink.isPending ? "Saving…" : "Save payment link"}</Button></DialogFooter></DialogContent></Dialog>
     </Card>
