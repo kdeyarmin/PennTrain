@@ -555,7 +555,7 @@ export default function CourseAssignments() {
             />
           </div>
           <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
-            <SelectTrigger className="w-48 h-9 bg-card">
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility">
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
@@ -566,7 +566,7 @@ export default function CourseAssignments() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-40 h-9 bg-card">
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Status">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>

@@ -449,7 +449,7 @@ export default function ValueCenter() {
         </div>
         <div className="flex gap-2 print:hidden">
           <Select value={facilityId} onValueChange={setSelectedFacilityId}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger className="w-56" aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>
               {facilities.data?.map(facility => (
                 <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>

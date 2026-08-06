@@ -9,13 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { buildMedicationSafetySummary } from "@/lib/medicationSafetyAnalytics";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityToday, facilityYear } from "@/lib/dateUtils";
 import { Pill, CheckCircle2, XCircle, Droplet, AlertTriangle, ClipboardCheck } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 
 export default function MedAdminRoster() {
   const [facilityId, setFacilityId] = useState<string>("all");
-  const currentYear = new Date().getFullYear();
+  const currentYear = facilityYear();
 
   const facilitiesQuery = useListFacilities();
   const { data: facilities } = facilitiesQuery;
@@ -83,7 +83,7 @@ export default function MedAdminRoster() {
 
       <div className="flex gap-3">
         <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-52" aria-label="Facility">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>

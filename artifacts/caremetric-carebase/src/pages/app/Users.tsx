@@ -432,7 +432,7 @@ export default function Users() {
             />
           </div>
           <Select value={roleFilter} onValueChange={v => { setRoleFilter(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-full bg-card sm:w-44">
+            <SelectTrigger className="h-9 w-full bg-card sm:w-44" aria-label="Role">
               <SelectValue placeholder="All Roles" />
             </SelectTrigger>
             <SelectContent>
@@ -444,7 +444,7 @@ export default function Users() {
           </Select>
           {isPlatformAdmin && (
             <Select value={orgFilter} onValueChange={v => { setOrgFilter(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-full bg-card sm:w-48">
+              <SelectTrigger className="h-9 w-full bg-card sm:w-48" aria-label="Organization">
                 <SelectValue placeholder="All Organizations" />
               </SelectTrigger>
               <SelectContent>

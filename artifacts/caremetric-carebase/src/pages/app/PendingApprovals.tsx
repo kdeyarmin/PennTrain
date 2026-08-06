@@ -535,7 +535,7 @@ export default function PendingApprovals() {
             <CardContent>
               <div className="flex flex-wrap items-center gap-4 pb-4 mb-4 border-b">
                 <Select value={facilityId} onValueChange={setFacilityId}>
-                  <SelectTrigger className="w-56 h-9"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+                  <SelectTrigger className="w-56 h-9" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Facilities</SelectItem>
                     {facilities?.map(f => (

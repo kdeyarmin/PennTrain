@@ -118,7 +118,15 @@ export default function WorkOrderDetail() {
     setTargetStatus(nextStatus);
     setTransitionNotes("");
     setActualCost(order.actual_cost == null ? "" : String(order.actual_cost));
+    setDowntimeStarted("");
+    setDowntimeEnded("");
     setShowTransition(true);
+  };
+
+  const openVerify = () => {
+    setVerificationDecision("verified");
+    setVerificationNotes("");
+    setShowVerify(true);
   };
 
   const submitTransition = () => {
@@ -196,7 +204,7 @@ export default function WorkOrderDetail() {
           {canManage && order.status === "assigned" && <Button onClick={() => openTransition("in_progress")}><Play className="mr-2 h-4 w-4" /> Begin repair</Button>}
           {canManage && order.status === "in_progress" && <><Button variant="outline" onClick={() => openTransition("on_hold")}><Pause className="mr-2 h-4 w-4" /> Put on hold</Button><Button onClick={() => openTransition("pending_verification")}><CheckCircle2 className="mr-2 h-4 w-4" /> Complete repair</Button></>}
           {canManage && order.status === "on_hold" && <Button onClick={() => openTransition("in_progress")}><Play className="mr-2 h-4 w-4" /> Resume work</Button>}
-          {canVerify && order.status === "pending_verification" && <Button onClick={() => setShowVerify(true)}><ShieldCheck className="mr-2 h-4 w-4" /> Supervisor verification</Button>}
+          {canVerify && order.status === "pending_verification" && <Button onClick={openVerify}><ShieldCheck className="mr-2 h-4 w-4" /> Supervisor verification</Button>}
         </div>
       </div>
 

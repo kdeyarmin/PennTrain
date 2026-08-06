@@ -81,7 +81,7 @@ export default function Maintenance() {
   // Keep the complete RLS-scoped location set available to create dialogs. The dashboard tab
   // applies its own facility filter below; otherwise choosing a different facility inside a
   // dialog after filtering the page would incorrectly show no locations for that facility.
-  const { data: locations } = useListMaintenanceLocations();
+  const { data: locations, isLoading: locationsLoading, isError: locationsError, error: locationsErrorDetail, refetch: refetchLocations } = useListMaintenanceLocations();
   const {
     data: schedules,
     isLoading: schedulesLoading,
@@ -207,6 +207,26 @@ export default function Maintenance() {
     });
   };
 
+  const openOrderDialog = () => {
+    const next = { ...emptyOrder };
+    if (facilities?.length === 1) next.facilityId = facilities[0].id;
+    setOrderForm(next);
+    setShowOrder(true);
+  };
+
+  const openLocationDialog = () => {
+    const next = { facilityId: facilities?.length === 1 ? facilities[0].id : "", label: "", roomNumber: "", detail: "" };
+    setLocationForm(next);
+    setShowLocation(true);
+  };
+
+  const openScheduleDialog = () => {
+    const next = { ...emptySchedule };
+    if (facilities?.length === 1) next.facilityId = facilities[0].id;
+    setScheduleForm(next);
+    setShowSchedule(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-start justify-between gap-3">
@@ -214,7 +234,7 @@ export default function Maintenance() {
           <h1>Maintenance &amp; Work Orders</h1>
           <p>Control environmental repairs from report through supervisor verification, with QR labels and recurring preventive maintenance.</p>
         </div>
-        {canManage && <Button onClick={() => setShowOrder(true)}><Plus className="mr-2 h-4 w-4" /> New work order</Button>}
+        {canManage && <Button onClick={openOrderDialog}><Plus className="mr-2 h-4 w-4" /> New work order</Button>}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -247,7 +267,7 @@ export default function Maintenance() {
         <TabsContent value="preventive" className="space-y-4">
           <div className="flex flex-wrap justify-between gap-2">
             <p className="text-sm text-muted-foreground">Due schedules generate one open work order at a time and advance to their next recurring due date.</p>
-            {canConfigure && <div className="flex gap-2"><Button variant="outline" onClick={() => generateDue.mutate(undefined, { onSuccess: (count) => toast({ title: `${count} due work order${count === 1 ? "" : "s"} generated` }), onError: (error: Error) => toast({ title: "Generation failed", description: error.message, variant: "destructive" }) })} disabled={generateDue.isPending}><RefreshCw className="mr-2 h-4 w-4" /> Generate due</Button><Button onClick={() => setShowSchedule(true)}><Plus className="mr-2 h-4 w-4" /> Add schedule</Button></div>}
+            {canConfigure && <div className="flex gap-2"><Button variant="outline" onClick={() => generateDue.mutate(undefined, { onSuccess: (count) => toast({ title: `${count} due work order${count === 1 ? "" : "s"} generated` }), onError: (error: Error) => toast({ title: "Generation failed", description: error.message, variant: "destructive" }) })} disabled={generateDue.isPending}><RefreshCw className="mr-2 h-4 w-4" /> Generate due</Button><Button onClick={openScheduleDialog}><Plus className="mr-2 h-4 w-4" /> Add schedule</Button></div>}
           </div>
           {schedulesError ? (
             <div className="premium-card p-6"><QueryError what="preventive-maintenance schedules" error={schedulesErrorDetail} onRetry={() => void refetchSchedules()} /></div>
@@ -263,8 +283,14 @@ export default function Maintenance() {
         </TabsContent>
 
         <TabsContent value="locations" className="space-y-4">
-          <div className="flex justify-between gap-2"><p className="text-sm text-muted-foreground">Create durable QR labels for rooms and shared environmental locations.</p>{canConfigure && <Button onClick={() => setShowLocation(true)}><Plus className="mr-2 h-4 w-4" /> Add location</Button>}</div>
+          <div className="flex justify-between gap-2"><p className="text-sm text-muted-foreground">Create durable QR labels for rooms and shared environmental locations.</p>{canConfigure && <Button onClick={openLocationDialog}><Plus className="mr-2 h-4 w-4" /> Add location</Button>}</div>
+          {locationsError ? (
+            <div className="premium-card p-6"><QueryError what="maintenance locations" error={locationsErrorDetail} onRetry={() => void refetchLocations()} /></div>
+          ) : locationsLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((n) => <div key={n} className="h-40 animate-pulse rounded-lg bg-muted" />)}</div>
+          ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{(locations ?? []).filter((location) => !selectedFacility || location.facility_id === selectedFacility).map((location) => <MaintenanceQrCode key={location.id} path={`/app/maintenance/scan/location/${location.qr_token}`} fileName={`maintenance-${location.label.replace(/\s+/g, "-").toLowerCase()}`} label={`${location.label}${location.room_number ? ` · Room ${location.room_number}` : ""}`} />)}{!(locations ?? []).some((location) => !selectedFacility || location.facility_id === selectedFacility) && <div className="premium-card col-span-full py-16 text-center text-sm text-muted-foreground">No room QR labels have been created.</div>}</div>
+          )}
         </TabsContent>
       </Tabs>
 

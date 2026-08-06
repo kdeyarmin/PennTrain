@@ -398,7 +398,7 @@ export default function TrainerClasses() {
           value={statusFilter}
           onValueChange={(v) => setStatusFilter(v)}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Status">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -415,7 +415,7 @@ export default function TrainerClasses() {
           value={facilityFilter}
           onValueChange={(v) => setFacilityFilter(v)}
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Facility">
             <SelectValue placeholder="Facility" />
           </SelectTrigger>
           <SelectContent>

@@ -399,14 +399,17 @@ export default function EmergencyOperations() {
       {facilityId && !readiness.isError && !events.isError && (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            {[
-              [Siren, activeEvents.length, "Active events"],
-              [FileCheck2, readiness.data?.plan?.current_version?.version_number ? `v${readiness.data.plan.current_version.version_number}` : "Missing", "Approved plan"],
-              [Users, missingProfiles.length, "Profiles missing"],
-              [AlertTriangle, lowInventory.length, "Supply exceptions"],
-              [Bus, relocationSites.length, "Relocation sites"],
-              [ShieldCheck, readiness.data?.assignments.filter((assignment) => assignment.is_active).length ?? 0, "Staff assignments"],
-            ].map(([Icon, value, label]) => {
+            {(() => {
+              const metricsPending = readiness.isLoading || events.isLoading;
+              return [
+              [Siren, metricsPending ? "—" : activeEvents.length, "Active events"],
+              [FileCheck2, metricsPending ? "—" : (readiness.data?.plan?.current_version?.version_number ? `v${readiness.data.plan.current_version.version_number}` : "Missing"), "Approved plan"],
+              [Users, metricsPending ? "—" : missingProfiles.length, "Profiles missing"],
+              [AlertTriangle, metricsPending ? "—" : lowInventory.length, "Supply exceptions"],
+              [Bus, metricsPending ? "—" : relocationSites.length, "Relocation sites"],
+              [ShieldCheck, metricsPending ? "—" : (readiness.data?.assignments.filter((assignment) => assignment.is_active).length ?? 0), "Staff assignments"],
+            ];
+            })().map(([Icon, value, label]) => {
               const MetricIcon = Icon as typeof Siren;
               return (
                 <Card key={String(label)}>

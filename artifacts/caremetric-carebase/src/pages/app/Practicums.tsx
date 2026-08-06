@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useState } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, facilityYear } from "@/lib/dateUtils";
 import { usePaginatedPracticums, useCreatePracticum, useUpdatePracticum, type Practicum, type PracticumInsert } from "@/hooks/usePracticums";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -116,7 +116,7 @@ export default function Practicums() {
   const __fieldIds = useId();
   const [facilityId, setFacilityId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
-  const currentYear = new Date().getFullYear();
+  const currentYear = facilityYear();
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -289,7 +289,7 @@ export default function Practicums() {
 
       <div className="flex flex-wrap gap-3">
         <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-full sm:w-52">
+          <SelectTrigger className="w-full sm:w-52" aria-label="Facility">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>
@@ -300,7 +300,7 @@ export default function Practicums() {
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Status">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>

@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `dc53a29f` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **fifth-pass hunt** after G111–G121. Open G122–G130 (incident browser-zone occurred-at + zeroed summary tiles; remaining facility datetime-local defaults; unlabeled e2e filter Selects; silent shift delete; stale emergency/portal/med-source dialogs). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `9bf14021` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **sixth-pass** after G111–G130. Closed remaining facility datetime-local round-trips (CoC / create complaint / rights ack), practicum `facilityYear`, maintenance/work-order dialog resets + locations QueryError, CCC/Dashboard/Emergency/InspectionReadiness metric fail-open, and more unlabeled filter Selects. SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -563,15 +563,12 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G128 | High-traffic filter Selects lacked accessible names | S | done | aria-label on Incidents, Residents, Employees, EvidenceRoom, Credentials, Alerts, Maintenance, MyCourses, StateForms, Emergency facility |
 | G129 | Emergency ops dialogs kept prior draft after cancel | S | done | `openDialog` resets plan/event/resource/inventory/assignment fields before open |
 | G130 | Portal payment-link dialog kept prior draft | S | done | Reset provider/url/amount/expiry on open |
-| G122 | Incident create `occurredAt` still browser-zone | M | todo | `Incidents.tsx` `toLocalDatetimeInputValue` uses `getFullYear`/`getHours` then submits via `facilityDateTimeLocalToUtcIso` — wall clock shifts when browser ≠ America/New_York |
-| G123 | Clinical chart / employee chart observation defaults browser-zone | M | todo | `ResidentClinicalChart.tsx` / `MyResidentChart.tsx` default + reset `observedAt` with `toDateTimeLocal` then `facilityDateTimeLocalToUtcIso` on submit |
-| G124 | Work order / services calendar / schedule override TZ round-trip | M | todo | `WorkOrderDetail` loads/saves target with `toDateTimeLocal`↔`facilityDateTimeLocalToUtcIso`; `ResidentServicesCalendar` create/reschedule/follow-up due same; `ScheduleDetail` override `expiresAt` same |
-| G125 | Agreement / personal funds / med exception / complaint / QAPI TZ defaults | M | todo | `ResidentAgreementWorkspace` effectiveAt; `PersonalFundsDialogs` transaction `at`; `MedicationIntegration` exceptionDueAt; `ComplaintDetail` interview/monitoring/due; `QapiProjectDetail` held (+ aDue via browser `toDateTimeLocal` of facility UTC) |
-| G126 | Incident summary tiles zero on error | S | todo | `Incidents.tsx` uses `incidentSummaryQuery.data ?? EMPTY_…` for Open/Major/Recent tiles while list shows QueryError — reads as 0 open / "No open incidents" |
-| G127 | Unlabeled high-traffic filter Selects (e2e) | S | todo | No `aria-label` / Label association: Incidents (4), Residents (2), Employees (2), EvidenceRoom (2), EmployeeCredentials (3), Alerts (3), Maintenance (2), TrainingMatrix (3), MyCourses status, StateFormsCenter facility |
-| G128 | ScheduleDetail shift delete silent onError | S | todo | `handleDelete` `deleteAssignment.mutate` only `onSuccess` — failed remove leaves dialog open with no toast |
-| G129 | Emergency ops dialogs keep form after cancel | S | todo | Plan/event/profile/resource/inventory dialogs only `setDialog(null)` — reopen shows prior draft (emergency activation summary risk) |
-| G130 | Portal payment + med source + personal-funds txn dialogs stale | S | todo | `ResidentPortalWorkspace` payment cancel; `MedicationIntegration` source dialog; `PersonalFundsDialogs` TransactionDialog — no reset/key on reopen |
+| G131 | CoC / create-complaint / rights-ack datetime still browser-zone | M | done | `LogChangeOfConditionDialog`, `CreateComplaintDialog`, `ResidentAdministrativeMaster` now use `toFacilityDateTimeLocal` before `facilityDateTimeLocalToUtcIso` |
+| G132 | Practicum year still browser `getFullYear()` | S | done | `useMedAdminAuthorization`, `MedAdminRoster`, `Practicums` use `facilityYear()` |
+| G133 | Maintenance create dialogs stale; locations empty-on-error | S | done | Reset order/location/schedule forms on open; locations tab QueryError + loading gate |
+| G134 | Work-order transition/verify dialogs kept downtime & notes | S | done | Clear downtime + verification fields when opening transition/verify |
+| G135 | CCC / Dashboard / Emergency / InspectionReadiness metric fail-open | S | done | CCC StatCards dash while loading; Dashboard score null until data (not 100%); Emergency tiles dash while loading; special-care card QueryError on source failure |
+| G136 | Remaining unlabeled filter Selects (a11y) | S | done | aria-label on TrainingMatrix, CCC, Documents, CourseAssignments, Violations, MyTrainings, MedAdminRoster, PendingApprovals, Practicums, BackgroundChecks, CompetencyRecords, TrainerClasses, Users, ComplianceBinder, ValueCenter, SurveyDay |
 
 ## Explicitly not now
 

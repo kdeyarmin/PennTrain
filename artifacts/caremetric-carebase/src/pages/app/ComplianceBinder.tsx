@@ -114,7 +114,7 @@ export default function ComplianceBinder() {
             <div className="flex flex-col gap-1.5 max-w-xs">
               <label className="text-sm font-medium">Facility</label>
               <Select value={facilityId} onValueChange={setFacilityId}>
-                <SelectTrigger className="w-64">
+                <SelectTrigger className="w-64" aria-label="Facility">
                   <SelectValue placeholder="All Facilities" />
                 </SelectTrigger>
                 <SelectContent>

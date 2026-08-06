@@ -223,15 +223,15 @@ export default function ComplianceCommandCenter() {
         {/* ---------------- Dashboard ---------------- */}
         <TabsContent value="dashboard" className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <StatCard label="Compliance score" value={summary.score === null ? "—" : `${summary.score}%`} icon={Gauge} tone={scoreTone(summary.score)}
+            <StatCard label="Compliance score" value={instancesQ.isLoading ? "—" : summary.score === null ? "—" : `${summary.score}%`} icon={Gauge} tone={scoreTone(summary.score)}
               hint={`${summary.resolved} met · ${summary.open} open`} />
-            <StatCard label="Overdue" value={summary.overdue} icon={AlertTriangle} tone="danger"
+            <StatCard label="Overdue" value={instancesQ.isLoading ? "—" : summary.overdue} icon={AlertTriangle} tone="danger"
               onClick={() => set({ view: urlState.view === "overdue" ? "all" : "overdue", status: "all" })} hint="Past due, unresolved" />
-            <StatCard label="Due soon" value={summary.dueSoon} icon={CalendarClock} tone="warning"
+            <StatCard label="Due soon" value={instancesQ.isLoading ? "—" : summary.dueSoon} icon={CalendarClock} tone="warning"
               onClick={() => set({ view: urlState.view === "due_soon" ? "all" : "due_soon", status: "all" })} hint="Within warning window" />
-            <StatCard label="Awaiting review" value={summary.awaitingReview} icon={ClipboardCheck} tone="info"
+            <StatCard label="Awaiting review" value={instancesQ.isLoading ? "—" : summary.awaitingReview} icon={ClipboardCheck} tone="info"
               onClick={() => set({ view: urlState.view === "awaiting_review" ? "all" : "awaiting_review", status: "all" })} hint="Submitted for sign-off" />
-            <StatCard label="Missing evidence" value={summary.missingEvidence} icon={FileWarning} tone="default"
+            <StatCard label="Missing evidence" value={instancesQ.isLoading ? "—" : summary.missingEvidence} icon={FileWarning} tone="default"
               onClick={() => set({ view: urlState.view === "missing_evidence" ? "all" : "missing_evidence", status: "all" })} hint="Evidence required, none attached" />
           </div>
 
@@ -260,7 +260,7 @@ export default function ComplianceCommandCenter() {
               <Input className="w-56 pl-8" placeholder="Search requirements…" value={urlState.search} onChange={(e) => set({ search: e.target.value })} />
             </div>
             <Select value={urlState.facility} onValueChange={(v) => set({ facility: v, building: "all" })}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-44" aria-label="Facility"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All facilities</SelectItem>
                 {(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -268,7 +268,7 @@ export default function ComplianceCommandCenter() {
             </Select>
             {urlState.facility !== "all" && (buildings ?? []).length > 0 && (
               <Select value={urlState.building} onValueChange={(v) => set({ building: v })}>
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-40" aria-label="Building"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All buildings</SelectItem>
                   {(buildings ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
@@ -276,28 +276,28 @@ export default function ComplianceCommandCenter() {
               </Select>
             )}
             <Select value={urlState.category} onValueChange={(v) => set({ category: v })}>
-              <SelectTrigger className="w-52"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectTrigger className="w-52" aria-label="Category"><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
                 {COMPLIANCE_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={urlState.chapter} onValueChange={(v) => set({ chapter: v })}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Regulation" /></SelectTrigger>
+              <SelectTrigger className="w-40" aria-label="Regulation"><SelectValue placeholder="Regulation" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All regulations</SelectItem>
                 {CHAPTER_OPTIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={urlState.responsible} onValueChange={(v) => set({ responsible: v })}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="Responsible" /></SelectTrigger>
+              <SelectTrigger className="w-44" aria-label="Responsible"><SelectValue placeholder="Responsible" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Anyone responsible</SelectItem>
                 {orgProfiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={urlState.status} onValueChange={(v) => set({ status: v, view: "all" })}>
-              <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-40" aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Any status</SelectItem>
                 {COMPLIANCE_STATUSES.map((s) => <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>)}

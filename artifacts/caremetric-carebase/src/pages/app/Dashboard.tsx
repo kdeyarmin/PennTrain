@@ -44,7 +44,7 @@ interface DashboardSummary {
   expiredCount: number;
   missingDocumentCount: number;
   totalTrackedCount: number;
-  compliancePercentage: number;
+  compliancePercentage: number | null;
   totalEmployees: number;
   openAlertsCount: number;
   totalMedAdminStaff: number;
@@ -191,7 +191,7 @@ export default function OrgDashboard() {
     expiredCount: dashboard?.compliance.expiredCount ?? 0,
     missingDocumentCount: dashboard?.compliance.missingDocumentCount ?? 0,
     totalTrackedCount: dashboard?.compliance.totalTrackedCount ?? 0,
-    compliancePercentage: dashboard?.compliance.compliancePercentage ?? 100,
+    compliancePercentage: dashboard?.compliance.compliancePercentage ?? null,
     totalEmployees: dashboard?.staff.totalEmployees ?? 0,
     openAlertsCount: dashboard?.alerts.openCount ?? 0,
     totalMedAdminStaff: dashboard?.staff.totalMedAdminStaff ?? 0,
@@ -211,8 +211,9 @@ export default function OrgDashboard() {
   const firstCriticalTitle = recentAlerts.find(a => a.severity === "critical")?.title
     ?? "Open the alerts page to review the details.";
   const compliancePct = summary.compliancePercentage;
-
-  const complianceColor = compliancePct >= 90 ? "text-emerald-600" : compliancePct >= 75 ? "text-amber-600" : "text-red-600";
+  const complianceColor = compliancePct == null
+    ? "text-muted-foreground"
+    : compliancePct >= 90 ? "text-emerald-600" : compliancePct >= 75 ? "text-amber-600" : "text-red-600";
 
   const totalTracked = summary.totalTrackedCount;
   const dueSoonPct = totalTracked > 0 ? Math.round((summary.dueSoon30Count / totalTracked) * 100) : 0;
@@ -680,12 +681,16 @@ export default function OrgDashboard() {
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:gap-8">
               {summaryLoading ? (
                 <Skeleton className="h-[140px] w-[140px] rounded-full" />
+              ) : compliancePct == null ? (
+                <div className="flex h-[140px] w-[140px] items-center justify-center rounded-full border text-2xl font-semibold text-muted-foreground" aria-label="Overall compliance unavailable">—</div>
               ) : (
                 <Donut value={compliancePct} aria-label={`Overall compliance: ${compliancePct} percent`} />
               )}
               <div className="flex-1">
                 <p className={`text-lg font-semibold ${complianceColor}`}>
-                  {compliancePct >= 90 ? "Excellent" : compliancePct >= 75 ? "Needs Improvement" : "At Risk"}
+                  {summaryLoading || compliancePct == null
+                    ? "—"
+                    : compliancePct >= 90 ? "Excellent" : compliancePct >= 75 ? "Needs Improvement" : "At Risk"}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">of tracked training and practicum requirements compliant</p>
               </div>

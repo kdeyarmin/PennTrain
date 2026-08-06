@@ -128,7 +128,7 @@ export default function SurveyDay() {
         <div className="w-full md:w-72">
           <label className="mb-1 block text-sm font-medium">Facility</label>
           <Select value={activeFacilityId} onValueChange={setFacilityId}>
-            <SelectTrigger><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>{(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
@@ -539,7 +539,7 @@ function StaffRosterSection({ sessionId }: { sessionId: string }) {
             className="max-w-xs"
           />
           <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-28" aria-label="Page size"><SelectValue /></SelectTrigger>
             <SelectContent>{[25, 50, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}</SelectContent>
           </Select>
           {data && (

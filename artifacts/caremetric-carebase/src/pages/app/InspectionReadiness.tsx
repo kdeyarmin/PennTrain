@@ -154,6 +154,10 @@ export default function InspectionReadiness() {
     administratorProfilesQuery, administratorCeEntriesQuery,
   ].find((query) => query.isError);
 
+  const specialCareSourceFailure = [
+    unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery,
+  ].find((query) => query.isError);
+
 
   const overall = useMemo(() => {
     if (!breakdown) return null;
@@ -542,6 +546,21 @@ export default function InspectionReadiness() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-4">
+            {specialCareSourceFailure ? (
+              <div className="md:col-span-4">
+                <QueryError
+                  what="special-care designation data"
+                  error={specialCareSourceFailure.error}
+                  onRetry={() => {
+                    void unitsQuery.refetch();
+                    void residentsQuery.refetch();
+                    void schedulePreferencesQuery.refetch();
+                    void trainingRecordsQuery.refetch();
+                  }}
+                />
+              </div>
+            ) : (
+              <>
             <div>
               <p className="text-2xl font-bold">{specialCareSummary.designatedUnits.length}</p>
               <p className="text-xs text-muted-foreground">designated unit(s)</p>
@@ -562,6 +581,8 @@ export default function InspectionReadiness() {
                 Uses unit designation, SDCU resident placement, schedule preferences, and dementia/special-care training records.
               </p>
             </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

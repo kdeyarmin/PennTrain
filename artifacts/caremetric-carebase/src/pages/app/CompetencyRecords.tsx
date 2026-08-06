@@ -309,7 +309,7 @@ export default function CompetencyRecords() {
       <div className="premium-card">
         <div className="filter-bar">
           <Select value={facilityFilter} onValueChange={(v) => { setFacilityFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-48 h-9 bg-card">
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility">
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
@@ -334,7 +334,7 @@ export default function CompetencyRecords() {
             />
           </div>
           <Select value={templateFilter} onValueChange={(v) => { setTemplateFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-48 h-9 bg-card">
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Template">
               <SelectValue placeholder="All Templates" />
             </SelectTrigger>
             <SelectContent>

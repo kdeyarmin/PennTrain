@@ -369,7 +369,7 @@ export default function Documents() {
             </CardTitle>
             <div className="flex gap-2 flex-wrap">
               <Select value={facilityId} onValueChange={v => { setFacilityId(v); setEmployeeId("all"); }}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-44" aria-label="Facility">
                   <SelectValue placeholder="All Facilities" />
                 </SelectTrigger>
                 <SelectContent>
@@ -380,7 +380,7 @@ export default function Documents() {
                 </SelectContent>
               </Select>
               <Select value={employeeId} onValueChange={setEmployeeId}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-44" aria-label="Employee">
                   <SelectValue placeholder="All Employees" />
                 </SelectTrigger>
                 <SelectContent>
@@ -391,7 +391,7 @@ export default function Documents() {
                 </SelectContent>
               </Select>
               <Select value={docType} onValueChange={setDocType}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-40" aria-label="Document type">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
