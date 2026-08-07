@@ -442,6 +442,7 @@ export default function AdmissionOperations() {
 
       <Suspense fallback={null}>
         <PipelineFunnelSection
+          busy={prospects.isLoading || prospects.isError}
           prospects={(prospects.data ?? []).map(prospect => ({
             id: prospect.id,
             pipeline_stage: (prospect as { pipeline_stage?: string }).pipeline_stage ?? "new_inquiry",

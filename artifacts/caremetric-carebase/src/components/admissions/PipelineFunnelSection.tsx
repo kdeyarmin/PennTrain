@@ -15,7 +15,14 @@ import {
  * can be at "tour completed" and still be clinically unreviewed, and collapsing them would hide
  * exactly that.
  */
-export default function PipelineFunnelSection({ prospects }: { prospects: ProspectLike[] }) {
+export default function PipelineFunnelSection({
+  prospects,
+  busy = false,
+}: {
+  prospects: ProspectLike[];
+  /** True while prospects are loading or blocked by a source error — dash revenue/funnel metrics. */
+  busy?: boolean;
+}) {
   const stages = useMemo(() => countByStage(prospects), [prospects]);
   const sources = useMemo(() => referralSourcePerformance(prospects), [prospects]);
   const value = useMemo(() => weightedPipelineValue(prospects), [prospects]);
@@ -39,13 +46,13 @@ export default function PipelineFunnelSection({ prospects }: { prospects: Prospe
           {stages.map((entry) => (
             <div key={entry.key} className="space-y-1">
               <div className="flex items-baseline justify-between gap-2 text-sm">
-                <span className={entry.count === 0 ? "text-muted-foreground" : ""}>{entry.label}</span>
-                <span className="tabular-nums text-muted-foreground">{entry.count}</span>
+                <span className={!busy && entry.count === 0 ? "text-muted-foreground" : ""}>{entry.label}</span>
+                <span className="tabular-nums text-muted-foreground">{busy ? "—" : entry.count}</span>
               </div>
               <div className="h-1.5 w-full rounded-full bg-muted">
                 <div
                   className="h-1.5 rounded-full bg-primary"
-                  style={{ width: `${Math.round((entry.count / busiest) * 100)}%` }}
+                  style={{ width: busy ? "0%" : `${Math.round((entry.count / busiest) * 100)}%` }}
                 />
               </div>
             </div>
@@ -64,17 +71,17 @@ export default function PipelineFunnelSection({ prospects }: { prospects: Prospe
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Weighted by probability</p>
                 <p className="text-2xl font-semibold tabular-nums">
-                  ${value.weighted.toLocaleString()}
+                  {busy ? "—" : `$${value.weighted.toLocaleString()}`}
                 </p>
               </div>
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Unweighted</p>
                 <p className="text-2xl font-semibold tabular-nums">
-                  ${value.unweighted.toLocaleString()}
+                  {busy ? "—" : `$${value.unweighted.toLocaleString()}`}
                 </p>
               </div>
             </div>
-            {value.withoutProbability > 0 && (
+            {!busy && value.withoutProbability > 0 && (
               <p className="text-xs text-muted-foreground">
                 ${value.withoutProbability.toLocaleString()} sits outside the weighted figure because
                 no probability has been recorded for it. A guessed default would make the forecast

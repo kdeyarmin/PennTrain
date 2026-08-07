@@ -135,7 +135,8 @@ export default function ScheduleDetail() {
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
   const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
-  const { data: assignments, isLoading: assignmentsLoading } = useListShiftAssignments({ scheduleId: id });
+  const { data: assignments, isLoading: assignmentsLoading, isError: assignmentsError } = useListShiftAssignments({ scheduleId: id });
+  const assignmentsBusy = assignmentsLoading || assignmentsError;
   const {
     data: serviceWorkload,
     isLoading: serviceWorkloadLoading,
@@ -698,23 +699,23 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Shifts</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.totalShifts}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.totalShifts}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Scheduled hours</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.scheduledHours}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.scheduledHours}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Auto / manual</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.autoFilledShifts} / {scheduleAnalytics.manualShifts}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : `${scheduleAnalytics.autoFilledShifts} / ${scheduleAnalytics.manualShifts}`}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Exceptions</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.exceptionShifts}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.exceptionShifts}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Unit-day gaps</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.unitDayCoverageGaps}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.unitDayCoverageGaps}</p>
             </div>
           </div>
           <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
@@ -740,21 +741,21 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Current PPD</p>
-                <p className="text-xl font-semibold">{staffingRatios.ppd.toFixed(2)}</p>
+                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.ppd.toFixed(2)}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Care hours needed</p>
-                <p className="text-xl font-semibold">{staffingRatios.targetHours}</p>
+                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.targetHours}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Hours gap</p>
-                <p className="text-xl font-semibold">{staffingRatios.hoursGap}</p>
-                <p className="text-[11px] text-muted-foreground">{staffingRatios.hoursGapPerDay}/day</p>
+                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.hoursGap}</p>
+                <p className="text-[11px] text-muted-foreground">{assignmentsBusy ? "…" : `${staffingRatios.hoursGapPerDay}/day`}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">8h shifts to add</p>
-                <p className="text-xl font-semibold">{staffingRatios.suggestedEightHourShifts}</p>
-                <p className="text-[11px] text-muted-foreground">Residents/staff avg. {staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
+                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.suggestedEightHourShifts}</p>
+                <p className="text-[11px] text-muted-foreground">Residents/staff avg. {assignmentsBusy ? "—" : staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
               </div>
             </div>
           </div>

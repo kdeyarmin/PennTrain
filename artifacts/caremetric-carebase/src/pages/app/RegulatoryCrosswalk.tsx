@@ -128,6 +128,7 @@ export default function RegulatoryCrosswalk() {
     policyAttestationsQuery, evidenceCollectionsQuery, governedRules,
   ];
   const crosswalkFailure = crosswalkQueries.find((query) => query.isError);
+  const crosswalkBusy = crosswalkQueries.some((query) => query.isLoading || (query.data === undefined && (query.isPending || query.isFetching)));
 
   return (
     <div className="space-y-6">
@@ -143,17 +144,17 @@ export default function RegulatoryCrosswalk() {
           <h1 className="text-2xl font-bold tracking-tight">Chapter 2600 / 2800 Regulatory Crosswalk</h1>
           <p className="text-muted-foreground">Citation-by-citation map from PCH/ALF obligations to live CareBase documentation, owners, due dates, and binder destinations.</p>
         </div>
-        <Button variant="outline" onClick={downloadCsv} disabled={Boolean(crosswalkFailure)}>
+        <Button variant="outline" onClick={downloadCsv} disabled={Boolean(crosswalkFailure) || crosswalkBusy}>
           <Download className="mr-2 h-4 w-4" />Export CSV
         </Button>
       </div>
 
       {!crosswalkFailure && (
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard title="Inspection-ready" value={summary.ready} icon="ready" />
-        <SummaryCard title="Needs attention" value={summary.attention} />
-        <SummaryCard title="Missing documentation" value={summary.missing} icon="warning" />
-        <SummaryCard title="Overdue" value={summary.overdue} icon="danger" />
+        <SummaryCard title="Inspection-ready" value={crosswalkBusy ? "—" : summary.ready} icon="ready" />
+        <SummaryCard title="Needs attention" value={crosswalkBusy ? "—" : summary.attention} />
+        <SummaryCard title="Missing documentation" value={crosswalkBusy ? "—" : summary.missing} icon="warning" />
+        <SummaryCard title="Overdue" value={crosswalkBusy ? "—" : summary.overdue} icon="danger" />
       </div>
       )}
 
@@ -228,7 +229,7 @@ export default function RegulatoryCrosswalk() {
   );
 }
 
-function SummaryCard({ title, value, icon }: { title: string; value: number; icon?: "ready" | "warning" | "danger" }) {
+function SummaryCard({ title, value, icon }: { title: string; value: number | string; icon?: "ready" | "warning" | "danger" }) {
   const Icon = icon === "ready" ? CheckCircle2 : icon === "danger" ? ShieldAlert : AlertTriangle;
   return (
     <Card>

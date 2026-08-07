@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `cdf2dfc7` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-first-pass** after G193–G194. Special-care busy gates now wait on training types; CourseAssignments summary tiles dash while page loads. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `64043555` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-second-pass** after G195–G196. Dashed RegulatoryCrosswalk / ScheduleDetail / PipelineFunnel metrics while sources load; reset MoveIn guest sign + RASP participation/signature drafts on close. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -629,6 +629,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G194 | FacilityDetail special-care card fail-open while loading | S | done | Dash gap count + Loading/Unavailable until units/residents/prefs/training resolve |
 | G195 | Special-care summaries ignored training-types load/error | S | done | Include `useListTrainingTypes` in InspectionReadiness + FacilityDetail busy/error gates |
 | G196 | CourseAssignments summary tiles fail-open while loading | S | done | Dash completion/overdue/due-soon tiles until paginated page resolves |
+| G197 | RegulatoryCrosswalk summary tiles fail-open while loading | S | done | Dash ready/attention/missing/overdue until evidence sources resolve |
+| G198 | ScheduleDetail coverage/PPD tiles fail-open on empty assignments | S | done | Dash snapshot + staffing calculator while assignments load/error |
+| G199 | Admission pipeline funnel revenue fail-open to $0 | S | done | `PipelineFunnelSection` dashes funnel counts + revenue when prospects busy |
+| G200 | MoveIn guest sign + RASP participation/signature sticky drafts | S | done | Reset signer/participation/signature fields on open and close |
 
 ## Explicitly not now
 

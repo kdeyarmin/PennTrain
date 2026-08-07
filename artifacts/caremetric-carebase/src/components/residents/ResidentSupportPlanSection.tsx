@@ -344,6 +344,8 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       toast({ title: "Participation recorded", description: "The plan now awaits signature." });
       setParticipationFor(null);
       setParticipationNotes("");
+      setResidentTookPart(true);
+      setDesignatedTookPart(false);
     } catch (e) {
       toast({ title: "Could not record participation", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
@@ -359,9 +361,23 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       toast({ title: "Signature outcome recorded" });
       setSignatureFor(null);
       setSignatureNote("");
+      setSignatureOutcome("signed");
     } catch (e) {
       toast({ title: "Could not record the signature", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
+  }
+
+  function closeParticipation() {
+    setParticipationFor(null);
+    setParticipationNotes("");
+    setResidentTookPart(true);
+    setDesignatedTookPart(false);
+  }
+
+  function closeSignature() {
+    setSignatureFor(null);
+    setSignatureNote("");
+    setSignatureOutcome("signed");
   }
 
   return (
@@ -463,8 +479,18 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                     {canManage && (
                       <div className="flex gap-1.5">
                         {plan.state === "draft" && <Button size="sm" variant="outline" onClick={() => submit(plan)} disabled={submitPlan.isPending || !planHasContent(plan)} title={!planHasContent(plan) ? "Add plan content before submitting" : undefined}>Submit for review</Button>}
-                        {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => { setParticipationFor(plan); setParticipationDate(facilityToday()); }}>Record participation</Button>}
-                        {plan.state === "awaiting_signature" && <Button size="sm" variant="outline" onClick={() => setSignatureFor(plan)}>Record signature</Button>}
+                        {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => {
+                          setParticipationNotes("");
+                          setResidentTookPart(true);
+                          setDesignatedTookPart(false);
+                          setParticipationDate(facilityToday());
+                          setParticipationFor(plan);
+                        }}>Record participation</Button>}
+                        {plan.state === "awaiting_signature" && <Button size="sm" variant="outline" onClick={() => {
+                          setSignatureOutcome("signed");
+                          setSignatureNote("");
+                          setSignatureFor(plan);
+                        }}>Record signature</Button>}
                         {(plan.state === "awaiting_signature" || plan.state === "approved") && <Button size="sm" onClick={() => openApprove(plan)}>Approve</Button>}
                         {/* Only when the date has actually passed. An approved plan effective next
                             Monday shows nothing here -- the scheduled job owns that, and offering a
@@ -622,7 +648,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!participationFor} onOpenChange={(open) => !open && setParticipationFor(null)}>
+      <Dialog open={!!participationFor} onOpenChange={(open) => { if (!open) closeParticipation(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record participation</DialogTitle>
@@ -650,7 +676,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setParticipationFor(null)}>Cancel</Button>
+            <Button variant="outline" onClick={closeParticipation}>Cancel</Button>
             <Button onClick={saveParticipation} disabled={recordParticipation.isPending || !participationDate}>
               {recordParticipation.isPending ? "Saving..." : "Record participation"}
             </Button>
@@ -658,7 +684,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!signatureFor} onOpenChange={(open) => !open && setSignatureFor(null)}>
+      <Dialog open={!!signatureFor} onOpenChange={(open) => { if (!open) closeSignature(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record signature outcome</DialogTitle>
@@ -686,7 +712,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSignatureFor(null)}>Cancel</Button>
+            <Button variant="outline" onClick={closeSignature}>Cancel</Button>
             <Button onClick={saveSignature} disabled={recordSignature.isPending}>
               {recordSignature.isPending ? "Saving..." : "Record outcome"}
             </Button>
