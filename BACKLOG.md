@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `dac1fed0` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-first-pass** after G229–G232. Hold PipelineFunnel referral empty, ScheduleSetup patterns roster, CourseAssignments employee picker, and AdminDashboard Phase nested empties/task badges until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `d7d0487c` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-first-pass** after G229–G232. Hold PipelineFunnel referral empty, ScheduleSetup patterns roster, CourseAssignments employee picker, and AdminDashboard Phase nested empties/task badges until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -665,6 +665,9 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G230 | ReleaseCohort membership + cohort picker fail-open | S | done | Loading membership copy; loading/disabled cohort Select items |
 | G231 | PackageEntitlementTermCard open terms empty while loading | S | done | Loading copy before "No open terms" |
 | G232 | AdaptivePaths assign Select + IncidentQapiEscalation link | S | done | Loading employee Select items; hold Escalate until QAPI link check resolves |
+| G233 | PipelineFunnel referral sources empty while busy | S | done | Loading copy before "No inquiries in this view" |
+| G234 | ScheduleSetup patterns + CourseAssignments employee pickers | S | done | Loading copy before "No active employees" empties |
+| G235 | AdminDashboard Phase nested empties + task backlog badges | S | done | Hold readiness/timeline/hotspots empties on dashboardBusy; dash task badges on healthBusy |
 
 ## Explicitly not now
 

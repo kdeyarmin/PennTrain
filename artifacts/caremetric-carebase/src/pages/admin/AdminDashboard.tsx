@@ -573,17 +573,23 @@ export default function AdminDashboard() {
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Inspection readiness scoring</div>
                 <div className="mt-3 space-y-2">
-                  {inspectionReadinessScores.map(({ id, name, score, outstandingItems, facilityIncidents, facilityViolations, facilityOverdueActions }) => (
-                    <Link key={id} href={`/admin/facilities/${id}`} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
-                      <div>
-                        <p className="text-sm font-medium">{name}</p>
-                        <p className="text-xs text-muted-foreground">{outstandingItems} inspection gaps · {facilityIncidents} incidents · {facilityViolations} violations · {facilityOverdueActions} overdue actions</p>
-                      </div>
-                      <Badge variant={score < 70 ? "destructive" : score < 90 ? "secondary" : "default"}>{score}/100</Badge>
-                    </Link>
-                  ))}
-                  {inspectionReadinessScores.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No facilities available for readiness scoring.</p>
+                  {dashboardBusy ? (
+                    <p className="text-sm text-muted-foreground">Loading inspection readiness…</p>
+                  ) : (
+                    <>
+                      {inspectionReadinessScores.map(({ id, name, score, outstandingItems, facilityIncidents, facilityViolations, facilityOverdueActions }) => (
+                        <Link key={id} href={`/admin/facilities/${id}`} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
+                          <div>
+                            <p className="text-sm font-medium">{name}</p>
+                            <p className="text-xs text-muted-foreground">{outstandingItems} inspection gaps · {facilityIncidents} incidents · {facilityViolations} violations · {facilityOverdueActions} overdue actions</p>
+                          </div>
+                          <Badge variant={score < 70 ? "destructive" : score < 90 ? "secondary" : "default"}>{score}/100</Badge>
+                        </Link>
+                      ))}
+                      {inspectionReadinessScores.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No facilities available for readiness scoring.</p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -592,18 +598,24 @@ export default function AdminDashboard() {
             <div className="rounded-lg border p-4">
               <div className="flex items-center gap-2 font-semibold"><ClipboardCheck className="h-4 w-4 text-primary" /> Compliance case timeline</div>
               <div className="mt-3 space-y-3">
-                {complianceTimelineItems.map(({ id, label, date, href, status, Icon }) => (
-                  <Link key={id} href={href} className="flex items-start gap-3 rounded-md border p-3 hover:bg-muted/50">
-                    <Icon className="mt-0.5 h-4 w-4 text-primary" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{label}</p>
-                      <p className="text-xs text-muted-foreground">{date ? formatDateForDisplay(date) : "No date"}</p>
-                    </div>
-                    <Badge variant="outline" className="capitalize">{status?.replace(/_/g, " ") ?? "open"}</Badge>
-                  </Link>
-                ))}
-                {complianceTimelineItems.length === 0 && (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incidents, violations, alerts, or corrective actions found yet.</p>
+                {dashboardBusy ? (
+                  <p className="text-sm text-muted-foreground">Loading compliance timeline…</p>
+                ) : (
+                  <>
+                    {complianceTimelineItems.map(({ id, label, date, href, status, Icon }) => (
+                      <Link key={id} href={href} className="flex items-start gap-3 rounded-md border p-3 hover:bg-muted/50">
+                        <Icon className="mt-0.5 h-4 w-4 text-primary" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{label}</p>
+                          <p className="text-xs text-muted-foreground">{date ? formatDateForDisplay(date) : "No date"}</p>
+                        </div>
+                        <Badge variant="outline" className="capitalize">{status?.replace(/_/g, " ") ?? "open"}</Badge>
+                      </Link>
+                    ))}
+                    {complianceTimelineItems.length === 0 && (
+                      <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incidents, violations, alerts, or corrective actions found yet.</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -636,14 +648,20 @@ export default function AdminDashboard() {
             <div className="rounded-lg border p-4">
               <div className="flex items-center gap-2 font-semibold"><GraduationCap className="h-4 w-4 text-primary" /> Training assignment hotspots</div>
               <div className="mt-3 space-y-2">
-                {coursesNeedingAttention.map((course) => (
-                  <Link key={course.courseId} href={`/admin/courses/${course.courseId}`} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
-                    <span className="truncate text-sm font-medium">{course.title}</span>
-                    <Badge variant="secondary">{course.count}</Badge>
-                  </Link>
-                ))}
-                {coursesNeedingAttention.length === 0 && (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incomplete training-assignment hotspots found.</p>
+                {dashboardBusy ? (
+                  <p className="text-sm text-muted-foreground">Loading training hotspots…</p>
+                ) : (
+                  <>
+                    {coursesNeedingAttention.map((course) => (
+                      <Link key={course.courseId} href={`/admin/courses/${course.courseId}`} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
+                        <span className="truncate text-sm font-medium">{course.title}</span>
+                        <Badge variant="secondary">{course.count}</Badge>
+                      </Link>
+                    ))}
+                    {coursesNeedingAttention.length === 0 && (
+                      <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incomplete training-assignment hotspots found.</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -655,7 +673,7 @@ export default function AdminDashboard() {
                   <Link key={item.label} href={item.href} className="block rounded-md border p-3 hover:bg-muted/50">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-medium">{item.label}</p>
-                      <Badge variant={item.count > 0 ? "destructive" : "secondary"}>{item.count}</Badge>
+                      <Badge variant={!healthBusy && item.count > 0 ? "destructive" : "secondary"}>{healthBusy ? "—" : item.count}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{item.guidance}</p>
                   </Link>
