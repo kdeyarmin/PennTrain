@@ -270,8 +270,12 @@ export function PackageEntitlementTermCard({
             <p className="text-sm font-medium">
               Open terms {scheduled.length > 0 ? `(${scheduled.length} scheduled for the future)` : ""}
             </p>
-            {current.length === 0 && <p className="text-xs text-muted-foreground">No open terms on this package.</p>}
-            {current.map((row) => (
+            {entitlements.isLoading ? (
+              <p className="text-xs text-muted-foreground">Loading open terms…</p>
+            ) : current.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No open terms on this package.</p>
+            ) : null}
+            {!entitlements.isLoading && current.map((row) => (
               <p key={row.id} className="text-xs text-muted-foreground">
                 {row.featureKey} = {JSON.stringify(row.entitlementValue)} · from{" "}
                 {new Date(row.effectiveFromAt).toLocaleDateString()}

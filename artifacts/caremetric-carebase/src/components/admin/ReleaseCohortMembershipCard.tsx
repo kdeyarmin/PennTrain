@@ -80,11 +80,17 @@ export function ReleaseCohortMembershipCard() {
             <Select value={cohortId} onValueChange={setCohortId}>
               <SelectTrigger id="cohort-pick"><SelectValue placeholder="Pick a cohort" /></SelectTrigger>
               <SelectContent>
-                {(cohorts.data ?? []).map((cohort) => (
-                  <SelectItem key={cohort.id} value={cohort.id} disabled={!cohort.is_active}>
-                    {cohort.name}{cohort.is_active ? "" : " (inactive)"}
-                  </SelectItem>
-                ))}
+                {cohorts.isLoading ? (
+                  <SelectItem value="none" disabled>Loading cohorts…</SelectItem>
+                ) : (cohorts.data ?? []).length === 0 ? (
+                  <SelectItem value="none" disabled>No cohorts available</SelectItem>
+                ) : (
+                  (cohorts.data ?? []).map((cohort) => (
+                    <SelectItem key={cohort.id} value={cohort.id} disabled={!cohort.is_active}>
+                      {cohort.name}{cohort.is_active ? "" : " (inactive)"}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -120,10 +126,12 @@ export function ReleaseCohortMembershipCard() {
 
         <div className="space-y-2 border-t pt-3">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current membership</p>
-          {(memberships.data ?? []).length === 0 && (
+          {memberships.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading cohort membership…</p>
+          ) : (memberships.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No organization is in a release cohort.</p>
-          )}
-          {(memberships.data ?? []).map((membership) => (
+          ) : null}
+          {!memberships.isLoading && (memberships.data ?? []).map((membership) => (
             <div key={membership.id} className="space-y-1 rounded border p-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm">

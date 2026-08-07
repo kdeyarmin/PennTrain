@@ -93,6 +93,15 @@ export function IncidentQapiEscalation({ incident }: { incident: Incident }) {
     }
   }
 
+  if (projectsQuery.isLoading) {
+    return (
+      <Button variant="outline" size="sm" disabled>
+        <ClipboardList className="mr-1.5 h-4 w-4" />
+        Checking QAPI link…
+      </Button>
+    );
+  }
+
   if (linked) {
     return (
       <Button asChild variant="outline" size="sm">
@@ -106,7 +115,7 @@ export function IncidentQapiEscalation({ incident }: { incident: Incident }) {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={openDialog}>
+      <Button variant="outline" size="sm" onClick={openDialog} disabled={projectsQuery.isError}>
         <ArrowUpRight className="mr-1.5 h-4 w-4" />
         Escalate to QAPI
       </Button>

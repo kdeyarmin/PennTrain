@@ -324,11 +324,17 @@ export function AdaptivePathsPanel() {
                 <Select value={assignEmployeeId} onValueChange={setAssignEmployeeId}>
                   <SelectTrigger id="path-assign-employee"><SelectValue placeholder="Choose an employee" /></SelectTrigger>
                   <SelectContent>
-                    {(employees.data ?? []).map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.last_name}, {employee.first_name}
-                      </SelectItem>
-                    ))}
+                    {employees.isLoading ? (
+                      <SelectItem value="none" disabled>Loading employees…</SelectItem>
+                    ) : (employees.data ?? []).length === 0 ? (
+                      <SelectItem value="none" disabled>No active employees</SelectItem>
+                    ) : (
+                      (employees.data ?? []).map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.last_name}, {employee.first_name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
