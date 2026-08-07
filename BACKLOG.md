@@ -668,6 +668,8 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G233 | PipelineFunnel referral sources empty while busy | S | done | Loading copy before "No inquiries in this view" |
 | G234 | ScheduleSetup patterns + CourseAssignments employee pickers | S | done | Loading copy before "No active employees" empties |
 | G235 | AdminDashboard Phase nested empties + task backlog badges | S | done | Hold readiness/timeline/hotspots empties on dashboardBusy; dash task badges on healthBusy |
+| G236 | Dashboard alerts/tiles/facilities fail-open while summary loads | S | done | Loading copy for recent alerts/facilities; dash Active Staff/alerts/Med Admin tiles |
+| G237 | ResidentServicesCalendar vehicles empty + OutcomeDialog draft | S | done | Vehicles loading/error gate; reseed follow-up draft when outcome dialog opens |
 
 ## Explicitly not now
 
