@@ -726,21 +726,21 @@ export default function OrgDashboard() {
                   <Users className="h-4 w-4" />
                   <span className="text-xs font-medium">Active Staff</span>
                 </div>
-                <p className="text-xl font-bold">{summary.totalEmployees}</p>
+                <p className="text-xl font-bold">{summaryLoading ? "—" : summary.totalEmployees}</p>
               </Link>
               <Link href={dashboardMetricDefinition("open_alerts")?.href ?? "/app/alerts"} className="rounded-lg bg-muted/50 p-3.5 block transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background" title={`${dashboardMetricDefinition("open_alerts")?.definition ?? ""} Scope: ${DASHBOARD_SCOPE_LABEL}.`}>
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <AlertTriangle className="h-4 w-4" />
                   <span className="text-xs font-medium">{dashboardMetricDefinition("open_alerts")?.label ?? "Open alerts"}</span>
                 </div>
-                <p className="text-xl font-bold">{summary.openAlertsCount}</p>
+                <p className="text-xl font-bold">{summaryLoading ? "—" : summary.openAlertsCount}</p>
               </Link>
               <Link href={hasPchAlr ? "/app/med-admin-roster" : "/app/credentials"} className="rounded-lg bg-muted/50 p-3.5 block transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Shield className="h-4 w-4" />
                   <span className="text-xs font-medium">Med Admin</span>
                 </div>
-                <p className="text-xl font-bold">{summary.totalMedAdminStaff}</p>
+                <p className="text-xl font-bold">{summaryLoading ? "—" : summary.totalMedAdminStaff}</p>
               </Link>
             </div>
           </div>
@@ -758,30 +758,36 @@ export default function OrgDashboard() {
             </div>
             <div className="flex-1 p-4">
               <div className="space-y-2">
-                {recentAlerts.map(alert => (
-                  <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${
-                      alert.severity === "critical" ? "bg-red-500" : alert.severity === "warning" ? "bg-amber-500" : "bg-blue-500"
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium leading-snug">{alert.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{alert.message}</p>
-                    </div>
-                    <Badge variant="outline" className={`text-[10px] shrink-0 ${
-                      alert.severity === "critical" ? "border-red-200 text-red-600 bg-red-50" :
-                      alert.severity === "warning" ? "border-amber-200 text-amber-600 bg-amber-50" :
-                      "border-blue-200 text-blue-600 bg-blue-50"
-                    }`}>
-                      {alert.severity}
-                    </Badge>
-                  </div>
-                ))}
-                {recentAlerts.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <CheckCircle className="h-8 w-8 text-emerald-400 mb-2" />
-                    <p className="text-sm font-medium text-muted-foreground">No open alerts</p>
-                    <p className="text-xs text-muted-foreground/60">Great work keeping compliant!</p>
-                  </div>
+                {summaryLoading ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">Loading recent alerts…</p>
+                ) : (
+                  <>
+                    {recentAlerts.map(alert => (
+                      <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${
+                          alert.severity === "critical" ? "bg-red-500" : alert.severity === "warning" ? "bg-amber-500" : "bg-blue-500"
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium leading-snug">{alert.title}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{alert.message}</p>
+                        </div>
+                        <Badge variant="outline" className={`text-[10px] shrink-0 ${
+                          alert.severity === "critical" ? "border-red-200 text-red-600 bg-red-50" :
+                          alert.severity === "warning" ? "border-amber-200 text-amber-600 bg-amber-50" :
+                          "border-blue-200 text-blue-600 bg-blue-50"
+                        }`}>
+                          {alert.severity}
+                        </Badge>
+                      </div>
+                    ))}
+                    {recentAlerts.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <CheckCircle className="h-8 w-8 text-emerald-400 mb-2" />
+                        <p className="text-sm font-medium text-muted-foreground">No open alerts</p>
+                        <p className="text-xs text-muted-foreground/60">Great work keeping compliant!</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -875,11 +881,15 @@ export default function OrgDashboard() {
               </Link>
             );
           })}
-          {(dashboard?.facilities ?? []).length === 0 && (
+          {summaryLoading ? (
+            <div className="px-6 py-12 text-center">
+              <p className="text-sm text-muted-foreground">Loading facilities…</p>
+            </div>
+          ) : (dashboard?.facilities ?? []).length === 0 ? (
             <div className="px-6 py-12 text-center">
               <p className="text-sm text-muted-foreground">No facilities found.</p>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
