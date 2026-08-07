@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `12deef1c` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-seventh-pass** after G245. Hold GovernedContent register/author Selects and SessionRoster employee picker until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `79538b4f` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-eighth-pass** after G247. TrainerClasses attendee counts and TrainingPlans progress/items no longer empty-succeed on load/error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -680,6 +680,8 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G245 | MySchedule swap candidates empty-on-error | S | done | Suppress "No candidate shifts" while candidates.isError |
 | G246 | GovernedContent register/author Selects fail-open | S | done | Loading/error Select items; hold author snapshot while blocks busy/error |
 | G247 | SessionRosterCard employee picker fail-open | S | done | Pass employeesLoading/Error from ClassDetail; gate "Everyone registered" |
+| G248 | TrainerClasses attendee counts fail-open to 0 | S | done | Dash ("—") while `useClassAttendeeCounts` loading or error |
+| G249 | TrainingPlans progress + items empty-on-error | S | done | QueryError before "hasn't been applied" / "No items" empties |
 
 ## Explicitly not now
 

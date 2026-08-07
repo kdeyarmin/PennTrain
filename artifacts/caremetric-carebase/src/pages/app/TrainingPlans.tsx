@@ -238,7 +238,7 @@ function ApplyPlanDialog({
 // admin had no way to see who's on a plan or how far along they are.
 // ---------------------------------------------------------------------------
 function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
-  const { data: assignments, isLoading } = useListCourseAssignments({ trainingPlanId: plan.id });
+  const { data: assignments, isLoading, isError, error, refetch } = useListCourseAssignments({ trainingPlanId: plan.id });
   const { data: employees } = useListEmployees({ status: "active" });
   const { data: courses } = useListCourses();
 
@@ -261,6 +261,10 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
         {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="plan progress" error={error} onRetry={() => void refetch()} />;
   }
 
   if (byEmployee.size === 0) {
@@ -303,7 +307,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   const __fieldIds = useId();
   const { toast } = useToast();
 
-  const { data: items, isLoading } = useListTrainingPlanItems(plan.id);
+  const { data: items, isLoading, isError, error, refetch } = useListTrainingPlanItems(plan.id);
   const { data: courses } = useListCourses();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
@@ -395,6 +399,8 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => <div key={i} className="h-11 bg-muted animate-pulse rounded" />)}
         </div>
+      ) : isError ? (
+        <QueryError what="plan items" error={error} onRetry={() => void refetch()} />
       ) : sortedItems.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground">No items in this plan yet.</p>
