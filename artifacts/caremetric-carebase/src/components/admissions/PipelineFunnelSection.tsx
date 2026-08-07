@@ -113,7 +113,9 @@ export default function PipelineFunnelSection({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {sources.length === 0 ? (
+            {busy ? (
+              <p className="text-sm text-muted-foreground">Loading referral sources…</p>
+            ) : sources.length === 0 ? (
               <p className="text-sm text-muted-foreground">No inquiries in this view.</p>
             ) : (
               <ul className="space-y-1.5 text-sm">

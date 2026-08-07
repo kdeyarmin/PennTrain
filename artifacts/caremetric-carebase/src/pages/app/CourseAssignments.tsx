@@ -137,7 +137,7 @@ export default function CourseAssignments() {
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: employees, isLoading: employeesLoading } = useListEmployees({ status: "active" });
   const { data: courses } = useListCourses();
   const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
   const {
@@ -798,7 +798,11 @@ export default function CourseAssignments() {
                   </span>
                 </label>
                 <div className="max-h-52 overflow-y-auto divide-y">
-                  {filteredAssignEmployees.length === 0 ? (
+                  {employeesLoading ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      Loading employees…
+                    </p>
+                  ) : filteredAssignEmployees.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-4">
                       No active employees{assignFacilityFilter !== "all" ? " in this facility" : ""}.
                     </p>

@@ -545,7 +545,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
 function PatternsPanel({ facilityId, organizationId }: { facilityId: string; organizationId: string }) {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: roster } = useListEmployeeFacilityAssignments({ facilityId });
+  const { data: roster, isLoading: rosterLoading } = useListEmployeeFacilityAssignments({ facilityId });
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
   const [employeeIds, setEmployeeIds] = useState<Set<string>>(new Set());
@@ -682,7 +682,9 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
               <span className="text-muted-foreground">Select all visible ({activeRoster.length})</span>
             </label>
             <div className="max-h-48 overflow-y-auto divide-y">
-              {activeRoster.length === 0 ? (
+              {rosterLoading ? (
+                <p className="text-xs text-muted-foreground text-center py-4">Loading employees…</p>
+              ) : activeRoster.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4">No active employees at this facility.</p>
               ) : (
                 activeRoster.map((r) => (
