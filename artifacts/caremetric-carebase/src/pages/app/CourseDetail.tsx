@@ -97,7 +97,7 @@ export default function CourseDetail() {
     });
   };
 
-  const { data: courseFeedback } = useListCourseFeedback({ courseId: id });
+  const { data: courseFeedback, isLoading: feedbackLoading } = useListCourseFeedback({ courseId: id });
   const feedbackSummary = summarizeCourseFeedback(courseFeedback);
   const { data: versions, isLoading: versionsLoading } = useListCourseVersions(id);
 
@@ -741,6 +741,7 @@ export default function CourseDetail() {
         canUnpublishCourse={canUnpublishCourse}
         onUnpublishClick={() => setShowUnpublishCourse(true)}
         feedbackSummary={feedbackSummary}
+        feedbackLoading={feedbackLoading}
       />
 
       <VersionsCard

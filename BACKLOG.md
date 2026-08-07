@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `0f3c1635` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-third-pass** after G197–G200. Dashed PolicyDocumentDetail lifecycle + FacilityDetail admin-rule CE + AdministratorQualification + Dashboard state-forms while secondary sources load; labeled ResidentServicesCalendar follow-up Choices. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `2b907674` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-fourth-pass** after G201–G205. Hold ClassDetail roster, Evidence secondary lists, WorkOrder documents, Course ratings, and ScheduleDetail PPD/census until secondary queries resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -638,6 +638,11 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G203 | AdministratorQualification badge/rules fail-open while loading | S | done | Loading badge + hold requirement rows until profile/CE/facilities resolve |
 | G204 | Dashboard state-forms banner hid open work while loading | S | done | Show checking banner; only surface counts after residents + items resolve |
 | G205 | ResidentServicesCalendar follow-up Choices unlabeled | S | done | `aria-label` on follow-up owner/priority (and related draft inputs) |
+| G206 | ClassDetail attendees count fail-open while roster loads | S | done | Dash header count + skeleton body until attendees resolve |
+| G207 | EvidenceCollectionDetail empty copy while secondary loads | S | done | Loading copy for artifacts/grants/events before empty states |
+| G208 | WorkOrderDetail documents empty while loading | S | done | Skeleton before "No repair documentation" empty state |
+| G209 | CourseDetail ratings fail-open to "No ratings yet" | S | done | Loading ratings copy until feedback query resolves |
+| G210 | ScheduleDetail PPD/census used empty residents while loading | S | done | Don't sync census to 0 while residents load; dash PPD tiles |
 
 ## Explicitly not now
 

@@ -134,9 +134,14 @@ export default function ScheduleDetail() {
   const { data: facility } = useGetFacility(facilityId);
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
-  const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
+  const {
+    data: activeResidents,
+    isLoading: residentsLoading,
+    isError: residentsError,
+  } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
   const { data: assignments, isLoading: assignmentsLoading, isError: assignmentsError } = useListShiftAssignments({ scheduleId: id });
   const assignmentsBusy = assignmentsLoading || assignmentsError;
+  const staffingBusy = assignmentsBusy || residentsLoading || residentsError;
   const {
     data: serviceWorkload,
     isLoading: serviceWorkloadLoading,
@@ -218,8 +223,9 @@ export default function ScheduleDetail() {
   const activeResidentCount = activeResidents?.length ?? 0;
 
   useEffect(() => {
-    if (!censusWasEdited) setResidentsInHouse(activeResidentCount);
-  }, [activeResidentCount, censusWasEdited]);
+    // Don't stamp a loading/error empty roster as "0 residents in house".
+    if (!censusWasEdited && !residentsLoading && !residentsError) setResidentsInHouse(activeResidentCount);
+  }, [activeResidentCount, censusWasEdited, residentsLoading, residentsError]);
 
   useEffect(() => {
     if (!eligibilityPreview.data) return;
@@ -727,7 +733,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               <div className="space-y-1.5">
                 <Label htmlFor="residentsInHouse">Residents in house</Label>
                 <Input id="residentsInHouse" type="number" min={0} value={residentsInHouse} onChange={(e) => { setCensusWasEdited(true); setResidentsInHouse(Number(e.target.value) || 0); }} />
-                <button type="button" className="text-xs text-primary hover:underline" onClick={() => { setCensusWasEdited(false); setResidentsInHouse(activeResidentCount); }}>Use active census ({activeResidentCount})</button>
+                <button type="button" className="text-xs text-primary hover:underline" disabled={residentsLoading || residentsError} onClick={() => { setCensusWasEdited(false); setResidentsInHouse(activeResidentCount); }}>Use active census ({residentsLoading || residentsError ? "—" : activeResidentCount})</button>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="targetPpd">Target PPD</Label>
@@ -741,21 +747,21 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Current PPD</p>
-                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.ppd.toFixed(2)}</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.ppd.toFixed(2)}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Care hours needed</p>
-                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.targetHours}</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.targetHours}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Hours gap</p>
-                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.hoursGap}</p>
-                <p className="text-[11px] text-muted-foreground">{assignmentsBusy ? "…" : `${staffingRatios.hoursGapPerDay}/day`}</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.hoursGap}</p>
+                <p className="text-[11px] text-muted-foreground">{staffingBusy ? "…" : `${staffingRatios.hoursGapPerDay}/day`}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">8h shifts to add</p>
-                <p className="text-xl font-semibold">{assignmentsBusy ? "—" : staffingRatios.suggestedEightHourShifts}</p>
-                <p className="text-[11px] text-muted-foreground">Residents/staff avg. {assignmentsBusy ? "—" : staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.suggestedEightHourShifts}</p>
+                <p className="text-[11px] text-muted-foreground">Residents/staff avg. {staffingBusy ? "—" : staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
               </div>
             </div>
           </div>

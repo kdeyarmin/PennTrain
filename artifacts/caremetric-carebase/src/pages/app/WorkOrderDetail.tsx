@@ -63,6 +63,7 @@ export default function WorkOrderDetail() {
   } = useListWorkOrderHistory(id);
   const {
     data: documents,
+    isLoading: documentsLoading,
     isError: documentsError,
     error: documentsErrorDetail,
     refetch: refetchDocuments,
@@ -242,6 +243,8 @@ export default function WorkOrderDetail() {
             {canManage && !["verified","canceled"].includes(order.status) && <div className="grid items-end gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[180px_1fr_auto]"><div><Label htmlFor={`${__fieldIds}-documentation-type`}>Documentation type</Label><Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}><SelectTrigger id={`${__fieldIds}-documentation-type`}><SelectValue /></SelectTrigger><SelectContent>{DOCUMENT_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-jpeg-png-webp-or-pdf`}>JPEG, PNG, WebP, or PDF</Label><Input id={`${__fieldIds}-jpeg-png-webp-or-pdf`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0])} /></div><Button onClick={upload} disabled={!documentFile || uploadDocument.isPending}><Upload className="mr-2 h-4 w-4" /> Upload</Button></div>}
             {documentsError ? (
               <QueryError what="repair documentation" error={documentsErrorDetail} onRetry={() => void refetchDocuments()} />
+            ) : documentsLoading ? (
+              <div className="space-y-2 py-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
             ) : !documents?.length ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No repair documentation uploaded yet.</p>
             ) : (

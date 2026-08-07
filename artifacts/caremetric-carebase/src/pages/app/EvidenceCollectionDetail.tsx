@@ -74,9 +74,12 @@ export default function EvidenceCollectionDetail() {
   const { toast } = useToast();
 
   const { data: collection, isLoading, isError, error, refetch } = useEvidenceCollection(id);
-  const { data: artifacts } = useEvidenceArtifacts(id);
-  const { data: grants } = useEvidenceGrants(id);
-  const { data: events } = useEvidenceAccessEvents(id);
+  const artifactsQuery = useEvidenceArtifacts(id);
+  const grantsQuery = useEvidenceGrants(id);
+  const eventsQuery = useEvidenceAccessEvents(id);
+  const { data: artifacts } = artifactsQuery;
+  const { data: grants } = grantsQuery;
+  const { data: events } = eventsQuery;
   const { data: promotableExports } = usePromotableBinderExports(collection?.facility_id);
 
   const addExport = useAddBinderExportToCollection();
@@ -299,7 +302,9 @@ export default function EvidenceCollectionDetail() {
           )}
         </CardHeader>
         <CardContent>
-          {(artifacts ?? []).length === 0 ? (
+          {artifactsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground py-4">Loading artifacts…</p>
+          ) : (artifacts ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">
               No artifacts yet. Generate a facility-scoped compliance binder, then add it here.
             </p>
@@ -378,6 +383,8 @@ export default function EvidenceCollectionDetail() {
         <CardContent>
           {collection.status === "draft" ? (
             <p className="text-sm text-muted-foreground py-4">Publish the collection to issue guest links.</p>
+          ) : grantsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground py-4">Loading guest links…</p>
           ) : (grants ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No guest links issued yet.</p>
           ) : (
@@ -429,7 +436,9 @@ export default function EvidenceCollectionDetail() {
           <CardDescription>Append-only record of guest activity and staff withdrawals/revocations.</CardDescription>
         </CardHeader>
         <CardContent>
-          {(events ?? []).length === 0 ? (
+          {eventsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground py-4">Loading access activity…</p>
+          ) : (events ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No access activity yet.</p>
           ) : (
             <ul className="space-y-2">

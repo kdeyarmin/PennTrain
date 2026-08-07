@@ -274,6 +274,7 @@ export default function ClassDetail() {
   const { data: cls, isLoading, isError, error, refetch } = useGetTrainingClass(classId);
   const {
     data: attendees,
+    isLoading: attendeesLoading,
     isError: attendeesError,
     error: attendeesErrorDetail,
     refetch: refetchAttendees,
@@ -820,7 +821,7 @@ export default function ClassDetail() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Attendees ({allAttendees.length})
+              Attendees ({attendeesLoading || attendeesError ? "—" : allAttendees.length})
             </CardTitle>
             <div className="flex items-center gap-2">
               {isDraft && (
@@ -841,6 +842,10 @@ export default function ClassDetail() {
               could otherwise complete the class thinking nobody attended. */}
           {attendeesError ? (
             <QueryError what="the class roster" error={attendeesErrorDetail} onRetry={() => void refetchAttendees()} />
+          ) : attendeesLoading ? (
+            <div className="space-y-2 py-4">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />)}
+            </div>
           ) : allAttendees.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
