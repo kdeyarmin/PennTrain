@@ -688,6 +688,8 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G253 | Employee-picker dialogs empty-on-error | S | done | QueryError before empty roster in Policy/TrainingMatrix/Plans/Assignments/ClassDetail |
 | G254 | CopyTemplate facilities + DME history empty-on-error | S | done | QueryError before "No facilities" / "No events recorded" |
 | G255 | CourseDetail ratings/versions/blocks empty-on-error | S | done | Error copy/QueryError before "No ratings/versions/blocks yet" |
+| G256 | CourseAssignments assign-facility Select mislabeled | S | done | Dedicated aria-label; stop reusing Employees Label htmlFor |
+| G257 | Incidents/Complaint/hospital-return facility TZ compares | S | done | Future/monitoring/return-before-departure use facilityDateTimeLocalToUtcIso |
 
 ## Explicitly not now
 

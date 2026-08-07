@@ -1156,7 +1156,11 @@ export default function ValueCenter() {
                 <CardDescription>Connect pipeline conversion, referral sources, move-in readiness, and bed inventory.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                {admissions.data?.referralSources.length ? admissions.data.referralSources.map(source => (
+                {admissions.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading referral sources…</p>
+                ) : admissions.isError ? (
+                  <QueryError what="referral sources" error={admissions.error} onRetry={() => void admissions.refetch()} />
+                ) : admissions.data?.referralSources.length ? admissions.data.referralSources.map(source => (
                   <div key={source.source} className="grid grid-cols-4 gap-2 rounded border p-3 text-sm">
                     <span className="col-span-2 font-medium">{source.source}</span>
                     <span>{source.inquiries} inquiries</span>

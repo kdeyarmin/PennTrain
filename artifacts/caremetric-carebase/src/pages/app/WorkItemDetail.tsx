@@ -288,6 +288,8 @@ export default function WorkItemDetail() {
               )}
               {activity.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading documentation…</p>
+              ) : activity.isError ? (
+                <QueryError what="documentation" error={activity.error} onRetry={() => void activity.refetch()} />
               ) : activity.data?.evidence.length ? (
                 <div className="divide-y rounded-md border">
                   {activity.data.evidence.map(evidence => (
@@ -372,7 +374,11 @@ export default function WorkItemDetail() {
               <CardDescription>Blocking dependencies prevent closure until the related work closes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {activity.data?.dependencies.length ? (
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading dependencies…</p>
+              ) : activity.isError ? (
+                <QueryError what="dependencies" error={activity.error} onRetry={() => void activity.refetch()} />
+              ) : activity.data?.dependencies.length ? (
                 <div className="space-y-2">
                   {activity.data.dependencies.map(dependency => (
                     <div key={dependency.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
@@ -464,6 +470,8 @@ export default function WorkItemDetail() {
               )}
               {activity.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading comments…</p>
+              ) : activity.isError ? (
+                <QueryError what="comments" error={activity.error} onRetry={() => void activity.refetch()} />
               ) : activity.data?.comments.length ? activity.data.comments.map(entry => (
                 <div key={entry.id} className="border-t pt-3 text-sm">
                   <div className="flex justify-between gap-3">
