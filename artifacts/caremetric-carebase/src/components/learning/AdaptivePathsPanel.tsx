@@ -326,6 +326,8 @@ export function AdaptivePathsPanel() {
                   <SelectContent>
                     {employees.isLoading ? (
                       <SelectItem value="none" disabled>Loading employees…</SelectItem>
+                    ) : employees.isError ? (
+                      <SelectItem value="none" disabled>Could not load employees</SelectItem>
                     ) : (employees.data ?? []).length === 0 ? (
                       <SelectItem value="none" disabled>No active employees</SelectItem>
                     ) : (

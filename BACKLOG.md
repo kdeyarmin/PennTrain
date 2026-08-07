@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `1405d29c` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-second-pass** after G233–G235. Hold Dashboard recent alerts/micro-tiles/facilities empties, ResidentServicesCalendar vehicles loading, and OutcomeDialog follow-up draft reseed until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `51785189` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-third-pass** after G236–G237. Hold empty-on-error for BreakGlass/IntegrationRegister/ReleaseCohort/EvidenceCollection secondaries, PackageEntitlement open terms, and AdaptivePaths employee Select until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -670,6 +670,7 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G235 | AdminDashboard Phase nested empties + task backlog badges | S | done | Hold readiness/timeline/hotspots empties on dashboardBusy; dash task badges on healthBusy |
 | G236 | Dashboard alerts/tiles/facilities fail-open while summary loads | S | done | Loading copy for recent alerts/facilities; dash Active Staff/alerts/Med Admin tiles |
 | G237 | ResidentServicesCalendar vehicles empty + OutcomeDialog draft | S | done | Vehicles loading/error gate; reseed follow-up draft when outcome dialog opens |
+| G238 | Empty-on-error after load gates (admin/evidence/billing/learning) | S | done | QueryError/disabled Select on isError for BreakGlass, IntegrationRegister, ReleaseCohort, EvidenceCollection secondaries, PackageEntitlement, AdaptivePaths |
 
 ## Explicitly not now
 

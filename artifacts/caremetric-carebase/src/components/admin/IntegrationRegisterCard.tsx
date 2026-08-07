@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
+import { QueryError } from "@/components/QueryState";
 import {
   useDeactivateWebhookEndpoint, useIntegrationCredentialRegister, useIntegrationWebhookRegister,
   useRevokeIntegrationCredential, useRotateIntegrationCredential, useRotateWebhookSecret,
@@ -121,10 +122,12 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">API credentials</p>
           {credentials.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading credentials…</p>
+          ) : credentials.isError ? (
+            <QueryError what="API credentials" error={credentials.error} onRetry={() => void credentials.refetch()} />
           ) : (credentials.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">None issued for this organization.</p>
           ) : null}
-          {!credentials.isLoading && (credentials.data ?? []).map((credential) => {
+          {!credentials.isLoading && !credentials.isError && (credentials.data ?? []).map((credential) => {
             const revoked = credential.status !== "active";
             return (
               <div key={credential.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
@@ -170,10 +173,12 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
           </p>
           {(webhooks.isLoading) ? (
             <p className="text-sm text-muted-foreground">Loading webhook endpoints…</p>
+          ) : webhooks.isError ? (
+            <QueryError what="webhook endpoints" error={webhooks.error} onRetry={() => void webhooks.refetch()} />
           ) : (webhooks.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">None created for this organization.</p>
           ) : null}
-          {!webhooks.isLoading && (webhooks.data ?? []).map((endpoint) => {
+          {!webhooks.isLoading && !webhooks.isError && (webhooks.data ?? []).map((endpoint) => {
             const off = endpoint.status !== "active";
             return (
               <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">

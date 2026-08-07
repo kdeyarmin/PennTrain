@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
+import { QueryError } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import {
@@ -168,10 +169,12 @@ export function BreakGlassCard() {
         <div className="space-y-2">
           {events.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading break-glass access…</p>
+          ) : events.isError ? (
+            <QueryError what="break-glass access" error={events.error} onRetry={() => void events.refetch()} />
           ) : (events.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No break-glass access has been granted.</p>
           ) : null}
-          {!events.isLoading && (events.data ?? []).map((event) => {
+          {!events.isLoading && !events.isError && (events.data ?? []).map((event) => {
             const active = isBreakGlassActive(event);
             return (
               <div key={event.id} className="space-y-1 rounded border p-2">

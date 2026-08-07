@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
+import { QueryError } from "@/components/QueryState";
 import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 import {
   useAssignOrganizationCohort, useOrganizationCohortMemberships, useReleaseCohorts,
@@ -82,6 +83,8 @@ export function ReleaseCohortMembershipCard() {
               <SelectContent>
                 {cohorts.isLoading ? (
                   <SelectItem value="none" disabled>Loading cohorts…</SelectItem>
+                ) : cohorts.isError ? (
+                  <SelectItem value="none" disabled>Could not load cohorts</SelectItem>
                 ) : (cohorts.data ?? []).length === 0 ? (
                   <SelectItem value="none" disabled>No cohorts available</SelectItem>
                 ) : (
@@ -128,10 +131,12 @@ export function ReleaseCohortMembershipCard() {
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current membership</p>
           {memberships.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading cohort membership…</p>
+          ) : memberships.isError ? (
+            <QueryError what="cohort membership" error={memberships.error} onRetry={() => void memberships.refetch()} />
           ) : (memberships.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No organization is in a release cohort.</p>
           ) : null}
-          {!memberships.isLoading && (memberships.data ?? []).map((membership) => (
+          {!memberships.isLoading && !memberships.isError && (memberships.data ?? []).map((membership) => (
             <div key={membership.id} className="space-y-1 rounded border p-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm">

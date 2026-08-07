@@ -304,6 +304,8 @@ export default function EvidenceCollectionDetail() {
         <CardContent>
           {artifactsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground py-4">Loading artifacts…</p>
+          ) : artifactsQuery.isError ? (
+            <QueryError what="collection artifacts" error={artifactsQuery.error} onRetry={() => void artifactsQuery.refetch()} />
           ) : (artifacts ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">
               No artifacts yet. Generate a facility-scoped compliance binder, then add it here.
@@ -385,6 +387,8 @@ export default function EvidenceCollectionDetail() {
             <p className="text-sm text-muted-foreground py-4">Publish the collection to issue guest links.</p>
           ) : grantsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground py-4">Loading guest links…</p>
+          ) : grantsQuery.isError ? (
+            <QueryError what="guest links" error={grantsQuery.error} onRetry={() => void grantsQuery.refetch()} />
           ) : (grants ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No guest links issued yet.</p>
           ) : (
@@ -438,6 +442,8 @@ export default function EvidenceCollectionDetail() {
         <CardContent>
           {eventsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground py-4">Loading access activity…</p>
+          ) : eventsQuery.isError ? (
+            <QueryError what="access activity" error={eventsQuery.error} onRetry={() => void eventsQuery.refetch()} />
           ) : (events ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No access activity yet.</p>
           ) : (
