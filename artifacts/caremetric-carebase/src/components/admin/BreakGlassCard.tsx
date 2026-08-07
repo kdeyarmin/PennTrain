@@ -166,10 +166,12 @@ export function BreakGlassCard() {
         )}
 
         <div className="space-y-2">
-          {(events.data ?? []).length === 0 && (
+          {events.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading break-glass access…</p>
+          ) : (events.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No break-glass access has been granted.</p>
-          )}
-          {(events.data ?? []).map((event) => {
+          ) : null}
+          {!events.isLoading && (events.data ?? []).map((event) => {
             const active = isBreakGlassActive(event);
             return (
               <div key={event.id} className="space-y-1 rounded border p-2">

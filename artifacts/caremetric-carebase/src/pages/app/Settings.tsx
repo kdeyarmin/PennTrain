@@ -399,13 +399,13 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!deliveriesLoading && !deliveries?.length ? (
+              {deliveriesLoading ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Loading recent deliveries…</p>
+              ) : !deliveries?.length ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   No deliveries yet -- these appear once a notification channel above is enabled and a staff member
                   receives an eligible alert or reminder.
                 </p>
-              ) : deliveriesLoading ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Loading recent deliveries…</p>
               ) : (
                 <div className="space-y-2">
                   {deliveries.map(d => (

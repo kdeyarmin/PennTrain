@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `b6435e14` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-seventh-pass** after G214–G216. Hold ChangeOfCondition activity empties/closure, ComplianceBinder/ConfidentialIncident/InspectionItem/Settings/WorkOrder secondary empties, AdministratorQualification CE roster + delete toast, ScheduleSetup patterns, MyAttestations/Credentials header counts, CopyTemplateDialog facilities, and EvidenceCollection promotable exports until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `c5cb059c` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-eighth-pass** after G217–G220. Hold AdmissionOperations list empties, BreakGlass events, FHIR/Medication credential helpers, IncidentTrends QAPI projects gate, ResidentClinicalChart observation open reseed, and ResidentPortal create-access expiry reseed until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -653,6 +653,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G218 | Secondary empty-state fail-open (binder/ledger/WO/Settings/etc.) | S | done | Loading gates for binder exports, access ledger, linked WOs, deliveries, WO history, schedule patterns, CE roster, CopyTemplate facilities, promotable exports |
 | G219 | MyAttestations/Credentials header counts fail-open to 0 | S | done | Dash title counts while employee/list queries load |
 | G220 | Silent mutates: CE delete + inspection notes blur | S | done | Toast on CE delete failure/success; notes blur onError toast |
+| G221 | AdmissionOperations list empties while queries load | S | done | Loading copy before prospects/beds/move-ins/census/history empty states |
+| G222 | BreakGlass + FHIR/Med credential helpers fail-open | S | done | Loading copy before break-glass empty and credential helper empties |
+| G223 | IncidentTrends recommended QAPI while projects load | S | done | Hold recommendations empty copy until existing projects resolve |
+| G224 | Sticky drafts: clinical observation + portal create access | S | done | Reseed observedAt/expiry (and create fields) when open buttons fire |
 
 ## Explicitly not now
 

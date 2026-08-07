@@ -254,10 +254,10 @@ export default function IncidentTrendsSection({
   const recommendations = useMemo(() => buildQapiRecommendations({
     trends,
     windowLabel,
-    existingProjects: projects.isError
+    existingProjects: projects.isError || projects.isLoading
       ? []
       : (projects.data ?? []) as unknown as ExistingQapiProjectLike[],
-  }), [trends, windowLabel, projects.data, projects.isError]);
+  }), [trends, windowLabel, projects.data, projects.isError, projects.isLoading]);
 
   const effectiveness = trends.correctiveActionEffectiveness;
 
@@ -397,6 +397,8 @@ export default function IncidentTrendsSection({
               error={projects.error}
               onRetry={() => void projects.refetch()}
             />
+          ) : projects.isLoading ? (
+            <p className="text-sm text-muted-foreground">Checking existing QAPI projects…</p>
           ) : recommendations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No pattern crossed a threshold in this period. Patterns already carrying an open

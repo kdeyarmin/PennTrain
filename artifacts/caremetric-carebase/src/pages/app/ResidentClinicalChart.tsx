@@ -174,7 +174,7 @@ export default function ResidentClinicalChart() {
           {resident.data?.room && <p className="text-muted-foreground">Room {resident.data.room}</p>}
         </div>
         {canChart && (
-          <Button onClick={() => setRecordOpen(true)}>
+          <Button onClick={() => { resetRecordForm(); setRecordOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />Record observation
           </Button>
         )}
