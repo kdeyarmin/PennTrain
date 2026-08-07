@@ -233,7 +233,7 @@ function AssignCampaignDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: employees, isLoading: employeesLoading } = useListEmployees({ status: "active" });
   const { mutateAsync: assign } = useAssignPolicyAttestationToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -303,7 +303,9 @@ function AssignCampaignDialog({
           <Input placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
-          {filtered.length === 0 ? (
+          {employeesLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+          ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No active employees found.</p>
           ) : (
             <div className="divide-y">

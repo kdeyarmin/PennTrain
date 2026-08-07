@@ -133,7 +133,7 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
   const { toast } = useToast();
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shifts } = useListShiftDefinitions({ facilityId });
-  const { data: profiles } = useListServiceWorkloadProfiles(facilityId);
+  const { data: profiles, isLoading: profilesLoading } = useListServiceWorkloadProfiles(facilityId);
   const save = useSaveServiceWorkloadProfile();
   const del = useDeleteServiceWorkloadProfile();
   const [form, setForm] = useState({
@@ -295,7 +295,9 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
         </div>
 
         <div className="space-y-2">
-          {(profiles ?? []).length === 0 ? (
+          {profilesLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Loading workload profiles…</p>
+          ) : (profiles ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No qualification or service-workload profiles configured yet.</p>
           ) : (profiles ?? []).map((profile) => (
             <div key={profile.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">

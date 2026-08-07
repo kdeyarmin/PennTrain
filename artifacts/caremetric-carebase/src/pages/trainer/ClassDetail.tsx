@@ -279,7 +279,7 @@ export default function ClassDetail() {
     error: attendeesErrorDetail,
     refetch: refetchAttendees,
   } = useListClassAttendees(classId);
-  const { data: allEmployees } = useListEmployees({ status: "active" });
+  const { data: allEmployees, isLoading: allEmployeesLoading } = useListEmployees({ status: "active" });
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
 
@@ -1020,7 +1020,11 @@ export default function ClassDetail() {
             />
           </div>
           <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
-            {filteredEmployees.length === 0 ? (
+            {allEmployeesLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Loading employees…
+              </p>
+            ) : filteredEmployees.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 No employees available.
               </p>

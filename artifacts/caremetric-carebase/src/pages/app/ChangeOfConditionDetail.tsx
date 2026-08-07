@@ -308,6 +308,8 @@ export default function ChangeOfConditionDetail() {
               )}
               {activity.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading monitoring observations…</p>
+              ) : activity.isError ? (
+                <QueryError what="monitoring observations" error={activity.error} onRetry={() => activity.refetch()} />
               ) : activity.data?.monitoring.length ? activity.data.monitoring.map(entry => (
                 <div key={entry.id} className="border-t pt-3 text-sm">
                   <div className="flex justify-between gap-3"><p className="font-medium">{personName(entry.recorder)}</p><span className="text-xs text-muted-foreground">{new Date(entry.observed_at).toLocaleString()}</span></div>
@@ -322,6 +324,8 @@ export default function ChangeOfConditionDetail() {
             <CardContent className="space-y-3">
               {activity.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading event history…</p>
+              ) : activity.isError ? (
+                <QueryError what="event history" error={activity.error} onRetry={() => activity.refetch()} />
               ) : activity.data?.history.map(entry => <div key={entry.id} className="flex justify-between gap-3 border-b pb-2 text-sm"><div><p className="font-medium">{humanize(entry.event_type)}{entry.resulting_status ? ` · ${humanize(entry.resulting_status)}` : ""}</p><p className="text-muted-foreground">{entry.reason}</p><p className="text-xs text-muted-foreground">{personName(entry.actor)}</p></div><span className="shrink-0 text-xs text-muted-foreground">{new Date(entry.occurred_at).toLocaleString()}</span></div>)}
             </CardContent>
           </Card>
@@ -333,6 +337,8 @@ export default function ChangeOfConditionDetail() {
             <CardContent className="space-y-3">
               {activity.isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading follow-ups…</p>
+              ) : activity.isError ? (
+                <QueryError what="follow-ups" error={activity.error} onRetry={() => activity.refetch()} />
               ) : activity.data?.followUps.map(followUp => <div key={followUp.id} className="rounded-md border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">Due {new Date(followUp.due_at).toLocaleString()}</p><Badge variant="outline">{humanize(followUp.status)}</Badge></div><p className="text-xs text-muted-foreground">{personName(followUp.assigned)}</p>{followUp.result && <p className="mt-2">{followUp.result}</p>}</div>)}
               {canContribute && openFollowUp && (
                 <div className="space-y-2 border-t pt-3">

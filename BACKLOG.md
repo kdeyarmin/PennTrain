@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `c5cb059c` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-eighth-pass** after G217–G220. Hold AdmissionOperations list empties, BreakGlass events, FHIR/Medication credential helpers, IncidentTrends QAPI projects gate, ResidentClinicalChart observation open reseed, and ResidentPortal create-access expiry reseed until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `a6f76e77` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-ninth-pass** after G221–G224. Hold MedAdmin roster empty/count, TrainingMatrix/Plans/Policy/Class employee-picker empties, ScheduleSetup workload profiles, and ChangeOfCondition activity error empties until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -657,6 +657,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G222 | BreakGlass + FHIR/Med credential helpers fail-open | S | done | Loading copy before break-glass empty and credential helper empties |
 | G223 | IncidentTrends recommended QAPI while projects load | S | done | Hold recommendations empty copy until existing projects resolve |
 | G224 | Sticky drafts: clinical observation + portal create access | S | done | Reseed observedAt/expiry (and create fields) when open buttons fire |
+| G225 | MedAdminRoster empty/count while employees load | S | done | `rosterBusy` loading copy + dash description until employees resolve |
+| G226 | Employee-picker dialogs fail-open while roster loads | S | done | Loading copy in TrainingMatrix batch, TrainingPlans apply, Policy assign, Class add-attendees |
+| G227 | ScheduleSetup workload profiles empty while loading | S | done | Loading copy before "No qualification…" empty state |
+| G228 | ChangeOfCondition activity error showed empty monitoring | S | done | QueryError for monitoring/history/follow-ups on activity failure |
 
 ## Explicitly not now
 

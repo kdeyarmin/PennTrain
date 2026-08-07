@@ -93,7 +93,7 @@ function ApplyPlanDialog({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [applying, setApplying] = useState(false);
 
-  const { data: employees } = useListEmployees({ status: "active", organizationId: plan.organization_id });
+  const { data: employees, isLoading: employeesLoading } = useListEmployees({ status: "active", organizationId: plan.organization_id });
   const { mutateAsync: applyPlan } = useApplyTrainingPlanToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -200,7 +200,9 @@ function ApplyPlanDialog({
           />
         </div>
         <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
-          {filteredEmployees.length === 0 ? (
+          {employeesLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+          ) : filteredEmployees.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No active employees found.</p>
           ) : (
             <div className="divide-y">

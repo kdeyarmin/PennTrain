@@ -351,11 +351,12 @@ function CellDetailDialog({
 // ---------------------------------------------------------------------------
 
 function RecordForMultipleDialog({
-  open, onClose, employees, trainingTypes, qualifiedTrainers,
+  open, onClose, employees, employeesLoading, trainingTypes, qualifiedTrainers,
 }: {
   open: boolean;
   onClose: () => void;
   employees: Employee[];
+  employeesLoading?: boolean;
   trainingTypes: TrainingType[];
   qualifiedTrainers: Employee[];
 }) {
@@ -532,7 +533,9 @@ function RecordForMultipleDialog({
               </span>
             </label>
             <div className="border rounded-md max-h-[220px] overflow-y-auto">
-              {filteredEmployees.length === 0 ? (
+              {employeesLoading ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+              ) : filteredEmployees.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">No employees found.</p>
               ) : (
                 <div className="divide-y">
@@ -1083,6 +1086,7 @@ export default function TrainingMatrix() {
         open={showBatchDialog}
         onClose={() => setShowBatchDialog(false)}
         employees={batchRosterQuery.data ?? []}
+        employeesLoading={batchRosterQuery.isLoading || batchRosterQuery.isPending}
         trainingTypes={trainingTypes ?? []}
         qualifiedTrainers={qualifiedTrainers}
       />

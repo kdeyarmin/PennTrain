@@ -62,6 +62,7 @@ export default function MedAdminRoster() {
   const rosterFailure = rosterQueries.find((query) => query.isError)
     ?? (medAuthIsError ? { isError: true as const, error: medAuthError } : undefined);
   const safetyBusy = incidentsQuery.isLoading || correctiveActionsQuery.isLoading || !!rosterFailure;
+  const rosterBusy = employeesQuery.isLoading || employeesQuery.isPending || !!rosterFailure;
 
   return (
     <div className="space-y-6">
@@ -151,11 +152,15 @@ export default function MedAdminRoster() {
             Medication Administration Roster
           </CardTitle>
           <CardDescription>
-            {authorizedCount} of {medAdminEmployees.length} medication-administering staff are currently authorized.
+            {rosterBusy
+              ? "Loading medication-administering staff…"
+              : `${authorizedCount} of ${medAdminEmployees.length} medication-administering staff are currently authorized.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {medAdminEmployees.length === 0 ? (
+          {rosterBusy ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Loading medication-administration roster…</p>
+          ) : medAdminEmployees.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Pill className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">No medication-administering staff found</p>
