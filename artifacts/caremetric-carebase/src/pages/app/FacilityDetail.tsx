@@ -147,7 +147,12 @@ export default function FacilityDetail() {
     refetch: refetchInspections,
   } = useListInspectionItems({ facilityId: id, isActive: true });
   const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(user?.organizationId ?? undefined);
-  const { data: administratorCeEntries } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
+  const {
+    data: administratorCeEntries,
+    isLoading: administratorCeLoading,
+    isError: administratorCeError,
+  } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
+  const administratorRuleBusy = administratorsLoading || administratorCeLoading || administratorCeError;
   const unitsQuery = useListFacilityUnits({ facilityId: id });
   const schedulePreferencesQuery = useListEmployeeSchedulePreferences({ facilityId: id });
   const { data: units } = unitsQuery;
@@ -363,8 +368,12 @@ export default function FacilityDetail() {
           <Card>
             <CardContent className="pt-4">
               <p className="text-xs text-muted-foreground">Admin Rule Pack</p>
-              {administratorsLoading ? (
-                <Skeleton className="h-5 w-24 mt-1" />
+              {administratorRuleBusy ? (
+                administratorCeError ? (
+                  <p className="font-semibold text-sm text-muted-foreground">Unavailable</p>
+                ) : (
+                  <Skeleton className="h-5 w-24 mt-1" />
+                )
               ) : (
                 <>
                   <p className="font-semibold text-sm capitalize">{administratorRuleSummary.status.replaceAll("_", " ")}</p>

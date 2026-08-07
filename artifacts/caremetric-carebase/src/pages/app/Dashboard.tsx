@@ -179,8 +179,15 @@ export default function OrgDashboard() {
   const { data: dashboard, isLoading: summaryLoading, isError, error, refetch, dataUpdatedAt: summaryUpdatedAt } = useOrgDashboardSummary();
   // RLS scopes both of these to what the viewer can see; roles without resident access simply
   // get empty results and the banner below stays hidden.
-  const { data: residentItems } = useListAllResidentComplianceItems({ status: ["expired", "missing", "due_soon"] });
-  const { data: residents } = useListResidents();
+  const residentItemsQuery = useListAllResidentComplianceItems({ status: ["expired", "missing", "due_soon"] });
+  const residentsQuery = useListResidents();
+  const { data: residentItems } = residentItemsQuery;
+  const { data: residents } = residentsQuery;
+  const residentFormsBusy =
+    residentItemsQuery.isLoading
+    || residentsQuery.isLoading
+    || residentItemsQuery.isError
+    || residentsQuery.isError;
   const { facilityTypes } = useVisibleFacilityTypes();
   const dailyOperations = useDailyOperationsCommandCenter();
 
@@ -238,10 +245,16 @@ export default function OrgDashboard() {
   const openResidentFormsCount =
     residentFormsSummary.expiredItems + residentFormsSummary.missingItems + residentFormsSummary.dueSoonItems;
   const hasPchAlr = hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
-  const showResidentFormsBanner =
+  const canSeeResidentFormsBanner =
     ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "")
-    && hasPchAlr
+    && hasPchAlr;
+  const showResidentFormsBanner =
+    canSeeResidentFormsBanner
+    && !residentFormsBusy
     && openResidentFormsCount > 0;
+  const showResidentFormsLoading =
+    canSeeResidentFormsBanner
+    && (residentItemsQuery.isLoading || residentsQuery.isLoading);
 
   const recentUploads = summary.recentUploads;
   const actionPlan = buildActionPlan({
@@ -410,6 +423,18 @@ export default function OrgDashboard() {
               View Alerts
             </Button>
           </Link>
+        </div>
+      )}
+
+      {showResidentFormsLoading && (
+        <div className="rounded-xl border border-border bg-muted/30 p-5 flex items-center gap-4">
+          <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold">Checking resident state forms…</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Open form counts stay unavailable until residents and compliance items finish loading.</p>
+          </div>
         </div>
       )}
 

@@ -103,6 +103,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   // someone chasing training that is already on file.
   const qualificationQueries = [profileQuery, ceEntriesQuery, facilitiesQuery];
   const qualificationFailure = qualificationQueries.find((query) => query.isError);
+  const qualificationBusy = qualificationQueries.some((query) => query.isLoading || query.isPending);
 
   const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "" });
   const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
@@ -189,8 +190,14 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               <CardDescription>Facility-type-specific PCH/ALF qualification, CE, orientation, and designee coverage documentation for inspection binders.</CardDescription>
             </div>
             {!qualificationFailure && (
-              <Badge className={administratorRuleSummary.ready ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
-                {administratorRuleSummary.status.replaceAll("_", " ")}
+              <Badge className={
+                qualificationBusy
+                  ? "bg-muted text-muted-foreground hover:bg-muted"
+                  : administratorRuleSummary.ready
+                    ? "bg-success text-success-foreground hover:bg-success/80"
+                    : "bg-warning text-warning-foreground hover:bg-warning/80"
+              }>
+                {qualificationBusy ? "Loading" : administratorRuleSummary.status.replaceAll("_", " ")}
               </Badge>
             )}
           </div>
@@ -206,7 +213,9 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
             </Select>
           </div>
           <div className="grid gap-2">
-            {administratorRulePack.map((rule) => (
+            {qualificationBusy ? (
+              <p className="text-sm text-muted-foreground py-4">Loading qualification requirements…</p>
+            ) : administratorRulePack.map((rule) => (
               <div key={rule.id} className="rounded-lg border p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>

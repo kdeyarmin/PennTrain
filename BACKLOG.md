@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `087c5f63` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-second-pass** after G195–G196. Dashed RegulatoryCrosswalk / ScheduleDetail / PipelineFunnel metrics while sources load; reset MoveIn guest sign + RASP participation/signature drafts on close. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `0f3c1635` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-third-pass** after G197–G200. Dashed PolicyDocumentDetail lifecycle + FacilityDetail admin-rule CE + AdministratorQualification + Dashboard state-forms while secondary sources load; labeled ResidentServicesCalendar follow-up Choices. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -633,6 +633,11 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G198 | ScheduleDetail coverage/PPD tiles fail-open on empty assignments | S | done | Dash snapshot + staffing calculator while assignments load/error |
 | G199 | Admission pipeline funnel revenue fail-open to $0 | S | done | `PipelineFunnelSection` dashes funnel counts + revenue when prospects busy |
 | G200 | MoveIn guest sign + RASP participation/signature sticky drafts | S | done | Reset signer/participation/signature fields on open and close |
+| G201 | PolicyDocumentDetail lifecycle tiles fail-open while loading | S | done | Dash draft/campaign/attestation counts until versions/campaigns/attestations resolve |
+| G202 | FacilityDetail admin rule pack ignored CE-entry load/error | S | done | Skeleton/Unavailable until profiles and CE entries both resolve |
+| G203 | AdministratorQualification badge/rules fail-open while loading | S | done | Loading badge + hold requirement rows until profile/CE/facilities resolve |
+| G204 | Dashboard state-forms banner hid open work while loading | S | done | Show checking banner; only surface counts after residents + items resolve |
+| G205 | ResidentServicesCalendar follow-up Choices unlabeled | S | done | `aria-label` on follow-up owner/priority (and related draft inputs) |
 
 ## Explicitly not now
 
