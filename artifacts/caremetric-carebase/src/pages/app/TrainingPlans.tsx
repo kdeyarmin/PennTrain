@@ -93,7 +93,7 @@ function ApplyPlanDialog({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [applying, setApplying] = useState(false);
 
-  const { data: employees, isLoading: employeesLoading } = useListEmployees({ status: "active", organizationId: plan.organization_id });
+  const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees({ status: "active", organizationId: plan.organization_id });
   const { mutateAsync: applyPlan } = useApplyTrainingPlanToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -202,6 +202,8 @@ function ApplyPlanDialog({
         <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
           {employeesLoading ? (
             <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+          ) : employeesError ? (
+            <QueryError what="employees" error={employeesErr} onRetry={() => void refetchEmployees()} className="m-3" />
           ) : filteredEmployees.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No active employees found.</p>
           ) : (

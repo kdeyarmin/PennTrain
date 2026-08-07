@@ -42,6 +42,9 @@ function HistoryList({ itemId }: { itemId: string }) {
   const history = useResidentDmeHistory(itemId);
   const rows = history.data ?? [];
   if (history.isLoading) return <p className="text-xs text-muted-foreground">Loading history…</p>;
+  if (history.isError) {
+    return <QueryError what="DME history" error={history.error} onRetry={() => void history.refetch()} />;
+  }
   if (rows.length === 0) {
     return <p className="text-xs text-muted-foreground">No events recorded against this item yet.</p>;
   }

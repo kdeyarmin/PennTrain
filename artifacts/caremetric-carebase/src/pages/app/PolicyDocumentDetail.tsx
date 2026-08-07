@@ -233,7 +233,7 @@ function AssignCampaignDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
-  const { data: employees, isLoading: employeesLoading } = useListEmployees({ status: "active" });
+  const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees({ status: "active" });
   const { mutateAsync: assign } = useAssignPolicyAttestationToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -305,6 +305,8 @@ function AssignCampaignDialog({
         <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
           {employeesLoading ? (
             <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+          ) : employeesError ? (
+            <QueryError what="employees" error={employeesErr} onRetry={() => void refetchEmployees()} className="m-3" />
           ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No active employees found.</p>
           ) : (

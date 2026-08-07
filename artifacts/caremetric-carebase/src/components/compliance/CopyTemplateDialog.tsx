@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { QueryError } from "@/components/QueryState";
 
 interface Props {
   open: boolean;
@@ -15,7 +16,7 @@ interface Props {
 
 export function CopyTemplateDialog({ open, onOpenChange, template }: Props) {
   const { toast } = useToast();
-  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities();
+  const { data: facilities, isLoading: facilitiesLoading, isError: facilitiesError, error: facilitiesErr, refetch: refetchFacilities } = useListFacilities();
   const copy = useCopyComplianceRequirement();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -53,6 +54,8 @@ export function CopyTemplateDialog({ open, onOpenChange, template }: Props) {
         <div className="space-y-2 py-2">
           {facilitiesLoading ? (
             <p className="text-sm text-muted-foreground">Loading facilities…</p>
+          ) : facilitiesError ? (
+            <QueryError what="facilities" error={facilitiesErr} onRetry={() => void refetchFacilities()} />
           ) : (
             <>
               {(facilities ?? []).map((f) => (

@@ -279,7 +279,7 @@ export default function ClassDetail() {
     error: attendeesErrorDetail,
     refetch: refetchAttendees,
   } = useListClassAttendees(classId);
-  const { data: allEmployees, isLoading: allEmployeesLoading, isError: allEmployeesError } = useListEmployees({ status: "active" });
+  const { data: allEmployees, isLoading: allEmployeesLoading, isError: allEmployeesError, error: allEmployeesErr, refetch: refetchAllEmployees } = useListEmployees({ status: "active" });
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
 
@@ -1026,6 +1026,8 @@ export default function ClassDetail() {
               <p className="text-sm text-muted-foreground text-center py-6">
                 Loading employees…
               </p>
+            ) : allEmployeesError ? (
+              <QueryError what="employees" error={allEmployeesErr} onRetry={() => void refetchAllEmployees()} className="m-3" />
             ) : filteredEmployees.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 No employees available.

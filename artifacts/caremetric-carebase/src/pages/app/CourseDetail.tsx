@@ -97,9 +97,9 @@ export default function CourseDetail() {
     });
   };
 
-  const { data: courseFeedback, isLoading: feedbackLoading } = useListCourseFeedback({ courseId: id });
+  const { data: courseFeedback, isLoading: feedbackLoading, isError: feedbackError } = useListCourseFeedback({ courseId: id });
   const feedbackSummary = summarizeCourseFeedback(courseFeedback);
-  const { data: versions, isLoading: versionsLoading } = useListCourseVersions(id);
+  const { data: versions, isLoading: versionsLoading, isError: versionsError, refetch: refetchVersions } = useListCourseVersions(id);
 
   const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(undefined);
 
@@ -127,7 +127,7 @@ export default function CourseDetail() {
     && canEnrollInCourse(course, effectiveOrgId)
     && isCourseVersionLearnerReady(currentVersion);
 
-  const { data: blocks, isLoading: blocksLoading } = useListCourseBlocks(selectedVersion?.id);
+  const { data: blocks, isLoading: blocksLoading, isError: blocksError, refetch: refetchBlocks } = useListCourseBlocks(selectedVersion?.id);
   const courseDocumentPrefix = course ? `${course.organization_id ?? "system"}/${course.id}/` : undefined;
   const { data: courseDocuments, isLoading: courseDocumentsLoading } = useListDocuments(
     courseDocumentPrefix
@@ -742,12 +742,15 @@ export default function CourseDetail() {
         onUnpublishClick={() => setShowUnpublishCourse(true)}
         feedbackSummary={feedbackSummary}
         feedbackLoading={feedbackLoading}
+        feedbackError={feedbackError}
       />
 
       <VersionsCard
         canManage={canManage}
         onNewVersion={openNewVersion}
         versionsLoading={versionsLoading}
+        versionsError={versionsError}
+        onRetryVersions={() => void refetchVersions()}
         versions={versions}
         selectedVersionId={selectedVersionId}
         setSelectedVersionId={setSelectedVersionId}
@@ -782,6 +785,8 @@ export default function CourseDetail() {
         onOpenBulkVideoGen={bulkVideoGen.openBulkVideoGen}
         onAddBlock={openAddBlock}
         blocksLoading={blocksLoading}
+        blocksError={blocksError}
+        onRetryBlocks={() => void refetchBlocks()}
         courseDocumentById={courseDocumentById}
         onConfigureQuiz={openQuizPrompt}
         userRole={user?.role}
