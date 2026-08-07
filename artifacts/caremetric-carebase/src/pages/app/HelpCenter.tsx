@@ -483,6 +483,15 @@ function SupportTab({ base }: { base: string }) {
 
   const tickets = ticketsData ?? [];
 
+  const resetTicketForm = () => {
+    setSubject("");
+    setMessage("");
+    setCategory("general");
+    setPriority("normal");
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSubmit = () => {
     if (!subject.trim() || !message.trim()) return;
     // organizationId can transiently be null (e.g. mid-provisioning) even for a non-admin profile
@@ -510,11 +519,7 @@ function SupportTab({ base }: { base: string }) {
         onSuccess: (ticket) => {
           toast({ title: "Ticket submitted", description: "Our team will respond soon." });
           setShowForm(false);
-          setSubject("");
-          setMessage("");
-          setCategory("general");
-          setPriority("normal");
-          setFile(null);
+          resetTicketForm();
           setLocation(`${base}/help/tickets/${ticket.id}`);
         },
         onError: (e: Error) => toast({ title: "Failed to submit ticket", description: e.message, variant: "destructive" }),
@@ -528,7 +533,7 @@ function SupportTab({ base }: { base: string }) {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Submit a Ticket</CardTitle>
           {!showForm && (
-            <Button size="sm" onClick={() => setShowForm(true)}>
+            <Button size="sm" onClick={() => { resetTicketForm(); setShowForm(true); }}>
               <Plus className="h-4 w-4 mr-1" /> New Ticket
             </Button>
           )}
@@ -543,7 +548,7 @@ function SupportTab({ base }: { base: string }) {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Category</label>
                 <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Ticket category"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {SUPPORT_TICKET_CATEGORIES.map((c) => (
                       <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
@@ -555,7 +560,7 @@ function SupportTab({ base }: { base: string }) {
             <div className="space-y-1.5 max-w-[10rem]">
               <label className="text-sm font-medium">Priority</label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Ticket priority"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {SUPPORT_TICKET_PRIORITIES.map((p) => (
                     <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
@@ -595,7 +600,7 @@ function SupportTab({ base }: { base: string }) {
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => { setShowForm(false); resetTicketForm(); }}>Cancel</Button>
               <Button onClick={handleSubmit} disabled={creating || !subject.trim() || !message.trim()}>
                 Submit Ticket
               </Button>

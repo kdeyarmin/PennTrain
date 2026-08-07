@@ -23,6 +23,10 @@
  * is misusing this output, which is why every surface renders the disclaimer alongside.
  */
 
+import { facilityDaysUntil, facilityToday } from "./dateUtils";
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Care minutes per resident per shift, by how much physical help they need. */
 export const LEVEL_OF_CARE_MINUTES: Record<string, number> = {
   not_assessed: 20,
@@ -155,11 +159,17 @@ export interface AcuityWorkloadInput {
   asOf?: Date;
 }
 
-function daysBetween(from: string | null, to: Date): number | null {
+/** Whole facility calendar days since `from` (date-only or timestamptz) relative to `asOf`. */
+function daysSince(from: string | null, asOf: Date): number | null {
   if (!from) return null;
-  const parsed = Date.parse(from);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.floor((to.getTime() - parsed) / 86_400_000);
+  const day = DATE_ONLY.test(from)
+    ? from
+    : Number.isFinite(Date.parse(from))
+      ? facilityToday(new Date(from))
+      : null;
+  if (!day) return null;
+  const until = facilityDaysUntil(day, asOf);
+  return until === null ? null : -until;
 }
 
 function contribution(
@@ -228,8 +238,8 @@ function observationsFor(
   }
 
   const settling = residents.filter((resident) => {
-    const sinceAdmission = daysBetween(resident.admission_date, asOf);
-    const sinceReturn = daysBetween(resident.last_hospital_return_at, asOf);
+    const sinceAdmission = daysSince(resident.admission_date, asOf);
+    const sinceReturn = daysSince(resident.last_hospital_return_at, asOf);
     return (sinceAdmission !== null && sinceAdmission >= 0 && sinceAdmission <= SETTLING_IN_DAYS)
       || (sinceReturn !== null && sinceReturn >= 0 && sinceReturn <= SETTLING_IN_DAYS);
   });
@@ -288,11 +298,11 @@ export function buildAcuityWorkload(input: AcuityWorkloadInput): ShiftWorkload[]
       contribution("appointments", "Appointment escorts", residents,
         (r) => Math.max(0, r.appointment_escorts) * EVENT_MINUTES.appointmentEscort),
       contribution("recent_admissions", "Recent admissions", residents, (r) => {
-        const days = daysBetween(r.admission_date, asOf);
+        const days = daysSince(r.admission_date, asOf);
         return days !== null && days >= 0 && days <= SETTLING_IN_DAYS ? EVENT_MINUTES.recentAdmission : 0;
       }),
       contribution("hospital_returns", "Hospital returns", residents, (r) => {
-        const days = daysBetween(r.last_hospital_return_at, asOf);
+        const days = daysSince(r.last_hospital_return_at, asOf);
         return days !== null && days >= 0 && days <= SETTLING_IN_DAYS ? EVENT_MINUTES.hospitalReturn : 0;
       }),
     ].filter((entry) => entry.minutes > 0);

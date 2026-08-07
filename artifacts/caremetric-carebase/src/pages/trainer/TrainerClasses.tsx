@@ -74,7 +74,7 @@ export default function TrainerClasses() {
   });
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   const { data: facilities } = useListFacilities();
-  const { data: attendeeCounts } = useClassAttendeeCounts();
+  const { data: attendeeCounts, isLoading: attendeeCountsLoading, isError: attendeeCountsError } = useClassAttendeeCounts();
   const createClass = useCreateTrainingClass();
 
   // Only org_admin/facility_manager scheduling on someone else's behalf need to pick who's
@@ -227,7 +227,7 @@ export default function TrainerClasses() {
             Log training sessions and track attendance across facilities.
           </p>
         </div>
-        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <Dialog open={showCreate} onOpenChange={(open) => { if (!open) { setShowCreate(false); resetForm(); } else setShowCreate(true); }}>
           <DialogTrigger asChild>
             <Button onClick={resetForm}>
               <Plus className="h-4 w-4 mr-2" />
@@ -398,7 +398,7 @@ export default function TrainerClasses() {
           value={statusFilter}
           onValueChange={(v) => setStatusFilter(v)}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Status">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -415,7 +415,7 @@ export default function TrainerClasses() {
           value={facilityFilter}
           onValueChange={(v) => setFacilityFilter(v)}
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-48" aria-label="Facility">
             <SelectValue placeholder="Facility" />
           </SelectTrigger>
           <SelectContent>
@@ -529,7 +529,7 @@ export default function TrainerClasses() {
                 <div className="flex items-center justify-between pt-2 border-t">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-3.5 w-3.5" />
-                    <span>{attendeeCounts?.[cls.id] ?? 0} attendees</span>
+                    <span>{attendeeCountsLoading || attendeeCountsError ? "—" : `${attendeeCounts?.[cls.id] ?? 0} attendees`}</span>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>

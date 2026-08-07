@@ -145,13 +145,13 @@ export default function EmployeeDetail() {
   const createTrainingRecord = useCreateTrainingRecord();
   const updateTrainingRecord = useUpdateTrainingRecord();
 
-  const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ employeeId: id });
+  const { data: trainingRecords, isLoading: recordsLoading, isError: recordsError, error: recordsErr, refetch: refetchRecords } = useListTrainingRecords({ employeeId: id });
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ employeeId: id });
-  const { data: hourBuckets, isLoading: hoursLoading } = useListTrainingHourBuckets({ employeeId: id });
-  const { data: documents, isLoading: documentsLoading } = useListDocuments({ employeeId: id });
-  const { data: credentials, isLoading: credentialsLoading } = useListEmployeeCredentials({ employeeId: id });
-  const { data: auditLogs, isLoading: activityLoading } = useListAuditLogs({ entityId: id, limit: 20 });
+  const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, error: practicumsErr, refetch: refetchPracticums } = useListPracticums({ employeeId: id });
+  const { data: hourBuckets, isLoading: hoursLoading, isError: hoursError, error: hoursErr, refetch: refetchHours } = useListTrainingHourBuckets({ employeeId: id });
+  const { data: documents, isLoading: documentsLoading, isError: documentsError, error: documentsErr, refetch: refetchDocuments } = useListDocuments({ employeeId: id });
+  const { data: credentials, isLoading: credentialsLoading, isError: credentialsError, error: credentialsErr, refetch: refetchCredentials } = useListEmployeeCredentials({ employeeId: id });
+  const { data: auditLogs, isLoading: activityLoading, isError: activityError, error: activityErr, refetch: refetchActivity } = useListAuditLogs({ entityId: id, limit: 20 });
 
   // Per-employee readiness verdict (Area 3): aggregates clearance, employment status, credential and
   // training status into one of Ready / Conditionally Ready / Expiring Soon / Incomplete / Restricted
@@ -168,13 +168,13 @@ export default function EmployeeDetail() {
       requiredItems: requiredItems ?? [],
     });
   }, [employee, credentials, trainingRecords, trainingTypes, requiredItems]);
-  const { data: onboardingItems, isLoading: onboardingLoading } = useListEmployeeOnboardingItems(id);
+  const { data: onboardingItems, isLoading: onboardingLoading, isError: onboardingError, error: onboardingErr, refetch: refetchOnboarding } = useListEmployeeOnboardingItems(id);
   const { data: checkinLogs } = useListEmployeeCheckinLogs(id);
   const { mutate: updateOnboardingItem } = useUpdateEmployeeOnboardingItem();
   const { mutate: logCheckin, isPending: loggingCheckin } = useLogEmployeeCheckin();
   const getSignedUrl = useDocumentSignedUrl();
 
-  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading } = useListEmployeeFacilityAssignments({ employeeId: id });
+  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading, isError: facilityAssignmentsError, error: facilityAssignmentsErr, refetch: refetchFacilityAssignments } = useListEmployeeFacilityAssignments({ employeeId: id });
   const addFacilityAssignment = useAddEmployeeFacilityAssignment();
   const removeFacilityAssignment = useRemoveEmployeeFacilityAssignment();
   const [addFacilityId, setAddFacilityId] = useState("");
@@ -390,7 +390,7 @@ export default function EmployeeDetail() {
                   weighs. The old badge said "Portal access active" for a suspended employee. */}
               <Badge
                 variant="outline"
-                className={!employee.profile_id
+                className={!employee.profile_id || accessActive.isLoading || accessActive.isError
                   ? "text-muted-foreground"
                   : accessActive.data
                     ? "border-success/40 text-success"
@@ -400,7 +400,9 @@ export default function EmployeeDetail() {
                   ? "No portal access"
                   : accessActive.isLoading
                     ? "Checking access…"
-                    : accessActive.data ? "Portal access active" : "Portal access suspended"}
+                    : accessActive.isError
+                      ? "Access status unavailable"
+                      : accessActive.data ? "Portal access active" : "Portal access suspended"}
               </Badge>
               <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
                 {employee.cleared_for_unsupervised_duty ? "Cleared for Unsupervised Duty" : "Onboarding In Progress"}
@@ -519,6 +521,8 @@ export default function EmployeeDetail() {
               <CardContent className="space-y-3">
                 {facilityAssignmentsLoading ? (
                   <Skeleton className="h-10" />
+                ) : facilityAssignmentsError ? (
+                  <QueryError what="facility assignments" error={facilityAssignmentsErr} onRetry={() => void refetchFacilityAssignments()} />
                 ) : !facilityAssignments?.length ? (
                   <EmptyState icon={Building2} text="No facility assignments on record for this employee." />
                 ) : (
@@ -553,7 +557,7 @@ export default function EmployeeDetail() {
                   return (
                     <div className="flex gap-2 pt-1">
                       <Select value={addFacilityId} onValueChange={setAddFacilityId}>
-                        <SelectTrigger className="max-w-xs"><SelectValue placeholder="Add a facility" /></SelectTrigger>
+                        <SelectTrigger className="max-w-xs" aria-label="Add facility assignment"><SelectValue placeholder="Add a facility" /></SelectTrigger>
                         <SelectContent>
                           {availableFacilities.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                         </SelectContent>
@@ -572,6 +576,15 @@ export default function EmployeeDetail() {
             <Card>
               <CardContent className="py-6">
                 <Skeleton className="h-10" />
+              </CardContent>
+            </Card>
+          ) : onboardingError ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New-Hire Onboarding Checklist</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <QueryError what="onboarding checklist" error={onboardingErr} onRetry={() => void refetchOnboarding()} />
               </CardContent>
             </Card>
           ) : !onboardingItems?.length ? (
@@ -605,12 +618,21 @@ export default function EmployeeDetail() {
                   status,
                   cta: canManage && item.status === "pending" ? "Mark done" : undefined,
                   onAction: canManage && item.status === "pending"
-                    ? () => updateOnboardingItem({
-                        id: item.id,
-                        status: "completed",
-                        completed_at: new Date().toISOString(),
-                        completed_by_profile_id: user?.id ?? null,
-                      })
+                    ? () => updateOnboardingItem(
+                        {
+                          id: item.id,
+                          status: "completed",
+                          completed_at: new Date().toISOString(),
+                          completed_by_profile_id: user?.id ?? null,
+                        },
+                        {
+                          onError: (e: Error) => toast({
+                            title: "Failed to mark onboarding step done",
+                            description: e.message,
+                            variant: "destructive",
+                          }),
+                        },
+                      )
                     : undefined,
                 };
               });
@@ -692,6 +714,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {recordsLoading ? (
                 <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : recordsError ? (
+                <QueryError what="training records" error={recordsErr} onRetry={() => void refetchRecords()} />
               ) : !trainingRecords?.length ? (
                 <EmptyState icon={BookOpen} text="No training requirements on record for this employee." />
               ) : (
@@ -722,6 +746,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {practicumsLoading ? (
                 <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : practicumsError ? (
+                <QueryError what="practicums" error={practicumsErr} onRetry={() => void refetchPracticums()} />
               ) : !practicums?.length ? (
                 <EmptyState icon={CalendarCheck} text="No practicums on record for this employee." />
               ) : (
@@ -752,6 +778,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {hoursLoading ? (
                 <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : hoursError ? (
+                <QueryError what="training-hour tracking" error={hoursErr} onRetry={() => void refetchHours()} />
               ) : !hourBuckets?.length ? (
                 <EmptyState icon={Clock} text="No annual training-hour tracking on record for this employee." />
               ) : (
@@ -783,6 +811,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {documentsLoading ? (
                 <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : documentsError ? (
+                <QueryError what="documents" error={documentsErr} onRetry={() => void refetchDocuments()} />
               ) : !documents?.length ? (
                 <EmptyState icon={FileText} text="No documents on file for this employee." />
               ) : (
@@ -850,6 +880,8 @@ export default function EmployeeDetail() {
               <CardContent>
                 {credentialsLoading ? (
                   <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+                ) : credentialsError ? (
+                  <QueryError what="credentials" error={credentialsErr} onRetry={() => void refetchCredentials()} />
                 ) : !credentials?.length ? (
                   <EmptyState icon={ShieldCheck} text="No credentials on record for this employee." />
                 ) : (
@@ -883,6 +915,8 @@ export default function EmployeeDetail() {
               <CardContent>
                 {activityLoading ? (
                   <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
+                ) : activityError ? (
+                  <QueryError what="employee activity" error={activityErr} onRetry={() => void refetchActivity()} />
                 ) : !auditLogs?.length ? (
                   <EmptyState icon={Activity} text="No recorded activity for this employee yet." />
                 ) : (
@@ -901,7 +935,7 @@ export default function EmployeeDetail() {
         )}
       </Tabs>
 
-      <Dialog open={showEditEmp} onOpenChange={o => { if (!o) setShowEditEmp(false); }}>
+      <Dialog open={showEditEmp} onOpenChange={o => { if (!o) { setShowEditEmp(false); setEmpForm(EMPTY_EMPLOYEE_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
           <EmployeeFormFields form={empForm} onChange={field} facilities={facilities} facilityFieldMode="edit-fixed" />
@@ -912,7 +946,7 @@ export default function EmployeeDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showRecordTraining} onOpenChange={o => { if (!o) setShowRecordTraining(false); }}>
+      <Dialog open={showRecordTraining} onOpenChange={o => { if (!o) { setShowRecordTraining(false); setTrainingForm({ trainingTypeId: "", completionDate: todayISO(), hours: "", trainerName: "", documentId: "" }); setTrainerSelection(NONE_TRAINER); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Record Training</DialogTitle>
@@ -1013,7 +1047,7 @@ export default function EmployeeDetail() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showSetPin} onOpenChange={setShowSetPin}>
+      <Dialog open={showSetPin} onOpenChange={(o) => { if (!o) { setShowSetPin(false); setPinValue(""); } else setShowSetPin(true); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Set Check-In PIN</DialogTitle>

@@ -127,7 +127,7 @@ export default function SupportTicketDetail() {
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Status</label>
             <Select value={ticket.status} onValueChange={handleStatusChange}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Ticket status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {SUPPORT_TICKET_STATUSES.map((s) => (
                   <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
@@ -138,7 +138,7 @@ export default function SupportTicketDetail() {
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Priority</label>
             <Select value={ticket.priority} onValueChange={handlePriorityChange}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Ticket priority"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {SUPPORT_TICKET_PRIORITIES.map((p) => (
                   <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>

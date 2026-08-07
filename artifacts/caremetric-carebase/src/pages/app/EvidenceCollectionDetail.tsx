@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import {
   ArrowLeft, Copy, FileCheck2, FolderLock, History, Link2, Loader2, Plus, Scale, ShieldOff, Undo2,
 } from "lucide-react";
@@ -74,10 +74,13 @@ export default function EvidenceCollectionDetail() {
   const { toast } = useToast();
 
   const { data: collection, isLoading, isError, error, refetch } = useEvidenceCollection(id);
-  const { data: artifacts } = useEvidenceArtifacts(id);
-  const { data: grants } = useEvidenceGrants(id);
-  const { data: events } = useEvidenceAccessEvents(id);
-  const { data: promotableExports } = usePromotableBinderExports(collection?.facility_id);
+  const artifactsQuery = useEvidenceArtifacts(id);
+  const grantsQuery = useEvidenceGrants(id);
+  const eventsQuery = useEvidenceAccessEvents(id);
+  const { data: artifacts } = artifactsQuery;
+  const { data: grants } = grantsQuery;
+  const { data: events } = eventsQuery;
+  const { data: promotableExports, isLoading: promotableExportsLoading, isError: promotableExportsError } = usePromotableBinderExports(collection?.facility_id);
 
   const addExport = useAddBinderExportToCollection();
   const setStatus = useSetEvidenceCollectionStatus();
@@ -180,7 +183,12 @@ export default function EvidenceCollectionDetail() {
   };
 
   const handleIssueGrant = () => {
-    const expiresAt = new Date(Date.now() + Number(expiresDays) * 24 * 60 * 60 * 1000).toISOString();
+    const days = Number(expiresDays);
+    if (!Number.isFinite(days) || days <= 0) {
+      toast({ title: "Invalid expiration", description: "Guest days must be a positive number", variant: "destructive" });
+      return;
+    }
+    const expiresAt = facilityDayBounds(addFacilityCalendarDays(facilityToday(), days)).through;
     issueGrant.mutate(
       { collectionId: collection.id, guestLabel: guestLabel.trim(), artifactIds: selectedArtifactIds, expiresAt },
       {
@@ -294,7 +302,11 @@ export default function EvidenceCollectionDetail() {
           )}
         </CardHeader>
         <CardContent>
-          {(artifacts ?? []).length === 0 ? (
+          {artifactsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground py-4">Loading artifacts…</p>
+          ) : artifactsQuery.isError ? (
+            <QueryError what="collection artifacts" error={artifactsQuery.error} onRetry={() => void artifactsQuery.refetch()} />
+          ) : (artifacts ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">
               No artifacts yet. Generate a facility-scoped compliance binder, then add it here.
             </p>
@@ -361,6 +373,7 @@ export default function EvidenceCollectionDetail() {
               onClick={() => {
                 setSelectedArtifactIds(activeArtifacts.map((a) => a.id));
                 setGuestLabel("");
+                setExpiresDays("14");
                 setShowIssueGrant(true);
               }}
               disabled={activeArtifacts.length === 0}
@@ -372,6 +385,10 @@ export default function EvidenceCollectionDetail() {
         <CardContent>
           {collection.status === "draft" ? (
             <p className="text-sm text-muted-foreground py-4">Publish the collection to issue guest links.</p>
+          ) : grantsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground py-4">Loading guest links…</p>
+          ) : grantsQuery.isError ? (
+            <QueryError what="guest links" error={grantsQuery.error} onRetry={() => void grantsQuery.refetch()} />
           ) : (grants ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No guest links issued yet.</p>
           ) : (
@@ -423,7 +440,11 @@ export default function EvidenceCollectionDetail() {
           <CardDescription>Append-only record of guest activity and staff withdrawals/revocations.</CardDescription>
         </CardHeader>
         <CardContent>
-          {(events ?? []).length === 0 ? (
+          {eventsQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground py-4">Loading access activity…</p>
+          ) : eventsQuery.isError ? (
+            <QueryError what="access activity" error={eventsQuery.error} onRetry={() => void eventsQuery.refetch()} />
+          ) : (events ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">No access activity yet.</p>
           ) : (
             <ul className="space-y-2">
@@ -463,7 +484,11 @@ export default function EvidenceCollectionDetail() {
               <Select value={exportJobId} onValueChange={setExportJobId}>
                 <SelectTrigger id={`${__fieldIds}-evidence-export`}><SelectValue placeholder="Select an export" /></SelectTrigger>
                 <SelectContent>
-                  {(promotableExports ?? []).length === 0 ? (
+                  {promotableExportsLoading ? (
+                    <SelectItem value="none" disabled>Loading eligible exports…</SelectItem>
+                  ) : promotableExportsError ? (
+                    <SelectItem value="none" disabled>Could not load eligible exports</SelectItem>
+                  ) : (promotableExports ?? []).length === 0 ? (
                     <SelectItem value="none" disabled>No eligible exports for this facility</SelectItem>
                   ) : (
                     (promotableExports ?? []).map((job) => (
@@ -539,6 +564,8 @@ export default function EvidenceCollectionDetail() {
           if (!open) {
             setShowIssueGrant(false);
             setIssuedGrant(null);
+            setGuestLabel("");
+            setExpiresDays("14");
           }
         }}
       >

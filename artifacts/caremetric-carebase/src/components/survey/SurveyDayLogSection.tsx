@@ -242,7 +242,7 @@ function RequestsCard({ sessionId, packet, readOnly }: {
                     resolving === request.id ? (
                       <div className="mt-2 space-y-2 rounded-md border border-dashed p-2">
                         <Select value={resolveStatus} onValueChange={(v) => setResolveStatus(v as Exclude<SurveyDayRequestStatus, "open">)}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger aria-label="Resolve status"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="provided">Provided</SelectItem>
                             <SelectItem value="unavailable">Not available</SelectItem>

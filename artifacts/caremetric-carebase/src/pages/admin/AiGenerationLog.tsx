@@ -144,7 +144,7 @@ export default function AiGenerationLog() {
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle>All Generations</CardTitle>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <SelectTrigger className="w-40 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>

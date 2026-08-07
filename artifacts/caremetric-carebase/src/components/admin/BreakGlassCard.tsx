@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
+import { QueryError } from "@/components/QueryState";
 import { useAuth } from "@/lib/auth";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import {
   isBreakGlassActive, useBreakGlassEvents, useGrantBreakGlass, useRevokeBreakGlass,
 } from "@/hooks/useBreakGlass";
@@ -18,10 +20,7 @@ const MIN_REASON = 10;
 const MAX_HOURS = 24;
 
 function defaultExpiry(): string {
-  const when = new Date(Date.now() + 4 * 60 * 60 * 1000);
-  // datetime-local wants local time without a zone suffix.
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}`;
+  return toFacilityDateTimeLocal(new Date(Date.now() + 4 * 60 * 60 * 1000));
 }
 
 /**
@@ -57,9 +56,16 @@ export function BreakGlassCard() {
   const [revoking, setRevoking] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
 
-  const expiry = expiresAt ? new Date(expiresAt) : null;
+  const expiry = (() => {
+    if (!expiresAt) return null;
+    try {
+      return new Date(facilityDateTimeLocalToUtcIso(expiresAt));
+    } catch {
+      return null;
+    }
+  })();
   // Both range checks are `!!expiry && ...`, so CLEARING the field made them both false and left
-  // canGrant true -- and the grant handler then calls `new Date("").toISOString()`, which throws
+  // canGrant true -- and the grant handler then calls `facilityDateTimeLocalToUtcIso("")`, which throws
   // RangeError out of an onClick. An unparseable value does the same by a different route: every
   // comparison against NaN is false. A usable expiry has to be its own condition, not the absence
   // of a violated one.
@@ -147,7 +153,7 @@ export function BreakGlassCard() {
                   requestedBy: requestedBy.trim(),
                   reason: reason.trim(),
                   ticketReference: ticket.trim(),
-                  expiresAt: new Date(expiresAt).toISOString(),
+                  expiresAt: facilityDateTimeLocalToUtcIso(expiresAt),
                 }, {
                   onSuccess: () => { setOpening(false); toast({ title: "Break-glass access granted", description: "It ends at the expiry you set, or when you revoke it." }); },
                   onError: (error) => toast({ title: "Grant blocked", description: errorText(error), variant: "destructive" }),
@@ -161,10 +167,14 @@ export function BreakGlassCard() {
         )}
 
         <div className="space-y-2">
-          {(events.data ?? []).length === 0 && (
+          {events.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading break-glass access…</p>
+          ) : events.isError ? (
+            <QueryError what="break-glass access" error={events.error} onRetry={() => void events.refetch()} />
+          ) : (events.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No break-glass access has been granted.</p>
-          )}
-          {(events.data ?? []).map((event) => {
+          ) : null}
+          {!events.isLoading && !events.isError && (events.data ?? []).map((event) => {
             const active = isBreakGlassActive(event);
             return (
               <div key={event.id} className="space-y-1 rounded border p-2">

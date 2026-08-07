@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `92e9ba90` (2026-08-06), reviewed on branch `cursor/comprehensive-app-review-6b8e` after merging #460 and parallel G97–G106 leftovers: **combined follow-on reviews after #458/#459.** #460 closed G57–G61. This branch closed G62–G110 (empty⇒ready scoring, silent mutates, clinical disclosure consent, and the later empty⇒success leftovers). Regenerated `database.types.ts` for `set_resident_clinical_data_consent`. SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `77a0c5cb` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: addressed Codex review on #462 (G265–G268) — audit manifest end-at-export, facility agenda times, investigation dialog remount-only init, leap-year-safe annual review. Five review families remain exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -543,6 +543,164 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G108 | Silent mutates: shift ack, PM pause, announcements, admissions, finalize | S | done | MyShift acknowledge, Maintenance pause/resume, Announcements mark-seen, Admission activity/referral source, assessment finalize now toast onError |
 | G109 | Guest portals accept/sign silent on failure | S | done | Move-in and resident-agreement guest portals only handled onSuccess. Toast accept/sign/respond errors |
 | G110 | Employee search empty copy beside load error | S | done | `!isLoading && length===0` still said "No employees match" when query failed (error text already shown). Require `!isError` |
+| G111 | State Forms Center empty⇒"all current" on load failure | S | done | QueryError banner existed but tiles still showed zeros and Needs Action rendered green CheckCircle "All state forms are current". Dash tiles + skip empty-success while `queueFailure` |
+| G112 | Complaint closure readiness fail-open on activity error | S | done | `activity.data?.actions ?? []` made failed activity load score "Corrective actions complete". Unknown (unavailable) until activity loads |
+| G113 | Admissions metrics/census empty-on-error; silent bed hold | S | done | Metric strip always `(data ?? [])` zeros; census tab mapped with no `isError`; `setBed.mutate` only onSuccess. Dash + QueryError + onError toast |
+| G114 | Resident Needs Attention all-clear when care header fails | S | done | `careHeader.data` falsy ⇒ `cards=[]` ⇒ green "Nothing open…". Panel takes `isError`/`onRetry` |
+| G115 | Credential summary tiles zeroed on list error | S | done | List had QueryError; Expired/Due soon/Missing/Gaps still showed 0. Show "—" while loading/error |
+| G116 | Facility datetime-local defaults still browser-zone | M | done | Emergency ops/event detail, hospital return, WorkItemDetail due display used browser `datetime-local` then `facilityDateTimeLocalToUtcIso`. Added `toFacilityDateTimeLocal` / `facilityYear`; wire callers |
+| G117 | Silent agreement revoke / copy delivery; stale share dialog | S | done | `revokeGrant` and `markCopy` lacked onError; External link reopen kept prior guest versions. Toast + reset on open |
+| G118 | Designated-person schedule respond + offline remove silent | S | done | Portal Confirm/Change/Cannot-attend and MyCourses single offline remove had no failure UI. Error text / toast |
+| G119 | Employee practicum empty-on-error; practicum year browser/UTC | S | done | Annual Practicum card said "No practicum record" on fetch failure; year used `getFullYear()`. QueryError + `facilityYear()` (RetrainingMonitor too) |
+| G120 | Evidence Room create dialog kept prior name/purpose | S | done | Cancel left form state; reopen showed last draft. Reset on open + remount key |
+| G121 | Journey-end filter Selects failed critical a11y (e2e) | S | done | Org-admin Guest Access and facility-manager Confidential Reports axe scans failed on unlabeled `SelectTrigger`s. `aria-label` on those filters; guest grants-in-view tile also dashes on error |
+| G122 | Incident occurred-at default was browser-local | S | done | `toLocalDatetimeInputValue` used browser wall clock then `facilityDateTimeLocalToUtcIso`. Replaced with `toFacilityDateTimeLocal` |
+| G123 | Incident summary tiles zeroed on load error | S | done | `data ?? EMPTY` showed Open/Major/Recent as 0 and "No open incidents" beside list QueryError. Dash while loading/error |
+| G124 | Clinical observation defaults were browser-local | S | done | ResidentClinicalChart + MyResidentChart `observedAt` used `toDateTimeLocal`; now `toFacilityDateTimeLocal` |
+| G125 | Work-order / services / schedule facility datetime round-trips | M | done | WorkOrderDetail target load, ResidentServicesCalendar create/reschedule/follow-up defaults, ScheduleDetail override expiry use facility helpers |
+| G126 | Agreement / funds / med-exception / complaint / QAPI datetime defaults | M | done | Same browser→facility ISO mismatch on agreement effectiveAt, personal-funds txn time, med-exception due, complaint interview/monitoring/due, QAPI held/aDue |
+| G127 | Silent shift delete on ScheduleDetail | S | done | `deleteAssignment.mutate` only onSuccess; now toasts onError |
+| G128 | High-traffic filter Selects lacked accessible names | S | done | aria-label on Incidents, Residents, Employees, EvidenceRoom, Credentials, Alerts, Maintenance, MyCourses, StateForms, Emergency facility |
+| G129 | Emergency ops dialogs kept prior draft after cancel | S | done | `openDialog` resets plan/event/resource/inventory/assignment fields before open |
+| G130 | Portal payment-link dialog kept prior draft | S | done | Reset provider/url/amount/expiry on open |
+| G131 | CoC / create-complaint / rights-ack datetime still browser-zone | M | done | `LogChangeOfConditionDialog`, `CreateComplaintDialog`, `ResidentAdministrativeMaster` now use `toFacilityDateTimeLocal` before `facilityDateTimeLocalToUtcIso` |
+| G132 | Practicum year still browser `getFullYear()` | S | done | `useMedAdminAuthorization`, `MedAdminRoster`, `Practicums` use `facilityYear()` |
+| G133 | Maintenance create dialogs stale; locations empty-on-error | S | done | Reset order/location/schedule forms on open; locations tab QueryError + loading gate |
+| G134 | Work-order transition/verify dialogs kept downtime & notes | S | done | Clear downtime + verification fields when opening transition/verify |
+| G135 | CCC / Dashboard / Emergency / InspectionReadiness metric fail-open | S | done | CCC StatCards dash while loading; Dashboard score null until data (not 100%); Emergency tiles dash while loading; special-care card QueryError on source failure |
+| G136 | Remaining unlabeled filter Selects (a11y) | S | done | aria-label on TrainingMatrix, CCC, Documents, CourseAssignments, Violations, MyTrainings, MedAdminRoster, PendingApprovals, Practicums, BackgroundChecks, CompetencyRecords, TrainerClasses, Users, ComplianceBinder, ValueCenter, SurveyDay |
+| G137 | Shift wall-clock still browser-zone for override/handoff | M | done | `ScheduleDetail` override expiry and `MyShift` handoff period use facility date+time → `facilityDateTimeLocalToUtcIso` (overnight via `addFacilityCalendarDays`) |
+| G138 | Floor / My Residents task queue used browser midnight | S | done | Both use `facilityDayBounds(facilityToday())` for the queue window |
+| G139 | Break-glass + release-cohort expiry browser-local | S | done | `BreakGlassCard` defaults/submit via facility datetime helpers; cohort date-only expiry uses facility `T23:59` |
+| G140 | Financial / export / policy create dialogs stale on reopen | S | done | Receivables Rate/Entry/Monthly/Statement, FundOpen/Reconcile, ExportDialog reset on open; PolicyDocuments clears on close |
+| G141 | Med-exception due sticky; QAPI measure/meeting/action forms stick | S | done | Reset due on Review/assign success; clear QAPI measurement, meeting, and action drafts on success |
+| G142 | More unlabeled operational filter Selects | S | done | AdmissionOperations, ServiceDelivery, ChangeOfConditionQueue, Dietary, QAPI, Inspection*, PCH/ALF ops, lifecycle/import/crosswalk/exclusion filters + QAPI form Selects |
+| G143 | Services calendar agenda grouped by browser day | M | done | Group + day headers use `facilityToday` / `formatDateForDisplay`; filter Choices get aria-labels |
+| G144 | Adaptive path + guest-link expiry used UTC/ms arithmetic | M | done | Path due via `facilityDayBounds().through`; move-in + agreement guest links use facility calendar EOD |
+| G145 | Support-plan activation / oneYearOut browser calendar | S | done | `isActivationOverdue` compares facility `YYYY-MM-DD`; `oneYearOut` uses `addFacilityCalendarDays` |
+| G146 | Resident overview empty-on-error under failure banner | S | done | Informal supports error copy; admin master tiles/lists take `dataUnavailable` instead of zero/none |
+| G147 | Stale create dialogs: FHIR, move-in guest, care plan, incident follow-through, admin master add | S | done | Reset on open; incident reportability/investigation/QAPI dialogs rehydrate when reopened |
+| G148 | Complaint trends + remaining unlabeled admin/ops Selects | S | done | Trends window via `addFacilityCalendarDays`; aria-label on Organizations/SupportTickets/AiLog/NotificationDeliveries, ResidentCompliance, Reports, EmergencyEventDetail |
+| G149 | Evidence / surveyor guest grant expiry used browser `Date.now()+Nd` | M | done | Collection + Survey Day packet grants expire at facility EOD via `addFacilityCalendarDays` / `facilityDayBounds` |
+| G150 | Announcements / workforce / enterprise datetime-local → browser ISO | M | done | Announcement expiry, schedule-eligibility starts/ends, billing override expiry use `facilityDateTimeLocalToUtcIso` |
+| G151 | Today / InspectionReadiness / incident trends / audit / lifecycle calendar bounds | M | done | Work-item `dueBefore`, oneYearAgo, trends window, audit date filters, archive range use facility day/range bounds |
+| G152 | Support-ticket age used UTC `T23:59:59Z` | M | done | `supportTicketAnalytics.ageDays` matches incident calendar-day math via `facilityToday` |
+| G153 | IncidentDetail silent status / findings / notifications / final report | S | done | `updateIncident` / `addNotification` / `completeNotification` toast onError; clear drafts only on success |
+| G154 | SupportTickets tiles / open count fail-open to 0 | S | done | StatCards and header open-count show "—" / unavailable while loading or on error |
+| G155 | InspectionItems bulk-log dialog + unlabeled complaint/credential filters | S | done | Reset bulk notes/result on open; aria-label on Complaints facility/status/category and CredentialRenewalInbox status |
+| G156 | WorkQueue / audit export / entitlement term / API credential calendar windows | M | done | Due filter, audit default 30d window, package term from/to, integration credential 90d EOD use facility bounds |
+| G157 | PendingApprovals age cutoff / war-room due / duty override max length | M | done | 90-day hide cutoff, ValueCenter request due (+2d EOD), duty max expiry vs facility calendar year |
+| G158 | Lifecycle / dietary / service-delivery metric fail-open | S | done | Lifecycle tiles dash while loading/holds error; dietary tabs wait for load; service tab counts dash on load/error |
+| G159 | EmployeeDetail onboarding mark-done silent mutate | S | done | `updateOnboardingItem` toasts onError |
+| G160 | Remaining unlabeled Selects (Reports/compare/census/DataTable/dietary/CAPA) | S | done | Mobile report category, support-plan from/to, census resident/status, rows-per-page, corrective status; dietary Field→Choice aria-label |
+| G161 | Home metrics due-today / due-week used browser EOD + ms | M | done | `buildHomeMetrics` uses facility day/range `through` bounds |
+| G162 | Reports default date window + ScheduleDetail override fallback | M | done | Default −12/+6 months via facility calendar; override fallback tomorrow facility `T23:59` |
+| G163 | IncidentDetail add-staff silent mutate | S | done | Toast onError; clear employee picker only on success |
+| G164 | Stale dialogs: inspection log, work-order edit, bulk invite, attendees, PoC verify | S | done | Reset on open/close for each surface |
+| G165 | Unlabeled Selects: EmployeeSearchSelect / Documents upload / ticket detail | S | done | aria-label when filter label empty; upload facility/employee/type; ticket status/priority |
+| G166 | Administrator CE window / meal lookback / citation staleness browser calendar | M | done | Rolling CE cutoff, meal `served_at` lookback, citation `isStale`/future-check use facility day math |
+| G167 | AdminDashboard / ReleaseFlags / MyCourses metric fail-open | S | done | Operating Priorities + flag/kill tiles dash on load/error; offline library QueryError + dash count |
+| G168 | HelpCenter ticket + investigation approve dialog drafts sticky | S | done | Reset ticket form on open/cancel; clear approve note on open/close |
+| G169 | Unlabeled Selects: emergency activate / incident staff / Users role / assign | S | done | Event mode/type, staff/involvement/notification/retrain, role-for-name, assign-staff; HelpCenter category/priority |
+| G170 | Residents / Maintenance summary tiles fail-open to 0 | S | done | Dash while summary/orders/schedules loading or on error |
+| G171 | Care-level review + compliance CCC used browser `daysUntil` | M | done | Rate-in-force / overdue / due-soon via `facilityDaysUntil` (+ facility-stable test `now`) |
+| G172 | Unlabeled Selects: incident create / violation retrain / emergency ops / CoC | S | done | Create-form staff/notification/resident; violation retrain; resource/inventory/assignment; CoC party/status |
+| G173 | Unlabeled Selects: work-item / schedule pattern / admissions / pending approvals | S | done | Dependency + status; pattern shift/unit; activity type + bed; manual employee/training type |
+| G174 | License due-tone + acuity settling used browser ms days | M | done | `facilityDaysUntil` / facility day `daysSince` for license badges and acuity window |
+| G175 | AdminDashboard org tiles + urgent badge fail-open to 0 / Ready | S | done | Dash org/credential/training counts while health/dashboard loading or error; badge says Metrics unavailable |
+| G176 | Field/Choice unlabeled in licensing, financial ops, services calendar | S | done | Clone aria-label onto Choice/Input; Choice SelectTrigger accepts aria-label |
+| G177 | Remaining unlabeled Selects (comms, templates, survey, assessment…) | S | done | Emergency audience/delivery/channel; notification channel/org; package; task owner; disposition; checklist; assessment degree/freq/party; class picker; portal request type; etc. |
+| G178 | Administrator rule pack CE/due used UTC `addDays`/`daysBetween` | M | done | `addFacilityCalendarDays` + `facilityDaysUntil` for CE window and due-soon |
+| G179 | Investigation overdue / citation age / care-profile age ms math | M | done | Facility calendar age for incident trends, citation library, care header staleness |
+| G180 | Grant age / DME inspection / analytics `daysUntil` browser math | M | done | Enterprise grant label, DME inspection due, course/credential/compliance/state-form analytics |
+| G181 | CompetencyRecords create dialog sticky drafts | S | done | Reset form/employee/item results on dialog close |
+| G182 | Needs-attention / care-conflicts / change-detection ms windows | M | done | Facility day age + rolling windows for falls, assistance, change signals |
+| G183 | Receivable aging + MyCertificates expiry browser math | M | done | `facilityDaysUntil` for AR days-past-due and certificate expired badge |
+| G184 | Incident/support analytics age still used UTC midnight ms | S | done | Delegate to `facilityDaysUntil` (DST-safe facility calendar) |
+| G185 | Incidents / Courses / Residents create dialogs sticky | S | done | Reset form to empty on dialog close |
+| G186 | Time-off window error used browser `Date` for datetime-local | M | done | Validate start/end via `facilityDateTimeLocalToUtcIso` instants |
+| G187 | Sticky create/edit dialogs across admin/app surfaces | S | done | Reset form (+ edit id) on close for TrainingTypes/credentials/violations/inspection items/facilities/templates/assignments/orgs/users/employee detail/facility detail/plans/packages/quiz |
+| G188 | Remaining sticky dialogs: maintenance / trainer / PIN / WO | S | done | Reset order/location/schedule forms, trainer class form, PIN, quiz meta, WO transition/verify drafts on close |
+| G189 | Sticky agreement share / copy-delivery / report save / guest expiry / exception / unpublish drafts | S | done | Reset signer role, delivery method, save-view name, expiresDays, Cancel reason, unpublish reason on close |
+| G190 | Employee due-tone + formatDueDistance / readiness window still browser-local | M | done | `facilityDaysUntil` for employee pages; `formatDueDistance` + `isWithinWindow` on facility calendar |
+| G191 | RetrainingMonitor / SystemJobs / DocumentAnalyzer / MedAdminRoster metric fail-open | S | done | Dash ("—") tiles while loading/error; med-safety body waits for load |
+| G192 | Relationship QuickFill unlabeled + sidebar pin silent mutate | S | done | `aria-label` on participant relationship QuickFill; toast pin failures |
+| G193 | InspectionReadiness special-care tiles fail-open while loading | S | done | Dash counts + Loading badge until units/residents/prefs/training resolve |
+| G194 | FacilityDetail special-care card fail-open while loading | S | done | Dash gap count + Loading/Unavailable until units/residents/prefs/training resolve |
+| G195 | Special-care summaries ignored training-types load/error | S | done | Include `useListTrainingTypes` in InspectionReadiness + FacilityDetail busy/error gates |
+| G196 | CourseAssignments summary tiles fail-open while loading | S | done | Dash completion/overdue/due-soon tiles until paginated page resolves |
+| G197 | RegulatoryCrosswalk summary tiles fail-open while loading | S | done | Dash ready/attention/missing/overdue until evidence sources resolve |
+| G198 | ScheduleDetail coverage/PPD tiles fail-open on empty assignments | S | done | Dash snapshot + staffing calculator while assignments load/error |
+| G199 | Admission pipeline funnel revenue fail-open to $0 | S | done | `PipelineFunnelSection` dashes funnel counts + revenue when prospects busy |
+| G200 | MoveIn guest sign + RASP participation/signature sticky drafts | S | done | Reset signer/participation/signature fields on open and close |
+| G201 | PolicyDocumentDetail lifecycle tiles fail-open while loading | S | done | Dash draft/campaign/attestation counts until versions/campaigns/attestations resolve |
+| G202 | FacilityDetail admin rule pack ignored CE-entry load/error | S | done | Skeleton/Unavailable until profiles and CE entries both resolve |
+| G203 | AdministratorQualification badge/rules fail-open while loading | S | done | Loading badge + hold requirement rows until profile/CE/facilities resolve |
+| G204 | Dashboard state-forms banner hid open work while loading | S | done | Show checking banner; only surface counts after residents + items resolve |
+| G205 | ResidentServicesCalendar follow-up Choices unlabeled | S | done | `aria-label` on follow-up owner/priority (and related draft inputs) |
+| G206 | ClassDetail attendees count fail-open while roster loads | S | done | Dash header count + skeleton body until attendees resolve |
+| G207 | EvidenceCollectionDetail empty copy while secondary loads | S | done | Loading copy for artifacts/grants/events before empty states |
+| G208 | WorkOrderDetail documents empty while loading | S | done | Skeleton before "No repair documentation" empty state |
+| G209 | CourseDetail ratings fail-open to "No ratings yet" | S | done | Loading ratings copy until feedback query resolves |
+| G210 | ScheduleDetail PPD/census used empty residents while loading | S | done | Don't sync census to 0 while residents load; dash PPD tiles |
+| G211 | StateFormsCenter tiles/empty states ignored residents load | S | done | `queueBusy` includes residents/facilities; skeleton renewals while busy |
+| G212 | AdminDashboard open support tickets used dashboard `?? 0` | S | done | Dash ticket count in System Health while dashboard page busy |
+| G213 | Secondary empty-state fail-open (MoveIn/Service/Complaint/QAPI/Clinical) | S | done | Loading copy/skeleton before "No X yet" for history, alerts, activity, projects, allergies/diagnoses |
+| G214 | AdminDashboard Domain Review badges used health/dashboard while busy | S | done | Dash Tenant/People/Training/Compliance/Support card statuses while queries busy |
+| G215 | EmergencyOperations + ResidentCareDocumentation empty while loading | S | done | Loading copy/skeleton before events/plan/assessments/care-plan empty states |
+| G216 | WorkItemDetail activity fail-open (evidence/deps/approve) | S | done | `activityReady`; loading copy; hold approve until activity resolves |
+| G217 | ChangeOfConditionDetail activity fail-open (monitor/close) | S | done | `activityReady`; loading copy; hold close until follow-ups resolve |
+| G218 | Secondary empty-state fail-open (binder/ledger/WO/Settings/etc.) | S | done | Loading gates for binder exports, access ledger, linked WOs, deliveries, WO history, schedule patterns, CE roster, CopyTemplate facilities, promotable exports |
+| G219 | MyAttestations/Credentials header counts fail-open to 0 | S | done | Dash title counts while employee/list queries load |
+| G220 | Silent mutates: CE delete + inspection notes blur | S | done | Toast on CE delete failure/success; notes blur onError toast |
+| G221 | AdmissionOperations list empties while queries load | S | done | Loading copy before prospects/beds/move-ins/census/history empty states |
+| G222 | BreakGlass + FHIR/Med credential helpers fail-open | S | done | Loading copy before break-glass empty and credential helper empties |
+| G223 | IncidentTrends recommended QAPI while projects load | S | done | Hold recommendations empty copy until existing projects resolve |
+| G224 | Sticky drafts: clinical observation + portal create access | S | done | Reseed observedAt/expiry (and create fields) when open buttons fire |
+| G225 | MedAdminRoster empty/count while employees load | S | done | `rosterBusy` loading copy + dash description until employees resolve |
+| G226 | Employee-picker dialogs fail-open while roster loads | S | done | Loading copy in TrainingMatrix batch, TrainingPlans apply, Policy assign, Class add-attendees |
+| G227 | ScheduleSetup workload profiles empty while loading | S | done | Loading copy before "No qualification…" empty state |
+| G228 | ChangeOfCondition activity error showed empty monitoring | S | done | QueryError for monitoring/history/follow-ups on activity failure |
+| G229 | IntegrationRegister credentials/webhooks empty while loading | S | done | Loading copy before "None issued/created" empties |
+| G230 | ReleaseCohort membership + cohort picker fail-open | S | done | Loading membership copy; loading/disabled cohort Select items |
+| G231 | PackageEntitlementTermCard open terms empty while loading | S | done | Loading copy before "No open terms" |
+| G232 | AdaptivePaths assign Select + IncidentQapiEscalation link | S | done | Loading employee Select items; hold Escalate until QAPI link check resolves |
+| G233 | PipelineFunnel referral sources empty while busy | S | done | Loading copy before "No inquiries in this view" |
+| G234 | ScheduleSetup patterns + CourseAssignments employee pickers | S | done | Loading copy before "No active employees" empties |
+| G235 | AdminDashboard Phase nested empties + task backlog badges | S | done | Hold readiness/timeline/hotspots empties on dashboardBusy; dash task badges on healthBusy |
+| G236 | Dashboard alerts/tiles/facilities fail-open while summary loads | S | done | Loading copy for recent alerts/facilities; dash Active Staff/alerts/Med Admin tiles |
+| G237 | ResidentServicesCalendar vehicles empty + OutcomeDialog draft | S | done | Vehicles loading/error gate; reseed follow-up draft when outcome dialog opens |
+| G238 | Empty-on-error after load gates (admin/evidence/billing/learning) | S | done | QueryError/disabled Select on isError for BreakGlass, IntegrationRegister, ReleaseCohort, EvidenceCollection secondaries, PackageEntitlement, AdaptivePaths |
+| G239 | OfflineServiceDeviceCard remove fail-open while drafts load | S | done | Treat draft queries busy as blocked before Remove this device |
+| G240 | Settings deliveries + CourseAssignments progress empty-on-error | S | done | QueryError before empty success copy |
+| G241 | QuizBuilder attempts badge + silent answer mutates | S | done | Loading badge while stats busy; toast on answer blur/clear-correct |
+| G242 | QualifiedWorkforce HRIS run picker fail-open | S | done | Loading/error gate before "No runs yet" input |
+| G243 | EmployeeDetail secondary panels empty-on-error | S | done | QueryError for assignments/onboarding/training/practicums/hours/docs/credentials/activity |
+| G244 | OrgDetail facilities + Evidence promotable + ScheduleSetup errors | S | done | QueryError/disabled Select on isError for facilities, promotable exports, profiles, roster |
+| G245 | MySchedule swap candidates empty-on-error | S | done | Suppress "No candidate shifts" while candidates.isError |
+| G246 | GovernedContent register/author Selects fail-open | S | done | Loading/error Select items; hold author snapshot while blocks busy/error |
+| G247 | SessionRosterCard employee picker fail-open | S | done | Pass employeesLoading/Error from ClassDetail; gate "Everyone registered" |
+| G248 | TrainerClasses attendee counts fail-open to 0 | S | done | Dash ("—") while `useClassAttendeeCounts` loading or error |
+| G249 | TrainingPlans progress + items empty-on-error | S | done | QueryError before "hasn't been applied" / "No items" empties |
+| G250 | ReleaseFlags table empty-on-error | S | done | Suppress "No release flags" while flagsQ.isError (banner alone was not enough) |
+| G251 | AdministratorQualification CE badge/list empty-on-error | S | done | Dash CE hours badge; QueryError before "No CE entries" |
+| G252 | QuizBuilder questions + answers empty-on-error | S | done | QueryError for questions; error copy instead of "No answer choices" |
+| G253 | Employee-picker dialogs empty-on-error | S | done | QueryError before empty roster in Policy/TrainingMatrix/Plans/Assignments/ClassDetail |
+| G254 | CopyTemplate facilities + DME history empty-on-error | S | done | QueryError before "No facilities" / "No events recorded" |
+| G255 | CourseDetail ratings/versions/blocks empty-on-error | S | done | Error copy/QueryError before "No ratings/versions/blocks yet" |
+| G256 | CourseAssignments assign-facility Select mislabeled | S | done | Dedicated aria-label; stop reusing Employees Label htmlFor |
+| G257 | Incidents/Complaint/hospital-return facility TZ compares | S | done | Future/monitoring/return-before-departure use facilityDateTimeLocalToUtcIso |
+| G258 | WorkItemDetail activity panels empty-on-error | S | done | QueryError for evidence/deps/comments/watchers; deps also wait for load |
+| G259 | ValueCenter referral Empty outside admissions gate | S | done | Loading/QueryError before "No referral-source activity yet" |
+| G260 | Header notifications empty-on-error | S | done | Retry copy instead of "You're all caught up" on isError |
+| G261 | Resident Needs Attention secondary fail-open | S | done | Gate panel on items/docs/appointments/exceptions/etc. errors, not only careHeader |
+| G262 | Employee portal-access badge fail-open | S | done | Unavailable copy while accessActive/now isError (not "suspended") |
+| G263 | Support plan proposals + acknowledgments empty-on-error | S | done | QueryError/hold ack CTA before empty success |
+| G264 | Survey Day packet items/exports empty-on-error | S | done | QueryError for selected evidence + packages; hold assemble/package |
+| G265 | AuditLog open-ended manifest ends at export instant | S | done | Default `to` is now(), not upcoming facility midnight (checksum interval) |
+| G266 | ResidentServicesCalendar agenda times in facility TZ | S | done | `formatFacilityTimeForDisplay` under Eastern day headings |
+| G267 | InvestigationStepDialog no longer resets on parent refetch | S | done | Mount-only init; rely on open remount key |
+| G268 | Support-plan annual review leap-year safe | S | done | `addFacilityCalendarYears` instead of +365 days |
 
 ## Explicitly not now
 

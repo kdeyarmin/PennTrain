@@ -115,6 +115,7 @@ export default function InspectionItemDetail() {
   } = useListInspectionEvents(id);
   const {
     data: workOrders,
+    isLoading: workOrdersLoading,
     isError: workOrdersError,
     error: workOrdersErrorDetail,
     refetch: refetchWorkOrders,
@@ -266,7 +267,7 @@ export default function InspectionItemDetail() {
             </Button>
           )}
           {canManage && <Button asChild variant="outline"><Link href={`/app/maintenance?action=add&assetId=${item.id}`}><Wrench className="mr-2 h-4 w-4" /> New Work Order</Link></Button>}
-          {canManage && <Button onClick={() => setShowEventForm(true)}><Plus className="mr-2 h-4 w-4" /> Log Inspection</Button>}
+          {canManage && <Button onClick={() => { resetEventForm(); setShowEventForm(true); }}><Plus className="mr-2 h-4 w-4" /> Log Inspection</Button>}
         </div>
       </div>
 
@@ -296,7 +297,15 @@ export default function InspectionItemDetail() {
               <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
               <Textarea id={`${__fieldIds}-notes`}
                 defaultValue={item.notes ?? ""}
-                onBlur={(e) => { if (e.target.value !== (item.notes ?? "")) updateItem({ id: item.id, notes: e.target.value || null }); }}
+                onBlur={(e) => {
+                  if (e.target.value === (item.notes ?? "")) return;
+                  updateItem(
+                    { id: item.id, notes: e.target.value || null },
+                    {
+                      onError: (err: Error) => toast({ title: "Couldn't save notes", description: err.message, variant: "destructive" }),
+                    },
+                  );
+                }}
                 placeholder="Optional notes"
               />
             </div>
@@ -310,6 +319,8 @@ export default function InspectionItemDetail() {
           <CardContent>
             {workOrdersError ? (
               <QueryError what="work orders" error={workOrdersErrorDetail} onRetry={() => void refetchWorkOrders()} />
+            ) : workOrdersLoading ? (
+              <p className="text-sm text-muted-foreground">Loading linked work orders…</p>
             ) : !workOrders?.length ? (
               <p className="text-sm text-muted-foreground">No work orders are linked to this item. Failed inspections will create one automatically.</p>
             ) : (
@@ -435,7 +446,7 @@ export default function InspectionItemDetail() {
         </div>
       )}
 
-      <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) { setShowEventForm(false); setShowValidation(false); } }}>
+      <Dialog open={showEventForm} onOpenChange={(o) => { if (!o) { setShowEventForm(false); resetEventForm(); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -561,7 +572,7 @@ export default function InspectionItemDetail() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowEventForm(false); setShowValidation(false); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowEventForm(false); resetEventForm(); }}>Cancel</Button>
             <Button onClick={handleLogEvent} disabled={creatingEvent} className="shadow-sm">
               {creatingEvent ? "Saving..." : "Log Inspection"}
             </Button>

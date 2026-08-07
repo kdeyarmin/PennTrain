@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -244,7 +244,7 @@ function UnlinkedDocumentRow({
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Employee *</label>
             <Select value={manualEmployeeId} onValueChange={setManualEmployeeId}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select employee" /></SelectTrigger>
+              <SelectTrigger className="h-9" aria-label="Employee"><SelectValue placeholder="Select employee" /></SelectTrigger>
               <SelectContent>
                 {facilityEmployees.map(e => (
                   <SelectItem key={e.id} value={e.id}>{e.first_name} {e.last_name}</SelectItem>
@@ -256,7 +256,7 @@ function UnlinkedDocumentRow({
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Training Type *</label>
           <Select value={trainingTypeId} onValueChange={setTrainingTypeId}>
-            <SelectTrigger className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
+            <SelectTrigger className="h-9" aria-label="Training type"><SelectValue placeholder="Select training type" /></SelectTrigger>
             <SelectContent>
               {trainingTypes.map(t => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
@@ -454,11 +454,13 @@ export default function PendingApprovals() {
   // the underlying documents/records; a document that ages out of view here still exists and
   // still shows up the moment the age toggle is switched off or the facility filter is cleared.
   const unlinkedDocuments = useMemo(() => {
-    const cutoffMs = Date.now() - UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS * 24 * 60 * 60 * 1000;
+    const cutoffIso = facilityDayBounds(
+      addFacilityCalendarDays(facilityToday(), -UNLINKED_DOCUMENT_AGE_CUTOFF_DAYS),
+    ).from;
     return (documents ?? []).filter(d => {
       if (linkedDocumentIds.has(d.id)) return false;
       if (facilityId !== "all" && d.facility_id !== facilityId) return false;
-      if (hideOldDocuments && new Date(d.created_at).getTime() < cutoffMs) return false;
+      if (hideOldDocuments && d.created_at < cutoffIso) return false;
       return true;
     });
   }, [documents, linkedDocumentIds, facilityId, hideOldDocuments]);
@@ -535,7 +537,7 @@ export default function PendingApprovals() {
             <CardContent>
               <div className="flex flex-wrap items-center gap-4 pb-4 mb-4 border-b">
                 <Select value={facilityId} onValueChange={setFacilityId}>
-                  <SelectTrigger className="w-56 h-9"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+                  <SelectTrigger className="w-56 h-9" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Facilities</SelectItem>
                     {facilities?.map(f => (

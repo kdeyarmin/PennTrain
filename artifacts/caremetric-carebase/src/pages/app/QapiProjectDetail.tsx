@@ -38,7 +38,7 @@ import { QueryError } from "@/components/QueryState";
 // field opened on 01:30 the NEXT day, and submitting it recorded a QAPI meeting as held in the
 // future, on the wrong date. Reading back was already local (`new Date(held)`), so the round
 // trip disagreed with itself.
-import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityDateTimeToUtc, facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
@@ -72,12 +72,12 @@ export default function QapiProjectDetail() {
   const [aTitle, setATitle] = useState(""),
     [aDesc, setADesc] = useState(""),
     [aOwner, setAOwner] = useState(user?.id ?? ""),
-    [aDue, setADue] = useState(() => toDateTimeLocal(facilityDateTimeToUtc(addFacilityCalendarDays(facilityToday(), 14), "17:00:00")));
+    [aDue, setADue] = useState(() => `${addFacilityCalendarDays(facilityToday(), 14)}T17:00`);
   const [num, setNum] = useState(""),
     [den, setDen] = useState(""),
     [mNotes, setMNotes] = useState(""),
     [mSample, setMSample] = useState(""),
-    [held, setHeld] = useState(toDateTimeLocal()),
+    [held, setHeld] = useState(toFacilityDateTimeLocal()),
     [attendees, setAttendees] = useState(""),
     [meetingNotes, setMeetingNotes] = useState("");
   const [team, setTeam] = useState<Json>([]);
@@ -208,7 +208,7 @@ export default function QapiProjectDetail() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Project status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -227,7 +227,7 @@ export default function QapiProjectDetail() {
             </SelectContent>
           </Select>
           <Select value={method} onValueChange={setMethod}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Analysis method">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -322,7 +322,7 @@ export default function QapiProjectDetail() {
                 onChange={(e) => setADesc(e.target.value)}
               />
               <Select value={aOwner} onValueChange={setAOwner}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Action owner">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -354,6 +354,9 @@ export default function QapiProjectDetail() {
                       onSuccess: () => {
                         toast({ title: "Action added" });
                         setATitle("");
+                        setADesc("");
+                        setAOwner(user?.id ?? "");
+                        setADue(`${addFacilityCalendarDays(facilityToday(), 14)}T17:00`);
                       },
                       onError: (e: Error) =>
                         toast({ title: "Could not add action", description: e.message, variant: "destructive" }),
@@ -424,7 +427,13 @@ export default function QapiProjectDetail() {
                       sample: mSample,
                     },
                     {
-                      onSuccess: () => toast({ title: "Measurement recorded" }),
+                      onSuccess: () => {
+                        toast({ title: "Measurement recorded" });
+                        setNum("");
+                        setDen("");
+                        setMNotes("");
+                        setMSample("");
+                      },
                       onError: (e: Error) =>
                         toast({ title: "Could not record measurement", description: e.message, variant: "destructive" }),
                     },
@@ -485,11 +494,16 @@ export default function QapiProjectDetail() {
                     barriers,
                     adjustments,
                   },
-                  {
-                    onSuccess: () => toast({ title: "Meeting note added" }),
-                    onError: (e: Error) =>
-                      toast({ title: "Could not add meeting note", description: e.message, variant: "destructive" }),
-                  },
+                    {
+                      onSuccess: () => {
+                        toast({ title: "Meeting note added" });
+                        setAttendees("");
+                        setMeetingNotes("");
+                        setHeld(toFacilityDateTimeLocal());
+                      },
+                      onError: (e: Error) =>
+                        toast({ title: "Could not add meeting note", description: e.message, variant: "destructive" }),
+                    },
                 )
               }
             >

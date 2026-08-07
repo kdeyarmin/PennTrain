@@ -133,7 +133,7 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
   const { toast } = useToast();
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shifts } = useListShiftDefinitions({ facilityId });
-  const { data: profiles } = useListServiceWorkloadProfiles(facilityId);
+  const { data: profiles, isLoading: profilesLoading, isError: profilesError, error: profilesErr, refetch: refetchProfiles } = useListServiceWorkloadProfiles(facilityId);
   const save = useSaveServiceWorkloadProfile();
   const del = useDeleteServiceWorkloadProfile();
   const [form, setForm] = useState({
@@ -295,7 +295,11 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
         </div>
 
         <div className="space-y-2">
-          {(profiles ?? []).length === 0 ? (
+          {profilesLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Loading workload profiles…</p>
+          ) : profilesError ? (
+            <QueryError what="workload profiles" error={profilesErr} onRetry={() => void refetchProfiles()} />
+          ) : (profiles ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No qualification or service-workload profiles configured yet.</p>
           ) : (profiles ?? []).map((profile) => (
             <div key={profile.id} className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
@@ -543,7 +547,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
 function PatternsPanel({ facilityId, organizationId }: { facilityId: string; organizationId: string }) {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: roster } = useListEmployeeFacilityAssignments({ facilityId });
+  const { data: roster, isLoading: rosterLoading, isError: rosterError, error: rosterErr, refetch: refetchRoster } = useListEmployeeFacilityAssignments({ facilityId });
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
   const [employeeIds, setEmployeeIds] = useState<Set<string>>(new Set());
@@ -554,6 +558,7 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
   const singleEmployeeId = employeeIds.size === 1 ? [...employeeIds][0] : undefined;
   const {
     data: preferences,
+    isLoading: preferencesLoading,
     isError: preferencesError,
     error: preferencesErrorDetail,
     refetch: refetchPreferences,
@@ -679,7 +684,11 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
               <span className="text-muted-foreground">Select all visible ({activeRoster.length})</span>
             </label>
             <div className="max-h-48 overflow-y-auto divide-y">
-              {activeRoster.length === 0 ? (
+              {rosterLoading ? (
+                <p className="text-xs text-muted-foreground text-center py-4">Loading employees…</p>
+              ) : rosterError ? (
+                <QueryError what="facility employees" error={rosterErr} onRetry={() => void refetchRoster()} />
+              ) : activeRoster.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4">No active employees at this facility.</p>
               ) : (
                 activeRoster.map((r) => (
@@ -707,13 +716,13 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Select value={shiftDefinitionId} onValueChange={setShiftDefinitionId}>
-                  <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+                  <SelectTrigger aria-label="Pattern shift"><SelectValue placeholder="Shift" /></SelectTrigger>
                   <SelectContent>
                     {activeShiftDefs.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={unitId} onValueChange={setUnitId}>
-                  <SelectTrigger><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
+                  <SelectTrigger aria-label="Pattern unit"><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
                   <SelectContent>
                     {activeUnits.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                   </SelectContent>
@@ -730,6 +739,8 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                 <p className="text-sm font-medium leading-none text-xs text-muted-foreground" >Existing patterns</p>
                 {preferencesError ? (
                   <QueryError what="schedule patterns" error={preferencesErrorDetail} onRetry={() => void refetchPreferences()} />
+                ) : preferencesLoading ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">Loading typical patterns…</p>
                 ) : (preferences ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
                 ) : (
@@ -781,13 +792,13 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                           </div>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <Select value={editShiftId} onValueChange={setEditShiftId}>
-                              <SelectTrigger><SelectValue placeholder="Shift" /></SelectTrigger>
+                              <SelectTrigger aria-label="Pattern shift"><SelectValue placeholder="Shift" /></SelectTrigger>
                               <SelectContent>
                                 {activeShiftDefs.map((sd) => <SelectItem key={sd.id} value={sd.id}>{sd.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                             <Select value={editUnitId} onValueChange={setEditUnitId}>
-                              <SelectTrigger><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
+                              <SelectTrigger aria-label="Pattern unit"><SelectValue placeholder="Unit (optional)" /></SelectTrigger>
                               <SelectContent>
                                 {activeUnits.map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                               </SelectContent>

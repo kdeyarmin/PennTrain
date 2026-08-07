@@ -19,7 +19,7 @@ import {
   useUpsertResidentLegalRecord,
   useUpsertResidentPropertyItem,
 } from "@/hooks/useResidentAdministrativeMaster";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { humanize } from "@/lib/utils";
 import {
@@ -78,7 +78,7 @@ const profileFromResident = (resident: Resident) => ({
   religious_cultural_preferences: resident.religious_cultural_preferences ?? "",
   advance_directive_status: resident.advance_directive_status,
   resident_rights_acknowledged_at: resident.resident_rights_acknowledged_at
-    ? toDateTimeLocal(resident.resident_rights_acknowledged_at)
+    ? toFacilityDateTimeLocal(resident.resident_rights_acknowledged_at)
     : "",
   resident_rights_document_id: resident.resident_rights_document_id ?? "",
   contract_status: resident.contract_status,
@@ -106,11 +106,14 @@ export function ResidentAdministrativeMaster({
   documents,
   data,
   canManage,
+  dataUnavailable = false,
 }: {
   resident: Resident;
   documents: ResidentDocument[];
   data: ResidentAdministrativeMasterData | undefined;
   canManage: boolean;
+  /** When true, count tiles and empty lists must not read as "zero / none on file". */
+  dataUnavailable?: boolean;
 }) {
   const __fieldIds = useId();
   const { toast } = useToast();
@@ -250,10 +253,10 @@ export function ResidentAdministrativeMaster({
           </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {[
-              [data?.contacts.length ?? 0, "Official contacts"],
-              [currentLegal.length, "Legal / document records"],
-              [activeProperty.length, "Property items"],
-              [data?.censusEvents.length ?? 0, "Lifecycle events"],
+              [dataUnavailable ? "—" : (data?.contacts.length ?? 0), "Official contacts"],
+              [dataUnavailable ? "—" : currentLegal.length, "Legal / document records"],
+              [dataUnavailable ? "—" : activeProperty.length, "Property items"],
+              [dataUnavailable ? "—" : (data?.censusEvents.length ?? 0), "Lifecycle events"],
             ].map(([value, label]) => <div key={String(label)} className="rounded-md border p-3"><p className="text-xl font-semibold">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div>)}
           </div>
         </CardContent>
@@ -263,7 +266,7 @@ export function ResidentAdministrativeMaster({
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-base"><UserRound className="h-4 w-4" /> Contacts, authority & care partners</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            {!data?.contacts.length ? <p className="text-sm text-muted-foreground">No official contacts recorded.</p> : data.contacts.map((contact) => (
+            {dataUnavailable ? <p className="text-sm text-muted-foreground">Contacts unavailable.</p> : !data?.contacts.length ? <p className="text-sm text-muted-foreground">No official contacts recorded.</p> : data.contacts.map((contact) => (
               <div key={contact.id} className="rounded-md border p-3 text-sm">
                 <div className="flex items-center justify-between gap-2"><p className="font-medium">{contact.name}</p><Badge variant="outline">{humanize(contact.contact_type)}</Badge></div>
                 <p className="text-muted-foreground">{[contact.relationship, contact.legal_authority, contact.phone, contact.email].filter(Boolean).join(" · ") || "No details"}</p>
@@ -274,9 +277,9 @@ export function ResidentAdministrativeMaster({
         </Card>
 
         <Card>
-          <CardHeader><div className="flex items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><Gavel className="h-4 w-4" /> Legal, directives & acknowledgements</CardTitle>{canManage && <Button size="sm" variant="outline" onClick={() => setLegalOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}</div></CardHeader>
+          <CardHeader><div className="flex items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><Gavel className="h-4 w-4" /> Legal, directives & acknowledgements</CardTitle>{canManage && <Button size="sm" variant="outline" onClick={() => { setLegal({ recordType: "advance_directive", title: "", status: "active", authorityName: "", summary: "", effectiveDate: "", expirationDate: "", acknowledged: false, documentId: "" }); setLegalOpen(true); }}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}</div></CardHeader>
           <CardContent className="space-y-2">
-            {!currentLegal.length ? <p className="text-sm text-muted-foreground">No legal or acknowledgement records.</p> : currentLegal.map((record) => (
+            {dataUnavailable ? <p className="text-sm text-muted-foreground">Legal records unavailable.</p> : !currentLegal.length ? <p className="text-sm text-muted-foreground">No legal or acknowledgement records.</p> : currentLegal.map((record) => (
               <div key={record.id} className="rounded-md border p-3 text-sm">
                 <div className="flex items-center justify-between gap-2"><p className="font-medium">{record.title}</p><Badge variant="outline">{humanize(record.status)}</Badge></div>
                 <p className="text-xs text-muted-foreground">{humanize(record.record_type)}{record.authority_name ? ` · ${record.authority_name}` : ""}{record.effective_date ? ` · Effective ${formatDateOnly(record.effective_date)}` : ""}</p>
@@ -287,9 +290,9 @@ export function ResidentAdministrativeMaster({
         </Card>
 
         <Card>
-          <CardHeader><div className="flex items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><Archive className="h-4 w-4" /> Property inventory</CardTitle>{canManage && <Button size="sm" variant="outline" onClick={() => setPropertyOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}</div></CardHeader>
+          <CardHeader><div className="flex items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><Archive className="h-4 w-4" /> Property inventory</CardTitle>{canManage && <Button size="sm" variant="outline" onClick={() => { setProperty({ itemName: "", quantity: "1", description: "", condition: "", receivedOn: "", acknowledged: false, documentId: "", notes: "" }); setPropertyOpen(true); }}><Plus className="mr-1 h-3.5 w-3.5" /> Add</Button>}</div></CardHeader>
           <CardContent className="space-y-2">
-            {!activeProperty.length ? <p className="text-sm text-muted-foreground">No resident property recorded.</p> : activeProperty.map((item) => (
+            {dataUnavailable ? <p className="text-sm text-muted-foreground">Property inventory unavailable.</p> : !activeProperty.length ? <p className="text-sm text-muted-foreground">No resident property recorded.</p> : activeProperty.map((item) => (
               <div key={item.id} className="rounded-md border p-3 text-sm">
                 <div className="flex items-center justify-between"><p className="font-medium">{item.quantity} × {item.item_name}</p>{item.resident_acknowledged_at && <ShieldCheck className="h-4 w-4 text-primary" />}</div>
                 <p className="text-muted-foreground">{[item.description, item.condition_at_receipt, item.received_on ? `Received ${formatDateOnly(item.received_on)}` : null].filter(Boolean).join(" · ")}</p>
@@ -301,7 +304,7 @@ export function ResidentAdministrativeMaster({
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-base"><History className="h-4 w-4" /> Admission, transfer & status history</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            {!data?.censusEvents.length ? <p className="text-sm text-muted-foreground">No census history recorded.</p> : data.censusEvents.map((event) => (
+            {dataUnavailable ? <p className="text-sm text-muted-foreground">Census history unavailable.</p> : !data?.censusEvents.length ? <p className="text-sm text-muted-foreground">No census history recorded.</p> : data.censusEvents.map((event) => (
               <div key={event.id} className="flex gap-3 border-l-2 pl-3 text-sm">
                 <div><p className="font-medium">{humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{new Date(event.effective_at).toLocaleString()} · {event.reason || humanize(event.resulting_status)}</p></div>
               </div>
@@ -313,7 +316,7 @@ export function ResidentAdministrativeMaster({
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileBadge className="h-4 w-4" /> Administrative audit history</CardTitle></CardHeader>
         <CardContent className="grid gap-2 md:grid-cols-2">
-          {!data?.history.length ? <p className="text-sm text-muted-foreground">No administrative revisions recorded.</p> : data.history.map((event) => (
+          {dataUnavailable ? <p className="text-sm text-muted-foreground">Administrative history unavailable.</p> : !data?.history.length ? <p className="text-sm text-muted-foreground">No administrative revisions recorded.</p> : data.history.map((event) => (
             <div key={event.id} className="rounded-md border p-2 text-sm"><p className="font-medium">{event.summary}</p><p className="text-xs text-muted-foreground">{new Date(event.occurred_at).toLocaleString()}</p></div>
           ))}
         </CardContent>
@@ -340,7 +343,7 @@ export function ResidentAdministrativeMaster({
               <div className="flex items-center justify-between"><h3 className="font-semibold">Contacts and legal authority</h3><Button type="button" variant="outline" size="sm" onClick={() => setContacts((rows) => [...rows, emptyContact(rows.length)])}><Plus className="mr-1 h-3.5 w-3.5" /> Add contact</Button></div>
               {contacts.map((contact, index) => (
                 <div key={contact.id || index} className="grid gap-2 rounded-md border p-3 md:grid-cols-4">
-                  <Select value={contact.contact_type} onValueChange={(value) => updateContact(index, { contact_type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CONTACT_TYPES.map((type) => <SelectItem key={type} value={type}>{humanize(type)}</SelectItem>)}</SelectContent></Select>
+                  <Select value={contact.contact_type} onValueChange={(value) => updateContact(index, { contact_type: value })}><SelectTrigger aria-label="Contact type"><SelectValue /></SelectTrigger><SelectContent>{CONTACT_TYPES.map((type) => <SelectItem key={type} value={type}>{humanize(type)}</SelectItem>)}</SelectContent></Select>
                   <Input placeholder="Name / organization" value={contact.name} onChange={(e) => updateContact(index, { name: e.target.value })} />
                   <Input placeholder="Relationship" value={contact.relationship} onChange={(e) => updateContact(index, { relationship: e.target.value })} />
                   <Input placeholder="Legal authority" value={contact.legal_authority} onChange={(e) => updateContact(index, { legal_authority: e.target.value })} />

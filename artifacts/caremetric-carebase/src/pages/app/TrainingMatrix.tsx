@@ -351,11 +351,14 @@ function CellDetailDialog({
 // ---------------------------------------------------------------------------
 
 function RecordForMultipleDialog({
-  open, onClose, employees, trainingTypes, qualifiedTrainers,
+  open, onClose, employees, employeesLoading, employeesError, onRetryEmployees, trainingTypes, qualifiedTrainers,
 }: {
   open: boolean;
   onClose: () => void;
   employees: Employee[];
+  employeesLoading?: boolean;
+  employeesError?: boolean;
+  onRetryEmployees?: () => void;
   trainingTypes: TrainingType[];
   qualifiedTrainers: Employee[];
 }) {
@@ -532,7 +535,11 @@ function RecordForMultipleDialog({
               </span>
             </label>
             <div className="border rounded-md max-h-[220px] overflow-y-auto">
-              {filteredEmployees.length === 0 ? (
+              {employeesLoading ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+              ) : employeesError ? (
+                <QueryError what="employees" error={undefined} onRetry={onRetryEmployees} className="m-3" />
+              ) : filteredEmployees.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">No employees found.</p>
               ) : (
                 <div className="divide-y">
@@ -824,7 +831,7 @@ export default function TrainingMatrix() {
 
       <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center" aria-label="Training matrix filters">
         <Select value={facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
-          <SelectTrigger className="w-full sm:w-48">
+          <SelectTrigger className="w-full sm:w-48" aria-label="Facility">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>
@@ -836,7 +843,7 @@ export default function TrainingMatrix() {
         </Select>
 
         <Select value={statusFilter} onValueChange={v => setUrlState({ statusFilter: v, page: "1" })}>
-          <SelectTrigger className="w-full sm:w-40">
+          <SelectTrigger className="w-full sm:w-40" aria-label="Status">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -849,7 +856,7 @@ export default function TrainingMatrix() {
         </Select>
 
         <Select value={dueWindow} onValueChange={v => setUrlState({ dueWindow: v, page: "1" })}>
-          <SelectTrigger className="w-full sm:w-44">
+          <SelectTrigger className="w-full sm:w-44" aria-label="Due within">
             <SelectValue placeholder="Due Within" />
           </SelectTrigger>
           <SelectContent>
@@ -1083,6 +1090,9 @@ export default function TrainingMatrix() {
         open={showBatchDialog}
         onClose={() => setShowBatchDialog(false)}
         employees={batchRosterQuery.data ?? []}
+        employeesLoading={batchRosterQuery.isLoading || batchRosterQuery.isPending}
+        employeesError={batchRosterQuery.isError}
+        onRetryEmployees={() => void batchRosterQuery.refetch()}
         trainingTypes={trainingTypes ?? []}
         qualifiedTrainers={qualifiedTrainers}
       />

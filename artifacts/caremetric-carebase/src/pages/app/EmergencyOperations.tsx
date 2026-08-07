@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
-import { facilityToday, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { facilityToday, facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -56,10 +56,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const human = (value: string) =>
   value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const localDateTime = () => {
-  const value = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000);
-  return value.toISOString().slice(0, 16);
-};
+const localDateTime = () => toFacilityDateTimeLocal();
 
 type DialogName = "plan" | "event" | "profile" | "resource" | "inventory" | "assignment" | null;
 
@@ -163,6 +160,52 @@ export default function EmergencyOperations() {
     setRelocationNotes(existing?.preferred_relocation_notes ?? "");
     setProfileNotes(existing?.notes ?? "");
     setDialog("profile");
+  };
+
+
+  const openDialog = (name: DialogName) => {
+    if (name === "plan") {
+      setPlanTitle("All-Hazards Emergency Plan");
+      setPlanEffectiveDate(facilityToday());
+      setPlanSummary("");
+      setEvacuationProcedure("");
+      setAccountabilityProcedure("");
+      setNotificationProcedure("");
+      setContinuityProcedure("");
+    } else if (name === "event") {
+      setEventMode("drill");
+      setEventType("fire");
+      setEventStartedAt(localDateTime());
+      setEventSummary("");
+      setEventLocation("");
+      setAssemblyPoint("");
+      setCommanderId(user?.id ?? "");
+    } else if (name === "resource") {
+      setResourceType("relocation_site");
+      setResourceName("");
+      setContactName("");
+      setPhone("");
+      setEmail("");
+      setAddress("");
+      setCapacity("");
+      setContractReference("");
+      setAvailabilityNotes("");
+    } else if (name === "inventory") {
+      setInventoryType("water");
+      setItemName("");
+      setQuantity("");
+      setUnit("");
+      setMinimumQuantity("");
+      setExpirationDate("");
+      setInventoryStatus("ready");
+      setInventoryLocation("");
+    } else if (name === "assignment") {
+      setEmployeeId("");
+      setEmergencyRole("resident_accountability");
+      setResponsibility("");
+      setIsBackup(false);
+    }
+    setDialog(name);
   };
 
   const submitPlan = () =>
@@ -318,10 +361,10 @@ export default function EmergencyOperations() {
         </div>
         {canManage && facilityId && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setDialog("plan")}>
+            <Button variant="outline" onClick={() => openDialog("plan")}>
               <FileCheck2 className="mr-2 h-4 w-4" /> New plan version
             </Button>
-            <Button onClick={() => setDialog("event")}>
+            <Button onClick={() => openDialog("event")}>
               <Siren className="mr-2 h-4 w-4" /> Activate event or drill
             </Button>
           </div>
@@ -331,7 +374,7 @@ export default function EmergencyOperations() {
       <Card>
         <CardContent className="pt-6">
           <Select value={facilityId} onValueChange={setFacilityId}>
-            <SelectTrigger className="max-w-sm"><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger className="max-w-sm" aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>
               {facilities.data?.filter((facility) => facility.is_active).map((facility) => (
                 <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
@@ -356,14 +399,17 @@ export default function EmergencyOperations() {
       {facilityId && !readiness.isError && !events.isError && (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            {[
-              [Siren, activeEvents.length, "Active events"],
-              [FileCheck2, readiness.data?.plan?.current_version?.version_number ? `v${readiness.data.plan.current_version.version_number}` : "Missing", "Approved plan"],
-              [Users, missingProfiles.length, "Profiles missing"],
-              [AlertTriangle, lowInventory.length, "Supply exceptions"],
-              [Bus, relocationSites.length, "Relocation sites"],
-              [ShieldCheck, readiness.data?.assignments.filter((assignment) => assignment.is_active).length ?? 0, "Staff assignments"],
-            ].map(([Icon, value, label]) => {
+            {(() => {
+              const metricsPending = readiness.isLoading || events.isLoading;
+              return [
+              [Siren, metricsPending ? "—" : activeEvents.length, "Active events"],
+              [FileCheck2, metricsPending ? "—" : (readiness.data?.plan?.current_version?.version_number ? `v${readiness.data.plan.current_version.version_number}` : "Missing"), "Approved plan"],
+              [Users, metricsPending ? "—" : missingProfiles.length, "Profiles missing"],
+              [AlertTriangle, metricsPending ? "—" : lowInventory.length, "Supply exceptions"],
+              [Bus, metricsPending ? "—" : relocationSites.length, "Relocation sites"],
+              [ShieldCheck, metricsPending ? "—" : (readiness.data?.assignments.filter((assignment) => assignment.is_active).length ?? 0), "Staff assignments"],
+            ];
+            })().map(([Icon, value, label]) => {
               const MetricIcon = Icon as typeof Siren;
               return (
                 <Card key={String(label)}>
@@ -391,7 +437,9 @@ export default function EmergencyOperations() {
                   <CardDescription>Each activation preserves its plan version and live accountability documentation.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {!events.data?.length ? (
+                  {events.isLoading ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">Loading emergency events…</p>
+                  ) : !events.data?.length ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">No emergency events or drills recorded.</p>
                   ) : events.data.map((event) => (
                     <div key={event.id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_180px_130px_auto] md:items-center">
@@ -418,7 +466,7 @@ export default function EmergencyOperations() {
                   <CardDescription>Every event records the exact approved plan version in force when it was declared.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {!readiness.data?.versions.length ? <p className="text-sm text-muted-foreground">No approved emergency plan version.</p> : readiness.data.versions.map((version) => (
+                  {readiness.isLoading ? <p className="text-sm text-muted-foreground">Loading emergency plan…</p> : !readiness.data?.versions.length ? <p className="text-sm text-muted-foreground">No approved emergency plan version.</p> : readiness.data.versions.map((version) => (
                     <div key={version.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
                       <div><p className="font-medium">Version {version.version_number} · effective {new Date(`${version.effective_date}T00:00:00`).toLocaleDateString()}</p><p className="text-sm text-muted-foreground">{version.change_summary}</p></div>
                       {readiness.data?.plan?.current_version_id === version.id && <Badge>Current</Badge>}
@@ -454,7 +502,7 @@ export default function EmergencyOperations() {
                     {readiness.data?.assignments.map((assignment) => (
                       <div key={assignment.id} className="rounded border p-3 text-sm"><p className="font-medium">{assignment.employee?.first_name} {assignment.employee?.last_name}</p><p>{human(assignment.emergency_role)}{assignment.is_backup ? " · Backup" : ""}</p><p className="text-muted-foreground">{assignment.responsibility}</p></div>
                     ))}
-                    {canManage && <Button className="w-full" variant="outline" onClick={() => setDialog("assignment")}><Plus className="mr-2 h-4 w-4" /> Add assignment</Button>}
+                    {canManage && <Button className="w-full" variant="outline" onClick={() => openDialog("assignment")}><Plus className="mr-2 h-4 w-4" /> Add assignment</Button>}
                   </CardContent>
                 </Card>
                 <Card>
@@ -463,7 +511,7 @@ export default function EmergencyOperations() {
                     {readiness.data?.resources.map((resource) => (
                       <div key={resource.id} className="rounded border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">{resource.name}</p><Badge variant="outline">{human(resource.resource_type)}</Badge></div><p className="text-muted-foreground">{resource.phone || resource.email || resource.address || "No contact details"}</p></div>
                     ))}
-                    {canManage && <Button className="w-full" variant="outline" onClick={() => setDialog("resource")}><Plus className="mr-2 h-4 w-4" /> Add resource</Button>}
+                    {canManage && <Button className="w-full" variant="outline" onClick={() => openDialog("resource")}><Plus className="mr-2 h-4 w-4" /> Add resource</Button>}
                   </CardContent>
                 </Card>
                 <Card>
@@ -472,7 +520,7 @@ export default function EmergencyOperations() {
                     {readiness.data?.inventory.map((item) => (
                       <div key={item.id} className="rounded border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">{item.item_name}</p><Badge variant={item.status === "ready" ? "outline" : "destructive"}>{human(item.status)}</Badge></div><p>{String(item.quantity)} {item.unit} · minimum {String(item.minimum_quantity)}</p><p className="text-muted-foreground">{item.location || "Location not recorded"}</p></div>
                     ))}
-                    {canManage && <Button className="w-full" variant="outline" onClick={() => setDialog("inventory")}><Plus className="mr-2 h-4 w-4" /> Add inventory</Button>}
+                    {canManage && <Button className="w-full" variant="outline" onClick={() => openDialog("inventory")}><Plus className="mr-2 h-4 w-4" /> Add inventory</Button>}
                   </CardContent>
                 </Card>
               </div>
@@ -499,8 +547,8 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "event"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Activate emergency command</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Select value={eventMode} onValueChange={setEventMode}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="drill">Drill</SelectItem><SelectItem value="actual">Actual event</SelectItem></SelectContent></Select>
-            <Select value={eventType} onValueChange={setEventType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["fire","severe_weather","power_outage","water_outage","hvac_outage","evacuation","shelter_in_place","missing_person","infectious_disease","transportation_disruption","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={eventMode} onValueChange={setEventMode}><SelectTrigger aria-label="Event mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="drill">Drill</SelectItem><SelectItem value="actual">Actual event</SelectItem></SelectContent></Select>
+            <Select value={eventType} onValueChange={setEventType}><SelectTrigger aria-label="Event type"><SelectValue /></SelectTrigger><SelectContent>{["fire","severe_weather","power_outage","water_outage","hvac_outage","evacuation","shelter_in_place","missing_person","infectious_disease","transportation_disruption","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <div className="space-y-1"><Label htmlFor={`${__fieldIds}-started-at`}>Started at</Label><Input id={`${__fieldIds}-started-at`} type="datetime-local" value={eventStartedAt} onChange={(event) => setEventStartedAt(event.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor={`${__fieldIds}-incident-commander`}>Incident commander</Label><Select value={commanderId} onValueChange={setCommanderId}><SelectTrigger id={`${__fieldIds}-incident-commander`}><SelectValue placeholder="Select commander" /></SelectTrigger><SelectContent>{profiles.data?.filter((profile) => profile.is_active).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-situation-summary`}>Situation summary</Label><Textarea id={`${__fieldIds}-situation-summary`} value={eventSummary} onChange={(event) => setEventSummary(event.target.value)} /></div>
@@ -531,7 +579,7 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "resource"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>Add emergency resource</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Select value={resourceType} onValueChange={setResourceType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["relocation_site","transportation_vendor","utility_contact","medication_emar_vendor","emergency_service","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={resourceType} onValueChange={setResourceType}><SelectTrigger aria-label="Resource type"><SelectValue /></SelectTrigger><SelectContent>{["relocation_site","transportation_vendor","utility_contact","medication_emar_vendor","emergency_service","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Resource name" value={resourceName} onChange={(event) => setResourceName(event.target.value)} />
             <Input placeholder="Contact name" value={contactName} onChange={(event) => setContactName(event.target.value)} />
             <Input placeholder="Phone" value={phone} onChange={(event) => setPhone(event.target.value)} />
@@ -548,13 +596,13 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "inventory"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent><DialogHeader><DialogTitle>Add emergency inventory</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Select value={inventoryType} onValueChange={setInventoryType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["food","water","generator_fuel","medication_continuity","batteries","first_aid","sanitation","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={inventoryType} onValueChange={setInventoryType}><SelectTrigger aria-label="Inventory type"><SelectValue /></SelectTrigger><SelectContent>{["food","water","generator_fuel","medication_continuity","batteries","first_aid","sanitation","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Item name" value={itemName} onChange={(event) => setItemName(event.target.value)} />
             <Input type="number" placeholder="Quantity" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
             <Input placeholder="Unit" value={unit} onChange={(event) => setUnit(event.target.value)} />
             <Input type="number" placeholder="Minimum quantity" value={minimumQuantity} onChange={(event) => setMinimumQuantity(event.target.value)} />
             <Input type="date" value={expirationDate} onChange={(event) => setExpirationDate(event.target.value)} />
-            <Select value={inventoryStatus} onValueChange={setInventoryStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["ready","low","expired","unavailable"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={inventoryStatus} onValueChange={setInventoryStatus}><SelectTrigger aria-label="Inventory status"><SelectValue /></SelectTrigger><SelectContent>{["ready","low","expired","unavailable"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Storage location" value={inventoryLocation} onChange={(event) => setInventoryLocation(event.target.value)} />
           </div>
           <DialogFooter><Button onClick={submitInventory} disabled={!itemName || !quantity || !unit || addInventory.isPending}>Add inventory</Button></DialogFooter>
@@ -564,8 +612,8 @@ export default function EmergencyOperations() {
       <Dialog open={dialog === "assignment"} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent><DialogHeader><DialogTitle>Add emergency staff assignment</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{employees.data?.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} · {employee.job_title}</SelectItem>)}</SelectContent></Select>
-            <Select value={emergencyRole} onValueChange={setEmergencyRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["incident_commander","resident_accountability","staff_accountability","evacuation_lead","transportation_lead","communications_lead","medication_continuity","utilities_lead","logistics","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
+            <Select value={employeeId} onValueChange={setEmployeeId}><SelectTrigger aria-label="Assignment employee"><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent>{employees.data?.map((employee) => <SelectItem key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name} · {employee.job_title}</SelectItem>)}</SelectContent></Select>
+            <Select value={emergencyRole} onValueChange={setEmergencyRole}><SelectTrigger aria-label="Emergency role"><SelectValue /></SelectTrigger><SelectContent>{["incident_commander","resident_accountability","staff_accountability","evacuation_lead","transportation_lead","communications_lead","medication_continuity","utilities_lead","logistics","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Textarea placeholder="Responsibility" value={responsibility} onChange={(event) => setResponsibility(event.target.value)} />
             <Button type="button" variant={isBackup ? "default" : "outline"} onClick={() => setIsBackup((value) => !value)}>{isBackup ? "Backup assignment" : "Primary assignment"}</Button>
           </div>

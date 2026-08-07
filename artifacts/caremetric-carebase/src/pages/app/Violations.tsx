@@ -224,14 +224,14 @@ export default function Violations() {
             />
           </div>
           <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
-            <SelectTrigger className="w-44 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 bg-card" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {["open", "poc_submitted", "corrected", "verified"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
@@ -313,7 +313,7 @@ export default function Violations() {
         </div>
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(emptyForm()); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Record Cited Violation</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

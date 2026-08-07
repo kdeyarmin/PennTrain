@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
+import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
@@ -69,7 +69,7 @@ export default function MyTrainings() {
         </CardHeader>
         <CardContent className="space-y-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Status">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -99,7 +99,7 @@ export default function MyTrainings() {
               {sorted.map(r => {
                 const needsAction = r.status === "due_soon" || r.status === "expired" || r.status === "missing";
                 const dueDistance = needsAction ? formatDueDistance(r.due_date) : null;
-                const daysLeft = daysUntil(r.due_date);
+                const daysLeft = facilityDaysUntil(r.due_date);
                 const dueTone =
                   daysLeft !== null && daysLeft < 0
                     ? "text-destructive font-medium"

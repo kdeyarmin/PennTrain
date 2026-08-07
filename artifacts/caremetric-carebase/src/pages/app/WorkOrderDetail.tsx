@@ -2,7 +2,7 @@ import { useId, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, CheckCircle2, Clock3, DollarSign, Download, FileImage, Pause, Pencil, Play, ShieldCheck, Trash2, Upload, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import { humanize } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -57,12 +57,14 @@ export default function WorkOrderDetail() {
   const { data: order, isLoading, isError, error, refetch } = useGetWorkOrder(id);
   const {
     data: history,
+    isLoading: historyLoading,
     isError: historyError,
     error: historyErrorDetail,
     refetch: refetchHistory,
   } = useListWorkOrderHistory(id);
   const {
     data: documents,
+    isLoading: documentsLoading,
     isError: documentsError,
     error: documentsErrorDetail,
     refetch: refetchDocuments,
@@ -96,7 +98,7 @@ export default function WorkOrderDetail() {
 
   useEffect(() => {
     if (!order) return;
-    const localTarget = order.target_completion_at ? toDateTimeLocal(order.target_completion_at) : "";
+    const localTarget = order.target_completion_at ? toFacilityDateTimeLocal(order.target_completion_at) : "";
     setEdit({
       locationDetail: order.location_detail ?? "", roomNumber: order.room_number ?? "",
       safetyRisk: order.safety_risk, priority: order.priority,
@@ -118,7 +120,15 @@ export default function WorkOrderDetail() {
     setTargetStatus(nextStatus);
     setTransitionNotes("");
     setActualCost(order.actual_cost == null ? "" : String(order.actual_cost));
+    setDowntimeStarted("");
+    setDowntimeEnded("");
     setShowTransition(true);
+  };
+
+  const openVerify = () => {
+    setVerificationDecision("verified");
+    setVerificationNotes("");
+    setShowVerify(true);
   };
 
   const submitTransition = () => {
@@ -191,12 +201,22 @@ export default function WorkOrderDetail() {
           <p className="mt-3 max-w-3xl text-lg">{order.problem_description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canManage && !["verified","canceled"].includes(order.status) && <Button variant="outline" onClick={() => setShowEdit(true)}><Pencil className="mr-2 h-4 w-4" /> Edit details</Button>}
+          {canManage && !["verified","canceled"].includes(order.status) && <Button variant="outline" onClick={() => {
+            const localTarget = order.target_completion_at ? toFacilityDateTimeLocal(order.target_completion_at) : "";
+            setEdit({
+              locationDetail: order.location_detail ?? "", roomNumber: order.room_number ?? "",
+              safetyRisk: order.safety_risk, priority: order.priority,
+              protectiveAction: order.temporary_protective_action ?? "", employeeId: order.assigned_employee_id ?? "none",
+              vendor: order.external_vendor ?? "", target: localTarget, parts: order.parts_needed ?? "",
+              estimatedCost: order.estimated_cost == null ? "" : String(order.estimated_cost), residentImpact: order.resident_impact ?? "",
+            });
+            setShowEdit(true);
+          }}><Pencil className="mr-2 h-4 w-4" /> Edit details</Button>}
           {canManage && order.status === "open" && <Button onClick={() => openTransition(order.assigned_employee_id ? "assigned" : "in_progress")}><Play className="mr-2 h-4 w-4" /> Start work</Button>}
           {canManage && order.status === "assigned" && <Button onClick={() => openTransition("in_progress")}><Play className="mr-2 h-4 w-4" /> Begin repair</Button>}
           {canManage && order.status === "in_progress" && <><Button variant="outline" onClick={() => openTransition("on_hold")}><Pause className="mr-2 h-4 w-4" /> Put on hold</Button><Button onClick={() => openTransition("pending_verification")}><CheckCircle2 className="mr-2 h-4 w-4" /> Complete repair</Button></>}
           {canManage && order.status === "on_hold" && <Button onClick={() => openTransition("in_progress")}><Play className="mr-2 h-4 w-4" /> Resume work</Button>}
-          {canVerify && order.status === "pending_verification" && <Button onClick={() => setShowVerify(true)}><ShieldCheck className="mr-2 h-4 w-4" /> Supervisor verification</Button>}
+          {canVerify && order.status === "pending_verification" && <Button onClick={openVerify}><ShieldCheck className="mr-2 h-4 w-4" /> Supervisor verification</Button>}
         </div>
       </div>
 
@@ -224,6 +244,8 @@ export default function WorkOrderDetail() {
             {canManage && !["verified","canceled"].includes(order.status) && <div className="grid items-end gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[180px_1fr_auto]"><div><Label htmlFor={`${__fieldIds}-documentation-type`}>Documentation type</Label><Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}><SelectTrigger id={`${__fieldIds}-documentation-type`}><SelectValue /></SelectTrigger><SelectContent>{DOCUMENT_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-jpeg-png-webp-or-pdf`}>JPEG, PNG, WebP, or PDF</Label><Input id={`${__fieldIds}-jpeg-png-webp-or-pdf`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0])} /></div><Button onClick={upload} disabled={!documentFile || uploadDocument.isPending}><Upload className="mr-2 h-4 w-4" /> Upload</Button></div>}
             {documentsError ? (
               <QueryError what="repair documentation" error={documentsErrorDetail} onRetry={() => void refetchDocuments()} />
+            ) : documentsLoading ? (
+              <div className="space-y-2 py-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
             ) : !documents?.length ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No repair documentation uploaded yet.</p>
             ) : (
@@ -238,15 +260,19 @@ export default function WorkOrderDetail() {
         <Card><CardHeader><CardTitle>Lifecycle history</CardTitle></CardHeader><CardContent>
           {historyError ? (
             <QueryError what="lifecycle history" error={historyErrorDetail} onRetry={() => void refetchHistory()} />
+          ) : historyLoading ? (
+            <p className="text-sm text-muted-foreground">Loading lifecycle history…</p>
+          ) : !history?.length ? (
+            <p className="text-sm text-muted-foreground">No lifecycle events recorded yet.</p>
           ) : (
-            <div className="space-y-4">{history?.map((event, index) => <div key={event.id} className="relative pl-6"><span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />{index < (history?.length ?? 0) - 1 && <span className="absolute bottom-[-18px] left-[4px] top-4 w-px bg-border" />}<p className="text-sm font-semibold">{humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.notes && <p className="mt-1 text-sm">{event.notes}</p>}</div>)}</div>
+            <div className="space-y-4">{history.map((event, index) => <div key={event.id} className="relative pl-6"><span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />{index < history.length - 1 && <span className="absolute bottom-[-18px] left-[4px] top-4 w-px bg-border" />}<p className="text-sm font-semibold">{humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.notes && <p className="mt-1 text-sm">{event.notes}</p>}</div>)}</div>
           )}
         </CardContent></Card>
       </div>
 
-      <Dialog open={showTransition} onOpenChange={setShowTransition}><DialogContent><DialogHeader><DialogTitle>{targetStatus === "pending_verification" ? "Complete repair and submit for verification" : `Move to ${humanize(targetStatus)}`}</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-field`}>{targetStatus === "pending_verification" ? "Repair notes *" : "Transition notes *"}</Label><Textarea id={`${__fieldIds}-field`} value={transitionNotes} onChange={(e) => setTransitionNotes(e.target.value)} /></div>{targetStatus === "pending_verification" && <><div><Label htmlFor={`${__fieldIds}-actual-cost`}>Actual cost</Label><Input id={`${__fieldIds}-actual-cost`} type="number" min="0" step="0.01" value={actualCost} onChange={(e) => setActualCost(e.target.value)} /></div><div className="grid grid-cols-2 gap-3"><div><Label htmlFor={`${__fieldIds}-downtime-started`}>Downtime started</Label><Input id={`${__fieldIds}-downtime-started`} type="datetime-local" value={downtimeStarted} onChange={(e) => setDowntimeStarted(e.target.value)} /></div><div><Label htmlFor={`${__fieldIds}-downtime-ended`}>Downtime ended</Label><Input id={`${__fieldIds}-downtime-ended`} type="datetime-local" value={downtimeEnded} onChange={(e) => setDowntimeEnded(e.target.value)} /></div></div><p className="rounded-md bg-warning/10 p-3 text-sm">This records repair completion but does not mark the item compliant. A supervisor must verify it next.</p></>}</div><DialogFooter><Button variant="outline" onClick={() => setShowTransition(false)}>Cancel</Button><Button onClick={submitTransition} disabled={transition.isPending || transitionNotes.trim().length < 3}>{targetStatus === "pending_verification" ? "Submit for verification" : "Save transition"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showTransition} onOpenChange={(open) => { if (!open) { setShowTransition(false); setTransitionNotes(""); setActualCost(""); setDowntimeStarted(""); setDowntimeEnded(""); } else setShowTransition(true); }}><DialogContent><DialogHeader><DialogTitle>{targetStatus === "pending_verification" ? "Complete repair and submit for verification" : `Move to ${humanize(targetStatus)}`}</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-field`}>{targetStatus === "pending_verification" ? "Repair notes *" : "Transition notes *"}</Label><Textarea id={`${__fieldIds}-field`} value={transitionNotes} onChange={(e) => setTransitionNotes(e.target.value)} /></div>{targetStatus === "pending_verification" && <><div><Label htmlFor={`${__fieldIds}-actual-cost`}>Actual cost</Label><Input id={`${__fieldIds}-actual-cost`} type="number" min="0" step="0.01" value={actualCost} onChange={(e) => setActualCost(e.target.value)} /></div><div className="grid grid-cols-2 gap-3"><div><Label htmlFor={`${__fieldIds}-downtime-started`}>Downtime started</Label><Input id={`${__fieldIds}-downtime-started`} type="datetime-local" value={downtimeStarted} onChange={(e) => setDowntimeStarted(e.target.value)} /></div><div><Label htmlFor={`${__fieldIds}-downtime-ended`}>Downtime ended</Label><Input id={`${__fieldIds}-downtime-ended`} type="datetime-local" value={downtimeEnded} onChange={(e) => setDowntimeEnded(e.target.value)} /></div></div><p className="rounded-md bg-warning/10 p-3 text-sm">This records repair completion but does not mark the item compliant. A supervisor must verify it next.</p></>}</div><DialogFooter><Button variant="outline" onClick={() => setShowTransition(false)}>Cancel</Button><Button onClick={submitTransition} disabled={transition.isPending || transitionNotes.trim().length < 3}>{targetStatus === "pending_verification" ? "Submit for verification" : "Save transition"}</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={showVerify} onOpenChange={setShowVerify}><DialogContent><DialogHeader><DialogTitle>Supervisor verification</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-decision`}>Decision</Label><Select value={verificationDecision} onValueChange={(value) => setVerificationDecision(value as typeof verificationDecision)}><SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="verified">Repair verified</SelectItem><SelectItem value="reopened">Return for additional work</SelectItem></SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-verification-findings`}>Verification findings *</Label><Textarea id={`${__fieldIds}-verification-findings`} value={verificationNotes} onChange={(e) => setVerificationNotes(e.target.value)} placeholder="Describe what was inspected and why the repair is accepted or returned" /></div>{verificationDecision === "verified" && asset && <p className="rounded-md bg-success/10 p-3 text-sm">Verification will create a passing follow-up inspection for {asset.label} and restore its compliance status.</p>}</div><DialogFooter><Button variant="outline" onClick={() => setShowVerify(false)}>Cancel</Button><Button onClick={submitVerification} disabled={verify.isPending || verificationNotes.trim().length < 3}>{verificationDecision === "verified" ? "Verify repair" : "Reopen work order"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showVerify} onOpenChange={(open) => { if (!open) { setShowVerify(false); setVerificationNotes(""); setVerificationDecision("verified"); } else setShowVerify(true); }}><DialogContent><DialogHeader><DialogTitle>Supervisor verification</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-decision`}>Decision</Label><Select value={verificationDecision} onValueChange={(value) => setVerificationDecision(value as typeof verificationDecision)}><SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="verified">Repair verified</SelectItem><SelectItem value="reopened">Return for additional work</SelectItem></SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-verification-findings`}>Verification findings *</Label><Textarea id={`${__fieldIds}-verification-findings`} value={verificationNotes} onChange={(e) => setVerificationNotes(e.target.value)} placeholder="Describe what was inspected and why the repair is accepted or returned" /></div>{verificationDecision === "verified" && asset && <p className="rounded-md bg-success/10 p-3 text-sm">Verification will create a passing follow-up inspection for {asset.label} and restore its compliance status.</p>}</div><DialogFooter><Button variant="outline" onClick={() => setShowVerify(false)}>Cancel</Button><Button onClick={submitVerification} disabled={verify.isPending || verificationNotes.trim().length < 3}>{verificationDecision === "verified" ? "Verify repair" : "Reopen work order"}</Button></DialogFooter></DialogContent></Dialog>
 
       <Dialog open={showEdit} onOpenChange={setShowEdit}><DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto"><DialogHeader><DialogTitle>Edit work-order details</DialogTitle></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2"><div><Label htmlFor={`${__fieldIds}-safety-risk`}>Safety risk</Label><Select value={edit.safetyRisk} onValueChange={(value) => setEdit({ ...edit, safetyRisk: value })}><SelectTrigger id={`${__fieldIds}-safety-risk`}><SelectValue /></SelectTrigger><SelectContent>{["none","low","moderate","high","immediate_danger"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-priority`}>Priority</Label><Select value={edit.priority} onValueChange={(value) => setEdit({ ...edit, priority: value })}><SelectTrigger id={`${__fieldIds}-priority`}><SelectValue /></SelectTrigger><SelectContent>{["routine","urgent","emergency"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><EmployeeSearchSelect label="Assigned employee" value={edit.employeeId === "none" ? "" : edit.employeeId} onValueChange={(id) => setEdit({ ...edit, employeeId: id || "none" })} facilityId={order.facility_id} allowEmpty emptyLabel="Unassigned" emptyValue="none" /></div><div><Label htmlFor={`${__fieldIds}-external-vendor`}>External vendor</Label><Input id={`${__fieldIds}-external-vendor`} value={edit.vendor} onChange={(e) => setEdit({ ...edit, vendor: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-room`}>Room</Label><Input id={`${__fieldIds}-room`} value={edit.roomNumber} onChange={(e) => setEdit({ ...edit, roomNumber: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-location-detail`}>Location detail</Label><Input id={`${__fieldIds}-location-detail`} value={edit.locationDetail} onChange={(e) => setEdit({ ...edit, locationDetail: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-target-completion`}>Target completion</Label><Input id={`${__fieldIds}-target-completion`} type="datetime-local" value={edit.target} onChange={(e) => setEdit({ ...edit, target: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-estimated-cost`}>Estimated cost</Label><Input id={`${__fieldIds}-estimated-cost`} type="number" min="0" step="0.01" value={edit.estimatedCost} onChange={(e) => setEdit({ ...edit, estimatedCost: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-temporary-protective-action`}>Temporary protective action</Label><Textarea id={`${__fieldIds}-temporary-protective-action`} value={edit.protectiveAction} onChange={(e) => setEdit({ ...edit, protectiveAction: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-parts-needed`}>Parts needed</Label><Textarea id={`${__fieldIds}-parts-needed`} value={edit.parts} onChange={(e) => setEdit({ ...edit, parts: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-resident-impact`}>Resident impact</Label><Textarea id={`${__fieldIds}-resident-impact`} value={edit.residentImpact} onChange={(e) => setEdit({ ...edit, residentImpact: e.target.value })} /></div></div><DialogFooter><Button variant="outline" onClick={() => setShowEdit(false)}>Cancel</Button><Button onClick={saveDetails} disabled={updateDetails.isPending}>Save changes</Button></DialogFooter></DialogContent></Dialog>
     </div>

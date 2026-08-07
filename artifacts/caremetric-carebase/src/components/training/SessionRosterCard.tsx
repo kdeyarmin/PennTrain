@@ -43,6 +43,8 @@ export function SessionRosterCard({
   classStatus,
   capacity,
   employees,
+  employeesLoading = false,
+  employeesError = false,
   employeeName,
 }: {
   classId: string;
@@ -50,6 +52,8 @@ export function SessionRosterCard({
   capacity: number | null | undefined;
   /** Active employees who could be registered, in display order. */
   employees: { id: string; name: string }[];
+  employeesLoading?: boolean;
+  employeesError?: boolean;
   employeeName: (employeeId: string) => string;
 }) {
   const { toast } = useToast();
@@ -153,14 +157,30 @@ export function SessionRosterCard({
             )}
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <Select value={registering} onValueChange={setRegistering} disabled={!canApprove}>
+            <Select value={registering} onValueChange={setRegistering} disabled={!canApprove || employeesLoading || employeesError}>
               <SelectTrigger id="register-employee" className="sm:w-72">
-                <SelectValue placeholder={registrable.length ? "Pick an employee" : "Everyone is already registered"} />
+                <SelectValue placeholder={
+                  employeesLoading
+                    ? "Loading employees…"
+                    : employeesError
+                      ? "Could not load employees"
+                      : registrable.length
+                        ? "Pick an employee"
+                        : "Everyone is already registered"
+                } />
               </SelectTrigger>
               <SelectContent>
-                {registrable.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.id}>{employee.name}</SelectItem>
-                ))}
+                {employeesLoading ? (
+                  <SelectItem value="none" disabled>Loading employees…</SelectItem>
+                ) : employeesError ? (
+                  <SelectItem value="none" disabled>Could not load employees</SelectItem>
+                ) : registrable.length === 0 ? (
+                  <SelectItem value="none" disabled>Everyone is already registered</SelectItem>
+                ) : (
+                  registrable.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id}>{employee.name}</SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             <Button

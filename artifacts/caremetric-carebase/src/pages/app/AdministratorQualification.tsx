@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, FileCheck2, Send, Upload, Trash2, Download } from "lucide-react";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
-import { facilityToday, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { supabase } from "@/lib/supabase";
 import { QueryError } from "@/components/QueryState";
@@ -103,14 +103,14 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   // someone chasing training that is already on file.
   const qualificationQueries = [profileQuery, ceEntriesQuery, facilitiesQuery];
   const qualificationFailure = qualificationQueries.find((query) => query.isError);
+  const qualificationBusy = qualificationQueries.some((query) => query.isLoading || query.isPending);
 
   const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "" });
   const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
 
   const rollingTotal = useMemo(() => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - ROLLING_WINDOW_DAYS);
-    const cutoffStr = toLocalIsoDate(cutoff);
+    // Trailing window on the Pennsylvania facility calendar — not browser `setDate(-365)`.
+    const cutoffStr = addFacilityCalendarDays(facilityToday(), -ROLLING_WINDOW_DAYS);
     return (ceEntries ?? [])
       .filter((e) => e.completed_date >= cutoffStr)
       .reduce((sum, e) => sum + Number(e.hours), 0);
@@ -190,8 +190,14 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               <CardDescription>Facility-type-specific PCH/ALF qualification, CE, orientation, and designee coverage documentation for inspection binders.</CardDescription>
             </div>
             {!qualificationFailure && (
-              <Badge className={administratorRuleSummary.ready ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
-                {administratorRuleSummary.status.replaceAll("_", " ")}
+              <Badge className={
+                qualificationBusy
+                  ? "bg-muted text-muted-foreground hover:bg-muted"
+                  : administratorRuleSummary.ready
+                    ? "bg-success text-success-foreground hover:bg-success/80"
+                    : "bg-warning text-warning-foreground hover:bg-warning/80"
+              }>
+                {qualificationBusy ? "Loading" : administratorRuleSummary.status.replaceAll("_", " ")}
               </Badge>
             )}
           </div>
@@ -207,7 +213,9 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
             </Select>
           </div>
           <div className="grid gap-2">
-            {administratorRulePack.map((rule) => (
+            {qualificationBusy ? (
+              <p className="text-sm text-muted-foreground py-4">Loading qualification requirements…</p>
+            ) : administratorRulePack.map((rule) => (
               <div key={rule.id} className="rounded-lg border p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -320,8 +328,16 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2"><FileCheck2 className="h-5 w-5" /> Continuing Education</CardTitle>
-            <Badge className={rollingTotal >= ROLLING_WINDOW_HOURS_REQUIRED ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
-              {rollingTotal.toFixed(1)} / {ROLLING_WINDOW_HOURS_REQUIRED} hrs (trailing 12 months)
+            <Badge className={
+              ceEntriesQuery.isLoading || ceEntriesQuery.isPending || ceEntriesQuery.isError
+                ? "bg-muted text-muted-foreground hover:bg-muted"
+                : rollingTotal >= ROLLING_WINDOW_HOURS_REQUIRED
+                  ? "bg-success text-success-foreground hover:bg-success/80"
+                  : "bg-warning text-warning-foreground hover:bg-warning/80"
+            }>
+              {ceEntriesQuery.isLoading || ceEntriesQuery.isPending || ceEntriesQuery.isError
+                ? "—"
+                : `${rollingTotal.toFixed(1)} / ${ROLLING_WINDOW_HOURS_REQUIRED} hrs (trailing 12 months)`}
             </Badge>
           </div>
           <CardDescription>Rolling 24-hour annual CE requirement, with source and documentation captured per entry.</CardDescription>
@@ -357,7 +373,15 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           </div>
 
           <div className="space-y-2 pt-2 border-t">
-            {!ceEntries?.length ? (
+            {ceEntriesQuery.isLoading || ceEntriesQuery.isPending ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Loading CE entries…</p>
+            ) : ceEntriesQuery.isError ? (
+              <QueryError
+                what="CE entries"
+                error={ceEntriesQuery.error}
+                onRetry={() => void ceEntriesQuery.refetch()}
+              />
+            ) : !ceEntries?.length ? (
               <p className="text-sm text-muted-foreground text-center py-4">No CE entries recorded yet.</p>
             ) : (
               ceEntries.map((entry) => (
@@ -368,7 +392,15 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
                   </div>
                   <Button
                     size="icon" variant="ghost" className="h-8 w-8 text-destructive shrink-0"
-                    onClick={() => deleteCeEntry({ id: entry.id, administratorProfileId: entry.administrator_profile_id })}
+                    onClick={() => {
+                      void deleteCeEntry({ id: entry.id, administratorProfileId: entry.administrator_profile_id })
+                        .then(() => toast({ title: "CE entry deleted" }))
+                        .catch((e: unknown) => toast({
+                          variant: "destructive",
+                          title: "Couldn't delete CE entry",
+                          description: e instanceof Error ? e.message : String(e),
+                        }));
+                    }}
                     aria-label="Delete CE entry"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

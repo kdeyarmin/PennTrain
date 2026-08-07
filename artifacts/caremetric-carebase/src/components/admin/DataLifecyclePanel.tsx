@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Archive, Scale } from "lucide-react";
+import { facilityDateRangeBounds } from "@/lib/dateUtils";
 
 export function DataLifecyclePanel() {
   const __fieldIds = useId();
@@ -49,11 +50,16 @@ export function DataLifecyclePanel() {
   );
 
   const activeHolds = (holdsQ.data ?? []).filter((h) => !h.released_at);
+  const holdsUnavailable = holdsQ.isLoading || holdsQ.isError;
+  const statusUnavailable = statusQ.isLoading;
 
-  // The date inputs give calendar days; the RPC takes instants. Taking the whole of the end day
-  // rather than its midnight means "to 31 January" includes 31 January, which is what it reads as.
+  // Date inputs are facility calendar days. Bound with Pennsylvania midnight instants —
+  // UTC `T00:00Z` / `T23:59Z` cut the PA evening off the "To" day.
   const archiveRange = archiveFrom && archiveTo
-    ? { from: `${archiveFrom}T00:00:00.000Z`, to: `${archiveTo}T23:59:59.999Z` }
+    ? (() => {
+        const bounds = facilityDateRangeBounds(archiveFrom, archiveTo);
+        return { from: bounds.from, to: bounds.through };
+      })()
     : null;
   const archiveScopeOrgId = archiveOrgId === "all" ? null : archiveOrgId;
   const manifestQ = useAuditExportManifest({
@@ -142,7 +148,7 @@ export function DataLifecyclePanel() {
           <CardContent className="flex items-center gap-3 p-5">
             <Scale className="h-7 w-7 text-violet-600" />
             <div>
-              <p className="text-2xl font-bold">{activeHolds.length}</p>
+              <p className="text-2xl font-bold">{holdsUnavailable ? "—" : activeHolds.length}</p>
               <p className="text-sm text-muted-foreground">Active audit legal holds</p>
             </div>
           </CardContent>
@@ -151,7 +157,7 @@ export function DataLifecyclePanel() {
           <CardContent className="flex items-center gap-3 p-5">
             <Archive className="h-7 w-7 text-blue-600" />
             <div>
-              <p className="text-2xl font-bold">{statusQ.data?.archiveRows ?? 0}</p>
+              <p className="text-2xl font-bold">{statusUnavailable ? "—" : (statusQ.data?.archiveRows ?? 0)}</p>
               <p className="text-sm text-muted-foreground">Archived retained rows</p>
             </div>
           </CardContent>
@@ -160,7 +166,7 @@ export function DataLifecyclePanel() {
           <CardContent className="flex items-center gap-3 p-5">
             <Archive className="h-7 w-7 text-slate-600" />
             <div>
-              <p className="text-2xl font-bold">{statusQ.data?.policies?.length ?? 0}</p>
+              <p className="text-2xl font-bold">{statusUnavailable ? "—" : (statusQ.data?.policies?.length ?? 0)}</p>
               <p className="text-sm text-muted-foreground">Active lifecycle policies</p>
             </div>
           </CardContent>

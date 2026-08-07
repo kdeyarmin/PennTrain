@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { formatDateForDisplay, facilityYear } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -144,7 +144,7 @@ function EnrollCohortDialog({
                 </div>
               ) : (
                 <Select value={classId} onValueChange={setClassId}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Class">
                     <SelectValue placeholder="Choose a class" />
                   </SelectTrigger>
                   <SelectContent>
@@ -251,7 +251,7 @@ export default function RetrainingMonitor() {
   const facilitiesQuery = useListFacilities();
   // Only active med-admin staff -- matches what buildFacilityRetrainingStatus counts.
   const employeesQuery = useListEmployees({ status: "active", administersMedications: true });
-  const practicumsQuery = useListPracticums({ year: new Date().getFullYear() });
+  const practicumsQuery = useListPracticums({ year: facilityYear() });
   const { data: facilities, isLoading: facilitiesLoading } = facilitiesQuery;
   const { data: employees, isLoading: employeesLoading } = employeesQuery;
   const { data: practicums, isLoading: practicumsLoading } = practicumsQuery;
@@ -350,7 +350,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <Building2 className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{totalFacilities}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : totalFacilities}</p>
               <p className="text-sm text-muted-foreground">Total Facilities</p>
             </div>
           </CardContent>
@@ -359,7 +359,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <ShieldCheck className="h-8 w-8 text-green-600" />
             <div>
-              <p className="text-2xl font-bold">{compliantFacilities}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : compliantFacilities}</p>
               <p className="text-sm text-muted-foreground">Fully Compliant</p>
             </div>
           </CardContent>
@@ -368,7 +368,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <AlertTriangle className="h-8 w-8 text-red-600" />
             <div>
-              <p className="text-2xl font-bold">{criticalFacilities}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : criticalFacilities}</p>
               <p className="text-sm text-muted-foreground">Need Attention</p>
             </div>
           </CardContent>
@@ -377,7 +377,7 @@ export default function RetrainingMonitor() {
           <CardContent className="flex items-center gap-3 pt-6">
             <Users className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-2xl font-bold">{totalCandidates}</p>
+              <p className="text-2xl font-bold">{primaryError || isLoading ? "—" : totalCandidates}</p>
               <p className="text-sm text-muted-foreground">Staff to enroll</p>
             </div>
           </CardContent>

@@ -54,6 +54,22 @@ export function addFacilityCalendarDays(isoDate: string, days: number): string {
 }
 
 /**
+ * Advance (or rewind) a facility `YYYY-MM-DD` by whole calendar years, preserving month/day when
+ * possible. Feb 29 clamps to Feb 28 in non-leap years. Prefer this over `addFacilityCalendarDays(..., 365)`
+ * for annual review anniversaries that must not drift across leap day.
+ */
+export function addFacilityCalendarYears(isoDate: string, years: number): string {
+  const match = DATE_ONLY_PATTERN.exec(isoDate);
+  if (!match) throw new Error(`expected YYYY-MM-DD, got ${isoDate}`);
+  const year = Number(match[1]) + years;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfMonth);
+  return `${year}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
+}
+
+/**
  * Offset of `timeZone` relative to UTC at the given instant, in milliseconds
  * (positive when the zone is ahead of UTC). Used only to invert wall-clock
  * facility times into UTC instants for timestamptz range filters.
@@ -138,6 +154,33 @@ export function toDateTimeLocal(value: Date | string = new Date()): string {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
+/**
+ * Convert a Date or ISO timestamp to a Pennsylvania facility-wall-clock `YYYY-MM-DDTHH:mm`
+ * string for `<input type="datetime-local">`. Pair with `facilityDateTimeLocalToUtcIso` on
+ * submit — `toDateTimeLocal` answers in the browser zone, which is the wrong default when the
+ * field is later interpreted as America/New_York.
+ */
+export function toFacilityDateTimeLocal(value: Date | string = new Date()): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) throw new Error(`invalid datetime: ${String(value)}`);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: FACILITY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+/** Pennsylvania calendar year — the twin of `facilityToday().slice(0, 4)`. */
+export function facilityYear(now = new Date()): number {
+  return Number(facilityToday(now).slice(0, 4));
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -190,9 +233,13 @@ export function facilityDaysUntil(value: string | null | undefined, now = new Da
 /**
  * Short urgency phrase meant to follow an absolute due date, e.g. "Due Jul 15, 2026 · in 3
  * days" / "· today" / "· 2 days overdue". Returns null when there is no usable date.
+ *
+ * Uses the Pennsylvania facility calendar (`facilityDaysUntil`) so the phrase agrees with
+ * `pa_today()` and the numeric due-tone styling beside it. Bare Postgres `date` values only —
+ * timestamps fall through to null (callers should pass the calendar date column).
  */
-export function formatDueDistance(value: string | null | undefined, today = new Date()): string | null {
-  const days = daysUntil(value, today);
+export function formatDueDistance(value: string | null | undefined, now = new Date()): string | null {
+  const days = facilityDaysUntil(value, now);
   if (days === null) return null;
   if (days < 0) return days === -1 ? "1 day overdue" : `${-days} days overdue`;
   if (days === 0) return "today";
@@ -215,4 +262,24 @@ export function formatDateForDisplay(
 
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString(locale, match ? { ...options, timeZone: "UTC" } : options);
+}
+
+/**
+ * Format a timestamptz as a Pennsylvania facility wall-clock time. Pair with `facilityToday(...)`
+ * day headings so agenda rows do not show browser-local clock times under Eastern day groups.
+ */
+export function formatFacilityTimeForDisplay(
+  value: string | Date | null | undefined,
+  options?: Intl.DateTimeFormatOptions,
+  locale = "en-US",
+): string {
+  if (!value) return "—";
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: FACILITY_TIME_ZONE,
+    ...options,
+  });
 }

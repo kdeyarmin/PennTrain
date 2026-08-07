@@ -7,6 +7,8 @@
  * and this file is the bug.
  */
 
+import { facilityToday } from "@/lib/dateUtils";
+
 export type SupportPlanState =
   | "draft"
   | "awaiting_clinical_review"
@@ -285,17 +287,15 @@ export function summarizePlanDiff(diff: PlanVersionDiff): string {
  *
  * Mirrors the server's condition in `activate_due_support_plan` rather than re-deciding it: the
  * server refuses a plan that is not yet due, so a UI that offered the action more widely would only
- * produce errors. Date-only comparison, matching the server's `effective_date <= current_date`.
+ * produce errors. Date-only comparison against the Pennsylvania facility calendar
+ * (`facilityToday` / `pa_today()`), matching the server's `effective_date <= current_date`.
  */
 export function isActivationOverdue(
   effectiveDate: string | null | undefined,
-  today: Date = new Date(),
+  today: string = facilityToday(),
 ): boolean {
   if (!effectiveDate) return false;
-  const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  // Split rather than `new Date(effectiveDate)`: a bare "YYYY-MM-DD" parses as UTC midnight, which
-  // is the previous day west of Greenwich -- so a plan effective today would read as overdue.
-  const [year, month, day] = effectiveDate.slice(0, 10).split("-").map(Number);
-  if (!year || !month || !day) return false;
-  return new Date(year, month - 1, day) <= localToday;
+  const effectiveIso = effectiveDate.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveIso)) return false;
+  return effectiveIso <= today;
 }

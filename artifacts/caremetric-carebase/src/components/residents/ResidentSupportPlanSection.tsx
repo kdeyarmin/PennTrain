@@ -20,7 +20,7 @@ import {
   type ResidentSupportPlan,
   type SupportPlanProposal,
 } from "@/hooks/useResidentCareDelivery";
-import { facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarYears, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -212,9 +212,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   );
 
   function oneYearOut(from: string): string {
-    const d = new Date(`${from}T00:00:00`);
-    d.setFullYear(d.getFullYear() + 1);
-    return toLocalIsoDate(d);
+    return addFacilityCalendarYears(from, 1);
   }
 
   async function startDraft() {
@@ -346,6 +344,8 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       toast({ title: "Participation recorded", description: "The plan now awaits signature." });
       setParticipationFor(null);
       setParticipationNotes("");
+      setResidentTookPart(true);
+      setDesignatedTookPart(false);
     } catch (e) {
       toast({ title: "Could not record participation", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
@@ -361,9 +361,23 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       toast({ title: "Signature outcome recorded" });
       setSignatureFor(null);
       setSignatureNote("");
+      setSignatureOutcome("signed");
     } catch (e) {
       toast({ title: "Could not record the signature", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
+  }
+
+  function closeParticipation() {
+    setParticipationFor(null);
+    setParticipationNotes("");
+    setResidentTookPart(true);
+    setDesignatedTookPart(false);
+  }
+
+  function closeSignature() {
+    setSignatureFor(null);
+    setSignatureNote("");
+    setSignatureOutcome("signed");
   }
 
   return (
@@ -387,7 +401,15 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Proposals needing review (conflict warnings surfaced) */}
-        {openProposals.length > 0 && (
+        {proposalsQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading proposals…</p>
+        ) : proposalsQuery.isError ? (
+          <QueryError
+            what="support plan proposals"
+            error={proposalsQuery.error}
+            onRetry={() => void proposalsQuery.refetch()}
+          />
+        ) : openProposals.length > 0 ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold">Proposals awaiting review</p>
             {openProposals.map((proposal) => {
@@ -417,7 +439,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
               );
             })}
           </div>
-        )}
+        ) : null}
 
         {/* Plan versions */}
         {plansQuery.isLoading ? (
@@ -446,7 +468,11 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                       )}
                     </button>
                     {plan.state === "active" && (
-                      acknowledgedPlanIds.has(plan.id) ? (
+                      acknowledgments.isLoading ? (
+                        <span className="text-xs text-muted-foreground">Checking acknowledgment…</span>
+                      ) : acknowledgments.isError ? (
+                        <span className="text-xs text-destructive">Couldn't load acknowledgments</span>
+                      ) : acknowledgedPlanIds.has(plan.id) ? (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <BookOpenCheck className="h-3.5 w-3.5" />You have read this version
                         </span>
@@ -465,8 +491,18 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                     {canManage && (
                       <div className="flex gap-1.5">
                         {plan.state === "draft" && <Button size="sm" variant="outline" onClick={() => submit(plan)} disabled={submitPlan.isPending || !planHasContent(plan)} title={!planHasContent(plan) ? "Add plan content before submitting" : undefined}>Submit for review</Button>}
-                        {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => { setParticipationFor(plan); setParticipationDate(facilityToday()); }}>Record participation</Button>}
-                        {plan.state === "awaiting_signature" && <Button size="sm" variant="outline" onClick={() => setSignatureFor(plan)}>Record signature</Button>}
+                        {plan.state === "awaiting_participation" && <Button size="sm" onClick={() => {
+                          setParticipationNotes("");
+                          setResidentTookPart(true);
+                          setDesignatedTookPart(false);
+                          setParticipationDate(facilityToday());
+                          setParticipationFor(plan);
+                        }}>Record participation</Button>}
+                        {plan.state === "awaiting_signature" && <Button size="sm" variant="outline" onClick={() => {
+                          setSignatureOutcome("signed");
+                          setSignatureNote("");
+                          setSignatureFor(plan);
+                        }}>Record signature</Button>}
                         {(plan.state === "awaiting_signature" || plan.state === "approved") && <Button size="sm" onClick={() => openApprove(plan)}>Approve</Button>}
                         {/* Only when the date has actually passed. An approved plan effective next
                             Monday shows nothing here -- the scheduled job owns that, and offering a
@@ -509,7 +545,15 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                       {plan.state === "active" && (
                         <div className="border-t pt-2">
                           <p className="text-xs font-medium text-muted-foreground">Read by</p>
-                          {acknowledgmentsForEffective.length === 0 ? (
+                          {acknowledgments.isLoading ? (
+                            <p className="text-sm text-muted-foreground">Loading acknowledgments…</p>
+                          ) : acknowledgments.isError ? (
+                            <QueryError
+                              what="acknowledgments"
+                              error={acknowledgments.error}
+                              onRetry={() => void acknowledgments.refetch()}
+                            />
+                          ) : acknowledgmentsForEffective.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
                               Nobody has acknowledged this version yet.
                             </p>
@@ -518,7 +562,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                               {acknowledgmentsForEffective.map((row) => (
                                 <li key={row.id} className="text-muted-foreground">
                                   {profileName(row.profile_id)}
-                                  {" · "}{formatDateForDisplay(toLocalIsoDate(new Date(row.acknowledged_at)))}
+                                  {" · "}{formatDateForDisplay(facilityToday(new Date(row.acknowledged_at)))}
                                   {row.note ? ` — ${row.note}` : ""}
                                 </li>
                               ))}
@@ -624,7 +668,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!participationFor} onOpenChange={(open) => !open && setParticipationFor(null)}>
+      <Dialog open={!!participationFor} onOpenChange={(open) => { if (!open) closeParticipation(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record participation</DialogTitle>
@@ -652,7 +696,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setParticipationFor(null)}>Cancel</Button>
+            <Button variant="outline" onClick={closeParticipation}>Cancel</Button>
             <Button onClick={saveParticipation} disabled={recordParticipation.isPending || !participationDate}>
               {recordParticipation.isPending ? "Saving..." : "Record participation"}
             </Button>
@@ -660,7 +704,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!signatureFor} onOpenChange={(open) => !open && setSignatureFor(null)}>
+      <Dialog open={!!signatureFor} onOpenChange={(open) => { if (!open) closeSignature(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record signature outcome</DialogTitle>
@@ -688,7 +732,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSignatureFor(null)}>Cancel</Button>
+            <Button variant="outline" onClick={closeSignature}>Cancel</Button>
             <Button onClick={saveSignature} disabled={recordSignature.isPending}>
               {recordSignature.isPending ? "Saving..." : "Record outcome"}
             </Button>

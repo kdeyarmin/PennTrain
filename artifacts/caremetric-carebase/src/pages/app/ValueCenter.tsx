@@ -65,7 +65,7 @@ import {
   isCustomerValueBaselineValid,
   type CustomerValueBaselineForm,
 } from "@/lib/customerValueBaseline";
-import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import {
   implementationTaskNeedsAttention,
   implementationTaskRoute,
@@ -449,7 +449,7 @@ export default function ValueCenter() {
         </div>
         <div className="flex gap-2 print:hidden">
           <Select value={facilityId} onValueChange={setSelectedFacilityId}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger className="w-56" aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>
               {facilities.data?.map(facility => (
                 <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
@@ -770,7 +770,7 @@ export default function ValueCenter() {
                       title: `Documentation request ${(room.requests?.length ?? 0) + 1}`,
                       description: "Collect, verify, and attach the requested inspection documentation.",
                       priority: "high",
-                      dueAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+                      dueAt: facilityDayBounds(addFacilityCalendarDays(facilityToday(), 2)).through,
                     }), "Documentation request added")}
                   >
                     <Plus className="mr-2 h-4 w-4" /> Add request
@@ -1156,7 +1156,11 @@ export default function ValueCenter() {
                 <CardDescription>Connect pipeline conversion, referral sources, move-in readiness, and bed inventory.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                {admissions.data?.referralSources.length ? admissions.data.referralSources.map(source => (
+                {admissions.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading referral sources…</p>
+                ) : admissions.isError ? (
+                  <QueryError what="referral sources" error={admissions.error} onRetry={() => void admissions.refetch()} />
+                ) : admissions.data?.referralSources.length ? admissions.data.referralSources.map(source => (
                   <div key={source.source} className="grid grid-cols-4 gap-2 rounded border p-3 text-sm">
                     <span className="col-span-2 font-medium">{source.source}</span>
                     <span>{source.inquiries} inquiries</span>

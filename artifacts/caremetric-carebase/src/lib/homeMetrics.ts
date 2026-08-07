@@ -1,3 +1,5 @@
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "./dateUtils";
+
 /**
  * Home surface metric definitions (program plan Phase 7b, request item 16).
  *
@@ -145,15 +147,13 @@ export interface HomeMetric extends HomeMetricDefinition {
 /** Work states that mean the item is no longer somebody's to do. Matches `get_work_item_queue`. */
 const CLOSED_STATES = new Set(["closed", "canceled"]);
 
-function endOfToday(now: Date): number {
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  return end.getTime();
-}
-
 export function buildHomeMetrics(input: HomeMetricInput): HomeMetric[] {
   const now = input.now ?? new Date();
   const scopeLabel = input.facilityName ?? "all permitted facilities";
+  const today = facilityToday(now);
+  // Half-open facility bounds: due today / this week means before facility midnight after the window.
+  const dueTodayThroughMs = Date.parse(facilityDayBounds(today).through);
+  const dueWeekThroughMs = Date.parse(facilityDayBounds(addFacilityCalendarDays(today, 7)).through);
 
   const active = input.workItems.filter((item) => !CLOSED_STATES.has(item.state));
   const dueAt = (item: HomeWorkItemLike) => Date.parse(item.due_at);
@@ -164,11 +164,11 @@ export function buildHomeMetrics(input: HomeMetricInput): HomeMetric[] {
   }).length;
   const dueToday = active.filter((item) => {
     const due = dueAt(item);
-    return Number.isFinite(due) && due <= endOfToday(now);
+    return Number.isFinite(due) && due < dueTodayThroughMs;
   }).length;
   const dueThisWeek = active.filter((item) => {
     const due = dueAt(item);
-    return Number.isFinite(due) && due <= now.getTime() + 7 * 86_400_000;
+    return Number.isFinite(due) && due < dueWeekThroughMs;
   }).length;
   const urgent = active.filter((item) => item.priority === "urgent").length;
 

@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ClipboardCheck, Copy, Download, FileArchive, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import { Link } from "wouter";
-import { facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { buildBestAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
@@ -102,7 +102,8 @@ export default function InspectionReadiness() {
     { facilityId: activeFacilityId || undefined },
     { enabled: facilityListsEnabled },
   );
-  const { data: trainingTypes } = useListTrainingTypes();
+  const trainingTypesQuery = useListTrainingTypes();
+  const { data: trainingTypes } = trainingTypesQuery;
   const credentialsQuery = useListEmployeeCredentials(
     { facilityId: activeFacilityId || undefined },
     { enabled: facilityListsEnabled },
@@ -154,6 +155,12 @@ export default function InspectionReadiness() {
     administratorProfilesQuery, administratorCeEntriesQuery,
   ].find((query) => query.isError);
 
+  const specialCareSourceFailure = [
+    unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery, trainingTypesQuery,
+  ].find((query) => query.isError);
+  const specialCareBusy = [unitsQuery, residentsQuery, schedulePreferencesQuery, trainingRecordsQuery, trainingTypesQuery]
+    .some((query) => query.isLoading || (query.data === undefined && (query.isPending || query.isFetching)));
+
 
   const overall = useMemo(() => {
     if (!breakdown) return null;
@@ -176,7 +183,7 @@ export default function InspectionReadiness() {
   }, [breakdown]);
 
   const today = facilityToday();
-  const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+  const oneYearAgo = facilityDayBounds(addFacilityCalendarDays(today, -365)).from;
   const activeFacility = facilities?.find((facility) => facility.id === activeFacilityId);
   const specialCareSummary = useMemo(() => buildSpecialCareComplianceSummary({
     units: units ?? [],
@@ -401,7 +408,7 @@ export default function InspectionReadiness() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={activeFacilityId} onValueChange={setFacilityId}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="Select facility" /></SelectTrigger>
+            <SelectTrigger className="w-56" aria-label="Facility"><SelectValue placeholder="Select facility" /></SelectTrigger>
             <SelectContent>{(facilities ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
           </Select>
           <Button asChild variant="outline">
@@ -542,26 +549,44 @@ export default function InspectionReadiness() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-4">
+            {specialCareSourceFailure ? (
+              <div className="md:col-span-4">
+                <QueryError
+                  what="special-care designation data"
+                  error={specialCareSourceFailure.error}
+                  onRetry={() => {
+                    void unitsQuery.refetch();
+                    void residentsQuery.refetch();
+                    void schedulePreferencesQuery.refetch();
+                    void trainingRecordsQuery.refetch();
+                    void trainingTypesQuery.refetch();
+                  }}
+                />
+              </div>
+            ) : (
+              <>
             <div>
-              <p className="text-2xl font-bold">{specialCareSummary.designatedUnits.length}</p>
+              <p className="text-2xl font-bold">{specialCareBusy ? "—" : specialCareSummary.designatedUnits.length}</p>
               <p className="text-xs text-muted-foreground">designated unit(s)</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{specialCareSummary.residentPlacements}</p>
+              <p className="text-2xl font-bold">{specialCareBusy ? "—" : specialCareSummary.residentPlacements}</p>
               <p className="text-xs text-muted-foreground">resident placement(s)</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{specialCareSummary.staffingGapCount}</p>
+              <p className="text-2xl font-bold">{specialCareBusy ? "—" : specialCareSummary.staffingGapCount}</p>
               <p className="text-xs text-muted-foreground">training/staffing gap(s)</p>
             </div>
             <div>
-              <Badge variant={specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
-                {specialCareSummary.status.replaceAll("_", " ")}
+              <Badge variant={!specialCareBusy && specialCareSummary.status === "needs_attention" ? "destructive" : "outline"} className="capitalize">
+                {specialCareBusy ? "Loading" : specialCareSummary.status.replaceAll("_", " ")}
               </Badge>
               <p className="mt-2 text-xs text-muted-foreground">
                 Uses unit designation, SDCU resident placement, schedule preferences, and dementia/special-care training records.
               </p>
             </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

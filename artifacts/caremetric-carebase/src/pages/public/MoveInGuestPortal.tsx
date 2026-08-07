@@ -137,7 +137,12 @@ export default function MoveInGuestPortal() {
                     {task.signed ? (
                       <Badge className="bg-emerald-100 text-emerald-900"><CheckCircle2 className="mr-1 h-3 w-3" />Signed</Badge>
                     ) : task.requiresSignature ? (
-                      <Button size="sm" onClick={() => setTaskId(task.id)}>Review and sign</Button>
+                      <Button size="sm" onClick={() => {
+                        setSignerName("");
+                        setRelationship("");
+                        setAttestation("");
+                        setTaskId(task.id);
+                      }}>Review and sign</Button>
                     ) : (
                       <Badge variant="outline">{task.state.replace(/_/g, " ")}</Badge>
                     )}
@@ -150,7 +155,14 @@ export default function MoveInGuestPortal() {
         )}
       </div>
 
-      <Dialog open={!!taskId} onOpenChange={open => !open && setTaskId("")}>
+      <Dialog open={!!taskId} onOpenChange={open => {
+        if (!open) {
+          setTaskId("");
+          setSignerName("");
+          setRelationship("");
+          setAttestation("");
+        }
+      }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Electronic signature</DialogTitle><DialogDescription>Your name, relationship, timestamp, authentication method, and attestation become part of the admission record.</DialogDescription></DialogHeader>
           <div className="space-y-3">
@@ -159,7 +171,7 @@ export default function MoveInGuestPortal() {
             <div className="space-y-1"><Label htmlFor={`${__fieldIds}-attestation`}>Attestation *</Label><Textarea id={`${__fieldIds}-attestation`} value={attestation} onChange={event => setAttestation(event.target.value)} placeholder="I reviewed and agree to this admission item..." /></div>
             {sign.isError && <p className="text-sm text-destructive">{sign.error.message}</p>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setTaskId("")}>Cancel</Button><Button disabled={signerName.trim().length < 2 || relationship.trim().length < 2 || attestation.trim().length < 5 || sign.isPending} onClick={signTask}>{sign.isPending ? "Signing..." : "Sign electronically"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => { setTaskId(""); setSignerName(""); setRelationship(""); setAttestation(""); }}>Cancel</Button><Button disabled={signerName.trim().length < 2 || relationship.trim().length < 2 || attestation.trim().length < 5 || sign.isPending} onClick={signTask}>{sign.isPending ? "Signing..." : "Sign electronically"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

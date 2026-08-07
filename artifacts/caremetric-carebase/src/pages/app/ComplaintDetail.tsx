@@ -2,7 +2,7 @@ import { useId, useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, MessageSquareText, Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityDateTimeToUtc, facilityToday, toDateTimeLocal } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import {
   useAddComplaintCorrectiveAction,
   useAddComplaintInterview,
@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const local = (value: string | null) => value ? toDateTimeLocal(new Date(value)) : "";
+const local = (value: string | null) => value ? toFacilityDateTimeLocal(value) : "";
 const iso = (value: string) => value ? facilityDateTimeLocalToUtcIso(value) : undefined;
 
 export default function ComplaintDetail() {
@@ -93,7 +93,21 @@ export default function ComplaintDetail() {
     onSuccess: () => { toast({ title: status === "closed" ? "Complaint closed with approval" : "Complaint case updated" }); setReason(""); },
     onError: (error: Error) => toast({ title: "Could not update complaint", description: error.message, variant: "destructive" }),
   });
-  const openActions = (activity.data?.actions ?? []).filter(action => action.work_item && !["closed", "canceled"].includes(action.work_item.state));
+  // Activity load failure must not score as "no open actions" / monitoring satisfied — that is
+  // ready-on-error for a database-enforced closure checklist.
+  const activityReady = !activity.isError && activity.data !== undefined;
+  const openActions = activityReady
+    ? activity.data.actions.filter(action => action.work_item && !["closed", "canceled"].includes(action.work_item.state))
+    : null;
+  const monitoringEntries = activityReady ? activity.data.monitoring.length : null;
+  let monitoringUntilElapsed = false;
+  if (monitoringUntil) {
+    try {
+      monitoringUntilElapsed = new Date(facilityDateTimeLocalToUtcIso(monitoringUntil)).getTime() <= Date.now();
+    } catch {
+      monitoringUntilElapsed = false;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -101,13 +115,18 @@ export default function ComplaintDetail() {
       {c.incident && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Reportable incident workflow linked</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{humanizeComplaint(c.incident.incident_type)} · {humanizeComplaint(c.incident.severity)} · {humanizeComplaint(c.incident.status)}</span><Button asChild size="sm" variant="outline"><Link href={`/app/incidents/${c.incident.id}`}>Open incident</Link></Button></AlertDescription></Alert>}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2"><CardHeader><CardTitle>Complaint intake</CardTitle></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Complainant</p><p className="font-medium">{c.is_anonymous ? "Anonymous" : c.complainant_name}</p><p className="text-sm text-muted-foreground">{humanizeComplaint(c.complainant_type)} · {humanizeComplaint(c.method_received)}</p></div><div><p className="text-xs text-muted-foreground">Resident</p><p className="font-medium">{c.resident ? `${c.resident.first_name} ${c.resident.last_name}` : "No resident linked"}</p><p className="text-sm text-muted-foreground">{c.resident?.room ? `Room ${c.resident.room}` : ""}</p></div><div><p className="text-xs text-muted-foreground">Category</p><p className="font-medium">{humanizeComplaint(c.category)}</p></div><div><p className="text-xs text-muted-foreground">Immediate risk</p><Badge variant={["high", "imminent"].includes(c.immediate_risk) ? "destructive" : "outline"}>{humanizeComplaint(c.immediate_risk)}</Badge></div></div><div><p className="text-xs text-muted-foreground">Concern</p><p className="whitespace-pre-wrap text-sm">{c.description}</p></div>{c.immediate_action_taken && <div><p className="text-xs text-muted-foreground">Immediate protective action</p><p className="whitespace-pre-wrap text-sm">{c.immediate_action_taken}</p></div>}{c.reportable_concerns.length > 0 && <div><p className="text-xs text-muted-foreground">Reportability indicators</p><div className="mt-1 flex flex-wrap gap-1">{c.reportable_concerns.map(value => <Badge key={value} variant="destructive">{humanizeComplaint(value)}</Badge>)}</div></div>}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Closure readiness</CardTitle><CardDescription>Database-enforced requirements</CardDescription></CardHeader><CardContent className="space-y-2 text-sm">{[
+        <Card><CardHeader><CardTitle>Closure readiness</CardTitle><CardDescription>Database-enforced requirements</CardDescription></CardHeader><CardContent className="space-y-2 text-sm">
+          {activity.isError && (
+            <QueryError what="closure activity" error={activity.error} onRetry={() => void activity.refetch()} />
+          )}
+          {[
           [!!acknowledgement, "Acknowledgement recorded"], [investigator !== "none", "Investigator assigned"],
           [notes.trim().length >= 10, "Investigation notes complete"], [findings.trim().length >= 10, "Findings complete"],
           [writtenResponse.trim().length >= 10 && !!writtenResponseDate, "Written response recorded"],
-          [openActions.length === 0, "Corrective actions complete"],
-          [!monitoringRequired || (!!monitoringUntil && new Date(monitoringUntil) <= new Date() && (activity.data?.monitoring.length ?? 0) > 0), "Nonretaliation monitoring complete"],
-        ].map(([ready, label]) => <div key={String(label)} className="flex items-center gap-2">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span>{String(label)}</span></div>)}</CardContent></Card>
+          [openActions === null ? null : openActions.length === 0, "Corrective actions complete"],
+          [monitoringEntries === null ? null : (!monitoringRequired || (!!monitoringUntil && monitoringUntilElapsed && monitoringEntries > 0)), "Nonretaliation monitoring complete"],
+        ].map(([ready, label]) => <div key={String(label)} className="flex items-center gap-2">{ready === null ? <AlertTriangle className="h-4 w-4 text-muted-foreground" /> : ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className={ready === null ? "text-muted-foreground" : undefined}>{String(label)}{ready === null ? " (unavailable)" : ""}</span></div>)}
+        </CardContent></Card>
       </div>
 
       <Card><CardHeader><CardTitle>Investigation, response & closure</CardTitle><CardDescription>Auditors can review this record; only authorized managers can change it.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
@@ -131,11 +150,11 @@ export default function ComplaintDetail() {
       </CardContent></Card>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><MessageSquareText className="h-5 w-5" />Interviews</CardTitle><CardDescription>Append-only investigation documentation</CardDescription></div>{canManage && <Button size="sm" onClick={() => setInterviewOpen(true)}><Plus className="h-4 w-4" /></Button>}</CardHeader><CardContent className="space-y-3">{activity.isError ? <QueryError what="interviews" error={activity.error} onRetry={() => void activity.refetch()} /> : !activity.data?.interviews.length ? <p className="text-sm text-muted-foreground">No interviews recorded.</p> : activity.data.interviews.map(item => <div key={item.id} className="rounded border p-3"><p className="font-medium">{item.person_name}</p><p className="text-xs text-muted-foreground">{item.relationship_to_case} · {new Date(item.interviewed_at).toLocaleString()}</p><p className="mt-2 text-sm">{item.notes}</p></div>)}</CardContent></Card>
-        <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" />Corrective actions</CardTitle><CardDescription>Owned in Operational Work</CardDescription></div>{canManage && <Button size="sm" onClick={() => setActionOpen(true)}><Plus className="h-4 w-4" /></Button>}</CardHeader><CardContent className="space-y-3">{activity.isError ? <QueryError what="corrective actions" error={activity.error} onRetry={() => void activity.refetch()} /> : !activity.data?.actions.length ? <p className="text-sm text-muted-foreground">No corrective actions assigned.</p> : activity.data.actions.map(item => <div key={item.id} className="rounded border p-3"><p className="font-medium">{item.work_item?.title}</p><p className="text-xs text-muted-foreground">Due {item.work_item ? new Date(item.work_item.due_at).toLocaleString() : "—"}</p><div className="mt-2 flex items-center justify-between"><Badge variant="outline">{humanizeComplaint(item.work_item?.state ?? "unknown")}</Badge>{item.work_item && <Button asChild size="sm" variant="outline"><Link href={`/app/work/${item.work_item.id}`}>Open</Link></Button>}</div></div>)}</CardContent></Card>
-        <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Nonretaliation monitoring</CardTitle><CardDescription>Append-only observations</CardDescription></div>{canManage && <Button size="sm" onClick={() => setMonitoringOpen(true)}><Plus className="h-4 w-4" /></Button>}</CardHeader><CardContent className="space-y-3">{activity.isError ? <QueryError what="monitoring entries" error={activity.error} onRetry={() => void activity.refetch()} /> : !activity.data?.monitoring.length ? <p className="text-sm text-muted-foreground">No monitoring entries recorded.</p> : activity.data.monitoring.map(item => <div key={item.id} className="rounded border p-3"><div className="flex justify-between gap-2"><p className="text-xs text-muted-foreground">{new Date(item.observed_at).toLocaleString()}</p>{item.retaliation_concern_identified && <Badge variant="destructive">Concern identified</Badge>}</div><p className="mt-2 text-sm">{item.observations}</p>{item.action_taken && <p className="mt-1 text-xs">Action: {item.action_taken}</p>}</div>)}</CardContent></Card>
+        <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><MessageSquareText className="h-5 w-5" />Interviews</CardTitle><CardDescription>Append-only investigation documentation</CardDescription></div>{canManage && <Button size="sm" onClick={() => setInterviewOpen(true)}><Plus className="h-4 w-4" /></Button>}</CardHeader><CardContent className="space-y-3">{activity.isError ? <QueryError what="interviews" error={activity.error} onRetry={() => void activity.refetch()} /> : activity.isLoading ? <p className="text-sm text-muted-foreground">Loading interviews…</p> : !activity.data?.interviews.length ? <p className="text-sm text-muted-foreground">No interviews recorded.</p> : activity.data.interviews.map(item => <div key={item.id} className="rounded border p-3"><p className="font-medium">{item.person_name}</p><p className="text-xs text-muted-foreground">{item.relationship_to_case} · {new Date(item.interviewed_at).toLocaleString()}</p><p className="mt-2 text-sm">{item.notes}</p></div>)}</CardContent></Card>
+        <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" />Corrective actions</CardTitle><CardDescription>Owned in Operational Work</CardDescription></div>{canManage && <Button size="sm" onClick={() => setActionOpen(true)}><Plus className="h-4 w-4" /></Button>}</CardHeader><CardContent className="space-y-3">{activity.isError ? <QueryError what="corrective actions" error={activity.error} onRetry={() => void activity.refetch()} /> : activity.isLoading ? <p className="text-sm text-muted-foreground">Loading corrective actions…</p> : !activity.data?.actions.length ? <p className="text-sm text-muted-foreground">No corrective actions assigned.</p> : activity.data.actions.map(item => <div key={item.id} className="rounded border p-3"><p className="font-medium">{item.work_item?.title}</p><p className="text-xs text-muted-foreground">Due {item.work_item ? new Date(item.work_item.due_at).toLocaleString() : "—"}</p><div className="mt-2 flex items-center justify-between"><Badge variant="outline">{humanizeComplaint(item.work_item?.state ?? "unknown")}</Badge>{item.work_item && <Button asChild size="sm" variant="outline"><Link href={`/app/work/${item.work_item.id}`}>Open</Link></Button>}</div></div>)}</CardContent></Card>
+        <Card><CardHeader className="flex-row items-center justify-between"><div><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Nonretaliation monitoring</CardTitle><CardDescription>Append-only observations</CardDescription></div>{canManage && <Button size="sm" onClick={() => setMonitoringOpen(true)}><Plus className="h-4 w-4" /></Button>}</CardHeader><CardContent className="space-y-3">{activity.isError ? <QueryError what="monitoring entries" error={activity.error} onRetry={() => void activity.refetch()} /> : activity.isLoading ? <p className="text-sm text-muted-foreground">Loading monitoring entries…</p> : !activity.data?.monitoring.length ? <p className="text-sm text-muted-foreground">No monitoring entries recorded.</p> : activity.data.monitoring.map(item => <div key={item.id} className="rounded border p-3"><div className="flex justify-between gap-2"><p className="text-xs text-muted-foreground">{new Date(item.observed_at).toLocaleString()}</p>{item.retaliation_concern_identified && <Badge variant="destructive">Concern identified</Badge>}</div><p className="mt-2 text-sm">{item.observations}</p>{item.action_taken && <p className="mt-1 text-xs">Action: {item.action_taken}</p>}</div>)}</CardContent></Card>
       </div>
-      <Card><CardHeader><CardTitle>Case history</CardTitle></CardHeader><CardContent className="space-y-2">{activity.isError ? <QueryError what="case history" error={activity.error} onRetry={() => void activity.refetch()} /> : !activity.data?.history.length ? <p className="text-sm text-muted-foreground">No history recorded yet.</p> : activity.data.history.map(item => <div key={item.id} className="flex flex-wrap items-start justify-between gap-2 border-b py-2 text-sm"><div><p className="font-medium">{humanizeComplaint(item.event_type)}</p><p className="text-muted-foreground">{item.reason}</p></div><div className="text-right text-xs text-muted-foreground"><p>{new Date(item.occurred_at).toLocaleString()}</p>{item.resulting_status && <p>{humanizeComplaint(item.resulting_status)}</p>}</div></div>)}</CardContent></Card>
+      <Card><CardHeader><CardTitle>Case history</CardTitle></CardHeader><CardContent className="space-y-2">{activity.isError ? <QueryError what="case history" error={activity.error} onRetry={() => void activity.refetch()} /> : activity.isLoading ? <p className="text-sm text-muted-foreground">Loading case history…</p> : !activity.data?.history.length ? <p className="text-sm text-muted-foreground">No history recorded yet.</p> : activity.data.history.map(item => <div key={item.id} className="flex flex-wrap items-start justify-between gap-2 border-b py-2 text-sm"><div><p className="font-medium">{humanizeComplaint(item.event_type)}</p><p className="text-muted-foreground">{item.reason}</p></div><div className="text-right text-xs text-muted-foreground"><p>{new Date(item.occurred_at).toLocaleString()}</p>{item.resulting_status && <p>{humanizeComplaint(item.resulting_status)}</p>}</div></div>)}</CardContent></Card>
       <InterviewDialog key={interviewOpen ? "interview-open" : "interview-closed"} open={interviewOpen} onOpenChange={setInterviewOpen} complaintId={c.id} mutation={addInterview} />
       <ActionDialog key={actionOpen ? "action-open" : "action-closed"} open={actionOpen} onOpenChange={setActionOpen} complaintId={c.id} profiles={profiles.data ?? []} mutation={addAction} />
       <MonitoringDialog key={monitoringOpen ? "monitoring-open" : "monitoring-closed"} open={monitoringOpen} onOpenChange={setMonitoringOpen} complaintId={c.id} mutation={addMonitoring} />
@@ -145,7 +164,7 @@ export default function ComplaintDetail() {
 
 function InterviewDialog({ open, onOpenChange, complaintId, mutation }: { open: boolean; onOpenChange: (open: boolean) => void; complaintId: string; mutation: ReturnType<typeof useAddComplaintInterview> }) {
   const __fieldIds = useId();
-  const { toast } = useToast(); const [at, setAt] = useState(() => toDateTimeLocal()); const [name, setName] = useState(""); const [relationship, setRelationship] = useState(""); const [notes, setNotes] = useState("");
+  const { toast } = useToast(); const [at, setAt] = useState(() => toFacilityDateTimeLocal()); const [name, setName] = useState(""); const [relationship, setRelationship] = useState(""); const [notes, setNotes] = useState("");
   const atValid = Boolean(at) && !Number.isNaN(new Date(at).getTime());
   const submit = () => {
     if (!atValid) return;
@@ -156,7 +175,7 @@ function InterviewDialog({ open, onOpenChange, complaintId, mutation }: { open: 
 
 function ActionDialog({ open, onOpenChange, complaintId, profiles, mutation }: { open: boolean; onOpenChange: (open: boolean) => void; complaintId: string; profiles: Array<{ id: string; first_name: string; last_name: string; is_active: boolean }>; mutation: ReturnType<typeof useAddComplaintCorrectiveAction> }) {
   const __fieldIds = useId();
-  const { toast } = useToast(); const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [owner, setOwner] = useState(""); const [priority, setPriority] = useState("high"); const [due, setDue] = useState(() => toDateTimeLocal(facilityDateTimeToUtc(addFacilityCalendarDays(facilityToday(), 14), "17:00:00")));
+  const { toast } = useToast(); const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [owner, setOwner] = useState(""); const [priority, setPriority] = useState("high"); const [due, setDue] = useState(() => `${addFacilityCalendarDays(facilityToday(), 14)}T17:00`);
   const dueValid = Boolean(due) && !Number.isNaN(new Date(due).getTime());
   const submit = () => {
     if (!dueValid) return;
@@ -167,7 +186,7 @@ function ActionDialog({ open, onOpenChange, complaintId, profiles, mutation }: {
 
 function MonitoringDialog({ open, onOpenChange, complaintId, mutation }: { open: boolean; onOpenChange: (open: boolean) => void; complaintId: string; mutation: ReturnType<typeof useAddComplaintMonitoring> }) {
   const __fieldIds = useId();
-  const { toast } = useToast(); const [at, setAt] = useState(() => toDateTimeLocal()); const [observations, setObservations] = useState(""); const [concern, setConcern] = useState(false); const [action, setAction] = useState("");
+  const { toast } = useToast(); const [at, setAt] = useState(() => toFacilityDateTimeLocal()); const [observations, setObservations] = useState(""); const [concern, setConcern] = useState(false); const [action, setAction] = useState("");
   const atValid = Boolean(at) && !Number.isNaN(new Date(at).getTime());
   const submit = () => {
     if (!atValid) return;

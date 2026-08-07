@@ -140,7 +140,7 @@ function NotificationsMenu() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const moduleAccess = useProductModuleAccess();
-  const { data: notifications, isLoading } = useListNotifications();
+  const { data: notifications, isLoading, isError, refetch: refetchNotifications } = useListNotifications();
   const { data: unreadCount } = useUnreadNotificationCount();
   const { mutate: markRead } = useMarkNotificationRead();
   const { mutate: markAllRead, isPending: markingAllRead } = useMarkAllNotificationsRead();
@@ -189,6 +189,13 @@ function NotificationsMenu() {
         <div className="max-h-96 overflow-y-auto">
           {isLoading ? (
             <p className="px-3 py-4 text-xs text-muted-foreground text-center">Loading...</p>
+          ) : isError ? (
+            <p className="px-3 py-4 text-xs text-destructive text-center">
+              Couldn't load notifications.{" "}
+              <button type="button" className="underline" onClick={() => void refetchNotifications()}>
+                Retry
+              </button>
+            </p>
           ) : !notifications || notifications.length === 0 ? (
             <p className="px-3 py-6 text-xs text-muted-foreground text-center">You're all caught up.</p>
           ) : (

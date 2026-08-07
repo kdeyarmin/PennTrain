@@ -84,7 +84,7 @@ export function SupportPlanVersionComparison({ plans }: { plans: ComparablePlan[
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <Select value={from.id} onValueChange={setFromId}>
-            <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-56" aria-label="Compare from version"><SelectValue /></SelectTrigger>
             <SelectContent>
               {ordered.map((plan) => (
                 <SelectItem key={plan.id} value={plan.id} disabled={plan.id === to.id}>{label(plan)}</SelectItem>
@@ -93,7 +93,7 @@ export function SupportPlanVersionComparison({ plans }: { plans: ComparablePlan[
           </Select>
           <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           <Select value={to.id} onValueChange={setToId}>
-            <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-56" aria-label="Compare to version"><SelectValue /></SelectTrigger>
             <SelectContent>
               {ordered.map((plan) => (
                 <SelectItem key={plan.id} value={plan.id} disabled={plan.id === from.id}>{label(plan)}</SelectItem>

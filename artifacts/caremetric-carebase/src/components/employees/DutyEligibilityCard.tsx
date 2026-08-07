@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { facilityDateTimeToUtc, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateTimeToUtc, facilityToday } from "@/lib/dateUtils";
 import { errorText } from "@/lib/errorText";
 import {
   canRequestOverride, dutyEligibilitySummary, dutyReasons, isDutyBlocked,
@@ -24,16 +24,9 @@ import {
 const MAX_OVERRIDE_DAYS = 365;
 const MIN_REASON_LENGTH = 10;
 
-/** Add whole calendar days to a YYYY-MM-DD without crossing a timezone boundary. */
-function addCalendarDays(isoDate: string, days: number): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const utc = new Date(Date.UTC(year, month - 1, day + days));
-  return `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(utc.getUTCDate()).padStart(2, "0")}`;
-}
-
 function defaultExpiry(): string {
   // Facility day + 90, not `toISOString().slice` on a local Date (that can shift across ET evening).
-  return addCalendarDays(facilityToday(), 90);
+  return addFacilityCalendarDays(facilityToday(), 90);
 }
 
 /**
@@ -94,8 +87,8 @@ export function DutyEligibilityCard({
   const reasonTooShort = reason.trim().length < MIN_REASON_LENGTH;
   // End of the selected Pennsylvania calendar day -- not the browser's local midnight.
   const expiryDate = expiresOn ? facilityDateTimeToUtc(expiresOn, "23:59:59") : null;
-  const expiryTooFar = !!expiryDate
-    && expiryDate.getTime() > Date.now() + MAX_OVERRIDE_DAYS * 86_400_000;
+  const maxExpiry = facilityDateTimeToUtc(addFacilityCalendarDays(facilityToday(), MAX_OVERRIDE_DAYS), "23:59:59");
+  const expiryTooFar = !!expiryDate && expiryDate.getTime() > maxExpiry.getTime();
   const expiryPast = !!expiryDate && expiryDate.getTime() <= Date.now();
   const expiryMissing = !expiresOn;
 

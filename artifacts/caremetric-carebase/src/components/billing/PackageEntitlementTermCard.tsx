@@ -20,6 +20,7 @@ import {
   type FeatureValueType,
 } from "@/lib/packageEntitlementTerm";
 import { QueryError } from "@/components/QueryState";
+import { facilityDayBounds } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -147,9 +148,9 @@ export function PackageEntitlementTermCard({
     rawValue,
     valueType,
     reason,
-    // The date input gives a calendar day; the term starts at the beginning of it.
-    effectiveFrom: effectiveFrom ? `${effectiveFrom}T00:00:00.000Z` : "",
-    effectiveTo: effectiveTo ? `${effectiveTo}T00:00:00.000Z` : "",
+    // Date inputs are facility calendar days — not UTC midnight.
+    effectiveFrom: effectiveFrom ? facilityDayBounds(effectiveFrom).from : "",
+    effectiveTo: effectiveTo ? facilityDayBounds(effectiveTo).from : "",
     contractReference,
   };
   const issues = entitlementTermIssues(form, now);
@@ -269,8 +270,12 @@ export function PackageEntitlementTermCard({
             <p className="text-sm font-medium">
               Open terms {scheduled.length > 0 ? `(${scheduled.length} scheduled for the future)` : ""}
             </p>
-            {current.length === 0 && <p className="text-xs text-muted-foreground">No open terms on this package.</p>}
-            {current.map((row) => (
+            {entitlements.isLoading ? (
+              <p className="text-xs text-muted-foreground">Loading open terms…</p>
+            ) : entitlements.isError ? null : current.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No open terms on this package.</p>
+            ) : null}
+            {!entitlements.isLoading && !entitlements.isError && current.map((row) => (
               <p key={row.id} className="text-xs text-muted-foreground">
                 {row.featureKey} = {JSON.stringify(row.entitlementValue)} · from{" "}
                 {new Date(row.effectiveFromAt).toLocaleDateString()}

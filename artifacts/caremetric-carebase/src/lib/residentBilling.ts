@@ -1,3 +1,4 @@
+import { facilityDaysUntil } from "./dateUtils";
 import type { FinancialWorkspace } from "@/hooks/useResidentFinancialOperations";
 
 export type MonthlyChargePreview = { category: string; label: string; amount: number };
@@ -53,9 +54,8 @@ const agingBucketDefinitions: Array<{ key: AgingBucketKey; label: string; min: n
 ];
 
 function daysBetween(startIsoDate: string, endIsoDate: string) {
-  const start = new Date(`${startIsoDate}T00:00:00Z`).getTime();
-  const end = new Date(`${endIsoDate}T00:00:00Z`).getTime();
-  return Math.floor((end - start) / 86_400_000);
+  const anchor = new Date(`${startIsoDate}T16:00:00Z`);
+  return facilityDaysUntil(endIsoDate, anchor) ?? 0;
 }
 
 /**

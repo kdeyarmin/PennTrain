@@ -16,6 +16,7 @@ import { UnscheduledServiceDialog } from "@/components/residents/UnscheduledServ
 import { UnsyncedDraftsPanel } from "@/components/residents/UnsyncedDraftsPanel";
 import { OfflineServiceDeviceCard } from "@/components/offline/OfflineServiceDeviceCard";
 import { SERVICE_TASK_KIND_LABELS, type ServiceTaskKind } from "@/lib/serviceDeliveryContract";
+import { facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 
 /** Flat shape returned by get_resident_service_task_queue -- not a nested requirement object. */
 interface FloorTask {
@@ -79,16 +80,12 @@ export default function Floor() {
   const [documenting, setDocumenting] = useState<FloorTask | null>(null);
   const [unscheduledFor, setUnscheduledFor] = useState<FloorTask | null>(null);
 
-  // The queue rejects a zero-width window, so this spans the whole local day rather than passing
-  // one date for both bounds. The floor cares about today; a wider window would bury what is
-  // actually due behind history.
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  // The queue rejects a zero-width window, so this spans the whole Pennsylvania facility day.
+  // Browser local midnight would shift the window when the device is outside America/New_York.
+  const { from: dayFrom, through: dayThrough } = facilityDayBounds(facilityToday());
   const queue = useResidentServiceTaskQueue({
-    from: dayStart.toISOString(),
-    through: dayEnd.toISOString(),
+    from: dayFrom,
+    through: dayThrough,
     status: "scheduled",
   });
   const tasks = (queue.data ?? []) as unknown as FloorTask[];

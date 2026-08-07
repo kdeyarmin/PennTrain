@@ -30,7 +30,7 @@ import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDo
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/lib/pageTitle";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
 import {
   OBSERVATION_CONFIG,
   OBSERVATION_ORDER,
@@ -75,7 +75,7 @@ export default function ResidentClinicalChart() {
   const [valueText, setValueText] = useState("");
   const [customLabel, setCustomLabel] = useState("");
   const [unit, setUnit] = useState(OBSERVATION_CONFIG.blood_pressure.unit);
-  const [observedAt, setObservedAt] = useState(() => toDateTimeLocal(new Date()));
+  const [observedAt, setObservedAt] = useState(() => toFacilityDateTimeLocal());
   const [note, setNote] = useState("");
   const record = useRecordClinicalObservation();
 
@@ -99,7 +99,7 @@ export default function ResidentClinicalChart() {
     setObservationType("blood_pressure");
     setUnit(OBSERVATION_CONFIG.blood_pressure.unit);
     setValueNumeric(""); setValueSecondary(""); setValueText(""); setCustomLabel(""); setNote("");
-    setObservedAt(toDateTimeLocal(new Date()));
+    setObservedAt(toFacilityDateTimeLocal());
   };
 
   const submitObservation = async () => {
@@ -174,7 +174,7 @@ export default function ResidentClinicalChart() {
           {resident.data?.room && <p className="text-muted-foreground">Room {resident.data.room}</p>}
         </div>
         {canChart && (
-          <Button onClick={() => setRecordOpen(true)}>
+          <Button onClick={() => { resetRecordForm(); setRecordOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />Record observation
           </Button>
         )}
@@ -443,7 +443,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" />Allergies</CardTitle><CardDescription>Ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {fhir.isError ? <QueryError what="allergies" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
+              {fhir.isLoading ? <p className="text-sm text-muted-foreground">Loading allergies…</p> : fhir.isError ? <QueryError what="allergies" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.allergies ?? []).map((allergy) => (
                     <div key={allergy.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
@@ -458,7 +458,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Diagnoses / problem list</CardTitle><CardDescription>Conditions ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {fhir.isError ? <QueryError what="diagnoses" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
+              {fhir.isLoading ? <p className="text-sm text-muted-foreground">Loading diagnoses…</p> : fhir.isError ? <QueryError what="diagnoses" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.conditions ?? []).map((condition) => (
                     <div key={condition.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">

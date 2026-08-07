@@ -6,20 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { errorText } from "@/lib/errorText";
 import { useComplaintTrends } from "@/hooks/useComplaints";
-import { facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 
 /**
  * Ninety days back, as a plain date string. The RPC compares against `date_received::date`, which
  * `get_complaint_trends` reads in the facility's calendar -- so both ends of the default window
  * have to be facility days too.
  *
- * `new Date().toISOString().slice(0, 10)` is the UTC day, and Pennsylvania is four or five hours
- * behind it: from 20:00 ET the card opened on TOMORROW's date and looked back ninety days from
- * there, so the window a manager saw in the two pickers was one day ahead of the day the
- * complaints are filed under, every evening.
+ * `Date.now() - days * 864e5` drifts across DST; `addFacilityCalendarDays` is calendar arithmetic.
  */
 function facilityDaysAgo(days: number): string {
-  return facilityToday(new Date(Date.now() - days * 86_400_000));
+  return addFacilityCalendarDays(facilityToday(), -days);
 }
 
 interface Trends {

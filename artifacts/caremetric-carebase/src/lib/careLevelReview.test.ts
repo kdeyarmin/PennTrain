@@ -12,7 +12,8 @@ import {
   type ResidentLike,
 } from "./careLevelReview";
 
-const TODAY = new Date(2026, 6, 24); // 2026-07-24
+// Noon ET so Pennsylvania facility day is unambiguously 2026-07-24 in any CI timezone.
+const TODAY = new Date("2026-07-24T16:00:00Z");
 const resident = (id: string, last = "Doe", first = "Jane"): ResidentLike => ({ id, last_name: last, first_name: first, room: "101" });
 const rate = (resident_id: string, over: Partial<RateAgreementLike> = {}): RateAgreementLike => ({
   resident_id, level_of_care_charge: 500, effective_from: "2026-07-01", version_number: 1, ...over,

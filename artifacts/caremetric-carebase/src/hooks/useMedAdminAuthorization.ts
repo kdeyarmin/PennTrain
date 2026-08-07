@@ -3,6 +3,7 @@ import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTraining
 import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import type { Employee } from "@/hooks/useEmployees";
+import { facilityYear } from "@/lib/dateUtils";
 
 // "Authorized today" reads compliant OR due_soon as still-currently-valid -- due_soon means
 // "expiring within the warning window", not "already expired". Only missing/expired disqualify.
@@ -155,7 +156,7 @@ export function useMedAdminAuthorization(
   options: { enabled?: boolean } = {},
 ): UseMedAdminAuthorizationResult {
   const enabled = options.enabled ?? true;
-  const currentYear = new Date().getFullYear();
+  const currentYear = facilityYear();
 
   // Only employees flagged as administering medications were ever in scope for MED-INIT/MED-RENEW/
   // DIABETES-EDU tracking -- scoping the training-records fetch to just them keeps the payload

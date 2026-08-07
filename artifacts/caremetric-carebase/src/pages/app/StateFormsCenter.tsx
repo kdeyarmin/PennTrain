@@ -151,6 +151,7 @@ export default function StateFormsCenter() {
   // DHS form, so surface the failure instead of rendering a partial queue.
   const queueQueries = [facilitiesQuery, residentsQuery, itemsQuery];
   const queueFailure = queueQueries.find((query) => query.isError);
+  const queueBusy = isLoading || residentsQuery.isLoading || facilitiesQuery.isLoading;
 
   return (
     <div className="space-y-6">
@@ -188,7 +189,10 @@ export default function StateFormsCenter() {
         {tiles.map((tile) => (
           <Card key={tile.label}>
             <CardContent className="pt-4 pb-3">
-              <p className={`text-2xl font-bold ${tile.tone}`}>{tile.value}</p>
+              {/* Failed loads must not read as zeros — same class as Complaints/WorkQueue tiles. */}
+              <p className={`text-2xl font-bold ${queueFailure ? "text-muted-foreground" : tile.tone}`}>
+                {queueBusy || queueFailure ? "—" : tile.value}
+              </p>
               <p className="text-xs text-muted-foreground">{tile.label}</p>
             </CardContent>
           </Card>
@@ -196,7 +200,7 @@ export default function StateFormsCenter() {
       </div>
 
       <Select value={facilityId} onValueChange={(v) => { setFacilityId(v); setExpandedItemId(null); }}>
-        <SelectTrigger className="w-56"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+        <SelectTrigger className="w-56" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Facilities</SelectItem>
           {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -207,10 +211,12 @@ export default function StateFormsCenter() {
         <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
           <ClipboardList className="h-5 w-5" /> Needs Action Now
         </h2>
-        {isLoading ? (
+        {queueBusy ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
           </div>
+        ) : queueFailure ? (
+          <p className="text-sm text-muted-foreground">Action queue unavailable until the load above succeeds.</p>
         ) : openItems.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center">
@@ -232,7 +238,13 @@ export default function StateFormsCenter() {
           Starting a reassessment pre-fills last year's finalized answers so only what changed
           needs revising.
         </p>
-        {!isLoading && upcomingRenewals.length === 0 ? (
+        {queueFailure ? (
+          <p className="text-sm text-muted-foreground">Renewal list unavailable until the load above succeeds.</p>
+        ) : queueBusy ? (
+          <div className="space-y-3">
+            {[...Array(2)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
+          </div>
+        ) : upcomingRenewals.length === 0 ? (
           <p className="text-sm text-muted-foreground">No renewals due in the next {RENEWAL_WINDOW_DAYS} days.</p>
         ) : (
           <div className="space-y-2">{upcomingRenewals.map(renderItemRow)}</div>

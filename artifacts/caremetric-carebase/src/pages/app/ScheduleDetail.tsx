@@ -43,7 +43,7 @@ import {
 import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Eraser, Loader2, Pill, Plus, Send, Sparkles, Undo2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios, summarizeMedAdminCoverage } from "@/lib/scheduleAnalytics";
 import { QueryError } from "@/components/QueryState";
 
@@ -134,8 +134,14 @@ export default function ScheduleDetail() {
   const { data: facility } = useGetFacility(facilityId);
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
-  const { data: activeResidents } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
-  const { data: assignments, isLoading: assignmentsLoading } = useListShiftAssignments({ scheduleId: id });
+  const {
+    data: activeResidents,
+    isLoading: residentsLoading,
+    isError: residentsError,
+  } = useListResidents({ facilityId: facilityId ?? "00000000-0000-0000-0000-000000000000", status: "active" });
+  const { data: assignments, isLoading: assignmentsLoading, isError: assignmentsError } = useListShiftAssignments({ scheduleId: id });
+  const assignmentsBusy = assignmentsLoading || assignmentsError;
+  const staffingBusy = assignmentsBusy || residentsLoading || residentsError;
   const {
     data: serviceWorkload,
     isLoading: serviceWorkloadLoading,
@@ -217,8 +223,9 @@ export default function ScheduleDetail() {
   const activeResidentCount = activeResidents?.length ?? 0;
 
   useEffect(() => {
-    if (!censusWasEdited) setResidentsInHouse(activeResidentCount);
-  }, [activeResidentCount, censusWasEdited]);
+    // Don't stamp a loading/error empty roster as "0 residents in house".
+    if (!censusWasEdited && !residentsLoading && !residentsError) setResidentsInHouse(activeResidentCount);
+  }, [activeResidentCount, censusWasEdited, residentsLoading, residentsError]);
 
   useEffect(() => {
     if (!eligibilityPreview.data) return;
@@ -297,17 +304,24 @@ export default function ScheduleDetail() {
 function openOverride(candidate: EligibilityCandidate, blockCode: string) {
   const shiftDef = activeShiftDefs.find((s) => s.id === addForm.shiftDefinitionId);
   const defaultExpiresAt = (() => {
-    if (!addTarget || !shiftDef) return new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const start = new Date(`${addTarget.date}T${shiftDef.start_time}`);
-    const end = new Date(`${addTarget.date}T${shiftDef.end_time}`);
-    if (end <= start) end.setDate(end.getDate() + 1);
-    return end;
+    if (!addTarget || !shiftDef) {
+      // Tomorrow facility EOD — not browser `Date.now() + 24h`.
+      return `${addFacilityCalendarDays(facilityToday(), 1)}T23:59`;
+    }
+    const startTime = shiftDef.start_time.slice(0, 5);
+    const endTime = shiftDef.end_time.slice(0, 5);
+    // Overnight shifts end on the next Pennsylvania calendar day — do not parse
+    // `YYYY-MM-DDTHH:mm` with the browser Date constructor (wrong zone).
+    const endDate = endTime <= startTime
+      ? addFacilityCalendarDays(addTarget.date, 1)
+      : addTarget.date;
+    return `${endDate}T${endTime}`;
   })();
 
   setOverrideForm({
     reason: "",
     authorityReference: "",
-    expiresAt: toDateTimeLocal(defaultExpiresAt),
+    expiresAt: defaultExpiresAt,
   });
   setOverrideTarget({ candidate, blockCode });
 }
@@ -471,6 +485,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
         toast({ title: "Shift removed" });
         setEditTarget(null);
       },
+      onError: (e: Error) => toast({ title: "Couldn't remove shift", description: e.message, variant: "destructive" }),
     });
   }
 
@@ -690,23 +705,23 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Shifts</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.totalShifts}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.totalShifts}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Scheduled hours</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.scheduledHours}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.scheduledHours}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Auto / manual</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.autoFilledShifts} / {scheduleAnalytics.manualShifts}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : `${scheduleAnalytics.autoFilledShifts} / ${scheduleAnalytics.manualShifts}`}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Exceptions</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.exceptionShifts}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.exceptionShifts}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Unit-day gaps</p>
-              <p className="text-xl font-semibold">{scheduleAnalytics.unitDayCoverageGaps}</p>
+              <p className="text-xl font-semibold">{assignmentsBusy ? "—" : scheduleAnalytics.unitDayCoverageGaps}</p>
             </div>
           </div>
           <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
@@ -718,7 +733,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               <div className="space-y-1.5">
                 <Label htmlFor="residentsInHouse">Residents in house</Label>
                 <Input id="residentsInHouse" type="number" min={0} value={residentsInHouse} onChange={(e) => { setCensusWasEdited(true); setResidentsInHouse(Number(e.target.value) || 0); }} />
-                <button type="button" className="text-xs text-primary hover:underline" onClick={() => { setCensusWasEdited(false); setResidentsInHouse(activeResidentCount); }}>Use active census ({activeResidentCount})</button>
+                <button type="button" className="text-xs text-primary hover:underline" disabled={residentsLoading || residentsError} onClick={() => { setCensusWasEdited(false); setResidentsInHouse(activeResidentCount); }}>Use active census ({residentsLoading || residentsError ? "—" : activeResidentCount})</button>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="targetPpd">Target PPD</Label>
@@ -732,21 +747,21 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Current PPD</p>
-                <p className="text-xl font-semibold">{staffingRatios.ppd.toFixed(2)}</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.ppd.toFixed(2)}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Care hours needed</p>
-                <p className="text-xl font-semibold">{staffingRatios.targetHours}</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.targetHours}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Hours gap</p>
-                <p className="text-xl font-semibold">{staffingRatios.hoursGap}</p>
-                <p className="text-[11px] text-muted-foreground">{staffingRatios.hoursGapPerDay}/day</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.hoursGap}</p>
+                <p className="text-[11px] text-muted-foreground">{staffingBusy ? "…" : `${staffingRatios.hoursGapPerDay}/day`}</p>
               </div>
               <div className="rounded-lg border bg-background p-3">
                 <p className="text-xs text-muted-foreground">8h shifts to add</p>
-                <p className="text-xl font-semibold">{staffingRatios.suggestedEightHourShifts}</p>
-                <p className="text-[11px] text-muted-foreground">Residents/staff avg. {staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
+                <p className="text-xl font-semibold">{staffingBusy ? "—" : staffingRatios.suggestedEightHourShifts}</p>
+                <p className="text-[11px] text-muted-foreground">Residents/staff avg. {staffingBusy ? "—" : staffingRatios.averageResidentsPerScheduledStaff ?? "—"}</p>
               </div>
             </div>
           </div>

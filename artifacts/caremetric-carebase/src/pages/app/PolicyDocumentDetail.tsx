@@ -233,7 +233,7 @@ function AssignCampaignDialog({
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees({ status: "active" });
   const { mutateAsync: assign } = useAssignPolicyAttestationToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -303,7 +303,11 @@ function AssignCampaignDialog({
           <Input placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
-          {filtered.length === 0 ? (
+          {employeesLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+          ) : employeesError ? (
+            <QueryError what="employees" error={employeesErr} onRetry={() => void refetchEmployees()} className="m-3" />
+          ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No active employees found.</p>
           ) : (
             <div className="divide-y">
@@ -569,9 +573,19 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
 export default function PolicyDocumentDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: document, isLoading, isError, error, refetch } = useGetPolicyDocument(id);
-  const { data: versions } = useListPolicyDocumentVersions(id);
-  const { data: campaigns } = useListPolicyAttestationCampaigns({ policyDocumentId: id });
-  const { data: attestations } = useListPolicyAttestations({});
+  const versionsQuery = useListPolicyDocumentVersions(id);
+  const campaignsQuery = useListPolicyAttestationCampaigns({ policyDocumentId: id });
+  const attestationsQuery = useListPolicyAttestations({});
+  const { data: versions } = versionsQuery;
+  const { data: campaigns } = campaignsQuery;
+  const { data: attestations } = attestationsQuery;
+  const lifecycleBusy =
+    versionsQuery.isLoading
+    || campaignsQuery.isLoading
+    || attestationsQuery.isLoading
+    || versionsQuery.isError
+    || campaignsQuery.isError
+    || attestationsQuery.isError;
 
   const campaignIds = useMemo(() => new Set((campaigns ?? []).map((c) => c.id)), [campaigns]);
   const lifecycle = useMemo(() => summarizePolicyLifecycle({
@@ -626,31 +640,43 @@ export default function PolicyDocumentDetail() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={lifecycle.state === "overdue" ? "destructive" : lifecycle.state === "complete" ? "default" : "secondary"}>
-              {lifecycle.label}
+            <Badge variant={
+              lifecycleBusy
+                ? "outline"
+                : lifecycle.state === "overdue"
+                  ? "destructive"
+                  : lifecycle.state === "complete"
+                    ? "default"
+                    : "secondary"
+            }>
+              {lifecycleBusy
+                ? (versionsQuery.isError || campaignsQuery.isError || attestationsQuery.isError ? "Unavailable" : "Loading")
+                : lifecycle.label}
             </Badge>
-            <span className="text-sm text-muted-foreground">{lifecycle.nextStep}</span>
+            <span className="text-sm text-muted-foreground">
+              {lifecycleBusy ? "Policy lifecycle metrics are still loading." : lifecycle.nextStep}
+            </span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Draft versions</p>
-              <p className="text-xl font-semibold">{lifecycle.draftVersions}</p>
+              <p className="text-xl font-semibold">{lifecycleBusy ? "—" : lifecycle.draftVersions}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Campaigns</p>
-              <p className="text-xl font-semibold">{lifecycle.campaigns}</p>
+              <p className="text-xl font-semibold">{lifecycleBusy ? "—" : lifecycle.campaigns}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Pending</p>
-              <p className="text-xl font-semibold">{lifecycle.pendingAttestations}</p>
+              <p className="text-xl font-semibold">{lifecycleBusy ? "—" : lifecycle.pendingAttestations}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Overdue</p>
-              <p className="text-xl font-semibold">{lifecycle.overdueAttestations}</p>
+              <p className="text-xl font-semibold">{lifecycleBusy ? "—" : lifecycle.overdueAttestations}</p>
             </div>
             <div className="rounded-lg border p-3">
               <p className="text-xs text-muted-foreground">Attested</p>
-              <p className="text-xl font-semibold">{lifecycle.attestedCount}</p>
+              <p className="text-xl font-semibold">{lifecycleBusy ? "—" : lifecycle.attestedCount}</p>
             </div>
           </div>
         </CardContent>

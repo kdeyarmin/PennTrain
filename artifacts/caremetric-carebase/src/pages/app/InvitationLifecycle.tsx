@@ -161,7 +161,7 @@ export default function InvitationLifecycle() {
             <Link href="/app/users"><Users className="mr-2 h-4 w-4" /> User directory</Link>
           </Button>
           {canManage && (
-            <Button onClick={() => { setBulkOpen(true); setBulkResults(null); }}>
+            <Button onClick={() => { setBulkCsv(""); setBulkResults(null); setBulkOpen(true); }}>
               <MailPlus className="mr-2 h-4 w-4" /> Bulk invite
             </Button>
           )}
@@ -184,7 +184,7 @@ export default function InvitationLifecycle() {
             />
           </div>
           <Select value={status} onValueChange={(value) => { setStatus(value); setPage(0); }}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {INVITATION_STATUSES.map((value) => (
@@ -193,7 +193,7 @@ export default function InvitationLifecycle() {
             </SelectContent>
           </Select>
           <Select value={role} onValueChange={(value) => { setRole(value); setPage(0); }}>
-            <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
+            <SelectTrigger aria-label="Role"><SelectValue placeholder="Role" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All roles</SelectItem>
               {INVITATION_ROLES.map((value) => (
@@ -333,7 +333,7 @@ export default function InvitationLifecycle() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+      <Dialog open={bulkOpen} onOpenChange={(open) => { setBulkOpen(open); if (!open) { setBulkCsv(""); setBulkResults(null); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Bulk invite</DialogTitle>

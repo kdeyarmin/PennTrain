@@ -10,11 +10,14 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateCourseVersion, type Course, type CourseVersion } from "@/hooks/useCourses";
 import { VersionStatusBadge } from "./components";
+import { QueryError } from "@/components/QueryState";
 
 export function VersionsCard({
   canManage,
   onNewVersion,
   versionsLoading,
+  versionsError,
+  onRetryVersions,
   versions,
   selectedVersionId,
   setSelectedVersionId,
@@ -25,6 +28,8 @@ export function VersionsCard({
   canManage: boolean;
   onNewVersion: () => void;
   versionsLoading: boolean;
+  versionsError?: boolean;
+  onRetryVersions?: () => void;
   versions: CourseVersion[] | undefined;
   selectedVersionId: string | undefined;
   setSelectedVersionId: (id: string) => void;
@@ -58,6 +63,8 @@ export function VersionsCard({
           <div className="space-y-2">
             {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
           </div>
+        ) : versionsError ? (
+          <QueryError what="course versions" error={undefined} onRetry={onRetryVersions} />
         ) : !versions || versions.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">No versions yet.</p>

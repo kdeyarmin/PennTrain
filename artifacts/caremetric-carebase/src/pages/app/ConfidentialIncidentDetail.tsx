@@ -67,7 +67,7 @@ export default function ConfidentialIncidentDetail() {
 
   const { data: intake, isLoading, isError, error, refetch } = useGetConfidentialIntake(id);
   const { data: facilities } = useListFacilities({});
-  const { data: accessEvents, isError: eventsError } = useListIntakeAccessEvents(id);
+  const { data: accessEvents, isLoading: accessEventsLoading, isError: eventsError } = useListIntakeAccessEvents(id);
   const { data: profiles } = useListProfiles();
   const { mutate: openDetails, isPending: openingDetails } = useOpenIntakeDetails();
   const { mutate: setStatus, isPending: settingStatus } = useSetIntakeStatus();
@@ -438,6 +438,8 @@ export default function ConfidentialIncidentDetail() {
           <CardContent>
             {eventsError ? (
               <p className="text-sm text-muted-foreground">The access ledger could not be loaded.</p>
+            ) : accessEventsLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Loading access ledger…</p>
             ) : !accessEvents?.length ? (
               <p className="text-sm text-muted-foreground text-center py-4">No access events recorded yet.</p>
             ) : (

@@ -309,7 +309,7 @@ export default function CompetencyRecords() {
       <div className="premium-card">
         <div className="filter-bar">
           <Select value={facilityFilter} onValueChange={(v) => { setFacilityFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-48 h-9 bg-card">
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility">
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
@@ -334,7 +334,7 @@ export default function CompetencyRecords() {
             />
           </div>
           <Select value={templateFilter} onValueChange={(v) => { setTemplateFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-48 h-9 bg-card">
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Template">
               <SelectValue placeholder="All Templates" />
             </SelectTrigger>
             <SelectContent>
@@ -425,7 +425,14 @@ export default function CompetencyRecords() {
         <span>{allRecords.length} record{allRecords.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => {
+        if (!o) {
+          setShowForm(false);
+          setForm(emptyRecordForm());
+          setFormEmployee(null);
+          setItemResults({});
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Competency Evaluation</DialogTitle>
@@ -486,7 +493,7 @@ export default function CompetencyRecords() {
                           <p className="text-sm font-medium">{idx + 1}. {item.item_text}</p>
                           <div className="flex items-center gap-3">
                             <Select value={current.result} onValueChange={(v) => setItemField(item.id, "result", v)}>
-                              <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-8 w-32" aria-label={`Checklist result for item ${idx + 1}`}><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {ITEM_RESULT_OPTIONS.map((o) => (
                                   <SelectItem key={o} value={o}>{humanize(o)}</SelectItem>

@@ -1,5 +1,5 @@
 import { useAuth } from "@/lib/auth";
-import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
+import { facilityDaysUntil, formatDateForDisplay, formatDueDistance, facilityYear } from "@/lib/dateUtils";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListPracticums } from "@/hooks/usePracticums";
@@ -48,7 +48,7 @@ function competencyResultVariant(result: string): "default" | "destructive" | "s
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
-  const currentYear = new Date().getFullYear();
+  const currentYear = facilityYear();
 
   const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
   // Training/practicum/competency/attestation/shift/assignment queries below are all gated on a
@@ -268,7 +268,7 @@ export default function EmployeeDashboard() {
               {upcomingDeadlines.map((item) => {
                 const Meta = DEADLINE_KIND_META[item.kind];
                 const Icon = Meta.icon;
-                const days = daysUntil(item.dueDate);
+                const days = facilityDaysUntil(item.dueDate);
                 const urgent = days !== null && days <= 7;
                 const overdue = days !== null && days < 0;
                 return (
@@ -380,6 +380,8 @@ export default function EmployeeDashboard() {
               <CardContent>
                 {employeeLoading || practicumsLoading ? (
                   <div className="h-16 bg-muted animate-pulse rounded" />
+                ) : practicumsError ? (
+                  <QueryError what="annual practicum" onRetry={() => void refetchPracticums()} />
                 ) : myPracticum ? (
                   <div className="flex items-center justify-between p-3 rounded-lg border">
                     <div>

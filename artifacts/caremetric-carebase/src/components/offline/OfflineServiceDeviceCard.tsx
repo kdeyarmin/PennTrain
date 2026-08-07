@@ -44,7 +44,8 @@ export function OfflineServiceDeviceCard() {
   const pending =
     (serviceEntries.data ?? []).filter((entry) => (UNRESOLVED_DRAFT_STATES as string[]).includes(entry.syncState)).length
     + (observationEntries.data ?? []).filter((entry) => (UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)).length;
-  const blocked = pending > 0;
+  const draftsBusy = serviceEntries.isLoading || serviceEntries.isPending || observationEntries.isLoading || observationEntries.isPending;
+  const blocked = draftsBusy || pending > 0;
 
   return (
     <Card>
@@ -112,7 +113,7 @@ export function OfflineServiceDeviceCard() {
           <Button
             variant="outline"
             disabled={blocked}
-            title={blocked ? `${pending} unsynced item(s) would be lost.` : undefined}
+            title={draftsBusy ? "Checking for unsynced drafts…" : blocked ? `${pending} unsynced item(s) would be lost.` : undefined}
             onClick={() => setConfirming(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />Remove this device

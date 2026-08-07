@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useState } from "react";
-import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 
 import { Link, useParams } from "wouter";
 import {
@@ -63,9 +63,7 @@ function formatTimestamp(value: string | null): string {
 }
 
 function toDateTimeLocal(value: string): string {
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  return toFacilityDateTimeLocal(value);
 }
 
 function actorName(actor: { first_name: string; last_name: string } | null): string {
@@ -125,13 +123,16 @@ export default function WorkItemDetail() {
   const canContribute = isManager || isOwner;
   const backPath = workQueuePathForRole(user?.role);
   const sourcePath = work ? viewablePathForRole(sourceRouteForWorkItem(work) ?? "", user?.role) : null;
+  const activityReady = !activity.isLoading && !activity.isError && activity.data !== undefined;
   const isWatching = activity.data?.watchers.some(watcher => watcher.profile_id === user?.id) ?? false;
   const requiredEvidence = work?.template?.required_evidence_types ?? [];
   const submittedEvidenceTypes = new Set(activity.data?.evidence.map(evidence => evidence.evidence_type));
-  const missingEvidence = requiredEvidence.filter(type => !submittedEvidenceTypes.has(type));
-  const blockingDependencies = activity.data?.dependencies.filter(
-    dependency => dependency.dependency_type === "blocks" && dependency.dependency?.state !== "closed",
-  ) ?? [];
+  const missingEvidence = activityReady ? requiredEvidence.filter(type => !submittedEvidenceTypes.has(type)) : requiredEvidence;
+  const blockingDependencies = activityReady
+    ? (activity.data?.dependencies.filter(
+      dependency => dependency.dependency_type === "blocks" && dependency.dependency?.state !== "closed",
+    ) ?? [])
+    : [];
 
   const allowedTransitions = useMemo(() => {
     if (!work || ["closed", "canceled"].includes(work.state)) return [];
@@ -285,7 +286,11 @@ export default function WorkItemDetail() {
                   ))}
                 </div>
               )}
-              {activity.data?.evidence.length ? (
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading documentation…</p>
+              ) : activity.isError ? (
+                <QueryError what="documentation" error={activity.error} onRetry={() => void activity.refetch()} />
+              ) : activity.data?.evidence.length ? (
                 <div className="divide-y rounded-md border">
                   {activity.data.evidence.map(evidence => (
                     <div key={evidence.id} className="flex items-center justify-between gap-3 p-3 text-sm">
@@ -369,7 +374,11 @@ export default function WorkItemDetail() {
               <CardDescription>Blocking dependencies prevent closure until the related work closes.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {activity.data?.dependencies.length ? (
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading dependencies…</p>
+              ) : activity.isError ? (
+                <QueryError what="dependencies" error={activity.error} onRetry={() => void activity.refetch()} />
+              ) : activity.data?.dependencies.length ? (
                 <div className="space-y-2">
                   {activity.data.dependencies.map(dependency => (
                     <div key={dependency.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
@@ -400,7 +409,7 @@ export default function WorkItemDetail() {
               {isManager && (
                 <div className="grid gap-2 border-t pt-4 sm:grid-cols-[1fr_160px_auto]">
                   <Select value={dependencyId} onValueChange={setDependencyId}>
-                    <SelectTrigger><SelectValue placeholder="Select related work" /></SelectTrigger>
+                    <SelectTrigger aria-label="Related work item"><SelectValue placeholder="Select related work" /></SelectTrigger>
                     <SelectContent>
                       {candidateDependencies?.filter(candidate => candidate.id !== work.id).map(candidate => (
                         <SelectItem key={candidate.id} value={candidate.id}>{candidate.title}</SelectItem>
@@ -408,7 +417,7 @@ export default function WorkItemDetail() {
                     </SelectContent>
                   </Select>
                   <Select value={dependencyType} onValueChange={setDependencyType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Dependency type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="blocks">Blocks</SelectItem>
                       <SelectItem value="relates_to">Relates to</SelectItem>
@@ -459,7 +468,11 @@ export default function WorkItemDetail() {
                   </Button>
                 </div>
               )}
-              {activity.data?.comments.length ? activity.data.comments.map(entry => (
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading comments…</p>
+              ) : activity.isError ? (
+                <QueryError what="comments" error={activity.error} onRetry={() => void activity.refetch()} />
+              ) : activity.data?.comments.length ? activity.data.comments.map(entry => (
                 <div key={entry.id} className="border-t pt-3 text-sm">
                   <div className="flex justify-between gap-3">
                     <p className="font-medium">{actorName(entry.author)}</p>
@@ -479,6 +492,8 @@ export default function WorkItemDetail() {
             <CardContent>
               {activity.isError ? (
                 <QueryError what="work item activity" error={activity.error} onRetry={() => activity.refetch()} />
+              ) : activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading history…</p>
               ) : activity.data?.history.length ? (
                 <div className="space-y-3">
                   {activity.data.history.map(event => (
@@ -510,12 +525,20 @@ export default function WorkItemDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {activity.data?.watchers.map(watcher => (
-                  <Badge key={watcher.id} variant="secondary">
-                    <UserRound className="mr-1 h-3 w-3" /> {actorName(watcher.profile)}
-                  </Badge>
-                ))}
-                {!activity.data?.watchers.length && <p className="text-sm text-muted-foreground">No watchers.</p>}
+                {activity.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading watchers…</p>
+                ) : activity.isError ? (
+                  <QueryError what="watchers" error={activity.error} onRetry={() => void activity.refetch()} />
+                ) : (
+                  <>
+                    {activity.data?.watchers.map(watcher => (
+                      <Badge key={watcher.id} variant="secondary">
+                        <UserRound className="mr-1 h-3 w-3" /> {actorName(watcher.profile)}
+                      </Badge>
+                    ))}
+                    {!activity.data?.watchers.length && <p className="text-sm text-muted-foreground">No watchers.</p>}
+                  </>
+                )}
               </div>
               {!isAuditor && (
                 <Button
@@ -585,7 +608,7 @@ export default function WorkItemDetail() {
               <CardContent className="space-y-3">
                 {allowedTransitions.length > 0 && (
                   <Select value={targetState} onValueChange={setTargetState}>
-                    <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
+                    <SelectTrigger aria-label="New work item status"><SelectValue placeholder="Select new status" /></SelectTrigger>
                     <SelectContent>
                       {allowedTransitions.map(state => (
                         <SelectItem key={state} value={state}>{WORK_ITEM_STATE_LABELS[state]}</SelectItem>
@@ -605,19 +628,23 @@ export default function WorkItemDetail() {
                 )}
                 {isManager && work.state === "pending_approval" && work.template?.approval_required && (
                   <div className="space-y-2 border-t pt-3">
-                    {(missingEvidence.length > 0 || blockingDependencies.length > 0) && (
+                    {(activity.isLoading || missingEvidence.length > 0 || blockingDependencies.length > 0) && (
                       <Alert>
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Approval requirements remain</AlertTitle>
                         <AlertDescription>
-                          {missingEvidence.length > 0 && `Missing documentation: ${missingEvidence.join(", ")}. `}
-                          {blockingDependencies.length > 0 && `${blockingDependencies.length} blocking dependencies remain open.`}
+                          {activity.isLoading
+                            ? "Checking documentation and blocking dependencies…"
+                            : <>
+                              {missingEvidence.length > 0 && `Missing documentation: ${missingEvidence.join(", ")}. `}
+                              {blockingDependencies.length > 0 && `${blockingDependencies.length} blocking dependencies remain open.`}
+                            </>}
                         </AlertDescription>
                       </Alert>
                     )}
                     <Button
                       onClick={handleApprove}
-                      disabled={transitionReason.trim().length < 5 || missingEvidence.length > 0 || blockingDependencies.length > 0 || approve.isPending}
+                      disabled={transitionReason.trim().length < 5 || !activityReady || missingEvidence.length > 0 || blockingDependencies.length > 0 || approve.isPending}
                     >
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       {approve.isPending ? "Approving..." : "Approve and close"}

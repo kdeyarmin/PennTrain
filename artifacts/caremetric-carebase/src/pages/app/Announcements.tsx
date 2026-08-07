@@ -14,11 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 
 const ROLES = ["org_admin", "facility_manager", "trainer", "employee", "auditor"] as const;
 
 function ReadSummary({ announcementId }: { announcementId: string }) {
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ["announcement_read_summary", announcementId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_announcement_read_summary", {
@@ -28,6 +29,7 @@ function ReadSummary({ announcementId }: { announcementId: string }) {
       return data as { audienceCount: number; seenCount: number };
     },
   });
+  if (isError) return <Badge variant="outline">Seen count unavailable</Badge>;
   if (!data) return null;
   return <Badge variant="outline">{data.seenCount} of {data.audienceCount} seen</Badge>;
 }
@@ -54,7 +56,7 @@ export default function Announcements() {
       body,
       audienceRoles: roles,
       audienceFacilityIds: facilityIds,
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+      expiresAt: expiresAt ? facilityDateTimeLocalToUtcIso(expiresAt) : null,
     }, {
       onSuccess: () => {
         setTitle(""); setBody(""); setRoles([]); setFacilityIds([]); setExpiresAt("");

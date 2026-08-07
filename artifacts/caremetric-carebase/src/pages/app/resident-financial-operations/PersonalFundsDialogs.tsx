@@ -6,7 +6,7 @@ import {
   useUpsertResidentPersonalFundPayeeProfile,
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
-import { facilityDateTimeLocalToUtcIso, toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -306,12 +306,16 @@ export function FundOpenDialog({
 }) {
   const mutation = useOpenResidentPersonalFundAccount();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     opened: today(),
     balance: "0",
     acknowledged: true,
     note: "",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent>
@@ -401,12 +405,12 @@ export function FundEntryDialog({
 }) {
   const mutation = usePostResidentPersonalFundTransaction();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     kind: "deposit",
     direction: "in",
     amount: "",
     purpose: "",
-    at: toDateTimeLocal(new Date()),
+    at: toFacilityDateTimeLocal(),
     staff: "none",
     receipt: "none",
     acknowledged: true,
@@ -414,6 +418,10 @@ export function FundEntryDialog({
     target: "none",
     reason: "",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   const kind = (value: string) =>
     setForm({
       ...form,
@@ -605,11 +613,15 @@ export function ReconcileDialog({
 }) {
   const mutation = useReconcileResidentPersonalFunds();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     end: today(),
     counted: String(balance),
     notes: "",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open, balance]);
   const variance = asNumber(form.counted) - balance;
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>

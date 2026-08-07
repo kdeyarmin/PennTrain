@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, cloneElement, isValidElement, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -25,10 +25,18 @@ export function Field({
   children: ReactNode;
   span?: boolean;
 }) {
+  // Visual label stays a plain <p>; clone aria-label onto Choice/Input children for a11y.
+  const enriched = Children.map(children, (child) => {
+    if (!isValidElement(child)) return child;
+    const props = child.props as { "aria-label"?: string };
+    return cloneElement(child as React.ReactElement<{ "aria-label"?: string }>, {
+      "aria-label": props["aria-label"] ?? label,
+    });
+  });
   return (
     <div className={`space-y-1 ${span ? "sm:col-span-2" : ""}`}>
       <p className="text-sm font-medium leading-none">{label}</p>
-      {children}
+      {enriched}
     </div>
   );
 }
@@ -37,15 +45,17 @@ export function Choice({
   onChange,
   values,
   placeholder = "Select",
+  "aria-label": ariaLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
   values: Array<string | { value: string; label: string }>;
   placeholder?: string;
+  "aria-label"?: string;
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
+      <SelectTrigger aria-label={ariaLabel}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

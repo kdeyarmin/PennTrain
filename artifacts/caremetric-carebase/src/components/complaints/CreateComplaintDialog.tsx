@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { facilityDateTimeLocalToUtcIso, toDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { useCreateComplaint } from "@/hooks/useComplaints";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -37,7 +37,7 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
   const profiles = useListProfiles({ organizationId });
   const [facilityId, setFacilityId] = useState("");
   const residents = useListResidents({ facilityId, status: "active" }, { enabled: !!facilityId });
-  const [dateReceived, setDateReceived] = useState(() => toDateTimeLocal());
+  const [dateReceived, setDateReceived] = useState(() => toFacilityDateTimeLocal());
   const [method, setMethod] = useState("in_person");
   const [complainantType, setComplainantType] = useState("resident");
   const [name, setName] = useState("");
@@ -66,7 +66,7 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
       // Reset EVERY field, not just the text ones -- a stale facility/category/risk/
       // investigator carrying over to the next open risks filing a complaint against
       // the wrong facility without the user noticing.
-      setFacilityId(""); setDateReceived(toDateTimeLocal()); setMethod("in_person");
+      setFacilityId(""); setDateReceived(toFacilityDateTimeLocal()); setMethod("in_person");
       setComplainantType("resident"); setName(""); setContact(""); setAnonymous(false);
       setResidentId("none"); setCategory("service"); setDescription(""); setRisk("none");
       setImmediateAction(""); setInvestigator(user?.id ?? "none"); setReportable([]);

@@ -21,6 +21,7 @@ import {
   type SurveyEvidencePacketJob,
 } from "@/lib/surveyEvidencePacket";
 import { QueryError } from "@/components/QueryState";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 
 /**
  * Lazy Survey Day section: packet selection, zip package, and surveyor guest grant.
@@ -282,7 +283,7 @@ export default function SurveyDayPacketSection({
           </Button>
           <Button
             size="sm"
-            disabled={assemblePacket.isPending || (packetItems.data?.length ?? 0) === 0}
+            disabled={assemblePacket.isPending || packetItems.isLoading || packetItems.isError || (packetItems.data?.length ?? 0) === 0}
             onClick={() => {
               void assemblePacket
                 .mutateAsync({
@@ -303,7 +304,7 @@ export default function SurveyDayPacketSection({
           <Button
             size="sm"
             variant="secondary"
-            disabled={packagePacket.isPending || (packetItems.data?.length ?? 0) === 0}
+            disabled={packagePacket.isPending || packetItems.isLoading || packetItems.isError || (packetItems.data?.length ?? 0) === 0}
             onClick={() => {
               void packagePacket
                 .mutateAsync({
@@ -326,7 +327,13 @@ export default function SurveyDayPacketSection({
             Package zip
           </Button>
         </div>
-        {latestExport && (
+        {packetExports.isError ? (
+          <QueryError
+            what="packet packages"
+            error={packetExports.error}
+            onRetry={() => void packetExports.refetch()}
+          />
+        ) : latestExport ? (
           <div className="space-y-2 rounded border bg-background p-2 text-xs">
             <p className="text-sm font-medium">Latest package</p>
             <p className="text-muted-foreground">
@@ -345,7 +352,7 @@ export default function SurveyDayPacketSection({
                 variant="outline"
                 disabled={issueGuest.isPending || guestLabel.trim().length < 2}
                 onClick={() => {
-                  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+                  const expires = facilityDayBounds(addFacilityCalendarDays(facilityToday(), 7)).through;
                   void issueGuest
                     .mutateAsync({
                       packetExportId: latestExport.id,
@@ -394,9 +401,22 @@ export default function SurveyDayPacketSection({
               }}
             />
           </div>
-        )}
+        ) : null}
         <ul className="space-y-1 text-sm">
-          {(packetItems.data ?? []).map((item) => {
+          {packetItems.isLoading ? (
+            <li className="text-sm text-muted-foreground">Loading selected evidence…</li>
+          ) : packetItems.isError ? (
+            <li>
+              <QueryError
+                what="selected evidence"
+                error={packetItems.error}
+                onRetry={() => void packetItems.refetch()}
+              />
+            </li>
+          ) : (packetItems.data ?? []).length === 0 ? (
+            <li className="text-sm text-muted-foreground">No evidence selected yet.</li>
+          ) : (
+            (packetItems.data ?? []).map((item) => {
             const citation = item.citation_ref ?? extractSurveyEvidencePacketCitation(item.label);
             return (
               <li key={item.id} className="flex items-center justify-between gap-2 rounded border px-2 py-1">
@@ -419,7 +439,8 @@ export default function SurveyDayPacketSection({
                 </Button>
               </li>
             );
-          })}
+          })
+          )}
         </ul>
         {assembledManifest && (
           <pre className="max-h-40 overflow-auto rounded bg-muted/40 p-2 text-xs">

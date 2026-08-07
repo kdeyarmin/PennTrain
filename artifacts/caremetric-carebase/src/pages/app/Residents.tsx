@@ -121,6 +121,7 @@ export default function Residents() {
   }, [urlState.search]);
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
+  const summaryUnavailable = residentSummaryQuery.isLoading || residentSummaryQuery.isError;
   const residentComplianceSummary = residentSummaryQuery.data ?? EMPTY_RESIDENT_LIST_SUMMARY;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -193,24 +194,24 @@ export default function Residents() {
       <div className="grid gap-4 md:grid-cols-4">
         <button type="button" className="premium-card p-4 text-left hover:border-border" onClick={() => setUrlState({ status: "active", page: "1" })}>
           <p className="text-xs font-medium text-muted-foreground">Active residents</p>
-          <p className="mt-1 text-2xl font-semibold">{residentComplianceSummary.activeResidents}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{residentComplianceSummary.residents} total in this view.</p>
+          <p className="mt-1 text-2xl font-semibold">{summaryUnavailable ? "—" : residentComplianceSummary.activeResidents}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{summaryUnavailable ? "Summary unavailable." : `${residentComplianceSummary.residents} total in this view.`}</p>
         </button>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Residents with gaps</p>
-          <p className="mt-1 text-2xl font-semibold text-destructive">{residentComplianceSummary.residentsWithOpenItems}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Have missing, due-soon, or expired items.</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{summaryUnavailable ? "—" : residentComplianceSummary.residentsWithOpenItems}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{summaryUnavailable ? "Summary unavailable." : "Have missing, due-soon, or expired items."}</p>
         </div>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Open compliance items</p>
-          <p className="mt-1 text-2xl font-semibold">{residentComplianceSummary.expiredItems + residentComplianceSummary.missingItems + residentComplianceSummary.dueSoonItems}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{residentComplianceSummary.expiredItems} expired · {residentComplianceSummary.missingItems} missing · {residentComplianceSummary.dueSoonItems} due soon</p>
+          <p className="mt-1 text-2xl font-semibold">{summaryUnavailable ? "—" : (residentComplianceSummary.expiredItems + residentComplianceSummary.missingItems + residentComplianceSummary.dueSoonItems)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{summaryUnavailable ? "Summary unavailable." : `${residentComplianceSummary.expiredItems} expired · ${residentComplianceSummary.missingItems} missing · ${residentComplianceSummary.dueSoonItems} due soon`}</p>
         </div>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Next 14 days</p>
-          <p className="mt-1 text-2xl font-semibold">{residentComplianceSummary.dueWithin14Days}</p>
+          <p className="mt-1 text-2xl font-semibold">{summaryUnavailable ? "—" : residentComplianceSummary.dueWithin14Days}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {residentComplianceSummary.newestAdmissionResidentId ? (
+            {summaryUnavailable ? "Summary unavailable." : residentComplianceSummary.newestAdmissionResidentId ? (
               <Link href={`/app/residents/${residentComplianceSummary.newestAdmissionResidentId}`} className="text-primary hover:underline">Review newest admission</Link>
             ) : "No admissions in this view."}
           </p>
@@ -229,14 +230,14 @@ export default function Residents() {
             />
           </div>
           <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
-            <SelectTrigger className="w-44 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-44 h-9 bg-card" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {["reserved", "active", "temporarily_out", "hospital_leave", "discharged", "deceased"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
@@ -332,7 +333,7 @@ export default function Residents() {
         )}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(EMPTY_FORM); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Resident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

@@ -63,14 +63,14 @@ export default function ResidentComplianceReport() {
 
       <div className="flex gap-3 flex-wrap">
         <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+          <SelectTrigger className="w-48" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Facilities</SelectItem>
             {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="w-48" aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="open">Due Soon / Expired / Missing</SelectItem>
             <SelectItem value="all">All Statuses</SelectItem>
@@ -81,7 +81,7 @@ export default function ResidentComplianceReport() {
           </SelectContent>
         </Select>
         <Select value={itemType} onValueChange={setItemType}>
-          <SelectTrigger className="w-56"><SelectValue placeholder="All Item Types" /></SelectTrigger>
+          <SelectTrigger className="w-56" aria-label="Item type"><SelectValue placeholder="All Item Types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Item Types</SelectItem>
             {Object.entries(ITEM_TYPE_LABELS).map(([value, label]) => (

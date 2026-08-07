@@ -362,7 +362,7 @@ export default function DataImportCenter() {
               />
             </div>
             <Select value={domainFilter} onValueChange={(value) => { setDomainFilter(value); setPage(0); }}>
-              <SelectTrigger><SelectValue placeholder="Domain" /></SelectTrigger>
+              <SelectTrigger aria-label="Domain"><SelectValue placeholder="Domain" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All domains</SelectItem>
                 {IMPORT_DOMAINS.map((domain) => (
@@ -371,7 +371,7 @@ export default function DataImportCenter() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(0); }}>
-              <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {JOB_STATUSES.map((status) => (

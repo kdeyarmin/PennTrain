@@ -71,6 +71,15 @@ function RegisterAssetCard({ governedSourceIds }: { governedSourceIds: Set<strin
   const candidates = (courses.data ?? []).filter(
     (course) => course.organization_id !== null && !governedSourceIds.has(course.id),
   );
+  const coursesBusy = courses.isLoading || courses.isPending;
+  const coursesFailed = courses.isError;
+  const registerPlaceholder = coursesBusy
+    ? "Loading courses…"
+    : coursesFailed
+      ? "Could not load courses"
+      : candidates.length
+        ? "Choose a course"
+        : "Every course is already governed";
 
   return (
     <Card>
@@ -84,14 +93,22 @@ function RegisterAssetCard({ governedSourceIds }: { governedSourceIds: Set<strin
       <CardContent className="flex flex-wrap items-end gap-3">
         <div className="min-w-[16rem] flex-1 space-y-2">
           <Label htmlFor="gc-register-course">Course</Label>
-          <Select value={courseId} onValueChange={setCourseId}>
+          <Select value={courseId} onValueChange={setCourseId} disabled={coursesBusy || coursesFailed}>
             <SelectTrigger id="gc-register-course">
-              <SelectValue placeholder={candidates.length ? "Choose a course" : "Every course is already governed"} />
+              <SelectValue placeholder={registerPlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              {candidates.map((course) => (
-                <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
-              ))}
+              {coursesBusy ? (
+                <SelectItem value="none" disabled>Loading courses…</SelectItem>
+              ) : coursesFailed ? (
+                <SelectItem value="none" disabled>Could not load courses</SelectItem>
+              ) : candidates.length === 0 ? (
+                <SelectItem value="none" disabled>Every course is already governed</SelectItem>
+              ) : (
+                candidates.map((course) => (
+                  <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -129,16 +146,17 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
   useEffect(() => { setSourceVersionId(""); }, [sourceCourseId]);
 
   const version = (versions.data ?? []).find((row) => row.id === sourceVersionId);
+  const blocksReady = !!sourceVersionId && !blocks.isLoading && !blocks.isError && blocks.data !== undefined;
   const snapshot = useMemo(
-    () => (version ? buildCourseSnapshot(version, blocks.data ?? []) : null),
-    [version, blocks.data],
+    () => (version && blocksReady ? buildCourseSnapshot(version, blocks.data ?? []) : null),
+    [version, blocks.data, blocksReady],
   );
   const findings = snapshot ? validateCourseSnapshot(snapshot) : [];
   const blocked = hasBlockingFindings(findings);
   const issues = createFormIssues({
     assetId, sourceVersionId, changeSummary, materialChange, materialChangeAction,
   });
-  const blocksLoading = !!sourceVersionId && blocks.isLoading;
+  const blocksLoading = !!sourceVersionId && (blocks.isLoading || blocks.isError);
 
   return (
     <Card>
@@ -155,11 +173,19 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
           <Select value={sourceVersionId} onValueChange={setSourceVersionId}>
             <SelectTrigger id="gc-version"><SelectValue placeholder="Choose a version to snapshot" /></SelectTrigger>
             <SelectContent>
-              {(versions.data ?? []).map((row) => (
-                <SelectItem key={row.id} value={row.id}>
-                  v{row.version_number} · {row.title} · {row.status}
-                </SelectItem>
-              ))}
+              {versions.isLoading ? (
+                <SelectItem value="none" disabled>Loading versions…</SelectItem>
+              ) : versions.isError ? (
+                <SelectItem value="none" disabled>Could not load versions</SelectItem>
+              ) : (versions.data ?? []).length === 0 ? (
+                <SelectItem value="none" disabled>No versions available</SelectItem>
+              ) : (
+                (versions.data ?? []).map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    v{row.version_number} · {row.title} · {row.status}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>

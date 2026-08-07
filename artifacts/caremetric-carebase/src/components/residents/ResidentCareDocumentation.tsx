@@ -240,7 +240,8 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
             </CardContent>
           </Card>
         )}
-        {(care.data?.assessments ?? []).length === 0 ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No assessments recorded.</CardContent></Card>
+        {care.isLoading ? <Card><CardContent className="p-4"><Skeleton className="h-6 w-full" /></CardContent></Card>
+          : (care.data?.assessments ?? []).length === 0 ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No assessments recorded.</CardContent></Card>
           : (care.data?.assessments ?? []).map((assessment) => (
             <Card key={assessment.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
@@ -269,8 +270,9 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
       </TabsContent>
 
       <TabsContent value="careplan" className="space-y-3">
-        {canChart && <div><Button variant="outline" onClick={() => setPlanDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />New care plan</Button></div>}
-        {(care.data?.carePlans ?? []).length === 0 ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No care plans yet.</CardContent></Card>
+        {canChart && <div><Button variant="outline" onClick={() => { setPlanTitle(""); setPlanCategory("general"); setPlanDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />New care plan</Button></div>}
+        {care.isLoading ? <Card><CardContent className="p-4"><Skeleton className="h-6 w-full" /></CardContent></Card>
+          : (care.data?.carePlans ?? []).length === 0 ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No care plans yet.</CardContent></Card>
           : (care.data?.carePlans ?? []).map((plan) => (
             <Card key={plan.id}>
               <CardHeader className="pb-2"><div className="flex items-center justify-between gap-2">

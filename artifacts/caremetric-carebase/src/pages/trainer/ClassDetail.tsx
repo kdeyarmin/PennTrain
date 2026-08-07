@@ -274,11 +274,12 @@ export default function ClassDetail() {
   const { data: cls, isLoading, isError, error, refetch } = useGetTrainingClass(classId);
   const {
     data: attendees,
+    isLoading: attendeesLoading,
     isError: attendeesError,
     error: attendeesErrorDetail,
     refetch: refetchAttendees,
   } = useListClassAttendees(classId);
-  const { data: allEmployees } = useListEmployees({ status: "active" });
+  const { data: allEmployees, isLoading: allEmployeesLoading, isError: allEmployeesError, error: allEmployeesErr, refetch: refetchAllEmployees } = useListEmployees({ status: "active" });
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
 
@@ -780,6 +781,8 @@ export default function ClassDetail() {
                 id: employee.id,
                 name: `${employee.first_name} ${employee.last_name}`,
               }))}
+              employeesLoading={allEmployeesLoading}
+              employeesError={allEmployeesError}
               employeeName={(employeeId) => {
                 const employee = employeesById.get(employeeId);
                 return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
@@ -820,7 +823,7 @@ export default function ClassDetail() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Attendees ({allAttendees.length})
+              Attendees ({attendeesLoading || attendeesError ? "—" : allAttendees.length})
             </CardTitle>
             <div className="flex items-center gap-2">
               {isDraft && (
@@ -841,6 +844,10 @@ export default function ClassDetail() {
               could otherwise complete the class thinking nobody attended. */}
           {attendeesError ? (
             <QueryError what="the class roster" error={attendeesErrorDetail} onRetry={() => void refetchAttendees()} />
+          ) : attendeesLoading ? (
+            <div className="space-y-2 py-4">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />)}
+            </div>
           ) : allAttendees.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
@@ -997,7 +1004,7 @@ export default function ClassDetail() {
 
       {cls.roster_document_id && <RosterDocumentCard documentId={cls.roster_document_id} />}
 
-      <Dialog open={showAddAttendees} onOpenChange={setShowAddAttendees}>
+      <Dialog open={showAddAttendees} onOpenChange={(open) => { setShowAddAttendees(open); if (!open) { setSelectedEmps([]); setEmpSearch(""); } }}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Add Attendees</DialogTitle>
@@ -1015,7 +1022,13 @@ export default function ClassDetail() {
             />
           </div>
           <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
-            {filteredEmployees.length === 0 ? (
+            {allEmployeesLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Loading employees…
+              </p>
+            ) : allEmployeesError ? (
+              <QueryError what="employees" error={allEmployeesErr} onRetry={() => void refetchAllEmployees()} className="m-3" />
+            ) : filteredEmployees.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 No employees available.
               </p>

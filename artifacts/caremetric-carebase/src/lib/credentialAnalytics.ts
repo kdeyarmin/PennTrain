@@ -1,3 +1,5 @@
+import { facilityDaysUntil } from "./dateUtils";
+
 export interface CredentialAnalyticsRecord {
   id: string;
   employee_id: string;
@@ -22,9 +24,8 @@ export interface CredentialAnalyticsSummary {
 }
 
 function daysUntil(date: string, today: string): number {
-  const todayTime = Date.parse(`${today}T00:00:00Z`);
-  const dateTime = Date.parse(`${date}T00:00:00Z`);
-  return Math.ceil((dateTime - todayTime) / 86_400_000);
+  const anchor = new Date(`${today}T16:00:00Z`);
+  return facilityDaysUntil(date, anchor) ?? 0;
 }
 
 function riskScore(credential: CredentialAnalyticsRecord, today: string): number {

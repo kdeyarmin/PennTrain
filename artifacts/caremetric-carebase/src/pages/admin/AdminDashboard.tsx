@@ -51,6 +51,8 @@ export default function AdminDashboard() {
     refetch: refetchDashboard,
   } = useGetPlatformAdminDashboardPage();
 
+  const healthBusy = healthLoading || healthError;
+  const dashboardBusy = dashboardLoading || dashboardError;
   const orgsByStatus = health?.orgsByStatus ?? {};
   const totalOrgs = Object.values(orgsByStatus).reduce((sum, value) => sum + (Number(value) || 0), 0);
   const activeOrgs = Number(orgsByStatus.active ?? 0);
@@ -237,7 +239,7 @@ export default function AdminDashboard() {
     {
       title: "Tenant Operations",
       Icon: Building2,
-      status: `${activeOrgs}/${totalOrgs} active`,
+      status: healthBusy ? "—" : `${activeOrgs}/${totalOrgs} active`,
       finding: "Centralize org setup, packages, facilities, and subscription follow-up.",
       enhancement: "Use the tenant watchlist plus org shortcuts to unblock launches faster.",
       links: [
@@ -249,7 +251,7 @@ export default function AdminDashboard() {
     {
       title: "People & Access",
       Icon: Users,
-      status: `${health?.totalEmployees ?? 0} employees`,
+      status: healthBusy ? "—" : `${health?.totalEmployees ?? 0} employees`,
       finding: "Admins need one path to inspect employees and control application users.",
       enhancement: "Pair employee directory review with user-role review before every launch.",
       links: [
@@ -261,7 +263,7 @@ export default function AdminDashboard() {
     {
       title: "Training & Content",
       Icon: BookOpen,
-      status: `${health?.aiGenerationsFailed ?? 0} AI failures`,
+      status: healthBusy ? "—" : `${health?.aiGenerationsFailed ?? 0} AI failures`,
       finding: "Course authoring and AI generation health should be reviewed together.",
       enhancement: "Keep training-content creation, AI logs, and help content one click away.",
       links: [
@@ -273,7 +275,7 @@ export default function AdminDashboard() {
     {
       title: "Compliance Oversight",
       Icon: ShieldAlert,
-      status: `${suspendedOrgs} suspended`,
+      status: healthBusy ? "—" : `${suspendedOrgs} suspended`,
       finding: "Platform admins need quick access to alerts, audit documentation, and governance.",
       enhancement: "Review alerts and security governance before enabling troubled tenants.",
       links: [
@@ -285,7 +287,7 @@ export default function AdminDashboard() {
     {
       title: "Communications & Support",
       Icon: LifeBuoy,
-      status: `${openSupportTickets} open tickets`,
+      status: dashboardBusy ? "—" : `${openSupportTickets} open tickets`,
       finding: "Support and failed notification delivery directly affect employee completion.",
       enhancement: "Clear failed deliveries and open tickets from the same operating surface.",
       links: [
@@ -330,8 +332,12 @@ export default function AdminDashboard() {
         <CardContent className="p-6">
           <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div className="space-y-4">
-              <Badge variant={urgentWorkItems > 0 ? "destructive" : "secondary"} className="w-fit">
-                {urgentWorkItems > 0 ? `${urgentWorkItems} item${urgentWorkItems === 1 ? "" : "s"} need attention` : "Ready to operate"}
+              <Badge variant={!healthBusy && !dashboardBusy && urgentWorkItems > 0 ? "destructive" : "secondary"} className="w-fit">
+                {healthBusy || dashboardBusy
+                  ? "Metrics unavailable"
+                  : urgentWorkItems > 0
+                    ? `${urgentWorkItems} item${urgentWorkItems === 1 ? "" : "s"} need attention`
+                    : "Ready to operate"}
               </Badge>
               <div>
                 <h2 className="text-3xl font-bold tracking-tight text-foreground">Super admin command center</h2>
@@ -376,10 +382,10 @@ export default function AdminDashboard() {
             past-due tenants lands on exactly those rows instead of the unfiltered list the
             admin then has to scan badge by badge. Values must stay in the set the column's
             check constraint allows (SUBSCRIPTION_STATUSES in Organizations.tsx). */}
-        <StatCard label="Total Organizations" value={totalOrgs} icon={Building2} tone="primary" href="/admin/organizations" />
-        <StatCard label="Active Subscriptions" value={activeOrgs} icon={CheckCircle} tone="success" href="/admin/organizations?status=active" />
-        <StatCard label="Trial Accounts" value={trialOrgs} icon={TrendingUp} tone="info" href="/admin/organizations?status=trial" />
-        <StatCard label="Past Due" value={pastDueOrgs} icon={AlertCircle} tone="warning" href="/admin/organizations?status=past_due" />
+        <StatCard label="Total Organizations" value={healthBusy ? "—" : totalOrgs} icon={Building2} tone="primary" href="/admin/organizations" />
+        <StatCard label="Active Subscriptions" value={healthBusy ? "—" : activeOrgs} icon={CheckCircle} tone="success" href="/admin/organizations?status=active" />
+        <StatCard label="Trial Accounts" value={healthBusy ? "—" : trialOrgs} icon={TrendingUp} tone="info" href="/admin/organizations?status=trial" />
+        <StatCard label="Past Due" value={healthBusy ? "—" : pastDueOrgs} icon={AlertCircle} tone="warning" href="/admin/organizations?status=past_due" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -405,12 +411,12 @@ export default function AdminDashboard() {
           <div className="grid gap-3 md:grid-cols-3">
             <Link href="/admin/notifications?status=failed" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-2 text-sm font-medium"><Send className="h-4 w-4 text-red-600" /> Failed notifications</div>
-              <p className="mt-2 text-2xl font-bold">{health?.notificationDeliveriesFailed ?? 0}</p>
+              <p className="mt-2 text-2xl font-bold">{healthLoading || healthError ? "—" : (health?.notificationDeliveriesFailed ?? 0)}</p>
               <p className="text-xs text-muted-foreground">Fix delivery issues before users miss required training reminders.</p>
             </Link>
             <Link href="/admin/security" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4 text-blue-600" /> Governance checks</div>
-              <p className="mt-2 text-2xl font-bold">{suspendedOrgs}</p>
+              <p className="mt-2 text-2xl font-bold">{healthLoading || healthError ? "—" : suspendedOrgs}</p>
               <p className="text-xs text-muted-foreground">Suspended organizations to review before enabling or expanding access.</p>
             </Link>
             <Link href="/admin/help-content" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
@@ -557,7 +563,9 @@ export default function AdminDashboard() {
                   <Link key={item.label} href={item.href} className="rounded-lg border p-3 hover:bg-muted/50">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-medium">{item.label}</p>
-                      <Badge variant={item.count > 0 && item.severity === "high" ? "destructive" : "secondary"}>{item.count}</Badge>
+                      <Badge variant={!healthBusy && item.count > 0 && item.severity === "high" ? "destructive" : "secondary"}>
+                        {healthBusy ? "—" : item.count}
+                      </Badge>
                     </div>
                   </Link>
                 ))}
@@ -565,17 +573,23 @@ export default function AdminDashboard() {
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-primary" /> Inspection readiness scoring</div>
                 <div className="mt-3 space-y-2">
-                  {inspectionReadinessScores.map(({ id, name, score, outstandingItems, facilityIncidents, facilityViolations, facilityOverdueActions }) => (
-                    <Link key={id} href={`/admin/facilities/${id}`} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
-                      <div>
-                        <p className="text-sm font-medium">{name}</p>
-                        <p className="text-xs text-muted-foreground">{outstandingItems} inspection gaps · {facilityIncidents} incidents · {facilityViolations} violations · {facilityOverdueActions} overdue actions</p>
-                      </div>
-                      <Badge variant={score < 70 ? "destructive" : score < 90 ? "secondary" : "default"}>{score}/100</Badge>
-                    </Link>
-                  ))}
-                  {inspectionReadinessScores.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No facilities available for readiness scoring.</p>
+                  {dashboardBusy ? (
+                    <p className="text-sm text-muted-foreground">Loading inspection readiness…</p>
+                  ) : (
+                    <>
+                      {inspectionReadinessScores.map(({ id, name, score, outstandingItems, facilityIncidents, facilityViolations, facilityOverdueActions }) => (
+                        <Link key={id} href={`/admin/facilities/${id}`} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
+                          <div>
+                            <p className="text-sm font-medium">{name}</p>
+                            <p className="text-xs text-muted-foreground">{outstandingItems} inspection gaps · {facilityIncidents} incidents · {facilityViolations} violations · {facilityOverdueActions} overdue actions</p>
+                          </div>
+                          <Badge variant={score < 70 ? "destructive" : score < 90 ? "secondary" : "default"}>{score}/100</Badge>
+                        </Link>
+                      ))}
+                      {inspectionReadinessScores.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No facilities available for readiness scoring.</p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -584,18 +598,24 @@ export default function AdminDashboard() {
             <div className="rounded-lg border p-4">
               <div className="flex items-center gap-2 font-semibold"><ClipboardCheck className="h-4 w-4 text-primary" /> Compliance case timeline</div>
               <div className="mt-3 space-y-3">
-                {complianceTimelineItems.map(({ id, label, date, href, status, Icon }) => (
-                  <Link key={id} href={href} className="flex items-start gap-3 rounded-md border p-3 hover:bg-muted/50">
-                    <Icon className="mt-0.5 h-4 w-4 text-primary" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{label}</p>
-                      <p className="text-xs text-muted-foreground">{date ? formatDateForDisplay(date) : "No date"}</p>
-                    </div>
-                    <Badge variant="outline" className="capitalize">{status?.replace(/_/g, " ") ?? "open"}</Badge>
-                  </Link>
-                ))}
-                {complianceTimelineItems.length === 0 && (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incidents, violations, alerts, or corrective actions found yet.</p>
+                {dashboardBusy ? (
+                  <p className="text-sm text-muted-foreground">Loading compliance timeline…</p>
+                ) : (
+                  <>
+                    {complianceTimelineItems.map(({ id, label, date, href, status, Icon }) => (
+                      <Link key={id} href={href} className="flex items-start gap-3 rounded-md border p-3 hover:bg-muted/50">
+                        <Icon className="mt-0.5 h-4 w-4 text-primary" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{label}</p>
+                          <p className="text-xs text-muted-foreground">{date ? formatDateForDisplay(date) : "No date"}</p>
+                        </div>
+                        <Badge variant="outline" className="capitalize">{status?.replace(/_/g, " ") ?? "open"}</Badge>
+                      </Link>
+                    ))}
+                    {complianceTimelineItems.length === 0 && (
+                      <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incidents, violations, alerts, or corrective actions found yet.</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -610,27 +630,38 @@ export default function AdminDashboard() {
         <CardContent>
           <div className="grid gap-4 xl:grid-cols-[0.8fr_0.6fr_0.6fr]">
             <div className="grid gap-3 sm:grid-cols-2">
-              {trainingOptimizationItems.map((item) => (
-                <Link key={item.label} href={item.href} className="rounded-lg border p-3 hover:bg-muted/50">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <Badge variant={item.count > 0 && item.severity === "high" ? "destructive" : item.severity === "good" ? "default" : "secondary"}>{item.count}</Badge>
-                  </div>
-                </Link>
-              ))}
+              {trainingOptimizationItems.map((item) => {
+                const busy = item.label === "Training path templates" ? dashboardBusy : healthBusy;
+                return (
+                  <Link key={item.label} href={item.href} className="rounded-lg border p-3 hover:bg-muted/50">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <Badge variant={!busy && item.count > 0 && item.severity === "high" ? "destructive" : !busy && item.severity === "good" ? "default" : "secondary"}>
+                        {busy ? "—" : item.count}
+                      </Badge>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
 
             <div className="rounded-lg border p-4">
               <div className="flex items-center gap-2 font-semibold"><GraduationCap className="h-4 w-4 text-primary" /> Training assignment hotspots</div>
               <div className="mt-3 space-y-2">
-                {coursesNeedingAttention.map((course) => (
-                  <Link key={course.courseId} href={`/admin/courses/${course.courseId}`} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
-                    <span className="truncate text-sm font-medium">{course.title}</span>
-                    <Badge variant="secondary">{course.count}</Badge>
-                  </Link>
-                ))}
-                {coursesNeedingAttention.length === 0 && (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incomplete training-assignment hotspots found.</p>
+                {dashboardBusy ? (
+                  <p className="text-sm text-muted-foreground">Loading training hotspots…</p>
+                ) : (
+                  <>
+                    {coursesNeedingAttention.map((course) => (
+                      <Link key={course.courseId} href={`/admin/courses/${course.courseId}`} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
+                        <span className="truncate text-sm font-medium">{course.title}</span>
+                        <Badge variant="secondary">{course.count}</Badge>
+                      </Link>
+                    ))}
+                    {coursesNeedingAttention.length === 0 && (
+                      <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No incomplete training-assignment hotspots found.</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -642,7 +673,7 @@ export default function AdminDashboard() {
                   <Link key={item.label} href={item.href} className="block rounded-md border p-3 hover:bg-muted/50">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-medium">{item.label}</p>
-                      <Badge variant={item.count > 0 ? "destructive" : "secondary"}>{item.count}</Badge>
+                      <Badge variant={!healthBusy && item.count > 0 ? "destructive" : "secondary"}>{healthBusy ? "—" : item.count}</Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{item.guidance}</p>
                   </Link>
@@ -774,7 +805,7 @@ export default function AdminDashboard() {
                   <LifeBuoy className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-lg font-bold leading-tight">{openSupportTickets}</p>
+                  <p className="text-lg font-bold leading-tight">{dashboardBusy ? "—" : openSupportTickets}</p>
                   <p className="text-xs text-muted-foreground">Open Support Tickets</p>
                 </div>
               </Link>

@@ -21,6 +21,8 @@ export function CourseOverviewSection({
   canUnpublishCourse,
   onUnpublishClick,
   feedbackSummary,
+  feedbackLoading = false,
+  feedbackError = false,
 }: {
   course: Course;
   userRole: Role | undefined;
@@ -34,6 +36,8 @@ export function CourseOverviewSection({
   canUnpublishCourse: boolean;
   onUnpublishClick: () => void;
   feedbackSummary: { average: number | null; count: number };
+  feedbackLoading?: boolean;
+  feedbackError?: boolean;
 }) {
   return (
     <>
@@ -107,7 +111,11 @@ export function CourseOverviewSection({
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Employee Rating</p>
-            {feedbackSummary.count > 0 ? (
+            {feedbackLoading ? (
+              <p className="text-sm text-muted-foreground">Loading ratings…</p>
+            ) : feedbackError ? (
+              <p className="text-sm text-destructive">Couldn't load ratings.</p>
+            ) : feedbackSummary.count > 0 ? (
               <p className="text-sm flex items-center gap-1.5">
                 <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
                 {feedbackSummary.average} out of 5

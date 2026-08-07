@@ -18,7 +18,7 @@
  * string match.
  */
 import type { ComparableAnswer } from "./assessmentTemplates";
-import { facilityToday } from "./dateUtils";
+import { addFacilityCalendarDays, facilityDaysUntil, facilityToday } from "./dateUtils";
 
 export type CareConflictKind =
   | "transfer_assistance_mismatch"
@@ -192,9 +192,15 @@ function planTransferLevel(plan: ActivePlanLike | null): string | null {
 
 function daysBetween(from: string | null | undefined, now: Date): number | null {
   if (!from) return null;
-  const at = new Date(from);
-  if (Number.isNaN(at.getTime())) return null;
-  return Math.floor((now.getTime() - at.getTime()) / 86_400_000);
+  const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+  const day = DATE_ONLY.test(from)
+    ? from
+    : Number.isFinite(Date.parse(from))
+      ? facilityToday(new Date(from))
+      : null;
+  if (!day) return null;
+  const until = facilityDaysUntil(day, now);
+  return until === null ? null : -until;
 }
 
 function answerFor(answers: ComparableAnswer[], attribute: string): ComparableAnswer | undefined {
@@ -259,10 +265,16 @@ export function detectResidentCareConflicts(input: CareConflictInput): CareConfl
   }
 
   // 3. Staff documentation repeatedly shows more assistance than the plan describes.
-  const windowStart = now.getTime() - DOCUMENTED_ASSISTANCE_WINDOW_DAYS * 86_400_000;
+  const assistanceCutoffDay = addFacilityCalendarDays(facilityToday(now), -DOCUMENTED_ASSISTANCE_WINDOW_DAYS);
+  const today = facilityToday(now);
   const recentAssistanceExceptions = input.serviceExceptions.filter((exception) => {
-    const at = exception.at ? new Date(exception.at).getTime() : NaN;
-    if (Number.isNaN(at) || at < windowStart) return false;
+    if (!exception.at) return false;
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(exception.at)
+      ? exception.at
+      : Number.isFinite(Date.parse(exception.at))
+        ? facilityToday(new Date(exception.at))
+        : null;
+    if (!day || day < assistanceCutoffDay || day > today) return false;
     if (exception.assistance_level) return true;
     return MORE_ASSISTANCE_STATUSES.has(exception.status);
   });

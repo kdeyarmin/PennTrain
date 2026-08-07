@@ -33,7 +33,7 @@ export default function OrganizationDetail() {
   const statsQuery = useGetOrganizationStats(id);
   const { data: org, isLoading: orgLoading } = orgQuery;
   const { data: stats, isLoading: statsLoading } = statsQuery;
-  const { data: facilities, isLoading: facLoading } = useListFacilities({ organizationId: id });
+  const { data: facilities, isLoading: facLoading, isError: facError, error: facErr, refetch: refetchFacilities } = useListFacilities({ organizationId: id });
   const { data: currentPackage } = useGetPackage(org?.package_id);
   const { data: packages } = useListPackages();
   const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
@@ -276,7 +276,7 @@ export default function OrganizationDetail() {
             <div className="pt-2 space-y-1.5">
               <span className="text-xs text-muted-foreground">Change package</span>
               <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage || isSuspended}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectTrigger className="h-9" aria-label="Change package"><SelectValue placeholder="No package" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No package</SelectItem>
                   {packages?.map(pkg => (
@@ -318,6 +318,8 @@ export default function OrganizationDetail() {
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14" />)}
             </div>
+          ) : facError ? (
+            <QueryError what="facilities" error={facErr} onRetry={() => void refetchFacilities()} />
           ) : !facilities?.length ? (
             <p className="text-sm text-muted-foreground">No facilities.</p>
           ) : (

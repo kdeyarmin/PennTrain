@@ -211,7 +211,7 @@ export default function BackgroundChecks() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2"><ShieldQuestion className="h-5 w-5" /> Roster ({filteredEmployees.length})</CardTitle>
             <Select value={facilityFilter} onValueChange={setFacilityFilter}>
-              <SelectTrigger className="w-48"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+              <SelectTrigger className="w-48" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Facilities</SelectItem>
                 {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}

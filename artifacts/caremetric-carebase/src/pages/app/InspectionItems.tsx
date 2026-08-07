@@ -331,14 +331,14 @@ export default function InspectionItems() {
             />
           </div>
           <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.kind} onValueChange={(v) => setUrlState({ kind: v, page: "1" })}>
-            <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Kinds" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Kind"><SelectValue placeholder="All Kinds" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Kinds</SelectItem>
               <SelectItem value="equipment">Equipment</SelectItem>
@@ -346,7 +346,7 @@ export default function InspectionItems() {
             </SelectContent>
           </Select>
           <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
-            <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {["compliant", "due_soon", "expired", "missing"].map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}
@@ -357,7 +357,7 @@ export default function InspectionItems() {
         {canManage && selectedIds.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3 bg-muted/30">
             <p className="text-sm">{selectedIds.length} selected</p>
-            <Button size="sm" onClick={() => setBulkLogOpen(true)}>
+            <Button size="sm" onClick={() => { setBulkNotes(""); setBulkResult("pass"); setBulkLogOpen(true); }}>
               <ClipboardCheck className="mr-2 h-4 w-4" /> Log inspection on selected
             </Button>
           </div>
@@ -451,7 +451,7 @@ export default function InspectionItems() {
         </div>
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setEditing(null); setForm(EMPTY_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Inspection Item" : "Add Inspection Item"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">

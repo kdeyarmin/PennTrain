@@ -114,5 +114,6 @@ export function useResidentCareLevelFlags(
     isLoading: sources.isLoading,
     isError: sources.isError,
     error: sources.error,
+    refetch: sources.refetch,
   };
 }

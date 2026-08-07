@@ -6,7 +6,8 @@ import {
   readinessLabel,
 } from "./employeeReadiness";
 
-const TODAY = new Date(2026, 6, 24); // 2026-07-24
+// Noon UTC stays on 2026-07-24 in Pennsylvania (EDT) for facilityDaysUntil windows.
+const TODAY = new Date("2026-07-24T12:00:00Z");
 
 describe("computeEmployeeReadiness", () => {
   it("is ready when cleared and everything is current", () => {

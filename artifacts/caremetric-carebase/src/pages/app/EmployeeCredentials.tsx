@@ -367,27 +367,27 @@ export default function EmployeeCredentials() {
       <div className="grid gap-4 md:grid-cols-4">
         <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setFilters({ statusFilter: "expired", page: "1" })}>
           <p className="text-xs font-medium text-muted-foreground">Expired</p>
-          <p className="mt-1 text-2xl font-semibold text-destructive">{credentialSummary.expired}</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{isLoading || isError ? "—" : credentialSummary.expired}</p>
           <p className="mt-1 text-xs text-muted-foreground">Require immediate remediation.</p>
         </button>
         <button type="button" className="premium-card p-4 text-left hover:border-warning/40" onClick={() => setFilters({ statusFilter: "due_soon", page: "1" })}>
           <p className="text-xs font-medium text-muted-foreground">Due soon</p>
-          <p className="mt-1 text-2xl font-semibold">{credentialSummary.dueSoon}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{credentialSummary.expiringWithin30Days} expire within 30 days.</p>
+          <p className="mt-1 text-2xl font-semibold">{isLoading || isError ? "—" : credentialSummary.dueSoon}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{isLoading || isError ? "—" : `${credentialSummary.expiringWithin30Days} expire within 30 days.`}</p>
         </button>
         <button type="button" className="premium-card p-4 text-left hover:border-border" onClick={() => setFilters({ statusFilter: "missing", page: "1" })}>
           <p className="text-xs font-medium text-muted-foreground">Missing</p>
-          <p className="mt-1 text-2xl font-semibold">{credentialSummary.missing}</p>
+          <p className="mt-1 text-2xl font-semibold">{isLoading || isError ? "—" : credentialSummary.missing}</p>
           <p className="mt-1 text-xs text-muted-foreground">Documentation has not been recorded.</p>
         </button>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Employees with gaps</p>
-          <p className="mt-1 text-2xl font-semibold">{credentialSummary.employeesWithGaps}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{credentialSummary.unverified} active records lack verification date.</p>
+          <p className="mt-1 text-2xl font-semibold">{isLoading || isError ? "—" : credentialSummary.employeesWithGaps}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{isLoading || isError ? "—" : `${credentialSummary.unverified} active records lack verification date.`}</p>
         </div>
       </div>
 
-      {topRiskCredentials.length > 0 && (
+      {!isError && topRiskCredentials.length > 0 && (
         <div className="premium-card p-4">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
@@ -414,21 +414,21 @@ export default function EmployeeCredentials() {
       <div className="premium-card">
         <div className="filter-bar">
           <Select value={facilityFilter} onValueChange={(v) => setFilters({ facilityFilter: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={employeeFilter} onValueChange={(v) => setFilters({ employeeFilter: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Employees" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Employee"><SelectValue placeholder="All Employees" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Employees</SelectItem>
               {(employees ?? []).map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={(v) => setFilters({ statusFilter: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {["compliant", "due_soon", "expired", "missing", "not_applicable"].map((s) => (
@@ -522,7 +522,7 @@ export default function EmployeeCredentials() {
         )}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(EMPTY_FORM); setEditing(null); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? "Edit Credential" : "Add Credential"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">

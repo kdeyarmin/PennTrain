@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
+import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -129,11 +129,15 @@ export default function MyCourses() {
       </div>
 
       {user?.role === "employee" && <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5" />Offline training library ({offlineLibrary.data?.length ?? 0})</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5" />Offline training library ({offlineLibrary.isLoading || offlineLibrary.isError ? "—" : (offlineLibrary.data?.length ?? 0)})</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Encrypted on this device</AlertTitle><AlertDescription>Only assigned course content and quiz prompts are cached. Answer keys, resident data, personnel lists, credentials, reports, and access tokens are excluded. Downloads expire after 30 days and are wiped when this device registration is revoked.</AlertDescription></Alert>
-          {offlineLibrary.data?.length ? offlineLibrary.data.map((item) => <div key={item.assignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{item.title}</p><p className="text-xs text-muted-foreground">Downloaded {new Date(item.downloadedAt).toLocaleString()} · expires {new Date(item.expiresAt).toLocaleDateString()}</p></div><div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href={`/me/courses/${item.assignmentId}/offline`}>Open offline copy</Link></Button><Button size="icon" variant="ghost" aria-label={`Remove offline copy of ${item.title}`} disabled={removeOffline.isPending} onClick={() => removeOffline.mutate(item.assignmentId)}><Trash2 className="h-4 w-4" /></Button></div></div>) : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No courses are available offline yet. Use Download on an active assignment below.</p>}
-          {(offlineLibrary.data?.length ?? 0) > 0 && <Button variant="outline" disabled={wipeOffline.isPending} onClick={() => wipeOffline.mutate(undefined, { onSuccess: () => toast({ title: "Offline training wiped from this device" }), onError: (error) => toast({ title: "Offline library could not be wiped", description: error.message, variant: "destructive" }) })}><Trash2 className="mr-2 h-4 w-4" />Revoke device and wipe all</Button>}
+          {offlineLibrary.isError ? (
+            <QueryError what="offline training library" error={offlineLibrary.error} onRetry={() => void offlineLibrary.refetch()} />
+          ) : offlineLibrary.isLoading ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Loading offline library…</p>
+          ) : offlineLibrary.data?.length ? offlineLibrary.data.map((item) => <div key={item.assignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{item.title}</p><p className="text-xs text-muted-foreground">Downloaded {new Date(item.downloadedAt).toLocaleString()} · expires {new Date(item.expiresAt).toLocaleDateString()}</p></div><div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href={`/me/courses/${item.assignmentId}/offline`}>Open offline copy</Link></Button><Button size="icon" variant="ghost" aria-label={`Remove offline copy of ${item.title}`} disabled={removeOffline.isPending} onClick={() => removeOffline.mutate(item.assignmentId, { onSuccess: () => toast({ title: "Offline copy removed" }), onError: (error) => toast({ title: "Offline copy could not be removed", description: error.message, variant: "destructive" }) })}><Trash2 className="h-4 w-4" /></Button></div></div>) : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No courses are available offline yet. Use Download on an active assignment below.</p>}
+          {!offlineLibrary.isLoading && !offlineLibrary.isError && (offlineLibrary.data?.length ?? 0) > 0 && <Button variant="outline" disabled={wipeOffline.isPending} onClick={() => wipeOffline.mutate(undefined, { onSuccess: () => toast({ title: "Offline training wiped from this device" }), onError: (error) => toast({ title: "Offline library could not be wiped", description: error.message, variant: "destructive" }) })}><Trash2 className="mr-2 h-4 w-4" />Revoke device and wipe all</Button>}
         </CardContent>
       </Card>}
 
@@ -146,7 +150,7 @@ export default function MyCourses() {
         </CardHeader>
         <CardContent className="space-y-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-44" aria-label="Status">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -184,7 +188,7 @@ export default function MyCourses() {
                 // Urgency only matters while the work is still open -- a completed training item's old
                 // due date shouldn't shout "overdue."
                 const dueDistance = a.status !== "completed" ? formatDueDistance(a.due_date) : null;
-                const daysLeft = daysUntil(a.due_date);
+                const daysLeft = facilityDaysUntil(a.due_date);
                 const dueTone =
                   daysLeft !== null && daysLeft < 0
                     ? "text-destructive font-medium"

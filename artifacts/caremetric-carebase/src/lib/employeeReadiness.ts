@@ -1,7 +1,7 @@
 // Per-employee readiness verdict engine (task Area 3). Aggregates an employee's credential and
 // training status, unsupervised-duty clearance, employment status, and any active restrictions into
 // a single verdict with a plain-language "why". Pure and unit-tested; consumed by the employee page.
-import { daysUntil, formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityDaysUntil, formatDateForDisplay } from "@/lib/dateUtils";
 
 export type ReadinessStatus =
   | "ready"
@@ -173,6 +173,6 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
 
 /** True when a credential/training record is within `days` of expiring (for callers deriving due_soon). */
 export function isWithinWindow(expirationDate: string | null | undefined, days: number, today: Date = new Date()): boolean {
-  const d = daysUntil(expirationDate, today);
+  const d = facilityDaysUntil(expirationDate, today);
   return d !== null && d >= 0 && d <= days;
 }

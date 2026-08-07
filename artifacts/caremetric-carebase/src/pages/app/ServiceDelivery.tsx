@@ -372,7 +372,7 @@ export default function ServiceDelivery() {
                         });
                       }}
                     >
-                      <SelectTrigger className="w-44"><SelectValue placeholder="Assign staff" /></SelectTrigger>
+                      <SelectTrigger className="w-44" aria-label="Assign staff"><SelectValue placeholder="Assign staff" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="unassigned">Assign staff</SelectItem>
                         {(employees ?? []).filter(employee => employee.facility_id === task.facility_id).map(employee => (
@@ -438,7 +438,7 @@ export default function ServiceDelivery() {
           <Input type="date" value={date} onChange={event => setDate(event.target.value)} aria-label="Service date" />
           {!isEmployee && (
             <Select value={facilityId} onValueChange={setFacilityId}>
-              <SelectTrigger><SelectValue placeholder="All facilities" /></SelectTrigger>
+              <SelectTrigger aria-label="Facility"><SelectValue placeholder="All facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All facilities</SelectItem>
                 {facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
@@ -446,7 +446,7 @@ export default function ServiceDelivery() {
             </Select>
           )}
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger><SelectValue placeholder="All statuses" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               {Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
@@ -460,8 +460,8 @@ export default function ServiceDelivery() {
         <Tabs defaultValue="tasks">
           <TabsList className="h-auto flex-wrap">
             <TabsTrigger value="tasks">Service tasks</TabsTrigger>
-            <TabsTrigger value="requirements">Requirements ({requirements.data?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="alerts">Exception alerts ({alerts.data?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="requirements">Requirements ({requirements.isLoading || requirements.isError ? "—" : (requirements.data?.length ?? 0)})</TabsTrigger>
+            <TabsTrigger value="alerts">Exception alerts ({alerts.isLoading || alerts.isError ? "—" : (alerts.data?.length ?? 0)})</TabsTrigger>
           </TabsList>
           <TabsContent value="tasks" className="mt-4">{taskRows}</TabsContent>
           <TabsContent value="requirements" className="mt-4">
@@ -504,7 +504,7 @@ export default function ServiceDelivery() {
                 <CardDescription>Repeated or serious exceptions route to supervisor, change-of-condition, support-plan review, or QAPI follow-up.</CardDescription>
               </CardHeader>
               <CardContent>
-                {alerts.isError ? <QueryError what="service alerts" error={alerts.error} onRetry={() => alerts.refetch()} /> : !alerts.data?.length ? (
+                {alerts.isLoading ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : alerts.isError ? <QueryError what="service alerts" error={alerts.error} onRetry={() => alerts.refetch()} /> : !alerts.data?.length ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">No open service exception alerts.</p>
                 ) : (
                   <div className="space-y-3">

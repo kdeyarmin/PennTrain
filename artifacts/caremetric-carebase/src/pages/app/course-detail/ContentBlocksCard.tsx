@@ -7,6 +7,7 @@ import type { TrainingDocument } from "@/hooks/useDocuments";
 import type { Role } from "@/lib/auth";
 import { BlockTypeBadge, QuizBlockSummary } from "./components";
 import { documentDisplayName, videoTranscriptContent } from "./helpers";
+import { QueryError } from "@/components/QueryState";
 
 export function ContentBlocksCard({
   selectedVersion,
@@ -18,6 +19,8 @@ export function ContentBlocksCard({
   onOpenBulkVideoGen,
   onAddBlock,
   blocksLoading,
+  blocksError,
+  onRetryBlocks,
   courseDocumentById,
   onConfigureQuiz,
   userRole,
@@ -38,6 +41,8 @@ export function ContentBlocksCard({
   onOpenBulkVideoGen: () => void;
   onAddBlock: () => void;
   blocksLoading: boolean;
+  blocksError?: boolean;
+  onRetryBlocks?: () => void;
   courseDocumentById: Map<string, TrainingDocument>;
   onConfigureQuiz: (block: CourseBlock) => void;
   userRole: Role | undefined;
@@ -90,6 +95,8 @@ export function ContentBlocksCard({
           <div className="space-y-2">
             {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}
           </div>
+        ) : blocksError ? (
+          <QueryError what="content blocks" error={undefined} onRetry={onRetryBlocks} />
         ) : !blocks || blocks.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">No content blocks yet.</p>

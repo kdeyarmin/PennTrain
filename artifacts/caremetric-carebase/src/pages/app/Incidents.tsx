@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useRef, useState } from "react";
-import { facilityDateTimeLocalToUtcIso, facilityToday } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   useCreateIncident, type Incident, type IncidentInsert,
@@ -37,11 +37,6 @@ const NOTIFICATION_TYPE_OPTIONS = [
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
-function toLocalDatetimeInputValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -85,7 +80,7 @@ interface IncidentFormData {
 // long-stale timestamp instead of the current time.
 function emptyForm(): IncidentFormData {
   return {
-    facilityId: "", incidentType: "other", occurredAt: toLocalDatetimeInputValue(new Date()),
+    facilityId: "", incidentType: "other", occurredAt: toFacilityDateTimeLocal(),
     residentId: "", residentIdentifierOther: "", locationDetail: "", narrative: "", severity: "moderate",
   };
 }
@@ -222,11 +217,18 @@ export default function Incidents() {
       });
       return;
     }
-    if (!form.occurredAt || Number.isNaN(new Date(form.occurredAt).getTime())) {
+    if (!form.occurredAt) {
       toast({ title: "A valid occurred-at time is required", variant: "destructive" });
       return;
     }
-    if (new Date(form.occurredAt).getTime() > Date.now() + 5 * 60_000) {
+    let occurredAtIso: string;
+    try {
+      occurredAtIso = facilityDateTimeLocalToUtcIso(form.occurredAt);
+    } catch {
+      toast({ title: "A valid occurred-at time is required", variant: "destructive" });
+      return;
+    }
+    if (new Date(occurredAtIso).getTime() > Date.now() + 5 * 60_000) {
       toast({ title: "Occurred-at cannot be in the future", variant: "destructive" });
       return;
     }
@@ -259,7 +261,7 @@ export default function Incidents() {
       organization_id: facility.organization_id,
       facility_id: facility.id,
       incident_type: form.incidentType,
-      occurred_at: facilityDateTimeLocalToUtcIso(form.occurredAt),
+      occurred_at: occurredAtIso,
       resident_id: form.residentId && form.residentId !== RESIDENT_OTHER ? form.residentId : null,
       resident_identifier: residentIdentifier,
       resident_identifier_snapshot: form.residentId === RESIDENT_OTHER ? residentIdentifier : null,
@@ -303,24 +305,24 @@ export default function Incidents() {
       <div className="grid gap-4 md:grid-cols-4">
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Open incidents</p>
-          <p className="mt-1 text-2xl font-semibold">{incidentSummary.open}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.criticalOpen} critical remain open.</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.open}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : `${incidentSummary.criticalOpen} critical remain open.`}</p>
         </div>
         <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setUrlState({ severity: "critical", page: "1" })}>
           <p className="text-xs font-medium text-muted-foreground">Major / critical</p>
-          <p className="mt-1 text-2xl font-semibold text-destructive">{incidentSummary.majorOrCritical}</p>
+          <p className="mt-1 text-2xl font-semibold text-destructive">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.majorOrCritical}</p>
           <p className="mt-1 text-xs text-muted-foreground">High-severity events in this view.</p>
         </button>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Recent volume</p>
-          <p className="mt-1 text-2xl font-semibold">{incidentSummary.reportedLast7Days}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{incidentSummary.reportedLast30Days} reported in 30 days.</p>
+          <p className="mt-1 text-2xl font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.reportedLast7Days}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : `${incidentSummary.reportedLast30Days} reported in 30 days.`}</p>
         </div>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Most common type</p>
-          <p className="mt-1 text-lg font-semibold">{incidentSummary.topIncidentType ? humanize(incidentSummary.topIncidentType) : "—"}</p>
+          <p className="mt-1 text-lg font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : (incidentSummary.topIncidentType ? humanize(incidentSummary.topIncidentType) : "—")}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {incidentSummary.oldestOpenIncidentId ? (
+            {incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.oldestOpenIncidentId ? (
               <Link href={`/app/incidents/${incidentSummary.oldestOpenIncidentId}`} className="text-primary hover:underline">Review oldest open incident</Link>
             ) : "No open incidents in this view."}
           </p>
@@ -339,28 +341,28 @@ export default function Incidents() {
             />
           </div>
           <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
               {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.resident} onValueChange={(v) => setUrlState({ resident: v, page: "1" })}>
-            <SelectTrigger className="w-48 h-9 bg-card"><SelectValue placeholder="All Residents" /></SelectTrigger>
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Resident"><SelectValue placeholder="All Residents" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Residents</SelectItem>
               {allResidents?.map((resident) => <SelectItem key={resident.id} value={resident.id}>{resident.last_name}, {resident.first_name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.severity} onValueChange={(v) => setUrlState({ severity: v, page: "1" })}>
-            <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Severities" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Severity"><SelectValue placeholder="All Severities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Severities</SelectItem>
               {["minor", "moderate", "major", "critical"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
-            <SelectTrigger className="w-40 h-9 bg-card"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               {["reported", "investigating", "closed"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
@@ -432,7 +434,7 @@ export default function Incidents() {
         )}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) setShowForm(false); }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(emptyForm()); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Report Incident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -499,7 +501,7 @@ export default function Incidents() {
                     onValueChange={(v) => setForm((f) => ({ ...f, residentId: v, residentIdentifierOther: "" }))}
                     disabled={!form.facilityId}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger className="h-9" aria-label="Incident resident">
                       <SelectValue placeholder={form.facilityId ? "Select resident (optional)" : "Select a facility first"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -533,13 +535,13 @@ export default function Incidents() {
               {staffRows.map((row, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Select value={row.employeeId} onValueChange={(v) => setStaffRows((rs) => rs.map((r, i) => i === idx ? { ...r, employeeId: v } : r))}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="Select employee" /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Staff employee"><SelectValue placeholder="Select employee" /></SelectTrigger>
                     <SelectContent>
                       {employees?.map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={row.involvementType} onValueChange={(v) => setStaffRows((rs) => rs.map((r, i) => i === idx ? { ...r, involvementType: v as StaffRow["involvementType"] } : r))}>
-                    <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 w-40" aria-label="Staff involvement"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {["involved_party", "witness", "first_responder", "reporter"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                     </SelectContent>
@@ -566,7 +568,7 @@ export default function Incidents() {
               {notificationRows.map((row, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Select value={row.notificationType} onValueChange={(v) => setNotificationRows((rs) => rs.map((r, i) => i === idx ? { ...r, notificationType: v as NotificationRow["notificationType"] } : r))}>
-                    <SelectTrigger className="h-9 flex-1"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                     </SelectContent>

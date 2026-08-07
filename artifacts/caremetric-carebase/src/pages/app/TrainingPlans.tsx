@@ -93,7 +93,7 @@ function ApplyPlanDialog({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [applying, setApplying] = useState(false);
 
-  const { data: employees } = useListEmployees({ status: "active", organizationId: plan.organization_id });
+  const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees({ status: "active", organizationId: plan.organization_id });
   const { mutateAsync: applyPlan } = useApplyTrainingPlanToEmployee();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -200,7 +200,11 @@ function ApplyPlanDialog({
           />
         </div>
         <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
-          {filteredEmployees.length === 0 ? (
+          {employeesLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading employees…</p>
+          ) : employeesError ? (
+            <QueryError what="employees" error={employeesErr} onRetry={() => void refetchEmployees()} className="m-3" />
+          ) : filteredEmployees.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No active employees found.</p>
           ) : (
             <div className="divide-y">
@@ -236,7 +240,7 @@ function ApplyPlanDialog({
 // admin had no way to see who's on a plan or how far along they are.
 // ---------------------------------------------------------------------------
 function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
-  const { data: assignments, isLoading } = useListCourseAssignments({ trainingPlanId: plan.id });
+  const { data: assignments, isLoading, isError, error, refetch } = useListCourseAssignments({ trainingPlanId: plan.id });
   const { data: employees } = useListEmployees({ status: "active" });
   const { data: courses } = useListCourses();
 
@@ -259,6 +263,10 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
         {[...Array(2)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError what="plan progress" error={error} onRetry={() => void refetch()} />;
   }
 
   if (byEmployee.size === 0) {
@@ -301,7 +309,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   const __fieldIds = useId();
   const { toast } = useToast();
 
-  const { data: items, isLoading } = useListTrainingPlanItems(plan.id);
+  const { data: items, isLoading, isError, error, refetch } = useListTrainingPlanItems(plan.id);
   const { data: courses } = useListCourses();
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
@@ -393,6 +401,8 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => <div key={i} className="h-11 bg-muted animate-pulse rounded" />)}
         </div>
+      ) : isError ? (
+        <QueryError what="plan items" error={error} onRetry={() => void refetch()} />
       ) : sortedItems.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground">No items in this plan yet.</p>
@@ -456,7 +466,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
         <PlanProgressSection plan={plan} />
       </div>
 
-      <Dialog open={showAddItem} onOpenChange={(o) => { if (!o) setShowAddItem(false); }}>
+      <Dialog open={showAddItem} onOpenChange={(o) => { if (!o) { setShowAddItem(false); setAddItemForm(EMPTY_ADD_ITEM_FORM); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Add Plan Item</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
@@ -749,7 +759,7 @@ export default function TrainingPlans() {
         <span>{filtered.length} training plan{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showPlanForm} onOpenChange={(o) => { if (!o) { setShowPlanForm(false); setEditingPlan(null); } }}>
+      <Dialog open={showPlanForm} onOpenChange={(o) => { if (!o) { setShowPlanForm(false); setEditingPlan(null); setPlanForm(EMPTY_PLAN_FORM); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingPlan ? "Edit Training Plan" : "New Training Plan"}</DialogTitle>

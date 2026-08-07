@@ -11,7 +11,7 @@ import { useResidentServiceExceptions, useResidentUnscheduledServices } from "@/
 import {
   detectResidentChangeSignals, summarizeChangeSignals, type ChangeSignal,
 } from "@/lib/residentChangeDetection";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
 /**
  * Meals, weights, and hospital episodes are read here rather than through a shared hook because this
@@ -26,7 +26,7 @@ function useDetectionSupplements(residentId: string) {
         .from("resident_meal_records")
         .select("intake_percent, served_at")
         .eq("resident_id", residentId)
-        .gte("served_at", new Date(Date.now() - 14 * 86_400_000).toISOString())
+        .gte("served_at", facilityDayBounds(addFacilityCalendarDays(facilityToday(), -14)).from)
         .order("served_at", { ascending: false })
         .limit(60);
       if (error) throw error;

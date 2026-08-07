@@ -7,9 +7,13 @@ import {
   facilityDayBounds,
   facilityDaysUntil,
   addFacilityCalendarDays,
+  addFacilityCalendarYears,
   facilityToday,
+  facilityYear,
   formatDateForDisplay,
   formatDueDistance,
+  formatFacilityTimeForDisplay,
+  toFacilityDateTimeLocal,
   toLocalIsoDate,
 } from "./dateUtils";
 
@@ -64,11 +68,49 @@ describe("facilityToday", () => {
   });
 });
 
+describe("toFacilityDateTimeLocal", () => {
+  it("formats an instant as Pennsylvania wall clock for datetime-local inputs", () => {
+    // 2026-07-27T00:56Z = 2026-07-26 20:56 EDT
+    expect(toFacilityDateTimeLocal(new Date("2026-07-27T00:56:00Z"))).toBe("2026-07-26T20:56");
+  });
+
+  it("round-trips through facilityDateTimeLocalToUtcIso for an EDT afternoon", () => {
+    const local = toFacilityDateTimeLocal(new Date("2026-07-15T18:30:00Z"));
+    expect(local).toBe("2026-07-15T14:30");
+    expect(facilityDateTimeLocalToUtcIso(local)).toBe("2026-07-15T18:30:00.000Z");
+  });
+});
+
+describe("facilityYear", () => {
+  it("follows the Pennsylvania calendar year across the UTC midnight gap", () => {
+    // Still 2025-12-31 in ET when UTC has already rolled to 2026.
+    expect(facilityYear(new Date("2026-01-01T03:00:00Z"))).toBe(2025);
+    expect(facilityYear(new Date("2026-01-01T05:00:00Z"))).toBe(2026);
+  });
+});
+
 describe("addFacilityCalendarDays", () => {
   it("adds and subtracts whole calendar days across month boundaries", () => {
     expect(addFacilityCalendarDays("2026-01-20", 15)).toBe("2026-02-04");
     expect(addFacilityCalendarDays("2026-03-01", -30)).toBe("2026-01-30");
     expect(addFacilityCalendarDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("addFacilityCalendarYears", () => {
+  it("preserves the month/day anniversary across a leap day", () => {
+    expect(addFacilityCalendarYears("2027-03-01", 1)).toBe("2028-03-01");
+  });
+
+  it("clamps Feb 29 to Feb 28 in a non-leap year", () => {
+    expect(addFacilityCalendarYears("2024-02-29", 1)).toBe("2025-02-28");
+  });
+});
+
+describe("formatFacilityTimeForDisplay", () => {
+  it("formats an instant in America/New_York rather than the browser zone", () => {
+    // 2026-07-11T04:30Z = 2026-07-11 00:30 EDT
+    expect(formatFacilityTimeForDisplay("2026-07-11T04:30:00.000Z")).toBe("12:30 AM");
   });
 });
 
@@ -145,19 +187,20 @@ describe("daysUntil", () => {
 });
 
 describe("formatDueDistance", () => {
-  const today = new Date(2026, 6, 12, 9, 30);
+  // Noon UTC stays on the same Pennsylvania calendar day (EDT).
+  const now = new Date("2026-07-12T12:00:00Z");
 
-  it("phrases future, today, and overdue distances", () => {
-    expect(formatDueDistance("2026-07-12", today)).toBe("today");
-    expect(formatDueDistance("2026-07-13", today)).toBe("tomorrow");
-    expect(formatDueDistance("2026-07-19", today)).toBe("in 7 days");
-    expect(formatDueDistance("2026-07-11", today)).toBe("1 day overdue");
-    expect(formatDueDistance("2026-07-05", today)).toBe("7 days overdue");
+  it("phrases future, today, and overdue distances on the facility calendar", () => {
+    expect(formatDueDistance("2026-07-12", now)).toBe("today");
+    expect(formatDueDistance("2026-07-13", now)).toBe("tomorrow");
+    expect(formatDueDistance("2026-07-19", now)).toBe("in 7 days");
+    expect(formatDueDistance("2026-07-11", now)).toBe("1 day overdue");
+    expect(formatDueDistance("2026-07-05", now)).toBe("7 days overdue");
   });
 
   it("returns null when there is no usable date", () => {
-    expect(formatDueDistance(null, today)).toBeNull();
-    expect(formatDueDistance("not-a-date", today)).toBeNull();
+    expect(formatDueDistance(null, now)).toBeNull();
+    expect(formatDueDistance("not-a-date", now)).toBeNull();
   });
 });
 

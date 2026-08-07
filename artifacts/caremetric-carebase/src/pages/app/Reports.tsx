@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { csvEscape } from "@/lib/csv";
-import { addFacilityCalendarDays, facilityToday, formatDateForDisplay, toLocalIsoDate } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { containsFilterValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
@@ -366,13 +366,19 @@ function supportsAutoDateDefault(reportId: string): boolean {
 // reports read: due/expired/occurred dates), but with a forward buffer too: "Training Due Soon"
 // and "Expiring Certifications" filter for dates in the *next* 90 days, and a purely backward
 // window would silently zero those reports out by default.
+/** Shift a facility YYYY-MM-DD by whole calendar months (clamped to the target month's last day). */
+function addFacilityCalendarMonths(isoDate: string, months: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const anchor = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0)).getUTCDate();
+  const clamped = Math.min(day, lastDay);
+  return `${anchor.getUTCFullYear()}-${String(anchor.getUTCMonth() + 1).padStart(2, "0")}-${String(clamped).padStart(2, "0")}`;
+}
+
 function defaultDateWindow(): { from: string; to: string } {
-  const now = new Date();
-  const from = new Date(now);
-  from.setMonth(from.getMonth() - 12);
-  const to = new Date(now);
-  to.setMonth(to.getMonth() + 6);
-  return { from: toLocalIsoDate(from), to: toLocalIsoDate(to) };
+  // Facility calendar months — not browser `setMonth` / `toLocalIsoDate`.
+  const today = facilityToday();
+  return { from: addFacilityCalendarMonths(today, -12), to: addFacilityCalendarMonths(today, 6) };
 }
 
 // csvEscape also neutralizes formula injection (leading = + - @) for user-entered text.
@@ -833,8 +839,7 @@ export default function Reports() {
             </Link>
           </Button>
           <Select value={facilityId} onValueChange={setFacilityId}>
-            <SelectTrigger className="w-full sm:w-52">
-              <SelectValue placeholder="All Facilities" />
+            <SelectTrigger className="w-full sm:w-52" aria-label="Facility"><SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
@@ -915,7 +920,7 @@ export default function Reports() {
           onValueChange={setCategory}
           defaultValue="All"
         >
-          <SelectTrigger className="h-10 w-full md:hidden">
+          <SelectTrigger className="h-10 w-full md:hidden" aria-label="Report category">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -975,7 +980,7 @@ export default function Reports() {
           </Button>
         )}
         {canManageViews && (
-          <Button variant="outline" size="sm" className="h-10 justify-center text-xs sm:col-span-2 lg:col-span-1" onClick={() => setShowSaveView(true)}>
+          <Button variant="outline" size="sm" className="h-10 justify-center text-xs sm:col-span-2 lg:col-span-1" onClick={() => { setSaveViewName(""); setShowSaveView(true); }}>
             <BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />
             Save view
           </Button>
@@ -1019,7 +1024,7 @@ export default function Reports() {
         </div>
       )}
 
-      <Dialog open={showSaveView} onOpenChange={(o) => { if (!o) setShowSaveView(false); }}>
+      <Dialog open={showSaveView} onOpenChange={(o) => { if (!o) { setShowSaveView(false); setSaveViewName(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Save current view</DialogTitle>
@@ -1040,7 +1045,7 @@ export default function Reports() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSaveView(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowSaveView(false); setSaveViewName(""); }}>Cancel</Button>
             <Button onClick={handleSaveCurrentView} disabled={savingView || saveViewName.trim().length < 3}>
               {savingView ? "Saving..." : "Save View"}
             </Button>

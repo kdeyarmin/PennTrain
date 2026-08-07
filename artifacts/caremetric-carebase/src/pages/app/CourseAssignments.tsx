@@ -79,7 +79,7 @@ const EMPTY_ASSIGN_FORM: AssignFormData = {
 // query is in flight at a time.
 // ---------------------------------------------------------------------------
 function ProgressDialog({ assignmentId, onClose }: { assignmentId: string | null; onClose: () => void }) {
-  const { data: progress, isLoading } = useGetCourseProgress(assignmentId ?? undefined);
+  const { data: progress, isLoading, isError, error, refetch } = useGetCourseProgress(assignmentId ?? undefined);
 
   return (
     <Dialog open={!!assignmentId} onOpenChange={o => { if (!o) onClose(); }}>
@@ -89,6 +89,8 @@ function ProgressDialog({ assignmentId, onClose }: { assignmentId: string | null
         </DialogHeader>
         {isLoading ? (
           <div className="h-16 bg-muted animate-pulse rounded" />
+        ) : isError ? (
+          <QueryError what="training progress" error={error} onRetry={() => void refetch()} />
         ) : progress ? (
           <div className="space-y-3 py-2">
             <div className="flex items-center justify-between text-sm">
@@ -137,7 +139,7 @@ export default function CourseAssignments() {
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees({ status: "active" });
+  const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees({ status: "active" });
   const { data: courses } = useListCourses();
   const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
   const {
@@ -490,26 +492,26 @@ export default function CourseAssignments() {
         <div className="grid gap-4 md:grid-cols-4">
           <div className="premium-card p-4">
             <p className="text-xs font-medium text-muted-foreground">Visible completion</p>
-            <p className="mt-1 text-2xl font-semibold">{assignmentSummary.completionRate}%</p>
-            <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.completed} of {assignmentSummary.total} on this page complete.</p>
+            <p className="mt-1 text-2xl font-semibold">{isLoading ? "—" : `${assignmentSummary.completionRate}%`}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{isLoading ? "Loading this page…" : `${assignmentSummary.completed} of ${assignmentSummary.total} on this page complete.`}</p>
           </div>
           <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => { setStatusFilter("overdue"); setPage(1); }}>
             <p className="text-xs font-medium text-muted-foreground">Overdue on page</p>
-            <p className="mt-1 text-2xl font-semibold text-destructive">{assignmentSummary.overdue}</p>
+            <p className={`mt-1 text-2xl font-semibold ${isLoading ? "" : "text-destructive"}`}>{isLoading ? "—" : assignmentSummary.overdue}</p>
             <p className="mt-1 text-xs text-muted-foreground">Click to filter all overdue assignments.</p>
           </button>
           <div className="premium-card p-4">
             <p className="text-xs font-medium text-muted-foreground">Due within 7 days</p>
-            <p className="mt-1 text-2xl font-semibold">{assignmentSummary.dueWithin7Days}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{assignmentSummary.inProgress} in progress · {assignmentSummary.assigned} not started</p>
+            <p className="mt-1 text-2xl font-semibold">{isLoading ? "—" : assignmentSummary.dueWithin7Days}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{isLoading ? "Loading this page…" : `${assignmentSummary.inProgress} in progress · ${assignmentSummary.assigned} not started`}</p>
           </div>
           <div className="premium-card p-4">
             <p className="text-xs font-medium text-muted-foreground">Oldest overdue</p>
             <p className="mt-1 text-lg font-semibold">
-              {assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
+              {isLoading ? "—" : assignmentSummary.oldestOverdueAssignmentId ? "Needs follow-up" : "—"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {assignmentSummary.oldestOverdueAssignmentId ? (
+              {isLoading ? "Loading this page…" : assignmentSummary.oldestOverdueAssignmentId ? (
                 <button type="button" className="text-primary hover:underline" onClick={() => setProgressAssignmentId(assignmentSummary.oldestOverdueAssignmentId)}>
                   Open progress details
                 </button>
@@ -555,7 +557,7 @@ export default function CourseAssignments() {
             />
           </div>
           <Select value={facilityId} onValueChange={v => { setFacilityId(v); setPage(1); }}>
-            <SelectTrigger className="w-48 h-9 bg-card">
+            <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility">
               <SelectValue placeholder="All Facilities" />
             </SelectTrigger>
             <SelectContent>
@@ -566,7 +568,7 @@ export default function CourseAssignments() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
-            <SelectTrigger className="w-40 h-9 bg-card">
+            <SelectTrigger className="w-40 h-9 bg-card" aria-label="Status">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -738,7 +740,15 @@ export default function CourseAssignments() {
         </div>
       )}
 
-      <Dialog open={showAssignForm} onOpenChange={o => { if (!o) setShowAssignForm(false); }}>
+      <Dialog open={showAssignForm} onOpenChange={o => {
+        if (!o) {
+          setShowAssignForm(false);
+          setAssignForm(EMPTY_ASSIGN_FORM);
+          setSelectedEmployeeIds(new Set());
+          setAssignEmployeeSearch("");
+          setAssignFacilityFilter("all");
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assign Training</DialogTitle>
@@ -761,9 +771,9 @@ export default function CourseAssignments() {
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor={`${__fieldIds}-employees-selected`} className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
+                <Label htmlFor={`${__fieldIds}-assign-employee-search`} className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
                 <Select value={assignFacilityFilter} onValueChange={setAssignFacilityFilter}>
-                  <SelectTrigger id={`${__fieldIds}-employees-selected`} className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-assign-facility-filter`} aria-label="Filter employees by facility" className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Facilities</SelectItem>
                     {facilities?.map(f => (
@@ -772,6 +782,7 @@ export default function CourseAssignments() {
                   </SelectContent>
                 </Select>
                 <Input
+                  id={`${__fieldIds}-assign-employee-search`}
                   className="h-8 w-full max-w-xs text-xs"
                   placeholder="Search employees to assign"
                   value={assignEmployeeSearch}
@@ -790,7 +801,13 @@ export default function CourseAssignments() {
                   </span>
                 </label>
                 <div className="max-h-52 overflow-y-auto divide-y">
-                  {filteredAssignEmployees.length === 0 ? (
+                  {employeesLoading ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      Loading employees…
+                    </p>
+                  ) : employeesError ? (
+                    <QueryError what="employees" error={employeesErr} onRetry={() => void refetchEmployees()} className="m-2" />
+                  ) : filteredAssignEmployees.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-4">
                       No active employees{assignFacilityFilter !== "all" ? " in this facility" : ""}.
                     </p>

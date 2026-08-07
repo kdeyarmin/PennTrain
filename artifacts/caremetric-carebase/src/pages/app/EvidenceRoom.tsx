@@ -107,7 +107,7 @@ export default function EvidenceRoom() {
           </p>
         </div>
         {canManage && (
-          <Button onClick={() => { setFacilityId(facilities?.[0]?.id ?? ""); setShowCreate(true); }}>
+          <Button onClick={() => { setFacilityId(facilities?.[0]?.id ?? ""); setName(""); setPurpose(""); setShowCreate(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New collection
           </Button>
         )}
@@ -147,7 +147,7 @@ export default function EvidenceRoom() {
         <CardContent className="pt-6 space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <Select value={urlState.status} onValueChange={(v) => setUrlState({ status: v, page: "1" })}>
-              <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger className="w-44 h-9" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
@@ -157,7 +157,7 @@ export default function EvidenceRoom() {
               </SelectContent>
             </Select>
             <Select value={urlState.facilityId} onValueChange={(v) => setUrlState({ facilityId: v, page: "1" })}>
-              <SelectTrigger className="w-48 h-9"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+              <SelectTrigger className="w-48 h-9" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Facilities</SelectItem>
                 {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -238,7 +238,7 @@ export default function EvidenceRoom() {
         </CardContent>
       </Card>
 
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog key={showCreate ? "create-open" : "create-closed"} open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New documentation collection</DialogTitle>

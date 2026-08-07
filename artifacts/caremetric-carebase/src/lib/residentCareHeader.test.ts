@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addFacilityCalendarDays, facilityToday } from "./dateUtils";
 import {
   careHeaderFields,
   careProfileAgeInDays,
@@ -12,7 +13,8 @@ import {
   type ResidentCareHeader,
 } from "./residentCareHeader";
 
-const NOW = new Date("2026-07-25T12:00:00.000Z");
+// Noon Eastern so facilityToday(NOW) is stably 2026-07-25.
+const NOW = new Date("2026-07-25T16:00:00.000Z");
 
 function header(overrides: Partial<ResidentCareHeader> = {}): ResidentCareHeader {
   return {
@@ -157,8 +159,10 @@ describe("care profile staleness", () => {
   });
 
   it("goes stale exactly at the annual review cadence", () => {
-    const justUnder = new Date(NOW.getTime() - (STALE_CARE_PROFILE_DAYS - 1) * 86_400_000).toISOString();
-    const atThreshold = new Date(NOW.getTime() - STALE_CARE_PROFILE_DAYS * 86_400_000).toISOString();
+    // Facility calendar: age is whole America/New_York days, not wall-clock ms.
+    const today = facilityToday(NOW);
+    const justUnder = `${addFacilityCalendarDays(today, -(STALE_CARE_PROFILE_DAYS - 1))}T16:00:00.000Z`;
+    const atThreshold = `${addFacilityCalendarDays(today, -STALE_CARE_PROFILE_DAYS)}T16:00:00.000Z`;
     expect(isCareProfileStale(justUnder, NOW)).toBe(false);
     expect(isCareProfileStale(atThreshold, NOW)).toBe(true);
   });

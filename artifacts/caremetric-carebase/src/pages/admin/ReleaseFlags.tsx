@@ -156,7 +156,7 @@ export default function ReleaseFlags() {
             <CardTitle className="text-base flex items-center gap-2"><Flag className="h-4 w-4" /> Flags</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{flagsQ.data?.length ?? 0}</p>
+            <p className="text-2xl font-bold">{flagsQ.isLoading || flagsQ.isError ? "—" : (flagsQ.data?.length ?? 0)}</p>
             <p className="text-xs text-muted-foreground">Registered feature release flags</p>
           </CardContent>
         </Card>
@@ -165,7 +165,7 @@ export default function ReleaseFlags() {
             <CardTitle className="text-base flex items-center gap-2"><ShieldAlert className="h-4 w-4" /> Kill switches</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{killsQ.data?.length ?? 0}</p>
+            <p className="text-2xl font-bold">{killsQ.isLoading || killsQ.isError ? "—" : (killsQ.data?.length ?? 0)}</p>
             <p className="text-xs text-muted-foreground">Active feature disables</p>
           </CardContent>
         </Card>
@@ -221,7 +221,7 @@ export default function ReleaseFlags() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!flagsQ.data?.length && !flagsQ.isLoading ? (
+              {!flagsQ.data?.length && !flagsQ.isLoading && !flagsQ.isError ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-sm text-muted-foreground">No release flags registered yet.</TableCell>
                 </TableRow>

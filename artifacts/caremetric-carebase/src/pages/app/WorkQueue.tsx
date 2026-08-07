@@ -23,6 +23,7 @@ import {
 } from "@/lib/workItemQueue";
 import { QueryError } from "@/components/QueryState";
 import { CreateWorkItemDialog } from "@/components/workqueue/CreateWorkItemDialog";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,8 +62,6 @@ const STATE_CLASS: Record<string, string> = {
   closed: "bg-emerald-100 text-emerald-900",
   canceled: "bg-muted text-muted-foreground",
 };
-
-const DAY_MS = 86_400_000;
 
 function formatDueDate(value: string): string {
   return new Date(value).toLocaleString([], {
@@ -130,7 +129,7 @@ export default function WorkQueue() {
   const sourceScope = filters.sourceType !== "all" ? filters.sourceType : undefined;
   const overdueOnly = filters.due === "overdue";
   const dueBefore = /^\d+$/.test(filters.due)
-    ? new Date(now.getTime() + Number(filters.due) * DAY_MS).toISOString()
+    ? facilityDayBounds(addFacilityCalendarDays(facilityToday(), Number(filters.due))).through
     : undefined;
 
   const workItems = usePaginatedWorkItems({

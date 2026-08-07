@@ -18,7 +18,7 @@
  * count of things that happened, and the records are one click away.
  */
 
-import { facilityToday } from "./dateUtils";
+import { facilityDaysUntil, facilityToday } from "./dateUtils";
 
 const TIME_ZONE = "America/New_York";
 const hourFormatter = new Intl.DateTimeFormat("en-US", {
@@ -248,11 +248,13 @@ export function buildIncidentTrends(input: IncidentTrendInput): IncidentTrends {
   );
   const repeatResidents = byResident.filter((bucket) => bucket.count > 1);
 
-  const overdueCutoff = now.getTime() - INVESTIGATION_DUE_DAYS * 24 * 3_600_000;
   const overdue = incidents.filter((incident) => {
     if (incident.administrator_approved_at || incident.status === "closed") return false;
-    const occurred = new Date(incident.occurred_at).getTime();
-    return Number.isFinite(occurred) && occurred < overdueCutoff;
+    const occurredMs = Date.parse(incident.occurred_at);
+    if (!Number.isFinite(occurredMs)) return false;
+    // Age in facility calendar days; "past N days" means strictly older than N facility days.
+    const age = -(facilityDaysUntil(facilityToday(new Date(occurredMs)), now) ?? 0);
+    return age > INVESTIGATION_DUE_DAYS;
   });
 
   const live = correctiveActions.filter((action) => action.status !== "cancelled");

@@ -9,13 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { buildMedicationSafetySummary } from "@/lib/medicationSafetyAnalytics";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityToday, facilityYear } from "@/lib/dateUtils";
 import { Pill, CheckCircle2, XCircle, Droplet, AlertTriangle, ClipboardCheck } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 
 export default function MedAdminRoster() {
   const [facilityId, setFacilityId] = useState<string>("all");
-  const currentYear = new Date().getFullYear();
+  const currentYear = facilityYear();
 
   const facilitiesQuery = useListFacilities();
   const { data: facilities } = facilitiesQuery;
@@ -61,6 +61,8 @@ export default function MedAdminRoster() {
   const rosterQueries = [facilitiesQuery, employeesQuery, incidentsQuery, correctiveActionsQuery];
   const rosterFailure = rosterQueries.find((query) => query.isError)
     ?? (medAuthIsError ? { isError: true as const, error: medAuthError } : undefined);
+  const safetyBusy = incidentsQuery.isLoading || correctiveActionsQuery.isLoading || !!rosterFailure;
+  const rosterBusy = employeesQuery.isLoading || employeesQuery.isPending || !!rosterFailure;
 
   return (
     <div className="space-y-6">
@@ -83,7 +85,7 @@ export default function MedAdminRoster() {
 
       <div className="flex gap-3">
         <Select value={facilityId} onValueChange={setFacilityId}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-52" aria-label="Facility">
             <SelectValue placeholder="All Facilities" />
           </SelectTrigger>
           <SelectContent>
@@ -100,19 +102,19 @@ export default function MedAdminRoster() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><AlertTriangle className="h-4 w-4" />Medication events</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{medicationSafety.totalEvents}</p><p className="text-xs text-muted-foreground">Filtered incident log</p></CardContent>
+          <CardContent><p className="text-3xl font-bold">{safetyBusy ? "—" : medicationSafety.totalEvents}</p><p className="text-xs text-muted-foreground">Filtered incident log</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><ClipboardCheck className="h-4 w-4" />Open follow-up</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{medicationSafety.unresolvedFollowUps}</p><p className="text-xs text-muted-foreground">No final report yet</p></CardContent>
+          <CardContent><p className="text-3xl font-bold">{safetyBusy ? "—" : medicationSafety.unresolvedFollowUps}</p><p className="text-xs text-muted-foreground">No final report yet</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><AlertTriangle className="h-4 w-4" />Overdue actions</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold text-destructive">{medicationSafety.overdueFollowUps}</p><p className="text-xs text-muted-foreground">Corrective actions past due</p></CardContent>
+          <CardContent><p className={`text-3xl font-bold ${safetyBusy ? "" : "text-destructive"}`}>{safetyBusy ? "—" : medicationSafety.overdueFollowUps}</p><p className="text-xs text-muted-foreground">Corrective actions past due</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm text-muted-foreground"><Pill className="h-4 w-4" />Retraining signals</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{medicationSafety.retrainingRecommendations}</p><p className="text-xs text-muted-foreground">Review competency/course assignment</p></CardContent>
+          <CardContent><p className="text-3xl font-bold">{safetyBusy ? "—" : medicationSafety.retrainingRecommendations}</p><p className="text-xs text-muted-foreground">Review competency/course assignment</p></CardContent>
         </Card>
       </div>
       )}
@@ -124,7 +126,9 @@ export default function MedAdminRoster() {
           <CardDescription>Structured event analytics from incidents and corrective actions. Repeated wrong-dose, wrong-medication, wrong-resident, and documentation events flag retraining review.</CardDescription>
         </CardHeader>
         <CardContent>
-          {medicationSafety.totalEvents === 0 ? (
+          {safetyBusy ? (
+            <p className="text-sm text-muted-foreground">Loading medication safety patterns…</p>
+          ) : medicationSafety.totalEvents === 0 ? (
             <p className="text-sm text-muted-foreground">No medication safety incidents found for this facility filter.</p>
           ) : (
             <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-5">
@@ -148,11 +152,15 @@ export default function MedAdminRoster() {
             Medication Administration Roster
           </CardTitle>
           <CardDescription>
-            {authorizedCount} of {medAdminEmployees.length} medication-administering staff are currently authorized.
+            {rosterBusy
+              ? "Loading medication-administering staff…"
+              : `${authorizedCount} of ${medAdminEmployees.length} medication-administering staff are currently authorized.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {medAdminEmployees.length === 0 ? (
+          {rosterBusy ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Loading medication-administration roster…</p>
+          ) : medAdminEmployees.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Pill className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-sm font-medium text-muted-foreground">No medication-administering staff found</p>

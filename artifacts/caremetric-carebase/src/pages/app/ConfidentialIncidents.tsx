@@ -143,14 +143,14 @@ export default function ConfidentialIncidents() {
               />
             </div>
             <Select value={urlState.facilityId} onValueChange={v => setUrlState({ facilityId: v, page: "1" })}>
-              <SelectTrigger className="w-48 h-9"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+              <SelectTrigger className="w-48 h-9" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Facilities</SelectItem>
                 {facilities?.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={urlState.status} onValueChange={v => setUrlState({ status: v, page: "1" })}>
-              <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+              <SelectTrigger className="w-44 h-9" aria-label="Status"><SelectValue placeholder="All Statuses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="submitted">Submitted</SelectItem>
@@ -162,7 +162,7 @@ export default function ConfidentialIncidents() {
               </SelectContent>
             </Select>
             <Select value={urlState.severity} onValueChange={v => setUrlState({ severity: v, page: "1" })}>
-              <SelectTrigger className="w-40 h-9"><SelectValue placeholder="All Severities" /></SelectTrigger>
+              <SelectTrigger className="w-40 h-9" aria-label="Severity"><SelectValue placeholder="All Severities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Severities</SelectItem>
                 <SelectItem value="low">Low</SelectItem>

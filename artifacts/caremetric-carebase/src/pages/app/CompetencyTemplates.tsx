@@ -366,7 +366,7 @@ export default function CompetencyTemplates() {
         <span>{filtered.length} template{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setEditTemplate(null); } }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setEditTemplate(null); setForm(EMPTY_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editTemplate ? "Edit Template" : "New Template"}</DialogTitle>

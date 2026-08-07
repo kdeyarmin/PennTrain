@@ -14,7 +14,8 @@ import {
   type InstanceLike,
 } from "./complianceCommandCenter";
 
-const TODAY = new Date(2026, 6, 24); // 2026-07-24 (local)
+// Noon ET so Pennsylvania facility day is unambiguously 2026-07-24 in any CI timezone.
+const TODAY = new Date("2026-07-24T16:00:00Z");
 
 function inst(partial: Partial<InstanceLike> & { status: string; due_date: string }): InstanceLike {
   return { evidence_count: 0, requires_evidence: false, warning_days: 14, ...partial };

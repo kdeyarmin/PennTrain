@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useCreateResidentRateAgreement,
   useGenerateResidentFinancialStatement,
@@ -36,7 +36,7 @@ export function RateDialog({
 }) {
   const mutation = useCreateResidentRateAgreement();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     effective: today(),
     through: "",
     base: "",
@@ -52,6 +52,10 @@ export function RateDialog({
     notes: "",
     agreementVersion: "none",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   const submit = () =>
     mutation.mutate(
       {
@@ -249,7 +253,7 @@ export function EntryDialog({
 }) {
   const mutation = usePostResidentFinancialTransaction();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     kind: "charge",
     side: "debit",
     category: "base_monthly",
@@ -264,6 +268,10 @@ export function EntryDialog({
     reason: "",
     receipt: "none",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   const kind = (value: string) =>
     setForm({
       ...form,
@@ -470,11 +478,15 @@ export function MonthlyChargesDialog({
 }) {
   const mutation = usePostResidentMonthlyCharges();
   const { toast } = useToast();
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     start: monthStart(),
     end: today(),
     memo: "Monthly billing run",
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   const total = charges.reduce((sum, charge) => sum + charge.amount, 0);
   const submit = () =>
     mutation.mutate(
@@ -581,11 +593,15 @@ export function StatementDialog({
 }) {
   const mutation = useGenerateResidentFinancialStatement();
   const report = useReport(onClose);
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     start: monthStart(),
     end: today(),
     due: addFacilityCalendarDays(facilityToday(), 15),
   });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent>

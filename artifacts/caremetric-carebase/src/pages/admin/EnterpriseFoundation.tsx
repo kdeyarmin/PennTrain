@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, facilityToday, addFacilityCalendarDays, facilityDayBounds } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import {
   Building2,
@@ -996,7 +996,7 @@ function BillingOverrideCommand() {
           p_organization_id: organizationId,
           p_override_state: overrideState,
           p_reason: reason.trim(),
-          p_expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+          p_expires_at: expiresAt ? facilityDateTimeLocalToUtcIso(expiresAt) : null,
         },
       });
       setReason("");
@@ -1063,7 +1063,7 @@ function IntegrationProvisioningCommand() {
           p_organization_id: organizationId,
           p_name: name.trim(),
           p_scopes: values,
-          p_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+          p_expires_at: facilityDayBounds(addFacilityCalendarDays(facilityToday(), 90)).through,
           p_rate_limit_per_minute: 120,
         },
       } : {

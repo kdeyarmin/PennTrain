@@ -128,6 +128,7 @@ export default function RegulatoryCrosswalk() {
     policyAttestationsQuery, evidenceCollectionsQuery, governedRules,
   ];
   const crosswalkFailure = crosswalkQueries.find((query) => query.isError);
+  const crosswalkBusy = crosswalkQueries.some((query) => query.isLoading || query.isPending);
 
   return (
     <div className="space-y-6">
@@ -143,17 +144,17 @@ export default function RegulatoryCrosswalk() {
           <h1 className="text-2xl font-bold tracking-tight">Chapter 2600 / 2800 Regulatory Crosswalk</h1>
           <p className="text-muted-foreground">Citation-by-citation map from PCH/ALF obligations to live CareBase documentation, owners, due dates, and binder destinations.</p>
         </div>
-        <Button variant="outline" onClick={downloadCsv} disabled={Boolean(crosswalkFailure)}>
+        <Button variant="outline" onClick={downloadCsv} disabled={Boolean(crosswalkFailure) || crosswalkBusy}>
           <Download className="mr-2 h-4 w-4" />Export CSV
         </Button>
       </div>
 
       {!crosswalkFailure && (
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard title="Inspection-ready" value={summary.ready} icon="ready" />
-        <SummaryCard title="Needs attention" value={summary.attention} />
-        <SummaryCard title="Missing documentation" value={summary.missing} icon="warning" />
-        <SummaryCard title="Overdue" value={summary.overdue} icon="danger" />
+        <SummaryCard title="Inspection-ready" value={crosswalkBusy ? "—" : summary.ready} icon="ready" />
+        <SummaryCard title="Needs attention" value={crosswalkBusy ? "—" : summary.attention} />
+        <SummaryCard title="Missing documentation" value={crosswalkBusy ? "—" : summary.missing} icon="warning" />
+        <SummaryCard title="Overdue" value={crosswalkBusy ? "—" : summary.overdue} icon="danger" />
       </div>
       )}
 
@@ -174,19 +175,19 @@ export default function RegulatoryCrosswalk() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-5">
           <Select value={activeFacilityId} onValueChange={setFacilityId}>
-            <SelectTrigger><SelectValue placeholder="Facility" /></SelectTrigger>
+            <SelectTrigger aria-label="Facility"><SelectValue placeholder="Facility" /></SelectTrigger>
             <SelectContent>{(facilities ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={facilityType} onValueChange={(value) => setFacilityType(value as FacilityProgram | "all")}>
-            <SelectTrigger><SelectValue placeholder="Facility type" /></SelectTrigger>
+            <SelectTrigger aria-label="Facility type"><SelectValue placeholder="Facility type" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All facility types</SelectItem><SelectItem value="PCH">PCH</SelectItem><SelectItem value="ALR">ALF</SelectItem></SelectContent>
           </Select>
           <Select value={status} onValueChange={(value) => setStatus(value as CrosswalkStatus | "all")}>
-            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All statuses</SelectItem>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={evidenceSource} onValueChange={(value) => setEvidenceSource(value as CrosswalkEvidenceSource | "all")}>
-            <SelectTrigger><SelectValue placeholder="Documentation source" /></SelectTrigger>
+            <SelectTrigger aria-label="Documentation source"><SelectValue placeholder="Documentation source" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All sources</SelectItem>{Object.entries(SOURCE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
           </Select>
           <Input value={citation} onChange={(event) => setCitation(event.target.value)} placeholder="Citation or requirement" />
@@ -228,7 +229,7 @@ export default function RegulatoryCrosswalk() {
   );
 }
 
-function SummaryCard({ title, value, icon }: { title: string; value: number; icon?: "ready" | "warning" | "danger" }) {
+function SummaryCard({ title, value, icon }: { title: string; value: number | string; icon?: "ready" | "warning" | "danger" }) {
   const Icon = icon === "ready" ? CheckCircle2 : icon === "danger" ? ShieldAlert : AlertTriangle;
   return (
     <Card>

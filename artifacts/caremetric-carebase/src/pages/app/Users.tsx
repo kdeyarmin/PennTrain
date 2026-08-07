@@ -432,7 +432,7 @@ export default function Users() {
             />
           </div>
           <Select value={roleFilter} onValueChange={v => { setRoleFilter(v); setPage(1); }}>
-            <SelectTrigger className="h-9 w-full bg-card sm:w-44">
+            <SelectTrigger className="h-9 w-full bg-card sm:w-44" aria-label="Role">
               <SelectValue placeholder="All Roles" />
             </SelectTrigger>
             <SelectContent>
@@ -444,7 +444,7 @@ export default function Users() {
           </Select>
           {isPlatformAdmin && (
             <Select value={orgFilter} onValueChange={v => { setOrgFilter(v); setPage(1); }}>
-              <SelectTrigger className="h-9 w-full bg-card sm:w-48">
+              <SelectTrigger className="h-9 w-full bg-card sm:w-48" aria-label="Organization">
                 <SelectValue placeholder="All Organizations" />
               </SelectTrigger>
               <SelectContent>
@@ -512,7 +512,7 @@ export default function Users() {
                         <td>
                           {editable ? (
                             <Select value={p.role} onValueChange={v => requestRoleChange(p, v)} disabled={adminUpdating}>
-                              <SelectTrigger className="h-8 w-40 text-xs bg-card">
+                              <SelectTrigger className="h-8 w-40 text-xs bg-card" aria-label={`Role for ${p.first_name} ${p.last_name}`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -613,7 +613,7 @@ export default function Users() {
                         <span className="text-xs font-medium text-muted-foreground">Role</span>
                         {editable ? (
                           <Select value={p.role} onValueChange={v => requestRoleChange(p, v)} disabled={adminUpdating}>
-                            <SelectTrigger className="h-9 w-44 bg-card text-xs"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-9 w-44 bg-card text-xs" aria-label={`Role for ${p.first_name} ${p.last_name}`}><SelectValue /></SelectTrigger>
                             <SelectContent>{assignableRoles.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
                           </Select>
                         ) : (
@@ -655,7 +655,7 @@ export default function Users() {
         <span>{filtered.length} user{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showCreate} onOpenChange={o => { if (!o) setShowCreate(false); }}>
+      <Dialog open={showCreate} onOpenChange={o => { if (!o) { setShowCreate(false); setCreateForm({ email: "", password: randomPassword(), firstName: "", lastName: "", role: assignableRoles[0] ?? "employee", organizationId: "none" }); setInviteMode(true); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{inviteMode ? "Invite User" : "Add User"}</DialogTitle>

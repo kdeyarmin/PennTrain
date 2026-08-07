@@ -4,7 +4,14 @@
 // prompting a human to confirm the billed care level still matches the resident's needs. It never
 // asserts a mis-bill; it surfaces review signals from real data. Pure and unit-tested; the caller
 // supplies rows already filtered by facility RLS.
-import { daysUntil, formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityDaysUntil, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Facility calendar day for a bare date or timestamptz. */
+function facilityDayOf(value: string, now = new Date()): string {
+  return DATE_ONLY.test(value) ? value : facilityToday(new Date(value));
+}
 
 export type CareLevelSeverity = "high" | "attention" | "info";
 export type CareLevelStatus = CareLevelSeverity | "ok";
@@ -69,8 +76,9 @@ export interface CareLevelReviewRow {
 export function currentRatesByResident(rates: RateAgreementLike[], today: Date = new Date()): Map<string, RateAgreementLike> {
   const current = new Map<string, RateAgreementLike>();
   for (const rate of rates) {
-    const startsBy = (daysUntil(rate.effective_from, today) ?? 0) <= 0;
-    const notEnded = !rate.effective_through || (daysUntil(rate.effective_through, today) ?? 0) >= 0;
+    // Facility calendar — browser-local `daysUntil` flips near PA evening for non-Eastern viewers.
+    const startsBy = (facilityDaysUntil(rate.effective_from, today) ?? 0) <= 0;
+    const notEnded = !rate.effective_through || (facilityDaysUntil(rate.effective_through, today) ?? 0) >= 0;
     if (!startsBy || !notEnded) continue;
     const existing = current.get(rate.resident_id);
     if (!existing || rate.version_number > existing.version_number) current.set(rate.resident_id, rate);
@@ -94,8 +102,8 @@ export function latestAssessmentByResident(...sources: AssessmentDateLike[][]): 
 // True when the assessment is strictly newer (by calendar day) than the rate's effective date, so the
 // billed level of care predates the latest acuity information. Day-granular to avoid same-day noise.
 function assessedAfterRate(lastAssessedAt: string, effectiveFrom: string): boolean {
-  const d = daysUntil(effectiveFrom, new Date(lastAssessedAt));
-  return d !== null && d < 0;
+  if (!DATE_ONLY.test(effectiveFrom)) return false;
+  return facilityDayOf(lastAssessedAt) > effectiveFrom;
 }
 
 function worstStatus(flags: CareLevelFlag[]): CareLevelStatus {
@@ -113,7 +121,12 @@ export function computeResidentCareLevelReview(
   today: Date = new Date(),
 ): CareLevelReviewRow {
   const flags: CareLevelFlag[] = [];
-  const daysSince = lastAssessedAt ? -(daysUntil(lastAssessedAt, today) ?? 0) : null;
+  const daysSince = lastAssessedAt
+    ? (() => {
+        const d = facilityDaysUntil(facilityDayOf(lastAssessedAt, today), today);
+        return d === null ? null : -d;
+      })()
+    : null;
 
   if (!rate) {
     flags.push({

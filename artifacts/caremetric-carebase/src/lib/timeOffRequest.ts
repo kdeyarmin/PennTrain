@@ -5,13 +5,23 @@ export interface TimeOffRequestValidationResult {
   endsAtIso: string;
 }
 
+/** Parse a datetime-local value as Pennsylvania facility wall clock (not the browser zone). */
+function facilityLocalInstant(value: string): Date | null {
+  try {
+    const instant = new Date(facilityDateTimeLocalToUtcIso(value));
+    return Number.isNaN(instant.getTime()) ? null : instant;
+  } catch {
+    return null;
+  }
+}
+
 export function getTimeOffRequestWindowError(startsAt: string, endsAt: string): string | null {
   if (!startsAt || !endsAt) return null;
 
-  const start = new Date(startsAt);
-  const end = new Date(endsAt);
+  const start = facilityLocalInstant(startsAt);
+  const end = facilityLocalInstant(endsAt);
 
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+  if (!start || !end) {
     return "Enter a valid start and end date/time for the time-off request.";
   }
 

@@ -603,7 +603,7 @@ export default function Packages() {
         </CardContent>
       </Card>
 
-      <Dialog open={showPackageForm} onOpenChange={(open) => { if (!open) { setShowPackageForm(false); setEditId(null); } }}>
+      <Dialog open={showPackageForm} onOpenChange={(open) => { if (!open) { setShowPackageForm(false); setEditId(null); setPackageForm(EMPTY_PACKAGE_FORM); } }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader><DialogTitle>{editId ? "Edit package" : "Add package"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
@@ -632,7 +632,7 @@ export default function Packages() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showPriceForm} onOpenChange={(open) => { if (!open) { setShowPriceForm(false); setEditPriceId(null); } }}>
+      <Dialog open={showPriceForm} onOpenChange={(open) => { if (!open) { setShowPriceForm(false); setEditPriceId(null); setPriceForm(EMPTY_PRICE_FORM); } }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader><DialogTitle>{editPriceId ? "Edit billing configuration" : "Add billing configuration"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">

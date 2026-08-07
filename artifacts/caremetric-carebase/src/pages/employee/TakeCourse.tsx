@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { daysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
+import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { StandardsRuntimePlayer } from "@/components/learning/StandardsRuntimePlayer";
@@ -637,7 +637,7 @@ useEffect(() => {
           )}
           {assignment.due_date && !alreadyCompleted && (() => {
             const dueDistance = formatDueDistance(assignment.due_date);
-            const daysLeft = daysUntil(assignment.due_date);
+            const daysLeft = facilityDaysUntil(assignment.due_date);
             const dueTone =
               daysLeft !== null && daysLeft < 0
                 ? "text-destructive font-medium"

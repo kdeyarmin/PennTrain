@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useCreateResidentChangeEvent } from "@/hooks/useResidentChangeEvents";
-import { toDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 
 export interface ChangeOfConditionResidentOption {
   id: string;
@@ -35,7 +35,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
   const { data: profiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined });
   const [selectedResidentId, setSelectedResidentId] = useState("");
   const [category, setCategory] = useState("other_significant_change");
-  const [identifiedAt, setIdentifiedAt] = useState(() => toDateTimeLocal());
+  const [identifiedAt, setIdentifiedAt] = useState(() => toFacilityDateTimeLocal());
   const [observations, setObservations] = useState("");
   const [immediateAction, setImmediateAction] = useState("");
   const [providerStatus, setProviderStatus] = useState("pending");
@@ -46,7 +46,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
   const [monitoringFrequency, setMonitoringFrequency] = useState("");
   const [monitoringHours, setMonitoringHours] = useState("24");
   const [assignedProfileId, setAssignedProfileId] = useState(user?.id ?? "");
-  const [followUpDueAt, setFollowUpDueAt] = useState(() => toDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
+  const [followUpDueAt, setFollowUpDueAt] = useState(() => toFacilityDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
   const [incidentDecision, setIncidentDecision] = useState("pending");
   const [reassessmentRequired, setReassessmentRequired] = useState(true);
   const [supportPlanRevisionRequired, setSupportPlanRevisionRequired] = useState(true);
@@ -58,7 +58,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
     if (!o) {
       setSelectedResidentId("");
       setCategory("other_significant_change");
-      setIdentifiedAt(toDateTimeLocal());
+      setIdentifiedAt(toFacilityDateTimeLocal());
       setObservations("");
       setImmediateAction("");
       setProviderStatus("pending");
@@ -69,7 +69,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
       setMonitoringFrequency("");
       setMonitoringHours("24");
       setAssignedProfileId(user?.id ?? "");
-      setFollowUpDueAt(toDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
+      setFollowUpDueAt(toFacilityDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
       setIncidentDecision("pending");
       setReassessmentRequired(true);
       setSupportPlanRevisionRequired(true);

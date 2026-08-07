@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addFacilityCalendarDays } from "./dateUtils";
 import {
   CITATION_REVIEW_MAX_AGE_DAYS, citationDisplayLabel, citationForComplianceItem,
   citationLibraryAgeInDays, citationsForModule, findCitation,
@@ -134,7 +135,8 @@ describe("citationsForModule", () => {
 });
 
 describe("library staleness", () => {
-  const verifiedAt = new Date(`${PA_CITATIONS_LAST_VERIFIED}T00:00:00Z`);
+  // Noon Eastern on the verification date so facilityToday matches PA_CITATIONS_LAST_VERIFIED.
+  const verifiedAt = new Date(`${PA_CITATIONS_LAST_VERIFIED}T16:00:00Z`);
 
   it("reports zero age on the verification date", () => {
     expect(citationLibraryAgeInDays(verifiedAt)).toBe(0);
@@ -142,10 +144,10 @@ describe("library staleness", () => {
   });
 
   it("goes stale one day past the review window", () => {
-    const atLimit = new Date(verifiedAt.getTime() + CITATION_REVIEW_MAX_AGE_DAYS * 86_400_000);
-    const pastLimit = new Date(verifiedAt.getTime() + (CITATION_REVIEW_MAX_AGE_DAYS + 1) * 86_400_000);
-    expect(isCitationLibraryStale(atLimit)).toBe(false);
-    expect(isCitationLibraryStale(pastLimit)).toBe(true);
+    const atLimitDay = addFacilityCalendarDays(PA_CITATIONS_LAST_VERIFIED, CITATION_REVIEW_MAX_AGE_DAYS);
+    const pastLimitDay = addFacilityCalendarDays(PA_CITATIONS_LAST_VERIFIED, CITATION_REVIEW_MAX_AGE_DAYS + 1);
+    expect(isCitationLibraryStale(new Date(`${atLimitDay}T16:00:00Z`))).toBe(false);
+    expect(isCitationLibraryStale(new Date(`${pastLimitDay}T16:00:00Z`))).toBe(true);
   });
 
   it("uses the same review cadence as the DHS form-source check", () => {

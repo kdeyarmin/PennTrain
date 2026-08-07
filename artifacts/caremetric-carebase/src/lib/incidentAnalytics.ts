@@ -1,4 +1,4 @@
-import { facilityToday } from "./dateUtils";
+import { facilityDaysUntil, facilityToday } from "./dateUtils";
 
 export interface IncidentAnalyticsRecord {
   id: string;
@@ -27,21 +27,11 @@ export interface IncidentAnalyticsSummary {
 // until the UTC date rolled over. The counts were understated for the incidents most likely to
 // still be unresolved.
 function daysSince(iso: string, today: string): number {
-  // Calendar DATES differenced, not elapsed 24-hour blocks. Dividing milliseconds by 86_400_000
-  // assumes every day is 24 hours, and in Pennsylvania two of them a year are not: across the
-  // November fall-back an incident at 00:30 ET on 2026-10-27 is seven facility dates before
-  // 2026-11-03, but the extra hour makes the elapsed-time arithmetic return 8 -- and the windows
-  // below are inclusive `<= 7` and `<= 30`, so it dropped out of "reported in the last 7 days"
-  // for about a week after every transition, in the direction that understates.
-  //
-  // Both operands here are plain YYYY-MM-DD dates read at UTC midnight, so the subtraction is
-  // exact and has no zone in it at all; the only timezone-aware step is resolving the incident's
-  // instant to the facility date it happened on, which is what the count is about.
+  // Facility calendar dates only — DST-safe age for PA America/New_York days.
   const occurredDay = facilityToday(new Date(iso));
   if (!DATE_ONLY.test(occurredDay) || !DATE_ONLY.test(today)) return Number.NaN;
-  return Math.round(
-    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${occurredDay}T00:00:00Z`)) / 86_400_000,
-  );
+  const until = facilityDaysUntil(occurredDay, new Date(`${today}T16:00:00Z`));
+  return until === null ? Number.NaN : -until;
 }
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;

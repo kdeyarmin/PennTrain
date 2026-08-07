@@ -63,7 +63,9 @@ export function EmployeeAccessCard({
           <span className="text-sm">Right now:</span>
           {now.isLoading
             ? <span className="text-sm text-muted-foreground">checking…</span>
-            : (
+            : now.isError
+              ? <span className="text-sm text-destructive">Couldn't check access.</span>
+              : (
               <Badge variant={now.data ? "secondary" : "destructive"}>
                 {now.data ? "active" : "not active"}
               </Badge>

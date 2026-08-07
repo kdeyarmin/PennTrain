@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { AlertTriangle, Award, CalendarCheck, FileScan, RefreshCw, UserCheck, UsersRound } from "lucide-react";
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import {
   useQualifiedWorkforce,
@@ -182,7 +183,11 @@ function HrisCommands() {
       <StartImportRunCard onStarted={setRunId} />
       <div className="space-y-2 lg:col-span-2">
         <Label htmlFor="phase3-run">Import run</Label>
-        {(runs.data ?? []).length > 0 ? (
+        {runs.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading import runs…</p>
+        ) : runs.isError ? (
+          <QueryError what="HRIS import runs" error={runs.error} onRetry={() => void runs.refetch()} />
+        ) : (runs.data ?? []).length > 0 ? (
           <Select value={runId} onValueChange={setRunId}>
             <SelectTrigger id="phase3-run"><SelectValue placeholder="Choose a run" /></SelectTrigger>
             <SelectContent>
@@ -243,8 +248,8 @@ function EligibilityCommand() {
         args: {
           p_employee_id: employeeId,
           p_facility_id: facilityId,
-          p_starts_at: new Date(startsAt).toISOString(),
-          p_ends_at: new Date(endsAt).toISOString(),
+          p_starts_at: facilityDateTimeLocalToUtcIso(startsAt),
+          p_ends_at: facilityDateTimeLocalToUtcIso(endsAt),
           p_required_qualification_keys: qualificationKeys.split(",").map((v) => v.trim()).filter(Boolean),
           p_required_credential_types: [],
           p_required_training_type_ids: [],

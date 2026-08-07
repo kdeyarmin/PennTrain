@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { QueryError } from "@/components/QueryState";
 
 interface Props {
   open: boolean;
@@ -15,7 +16,7 @@ interface Props {
 
 export function CopyTemplateDialog({ open, onOpenChange, template }: Props) {
   const { toast } = useToast();
-  const { data: facilities } = useListFacilities();
+  const { data: facilities, isLoading: facilitiesLoading, isError: facilitiesError, error: facilitiesErr, refetch: refetchFacilities } = useListFacilities();
   const copy = useCopyComplianceRequirement();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -51,13 +52,21 @@ export function CopyTemplateDialog({ open, onOpenChange, template }: Props) {
           <DialogDescription>Creates a live, scheduled requirement in each selected facility. Facilities that already have this template are skipped.</DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-2">
-          {(facilities ?? []).map((f) => (
-            <label key={f.id} className="flex items-center gap-3 rounded-md border p-2 text-sm">
-              <Checkbox checked={selected.has(f.id)} onCheckedChange={() => toggle(f.id)} />
-              <span className="cursor-pointer font-normal">{f.name}</span>
-            </label>
-          ))}
-          {(facilities ?? []).length === 0 && <p className="text-sm text-muted-foreground">No facilities available.</p>}
+          {facilitiesLoading ? (
+            <p className="text-sm text-muted-foreground">Loading facilities…</p>
+          ) : facilitiesError ? (
+            <QueryError what="facilities" error={facilitiesErr} onRetry={() => void refetchFacilities()} />
+          ) : (
+            <>
+              {(facilities ?? []).map((f) => (
+                <label key={f.id} className="flex items-center gap-3 rounded-md border p-2 text-sm">
+                  <Checkbox checked={selected.has(f.id)} onCheckedChange={() => toggle(f.id)} />
+                  <span className="cursor-pointer font-normal">{f.name}</span>
+                </label>
+              ))}
+              {(facilities ?? []).length === 0 && <p className="text-sm text-muted-foreground">No facilities available.</p>}
+            </>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
