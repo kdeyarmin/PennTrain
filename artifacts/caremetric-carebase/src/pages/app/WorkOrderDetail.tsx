@@ -57,6 +57,7 @@ export default function WorkOrderDetail() {
   const { data: order, isLoading, isError, error, refetch } = useGetWorkOrder(id);
   const {
     data: history,
+    isLoading: historyLoading,
     isError: historyError,
     error: historyErrorDetail,
     refetch: refetchHistory,
@@ -259,8 +260,12 @@ export default function WorkOrderDetail() {
         <Card><CardHeader><CardTitle>Lifecycle history</CardTitle></CardHeader><CardContent>
           {historyError ? (
             <QueryError what="lifecycle history" error={historyErrorDetail} onRetry={() => void refetchHistory()} />
+          ) : historyLoading ? (
+            <p className="text-sm text-muted-foreground">Loading lifecycle history…</p>
+          ) : !history?.length ? (
+            <p className="text-sm text-muted-foreground">No lifecycle events recorded yet.</p>
           ) : (
-            <div className="space-y-4">{history?.map((event, index) => <div key={event.id} className="relative pl-6"><span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />{index < (history?.length ?? 0) - 1 && <span className="absolute bottom-[-18px] left-[4px] top-4 w-px bg-border" />}<p className="text-sm font-semibold">{humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.notes && <p className="mt-1 text-sm">{event.notes}</p>}</div>)}</div>
+            <div className="space-y-4">{history.map((event, index) => <div key={event.id} className="relative pl-6"><span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />{index < history.length - 1 && <span className="absolute bottom-[-18px] left-[4px] top-4 w-px bg-border" />}<p className="text-sm font-semibold">{humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.notes && <p className="mt-1 text-sm">{event.notes}</p>}</div>)}</div>
           )}
         </CardContent></Card>
       </div>

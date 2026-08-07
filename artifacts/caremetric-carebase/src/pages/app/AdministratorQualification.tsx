@@ -365,7 +365,9 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           </div>
 
           <div className="space-y-2 pt-2 border-t">
-            {!ceEntries?.length ? (
+            {ceEntriesQuery.isLoading || ceEntriesQuery.isPending ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Loading CE entries…</p>
+            ) : !ceEntries?.length ? (
               <p className="text-sm text-muted-foreground text-center py-4">No CE entries recorded yet.</p>
             ) : (
               ceEntries.map((entry) => (
@@ -376,7 +378,15 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
                   </div>
                   <Button
                     size="icon" variant="ghost" className="h-8 w-8 text-destructive shrink-0"
-                    onClick={() => deleteCeEntry({ id: entry.id, administratorProfileId: entry.administrator_profile_id })}
+                    onClick={() => {
+                      void deleteCeEntry({ id: entry.id, administratorProfileId: entry.administrator_profile_id })
+                        .then(() => toast({ title: "CE entry deleted" }))
+                        .catch((e: unknown) => toast({
+                          variant: "destructive",
+                          title: "Couldn't delete CE entry",
+                          description: e instanceof Error ? e.message : String(e),
+                        }));
+                    }}
                     aria-label="Delete CE entry"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

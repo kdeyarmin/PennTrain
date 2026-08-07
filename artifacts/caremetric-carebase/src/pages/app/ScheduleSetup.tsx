@@ -554,6 +554,7 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
   const singleEmployeeId = employeeIds.size === 1 ? [...employeeIds][0] : undefined;
   const {
     data: preferences,
+    isLoading: preferencesLoading,
     isError: preferencesError,
     error: preferencesErrorDetail,
     refetch: refetchPreferences,
@@ -730,6 +731,8 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
                 <p className="text-sm font-medium leading-none text-xs text-muted-foreground" >Existing patterns</p>
                 {preferencesError ? (
                   <QueryError what="schedule patterns" error={preferencesErrorDetail} onRetry={() => void refetchPreferences()} />
+                ) : preferencesLoading ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">Loading typical patterns…</p>
                 ) : (preferences ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">No typical patterns yet for this employee.</p>
                 ) : (

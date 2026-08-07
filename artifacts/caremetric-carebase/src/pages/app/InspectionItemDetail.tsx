@@ -115,6 +115,7 @@ export default function InspectionItemDetail() {
   } = useListInspectionEvents(id);
   const {
     data: workOrders,
+    isLoading: workOrdersLoading,
     isError: workOrdersError,
     error: workOrdersErrorDetail,
     refetch: refetchWorkOrders,
@@ -296,7 +297,15 @@ export default function InspectionItemDetail() {
               <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
               <Textarea id={`${__fieldIds}-notes`}
                 defaultValue={item.notes ?? ""}
-                onBlur={(e) => { if (e.target.value !== (item.notes ?? "")) updateItem({ id: item.id, notes: e.target.value || null }); }}
+                onBlur={(e) => {
+                  if (e.target.value === (item.notes ?? "")) return;
+                  updateItem(
+                    { id: item.id, notes: e.target.value || null },
+                    {
+                      onError: (err: Error) => toast({ title: "Couldn't save notes", description: err.message, variant: "destructive" }),
+                    },
+                  );
+                }}
                 placeholder="Optional notes"
               />
             </div>
@@ -310,6 +319,8 @@ export default function InspectionItemDetail() {
           <CardContent>
             {workOrdersError ? (
               <QueryError what="work orders" error={workOrdersErrorDetail} onRetry={() => void refetchWorkOrders()} />
+            ) : workOrdersLoading ? (
+              <p className="text-sm text-muted-foreground">Loading linked work orders…</p>
             ) : !workOrders?.length ? (
               <p className="text-sm text-muted-foreground">No work orders are linked to this item. Failed inspections will create one automatically.</p>
             ) : (

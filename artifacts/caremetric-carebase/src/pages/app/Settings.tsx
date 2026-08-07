@@ -72,7 +72,7 @@ export default function Settings() {
 
   const { data: settings, isLoading, isError, error, refetch } = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const { mutate: upsertSettings, mutateAsync: upsertSettingsAsync, isPending: saving } = useUpsertOrganizationSettings();
-  const { data: deliveries } = useListNotificationDeliveries(15);
+  const { data: deliveries, isLoading: deliveriesLoading } = useListNotificationDeliveries(15);
   const { mutate: recalculateCompliance, isPending: recalculating } = useRecalculateOrgCompliance();
   const exports = useOrganizationExports(user?.organizationId);
   const sandboxActions = useSandboxActions();
@@ -399,11 +399,13 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!deliveries?.length ? (
+              {!deliveriesLoading && !deliveries?.length ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   No deliveries yet -- these appear once a notification channel above is enabled and a staff member
                   receives an eligible alert or reminder.
                 </p>
+              ) : deliveriesLoading ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Loading recent deliveries…</p>
               ) : (
                 <div className="space-y-2">
                   {deliveries.map(d => (

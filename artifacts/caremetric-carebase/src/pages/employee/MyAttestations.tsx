@@ -132,7 +132,7 @@ export default function MyAttestations() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileCheck2 className="h-5 w-5" /> Attestations ({attestations?.length ?? 0})
+            <FileCheck2 className="h-5 w-5" /> Attestations ({isLoading ? "—" : (attestations?.length ?? 0)})
           </CardTitle>
         </CardHeader>
         <CardContent>

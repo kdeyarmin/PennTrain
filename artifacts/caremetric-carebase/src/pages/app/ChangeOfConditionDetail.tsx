@@ -84,9 +84,13 @@ export default function ChangeOfConditionDetail() {
   if (eventQuery.isLoading) return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   if (eventQuery.isError || !eventQuery.data) return <QueryError what="change-of-condition event" error={eventQuery.error} onRetry={() => eventQuery.refetch()} />;
   const event = eventQuery.data;
-  const openFollowUp = activity.data?.followUps.find(followUp => ["open", "overdue"].includes(followUp.status));
+  const activityReady = !activity.isLoading && !activity.isError && activity.data !== undefined;
+  const openFollowUp = activityReady
+    ? activity.data?.followUps.find(followUp => ["open", "overdue"].includes(followUp.status))
+    : undefined;
   const overdue = event.status !== "closed" && new Date(event.follow_up_due_at) < new Date();
-  const closureBlocked = event.provider_notification_status === "pending"
+  const closureBlocked = !activityReady
+    || event.provider_notification_status === "pending"
     || event.designated_person_notification_status === "pending"
     || event.incident_decision === "pending"
     || !!openFollowUp;
@@ -302,7 +306,9 @@ export default function ChangeOfConditionDetail() {
                   <Button disabled={observations.trim().length < 3 || addMonitoring.isPending || saveOfflineObservation.isPending || syncOfflineObservation.isPending} onClick={() => void submitMonitoring()}>Record observation</Button>
                 </div>
               )}
-              {activity.data?.monitoring.length ? activity.data.monitoring.map(entry => (
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading monitoring observations…</p>
+              ) : activity.data?.monitoring.length ? activity.data.monitoring.map(entry => (
                 <div key={entry.id} className="border-t pt-3 text-sm">
                   <div className="flex justify-between gap-3"><p className="font-medium">{personName(entry.recorder)}</p><span className="text-xs text-muted-foreground">{new Date(entry.observed_at).toLocaleString()}</span></div>
                   <p className="mt-1">{entry.observations}</p>{entry.action_taken && <p className="text-muted-foreground">Action: {entry.action_taken}</p>}{entry.supervisor_notified && <Badge variant="outline" className="mt-1">Supervisor notified</Badge>}
@@ -314,7 +320,9 @@ export default function ChangeOfConditionDetail() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" />Immutable event history</CardTitle><CardDescription>Creation, notification, monitoring, follow-up, and supervisor decisions.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
-              {activity.data?.history.map(entry => <div key={entry.id} className="flex justify-between gap-3 border-b pb-2 text-sm"><div><p className="font-medium">{humanize(entry.event_type)}{entry.resulting_status ? ` · ${humanize(entry.resulting_status)}` : ""}</p><p className="text-muted-foreground">{entry.reason}</p><p className="text-xs text-muted-foreground">{personName(entry.actor)}</p></div><span className="shrink-0 text-xs text-muted-foreground">{new Date(entry.occurred_at).toLocaleString()}</span></div>)}
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading event history…</p>
+              ) : activity.data?.history.map(entry => <div key={entry.id} className="flex justify-between gap-3 border-b pb-2 text-sm"><div><p className="font-medium">{humanize(entry.event_type)}{entry.resulting_status ? ` · ${humanize(entry.resulting_status)}` : ""}</p><p className="text-muted-foreground">{entry.reason}</p><p className="text-xs text-muted-foreground">{personName(entry.actor)}</p></div><span className="shrink-0 text-xs text-muted-foreground">{new Date(entry.occurred_at).toLocaleString()}</span></div>)}
             </CardContent>
           </Card>
         </div>
@@ -323,7 +331,9 @@ export default function ChangeOfConditionDetail() {
           <Card>
             <CardHeader><CardTitle>Assigned follow-up</CardTitle><CardDescription>Due {new Date(event.follow_up_due_at).toLocaleString()} · {personName(event.assigned)}</CardDescription></CardHeader>
             <CardContent className="space-y-3">
-              {activity.data?.followUps.map(followUp => <div key={followUp.id} className="rounded-md border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">Due {new Date(followUp.due_at).toLocaleString()}</p><Badge variant="outline">{humanize(followUp.status)}</Badge></div><p className="text-xs text-muted-foreground">{personName(followUp.assigned)}</p>{followUp.result && <p className="mt-2">{followUp.result}</p>}</div>)}
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading follow-ups…</p>
+              ) : activity.data?.followUps.map(followUp => <div key={followUp.id} className="rounded-md border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">Due {new Date(followUp.due_at).toLocaleString()}</p><Badge variant="outline">{humanize(followUp.status)}</Badge></div><p className="text-xs text-muted-foreground">{personName(followUp.assigned)}</p>{followUp.result && <p className="mt-2">{followUp.result}</p>}</div>)}
               {canContribute && openFollowUp && (
                 <div className="space-y-2 border-t pt-3">
                   <Textarea value={followUpResult} onChange={input => setFollowUpResult(input.target.value)} placeholder="Follow-up results" />
@@ -350,7 +360,7 @@ export default function ChangeOfConditionDetail() {
             <Card className="border-emerald-300">
               <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Final supervisor review</CardTitle><CardDescription>Closure requires completed follow-ups, notification decisions, and an incident decision.</CardDescription></CardHeader>
               <CardContent className="space-y-3">
-                {closureBlocked && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Closure requirements remain</AlertTitle><AlertDescription>Resolve pending notifications, incident decision, and open follow-ups first.</AlertDescription></Alert>}
+                {closureBlocked && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Closure requirements remain</AlertTitle><AlertDescription>{activity.isLoading ? "Checking follow-ups and closure requirements…" : "Resolve pending notifications, incident decision, and open follow-ups first."}</AlertDescription></Alert>}
                 <Textarea value={closureSummary} onChange={input => setClosureSummary(input.target.value)} placeholder="Supervisor review and closure summary" />
                 <Button disabled={closureBlocked || closureSummary.trim().length < 5 || closeEvent.isPending} onClick={() => closeEvent.mutate({ eventId: event.id, summary: closureSummary }, { onSuccess: () => toast({ title: "Change event closed after supervisor review" }), onError: (error: Error) => toast({ title: "Couldn't close event", description: error.message, variant: "destructive" }) })}><CheckCircle2 className="mr-2 h-4 w-4" />Close event</Button>
               </CardContent>

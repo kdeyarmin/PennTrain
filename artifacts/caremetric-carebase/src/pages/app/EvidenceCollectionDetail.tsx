@@ -80,7 +80,7 @@ export default function EvidenceCollectionDetail() {
   const { data: artifacts } = artifactsQuery;
   const { data: grants } = grantsQuery;
   const { data: events } = eventsQuery;
-  const { data: promotableExports } = usePromotableBinderExports(collection?.facility_id);
+  const { data: promotableExports, isLoading: promotableExportsLoading } = usePromotableBinderExports(collection?.facility_id);
 
   const addExport = useAddBinderExportToCollection();
   const setStatus = useSetEvidenceCollectionStatus();
@@ -478,7 +478,9 @@ export default function EvidenceCollectionDetail() {
               <Select value={exportJobId} onValueChange={setExportJobId}>
                 <SelectTrigger id={`${__fieldIds}-evidence-export`}><SelectValue placeholder="Select an export" /></SelectTrigger>
                 <SelectContent>
-                  {(promotableExports ?? []).length === 0 ? (
+                  {promotableExportsLoading ? (
+                    <SelectItem value="none" disabled>Loading eligible exports…</SelectItem>
+                  ) : (promotableExports ?? []).length === 0 ? (
                     <SelectItem value="none" disabled>No eligible exports for this facility</SelectItem>
                   ) : (
                     (promotableExports ?? []).map((job) => (

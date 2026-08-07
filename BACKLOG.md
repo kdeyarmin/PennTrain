@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `aacd5f2d` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-sixth-pass** after G211–G213. Hold AdminDashboard Domain Review badge statuses, EmergencyOperations events/plan empty copy, ResidentCareDocumentation assessments/care plans, and WorkItemDetail activity empties/approval gate until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `b6435e14` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-seventh-pass** after G214–G216. Hold ChangeOfCondition activity empties/closure, ComplianceBinder/ConfidentialIncident/InspectionItem/Settings/WorkOrder secondary empties, AdministratorQualification CE roster + delete toast, ScheduleSetup patterns, MyAttestations/Credentials header counts, CopyTemplateDialog facilities, and EvidenceCollection promotable exports until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -649,6 +649,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G214 | AdminDashboard Domain Review badges used health/dashboard while busy | S | done | Dash Tenant/People/Training/Compliance/Support card statuses while queries busy |
 | G215 | EmergencyOperations + ResidentCareDocumentation empty while loading | S | done | Loading copy/skeleton before events/plan/assessments/care-plan empty states |
 | G216 | WorkItemDetail activity fail-open (evidence/deps/approve) | S | done | `activityReady`; loading copy; hold approve until activity resolves |
+| G217 | ChangeOfConditionDetail activity fail-open (monitor/close) | S | done | `activityReady`; loading copy; hold close until follow-ups resolve |
+| G218 | Secondary empty-state fail-open (binder/ledger/WO/Settings/etc.) | S | done | Loading gates for binder exports, access ledger, linked WOs, deliveries, WO history, schedule patterns, CE roster, CopyTemplate facilities, promotable exports |
+| G219 | MyAttestations/Credentials header counts fail-open to 0 | S | done | Dash title counts while employee/list queries load |
+| G220 | Silent mutates: CE delete + inspection notes blur | S | done | Toast on CE delete failure/success; notes blur onError toast |
 
 ## Explicitly not now
 

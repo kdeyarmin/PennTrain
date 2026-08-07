@@ -34,7 +34,7 @@ export default function ComplianceBinder() {
   const canScopeFacility = !!user && FACILITY_PICKER_ROLES.includes(user.role);
   const { data: facilityRows } = useListFacilities({}, canScopeFacility);
   const facilities = facilityRows?.filter((facility) => !facility.is_sandbox);
-  const { data: exports, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
+  const { data: exports, isLoading: exportsLoading, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
   const { mutate: fetchDownload, isPending: downloading, variables: downloadingJobId } = useBinderDownloadUrl();
 
   const handleDownloadExisting = (jobId: string, mode: "pdf" | "appendix" = "pdf") => {
@@ -149,6 +149,8 @@ export default function ComplianceBinder() {
         <CardContent>
           {exportsError ? (
             <QueryError what="recent binder exports" error={exportsErrorDetail} onRetry={() => refetchExports()} />
+          ) : exportsLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading binder exports…</p>
           ) : !exports?.length ? (
             <p className="text-sm text-muted-foreground text-center py-6">No binder exports yet.</p>
           ) : (

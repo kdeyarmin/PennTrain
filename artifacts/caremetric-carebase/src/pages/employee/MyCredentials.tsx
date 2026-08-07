@@ -105,7 +105,7 @@ export default function MyCredentials() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" /> Credentials ({credentials?.length ?? 0})
+            <ShieldCheck className="h-5 w-5" /> Credentials ({isLoading ? "—" : (credentials?.length ?? 0)})
           </CardTitle>
         </CardHeader>
         <CardContent>
