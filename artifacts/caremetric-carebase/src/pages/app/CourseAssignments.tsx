@@ -79,7 +79,7 @@ const EMPTY_ASSIGN_FORM: AssignFormData = {
 // query is in flight at a time.
 // ---------------------------------------------------------------------------
 function ProgressDialog({ assignmentId, onClose }: { assignmentId: string | null; onClose: () => void }) {
-  const { data: progress, isLoading } = useGetCourseProgress(assignmentId ?? undefined);
+  const { data: progress, isLoading, isError, error, refetch } = useGetCourseProgress(assignmentId ?? undefined);
 
   return (
     <Dialog open={!!assignmentId} onOpenChange={o => { if (!o) onClose(); }}>
@@ -89,6 +89,8 @@ function ProgressDialog({ assignmentId, onClose }: { assignmentId: string | null
         </DialogHeader>
         {isLoading ? (
           <div className="h-16 bg-muted animate-pulse rounded" />
+        ) : isError ? (
+          <QueryError what="training progress" error={error} onRetry={() => void refetch()} />
         ) : progress ? (
           <div className="space-y-3 py-2">
             <div className="flex items-center justify-between text-sm">

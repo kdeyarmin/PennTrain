@@ -183,7 +183,11 @@ function HrisCommands() {
       <StartImportRunCard onStarted={setRunId} />
       <div className="space-y-2 lg:col-span-2">
         <Label htmlFor="phase3-run">Import run</Label>
-        {(runs.data ?? []).length > 0 ? (
+        {runs.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading import runs…</p>
+        ) : runs.isError ? (
+          <QueryError what="HRIS import runs" error={runs.error} onRetry={() => void runs.refetch()} />
+        ) : (runs.data ?? []).length > 0 ? (
           <Select value={runId} onValueChange={setRunId}>
             <SelectTrigger id="phase3-run"><SelectValue placeholder="Choose a run" /></SelectTrigger>
             <SelectContent>

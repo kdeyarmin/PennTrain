@@ -63,6 +63,7 @@ function AnswerRow({
   onToggleCorrect: (checked: boolean) => void;
   onDelete: () => void;
 }) {
+  const { toast } = useToast();
   const [text, setText] = useState(answer.answer_text);
   const { mutate: updateAnswer } = useUpdateQuizAnswer();
 
@@ -70,7 +71,10 @@ function AnswerRow({
 
   const commitText = () => {
     if (text.trim() && text !== answer.answer_text) {
-      updateAnswer({ id: answer.id, answer_text: text.trim() });
+      updateAnswer(
+        { id: answer.id, answer_text: text.trim() },
+        { onError: (e: Error) => toast({ title: "Couldn't save answer text", description: e.message, variant: "destructive" }) },
+      );
     } else if (!text.trim()) {
       setText(answer.answer_text);
     }
@@ -111,7 +115,10 @@ function AnswerRow({
   );
 }
 
-function DifficultyBadge({ stats }: { stats: QuestionStats | undefined }) {
+function DifficultyBadge({ stats, busy = false }: { stats: QuestionStats | undefined; busy?: boolean }) {
+  if (busy) {
+    return <Badge variant="outline" className="text-[10px] text-muted-foreground">Loading attempts…</Badge>;
+  }
   if (!stats || stats.totalGraded === 0) {
     return <Badge variant="outline" className="text-[10px] text-muted-foreground">No attempts yet</Badge>;
   }
@@ -128,6 +135,7 @@ function QuestionCard({
   index,
   locked,
   stats,
+  statsBusy = false,
   answers,
   answersLoading,
   isFirst,
@@ -142,6 +150,7 @@ function QuestionCard({
   index: number;
   locked: boolean;
   stats: QuestionStats | undefined;
+  statsBusy?: boolean;
   answers: QuizAnswer[] | undefined;
   answersLoading: boolean;
   isFirst: boolean;
@@ -174,7 +183,10 @@ function QuestionCard({
   const handleMarkCorrect = (answer: QuizAnswer) => {
     for (const a of answers ?? []) {
       if (a.id !== answer.id && a.is_correct) {
-        updateAnswer({ id: a.id, is_correct: false });
+        updateAnswer(
+          { id: a.id, is_correct: false },
+          { onError: (e: Error) => toast({ title: "Failed to update answer", description: e.message, variant: "destructive" }) },
+        );
       }
     }
     updateAnswer(
@@ -206,7 +218,7 @@ function QuestionCard({
               <span className="text-xs text-muted-foreground">Q{index + 1}</span>
               <Badge variant="outline" className="text-[10px]">{QUESTION_TYPE_LABEL[question.question_type] ?? question.question_type}</Badge>
               <Badge variant="secondary" className="text-[10px]">{question.points} pt{question.points === 1 ? "" : "s"}</Badge>
-              <DifficultyBadge stats={stats} />
+              <DifficultyBadge stats={stats} busy={statsBusy} />
             </div>
             <CardTitle className="text-base font-semibold">{question.question_text}</CardTitle>
             {question.explanation && (
@@ -276,7 +288,7 @@ export default function QuizBuilder() {
   const { data: courseVersion } = useGetCourseVersion(courseBlock?.course_version_id);
   const { data: course } = useGetCourse(courseVersion?.course_id);
   const { data: questions, isLoading: questionsLoading } = useListQuizQuestions(quizId);
-  const { data: questionStats } = useQuizQuestionStats((questions ?? []).map(q => q.id));
+  const { data: questionStats, isLoading: questionStatsLoading, isError: questionStatsError } = useQuizQuestionStats((questions ?? []).map(q => q.id));
   // Batches every question's answers into one request instead of each QuestionCard fetching its
   // own (previously 20 requests for a 20-question quiz) -- see useQuizAnswersByQuestionIds.
   const { data: answersByQuestion, isLoading: answersLoading } = useQuizAnswersByQuestionIds((questions ?? []).map(q => q.id));
@@ -532,6 +544,7 @@ export default function QuizBuilder() {
                   index={idx}
                   locked={isLocked}
                   stats={questionStats?.[q.id]}
+                  statsBusy={questionStatsLoading || questionStatsError}
                   answers={answersByQuestion?.[q.id]}
                   answersLoading={answersLoading}
                   isFirst={idx === 0}
