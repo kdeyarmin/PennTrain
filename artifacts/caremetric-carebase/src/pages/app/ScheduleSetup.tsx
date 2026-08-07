@@ -133,7 +133,7 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
   const { toast } = useToast();
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shifts } = useListShiftDefinitions({ facilityId });
-  const { data: profiles, isLoading: profilesLoading } = useListServiceWorkloadProfiles(facilityId);
+  const { data: profiles, isLoading: profilesLoading, isError: profilesError, error: profilesErr, refetch: refetchProfiles } = useListServiceWorkloadProfiles(facilityId);
   const save = useSaveServiceWorkloadProfile();
   const del = useDeleteServiceWorkloadProfile();
   const [form, setForm] = useState({
@@ -297,6 +297,8 @@ function WorkloadPanel({ facilityId, organizationId, profileId }: { facilityId: 
         <div className="space-y-2">
           {profilesLoading ? (
             <p className="text-sm text-muted-foreground text-center py-4">Loading workload profiles…</p>
+          ) : profilesError ? (
+            <QueryError what="workload profiles" error={profilesErr} onRetry={() => void refetchProfiles()} />
           ) : (profiles ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No qualification or service-workload profiles configured yet.</p>
           ) : (profiles ?? []).map((profile) => (
@@ -545,7 +547,7 @@ function ShiftsPanel({ facilityId, organizationId }: { facilityId: string; organ
 function PatternsPanel({ facilityId, organizationId }: { facilityId: string; organizationId: string }) {
   const __fieldIds = useId();
   const { toast } = useToast();
-  const { data: roster, isLoading: rosterLoading } = useListEmployeeFacilityAssignments({ facilityId });
+  const { data: roster, isLoading: rosterLoading, isError: rosterError, error: rosterErr, refetch: refetchRoster } = useListEmployeeFacilityAssignments({ facilityId });
   const { data: units } = useListFacilityUnits({ facilityId });
   const { data: shiftDefs } = useListShiftDefinitions({ facilityId });
   const [employeeIds, setEmployeeIds] = useState<Set<string>>(new Set());
@@ -684,6 +686,8 @@ function PatternsPanel({ facilityId, organizationId }: { facilityId: string; org
             <div className="max-h-48 overflow-y-auto divide-y">
               {rosterLoading ? (
                 <p className="text-xs text-muted-foreground text-center py-4">Loading employees…</p>
+              ) : rosterError ? (
+                <QueryError what="facility employees" error={rosterErr} onRetry={() => void refetchRoster()} />
               ) : activeRoster.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-4">No active employees at this facility.</p>
               ) : (

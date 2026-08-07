@@ -80,7 +80,7 @@ export default function EvidenceCollectionDetail() {
   const { data: artifacts } = artifactsQuery;
   const { data: grants } = grantsQuery;
   const { data: events } = eventsQuery;
-  const { data: promotableExports, isLoading: promotableExportsLoading } = usePromotableBinderExports(collection?.facility_id);
+  const { data: promotableExports, isLoading: promotableExportsLoading, isError: promotableExportsError } = usePromotableBinderExports(collection?.facility_id);
 
   const addExport = useAddBinderExportToCollection();
   const setStatus = useSetEvidenceCollectionStatus();
@@ -486,6 +486,8 @@ export default function EvidenceCollectionDetail() {
                 <SelectContent>
                   {promotableExportsLoading ? (
                     <SelectItem value="none" disabled>Loading eligible exports…</SelectItem>
+                  ) : promotableExportsError ? (
+                    <SelectItem value="none" disabled>Could not load eligible exports</SelectItem>
                   ) : (promotableExports ?? []).length === 0 ? (
                     <SelectItem value="none" disabled>No eligible exports for this facility</SelectItem>
                   ) : (

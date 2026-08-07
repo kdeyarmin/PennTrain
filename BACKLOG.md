@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `4afbd08a` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-fourth-pass** after G238. Hold OfflineServiceDeviceCard draft-busy remove gate, Settings deliveries error, CourseAssignments ProgressDialog error, QuizBuilder attempts badge + silent answer mutates, and HRIS import-run picker until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `d62b6d2e` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-fifth-pass** after G239–G242. Hold EmployeeDetail panel empty-on-error, OrganizationDetail facilities error, EvidenceCollection promotable exports error, and ScheduleSetup profiles/roster errors until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -675,6 +675,8 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G240 | Settings deliveries + CourseAssignments progress empty-on-error | S | done | QueryError before empty success copy |
 | G241 | QuizBuilder attempts badge + silent answer mutates | S | done | Loading badge while stats busy; toast on answer blur/clear-correct |
 | G242 | QualifiedWorkforce HRIS run picker fail-open | S | done | Loading/error gate before "No runs yet" input |
+| G243 | EmployeeDetail secondary panels empty-on-error | S | done | QueryError for assignments/onboarding/training/practicums/hours/docs/credentials/activity |
+| G244 | OrgDetail facilities + Evidence promotable + ScheduleSetup errors | S | done | QueryError/disabled Select on isError for facilities, promotable exports, profiles, roster |
 
 ## Explicitly not now
 

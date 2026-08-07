@@ -145,13 +145,13 @@ export default function EmployeeDetail() {
   const createTrainingRecord = useCreateTrainingRecord();
   const updateTrainingRecord = useUpdateTrainingRecord();
 
-  const { data: trainingRecords, isLoading: recordsLoading } = useListTrainingRecords({ employeeId: id });
+  const { data: trainingRecords, isLoading: recordsLoading, isError: recordsError, error: recordsErr, refetch: refetchRecords } = useListTrainingRecords({ employeeId: id });
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: practicums, isLoading: practicumsLoading } = useListPracticums({ employeeId: id });
-  const { data: hourBuckets, isLoading: hoursLoading } = useListTrainingHourBuckets({ employeeId: id });
-  const { data: documents, isLoading: documentsLoading } = useListDocuments({ employeeId: id });
-  const { data: credentials, isLoading: credentialsLoading } = useListEmployeeCredentials({ employeeId: id });
-  const { data: auditLogs, isLoading: activityLoading } = useListAuditLogs({ entityId: id, limit: 20 });
+  const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, error: practicumsErr, refetch: refetchPracticums } = useListPracticums({ employeeId: id });
+  const { data: hourBuckets, isLoading: hoursLoading, isError: hoursError, error: hoursErr, refetch: refetchHours } = useListTrainingHourBuckets({ employeeId: id });
+  const { data: documents, isLoading: documentsLoading, isError: documentsError, error: documentsErr, refetch: refetchDocuments } = useListDocuments({ employeeId: id });
+  const { data: credentials, isLoading: credentialsLoading, isError: credentialsError, error: credentialsErr, refetch: refetchCredentials } = useListEmployeeCredentials({ employeeId: id });
+  const { data: auditLogs, isLoading: activityLoading, isError: activityError, error: activityErr, refetch: refetchActivity } = useListAuditLogs({ entityId: id, limit: 20 });
 
   // Per-employee readiness verdict (Area 3): aggregates clearance, employment status, credential and
   // training status into one of Ready / Conditionally Ready / Expiring Soon / Incomplete / Restricted
@@ -168,13 +168,13 @@ export default function EmployeeDetail() {
       requiredItems: requiredItems ?? [],
     });
   }, [employee, credentials, trainingRecords, trainingTypes, requiredItems]);
-  const { data: onboardingItems, isLoading: onboardingLoading } = useListEmployeeOnboardingItems(id);
+  const { data: onboardingItems, isLoading: onboardingLoading, isError: onboardingError, error: onboardingErr, refetch: refetchOnboarding } = useListEmployeeOnboardingItems(id);
   const { data: checkinLogs } = useListEmployeeCheckinLogs(id);
   const { mutate: updateOnboardingItem } = useUpdateEmployeeOnboardingItem();
   const { mutate: logCheckin, isPending: loggingCheckin } = useLogEmployeeCheckin();
   const getSignedUrl = useDocumentSignedUrl();
 
-  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading } = useListEmployeeFacilityAssignments({ employeeId: id });
+  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading, isError: facilityAssignmentsError, error: facilityAssignmentsErr, refetch: refetchFacilityAssignments } = useListEmployeeFacilityAssignments({ employeeId: id });
   const addFacilityAssignment = useAddEmployeeFacilityAssignment();
   const removeFacilityAssignment = useRemoveEmployeeFacilityAssignment();
   const [addFacilityId, setAddFacilityId] = useState("");
@@ -519,6 +519,8 @@ export default function EmployeeDetail() {
               <CardContent className="space-y-3">
                 {facilityAssignmentsLoading ? (
                   <Skeleton className="h-10" />
+                ) : facilityAssignmentsError ? (
+                  <QueryError what="facility assignments" error={facilityAssignmentsErr} onRetry={() => void refetchFacilityAssignments()} />
                 ) : !facilityAssignments?.length ? (
                   <EmptyState icon={Building2} text="No facility assignments on record for this employee." />
                 ) : (
@@ -572,6 +574,15 @@ export default function EmployeeDetail() {
             <Card>
               <CardContent className="py-6">
                 <Skeleton className="h-10" />
+              </CardContent>
+            </Card>
+          ) : onboardingError ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> New-Hire Onboarding Checklist</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <QueryError what="onboarding checklist" error={onboardingErr} onRetry={() => void refetchOnboarding()} />
               </CardContent>
             </Card>
           ) : !onboardingItems?.length ? (
@@ -701,6 +712,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {recordsLoading ? (
                 <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : recordsError ? (
+                <QueryError what="training records" error={recordsErr} onRetry={() => void refetchRecords()} />
               ) : !trainingRecords?.length ? (
                 <EmptyState icon={BookOpen} text="No training requirements on record for this employee." />
               ) : (
@@ -731,6 +744,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {practicumsLoading ? (
                 <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : practicumsError ? (
+                <QueryError what="practicums" error={practicumsErr} onRetry={() => void refetchPracticums()} />
               ) : !practicums?.length ? (
                 <EmptyState icon={CalendarCheck} text="No practicums on record for this employee." />
               ) : (
@@ -761,6 +776,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {hoursLoading ? (
                 <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : hoursError ? (
+                <QueryError what="training-hour tracking" error={hoursErr} onRetry={() => void refetchHours()} />
               ) : !hourBuckets?.length ? (
                 <EmptyState icon={Clock} text="No annual training-hour tracking on record for this employee." />
               ) : (
@@ -792,6 +809,8 @@ export default function EmployeeDetail() {
             <CardContent>
               {documentsLoading ? (
                 <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              ) : documentsError ? (
+                <QueryError what="documents" error={documentsErr} onRetry={() => void refetchDocuments()} />
               ) : !documents?.length ? (
                 <EmptyState icon={FileText} text="No documents on file for this employee." />
               ) : (
@@ -859,6 +878,8 @@ export default function EmployeeDetail() {
               <CardContent>
                 {credentialsLoading ? (
                   <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+                ) : credentialsError ? (
+                  <QueryError what="credentials" error={credentialsErr} onRetry={() => void refetchCredentials()} />
                 ) : !credentials?.length ? (
                   <EmptyState icon={ShieldCheck} text="No credentials on record for this employee." />
                 ) : (
@@ -892,6 +913,8 @@ export default function EmployeeDetail() {
               <CardContent>
                 {activityLoading ? (
                   <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
+                ) : activityError ? (
+                  <QueryError what="employee activity" error={activityErr} onRetry={() => void refetchActivity()} />
                 ) : !auditLogs?.length ? (
                   <EmptyState icon={Activity} text="No recorded activity for this employee yet." />
                 ) : (
