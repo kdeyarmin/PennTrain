@@ -279,7 +279,7 @@ export default function ClassDetail() {
     error: attendeesErrorDetail,
     refetch: refetchAttendees,
   } = useListClassAttendees(classId);
-  const { data: allEmployees, isLoading: allEmployeesLoading } = useListEmployees({ status: "active" });
+  const { data: allEmployees, isLoading: allEmployeesLoading, isError: allEmployeesError } = useListEmployees({ status: "active" });
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
 
@@ -781,6 +781,8 @@ export default function ClassDetail() {
                 id: employee.id,
                 name: `${employee.first_name} ${employee.last_name}`,
               }))}
+              employeesLoading={allEmployeesLoading}
+              employeesError={false}
               employeeName={(employeeId) => {
                 const employee = employeesById.get(employeeId);
                 return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
