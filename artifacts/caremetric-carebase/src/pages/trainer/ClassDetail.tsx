@@ -782,7 +782,7 @@ export default function ClassDetail() {
                 name: `${employee.first_name} ${employee.last_name}`,
               }))}
               employeesLoading={allEmployeesLoading}
-              employeesError={false}
+              employeesError={allEmployeesError}
               employeeName={(employeeId) => {
                 const employee = employeesById.get(employeeId);
                 return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
