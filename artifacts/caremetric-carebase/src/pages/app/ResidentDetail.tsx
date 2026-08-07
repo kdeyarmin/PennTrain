@@ -78,16 +78,16 @@ export default function ResidentDetail() {
   const { data: resident, isLoading, isError, error, refetch } = useGetResident(id);
   usePageTitle(resident ? `${resident.last_name}, ${resident.first_name}` : undefined);
   const { data: facilities } = useListFacilities();
-  const { data: items, isLoading: itemsLoading } = useListResidentComplianceItems(id);
-  const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(id);
+  const { data: items, isLoading: itemsLoading, isError: itemsError, error: itemsErr, refetch: refetchItems } = useListResidentComplianceItems(id);
+  const { data: documents, isLoading: documentsLoading, isError: documentsError, error: documentsErr, refetch: refetchDocuments } = useListResidentDocuments(id);
   const { data: informalSupports, isLoading: informalSupportsLoading } = useListResidentInformalSupports(id);
   const { data: administrativeMaster } = useResidentAdministrativeMaster(id);
   // Same query keys the header panel and tabs use, so React Query serves each from one fetch.
   const careHeader = useResidentCareHeader(id);
   const snapshot = useResident360Snapshot(id);
-  const { data: changeEvents } = useListResidentChangeEvents({ residentId: id });
-  const { data: residentIncidents } = useListIncidents({ residentId: id });
-  const { data: agreementData } = useResidentAgreements(id);
+  const { data: changeEvents, isError: changeEventsError, error: changeEventsErr, refetch: refetchChangeEvents } = useListResidentChangeEvents({ residentId: id });
+  const { data: residentIncidents, isError: incidentsError, error: incidentsErr, refetch: refetchIncidents } = useListIncidents({ residentId: id });
+  const { data: agreementData, isError: agreementsError, error: agreementsErr, refetch: refetchAgreements } = useResidentAgreements(id);
   const careLevelResident = resident
     ? { id: resident.id, first_name: resident.first_name, last_name: resident.last_name, room: resident.room }
     : null;
@@ -182,6 +182,28 @@ export default function ResidentDetail() {
     // "still loading" would leave the panel showing a spinner on every resident who has never had
     // an appointment.
     || (appointmentIds.length > 0 && appointmentPreparationQuery.isLoading);
+  const needsAttentionError = careHeader.isError
+    || itemsError
+    || documentsError
+    || changeEventsError
+    || incidentsError
+    || agreementsError
+    || careLevelFlags.isError
+    || serviceExceptionsQuery.isError
+    || appointmentsQuery.isError
+    || (appointmentIds.length > 0 && appointmentPreparationQuery.isError);
+  const needsAttentionFailure = [
+    careHeader.isError ? careHeader.error : null,
+    itemsError ? itemsErr : null,
+    documentsError ? documentsErr : null,
+    changeEventsError ? changeEventsErr : null,
+    incidentsError ? incidentsErr : null,
+    agreementsError ? agreementsErr : null,
+    careLevelFlags.isError ? careLevelFlags.error : null,
+    serviceExceptionsQuery.isError ? serviceExceptionsQuery.error : null,
+    appointmentsQuery.isError ? appointmentsQuery.error : null,
+    appointmentIds.length > 0 && appointmentPreparationQuery.isError ? appointmentPreparationQuery.error : null,
+  ].find((value): value is Error => value instanceof Error) ?? null;
   const typedServiceExceptions: DetectionServiceException[] = (serviceExceptionsQuery.data ?? []).map((row) => ({
     completion_response: row.completion_response,
     documented_assistance_level: row.documented_assistance_level,
@@ -293,9 +315,20 @@ export default function ResidentDetail() {
         <ResidentNeedsAttentionPanel
           cards={needsAttentionCards}
           isLoading={needsAttentionLoading}
-          isError={careHeader.isError}
-          error={careHeader.error instanceof Error ? careHeader.error : null}
-          onRetry={() => void careHeader.refetch()}
+          isError={needsAttentionError}
+          error={needsAttentionFailure}
+          onRetry={() => {
+            void careHeader.refetch();
+            void refetchItems();
+            void refetchDocuments();
+            void refetchChangeEvents();
+            void refetchIncidents();
+            void refetchAgreements();
+            void careLevelFlags.refetch();
+            void serviceExceptionsQuery.refetch();
+            void appointmentsQuery.refetch();
+            if (appointmentIds.length > 0) void appointmentPreparationQuery.refetch();
+          }}
         />
 
         <Suspense fallback={null}>

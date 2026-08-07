@@ -390,7 +390,7 @@ export default function EmployeeDetail() {
                   weighs. The old badge said "Portal access active" for a suspended employee. */}
               <Badge
                 variant="outline"
-                className={!employee.profile_id
+                className={!employee.profile_id || accessActive.isLoading || accessActive.isError
                   ? "text-muted-foreground"
                   : accessActive.data
                     ? "border-success/40 text-success"
@@ -400,7 +400,9 @@ export default function EmployeeDetail() {
                   ? "No portal access"
                   : accessActive.isLoading
                     ? "Checking access…"
-                    : accessActive.data ? "Portal access active" : "Portal access suspended"}
+                    : accessActive.isError
+                      ? "Access status unavailable"
+                      : accessActive.data ? "Portal access active" : "Portal access suspended"}
               </Badge>
               <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
                 {employee.cleared_for_unsupervised_duty ? "Cleared for Unsupervised Duty" : "Onboarding In Progress"}

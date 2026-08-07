@@ -527,6 +527,8 @@ export default function WorkItemDetail() {
               <div className="flex flex-wrap gap-2">
                 {activity.isLoading ? (
                   <p className="text-sm text-muted-foreground">Loading watchers…</p>
+                ) : activity.isError ? (
+                  <QueryError what="watchers" error={activity.error} onRetry={() => void activity.refetch()} />
                 ) : (
                   <>
                     {activity.data?.watchers.map(watcher => (
