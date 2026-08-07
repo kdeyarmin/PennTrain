@@ -138,6 +138,7 @@ function QuestionCard({
   statsBusy = false,
   answers,
   answersLoading,
+  answersError,
   isFirst,
   isLast,
   reordering,
@@ -153,6 +154,7 @@ function QuestionCard({
   statsBusy?: boolean;
   answers: QuizAnswer[] | undefined;
   answersLoading: boolean;
+  answersError?: boolean;
   isFirst: boolean;
   isLast: boolean;
   reordering: boolean;
@@ -248,6 +250,8 @@ function QuestionCard({
           <div className="space-y-2">
             {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-8" />)}
           </div>
+        ) : answersError ? (
+          <p className="text-xs text-destructive">Couldn't load answer choices.</p>
         ) : !answers || answers.length === 0 ? (
           <p className="text-xs text-muted-foreground italic">No answer choices yet.</p>
         ) : (
@@ -287,11 +291,11 @@ export default function QuizBuilder() {
   const { data: courseBlock } = useGetCourseBlock(quiz?.course_block_id);
   const { data: courseVersion } = useGetCourseVersion(courseBlock?.course_version_id);
   const { data: course } = useGetCourse(courseVersion?.course_id);
-  const { data: questions, isLoading: questionsLoading } = useListQuizQuestions(quizId);
+  const { data: questions, isLoading: questionsLoading, isError: questionsError, error: questionsErr, refetch: refetchQuestions } = useListQuizQuestions(quizId);
   const { data: questionStats, isLoading: questionStatsLoading, isError: questionStatsError } = useQuizQuestionStats((questions ?? []).map(q => q.id));
   // Batches every question's answers into one request instead of each QuestionCard fetching its
   // own (previously 20 requests for a 20-question quiz) -- see useQuizAnswersByQuestionIds.
-  const { data: answersByQuestion, isLoading: answersLoading } = useQuizAnswersByQuestionIds((questions ?? []).map(q => q.id));
+  const { data: answersByQuestion, isLoading: answersLoading, isError: answersError } = useQuizAnswersByQuestionIds((questions ?? []).map(q => q.id));
 
   const isLocked = !canManage || courseVersion?.status === "published";
 
@@ -528,6 +532,8 @@ export default function QuizBuilder() {
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24" />)}
             </div>
+          ) : questionsError ? (
+            <QueryError what="quiz questions" error={questionsErr} onRetry={() => void refetchQuestions()} />
           ) : !questions || questions.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground">No questions yet.</p>
@@ -547,6 +553,7 @@ export default function QuizBuilder() {
                   statsBusy={questionStatsLoading || questionStatsError}
                   answers={answersByQuestion?.[q.id]}
                   answersLoading={answersLoading}
+                  answersError={answersError}
                   isFirst={idx === 0}
                   isLast={idx === questions.length - 1}
                   reordering={reorderingQuestions}

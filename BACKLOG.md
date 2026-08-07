@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `79538b4f` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-eighth-pass** after G247. TrainerClasses attendee counts and TrainingPlans progress/items no longer empty-succeed on load/error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `e7e6762a` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-ninth-pass** after G249. ReleaseFlags empty row, AdministratorQualification CE badge/list, and QuizBuilder questions/answers no longer empty-succeed on error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -682,6 +682,9 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G247 | SessionRosterCard employee picker fail-open | S | done | Pass employeesLoading/Error from ClassDetail; gate "Everyone registered" |
 | G248 | TrainerClasses attendee counts fail-open to 0 | S | done | Dash ("—") while `useClassAttendeeCounts` loading or error |
 | G249 | TrainingPlans progress + items empty-on-error | S | done | QueryError before "hasn't been applied" / "No items" empties |
+| G250 | ReleaseFlags table empty-on-error | S | done | Suppress "No release flags" while flagsQ.isError (banner alone was not enough) |
+| G251 | AdministratorQualification CE badge/list empty-on-error | S | done | Dash CE hours badge; QueryError before "No CE entries" |
+| G252 | QuizBuilder questions + answers empty-on-error | S | done | QueryError for questions; error copy instead of "No answer choices" |
 
 ## Explicitly not now
 

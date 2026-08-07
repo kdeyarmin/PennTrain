@@ -328,8 +328,16 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2"><FileCheck2 className="h-5 w-5" /> Continuing Education</CardTitle>
-            <Badge className={rollingTotal >= ROLLING_WINDOW_HOURS_REQUIRED ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"}>
-              {rollingTotal.toFixed(1)} / {ROLLING_WINDOW_HOURS_REQUIRED} hrs (trailing 12 months)
+            <Badge className={
+              ceEntriesQuery.isLoading || ceEntriesQuery.isPending || ceEntriesQuery.isError
+                ? "bg-muted text-muted-foreground hover:bg-muted"
+                : rollingTotal >= ROLLING_WINDOW_HOURS_REQUIRED
+                  ? "bg-success text-success-foreground hover:bg-success/80"
+                  : "bg-warning text-warning-foreground hover:bg-warning/80"
+            }>
+              {ceEntriesQuery.isLoading || ceEntriesQuery.isPending || ceEntriesQuery.isError
+                ? "—"
+                : `${rollingTotal.toFixed(1)} / ${ROLLING_WINDOW_HOURS_REQUIRED} hrs (trailing 12 months)`}
             </Badge>
           </div>
           <CardDescription>Rolling 24-hour annual CE requirement, with source and documentation captured per entry.</CardDescription>
@@ -367,6 +375,12 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           <div className="space-y-2 pt-2 border-t">
             {ceEntriesQuery.isLoading || ceEntriesQuery.isPending ? (
               <p className="text-sm text-muted-foreground text-center py-4">Loading CE entries…</p>
+            ) : ceEntriesQuery.isError ? (
+              <QueryError
+                what="CE entries"
+                error={ceEntriesQuery.error}
+                onRetry={() => void ceEntriesQuery.refetch()}
+              />
             ) : !ceEntries?.length ? (
               <p className="text-sm text-muted-foreground text-center py-4">No CE entries recorded yet.</p>
             ) : (

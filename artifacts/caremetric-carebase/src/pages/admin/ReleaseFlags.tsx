@@ -221,7 +221,7 @@ export default function ReleaseFlags() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!flagsQ.data?.length && !flagsQ.isLoading ? (
+              {!flagsQ.data?.length && !flagsQ.isLoading && !flagsQ.isError ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-sm text-muted-foreground">No release flags registered yet.</TableCell>
                 </TableRow>
