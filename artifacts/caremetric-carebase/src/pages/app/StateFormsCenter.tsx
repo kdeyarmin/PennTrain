@@ -151,6 +151,7 @@ export default function StateFormsCenter() {
   // DHS form, so surface the failure instead of rendering a partial queue.
   const queueQueries = [facilitiesQuery, residentsQuery, itemsQuery];
   const queueFailure = queueQueries.find((query) => query.isError);
+  const queueBusy = isLoading || residentsQuery.isLoading || facilitiesQuery.isLoading;
 
   return (
     <div className="space-y-6">
@@ -190,7 +191,7 @@ export default function StateFormsCenter() {
             <CardContent className="pt-4 pb-3">
               {/* Failed loads must not read as zeros — same class as Complaints/WorkQueue tiles. */}
               <p className={`text-2xl font-bold ${queueFailure ? "text-muted-foreground" : tile.tone}`}>
-                {isLoading || queueFailure ? "—" : tile.value}
+                {queueBusy || queueFailure ? "—" : tile.value}
               </p>
               <p className="text-xs text-muted-foreground">{tile.label}</p>
             </CardContent>
@@ -210,7 +211,7 @@ export default function StateFormsCenter() {
         <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
           <ClipboardList className="h-5 w-5" /> Needs Action Now
         </h2>
-        {isLoading ? (
+        {queueBusy ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
           </div>
@@ -239,7 +240,11 @@ export default function StateFormsCenter() {
         </p>
         {queueFailure ? (
           <p className="text-sm text-muted-foreground">Renewal list unavailable until the load above succeeds.</p>
-        ) : !isLoading && upcomingRenewals.length === 0 ? (
+        ) : queueBusy ? (
+          <div className="space-y-3">
+            {[...Array(2)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />)}
+          </div>
+        ) : upcomingRenewals.length === 0 ? (
           <p className="text-sm text-muted-foreground">No renewals due in the next {RENEWAL_WINDOW_DAYS} days.</p>
         ) : (
           <div className="space-y-2">{upcomingRenewals.map(renderItemRow)}</div>

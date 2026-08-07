@@ -288,6 +288,8 @@ export default function MoveInWorkspaceDetail() {
           <CardContent className="space-y-3">
             {history.isError ? (
               <QueryError what="move-in history" error={history.error} onRetry={() => void history.refetch()} />
+            ) : history.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading move-in history…</p>
             ) : !history.data?.length ? (
               <p className="text-sm text-muted-foreground">No task events yet.</p>
             ) : history.data.slice(0, 20).map(event => (

@@ -443,7 +443,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" />Allergies</CardTitle><CardDescription>Ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {fhir.isError ? <QueryError what="allergies" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
+              {fhir.isLoading ? <p className="text-sm text-muted-foreground">Loading allergies…</p> : fhir.isError ? <QueryError what="allergies" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.allergies ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No allergies on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.allergies ?? []).map((allergy) => (
                     <div key={allergy.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
@@ -458,7 +458,7 @@ export default function ResidentClinicalChart() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Stethoscope className="h-4 w-4" />Diagnoses / problem list</CardTitle><CardDescription>Conditions ingested read-only via FHIR.</CardDescription></CardHeader>
             <CardContent>
-              {fhir.isError ? <QueryError what="diagnoses" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
+              {fhir.isLoading ? <p className="text-sm text-muted-foreground">Loading diagnoses…</p> : fhir.isError ? <QueryError what="diagnoses" error={fhir.error} onRetry={() => void fhir.refetch()} /> : (fhir.data?.conditions ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No diagnoses on file.</p> : (
                 <div className="space-y-2">
                   {(fhir.data?.conditions ?? []).map((condition) => (
                     <div key={condition.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">

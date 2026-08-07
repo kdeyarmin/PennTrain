@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `2b907674` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-fourth-pass** after G201–G205. Hold ClassDetail roster, Evidence secondary lists, WorkOrder documents, Course ratings, and ScheduleDetail PPD/census until secondary queries resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `1cf44be3` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **twenty-fifth-pass** after G206–G210. Hold StateFormsCenter/AdminDashboard support-ticket count and secondary empty states (MoveIn history, ServiceDelivery alerts, Complaint activity, QAPI projects, clinical allergies/diagnoses) until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -643,6 +643,9 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G208 | WorkOrderDetail documents empty while loading | S | done | Skeleton before "No repair documentation" empty state |
 | G209 | CourseDetail ratings fail-open to "No ratings yet" | S | done | Loading ratings copy until feedback query resolves |
 | G210 | ScheduleDetail PPD/census used empty residents while loading | S | done | Don't sync census to 0 while residents load; dash PPD tiles |
+| G211 | StateFormsCenter tiles/empty states ignored residents load | S | done | `queueBusy` includes residents/facilities; skeleton renewals while busy |
+| G212 | AdminDashboard open support tickets used dashboard `?? 0` | S | done | Dash ticket count in System Health while dashboard page busy |
+| G213 | Secondary empty-state fail-open (MoveIn/Service/Complaint/QAPI/Clinical) | S | done | Loading copy/skeleton before "No X yet" for history, alerts, activity, projects, allergies/diagnoses |
 
 ## Explicitly not now
 

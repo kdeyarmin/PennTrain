@@ -787,7 +787,7 @@ export default function AdminDashboard() {
                   <LifeBuoy className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-lg font-bold leading-tight">{openSupportTickets}</p>
+                  <p className="text-lg font-bold leading-tight">{dashboardBusy ? "—" : openSupportTickets}</p>
                   <p className="text-xs text-muted-foreground">Open Support Tickets</p>
                 </div>
               </Link>

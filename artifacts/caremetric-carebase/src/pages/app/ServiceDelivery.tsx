@@ -504,7 +504,7 @@ export default function ServiceDelivery() {
                 <CardDescription>Repeated or serious exceptions route to supervisor, change-of-condition, support-plan review, or QAPI follow-up.</CardDescription>
               </CardHeader>
               <CardContent>
-                {alerts.isError ? <QueryError what="service alerts" error={alerts.error} onRetry={() => alerts.refetch()} /> : !alerts.data?.length ? (
+                {alerts.isLoading ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : alerts.isError ? <QueryError what="service alerts" error={alerts.error} onRetry={() => alerts.refetch()} /> : !alerts.data?.length ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">No open service exception alerts.</p>
                 ) : (
                   <div className="space-y-3">

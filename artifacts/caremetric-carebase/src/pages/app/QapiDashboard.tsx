@@ -205,7 +205,11 @@ export default function QapiDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {projects.isError ? null : !projects.data?.length ? (
+              {projects.isLoading ? (
+                <div className="space-y-3">
+                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+                </div>
+              ) : projects.isError ? null : !projects.data?.length ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   No QAPI projects yet.
                 </p>
