@@ -141,7 +141,14 @@ export default function RecordHospitalReturnDialog({
   const assessmentReviewRequired = overrides.assessment ?? suggestion.assessmentReviewRequired;
   const supportPlanReviewRequired = overrides.plan ?? suggestion.supportPlanReviewRequired;
 
-  const returnedAt = returnTime ? new Date(returnTime) : null;
+  const returnedAt = (() => {
+    if (!returnTime) return null;
+    try {
+      return new Date(facilityDateTimeLocalToUtcIso(returnTime));
+    } catch {
+      return null;
+    }
+  })();
   const departedAt = new Date(transferTime);
   const returnBeforeDeparture = Boolean(returnedAt && returnedAt.getTime() < departedAt.getTime());
 

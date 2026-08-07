@@ -100,6 +100,14 @@ export default function ComplaintDetail() {
     ? activity.data.actions.filter(action => action.work_item && !["closed", "canceled"].includes(action.work_item.state))
     : null;
   const monitoringEntries = activityReady ? activity.data.monitoring.length : null;
+  let monitoringUntilElapsed = false;
+  if (monitoringUntil) {
+    try {
+      monitoringUntilElapsed = new Date(facilityDateTimeLocalToUtcIso(monitoringUntil)).getTime() <= Date.now();
+    } catch {
+      monitoringUntilElapsed = false;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -116,7 +124,7 @@ export default function ComplaintDetail() {
           [notes.trim().length >= 10, "Investigation notes complete"], [findings.trim().length >= 10, "Findings complete"],
           [writtenResponse.trim().length >= 10 && !!writtenResponseDate, "Written response recorded"],
           [openActions === null ? null : openActions.length === 0, "Corrective actions complete"],
-          [monitoringEntries === null ? null : (!monitoringRequired || (!!monitoringUntil && new Date(monitoringUntil) <= new Date() && monitoringEntries > 0)), "Nonretaliation monitoring complete"],
+          [monitoringEntries === null ? null : (!monitoringRequired || (!!monitoringUntil && (() => { try { return new Date(facilityDateTimeLocalToUtcIso(monitoringUntil)).getTime() <= Date.now(); } catch { return false; } })() && monitoringEntries > 0)), "Nonretaliation monitoring complete"],
         ].map(([ready, label]) => <div key={String(label)} className="flex items-center gap-2">{ready === null ? <AlertTriangle className="h-4 w-4 text-muted-foreground" /> : ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className={ready === null ? "text-muted-foreground" : undefined}>{String(label)}{ready === null ? " (unavailable)" : ""}</span></div>)}
         </CardContent></Card>
       </div>

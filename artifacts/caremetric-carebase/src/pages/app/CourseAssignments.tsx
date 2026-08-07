@@ -771,9 +771,9 @@ export default function CourseAssignments() {
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor={`${__fieldIds}-employees-selected`} className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
+                <Label className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
                 <Select value={assignFacilityFilter} onValueChange={setAssignFacilityFilter}>
-                  <SelectTrigger id={`${__fieldIds}-employees-selected`} className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
+                  <SelectTrigger id={`${__fieldIds}-assign-facility-filter`} aria-label="Filter employees by facility" className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Facilities</SelectItem>
                     {facilities?.map(f => (

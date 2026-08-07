@@ -217,11 +217,18 @@ export default function Incidents() {
       });
       return;
     }
-    if (!form.occurredAt || Number.isNaN(new Date(form.occurredAt).getTime())) {
+    if (!form.occurredAt) {
       toast({ title: "A valid occurred-at time is required", variant: "destructive" });
       return;
     }
-    if (new Date(form.occurredAt).getTime() > Date.now() + 5 * 60_000) {
+    let occurredAtIso: string;
+    try {
+      occurredAtIso = facilityDateTimeLocalToUtcIso(form.occurredAt);
+    } catch {
+      toast({ title: "A valid occurred-at time is required", variant: "destructive" });
+      return;
+    }
+    if (new Date(occurredAtIso).getTime() > Date.now() + 5 * 60_000) {
       toast({ title: "Occurred-at cannot be in the future", variant: "destructive" });
       return;
     }
@@ -254,7 +261,7 @@ export default function Incidents() {
       organization_id: facility.organization_id,
       facility_id: facility.id,
       incident_type: form.incidentType,
-      occurred_at: facilityDateTimeLocalToUtcIso(form.occurredAt),
+      occurred_at: occurredAtIso,
       resident_id: form.residentId && form.residentId !== RESIDENT_OTHER ? form.residentId : null,
       resident_identifier: residentIdentifier,
       resident_identifier_snapshot: form.residentId === RESIDENT_OTHER ? residentIdentifier : null,

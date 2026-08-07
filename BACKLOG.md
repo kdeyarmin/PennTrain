@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `e7e6762a` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-ninth-pass** after G249. ReleaseFlags empty row, AdministratorQualification CE badge/list, and QuizBuilder questions/answers no longer empty-succeed on error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `78ba8008` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **forty-first-pass** after G255. CourseAssignments assign-facility Select a11y; Incidents/ComplaintDetail/hospital-return facility-calendar compares. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -685,6 +685,9 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G250 | ReleaseFlags table empty-on-error | S | done | Suppress "No release flags" while flagsQ.isError (banner alone was not enough) |
 | G251 | AdministratorQualification CE badge/list empty-on-error | S | done | Dash CE hours badge; QueryError before "No CE entries" |
 | G252 | QuizBuilder questions + answers empty-on-error | S | done | QueryError for questions; error copy instead of "No answer choices" |
+| G253 | Employee-picker dialogs empty-on-error | S | done | QueryError before empty roster in Policy/TrainingMatrix/Plans/Assignments/ClassDetail |
+| G254 | CopyTemplate facilities + DME history empty-on-error | S | done | QueryError before "No facilities" / "No events recorded" |
+| G255 | CourseDetail ratings/versions/blocks empty-on-error | S | done | Error copy/QueryError before "No ratings/versions/blocks yet" |
 
 ## Explicitly not now
 
