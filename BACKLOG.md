@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `5af8a3fd` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **forty-third-pass** after G259. Header notifications, Resident Needs Attention secondaries, and portal-access badges no longer empty-succeed / fail-open on error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `87fd0e73` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **forty-fourth-pass** after G262. Support-plan proposals/acknowledgments and Survey Day packet items/exports no longer empty-succeed on error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -695,6 +695,8 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G260 | Header notifications empty-on-error | S | done | Retry copy instead of "You're all caught up" on isError |
 | G261 | Resident Needs Attention secondary fail-open | S | done | Gate panel on items/docs/appointments/exceptions/etc. errors, not only careHeader |
 | G262 | Employee portal-access badge fail-open | S | done | Unavailable copy while accessActive/now isError (not "suspended") |
+| G263 | Support plan proposals + acknowledgments empty-on-error | S | done | QueryError/hold ack CTA before empty success |
+| G264 | Survey Day packet items/exports empty-on-error | S | done | QueryError for selected evidence + packages; hold assemble/package |
 
 ## Explicitly not now
 
