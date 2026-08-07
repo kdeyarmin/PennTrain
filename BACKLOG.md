@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `87fd0e73` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **forty-fourth-pass** after G262. Support-plan proposals/acknowledgments and Survey Day packet items/exports no longer empty-succeed on error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `77a0c5cb` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: addressed Codex review on #462 (G265–G268) — audit manifest end-at-export, facility agenda times, investigation dialog remount-only init, leap-year-safe annual review. Five review families remain exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -697,6 +697,10 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G262 | Employee portal-access badge fail-open | S | done | Unavailable copy while accessActive/now isError (not "suspended") |
 | G263 | Support plan proposals + acknowledgments empty-on-error | S | done | QueryError/hold ack CTA before empty success |
 | G264 | Survey Day packet items/exports empty-on-error | S | done | QueryError for selected evidence + packages; hold assemble/package |
+| G265 | AuditLog open-ended manifest ends at export instant | S | done | Default `to` is now(), not upcoming facility midnight (checksum interval) |
+| G266 | ResidentServicesCalendar agenda times in facility TZ | S | done | `formatFacilityTimeForDisplay` under Eastern day headings |
+| G267 | InvestigationStepDialog no longer resets on parent refetch | S | done | Mount-only init; rely on open remount key |
+| G268 | Support-plan annual review leap-year safe | S | done | `addFacilityCalendarYears` instead of +365 days |
 
 ## Explicitly not now
 

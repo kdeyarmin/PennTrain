@@ -140,8 +140,12 @@ export default function AuditLog() {
         ?? (dateFrom
           ? facilityDayBounds(dateFrom).from
           : facilityDayBounds(addFacilityCalendarDays(facilityToday(), -30)).from);
+      // When the operator leaves "to" blank, end the manifest at the export instant — not the
+      // upcoming facility midnight. Ending at midnight would claim a half-open interval that
+      // still includes events filed later today, so an independent recompute of the checksum
+      // for that interval would disagree with this export's rowCount / SHA-256.
       const to = bounds?.through
-        ?? (dateTo ? facilityDayBounds(dateTo).through : facilityDayBounds(facilityToday()).through);
+        ?? (dateTo ? facilityDayBounds(dateTo).through : new Date().toISOString());
       const { data, error } = await supabase.rpc("get_audit_export_manifest", {
         p_from: from,
         p_to: to,

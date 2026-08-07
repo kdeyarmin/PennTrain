@@ -20,7 +20,7 @@ import {
   type ResidentSupportPlan,
   type SupportPlanProposal,
 } from "@/hooks/useResidentCareDelivery";
-import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { addFacilityCalendarYears, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -212,7 +212,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
   );
 
   function oneYearOut(from: string): string {
-    return addFacilityCalendarDays(from, 365);
+    return addFacilityCalendarYears(from, 1);
   }
 
   async function startDraft() {

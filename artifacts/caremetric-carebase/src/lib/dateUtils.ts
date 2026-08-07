@@ -54,6 +54,22 @@ export function addFacilityCalendarDays(isoDate: string, days: number): string {
 }
 
 /**
+ * Advance (or rewind) a facility `YYYY-MM-DD` by whole calendar years, preserving month/day when
+ * possible. Feb 29 clamps to Feb 28 in non-leap years. Prefer this over `addFacilityCalendarDays(..., 365)`
+ * for annual review anniversaries that must not drift across leap day.
+ */
+export function addFacilityCalendarYears(isoDate: string, years: number): string {
+  const match = DATE_ONLY_PATTERN.exec(isoDate);
+  if (!match) throw new Error(`expected YYYY-MM-DD, got ${isoDate}`);
+  const year = Number(match[1]) + years;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfMonth);
+  return `${year}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
+}
+
+/**
  * Offset of `timeZone` relative to UTC at the given instant, in milliseconds
  * (positive when the zone is ahead of UTC). Used only to invert wall-clock
  * facility times into UTC instants for timestamptz range filters.
@@ -246,4 +262,24 @@ export function formatDateForDisplay(
 
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString(locale, match ? { ...options, timeZone: "UTC" } : options);
+}
+
+/**
+ * Format a timestamptz as a Pennsylvania facility wall-clock time. Pair with `facilityToday(...)`
+ * day headings so agenda rows do not show browser-local clock times under Eastern day groups.
+ */
+export function formatFacilityTimeForDisplay(
+  value: string | Date | null | undefined,
+  options?: Intl.DateTimeFormatOptions,
+  locale = "en-US",
+): string {
+  if (!value) return "—";
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: FACILITY_TIME_ZONE,
+    ...options,
+  });
 }

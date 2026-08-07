@@ -7,10 +7,12 @@ import {
   facilityDayBounds,
   facilityDaysUntil,
   addFacilityCalendarDays,
+  addFacilityCalendarYears,
   facilityToday,
   facilityYear,
   formatDateForDisplay,
   formatDueDistance,
+  formatFacilityTimeForDisplay,
   toFacilityDateTimeLocal,
   toLocalIsoDate,
 } from "./dateUtils";
@@ -92,6 +94,23 @@ describe("addFacilityCalendarDays", () => {
     expect(addFacilityCalendarDays("2026-01-20", 15)).toBe("2026-02-04");
     expect(addFacilityCalendarDays("2026-03-01", -30)).toBe("2026-01-30");
     expect(addFacilityCalendarDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("addFacilityCalendarYears", () => {
+  it("preserves the month/day anniversary across a leap day", () => {
+    expect(addFacilityCalendarYears("2027-03-01", 1)).toBe("2028-03-01");
+  });
+
+  it("clamps Feb 29 to Feb 28 in a non-leap year", () => {
+    expect(addFacilityCalendarYears("2024-02-29", 1)).toBe("2025-02-28");
+  });
+});
+
+describe("formatFacilityTimeForDisplay", () => {
+  it("formats an instant in America/New_York rather than the browser zone", () => {
+    // 2026-07-11T04:30Z = 2026-07-11 00:30 EDT
+    expect(formatFacilityTimeForDisplay("2026-07-11T04:30:00.000Z")).toBe("12:30 AM");
   });
 });
 

@@ -150,13 +150,10 @@ function InvestigationStepDialog({
   const [rootCause, setRootCause] = useState(initial.rootCause);
   const [method, setMethod] = useState(initial.rootCauseMethod);
 
-  useEffect(() => {
-    if (!open) return;
-    setImmediateResponse(initial.immediateResponse);
-    setFindings(initial.findings);
-    setRootCause(initial.rootCause);
-    setMethod(initial.rootCauseMethod);
-  }, [open, initial]);
+  // Initialized from props on mount only. The parent remounts this dialog with
+  // `key={stepOpen ? "investigation-open" : "investigation-closed"}` when it opens, so a fresh
+  // draft starts from the saved incident. Re-syncing on every `initial` object identity change
+  // would wipe in-progress edits whenever a parent refetch rebuilt the inline initial object.
 
   const submit = async () => {
     try {
