@@ -128,7 +128,7 @@ export default function RegulatoryCrosswalk() {
     policyAttestationsQuery, evidenceCollectionsQuery, governedRules,
   ];
   const crosswalkFailure = crosswalkQueries.find((query) => query.isError);
-  const crosswalkBusy = crosswalkQueries.some((query) => query.isLoading || (query.data === undefined && (query.isPending || query.isFetching)));
+  const crosswalkBusy = crosswalkQueries.some((query) => query.isLoading || query.isPending);
 
   return (
     <div className="space-y-6">
