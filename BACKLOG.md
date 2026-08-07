@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `d7d0487c` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-first-pass** after G229–G232. Hold PipelineFunnel referral empty, ScheduleSetup patterns roster, CourseAssignments employee picker, and AdminDashboard Phase nested empties/task badges until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `1405d29c` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-second-pass** after G233–G235. Hold Dashboard recent alerts/micro-tiles/facilities empties, ResidentServicesCalendar vehicles loading, and OutcomeDialog follow-up draft reseed until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
