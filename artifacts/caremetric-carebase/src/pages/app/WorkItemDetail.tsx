@@ -123,13 +123,16 @@ export default function WorkItemDetail() {
   const canContribute = isManager || isOwner;
   const backPath = workQueuePathForRole(user?.role);
   const sourcePath = work ? viewablePathForRole(sourceRouteForWorkItem(work) ?? "", user?.role) : null;
+  const activityReady = !activity.isLoading && !activity.isError && activity.data !== undefined;
   const isWatching = activity.data?.watchers.some(watcher => watcher.profile_id === user?.id) ?? false;
   const requiredEvidence = work?.template?.required_evidence_types ?? [];
   const submittedEvidenceTypes = new Set(activity.data?.evidence.map(evidence => evidence.evidence_type));
-  const missingEvidence = requiredEvidence.filter(type => !submittedEvidenceTypes.has(type));
-  const blockingDependencies = activity.data?.dependencies.filter(
-    dependency => dependency.dependency_type === "blocks" && dependency.dependency?.state !== "closed",
-  ) ?? [];
+  const missingEvidence = activityReady ? requiredEvidence.filter(type => !submittedEvidenceTypes.has(type)) : requiredEvidence;
+  const blockingDependencies = activityReady
+    ? (activity.data?.dependencies.filter(
+      dependency => dependency.dependency_type === "blocks" && dependency.dependency?.state !== "closed",
+    ) ?? [])
+    : [];
 
   const allowedTransitions = useMemo(() => {
     if (!work || ["closed", "canceled"].includes(work.state)) return [];
@@ -283,7 +286,9 @@ export default function WorkItemDetail() {
                   ))}
                 </div>
               )}
-              {activity.data?.evidence.length ? (
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading documentation…</p>
+              ) : activity.data?.evidence.length ? (
                 <div className="divide-y rounded-md border">
                   {activity.data.evidence.map(evidence => (
                     <div key={evidence.id} className="flex items-center justify-between gap-3 p-3 text-sm">
@@ -457,7 +462,9 @@ export default function WorkItemDetail() {
                   </Button>
                 </div>
               )}
-              {activity.data?.comments.length ? activity.data.comments.map(entry => (
+              {activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading comments…</p>
+              ) : activity.data?.comments.length ? activity.data.comments.map(entry => (
                 <div key={entry.id} className="border-t pt-3 text-sm">
                   <div className="flex justify-between gap-3">
                     <p className="font-medium">{actorName(entry.author)}</p>
@@ -477,6 +484,8 @@ export default function WorkItemDetail() {
             <CardContent>
               {activity.isError ? (
                 <QueryError what="work item activity" error={activity.error} onRetry={() => activity.refetch()} />
+              ) : activity.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading history…</p>
               ) : activity.data?.history.length ? (
                 <div className="space-y-3">
                   {activity.data.history.map(event => (
@@ -508,12 +517,18 @@ export default function WorkItemDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {activity.data?.watchers.map(watcher => (
-                  <Badge key={watcher.id} variant="secondary">
-                    <UserRound className="mr-1 h-3 w-3" /> {actorName(watcher.profile)}
-                  </Badge>
-                ))}
-                {!activity.data?.watchers.length && <p className="text-sm text-muted-foreground">No watchers.</p>}
+                {activity.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading watchers…</p>
+                ) : (
+                  <>
+                    {activity.data?.watchers.map(watcher => (
+                      <Badge key={watcher.id} variant="secondary">
+                        <UserRound className="mr-1 h-3 w-3" /> {actorName(watcher.profile)}
+                      </Badge>
+                    ))}
+                    {!activity.data?.watchers.length && <p className="text-sm text-muted-foreground">No watchers.</p>}
+                  </>
+                )}
               </div>
               {!isAuditor && (
                 <Button
@@ -603,19 +618,23 @@ export default function WorkItemDetail() {
                 )}
                 {isManager && work.state === "pending_approval" && work.template?.approval_required && (
                   <div className="space-y-2 border-t pt-3">
-                    {(missingEvidence.length > 0 || blockingDependencies.length > 0) && (
+                    {(activity.isLoading || missingEvidence.length > 0 || blockingDependencies.length > 0) && (
                       <Alert>
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Approval requirements remain</AlertTitle>
                         <AlertDescription>
-                          {missingEvidence.length > 0 && `Missing documentation: ${missingEvidence.join(", ")}. `}
-                          {blockingDependencies.length > 0 && `${blockingDependencies.length} blocking dependencies remain open.`}
+                          {activity.isLoading
+                            ? "Checking documentation and blocking dependencies…"
+                            : <>
+                              {missingEvidence.length > 0 && `Missing documentation: ${missingEvidence.join(", ")}. `}
+                              {blockingDependencies.length > 0 && `${blockingDependencies.length} blocking dependencies remain open.`}
+                            </>}
                         </AlertDescription>
                       </Alert>
                     )}
                     <Button
                       onClick={handleApprove}
-                      disabled={transitionReason.trim().length < 5 || missingEvidence.length > 0 || blockingDependencies.length > 0 || approve.isPending}
+                      disabled={transitionReason.trim().length < 5 || !activityReady || missingEvidence.length > 0 || blockingDependencies.length > 0 || approve.isPending}
                     >
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       {approve.isPending ? "Approving..." : "Approve and close"}

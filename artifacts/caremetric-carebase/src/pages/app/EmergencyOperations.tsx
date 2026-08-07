@@ -437,7 +437,9 @@ export default function EmergencyOperations() {
                   <CardDescription>Each activation preserves its plan version and live accountability documentation.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {!events.data?.length ? (
+                  {events.isLoading ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">Loading emergency events…</p>
+                  ) : !events.data?.length ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">No emergency events or drills recorded.</p>
                   ) : events.data.map((event) => (
                     <div key={event.id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_180px_130px_auto] md:items-center">
@@ -464,7 +466,7 @@ export default function EmergencyOperations() {
                   <CardDescription>Every event records the exact approved plan version in force when it was declared.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {!readiness.data?.versions.length ? <p className="text-sm text-muted-foreground">No approved emergency plan version.</p> : readiness.data.versions.map((version) => (
+                  {readiness.isLoading ? <p className="text-sm text-muted-foreground">Loading emergency plan…</p> : !readiness.data?.versions.length ? <p className="text-sm text-muted-foreground">No approved emergency plan version.</p> : readiness.data.versions.map((version) => (
                     <div key={version.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
                       <div><p className="font-medium">Version {version.version_number} · effective {new Date(`${version.effective_date}T00:00:00`).toLocaleDateString()}</p><p className="text-sm text-muted-foreground">{version.change_summary}</p></div>
                       {readiness.data?.plan?.current_version_id === version.id && <Badge>Current</Badge>}

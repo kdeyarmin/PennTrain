@@ -239,7 +239,7 @@ export default function AdminDashboard() {
     {
       title: "Tenant Operations",
       Icon: Building2,
-      status: `${activeOrgs}/${totalOrgs} active`,
+      status: healthBusy ? "—" : `${activeOrgs}/${totalOrgs} active`,
       finding: "Centralize org setup, packages, facilities, and subscription follow-up.",
       enhancement: "Use the tenant watchlist plus org shortcuts to unblock launches faster.",
       links: [
@@ -251,7 +251,7 @@ export default function AdminDashboard() {
     {
       title: "People & Access",
       Icon: Users,
-      status: `${health?.totalEmployees ?? 0} employees`,
+      status: healthBusy ? "—" : `${health?.totalEmployees ?? 0} employees`,
       finding: "Admins need one path to inspect employees and control application users.",
       enhancement: "Pair employee directory review with user-role review before every launch.",
       links: [
@@ -263,7 +263,7 @@ export default function AdminDashboard() {
     {
       title: "Training & Content",
       Icon: BookOpen,
-      status: `${health?.aiGenerationsFailed ?? 0} AI failures`,
+      status: healthBusy ? "—" : `${health?.aiGenerationsFailed ?? 0} AI failures`,
       finding: "Course authoring and AI generation health should be reviewed together.",
       enhancement: "Keep training-content creation, AI logs, and help content one click away.",
       links: [
@@ -275,7 +275,7 @@ export default function AdminDashboard() {
     {
       title: "Compliance Oversight",
       Icon: ShieldAlert,
-      status: `${suspendedOrgs} suspended`,
+      status: healthBusy ? "—" : `${suspendedOrgs} suspended`,
       finding: "Platform admins need quick access to alerts, audit documentation, and governance.",
       enhancement: "Review alerts and security governance before enabling troubled tenants.",
       links: [
@@ -287,7 +287,7 @@ export default function AdminDashboard() {
     {
       title: "Communications & Support",
       Icon: LifeBuoy,
-      status: `${openSupportTickets} open tickets`,
+      status: dashboardBusy ? "—" : `${openSupportTickets} open tickets`,
       finding: "Support and failed notification delivery directly affect employee completion.",
       enhancement: "Clear failed deliveries and open tickets from the same operating surface.",
       links: [
