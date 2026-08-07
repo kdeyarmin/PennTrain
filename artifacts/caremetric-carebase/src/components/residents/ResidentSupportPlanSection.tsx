@@ -401,7 +401,15 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Proposals needing review (conflict warnings surfaced) */}
-        {openProposals.length > 0 && (
+        {proposalsQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading proposals…</p>
+        ) : proposalsQuery.isError ? (
+          <QueryError
+            what="support plan proposals"
+            error={proposalsQuery.error}
+            onRetry={() => void proposalsQuery.refetch()}
+          />
+        ) : openProposals.length > 0 ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold">Proposals awaiting review</p>
             {openProposals.map((proposal) => {
@@ -431,7 +439,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
               );
             })}
           </div>
-        )}
+        ) : null}
 
         {/* Plan versions */}
         {plansQuery.isLoading ? (
@@ -460,7 +468,11 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                       )}
                     </button>
                     {plan.state === "active" && (
-                      acknowledgedPlanIds.has(plan.id) ? (
+                      acknowledgments.isLoading ? (
+                        <span className="text-xs text-muted-foreground">Checking acknowledgment…</span>
+                      ) : acknowledgments.isError ? (
+                        <span className="text-xs text-destructive">Couldn't load acknowledgments</span>
+                      ) : acknowledgedPlanIds.has(plan.id) ? (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <BookOpenCheck className="h-3.5 w-3.5" />You have read this version
                         </span>
@@ -533,7 +545,15 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                       {plan.state === "active" && (
                         <div className="border-t pt-2">
                           <p className="text-xs font-medium text-muted-foreground">Read by</p>
-                          {acknowledgmentsForEffective.length === 0 ? (
+                          {acknowledgments.isLoading ? (
+                            <p className="text-sm text-muted-foreground">Loading acknowledgments…</p>
+                          ) : acknowledgments.isError ? (
+                            <QueryError
+                              what="acknowledgments"
+                              error={acknowledgments.error}
+                              onRetry={() => void acknowledgments.refetch()}
+                            />
+                          ) : acknowledgmentsForEffective.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
                               Nobody has acknowledged this version yet.
                             </p>

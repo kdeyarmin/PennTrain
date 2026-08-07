@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `ff91a152` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **forty-second-pass** after G257. WorkItemDetail activity panels + ValueCenter referral Empty gated on load/error; CourseAssignments Label points at employee search. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `5af8a3fd` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **forty-third-pass** after G259. Header notifications, Resident Needs Attention secondaries, and portal-access badges no longer empty-succeed / fail-open on error. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
