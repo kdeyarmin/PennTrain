@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `d62b6d2e` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-fifth-pass** after G239–G242. Hold EmployeeDetail panel empty-on-error, OrganizationDetail facilities error, EvidenceCollection promotable exports error, and ScheduleSetup profiles/roster errors until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `18dbd4a2` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: **thirty-sixth-pass** after G243–G244. Hold MySchedule swap-candidate empty-on-error until sources resolve. Five review families otherwise exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -677,6 +677,7 @@ bodies). The rows below are the ones verified to be genuine user-facing dead end
 | G242 | QualifiedWorkforce HRIS run picker fail-open | S | done | Loading/error gate before "No runs yet" input |
 | G243 | EmployeeDetail secondary panels empty-on-error | S | done | QueryError for assignments/onboarding/training/practicums/hours/docs/credentials/activity |
 | G244 | OrgDetail facilities + Evidence promotable + ScheduleSetup errors | S | done | QueryError/disabled Select on isError for facilities, promotable exports, profiles, roster |
+| G245 | MySchedule swap candidates empty-on-error | S | done | Suppress "No candidate shifts" while candidates.isError |
 
 ## Explicitly not now
 
