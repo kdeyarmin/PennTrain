@@ -58,6 +58,8 @@ describe("buildPchAlrOperationsQueue", () => {
     });
 
     expect(queue.find((item) => item.id === "emergency-operations")?.count).toBe(3);
+    // The registered route is /app/emergency (App.tsx), not the bucket id.
+    expect(queue.find((item) => item.id === "emergency-operations")?.route).toBe("/app/emergency");
     expect(queue.find((item) => item.id === "maintenance-operations")?.severity).toBe("attention");
     expect(queue.find((item) => item.id === "unified-work")?.guidance).toContain("3 unassigned");
     expect(summarizePchAlrQueue(queue).totalOpen).toBeGreaterThan(7);

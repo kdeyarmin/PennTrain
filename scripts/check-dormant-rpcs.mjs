@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { stripSqlComments } from "./lib/sqlComments.mjs";
 
 // Dormant-RPC check.
 //
@@ -66,22 +67,16 @@ export function droppedFunctions(sql) {
 const DECLARATIVE =
   /(create\s+(or\s+replace\s+)?function|grant\s+execute|revoke\s+all|comment\s+on\s+function|drop\s+function|has_function|alter\s+function)/i;
 
-/**
- * SQL with its comments removed.
- *
- * Prose is not a caller, and this gate treated it as one. A migration whose header explained why a
- * function was being removed -- naming it, as a good comment does -- made that function look
- * reachable, so the check silently stopped applying to it. That is how
- * `unassign_organization_release_cohort` passed while having no caller at all.
- *
- * Block comments are stripped from the whole file before it is split into lines, because they span
- * lines and a line-at-a-time reader cannot see that it is inside one. A `--` inside a string literal
- * would be stripped too; no migration here does that, and the failure mode is a missed finding
- * rather than a false one.
- */
-export function stripSqlComments(sql) {
-  return sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
-}
+// Comment stripping is `stripSqlComments` from scripts/lib/sqlComments.mjs, the string-aware
+// stripper the other SQL lints share. Prose is not a caller, and this gate once treated it as
+// one: a migration header explaining why a function was being removed -- naming it, as a good
+// comment does -- made `unassign_organization_release_cohort` look reachable, so the check
+// silently stopped applying to it. String-awareness is not optional here either. Dozens of
+// migrations put `--` or `/*` inside a string literal (the help-article seeds are full of
+// prose), and a stripper that cannot see the quotes eats the closing one -- after which
+// `blankSqlStrings` below reads string and code inverted for the rest of the file, and a
+// function name inside an error message counts as a caller again: the issue_certificate
+// mistake resurrected one layer down.
 
 /**
  * Blank single-quoted string literals, preserving length so nothing else shifts.

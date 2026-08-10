@@ -1,5 +1,5 @@
 import { useId, useEffect, useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, MessageSquareText, Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
@@ -34,8 +34,16 @@ const iso = (value: string) => value ? facilityDateTimeLocalToUtcIso(value) : un
 export default function ComplaintDetail() {
   const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
+  const [location] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  // Platform-admin complaint cases arrive via global search's /admin/complaints/:id mount.
+  // /app/complaints and /app/incidents/:id both exclude platform_admin, so on that mount send
+  // "Back" to a known valid page (currently Alerts) and open the linked incident at /admin.
+  const isPlatformRoute = location.startsWith("/admin/");
+  const backDestination = isPlatformRoute
+    ? { href: "/admin/alerts", label: "Alerts" }
+    : { href: "/app/complaints", label: "Complaints" };
   const complaint = useGetComplaint(id);
   usePageTitle(complaint.data?.complaint_number);
   const activity = useComplaintActivity(id);
@@ -111,8 +119,8 @@ export default function ComplaintDetail() {
 
   return (
     <div className="space-y-6">
-      <div><Button asChild variant="ghost" size="sm"><Link href="/app/complaints"><ArrowLeft className="mr-1 h-4 w-4" />Complaints</Link></Button><div className="mt-2 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold">{c.complaint_number}</h1><p className="text-muted-foreground">{c.facility?.name} · Received {new Date(c.date_received).toLocaleString()}</p></div><div className="flex flex-wrap items-center gap-2"><EntityHistoryDrawer entityType="complaints" entityId={c.id} title="Complaint history" /><Badge variant={c.status === "closed" ? "secondary" : "outline"}>{humanizeComplaint(c.status)}</Badge></div></div></div>
-      {c.incident && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Reportable incident workflow linked</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{humanizeComplaint(c.incident.incident_type)} · {humanizeComplaint(c.incident.severity)} · {humanizeComplaint(c.incident.status)}</span><Button asChild size="sm" variant="outline"><Link href={`/app/incidents/${c.incident.id}`}>Open incident</Link></Button></AlertDescription></Alert>}
+      <div><Button asChild variant="ghost" size="sm"><Link href={backDestination.href}><ArrowLeft className="mr-1 h-4 w-4" />{backDestination.label}</Link></Button><div className="mt-2 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold">{c.complaint_number}</h1><p className="text-muted-foreground">{c.facility?.name} · Received {new Date(c.date_received).toLocaleString()}</p></div><div className="flex flex-wrap items-center gap-2"><EntityHistoryDrawer entityType="complaints" entityId={c.id} title="Complaint history" /><Badge variant={c.status === "closed" ? "secondary" : "outline"}>{humanizeComplaint(c.status)}</Badge></div></div></div>
+      {c.incident && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Reportable incident workflow linked</AlertTitle><AlertDescription className="flex flex-wrap items-center justify-between gap-2"><span>{humanizeComplaint(c.incident.incident_type)} · {humanizeComplaint(c.incident.severity)} · {humanizeComplaint(c.incident.status)}</span><Button asChild size="sm" variant="outline"><Link href={`${isPlatformRoute ? "/admin" : "/app"}/incidents/${c.incident.id}`}>Open incident</Link></Button></AlertDescription></Alert>}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2"><CardHeader><CardTitle>Complaint intake</CardTitle></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Complainant</p><p className="font-medium">{c.is_anonymous ? "Anonymous" : c.complainant_name}</p><p className="text-sm text-muted-foreground">{humanizeComplaint(c.complainant_type)} · {humanizeComplaint(c.method_received)}</p></div><div><p className="text-xs text-muted-foreground">Resident</p><p className="font-medium">{c.resident ? `${c.resident.first_name} ${c.resident.last_name}` : "No resident linked"}</p><p className="text-sm text-muted-foreground">{c.resident?.room ? `Room ${c.resident.room}` : ""}</p></div><div><p className="text-xs text-muted-foreground">Category</p><p className="font-medium">{humanizeComplaint(c.category)}</p></div><div><p className="text-xs text-muted-foreground">Immediate risk</p><Badge variant={["high", "imminent"].includes(c.immediate_risk) ? "destructive" : "outline"}>{humanizeComplaint(c.immediate_risk)}</Badge></div></div><div><p className="text-xs text-muted-foreground">Concern</p><p className="whitespace-pre-wrap text-sm">{c.description}</p></div>{c.immediate_action_taken && <div><p className="text-xs text-muted-foreground">Immediate protective action</p><p className="whitespace-pre-wrap text-sm">{c.immediate_action_taken}</p></div>}{c.reportable_concerns.length > 0 && <div><p className="text-xs text-muted-foreground">Reportability indicators</p><div className="mt-1 flex flex-wrap gap-1">{c.reportable_concerns.map(value => <Badge key={value} variant="destructive">{humanizeComplaint(value)}</Badge>)}</div></div>}</CardContent></Card>
         <Card><CardHeader><CardTitle>Closure readiness</CardTitle><CardDescription>Database-enforced requirements</CardDescription></CardHeader><CardContent className="space-y-2 text-sm">

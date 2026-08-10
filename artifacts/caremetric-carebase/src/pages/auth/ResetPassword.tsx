@@ -11,6 +11,29 @@ import { Loader2, ShieldCheck, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-
 
 type LinkState = "checking" | "valid" | "invalid";
 
+// The reset/invite link lands with `#access_token=...&type=recovery` (or `type=invite`) in the
+// URL hash -- or, when GoTrue already refused the token (expired, reused), with
+// `#error=...&error_code=otp_expired` instead. supabase-js consumes the hash itself once its
+// parse settles, so snapshot it at module evaluation, the same way auth.tsx snapshots its
+// implicit-grant type. Consumed one-shot on mount below: a later remount of this page (in-app
+// back/forward) must not treat a long-gone link hash as though that visit came from the email.
+let pendingLinkHash: URLSearchParams | null = new URLSearchParams(
+  window.location.hash.replace(/^#/, ""),
+);
+
+// auth.tsx's cross-tab recovery marker (RECOVERY_SESSION_KEY there): the user ids whose live
+// session was minted from a reset/invite link rather than a real sign-in. auth.tsx owns the
+// writes; reading it here lets this page still recognize the recovery session after the hash is
+// gone -- this chunk loads lazily, often after supabase-js has consumed and cleared it.
+function isMarkedRecoveryUser(userId: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem("cmt-recovery-user-ids") ?? "[]");
+    return Array.isArray(parsed) && parsed.includes(userId);
+  } catch {
+    return false;
+  }
+}
+
 export default function ResetPassword() {
   const { toast } = useToast();
   const [linkState, setLinkState] = useState<LinkState>("checking");
@@ -28,11 +51,27 @@ export default function ResetPassword() {
     // The recovery link lands here with tokens in the URL hash; supabase-js parses them
     // automatically (detectSessionInUrl defaults to true) and establishes a temporary
     // recovery session, firing a PASSWORD_RECOVERY auth event. That can happen either before
-    // or after this effect runs, so check the current session AND keep listening.
+    // or after this effect runs, so check the current session AND keep listening. A session by
+    // itself proves nothing, though -- the visitor may simply already be signed in, and treating
+    // that session as the link's would show the form for an expired link (updateUser would then
+    // rewrite the signed-in account's password) and make the abandonment cleanup below sign the
+    // visitor out for merely opening the page. Only a session this page can tie to the link
+    // counts: the hash's implicit-grant type, the PASSWORD_RECOVERY event, or auth.tsx's marker.
     let cancelled = false;
 
+    const hash = pendingLinkHash;
+    pendingLinkHash = null;
+    const cameFromLink = hash?.get("type") === "recovery" || hash?.get("type") === "invite";
+
+    if (hash?.get("error") || hash?.get("error_code")) {
+      // GoTrue rejected the token outright, so no recovery session is coming -- say so now
+      // rather than waiting out the timeout.
+      setLinkState("invalid");
+      return;
+    }
+
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && data.session) {
+      if (!cancelled && data.session && (cameFromLink || isMarkedRecoveryUser(data.session.user.id))) {
         sessionEstablishedRef.current = true;
         setLinkState("valid");
       }
@@ -40,7 +79,10 @@ export default function ResetPassword() {
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
+      if (
+        event === "PASSWORD_RECOVERY" ||
+        (event === "SIGNED_IN" && session && (cameFromLink || isMarkedRecoveryUser(session.user.id)))
+      ) {
         sessionEstablishedRef.current = true;
         setLinkState("valid");
       }
@@ -58,7 +100,9 @@ export default function ResetPassword() {
       subscription.subscription.unsubscribe();
       clearTimeout(timeout);
       if (sessionEstablishedRef.current && !completedRef.current) {
-        void supabase.auth.signOut();
+        // Local scope: tear down the abandoned recovery session in this tab without revoking
+        // the account's refresh tokens everywhere else.
+        void supabase.auth.signOut({ scope: "local" });
       }
     };
   }, []);
@@ -195,7 +239,7 @@ export default function ResetPassword() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          55 Pa. Code Chapter 2600 Compliance Platform
+          55 Pa. Code Chapters 2600 &amp; 2800 Compliance Platform
         </p>
       </div>
     </div>

@@ -69,10 +69,11 @@ export function StandardsRuntimePlayer({
   // with a sequence conflict. A package that reports progress and completion in one burst would
   // otherwise lose the completion.
   const commitQueueRef = useRef<Promise<unknown>>(Promise.resolve());
-  // Idempotency keys must be unique per intent. Deriving them from sequenceRef and a timestamp
-  // collided for exactly the burst above: same pending sequence, same millisecond, so the server
-  // deduplicated a distinct commit as a replay of the previous one.
-  const commitCounterRef = useRef(0);
+  // Idempotency keys must be unique per intent for the whole life of the server session, which is
+  // reused across launches (one session row per package+assignment). The server dedupes on
+  // (session, key) before checking the sequence, so any repeated key -- sequence+timestamp within
+  // one burst, or a per-mount counter on a later visit -- makes it hand back an old commit as if
+  // the new one were saved, desynchronizing every commit after it. Each commit mints a fresh UUID.
   /** Handshake must complete within this window or the learner sees an explicit recovery path. */
   const HANDSHAKE_TIMEOUT_MS = 12_000;
   const handshakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -153,8 +154,7 @@ export function StandardsRuntimePlayer({
    * to the learner -- the queue's job is only to keep the chain alive for the next commit.
    */
   const enqueueCommit = useCallback((session: LaunchSession, raw: Record<string, unknown>, label: string) => {
-    commitCounterRef.current += 1;
-    const idempotencyKey = `${label}-${commitCounterRef.current}`;
+    const idempotencyKey = `${label}-${crypto.randomUUID()}`;
     commitQueueRef.current = commitQueueRef.current
       .catch(() => undefined)
       .then(() => applyCommit(session, raw, idempotencyKey));

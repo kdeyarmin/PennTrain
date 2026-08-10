@@ -72,7 +72,7 @@ export function useSyncOfflineProgress() {
       });
       if (error) throw error;
       const result = data as { outcome: string; serverVersion: number };
-      return markOfflineProgressAttempt(assignmentId, result.outcome, result.serverVersion);
+      return markOfflineProgressAttempt(assignmentId, result.outcome, result.serverVersion, checkpoint.percentComplete);
     },
     onSuccess: (checkpoint, assignmentId) => {
       queryClient.setQueryData(["offline-course-progress", assignmentId], checkpoint);

@@ -43,7 +43,10 @@ description = "Ignore the non-secret PA ALF personnel rule-pack identifier"
 condition = "AND"
 regexTarget = "secret"
 regexes = ['''^pa\.alf\.2800\.65\.personnel$''']
-paths = ['''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''']
+paths = [
+  '''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''',
+  '''^supabase/migrations/20260810110000_the_alr_sweep_matched_only_the_prefix\.sql$''',
+]
 
 [[rules.allowlists]]
 description = "Ignore the non-secret incident pathway question key (a template field name, not a credential)"

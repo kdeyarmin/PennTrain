@@ -402,9 +402,12 @@ export default function Users() {
           <p>Manage user accounts and access levels.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => navigate("/app/invitations")}>
-            <Mail className="mr-2 h-4 w-4" /> Invitation lifecycle
-          </Button>
+          {/* /app/invitations is org-staff only -- there is no platform-admin invitations mount. */}
+          {!isPlatformAdmin && (
+            <Button variant="outline" onClick={() => navigate("/app/invitations")}>
+              <Mail className="mr-2 h-4 w-4" /> Invitation lifecycle
+            </Button>
+          )}
           {!isDemoOrganization && (
             <Button onClick={openCreate} className="shadow-sm">
               <UserPlus className="mr-2 h-4 w-4" /> Add User

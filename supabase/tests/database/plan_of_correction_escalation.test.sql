@@ -1,5 +1,5 @@
 begin;
-select plan(37);
+select plan(38);
 
 -- BACKLOG.md C4, SMS half. The claim under test, stated precisely: an overdue plan of correction
 -- reaches a manager on email AND SMS whether or not they asked for SMS, an upcoming one reaches
@@ -421,6 +421,22 @@ select is(
      and item->>'key' = 'poc'),
   2,
   'the digest tally counts exactly what the sweep escalates -- the submitted plan is in neither'
+);
+
+-- Each digest item's path is a contract with the page it opens. 20260810112000 stripped the
+-- query strings the destinations reject or ignore -- the worst was /app/incidents?status=open,
+-- a filter on a status the incidents table cannot hold, which rendered an EMPTY list under a
+-- non-zero count. Only the alerts link keeps a query string, because that page parses it.
+-- Pinned as one string so a drifted path names itself.
+select is(
+  (select string_agg((item->>'key') || ' -> ' || (item->>'path'), '; ' order by item->>'key')
+   from public.manager_digest_snapshots s,
+        lateral jsonb_array_elements(s.items) as item
+   where s.profile_id = '2c000000-0000-4000-8000-000000000102'),
+  'alerts -> /app/alerts?status=open; classes -> /trainer/classes; credentials -> /app/credentials; '
+    || 'incidents -> /app/incidents; poc -> /app/violations; resident_compliance -> /app/resident-compliance; '
+    || 'training -> /app/training-matrix',
+  'every digest deep link opens a page that parses whatever query string it carries'
 );
 
 select * from finish();

@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { stripSqlComments } from "./lib/sqlComments.mjs";
 
 // RPC call-signature check.
 //
@@ -61,8 +62,6 @@ export function blankTsComments(source) {
   }
   return out.join("");
 }
-
-const stripSqlComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, " ");
 
 /**
  * Parameter facts for every `public` function a migration declares.

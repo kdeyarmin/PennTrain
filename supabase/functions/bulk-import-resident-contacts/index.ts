@@ -29,10 +29,28 @@ function sha256Hex(value: string): Promise<string> {
   );
 }
 
+function escapedIlike(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
 
 const REQUIRED_COLUMNS = ["resident_external_id", "name"];
 const DOMAIN = "resident_contacts";
 const TARGET = "resident_contacts";
+// The resident_contacts CHECK vocabulary (20260713183435_resident_administrative_master.sql).
+const RESIDENT_CONTACT_TYPES = new Set([
+  "emergency_contact",
+  "designated_person",
+  "guardian",
+  "power_of_attorney",
+  "primary_care_provider",
+  "dentist",
+  "pharmacy",
+  "case_manager",
+  "hospice_agency",
+  "home_health_agency",
+  "insurer",
+  "other",
+]);
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return corsPreflightResponse(req);
@@ -123,6 +141,13 @@ Deno.serve(async (req: Request) => {
     const email = row.email?.trim()?.toLowerCase() || null;
     const phone = row.phone?.trim() || null;
     const isPrimary = (row.is_primary?.trim() || "").toLowerCase() === "true";
+    // Same coercion as the durable worker (process-data-import-jobs/helpers.ts): an explicit
+    // legal contact_type wins, anything else maps onto the table's CHECK vocabulary --
+    // 'primary'/'family' are not legal values there.
+    const contactTypeRaw = row.contact_type?.trim().toLowerCase() || null;
+    const contactType = contactTypeRaw && RESIDENT_CONTACT_TYPES.has(contactTypeRaw)
+      ? contactTypeRaw
+      : (isPrimary ? "emergency_contact" : "other");
     const rowErrors: string[] = [];
     const warnings: string[] = [];
     if (!externalId) rowErrors.push("resident_external_id is required");
@@ -139,7 +164,7 @@ Deno.serve(async (req: Request) => {
     let existing: any = null;
     if (!rowErrors.length && resident) {
       const { data } = await callerClient.from("resident_contacts").select("*")
-        .eq("resident_id", resident.id).ilike("name", name!).limit(1).maybeSingle();
+        .eq("resident_id", resident.id).ilike("name", escapedIlike(name!)).limit(1).maybeSingle();
       existing = data;
     }
 
@@ -157,7 +182,7 @@ Deno.serve(async (req: Request) => {
       resident_id: resident?.id,
       name, relationship, email, phone,
       is_primary: isPrimary,
-      contact_type: isPrimary ? "primary" : "family",
+      contact_type: contactType,
       active: true,
     };
 
@@ -177,16 +202,18 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    let data: any = null; let error: any = null;
-    if (action === "update") {
-      const res = await callerClient.from("resident_contacts").update({
-        name, relationship, email, phone, is_primary: isPrimary, contact_type: isPrimary ? "primary" : "family",
-      }).eq("id", existing.id).select("id").single();
-      data = res.data; error = res.error;
-    } else {
-      const res = await callerClient.from("resident_contacts").insert(payload).select("id").single();
-      data = res.data; error = res.error;
-    }
+    // resident_contacts is SELECT-only for authenticated (writes are RPC-only per
+    // 20260713183435), so the apply goes through the import RPC rather than the table.
+    const { data, error } = await callerClient.rpc("import_apply_resident_contact", {
+      p_job_id: jobId,
+      p_resident_id: resident.id,
+      p_contact_id: action === "update" ? existing.id : null,
+      p_payload: {
+        name, relationship, email, phone,
+        is_primary: isPrimary,
+        contact_type: contactType,
+      },
+    });
     if (error) {
       results.push({ row: rowNumber, success: false, error: error.message, action });
       ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "failed", targetTable: TARGET, targetId: existing?.id ?? null, beforeSnapshot: existing, errors: [error.message], warnings });

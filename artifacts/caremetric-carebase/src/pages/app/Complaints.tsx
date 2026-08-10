@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { Link, useSearch } from "wouter";
 import { AlertTriangle, CheckCircle2, ChevronRight, MessageSquareWarning, Plus, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -33,6 +33,15 @@ export default function Complaints() {
   const [showCreate, setShowCreate] = useState(false);
   const [urlState, setUrlState] = useUrlState({ facility: "all", status: "active", category: "all", search: "", page: "1" });
   const page = Math.max(1, Number(urlState.page) || 1);
+  const locationSearch = useSearch();
+
+  // ReportEvent.tsx's "Complaint or grievance" card links here with ?action=add, expecting the
+  // New Complaint dialog to open. Runs once on mount only, mirroring Violations.tsx's ?action=add --
+  // gated on canManage since the report-event chooser is visible to auditors, who can only view here.
+  useEffect(() => {
+    if (canManage && new URLSearchParams(locationSearch).get("action") === "add") setShowCreate(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const facilityScope = urlState.facility === "all" ? undefined : urlState.facility;
   const categoryScope = urlState.category === "all" ? undefined : urlState.category;

@@ -8,5 +8,8 @@ Disallow: /account/
 Disallow: /reset-password
 Disallow: /forgot-password
 Disallow: /checkin/
+Disallow: /evidence-access/
+Disallow: /move-in-access/
+Disallow: /resident-agreement-access/
 
 Sitemap: https://cmcarebase.com/sitemap.xml

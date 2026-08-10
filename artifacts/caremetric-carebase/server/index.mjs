@@ -65,6 +65,8 @@ const MIME_TYPES = {
   ".webmanifest": "application/manifest+json",
   ".txt": "text/plain; charset=utf-8",
   ".xml": "application/xml; charset=utf-8",
+  ".pdf": "application/pdf",
+  ".csv": "text/csv; charset=utf-8",
 };
 
 // Extensions worth compressing; server/precompress.mjs emits .br/.gz siblings for these at
@@ -359,7 +361,18 @@ async function serveFile(filePath, req, res, { cacheControl }) {
   // to the identity resource, not the compressed bytes we would send.
   if (!encoded) {
     headers["Accept-Ranges"] = "bytes";
-    const range = parseRange(req.headers["range"], fileInfo.size);
+    // If-Range gates Range (RFC 9110 s13.1.5): a stale validator means the client's
+    // cached prefix is from a different version of this file, and splicing our bytes
+    // onto it would corrupt the result (e.g. a marketing mp4 re-encoded by a deploy
+    // mid-playback). On mismatch, ignore Range and serve the full 200. The entity-tag
+    // form requires a strong comparison and the ETag above is weak, so it can never
+    // match; only a date byte-equal to the emitted Last-Modified does.
+    const ifRange = req.headers["if-range"];
+    const ifRangeMatches =
+      !ifRange ||
+      (!ifRange.startsWith('"') && !ifRange.startsWith("W/") &&
+        ifRange === headers["Last-Modified"]);
+    const range = ifRangeMatches ? parseRange(req.headers["range"], fileInfo.size) : null;
     if (range === "unsatisfiable") {
       res.writeHead(416, { ...headers, "Content-Range": `bytes */${fileInfo.size}` });
       res.end();
@@ -422,6 +435,16 @@ const server = createServer(async (req, res) => {
     }
     if (appPath.includes("\0")) {
       sendText(res, 400, "Bad Request");
+      return;
+    }
+    // A ".." segment can only reach this point percent-encoded (the URL parser collapses
+    // literal ones), and it makes the prefix checks below -- cache policy, the
+    // 404-vs-SPA-fallback test -- classify a different file than resolveStaticFile's
+    // normalize() actually resolves (e.g. "/assets/..%2Findex.html" would serve the SPA
+    // shell as immutable). No real URL here contains one, so reject outright;
+    // resolveStaticFile's containment check remains the traversal backstop.
+    if (/(^|[/\\])\.\.([/\\]|$)/.test(appPath)) {
+      sendText(res, 404, "Not Found");
       return;
     }
 

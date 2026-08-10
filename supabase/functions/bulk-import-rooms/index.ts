@@ -179,14 +179,14 @@ Deno.serve(async (req: Request) => {
       p_room_type: roomType,
       p_bed_count: capacity,
       p_gender_restriction: "none",
+      // The table's UPDATE grant is deliberately revoked from authenticated, so the CSV
+      // status must land through the SECURITY DEFINER upsert, not a follow-up update.
+      p_is_active: statusRaw !== "inactive",
     });
     if (error) {
       results.push({ row: rowNumber, success: false, error: error.message, action });
       ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "failed", targetTable: TARGET, targetId: existingRoom?.id ?? null, beforeSnapshot: existingRoom, errors: [error.message], warnings });
     } else {
-      if (statusRaw === "inactive" && data) {
-        await callerClient.from("facility_rooms").update({ is_active: false }).eq("id", data);
-      }
       results.push({ row: rowNumber, success: true, record_id: data as string, action });
       ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "applied", targetTable: TARGET, targetId: data, beforeSnapshot: existingRoom, errors: [], warnings });
     }

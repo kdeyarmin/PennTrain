@@ -79,6 +79,8 @@ export default function IncidentDetail() {
   const backDestination = user?.role === "platform_admin"
     ? { href: "/admin/alerts", label: "Alerts" }
     : { href: "/app/incidents", label: "Incidents" };
+  // /app/residents/:id excludes platform_admin; their resident-360 mount is /admin/residents/:id.
+  const residentPathPrefix = user?.role === "platform_admin" ? "/admin/residents" : "/app/residents";
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   // incident_staff_involved_delete and incident_documents_delete are narrower than
   // insert/update -- platform_admin or org_admin only -- so facility_manager must not be shown
@@ -316,7 +318,7 @@ export default function IncidentDetail() {
         <CardContent className="space-y-3">
           <p className="text-sm whitespace-pre-wrap">{incident.narrative}</p>
           <div className="grid grid-cols-2 gap-3 text-sm pt-2 border-t">
-            {(incident.resident_id || incident.resident_identifier_snapshot || incident.resident_identifier) && <div><p className="text-xs text-muted-foreground">Resident</p><p>{residentDisplay}</p>{incident.resident_id ? <Link href={`/app/residents/${incident.resident_id}`} className="text-xs text-primary hover:underline">Open resident 360</Link> : null}</div>}
+            {(incident.resident_id || incident.resident_identifier_snapshot || incident.resident_identifier) && <div><p className="text-xs text-muted-foreground">Resident</p><p>{residentDisplay}</p>{incident.resident_id ? <Link href={`${residentPathPrefix}/${incident.resident_id}`} className="text-xs text-primary hover:underline">Open resident 360</Link> : null}</div>}
             {incident.location_detail && <div><p className="text-xs text-muted-foreground">Location</p><p>{incident.location_detail}</p></div>}
           </div>
         </CardContent>

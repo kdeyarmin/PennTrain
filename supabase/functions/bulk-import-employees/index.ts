@@ -21,6 +21,9 @@ function json(req: Request, body: unknown, status = 200) {
 // below rather than listed here, since exactly one of the two is required, not both.
 const REQUIRED_COLUMNS = ["first_name", "last_name", "job_title"];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+// The employees status CHECK vocabulary (20260704045925_group_a_tenancy_identity.sql).
+const EMPLOYEE_STATUSES = new Set(["active", "inactive", "terminated", "on_leave"]);
 
 interface ImportRowResult {
   row: number;
@@ -231,6 +234,11 @@ Deno.serve(async (req: Request) => {
     const job_title = row.job_title?.trim();
     const rawFacilityId = row.facility_id?.trim();
     const rawFacilityName = row.facility_name?.trim();
+    const hire_date = row.hire_date?.trim() || null;
+    // The status CHECK is case-sensitive and HR exports capitalise and use spaces
+    // ("Active", "On Leave"); normalise before validating so the dry run never passes a
+    // value the table constraint then refuses at apply.
+    const status = (row.status?.trim() || "active").toLowerCase().replace(/\s+/g, "_");
     const rowErrors: string[] = [];
     const warnings: string[] = [];
 
@@ -238,6 +246,8 @@ Deno.serve(async (req: Request) => {
     if (!last_name) rowErrors.push("last_name is required");
     if (!job_title) rowErrors.push("job_title is required");
     if (!rawFacilityId && !rawFacilityName) rowErrors.push("facility_name or facility_id is required");
+    if (hire_date && !DATE_PATTERN.test(hire_date)) rowErrors.push("hire_date must be YYYY-MM-DD");
+    if (!EMPLOYEE_STATUSES.has(status)) rowErrors.push("status must be active|inactive|terminated|on_leave");
 
     let facility_id = rawFacilityId ?? "";
     if (!rowErrors.length && !facility_id) {
@@ -258,8 +268,8 @@ Deno.serve(async (req: Request) => {
       employee_number: row.employee_number?.trim() || null,
       department: row.department?.trim() || null,
       phone: row.phone?.trim() || null,
-      hire_date: row.hire_date?.trim() || null,
-      status: row.status?.trim() || "active",
+      hire_date,
+      status,
       trainer_status: row.trainer_status?.trim().toLowerCase() === "true",
       administers_medications: row.administers_medications?.trim().toLowerCase() === "true",
     };
@@ -368,9 +378,20 @@ Deno.serve(async (req: Request) => {
         errors: [error.message],
         warnings,
       });
-    } else {
-      results.push({ row: rowNumber, success: true, employee_id: data.id, action });
-      ledgerRows.push({
+      continue;
+    }
+
+    results.push({ row: rowNumber, success: true, employee_id: data.id, action });
+    // Receipt each applied row before touching the next one. Batching the receipts at the
+    // end of the chunk meant a failed receipt left every row of the chunk written but
+    // unreceipted, and a retry then re-inserted them all -- silently, for rows with neither
+    // employee_number nor email, since duplicate matching has nothing to match on. One RPC
+    // per applied row bounds the exposure to the single row whose receipt fails below; the
+    // row-receipt RPC skips the job-wide recount and event insert, which stay with the
+    // chunk-level receipt at the end.
+    const { error: receiptError } = await callerClient.rpc("record_data_import_row_receipt", {
+      p_job_id: jobId,
+      p_row: {
         rowNumber,
         sourceRow: row,
         normalizedRow: normalized,
@@ -381,7 +402,10 @@ Deno.serve(async (req: Request) => {
         beforeSnapshot: existingEmployee,
         errors: [],
         warnings,
-      });
+      },
+    });
+    if (receiptError) {
+      return json(req, { error: `Row ${rowNumber} was applied but its import receipt failed: ${receiptError.message}`, job_id: jobId }, 500);
     }
   }
 

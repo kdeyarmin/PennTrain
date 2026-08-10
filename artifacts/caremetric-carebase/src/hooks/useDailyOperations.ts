@@ -145,6 +145,12 @@ export function useConvertShiftReportEntry() {
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
       queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      // The change_of_condition destination goes through log_resident_change_of_condition, which
+      // creates a resident_change_events row plus its resident_compliance_items row -- the same
+      // records useResidentChangeEvents.ts refreshes under these keys.
+      queryClient.invalidateQueries({ queryKey: ["resident-change-events"] });
+      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items"] });
+      queryClient.invalidateQueries({ queryKey: ["resident_compliance_items_all"] });
     },
   });
 }

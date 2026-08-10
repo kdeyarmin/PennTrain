@@ -22,6 +22,7 @@ import {
 } from "../session/voice-session.js";
 import {
   logUsageMeterError,
+  type SessionSpan,
   type UsageLimits,
 } from "../session/usage-limits.js";
 
@@ -94,9 +95,62 @@ async function attachSession(
   ws: WebSocket,
 ): Promise<void> {
   deps.tracker.start(pending.userId);
-  const budgetSpan = await deps.usage.dailyBudget.sessionStarted();
+  let session: VoiceSession | null = null;
+  let socketGone = false;
   let finished = false;
   let lastBackpressureWarnAt = 0;
+
+  // Socket handlers go on BEFORE the awaited budget write below — an
+  // emission with no listener is simply lost, so a tab closed during that
+  // write would otherwise hold the user's session slot until the idle
+  // timeout. Frames arriving before the session exists are dropped; the
+  // upstream session they would feed doesn't exist yet.
+  ws.on("message", (data, isBinary) => {
+    if (!session) return;
+    if (isBinary) {
+      session.forwardAudio(Buffer.from(data as Buffer).toString("base64"));
+      return;
+    }
+    try {
+      const msg = JSON.parse(String(data)) as { type?: string };
+      if (msg.type === "end") session.end("user_ended");
+    } catch {
+      // Ignore malformed control frames.
+    }
+  });
+  ws.on("close", () => {
+    socketGone = true;
+    session?.end("transport_disconnected");
+  });
+  ws.on("error", () => {
+    socketGone = true;
+    session?.end("transport_error");
+  });
+
+  let budgetSpan: SessionSpan;
+  try {
+    budgetSpan = await deps.usage.dailyBudget.sessionStarted();
+  } catch (err) {
+    // attachSession is fire-and-forget from the upgrade callback, so a
+    // failed meter write must release the slot here, not reject upward.
+    console.error(
+      JSON.stringify({
+        evt: "voice.transport.usage_meter_error",
+        sessionId: pending.sessionId,
+        message: err instanceof Error ? err.message : String(err),
+      }),
+    );
+    deps.tracker.finish(pending.userId);
+    ws.close(1011, "state_store_unavailable");
+    return;
+  }
+  if (socketGone || ws.readyState !== ws.OPEN) {
+    // Closed while the budget write was in flight: release the slot, end
+    // the span, and never open the upstream session.
+    deps.tracker.finish(pending.userId);
+    void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
+    return;
+  }
 
   const sendJson = (payload: unknown): void => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload));
@@ -134,7 +188,7 @@ async function attachSession(
     },
   };
 
-  const session = new VoiceSession({
+  session = new VoiceSession({
     config: deps.config,
     app,
     pending,
@@ -151,19 +205,4 @@ async function attachSession(
       ws.close(1000, reason);
     },
   });
-
-  ws.on("message", (data, isBinary) => {
-    if (isBinary) {
-      session.forwardAudio(Buffer.from(data as Buffer).toString("base64"));
-      return;
-    }
-    try {
-      const msg = JSON.parse(String(data)) as { type?: string };
-      if (msg.type === "end") session.end("user_ended");
-    } catch {
-      // Ignore malformed control frames.
-    }
-  });
-  ws.on("close", () => session.end("transport_disconnected"));
-  ws.on("error", () => session.end("transport_error"));
 }

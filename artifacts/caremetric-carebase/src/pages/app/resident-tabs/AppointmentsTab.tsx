@@ -396,7 +396,7 @@ export default function AppointmentsTab({ resident, canManage }: ResidentTabProp
 
                     {appointment.follow_up_work_item_id && !appointment.follow_up_completed_at && (
                       <Link
-                        href="/app/work-queue"
+                        href={`/app/work/${appointment.follow_up_work_item_id}`}
                         className="mt-2 inline-block text-xs text-primary underline-offset-2 hover:underline"
                       >
                         Open follow-up in the work queue

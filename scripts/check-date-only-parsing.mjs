@@ -33,6 +33,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve } from "node:path";
+import { stripSqlComments } from "./lib/sqlComments.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = resolve(HERE, "../artifacts/caremetric-carebase/src");
@@ -54,12 +55,36 @@ const ROOT = resolve(HERE, "..");
 // so a parser that finds implausibly few columns fails loudly (see MINIMUM_EXPECTED_COLUMNS)
 // instead of passing vacuously -- a check that silently stops checking is worse than no check.
 const DECLARATION_PATTERNS = [
-  // `foo date`, `foo date not null`, `foo date default ...` inside a create-table body,
-  // and date-typed columns of a `returns table (...)`.
-  /^\s*([a-z_][a-z0-9_]*)\s+date\b/,
+  // `foo date`, `foo date not null`, `foo date default ...` inside a create-table body, and
+  // date-typed columns of a `returns table (...)`. A definition starts at a line start OR after
+  // the `(` or `,` that opened it -- a line-start anchor alone missed real columns, because the
+  // migrations write several definitions per line (`target_value numeric, start_date date not
+  // null`) and entire CREATE TABLE bodies on one line (move_in_workspaces). Global, because one
+  // such line declares many columns and a single exec would surface at most one.
+  /(?:^|[(,])\s*([a-z_][a-z0-9_]*)\s+date\b/gm,
   // `alter table x add column [if not exists] foo date`
-  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+date\b/,
+  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+date\b/g,
 ];
+
+/**
+ * Migration SQL with comments, string literals and dollar-quoted bodies blanked, ready for
+ * column derivation.
+ *
+ * All three are where "a date", "due date" and "training date" are English rather than a
+ * declaration -- the help-article and course-catalog seeds alone would otherwise declare columns
+ * named `a`, `due` and `training`, which are ordinary frontend identifiers, so over-inclusion
+ * stops being safe the moment prose can reach the patterns. Every declaration form this check
+ * derives from (create-table bodies, `add column`, `returns table (...)` lists) sits outside
+ * dollar quotes; blanking them changes the derived set only by removing seed prose. The comment
+ * stripper is the string-aware one shared by the other SQL lints, so a `--` inside a literal
+ * never eats the closing quote. Dollar quotes go first, because an apostrophe inside a body
+ * would otherwise open a "string" that swallows real SQL past the body's end.
+ */
+export function withoutSqlProse(sql) {
+  return stripSqlComments(sql)
+    .replace(/\$([a-z_]*)\$[\s\S]*?\$\1\$/g, " ")
+    .replace(/'(?:[^']|'')*'/g, "''");
+}
 
 // plpgsql locals (`v_today date := ...`) and function parameters (`p_due_date date`) are not
 // columns. They are declared with the same syntax, and this repo prefixes both by convention.
@@ -75,10 +100,9 @@ const MINIMUM_EXPECTED_COLUMNS = 60;
 export function deriveDateColumns(sqlTexts) {
   const found = new Set();
   for (const text of sqlTexts) {
-    for (const line of text.split("\n")) {
-      for (const pattern of DECLARATION_PATTERNS) {
-        const match = pattern.exec(line);
-        if (match && !NOT_A_COLUMN.test(match[1])) found.add(match[1]);
+    for (const pattern of DECLARATION_PATTERNS) {
+      for (const match of text.matchAll(pattern)) {
+        if (!NOT_A_COLUMN.test(match[1])) found.add(match[1]);
       }
     }
   }
@@ -88,7 +112,7 @@ export function deriveDateColumns(sqlTexts) {
 function readMigrations() {
   return readdirSync(MIGRATIONS)
     .filter((f) => f.endsWith(".sql"))
-    .map((f) => readFileSync(join(MIGRATIONS, f), "utf8"));
+    .map((f) => withoutSqlProse(readFileSync(join(MIGRATIONS, f), "utf8")));
 }
 
 // Uses where a uniform offset cannot change the outcome, each with the reason it is safe.
@@ -123,21 +147,21 @@ const TYPE_COLLISION_ALLOWLIST = new Map([
   ],
 ]);
 
-// `foo timestamptz`, `foo timestamp with time zone`, and the `add column` form of each.
+// `foo timestamptz`, `foo timestamp with time zone`, and the `add column` form of each -- matched
+// mid-line as well as at line start, for the same reason as DECLARATION_PATTERNS.
 const TIMESTAMPTZ_PATTERNS = [
-  /^\s*([a-z_][a-z0-9_]*)\s+timestamptz\b/,
-  /^\s*([a-z_][a-z0-9_]*)\s+timestamp\s+with\s+time\s+zone\b/,
-  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+timestamptz\b/,
-  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+timestamp\s+with\s+time\s+zone\b/,
+  /(?:^|[(,])\s*([a-z_][a-z0-9_]*)\s+timestamptz\b/gm,
+  /(?:^|[(,])\s*([a-z_][a-z0-9_]*)\s+timestamp\s+with\s+time\s+zone\b/gm,
+  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+timestamptz\b/g,
+  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)\s+timestamp\s+with\s+time\s+zone\b/g,
 ];
 
 export function deriveTimestamptzColumns(sqlTexts) {
   const found = new Set();
   for (const text of sqlTexts) {
-    for (const line of text.split("\n")) {
-      for (const pattern of TIMESTAMPTZ_PATTERNS) {
-        const match = pattern.exec(line);
-        if (match && !NOT_A_COLUMN.test(match[1])) found.add(match[1]);
+    for (const pattern of TIMESTAMPTZ_PATTERNS) {
+      for (const match of text.matchAll(pattern)) {
+        if (!NOT_A_COLUMN.test(match[1])) found.add(match[1]);
       }
     }
   }
@@ -209,15 +233,33 @@ if (process.argv.includes("--self-test")) {
     "create table foo (\n  id uuid,\n  effective_date date not null,\n  created_at timestamptz\n);",
     "alter table foo add column if not exists inspection_date date;",
     "create function f(p_due_date date) returns void as $$ declare v_today date := now(); begin end; $$;",
+    // Shapes that exist verbatim in the migrations: several definitions per line (qapi_projects),
+    // and a whole CREATE TABLE on one line (move_in_workspaces, confidential_incident_intakes).
+    " target_value numeric, start_date date not null default current_date,",
+    "create table public.m(id uuid,target_move_in_date date not null,retention_until date,noted_at timestamptz not null default now());",
   ]);
-  for (const expected of ["effective_date", "inspection_date"]) {
+  for (const expected of ["effective_date", "inspection_date", "start_date", "target_move_in_date", "retention_until"]) {
     if (!derived.includes(expected)) fail(`derivation missed \`${expected}\` (got ${derived.join(", ")})`);
   }
-  for (const rejected of ["created_at", "p_due_date", "v_today", "id"]) {
+  for (const rejected of ["created_at", "p_due_date", "v_today", "id", "target_value", "noted_at"]) {
     if (derived.includes(rejected)) fail(`derivation wrongly included \`${rejected}\``);
   }
   if (deriveDateColumns(["create function f() returns date as $$ begin end; $$;"]).includes("returns")) {
     fail("derivation treated the RETURNS keyword as a column");
+  }
+
+  // Prose is not a declaration. Comments, seed strings and dollar-quoted catalog blobs say
+  // things like "a date", "hire date" and "training date", and mid-line matching would read
+  // those as columns named `a`, `hire` and `training` -- ordinary frontend identifiers, so the
+  // scan would flag calls that never touch the database.
+  const prose = deriveDateColumns([withoutSqlProse(
+    "-- named person, a date, and a source URL\n"
+    + "select 'you''ll need their hire date and the due date' as answer;\n"
+    + "do $catalog$ {\"content\":\"verify material date, training date, attendees\"} $catalog$;\n"
+    + "create table p (\n  birth_date date\n);",
+  )]);
+  if (JSON.stringify(prose) !== JSON.stringify(["birth_date"])) {
+    fail(`prose blanking derived [${prose}], expected [birth_date]`);
   }
 
   // The timestamptz side, which exists only to find names declared BOTH ways.
@@ -225,11 +267,12 @@ if (process.argv.includes("--self-test")) {
     "create table foo (\n  started_at timestamptz not null,\n  ended_at timestamp with time zone,\n  due date\n);",
     "alter table foo add column if not exists closed_at timestamptz;",
     "create function f() returns timestamptz as $$ declare v_now timestamptz; begin end; $$;",
+    "create table public.m(id uuid,noted_at timestamptz not null,retention_until date);",
   ]);
-  for (const expected of ["started_at", "ended_at", "closed_at"]) {
+  for (const expected of ["started_at", "ended_at", "closed_at", "noted_at"]) {
     if (!ts.includes(expected)) fail(`timestamptz derivation missed \`${expected}\` (got ${ts.join(", ")})`);
   }
-  for (const rejected of ["due", "v_now", "returns"]) {
+  for (const rejected of ["due", "v_now", "returns", "retention_until"]) {
     if (ts.includes(rejected)) fail(`timestamptz derivation wrongly included \`${rejected}\``);
   }
 

@@ -34,7 +34,31 @@ function sha256Hex(value: string): Promise<string> {
 const REQUIRED_COLUMNS = ["facility", "occurred_at", "incident_type", "severity", "summary"];
 const DOMAIN = "incidents";
 const TARGET = "incidents";
-const VALID_SEVERITY = new Set(["low", "medium", "high", "critical"]);
+// The incidents table CHECK vocabularies (20260705021954_incidents_core.sql). Both apply
+// paths (create_incident_atomic and the durable worker's import_apply_incident) insert these
+// values verbatim, so anything outside the CHECK lists must be refused or mapped here.
+// Severity exports commonly say low|medium|high; accept those as aliases of the CHECK values.
+const SEVERITY_BY_ALIAS = new Map([
+  ["minor", "minor"],
+  ["moderate", "moderate"],
+  ["major", "major"],
+  ["critical", "critical"],
+  ["low", "minor"],
+  ["medium", "moderate"],
+  ["high", "major"],
+]);
+const VALID_INCIDENT_TYPES = new Set([
+  "death",
+  "elopement",
+  "abuse_allegation",
+  "neglect_allegation",
+  "medication_error",
+  "significant_injury",
+  "assault",
+  "fire",
+  "environmental_emergency",
+  "other",
+]);
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return corsPreflightResponse(req);
@@ -129,19 +153,27 @@ Deno.serve(async (req: Request) => {
     }
     const facilityName = row.facility?.trim();
     const occurredAt = row.occurred_at?.trim();
-    const incidentType = row.incident_type?.trim();
-    const severity = (row.severity?.trim() || "").toLowerCase();
+    const incidentType = row.incident_type?.trim().toLowerCase();
+    const severity = SEVERITY_BY_ALIAS.get((row.severity?.trim() || "").toLowerCase()) ?? null;
     const summary = row.summary?.trim();
     const externalId = row.resident_external_id?.trim() || null;
     const rowErrors: string[] = [];
     const warnings: string[] = [];
     if (!facilityName) rowErrors.push("facility is required");
+    // occurred_at feeds a timestamptz parameter and incident_type feeds the table CHECK;
+    // both fail at apply with a raw DB error unless the dry run refuses them first.
     if (!occurredAt) rowErrors.push("occurred_at is required");
+    else if (!/^\d{4}-\d{2}-\d{2}([T ].+)?$/.test(occurredAt) || Number.isNaN(Date.parse(occurredAt))) {
+      rowErrors.push("occurred_at must be an ISO 8601 date or timestamp (YYYY-MM-DD or YYYY-MM-DD HH:MM)");
+    }
     if (!incidentType) rowErrors.push("incident_type is required");
-    if (!severity || !VALID_SEVERITY.has(severity)) rowErrors.push("severity must be low|medium|high|critical");
-    // 10, matching BOTH apply paths: record_incident_from_import
+    else if (!VALID_INCIDENT_TYPES.has(incidentType)) {
+      rowErrors.push(`incident_type must be one of: ${[...VALID_INCIDENT_TYPES].join("|")}`);
+    }
+    if (!severity) rowErrors.push("severity must be minor|moderate|major|critical (low|medium|high are accepted aliases)");
+    // 10, matching BOTH apply paths: create_incident_atomic
     // (20260714202515_carebase_integrity_foundation.sql) and the durable worker's
-    // apply_incident_import_row (20260801220000_durable_import_apply_rpcs.sql) each reject
+    // import_apply_incident (20260801220000_durable_import_apply_rpcs.sql) each reject
     // `length(btrim(narrative)) < 10`. At 8 the dry run called an 8- or 9-character summary valid
     // and the apply then refused it -- the one thing a preview exists to rule out.
     if (!summary || summary.length < 10) rowErrors.push("summary must be at least 10 characters");

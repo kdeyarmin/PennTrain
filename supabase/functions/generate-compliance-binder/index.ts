@@ -23,6 +23,12 @@ const PAGE_HEIGHT = 792;
 const MARGIN = 50;
 const MAX_LISTED_ROWS = 500;
 
+// Every facility this app serves is in Pennsylvania (America/New_York) -- binder
+// timestamps must render in that zone explicitly rather than the Deno runtime's
+// default (UTC on Supabase), which would date evening incidents and signatures one
+// day late and contradict the DHS state form generated from the same records.
+const PA_TIME_ZONE = "America/New_York";
+
 const STATUS_LABELS: Record<string, string> = {
   compliant: "Compliant",
   due_soon: "Due Soon",
@@ -38,6 +44,44 @@ function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
     s = s.slice(0, -1);
   }
   return s === str ? s : s.slice(0, -1) + "…";
+}
+
+function wrapText(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split(/\r?\n/)) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push("");
+      continue;
+    }
+    let current = "";
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        current = candidate;
+        continue;
+      }
+      if (current) lines.push(current);
+      if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+        current = word;
+        continue;
+      }
+      // A single unbroken token wider than the line (long IDs, pasted URLs) would
+      // silently run past the page edge -- break it at character level instead.
+      let chunk = "";
+      for (const ch of word) {
+        if (chunk && font.widthOfTextAtSize(chunk + ch, size) > maxWidth) {
+          lines.push(chunk);
+          chunk = ch;
+        } else {
+          chunk += ch;
+        }
+      }
+      current = chunk;
+    }
+    if (current) lines.push(current);
+  }
+  return lines;
 }
 
 class PdfWriter {
@@ -78,9 +122,15 @@ class PdfWriter {
     const size = opts.size ?? 10;
     const font = opts.bold ? this.bold : this.font;
     const [r, g, b] = opts.color ?? [0, 0, 0];
-    this.ensureSpace(size + 4);
-    this.page.drawText(str, { x: MARGIN, y: this.y, size, font, color: rgb(r, g, b) });
-    this.y -= size + (opts.gap ?? 6);
+    // Word-wrap to the drawable width -- a single drawText would clip long strings
+    // (readiness caveats, appendix notes) at the page edge. The gap applies once,
+    // after the last line, so callers' vertical rhythm is unchanged.
+    const lines = wrapText(str, PAGE_WIDTH - MARGIN * 2, font, size);
+    for (let i = 0; i < lines.length; i++) {
+      this.ensureSpace(size + 4);
+      this.page.drawText(lines[i], { x: MARGIN, y: this.y, size, font, color: rgb(r, g, b) });
+      this.y -= size + (i === lines.length - 1 ? (opts.gap ?? 6) : 3);
+    }
   }
 
   heading(str: string) {
@@ -543,7 +593,14 @@ interface BinderBuildResult {
 
 function csvEscape(value: string): string {
   const s = String(value ?? "");
-  return `"${s.replaceAll('"', '""')}"`;
+  // Excel/Sheets execute cells starting with = + - @ (or tab/CR) as formulas, so
+  // tenant-entered text (employee names, alert titles) could exfiltrate data when an
+  // appendix CSV is opened. Prefix a quote to force text, leaving plain numbers
+  // (e.g. "-5") alone so numeric columns still parse -- the same guard as the app's
+  // canonical csvEscape (src/lib/csv.ts), which Deno functions cannot import.
+  const needsFormulaGuard = /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s);
+  const guarded = needsFormulaGuard ? `'${s}` : s;
+  return /[",\n\r]/.test(guarded) ? `"${guarded.replaceAll('"', '""')}"` : guarded;
 }
 
 function rowsToCsv(headers: string[], rows: string[][]): string {
@@ -568,55 +625,70 @@ async function buildBinderPdf(
 
   const scoped = (query: any) => (facilityScope ? query.in("facility_id", facilityScope) : query);
 
-  let certCountQuery = adminClient.from("certificates").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
-  if (facilityScope) certCountQuery = certCountQuery.in("facility_id", facilityScope);
+  // The facilities list is the binder's sandbox boundary: is_sandbox lives only on
+  // facilities, and an org-wide job carries no facility scope for scoped() to apply,
+  // so it is fetched first and every child dataset below is cut down to it after
+  // fetch. Otherwise the Training Sandbox's synthetic staff/residents (and their
+  // auto-instantiated 'missing' items) would enter the tallies, gap lists, and the
+  // readiness % while the sandbox facility itself stays hidden from the Facilities
+  // table -- the same exclusion rule generate_paged_compliance_reports enforces.
+  const facilities = await fetchAllRows(() => {
+    const query = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).eq("is_sandbox", false).order("name").order("id");
+    return facilityScope ? query.in("id", facilityScope) : query;
+  });
+  const realFacilityIds = new Set(facilities.map((f: any) => f.id));
+  // Post-fetch filtering keeps each query free of an .in() list that grows with the
+  // org's facility count. Alerts can be org-level (facility_id null); those stay in.
+  const fetchRealFacilityRows = async (buildQuery: () => any): Promise<any[]> =>
+    (await fetchAllRows(buildQuery)).filter((row: any) => row.facility_id == null || realFacilityIds.has(row.facility_id));
+
+  // A head-count cannot be filtered after the fact, so this one query narrows to the
+  // sandbox-filtered facility list DB-side (bounded by facility count, not rows).
+  const certCountQuery = adminClient.from("certificates").select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId).in("facility_id", [...realFacilityIds]);
 
   const [
-    facilities, employees, allRecords, allPracticums, certCountRes, alerts, attestations,
+    employees, allRecords, allPracticums, certCountRes, alerts, attestations,
     credentials, incidents, inspectionItems, correctiveActionsRaw, citationTopics,
     residents, residentCompliance,
   ] = await Promise.all([
-    fetchAllRows(() => {
-      const query = adminClient.from("facilities").select("id, name, facility_type, license_number").eq("organization_id", orgId).eq("is_sandbox", false).order("name").order("id");
-      return facilityScope ? query.in("id", facilityScope) : query;
-    }),
-    fetchAllRows(() => scoped(adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId).order("id"))),
-    fetchAllRows(() => scoped(adminClient
+    fetchRealFacilityRows(() => scoped(adminClient.from("employees").select("id, first_name, last_name, facility_id, status").eq("organization_id", orgId).order("id"))),
+    fetchRealFacilityRows(() => scoped(adminClient
       .from("employee_training_records")
       .select("id, status, due_date, completion_date, created_at, employee_id, training_type_id, facility_id, training_types(name, citation_topic_id)")
       .eq("organization_id", orgId).order("id"))),
-    fetchAllRows(() => scoped(adminClient.from("practicums").select("id, status, due_date, completion_date, practicum_year, employee_id, facility_id").eq("organization_id", orgId).order("id"))),
+    fetchRealFacilityRows(() => scoped(adminClient.from("practicums").select("id, status, due_date, completion_date, practicum_year, employee_id, facility_id").eq("organization_id", orgId).order("id"))),
     certCountQuery,
-    fetchAllRows(() => scoped(adminClient.from("alerts").select("id, severity, title, created_at").eq("organization_id", orgId).eq("status", "open").order("severity").order("id"))),
-    fetchAllRows(() => scoped(adminClient
+    fetchRealFacilityRows(() => scoped(adminClient.from("alerts").select("id, severity, title, created_at, facility_id").eq("organization_id", orgId).eq("status", "open").order("severity").order("id"))),
+    fetchRealFacilityRows(() => scoped(adminClient
       .from("policy_attestations")
       .select(
         "id, status, due_date, attested_at, auth_method, ip_address, employee_id, facility_id, " +
           "policy_attestation_campaigns(name, policy_documents(title))",
       )
       .eq("organization_id", orgId).order("id"))),
-    fetchAllRows(() => scoped(adminClient
+    fetchRealFacilityRows(() => scoped(adminClient
       .from("employee_credentials")
       .select("id, status, expiration_date, employee_id, facility_id, credential_type, citation_topic_id")
       .eq("organization_id", orgId).order("id"))),
-    fetchAllRows(() => scoped(adminClient
+    fetchRealFacilityRows(() => scoped(adminClient
       .from("incidents")
       .select("id, incident_type, severity, status, occurred_at, final_report_submitted_at, facility_id")
       .eq("organization_id", orgId)
       .order("occurred_at", { ascending: false }).order("id"))),
-    fetchAllRows(() => scoped(adminClient
+    fetchRealFacilityRows(() => scoped(adminClient
       .from("inspection_items")
       .select("id, status, next_due_date, label, item_type, facility_id, citation_topic_id")
       .eq("organization_id", orgId)
       .eq("is_active", true).order("id"))),
-    fetchAllRows(() => scoped(adminClient
+    fetchRealFacilityRows(() => scoped(adminClient
       .from("corrective_actions")
       .select("id, description, due_date, status, facility_id")
       .eq("organization_id", orgId)
       .neq("status", "completed").order("id"))),
     fetchAllRows(() => adminClient.from("dhs_citation_topics").select("id, chapter, citation_ref, category, title, frequency_weight").order("sort_order").order("id")),
-    fetchAllRows(() => scoped(adminClient.from("residents").select("id, first_name, last_name, facility_id, status, sdcu, hospice").eq("organization_id", orgId).order("id"))),
-    fetchAllRows(() => scoped(adminClient
+    fetchRealFacilityRows(() => scoped(adminClient.from("residents").select("id, first_name, last_name, facility_id, status, sdcu, hospice").eq("organization_id", orgId).order("id"))),
+    fetchRealFacilityRows(() => scoped(adminClient
       .from("resident_compliance_items")
       .select("id, status, item_type, due_date, resident_id, facility_id, citation_topic_id")
       .eq("organization_id", orgId).order("id"))),
@@ -856,7 +928,7 @@ async function buildBinderPdf(
     const shown = alerts.slice(0, MAX_LISTED_ROWS);
     pdf.table(
       ["Severity", "Title", "Created"],
-      shown.map((a) => [a.severity, a.title, new Date(a.created_at).toLocaleDateString()]),
+      shown.map((a) => [a.severity, a.title, new Date(a.created_at).toLocaleDateString("en-US", { timeZone: PA_TIME_ZONE })]),
       [80, 300, 100],
     );
   }
@@ -911,7 +983,7 @@ async function buildBinderPdf(
         return [
           e ? `${e.first_name} ${e.last_name}` : "—",
           policyTitle(a),
-          a.attested_at ? new Date(a.attested_at).toLocaleString() : "—",
+          a.attested_at ? new Date(a.attested_at).toLocaleString("en-US", { timeZone: PA_TIME_ZONE }) : "—",
           a.auth_method ?? "—",
           a.ip_address ?? "—",
         ];
@@ -968,7 +1040,7 @@ async function buildBinderPdf(
         facilityMap.get(i.facility_id)?.name ?? "—",
         i.incident_type.replace(/_/g, " "),
         i.severity,
-        new Date(i.occurred_at).toLocaleDateString(),
+        new Date(i.occurred_at).toLocaleDateString("en-US", { timeZone: PA_TIME_ZONE }),
         i.status.replace(/_/g, " "),
         i.final_report_submitted_at ? "Submitted" : "Outstanding",
       ]),

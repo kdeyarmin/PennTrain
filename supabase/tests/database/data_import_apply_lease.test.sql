@@ -1,11 +1,11 @@
 begin;
-select plan(12);
+select plan(17);
 
 -- BACKLOG.md G34. Two appliers, one ledger.
 --
--- `claim_data_import_jobs` claims any job in 'ready' or 'applying' whose claim is absent or
--- expired, and the durable worker then applies every `data_import_rows` row still marked 'valid'.
--- A browser apply is exactly that shape: the bulk-import-* functions walk the CSV in chunks and
+-- `claim_data_import_jobs` claims jobs stranded at 'applying' whose claim is absent or expired,
+-- and the durable worker then applies every `data_import_rows` row still marked 'valid'. A
+-- browser apply is exactly that shape: the bulk-import-* functions walk the CSV in chunks and
 -- hold the job at 'applying' between them. Nothing on that side ever wrote `claim_expires_at`, so
 -- the worker could not tell an import a manager was halfway through from one a dead tab had
 -- stranded -- and both applied the same rows, because the browser's loop reads the CSV, not the
@@ -15,7 +15,9 @@ select plan(12);
 -- The property under test is mutual exclusion between the two appliers, in BOTH directions, plus
 -- the release paths that keep it from turning into a deadlock: a finished phase hands the job
 -- back immediately, and an abandoned one is takeable once its claim expires. The last is the
--- reason the worker exists at all, so it has to survive the fix.
+-- reason the worker exists at all, so it has to survive the fix. A completed dry run parked at
+-- 'ready' with its rows still 'valid' is the same shape as a claimable job from the ledger's
+-- point of view -- and is exactly what the worker must never touch, because nobody pressed Apply.
 
 insert into public.organizations (id, name, slug)
 values ('b4000000-0000-4000-8000-000000000001', 'Import Lease Org', 'import-lease-org');
@@ -46,18 +48,26 @@ on conflict (id) do update set
   organization_id = excluded.organization_id, role = excluded.role, is_active = excluded.is_active;
 select set_config('app.privileged_write', 'off', true);
 
+-- 201: a browser apply in progress. 202: an apply stranded mid-run (the rescue case).
+-- 203: a completed dry run -- 'ready', all rows 'valid', and nobody has pressed Apply.
 insert into public.data_import_jobs (
   id, organization_id, domain, status, original_file_name, original_file_sha256, total_rows
 ) values
   ('b4000000-0000-4000-8000-000000000201', 'b4000000-0000-4000-8000-000000000001', 'employees',
    'ready', 'roster.csv', repeat('b', 64), 5),
   ('b4000000-0000-4000-8000-000000000202', 'b4000000-0000-4000-8000-000000000001', 'residents',
-   'ready', 'residents.csv', repeat('c', 64), 5);
+   'applying', 'residents.csv', repeat('c', 64), 5),
+  ('b4000000-0000-4000-8000-000000000203', 'b4000000-0000-4000-8000-000000000001', 'credentials',
+   'ready', 'credentials.csv', repeat('d', 64), 5);
 
 -- The rows a validate pass left behind: this is what the worker would apply.
 insert into public.data_import_rows (organization_id, job_id, row_number, status)
-select 'b4000000-0000-4000-8000-000000000001', 'b4000000-0000-4000-8000-000000000201', n, 'valid'
-from generate_series(2, 6) n;
+select 'b4000000-0000-4000-8000-000000000001', job_id, n, 'valid'
+from generate_series(2, 6) n
+cross join (values
+  ('b4000000-0000-4000-8000-000000000201'::uuid),
+  ('b4000000-0000-4000-8000-000000000203'::uuid)
+) as fixture(job_id);
 
 create or replace function pg_temp.act_as(p_profile_id uuid)
 returns void
@@ -180,14 +190,20 @@ select ok(
 ------------------------------------------------------------------------------------------------
 -- The other direction, on the second job
 --
--- The worker's sweep above ran against the whole queue, so it saw both jobs: it declined the one
--- a session held and took this one, which is also what stops the assertion above from passing
--- because the sweep found nothing at all.
+-- The worker's sweep above ran against the whole queue, so it saw all three jobs: it declined
+-- the one a session held and took the stranded apply, which is also what stops the assertion
+-- above from passing because the sweep found nothing at all.
 ------------------------------------------------------------------------------------------------
 select ok(
   (select claimed_by = 'worker' and claim_expires_at > now()
    from public.data_import_jobs where id = 'b4000000-0000-4000-8000-000000000202'),
-  'the same sweep did claim the job nobody was holding -- the skip above was a decision, not an empty queue'
+  'the same sweep did claim the stranded apply nobody was holding -- the skip above was a decision, not an empty queue'
+);
+
+select ok(
+  (select status = 'ready' and claimed_by is null and claim_expires_at is null
+   from public.data_import_jobs where id = 'b4000000-0000-4000-8000-000000000203'),
+  'and it left the completed dry run at ready alone -- a preview nobody applied is not the worker''s to write'
 );
 
 select pg_temp.act_as('b4000000-0000-4000-8000-000000000101');
@@ -213,6 +229,52 @@ select lives_ok(
   $$ select public.record_data_import_chunk(
        'b4000000-0000-4000-8000-000000000202', '[]'::jsonb, null, null) $$,
   'an expired claim is still takeable, so an abandoned run cannot strand the import'
+);
+
+------------------------------------------------------------------------------------------------
+-- The per-row receipt: durable without the per-chunk bookkeeping
+--
+-- The employee importer receipts each applied row individually so a failed receipt strands one
+-- row, not the whole chunk. That only works at scale because record_data_import_row_receipt
+-- honours the same lease but skips the job-wide recount and the data_import_events insert --
+-- the chunk-level receipt at the end of the chunk still does both, exactly once.
+------------------------------------------------------------------------------------------------
+select pg_temp.act_as('b4000000-0000-4000-8000-000000000102');
+
+select throws_ok(
+  $$ select public.record_data_import_row_receipt(
+       'b4000000-0000-4000-8000-000000000202',
+       jsonb_build_object('rowNumber', 2, 'status', 'applied')) $$,
+  '55006',
+  null,
+  'a row receipt honours the lease: another session''s live claim blocks it'
+);
+
+select pg_temp.act_as('b4000000-0000-4000-8000-000000000101');
+
+select lives_ok(
+  $$ select public.record_data_import_row_receipt(
+       'b4000000-0000-4000-8000-000000000202',
+       jsonb_build_object('rowNumber', 2, 'status', 'applied', 'targetTable', 'residents')) $$,
+  'the claim holder can receipt a single applied row'
+);
+
+select ok(
+  (select status = 'applied' and applied_at is not null
+   from public.data_import_rows
+   where job_id = 'b4000000-0000-4000-8000-000000000202' and row_number = 2),
+  'the receipt upserts the ledger row as applied with its applied_at stamp'
+);
+
+-- applied_rows would be 1 if the receipt recounted, and the successful chunk receipt above
+-- wrote exactly one 'chunk_recorded' event for this job -- both must be unchanged.
+select ok(
+  (select j.applied_rows = 0
+     and (select count(*) from public.data_import_events e
+          where e.job_id = j.id) = 1
+   from public.data_import_jobs j
+   where j.id = 'b4000000-0000-4000-8000-000000000202'),
+  'the row receipt neither recounts the job nor writes a per-row event'
 );
 
 select * from finish();
