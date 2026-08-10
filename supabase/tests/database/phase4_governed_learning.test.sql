@@ -1,5 +1,5 @@
 begin;
-select plan(32);
+select plan(36);
 
 select has_table('public','governed_content_revisions','governed revisions exist');
 select has_table('public','policy_audience_rules','effective policy audiences exist');
@@ -90,6 +90,22 @@ reset role; update public.offline_device_registrations set status='revoked',wipe
 select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000303','offline-action-0002',2,0,'progress',now(),'{"percentComplete":50}')->>'outcome','wipe_required','revoked device receives a wipe-required outcome');
 select ok(not has_table_privilege('authenticated','public.offline_sync_receipts','INSERT'),'offline clients cannot forge sync receipts directly');
+
+-- Completion bridge (20260801160000 + 20260810120000): the commit path marks the session
+-- completed before the commit row inserts, so the AFTER INSERT bridge sees the final state,
+-- flips the assignment, and records the mapped training type.
+reset role;
+select set_config('app.privileged_write','on',true);
+insert into public.training_types(id,organization_id,code,name,category) values('44000000-0000-4000-8000-000000000801','44000000-0000-4000-8000-000000000001','P4-RUNTIME','Phase 4 Runtime Annual','annual');
+update public.courses set training_type_id='44000000-0000-4000-8000-000000000801',estimated_duration_minutes=90 where id='44000000-0000-4000-8000-000000000301';
+select set_config('app.privileged_write','off',true);
+select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
+select lives_ok($$select public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0003',2,'{"progress":1,"completionStatus":"completed","successStatus":"passed","sessionTimeSeconds":120}'::jsonb)$$,'completed SCORM commit is accepted in sequence');
+select is((select state from public.learning_runtime_sessions where id='44000000-0000-4000-8000-000000000502'),'completed','completed commit closes the runtime session');
+select is((select status from public.course_assignments where id='44000000-0000-4000-8000-000000000303'),'completed','completion bridge flips the assignment to completed');
+select is((select count(*)::integer from public.employee_training_records where employee_id='44000000-0000-4000-8000-000000000201' and training_type_id='44000000-0000-4000-8000-000000000801'),1,'completion bridge upserts the mapped training record');
+reset role;
+select set_config('app.privileged_write','off',true);
 
 select * from finish();
 rollback;

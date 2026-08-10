@@ -99,7 +99,13 @@ export function useGenerateCourseCurriculum() {
       }
       return data as GenerateCourseCurriculumResult;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["courses"] }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      // A training_plan generation also created a training_plans row (plus its items -- the bare
+      // key prefix-sweeps ["training_plans", "items", id]), and the wizard navigates straight to
+      // the plans list on success.
+      if (data.training_plan_id) queryClient.invalidateQueries({ queryKey: ["training_plans"] });
+    },
   });
 }
 

@@ -162,7 +162,13 @@ export default function TakeCourse() {
     error: blocksErrorDetail,
     refetch: refetchBlocks,
   } = useListCourseBlocks(assignment?.course_version_id);
-  const { data: progress, isLoading: progressLoading } = useGetCourseProgress(assignmentId);
+  const {
+    data: progress,
+    isLoading: progressLoading,
+    isError: progressError,
+    error: progressErrorDetail,
+    refetch: refetchProgress,
+  } = useGetCourseProgress(assignmentId);
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
   const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
   const completionEvidenceLocked = assignment?.status === "completed";
@@ -179,7 +185,12 @@ export default function TakeCourse() {
   const createFeedback = useCreateCourseFeedback();
 
   const [stepIndex, setStepIndex] = useState(0);
-  const [resumed, setResumed] = useState(false);
+  // Id-keyed like videoStateLoadedForId/lessonToolsLoadedForId below: this component instance
+  // survives an in-place assignmentId change (e.g. a global-search jump from one training item
+  // straight to another), so a plain boolean would keep the previous assignment's position and
+  // skip the new one's resume entirely.
+  const [resumedForId, setResumedForId] = useState<string | null>(null);
+  const resumed = resumedForId === assignmentId;
 
   // Per-block video watch state (resume position, no-skip high-water mark, completion).
   // Hydrated once per assignment from course_progress.video_state; the ref mirrors the
@@ -190,11 +201,12 @@ export default function TakeCourse() {
   const [videoStateLoadedForId, setVideoStateLoadedForId] = useState<string | null>(null);
 
   // Tracks the furthest lesson the employee has ever reached, so the lesson-stepper pills below can
-  // allow jumping back to any already-visited lesson while still blocking a jump ahead of it. Starts
-  // at 0 and only grows -- moving stepIndex backward (Previous, or a pill click) never lowers it, so
-  // "visited" stays visited even after navigating away from it. Also picks up the resumed starting
-  // step once progress loads (the effect below re-fires whenever stepIndex changes, including that
-  // one-time jump), so an employee resuming mid-training sees every prior lesson already unlocked.
+  // allow jumping back to any already-visited lesson while still blocking a jump ahead of it. Only
+  // grows while an assignment is open -- moving stepIndex backward (Previous, or a pill click) never
+  // lowers it, so "visited" stays visited even after navigating away from it. The resume effect
+  // seeds it to the landing step when an assignment is adopted, so an employee resuming mid-training
+  // sees every prior lesson already unlocked -- and re-seeds it from scratch when a different
+  // assignment takes over this mounted instance, so one course's unlocks never leak into another.
   const [furthestIndex, setFurthestIndex] = useState(0);
   useEffect(() => {
     setFurthestIndex(f => Math.max(f, stepIndex));
@@ -232,7 +244,7 @@ export default function TakeCourse() {
   // debounced save below then persists them).
   useEffect(() => {
     const key = lessonStorageKey(assignmentId);
-    if (!key || !ownsAssignment || progressLoading || lessonToolsLoadedForId === assignmentId) return;
+    if (!key || !ownsAssignment || progressLoading || progressError || lessonToolsLoadedForId === assignmentId) return;
     setLearningToolsStorageError(null);
     let local: LearningToolsState = { notes: {}, confidence: {} };
     try {
@@ -250,7 +262,7 @@ export default function TakeCourse() {
     learningToolsRef.current = adopted;
     setLessonToolsLoadedForId(assignmentId);
     setLastStudyToolsSavedAt(null);
-  }, [assignmentId, ownsAssignment, progress?.learning_tools, progressLoading, lessonToolsLoadedForId]);
+  }, [assignmentId, ownsAssignment, progress?.learning_tools, progressLoading, progressError, lessonToolsLoadedForId]);
 
   // Keep the ref in step with state; declared before the persistence effects so they
   // always read the current values.
@@ -279,12 +291,12 @@ useEffect(() => {
   // Hydrate video watch state once per assignment (progress refetches after every
   // checkpoint upsert; re-hydrating from those echoes would clobber newer local ticks).
   useEffect(() => {
-    if (!ownsAssignment || videoStateLoadedForId === assignmentId || progressLoading) return;
+    if (!ownsAssignment || videoStateLoadedForId === assignmentId || progressLoading || progressError) return;
     const parsed = sanitizeVideoState(progress?.video_state);
     videoStateRef.current = parsed;
     setVideoState(parsed);
     setVideoStateLoadedForId(assignmentId);
-  }, [assignmentId, ownsAssignment, progress?.video_state, progressLoading, videoStateLoadedForId]);
+  }, [assignmentId, ownsAssignment, progress?.video_state, progressLoading, progressError, videoStateLoadedForId]);
 
   const handleVideoStateChange = (blockId: string, next: VideoBlockState) => {
     if (!canMutateEvidence) return;
@@ -292,22 +304,30 @@ useEffect(() => {
     setVideoState(videoStateRef.current);
   };
 
-  // Resume where the employee left off (course_progress.last_block_id), once,
-  // as soon as blocks are loaded. If there's no progress row yet (brand new
-  // assignment) or the stored block no longer exists, we simply start at 0.
+  // started_at for the checkpoint payload below: adopted from the server row (or cleared) when
+  // an assignment is resumed, then kept fresh as checkpoint refetches echo it back.
+  const progressStartedAtRef = useRef<string | null>(null);
+
+  // Resume where the employee left off (course_progress.last_block_id), once per assignment,
+  // as soon as blocks are loaded. If there's no progress row yet (brand new assignment) or the
+  // stored block no longer exists, we simply start at 0. Adopting an assignment re-seeds
+  // stepIndex/furthestIndex and the started_at ref so an in-place switch to a different
+  // assignment cannot carry the previous one's position or start time into its checkpoints.
+  // A failed progress read is never adopted: resuming at 0 over an unknown server row would
+  // checkpoint over state the employee actually reached.
   useEffect(() => {
-    if (!ownsAssignment || resumed || !blocks || blocks.length === 0 || progressLoading) return;
-    if (progress?.last_block_id) {
-      const idx = blocks.findIndex(b => b.id === progress.last_block_id);
-      if (idx >= 0) setStepIndex(idx);
-    }
-    setResumed(true);
-  }, [ownsAssignment, resumed, blocks, progress, progressLoading]);
+    if (!ownsAssignment || resumed || !blocks || blocks.length === 0 || progressLoading || progressError) return;
+    const lastIdx = progress?.last_block_id ? blocks.findIndex(b => b.id === progress.last_block_id) : -1;
+    const landingIndex = lastIdx >= 0 ? lastIdx : 0;
+    setStepIndex(landingIndex);
+    setFurthestIndex(landingIndex);
+    progressStartedAtRef.current = progress?.started_at ?? null;
+    setResumedForId(assignmentId);
+  }, [assignmentId, ownsAssignment, resumed, blocks, progress, progressLoading, progressError]);
 
   // Single coalesced progress writer: video ticks, notes, step navigation, and tab-hide
   // all funnel through one payload builder so concurrent debounce timers cannot stampede
   // course_progress upserts. Immediate flush on nav / visibility; trailing debounce otherwise.
-  const progressStartedAtRef = useRef<string | null>(null);
   useEffect(() => {
     if (progress?.started_at) progressStartedAtRef.current = progress.started_at;
   }, [progress?.started_at]);
@@ -318,6 +338,7 @@ useEffect(() => {
     }
     if (videoStateLoadedForId !== assignmentId && lessonToolsLoadedForId !== assignmentId) {
       // Still hydrating both stores — skip until at least one is ready so we do not wipe server state.
+      return;
     }
     const block = blocks[stepIndex];
     if (!block) return;
@@ -613,6 +634,21 @@ useEffect(() => {
         <Button asChild className="mt-4" variant="outline">
           <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
         </Button>
+      </div>
+    );
+  }
+
+  // Same rule for the progress row: a failed read is indistinguishable from a brand-new
+  // assignment, and checkpointing over it would overwrite the server-side resume state, video
+  // watch evidence, and notes. The hydration and resume effects above stay parked on error,
+  // so nothing is written until a retry succeeds.
+  if (progressError) {
+    return (
+      <div className="space-y-4">
+        <Button asChild variant="ghost" size="sm">
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
+        </Button>
+        <QueryError what="your training progress" error={progressErrorDetail} onRetry={() => void refetchProgress()} />
       </div>
     );
   }

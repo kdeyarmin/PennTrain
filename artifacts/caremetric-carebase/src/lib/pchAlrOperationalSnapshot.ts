@@ -207,7 +207,7 @@ export function buildPchAlrOperationsQueueFromSnapshot(
       label: "Emergency command items active",
       count: signals.activeEmergencyEvents + signals.emergencyUnaccounted,
       severity: severityFor(signals.activeEmergencyEvents + signals.emergencyUnaccounted),
-      route: "/app/emergency-operations",
+      route: "/app/emergency",
       guidance: "Resolve resident and staff accountability first, then communications, relocation, after-action, and open corrective work.",
     },
     {

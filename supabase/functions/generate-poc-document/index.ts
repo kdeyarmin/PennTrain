@@ -30,6 +30,42 @@ interface CorrectiveActionRow {
   course_assignment_id: string | null;
 }
 
+// Word-wraps text so no drawn line exceeds maxWidth. A single token wider than maxWidth (e.g. a
+// pasted URL) is hard-broken across lines rather than left to overflow -- nothing is ever clipped
+// at the page edge.
+function wrapTextToLines(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
+  const words = (text || "—").split(/\s+/).filter(Boolean);
+  if (words.length === 0) return ["—"];
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    let remaining = word;
+    if (font.widthOfTextAtSize(remaining, size) > maxWidth) {
+      if (line) {
+        lines.push(line);
+        line = "";
+      }
+      while (remaining.length > 1 && font.widthOfTextAtSize(remaining, size) > maxWidth) {
+        let cut = remaining.length - 1;
+        while (cut > 1 && font.widthOfTextAtSize(remaining.slice(0, cut), size) > maxWidth) cut--;
+        lines.push(remaining.slice(0, cut));
+        remaining = remaining.slice(cut);
+      }
+      line = remaining;
+      continue;
+    }
+    const candidate = line ? `${line} ${remaining}` : remaining;
+    if (line && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+      lines.push(line);
+      line = remaining;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 class PdfWriter {
   doc!: PDFDocument;
   font!: PDFFont;
@@ -96,9 +132,14 @@ class PdfWriter {
   }
 
   row(text: string) {
-    this.ensureSpace(14);
-    this.page.drawText(text, { x: MARGIN, y: this.y, size: 9.5, font: this.font, color: rgb(0.15, 0.15, 0.15) });
-    this.y -= 14;
+    // Sub-rows arrive prefixed with two spaces; continuation lines stay aligned under that indent.
+    const indent = text.match(/^ */)![0];
+    const indentWidth = this.font.widthOfTextAtSize(indent, 9.5);
+    for (const line of wrapTextToLines(text.slice(indent.length), PAGE_WIDTH - MARGIN * 2 - indentWidth, this.font, 9.5)) {
+      this.ensureSpace(14);
+      this.page.drawText(line, { x: MARGIN + indentWidth, y: this.y, size: 9.5, font: this.font, color: rgb(0.15, 0.15, 0.15) });
+      this.y -= 14;
+    }
   }
 }
 

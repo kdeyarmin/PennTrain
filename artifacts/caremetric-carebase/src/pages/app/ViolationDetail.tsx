@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetViolation, useGeneratePocDocument, useUpdateViolation } from "@/hooks/useViolations";
 import { PocLifecycleActions } from "@/components/violations/PocLifecycleActions";
 import { usePageTitle } from "@/lib/pageTitle";
@@ -49,9 +49,17 @@ function SeverityBadge({ severity }: { severity: string }) {
 
 export default function ViolationDetail() {
   const { id } = useParams<{ id: string }>();
+  const [location] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Platform-admin violations arrive via global search's /admin/violations/:id mount. There is no
+  // /admin/violations list route and /app/violations excludes platform_admin, so on that mount
+  // send "Back" to a known valid page (currently Alerts).
+  const isPlatformRoute = location.startsWith("/admin/");
+  const backDestination = isPlatformRoute
+    ? { href: "/admin/alerts", label: "Alerts" }
+    : { href: "/app/violations", label: "Violations" };
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
@@ -178,7 +186,7 @@ export default function ViolationDetail() {
       <div className="text-center py-12">
         <p className="text-muted-foreground">Violation not found.</p>
         <Button asChild className="mt-4" variant="outline">
-          <Link href="/app/violations">Back to Violations</Link>
+          <Link href={backDestination.href}>Back to {backDestination.label}</Link>
         </Button>
       </div>
     );
@@ -188,7 +196,7 @@ export default function ViolationDetail() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
-          <Link href="/app/violations"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+          <Link href={backDestination.href}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
         </Button>
       </div>
 

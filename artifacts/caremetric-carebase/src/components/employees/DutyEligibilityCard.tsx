@@ -87,8 +87,11 @@ export function DutyEligibilityCard({
   const reasonTooShort = reason.trim().length < MIN_REASON_LENGTH;
   // End of the selected Pennsylvania calendar day -- not the browser's local midnight.
   const expiryDate = expiresOn ? facilityDateTimeToUtc(expiresOn, "23:59:59") : null;
-  const maxExpiry = facilityDateTimeToUtc(addFacilityCalendarDays(facilityToday(), MAX_OVERRIDE_DAYS), "23:59:59");
-  const expiryTooFar = !!expiryDate && expiryDate.getTime() > maxExpiry.getTime();
+  // The server cap is an instant (now() + 365 days), not a calendar day: facility day +365 at
+  // end of day lands a few hours past it, so compare instants or the last day the form allows
+  // is one the server refuses.
+  const maxExpiry = Date.now() + MAX_OVERRIDE_DAYS * 86_400_000;
+  const expiryTooFar = !!expiryDate && expiryDate.getTime() > maxExpiry;
   const expiryPast = !!expiryDate && expiryDate.getTime() <= Date.now();
   const expiryMissing = !expiresOn;
 

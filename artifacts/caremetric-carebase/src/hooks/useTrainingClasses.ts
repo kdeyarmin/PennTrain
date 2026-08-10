@@ -245,8 +245,11 @@ export function useCorrectCompletedClassAttendee() {
       // nowhere, so class lists kept showing pre-correction totals until an unrelated refetch.
       queryClient.invalidateQueries({ queryKey: ["training_class_attendees", "all-counts"] });
       // A correction adds or removes a training record and its hour bucket, so anything reading
-      // compliance for that employee is stale.
+      // compliance for that employee is stale. correct_completed_class_attendee runs
+      // recalculate_compliance_core, same as complete_training_class above.
       queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
 }

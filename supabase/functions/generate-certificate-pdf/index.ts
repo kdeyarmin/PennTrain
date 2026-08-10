@@ -40,6 +40,12 @@ const PAGE_WIDTH = 792;
 const PAGE_HEIGHT = 612;
 const MARGIN = 60;
 
+// Every facility this app serves is in Pennsylvania (America/New_York) -- dates must render in
+// that zone explicitly rather than the Deno runtime's default (UTC on Supabase), or an evening
+// course completion prints an Issued date one day after the training record's pa_today()-stamped
+// completion_date.
+const PA_TIME_ZONE = "America/New_York";
+
 function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
   let s = str;
   while (s.length > 1 && font.widthOfTextAtSize(s, size) > maxWidth) {
@@ -98,6 +104,7 @@ async function buildCertificatePdf(input: {
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: PA_TIME_ZONE,
     });
 
   let y = PAGE_HEIGHT - MARGIN - 20;

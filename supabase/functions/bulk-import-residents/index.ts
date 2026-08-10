@@ -31,6 +31,10 @@ function sha256Hex(value: string): Promise<string> {
   );
 }
 
+function escapedIlike(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 const REQUIRED_COLUMNS = ["first_name", "last_name", "facility"];
 const DOMAIN = "residents";
 const TARGET = "residents";
@@ -156,7 +160,7 @@ Deno.serve(async (req: Request) => {
       if (!existing) {
         let q = callerClient.from("residents").select("*")
           .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
-          .ilike("first_name", first!).ilike("last_name", last!);
+          .ilike("first_name", escapedIlike(first!)).ilike("last_name", escapedIlike(last!));
         if (dob) q = q.eq("date_of_birth", dob);
         const { data } = await q.limit(1).maybeSingle();
         existing = data;

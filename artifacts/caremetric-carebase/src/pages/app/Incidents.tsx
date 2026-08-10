@@ -1,6 +1,6 @@
 import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import {
   useCreateIncident, type Incident, type IncidentInsert,
 } from "@/hooks/useIncidents";
@@ -102,6 +102,7 @@ export default function Incidents() {
   const [urlState, setUrlState] = useUrlState(INCIDENTS_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
   const page = Math.max(1, Number(urlState.page) || 1);
+  const locationSearch = useSearch();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<IncidentFormData>(emptyForm);
@@ -202,6 +203,14 @@ export default function Incidents() {
     setNotificationRows([]);
     setShowForm(true);
   };
+
+  // ReportEvent.tsx's "Reportable incident" card links here with ?action=add, expecting the Report
+  // Incident dialog to open. Runs once on mount only, mirroring Violations.tsx's ?action=add --
+  // gated on canManage since the report-event chooser is visible to roles that can only view here.
+  useEffect(() => {
+    if (canManage && new URLSearchParams(locationSearch).get("action") === "add") openCreate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = () => {
     const narrative = form.narrative.trim();

@@ -817,12 +817,10 @@ async function processRoomJob(supabase: ReturnType<typeof createClient>, job: Cl
 
   for (const row of ledgerRows) {
     const payload = buildRoomPayload(row.normalized_row);
+    // 'update' takes the same path as 'create': import_apply_room_with_beds upserts on
+    // (facility_id, room_number), the same semantics the browser applier's
+    // create_room_with_beds gives the identical ledger rows.
     const action = normalizeAction(row.proposed_action);
-
-    if (action === "update") {
-      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: update action is not supported for rooms; use create to upsert by room_number`);
-      continue;
-    }
 
     if (action === "skip") {
       await markLedgerRowStatus(supabase, row, {
@@ -853,10 +851,23 @@ async function processRoomJob(supabase: ReturnType<typeof createClient>, job: Cl
       await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
       continue;
     }
+    const roomId = asStringOrNull(rpcResult);
+    // The upsert RPC has no is_active parameter; mirror the browser applier, which
+    // deactivates a room whose CSV row said status=inactive after creating it.
+    if (payload.is_active === false && roomId && UUID_PATTERN.test(roomId)) {
+      const { error: statusErr } = await supabase
+        .from("facility_rooms")
+        .update({ is_active: false })
+        .eq("id", roomId);
+      if (statusErr) {
+        await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: ${statusErr.message}`);
+        continue;
+      }
+    }
     await markLedgerRowStatus(supabase, row, {
       status: "applied",
       targetTable: ROOM_TARGET_TABLE,
-      targetId: asStringOrNull(rpcResult),
+      targetId: roomId,
     });
   }
 
@@ -1043,8 +1054,10 @@ async function processIncidentJob(supabase: ReturnType<typeof createClient>, job
       continue;
     }
 
-    // Use row id as idempotency key when not provided
-    const idempotencyKey = `import:${job.id}:row:${row.id}`;
+    // Same key format as the browser applier (bulk-import-incidents), so rescuing a row the
+    // browser already applied -- but whose chunk receipt failed -- finds the existing
+    // incident instead of inserting a duplicate.
+    const idempotencyKey = `import:${job.id}:${row.row_number}`;
 
     const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_incident", {
       p_organization_id: job.organization_id,
@@ -1055,7 +1068,8 @@ async function processIncidentJob(supabase: ReturnType<typeof createClient>, job
       p_resident_identifier_snapshot: asStringOrNull(payload.resident_identifier_snapshot),
       p_location_detail: asStringOrNull(payload.location_detail),
       p_narrative: asStringOrNull(payload.narrative) ?? "",
-      p_severity: asStringOrNull(payload.severity) ?? "low",
+      // The incidents severity CHECK has no 'low'; 'moderate' is the column default.
+      p_severity: asStringOrNull(payload.severity) ?? "moderate",
       p_idempotency_key: idempotencyKey,
     });
     if (rpcErr) {

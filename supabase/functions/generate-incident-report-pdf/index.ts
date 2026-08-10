@@ -21,10 +21,17 @@ function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+// Every facility this app serves is in Pennsylvania (America/New_York) -- timestamps must render
+// in that zone explicitly rather than the Deno runtime's default (UTC on Supabase), which would
+// print the wrong calendar date for anything that happened in the evening Eastern time.
+const PA_TIME_ZONE = "America/New_York";
+
 function fmtDateTime(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: PA_TIME_ZONE });
 }
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface StaffRow { involvement_type: string; employees: { first_name: string; last_name: string } | null }
 interface NotificationRow {
@@ -32,6 +39,42 @@ interface NotificationRow {
   notification_method: string | null; recipient: string | null; reference_number: string | null;
 }
 interface CorrectiveActionRow { description: string; due_date: string; completed_date: string | null; status: string; owner_name: string | null }
+
+// Word-wraps text so no drawn line exceeds maxWidth. A single token wider than maxWidth (e.g. a
+// pasted URL) is hard-broken across lines rather than left to overflow -- nothing is ever clipped
+// at the page edge.
+function wrapTextToLines(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
+  const words = (text || "—").split(/\s+/).filter(Boolean);
+  if (words.length === 0) return ["—"];
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    let remaining = word;
+    if (font.widthOfTextAtSize(remaining, size) > maxWidth) {
+      if (line) {
+        lines.push(line);
+        line = "";
+      }
+      while (remaining.length > 1 && font.widthOfTextAtSize(remaining, size) > maxWidth) {
+        let cut = remaining.length - 1;
+        while (cut > 1 && font.widthOfTextAtSize(remaining.slice(0, cut), size) > maxWidth) cut--;
+        lines.push(remaining.slice(0, cut));
+        remaining = remaining.slice(cut);
+      }
+      line = remaining;
+      continue;
+    }
+    const candidate = line ? `${line} ${remaining}` : remaining;
+    if (line && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+      lines.push(line);
+      line = remaining;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 
 class PdfWriter {
   doc!: PDFDocument;
@@ -99,9 +142,14 @@ class PdfWriter {
   }
 
   row(text: string) {
-    this.ensureSpace(14);
-    this.page.drawText(text, { x: MARGIN, y: this.y, size: 9.5, font: this.font, color: rgb(0.15, 0.15, 0.15) });
-    this.y -= 14;
+    // Sub-rows arrive prefixed with two spaces; continuation lines stay aligned under that indent.
+    const indent = text.match(/^ */)![0];
+    const indentWidth = this.font.widthOfTextAtSize(indent, 9.5);
+    for (const line of wrapTextToLines(text.slice(indent.length), PAGE_WIDTH - MARGIN * 2 - indentWidth, this.font, 9.5)) {
+      this.ensureSpace(14);
+      this.page.drawText(line, { x: MARGIN + indentWidth, y: this.y, size: 9.5, font: this.font, color: rgb(0.15, 0.15, 0.15) });
+      this.y -= 14;
+    }
   }
 }
 
@@ -228,7 +276,8 @@ Deno.serve(async (req: Request) => {
   const { data: incident, error: incidentError } = await callerClient
     .from("incidents")
     .select(
-      "id, organization_id, incident_type, severity, status, occurred_at, reported_at, resident_identifier, " +
+      "id, organization_id, facility_id, incident_type, severity, status, occurred_at, reported_at, " +
+        "resident_id, resident_identifier, resident_identifier_snapshot, " +
         "location_detail, narrative, investigation_findings, root_cause, final_report_submitted_at, " +
         "organizations(name), facilities(name)",
     )
@@ -237,22 +286,41 @@ Deno.serve(async (req: Request) => {
   if (incidentError) return json(req, { error: incidentError.message }, 500);
   if (!incident) return json(req, { error: "Incident not found" }, 404);
 
-  const [staffRes, notificationsRes, correctiveActionsRes] = await Promise.all([
+  // resident_identifier holds a residents.id as text whenever the incident was tied to a real
+  // resident (dropdown pick, or RPC-created) -- the human-readable name lives in the snapshot
+  // column or on the resident row itself, so resolve it rather than printing a raw UUID on a
+  // surveyor-facing document. UUID shape is guarded before querying a uuid column, and the lookup
+  // is scoped to the incident's own facility, matching generate-incident-state-form-pdf.
+  const residentLookupId = incident.resident_id ??
+    (incident.resident_identifier && UUID_PATTERN.test(incident.resident_identifier)
+      ? incident.resident_identifier
+      : null);
+
+  const [staffRes, notificationsRes, correctiveActionsRes, residentRes] = await Promise.all([
     callerClient.from("incident_staff_involved").select("involvement_type, employees(first_name, last_name)").eq("incident_id", incidentId),
     callerClient.from("incident_notifications").select("notification_type, due_at, completed_at, status, notification_method, recipient, reference_number").eq("incident_id", incidentId),
     callerClient.from("corrective_actions").select("description, due_date, completed_date, status, owner_name").eq("incident_id", incidentId),
+    residentLookupId
+      ? callerClient.from("residents").select("first_name, last_name").eq("id", residentLookupId).eq("facility_id", incident.facility_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
   // A failed related-record query must fail the request -- otherwise a transient error
   // yields a "successful" PDF silently missing staff, notifications, or corrective
   // actions, and that incomplete document reads as authoritative survey evidence.
-  const relatedError = staffRes.error ?? notificationsRes.error ?? correctiveActionsRes.error;
+  const relatedError = staffRes.error ?? notificationsRes.error ?? correctiveActionsRes.error ?? residentRes.error;
   if (relatedError) return json(req, { error: relatedError.message }, 500);
   const { data: staff } = staffRes;
   const { data: notifications } = notificationsRes;
   const { data: correctiveActions } = correctiveActionsRes;
+  const { data: matchedResident } = residentRes;
 
   const organizationName = (incident.organizations as unknown as { name: string } | null)?.name ?? "";
   const facilityName = (incident.facilities as unknown as { name: string } | null)?.name ?? "";
+  // Falls back to the name snapshot (backfilled by validate_incident_resident_scope) when the
+  // resident row is gone, and to the raw identifier only for legacy free-text rows.
+  const residentDisplay = matchedResident
+    ? `${matchedResident.last_name}, ${matchedResident.first_name}`
+    : incident.resident_identifier_snapshot ?? incident.resident_identifier;
 
   const pdfBytes = await buildIncidentReportPdf({
     organizationName,
@@ -262,7 +330,7 @@ Deno.serve(async (req: Request) => {
     status: incident.status,
     occurredAt: incident.occurred_at,
     reportedAt: incident.reported_at,
-    residentIdentifier: incident.resident_identifier,
+    residentIdentifier: residentDisplay,
     locationDetail: incident.location_detail,
     narrative: incident.narrative,
     investigationFindings: incident.investigation_findings,
