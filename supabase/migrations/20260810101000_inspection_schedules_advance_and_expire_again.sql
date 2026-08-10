@@ -106,6 +106,11 @@ begin
 end;
 $$;
 
+-- Trigger functions fire only via the trigger mechanism; per 20260801065214, they must
+-- not sit on the anon-reachable SECURITY DEFINER surface that tenant_isolation_invariants
+-- ratchets at 20.
+revoke all on function public.inspection_event_rolls_item_forward() from public, anon, authenticated;
+
 drop trigger if exists inspection_event_rolls_item_forward on public.inspection_events;
 create trigger inspection_event_rolls_item_forward
   after insert on public.inspection_events
