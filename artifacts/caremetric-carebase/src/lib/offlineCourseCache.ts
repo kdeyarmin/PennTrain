@@ -175,12 +175,15 @@ export async function markOfflineProgressAttempt(
   // Only the percent that was actually sent is synced; progress queued while the
   // request was in flight still needs its own sync. A conflict means the server
   // moved past our base version, so the pending percent must retry as a fresh
-  // action against the server's version rather than replay the rejected receipt.
+  // action against the server's version rather than replay the rejected receipt —
+  // and the conflict receipt already consumed this (device, sequence) in the
+  // append-only receipt ledger, so the retry needs a new sequence too.
   const conflicted = outcome === "conflict" && existing.percentComplete > existing.syncedPercent;
   const checkpoint: OfflineProgressCheckpoint = {
     ...existing,
     syncedPercent: applied ? Math.max(existing.syncedPercent, sentPercent) : existing.syncedPercent,
     baseVersion: applied || conflicted ? serverVersion : existing.baseVersion,
+    clientSequence: conflicted ? existing.clientSequence + 1 : existing.clientSequence,
     idempotencyKey: conflicted ? crypto.randomUUID() : existing.idempotencyKey,
     lastOutcome: outcome,
     lastAttemptedAt: new Date().toISOString(),

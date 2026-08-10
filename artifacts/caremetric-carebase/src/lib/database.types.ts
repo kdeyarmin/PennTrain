@@ -37508,6 +37508,7 @@ export type Database = {
           p_building_name: string
           p_facility_id: string
           p_gender_restriction?: string
+          p_is_active?: boolean
           p_licensed_capacity?: number
           p_room_number: string
           p_room_type: string
@@ -39017,6 +39018,7 @@ export type Database = {
           p_building_name: string
           p_facility_id: string
           p_gender_restriction?: string
+          p_is_active?: boolean
           p_organization_id: string
           p_room_number: string
           p_room_type: string

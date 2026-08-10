@@ -93,7 +93,10 @@ function paDayStart(day: string): string {
 // `from` is the instant the day begins, `through` the instant it ends (the next day's ET
 // midnight). UI-created work items stamp due_at at exactly `through` of their due day, so
 // deadline windows must keep `through` inclusive (lte) and `from` exclusive (gt) -- an
-// item stamped at `from` was due the day before.
+// item stamped at `from` was due the day before. This matches how the app writes
+// work_items.due_at: CreateWorkItemDialog and ValueCenter stamp a day-precision
+// deadline as facilityDayBounds(day).through, the exact next-midnight instant, so
+// midnight instants are end-of-previous-day markers, not start-of-day deadlines.
 function paDayBounds(day: string): { from: string; through: string } {
   return { from: paDayStart(day), through: paDayStart(addDays(day, 1)) };
 }

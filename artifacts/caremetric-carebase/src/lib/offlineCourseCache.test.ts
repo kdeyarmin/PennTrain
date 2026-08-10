@@ -104,7 +104,7 @@ describe("markOfflineProgressAttempt sync receipts", () => {
     expect(receipt.syncedPercent).toBe(80);
   });
 
-  it("rotates the idempotency key and adopts the server version on conflict with pending progress", async () => {
+  it("rotates the idempotency key, sequence, and base version on conflict with pending progress", async () => {
     const queued = await queueOfflineProgress({ assignmentId: "a-3", percentComplete: 55, baseVersion: 2 });
 
     const receipt = await markOfflineProgressAttempt("a-3", "conflict", 9, queued.percentComplete);
@@ -112,6 +112,9 @@ describe("markOfflineProgressAttempt sync receipts", () => {
     expect(receipt.syncedPercent).toBe(0);
     expect(receipt.baseVersion).toBe(9);
     expect(receipt.idempotencyKey).not.toBe(queued.idempotencyKey);
+    // The conflict receipt consumed (device, clientSequence) in the unique receipt
+    // ledger; a retry on the same sequence would violate that constraint server-side.
+    expect(receipt.clientSequence).toBe(queued.clientSequence + 1);
     expect(receipt.lastOutcome).toBe("conflict");
   });
 
@@ -122,6 +125,7 @@ describe("markOfflineProgressAttempt sync receipts", () => {
     const receipt = await markOfflineProgressAttempt("a-4", "conflict", 3, 30);
 
     expect(receipt.idempotencyKey).toBe(queued.idempotencyKey);
+    expect(receipt.clientSequence).toBe(queued.clientSequence);
     expect(receipt.baseVersion).toBe(2);
   });
 });

@@ -1,5 +1,5 @@
 begin;
-select plan(36);
+select plan(39);
 
 select has_table('public','governed_content_revisions','governed revisions exist');
 select has_table('public','policy_audience_rules','effective policy audiences exist');
@@ -86,6 +86,18 @@ select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000303','offline-action-0001',1,0,'progress',now(),'{"percentComplete":25}')->>'outcome','applied','first offline progress action applies');
 select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000303','offline-action-0001',1,0,'progress',now(),'{"percentComplete":25}')->>'outcome','duplicate','offline replay is visible and cannot duplicate progress');
 select is((select count(*)::integer from public.offline_sync_receipts where device_id='44000000-0000-4000-8000-000000000701'),1,'one canonical offline receipt is retained');
+
+-- Receipt sequences are scoped per (device, assignment): the client numbers each
+-- assignment's stream from 1, so a second course's first sync must not collide with the
+-- first course's receipt, and a lost conflict answer must replay as a conflict rather
+-- than be absorbed as 'duplicate' (20260810150000).
+reset role;
+insert into public.course_assignments(id,organization_id,facility_id,employee_id,course_id,course_version_id,status) values('44000000-0000-4000-8000-000000000304','44000000-0000-4000-8000-000000000001','44000000-0000-4000-8000-000000000011','44000000-0000-4000-8000-000000000201','44000000-0000-4000-8000-000000000301','44000000-0000-4000-8000-000000000302','assigned');
+select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
+select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000304','offline-action-0003',1,0,'progress',now(),'{"percentComplete":10}')->>'outcome','applied','a second assignment''s sequence 1 does not collide with the first''s');
+select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000304','offline-action-0004',2,999,'progress',now(),'{"percentComplete":20}')->>'outcome','conflict','a stale base version conflicts');
+select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000304','offline-action-0004',2,999,'progress',now(),'{"percentComplete":20}')->>'outcome','conflict','a lost conflict answer replays as conflict, not as applied');
+
 reset role; update public.offline_device_registrations set status='revoked',wipe_required_at=now() where id='44000000-0000-4000-8000-000000000701';
 select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000303','offline-action-0002',2,0,'progress',now(),'{"percentComplete":50}')->>'outcome','wipe_required','revoked device receives a wipe-required outcome');

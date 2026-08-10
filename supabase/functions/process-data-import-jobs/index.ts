@@ -846,24 +846,13 @@ async function processRoomJob(supabase: ReturnType<typeof createClient>, job: Cl
       p_room_type: payload.room_type,
       p_bed_count: payload.bed_count,
       p_gender_restriction: "none",
+      p_is_active: typeof payload.is_active === "boolean" ? payload.is_active : null,
     });
     if (rpcErr) {
       await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
       continue;
     }
     const roomId = asStringOrNull(rpcResult);
-    // The upsert RPC has no is_active parameter; mirror the browser applier, which
-    // deactivates a room whose CSV row said status=inactive after creating it.
-    if (payload.is_active === false && roomId && UUID_PATTERN.test(roomId)) {
-      const { error: statusErr } = await supabase
-        .from("facility_rooms")
-        .update({ is_active: false })
-        .eq("id", roomId);
-      if (statusErr) {
-        await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: ${statusErr.message}`);
-        continue;
-      }
-    }
     await markLedgerRowStatus(supabase, row, {
       status: "applied",
       targetTable: ROOM_TARGET_TABLE,
