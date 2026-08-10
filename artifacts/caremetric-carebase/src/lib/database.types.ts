@@ -40065,6 +40065,10 @@ export type Database = {
         }
         Returns: Json
       }
+      record_data_import_row_receipt: {
+        Args: { p_job_id: string; p_row: Json }
+        Returns: Json
+      }
       record_emergency_accountability: {
         Args: {
           p_assigned_employee_id?: string

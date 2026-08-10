@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(17);
 
 -- BACKLOG.md G34. Two appliers, one ledger.
 --
@@ -229,6 +229,52 @@ select lives_ok(
   $$ select public.record_data_import_chunk(
        'b4000000-0000-4000-8000-000000000202', '[]'::jsonb, null, null) $$,
   'an expired claim is still takeable, so an abandoned run cannot strand the import'
+);
+
+------------------------------------------------------------------------------------------------
+-- The per-row receipt: durable without the per-chunk bookkeeping
+--
+-- The employee importer receipts each applied row individually so a failed receipt strands one
+-- row, not the whole chunk. That only works at scale because record_data_import_row_receipt
+-- honours the same lease but skips the job-wide recount and the data_import_events insert --
+-- the chunk-level receipt at the end of the chunk still does both, exactly once.
+------------------------------------------------------------------------------------------------
+select pg_temp.act_as('b4000000-0000-4000-8000-000000000102');
+
+select throws_ok(
+  $$ select public.record_data_import_row_receipt(
+       'b4000000-0000-4000-8000-000000000202',
+       jsonb_build_object('rowNumber', 2, 'status', 'applied')) $$,
+  '55006',
+  null,
+  'a row receipt honours the lease: another session''s live claim blocks it'
+);
+
+select pg_temp.act_as('b4000000-0000-4000-8000-000000000101');
+
+select lives_ok(
+  $$ select public.record_data_import_row_receipt(
+       'b4000000-0000-4000-8000-000000000202',
+       jsonb_build_object('rowNumber', 2, 'status', 'applied', 'targetTable', 'residents')) $$,
+  'the claim holder can receipt a single applied row'
+);
+
+select ok(
+  (select status = 'applied' and applied_at is not null
+   from public.data_import_rows
+   where job_id = 'b4000000-0000-4000-8000-000000000202' and row_number = 2),
+  'the receipt upserts the ledger row as applied with its applied_at stamp'
+);
+
+-- applied_rows would be 1 if the receipt recounted, and the successful chunk receipt above
+-- wrote exactly one 'chunk_recorded' event for this job -- both must be unchanged.
+select ok(
+  (select j.applied_rows = 0
+     and (select count(*) from public.data_import_events e
+          where e.job_id = j.id) = 1
+   from public.data_import_jobs j
+   where j.id = 'b4000000-0000-4000-8000-000000000202'),
+  'the row receipt neither recounts the job nor writes a per-row event'
 );
 
 select * from finish();

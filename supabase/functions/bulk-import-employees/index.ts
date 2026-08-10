@@ -386,10 +386,12 @@ Deno.serve(async (req: Request) => {
     // end of the chunk meant a failed receipt left every row of the chunk written but
     // unreceipted, and a retry then re-inserted them all -- silently, for rows with neither
     // employee_number nor email, since duplicate matching has nothing to match on. One RPC
-    // per applied row bounds the exposure to the single row whose receipt fails below.
-    const { error: receiptError } = await callerClient.rpc("record_data_import_chunk", {
+    // per applied row bounds the exposure to the single row whose receipt fails below; the
+    // row-receipt RPC skips the job-wide recount and event insert, which stay with the
+    // chunk-level receipt at the end.
+    const { error: receiptError } = await callerClient.rpc("record_data_import_row_receipt", {
       p_job_id: jobId,
-      p_rows: [{
+      p_row: {
         rowNumber,
         sourceRow: row,
         normalizedRow: normalized,
@@ -400,9 +402,7 @@ Deno.serve(async (req: Request) => {
         beforeSnapshot: existingEmployee,
         errors: [],
         warnings,
-      }],
-      p_job_status: "applying",
-      p_last_error: null,
+      },
     });
     if (receiptError) {
       return json(req, { error: `Row ${rowNumber} was applied but its import receipt failed: ${receiptError.message}`, job_id: jobId }, 500);

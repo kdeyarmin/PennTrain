@@ -599,7 +599,8 @@ function csvEscape(value: string): string {
   // (e.g. "-5") alone so numeric columns still parse -- the same guard as the app's
   // canonical csvEscape (src/lib/csv.ts), which Deno functions cannot import.
   const needsFormulaGuard = /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s);
-  return `"${(needsFormulaGuard ? `'${s}` : s).replaceAll('"', '""')}"`;
+  const guarded = needsFormulaGuard ? `'${s}` : s;
+  return /[",\n\r]/.test(guarded) ? `"${guarded.replaceAll('"', '""')}"` : guarded;
 }
 
 function rowsToCsv(headers: string[], rows: string[][]): string {
