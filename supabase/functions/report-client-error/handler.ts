@@ -13,6 +13,8 @@ const ALLOWED_SOURCES = new Set([
 
 const HOURLY_LIMIT = 30;
 
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -138,7 +140,13 @@ export async function handleReportClientErrorRequest(req: Request): Promise<Resp
     component: payload.component ? sanitizeClientReportValue(payload.component, 240) : null,
     online: payload.online === true,
     visibility: sanitizeClientReportValue(payload.visibility, 20),
-    correlation_id: sanitizeClientReportValue(payload.correlationId, 80),
+    // The correlation id is a caller-minted random UUID, not PII -- the sanitizer's UUID
+    // redaction would rewrite it to "[redacted-id]" on every report, destroying the only
+    // handle that ties a client report to a server-side trace. Strict whole-string UUID
+    // validation keeps free text out of the log line; anything else gets a server id.
+    correlation_id: typeof payload.correlationId === "string" && UUID_SHAPE.test(payload.correlationId)
+      ? payload.correlationId.toLowerCase()
+      : crypto.randomUUID(),
     observed_at: new Date().toISOString(),
   };
 

@@ -62,6 +62,42 @@ function addDays(date: string, days: number) {
   return value.toISOString().slice(0, 10);
 }
 
+const PA_OFFSET_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+// The UTC instant a Pennsylvania calendar day begins. `${day}T00:00:00Z` is NOT that
+// instant -- it reads the day as UTC midnight, 20:00 the previous ET evening -- so using
+// it to bound timestamptz deadline columns shifts both window edges into the wrong PA
+// day. Iterates twice so days beside a DST transition land on the correct offset.
+function paDayStart(day: string): string {
+  const [year, month, dayOfMonth] = day.split("-").map(Number);
+  let utcMs = Date.UTC(year, month - 1, dayOfMonth);
+  for (let i = 0; i < 2; i++) {
+    const parts = PA_OFFSET_FORMAT.formatToParts(new Date(utcMs));
+    const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? Number.NaN);
+    const offsetMs = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second")) - utcMs;
+    utcMs = Date.UTC(year, month - 1, dayOfMonth) - offsetMs;
+  }
+  return new Date(utcMs).toISOString();
+}
+
+// UTC instants bounding one PA calendar day, the edge twin of the app's facilityDayBounds:
+// `from` is the instant the day begins, `through` the instant it ends (the next day's ET
+// midnight). UI-created work items stamp due_at at exactly `through` of their due day, so
+// deadline windows must keep `through` inclusive (lte) and `from` exclusive (gt) -- an
+// item stamped at `from` was due the day before.
+function paDayBounds(day: string): { from: string; through: string } {
+  return { from: paDayStart(day), through: paDayStart(addDays(day, 1)) };
+}
+
 async function sha256(value: unknown) {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -235,7 +271,7 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
     queryOrThrow(client.from("employee_training_records").select("id,employee_id,training_type_id,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).order("due_date", { ascending: true }).limit(100), "training due dates"),
     queryOrThrow(client.from("employee_credentials").select("id,employee_id,credential_type,credential_label,status,expiration_date").eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through).order("expiration_date", { ascending: true }).limit(100), "credential expirations"),
     queryOrThrow(client.from("resident_compliance_items").select("id,resident_id,item_type,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).order("due_date", { ascending: true }).limit(100), "resident compliance due dates"),
-    queryOrThrow(client.from("work_items").select("id,title,state,priority,due_at,source_type").eq("facility_id", facilityId).neq("state", "closed").gte("due_at", `${asOf}T00:00:00Z`).lte("due_at", `${through}T23:59:59Z`).order("due_at", { ascending: true }).limit(100), "work item due dates"),
+    queryOrThrow(client.from("work_items").select("id,title,state,priority,due_at,source_type").eq("facility_id", facilityId).neq("state", "closed").gt("due_at", paDayBounds(asOf).from).lte("due_at", paDayBounds(through).through).order("due_at", { ascending: true }).limit(100), "work item due dates"),
     queryOrThrow(client.from("inspection_items").select("id,label,status,next_due_date,item_type").eq("facility_id", facilityId).eq("is_active", true).gte("next_due_date", asOf).lte("next_due_date", through).order("next_due_date", { ascending: true }).limit(100), "inspection due dates"),
   ]) as QueryRow[][];
   const [employees, residents] = await Promise.all([
@@ -409,7 +445,7 @@ async function collectPocDraft(client: any, facilityId: string, violationId: str
 async function collectEffectivenessReviews(client: any, facilityId: string, asOf: string) {
   const rows = await queryOrThrow(
     client.from("work_items").select("id,title,description,state,priority,source_type,source_id,closed_at,effectiveness_review_due_at,effectiveness_result,root_cause,recurrence_key,recurrence_number")
-      .eq("facility_id", facilityId).eq("state", "closed").is("effectiveness_result", null).not("effectiveness_review_due_at", "is", null).lte("effectiveness_review_due_at", `${asOf}T23:59:59Z`).limit(100),
+      .eq("facility_id", facilityId).eq("state", "closed").is("effectiveness_result", null).not("effectiveness_review_due_at", "is", null).lte("effectiveness_review_due_at", paDayBounds(asOf).through).limit(100),
     "effectiveness reviews",
   ) as any[];
   return {

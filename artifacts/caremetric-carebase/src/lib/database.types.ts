@@ -38971,6 +38971,46 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      import_apply_resident_contact: {
+        Args: {
+          p_contact_id?: string
+          p_job_id: string
+          p_payload: Json
+          p_resident_id: string
+        }
+        Returns: {
+          active: boolean
+          address_line1: string | null
+          address_line2: string | null
+          alternate_phone: string | null
+          city: string | null
+          contact_type: string
+          created_at: string
+          created_by: string | null
+          email: string | null
+          facility_id: string
+          id: string
+          is_primary: boolean
+          legal_authority: string | null
+          name: string
+          notes: string | null
+          organization_id: string
+          phone: string | null
+          postal_code: string | null
+          receives_notifications: boolean
+          relationship: string | null
+          resident_id: string
+          sort_order: number
+          state: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_contacts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       import_apply_room_with_beds: {
         Args: {
           p_bed_count: number

@@ -113,8 +113,12 @@ export function handlePhoneUpgrade(
     rejectUpgrade(socket, 503, "Too many pending streams");
     return;
   }
-  deps.phone.unclaimedSockets.count += 1;
   wss.handleUpgrade(req, socket, head, (ws) => {
+    // Take the slot inside the callback: on a malformed handshake ws
+    // aborts WITHOUT surfacing a socket, so a slot taken any earlier
+    // would never be released. handleUpgrade runs the callback
+    // synchronously, so the cap check above cannot be raced past.
+    deps.phone.unclaimedSockets.count += 1;
     attachPhoneCall(deps, null, ws);
   });
 }
@@ -136,7 +140,11 @@ function attachPhoneCall(
   let trackerKey: string | null = null;
   let trackerFinished = false;
   let streamSid = "";
-  let claimInFlight = false;
+  // A URL-claimed call already spent its one claim, so a "start" frame
+  // arriving while startSession is still awaiting its meter writes must
+  // not claim the sid again (the store would answer null and a live call
+  // would be closed as invalid).
+  let claimInFlight = claimed !== null;
   let markCounter = 0;
   let lastBackpressureWarnAt = 0;
   const markWaiters = new Map<string, () => void>();
@@ -159,22 +167,39 @@ function attachPhoneCall(
   let budgetSpan: SessionSpan | null = null;
   let meteredFrom = "";
 
+  // Metering is best-effort and the store may be Postgres: a rejected
+  // write here must be logged, not left to crash the process as an
+  // unhandled rejection. Ended spans are nulled so each is closed once.
+  const endSpans = (): void => {
+    if (callerSpan) {
+      void deps.usage.phoneCallers
+        .sessionEnded(meteredFrom, callerSpan)
+        .catch(logUsageMeterError);
+      callerSpan = null;
+    }
+    if (budgetSpan) {
+      void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
+      budgetSpan = null;
+    }
+  };
+
   const finishTracker = (): void => {
     if (trackerKey && !trackerFinished) {
       trackerFinished = true;
       deps.tracker.finish(trackerKey, "phone");
-      // Metering is best-effort and the store may be Postgres: a rejected
-      // write here must be logged, not left to crash the process as an
-      // unhandled rejection.
-      if (callerSpan) {
-        void deps.usage.phoneCallers
-          .sessionEnded(meteredFrom, callerSpan)
-          .catch(logUsageMeterError);
-      }
-      if (budgetSpan) {
-        void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
-      }
+      endSpans();
     }
+  };
+
+  // The caller can hang up while startSession's meter writes are still in
+  // flight: the ws "close" handler runs finishTracker before the spans
+  // exist, so a span landing after that must be ended here or it stays
+  // open forever, billed as live by both meters — and no Realtime session
+  // may be opened for a call that is already over.
+  const abandonIfCallEnded = (): boolean => {
+    if (!trackerFinished && ws.readyState === ws.OPEN) return false;
+    endSpans();
+    return true;
   };
 
   const startSession = async (pending: PendingCall): Promise<void> => {
@@ -189,7 +214,9 @@ function attachPhoneCall(
     deps.tracker.start(trackerKey, "phone");
     meteredFrom = pending.from;
     callerSpan = await deps.usage.phoneCallers.sessionStarted(meteredFrom);
+    if (abandonIfCallEnded()) return;
     budgetSpan = await deps.usage.dailyBudget.sessionStarted();
+    if (abandonIfCallEnded()) return;
     session = new PhoneVoiceSession({
       config: deps.config,
       registry: deps.registry,
@@ -203,6 +230,9 @@ function attachPhoneCall(
         ws.close(1000, reason);
       },
     });
+    // A claimed call whose "start" frame raced the awaits above has no
+    // later chance to disarm the deadline — clear it with the session up.
+    clearTimeout(startDeadline);
   };
 
   const startDeadline = setTimeout(() => {

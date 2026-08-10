@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `77a0c5cb` (2026-08-07), reviewed on branch `cursor/comprehensive-app-review-452c`: addressed Codex review on #462 (G265–G268) — audit manifest end-at-export, facility agenda times, investigation dialog remount-only init, leap-year-safe annual review. Five review families remain exhausted for this cut (remaining `86_400_000` uses are intentional wall-clock trial/entitlement buffers). SG-2 counsel-cleared option 2; templates seeded; activation remains.
+**Last verified against main:** `9919643` (2026-08-10), reviewed on branch `claude/app-processes-review-wbedp1`: sixth full-app review pass — 54 adversarially-verified defects fixed (course-progress wipe + SCORM bridge/idempotency, import pipeline vocabulary/idempotency/grants, dry-run auto-apply, binder/PDF local dates + sandbox exclusion, stale query invalidations, dead routes and admin-mount bounces, ResetPassword recovery gating). Standing gap inherited from #462: its stamp named pre-squash `77a0c5cb`, which the squash merge could not preserve, so this check has been red on main since. This stamp names this branch's first review commit; merge this PR with a merge commit to keep it a main ancestor, or restamp in a BACKLOG-only follow-up after a squash. No register rows opened or retired — review-pass fixes, not scheduled work.
 
 **Owner:** the owner-operator (single person, platform admin)
 

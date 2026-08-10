@@ -6,7 +6,7 @@
 // socket, matching the other suites.
 
 import crypto from "node:crypto";
-import type http from "node:http";
+import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
@@ -395,5 +395,47 @@ describe("phone front door limits", () => {
       after.on("open", () => resolve(0));
     });
     expect(afterStatus).toBe(0);
+  });
+
+  it("does not count aborted handshakes against the unclaimed-socket cap", async () => {
+    const base = await startServer(BASE_CONFIG);
+    const url = new URL(base);
+
+    // A malformed Sec-WebSocket-Key makes ws abort the handshake (400)
+    // without ever surfacing a socket; the slot must not stay consumed.
+    const abortedHandshake = (): Promise<number> =>
+      new Promise((resolve) => {
+        const req = http.request({
+          host: url.hostname,
+          port: url.port,
+          path: "/phone/stream",
+          headers: {
+            Connection: "Upgrade",
+            Upgrade: "websocket",
+            "Sec-WebSocket-Version": "13",
+            "Sec-WebSocket-Key": "garbage",
+          },
+          agent: false,
+        });
+        req.on("response", (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        });
+        req.on("error", () => resolve(-1));
+        req.end();
+      });
+
+    for (let i = 0; i < MAX_UNCLAIMED_PHONE_SOCKETS; i += 1) {
+      expect(await abortedHandshake()).toBe(400);
+    }
+
+    // The ticket-less path — the documented Twilio contract — must still
+    // accept a well-formed stream, not 503 on leaked slots.
+    const ws = connectStream(base);
+    const status = await new Promise<number>((resolve) => {
+      ws.on("unexpected-response", (_req, res) => resolve(res.statusCode ?? 0));
+      ws.on("open", () => resolve(0));
+    });
+    expect(status).toBe(0);
   });
 });
