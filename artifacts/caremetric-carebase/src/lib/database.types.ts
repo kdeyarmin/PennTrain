@@ -39897,6 +39897,10 @@ export type Database = {
         Returns: undefined
       }
       recalculate_incident_notifications: { Args: never; Returns: undefined }
+      recalculate_inspection_item_compliance: {
+        Args: { p_inspection_item_id?: string }
+        Returns: undefined
+      }
       recalculate_org_compliance: {
         Args: { p_organization_id: string }
         Returns: undefined

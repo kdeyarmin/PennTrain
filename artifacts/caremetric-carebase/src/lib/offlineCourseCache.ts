@@ -166,15 +166,22 @@ export async function markOfflineProgressAttempt(
   assignmentId: string,
   outcome: string,
   serverVersion: number,
+  sentPercent: number,
 ) {
   const db = await openDatabase();
   const existing = await request(db.transaction(PROGRESS_STORE).objectStore(PROGRESS_STORE).get(assignmentId)) as OfflineProgressCheckpoint | undefined;
   if (!existing) throw new Error("Offline progress checkpoint is unavailable");
   const applied = outcome === "applied" || outcome === "duplicate";
+  // Only the percent that was actually sent is synced; progress queued while the
+  // request was in flight still needs its own sync. A conflict means the server
+  // moved past our base version, so the pending percent must retry as a fresh
+  // action against the server's version rather than replay the rejected receipt.
+  const conflicted = outcome === "conflict" && existing.percentComplete > existing.syncedPercent;
   const checkpoint: OfflineProgressCheckpoint = {
     ...existing,
-    syncedPercent: applied ? existing.percentComplete : existing.syncedPercent,
-    baseVersion: applied ? serverVersion : existing.baseVersion,
+    syncedPercent: applied ? Math.max(existing.syncedPercent, sentPercent) : existing.syncedPercent,
+    baseVersion: applied || conflicted ? serverVersion : existing.baseVersion,
+    idempotencyKey: conflicted ? crypto.randomUUID() : existing.idempotencyKey,
     lastOutcome: outcome,
     lastAttemptedAt: new Date().toISOString(),
   };

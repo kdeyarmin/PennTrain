@@ -2,7 +2,7 @@
 -- individually assignable, duration-aligned, and safely crosswalked.
 
 begin;
-select plan(30);
+select plan(31);
 
 select has_column(
   'public',
@@ -496,6 +496,65 @@ select is(
   'the database publication audit reports no comprehensive catalog issues'
 );
 select set_config('app.privileged_write', 'off', true);
+
+-- The platform catalog speaks the product's dialect: the STORED facility-type code is 'ALR', but
+-- every learner- or admin-facing string says 'ALF' (CLAUDE.md). 20260805170000 renamed the
+-- 'ALR '-prefixed labels and 20260810110000 caught the rest ('ALR:' titles, mid-string tokens,
+-- descriptions, quiz text seeded from pre-rename titles, specialty training types). This ratchet
+-- is what keeps a future seed from reintroducing the word: 'ALR' is matched as a WORD -- not
+-- touching a letter or digit, not preceded by a hyphen, and not opening a hyphenated CODE
+-- segment (hyphen + capital/digit) -- so codes like 'ALR-DIRECT-ANNUAL', 'ALR-2800.65-I1' and
+-- 'PA-ALR-ANNUAL-...' stay invisible to it, exactly as they stay untouched by the sweeps, while
+-- hyphenated prose like 'ALR-specific' is still caught. Named rather than counted, so a failure
+-- says which column to look at.
+select is(
+  (
+    with alr(word) as (select '(?<![-[:alnum:]])ALR(?![[:alnum:]])(?!-[0-9A-Z])'::text),
+    leaked(spot) as (
+      select 'courses.title' from public.courses, alr
+        where organization_id is null and (title ~ word or title ilike '%assisted living residence%')
+      union all
+      select 'courses.category' from public.courses, alr
+        where organization_id is null and (category ~ word or category ilike '%assisted living residence%')
+      union all
+      select 'courses.description' from public.courses, alr
+        where organization_id is null and (description ~ word or description ilike '%assisted living residence%')
+      union all
+      select 'course_versions.title' from public.course_versions, alr
+        where organization_id is null and (title ~ word or title ilike '%assisted living residence%')
+      union all
+      select 'course_versions.description' from public.course_versions, alr
+        where organization_id is null and (description ~ word or description ilike '%assisted living residence%')
+      union all
+      select 'quizzes.title' from public.quizzes, alr
+        where organization_id is null and (title ~ word or title ilike '%assisted living residence%')
+      union all
+      select 'quiz_questions.question_text' from public.quiz_questions, alr
+        where organization_id is null and (question_text ~ word or question_text ilike '%assisted living residence%')
+      union all
+      select 'quiz_answers.answer_text' from public.quiz_answers, alr
+        where organization_id is null and (answer_text ~ word or answer_text ilike '%assisted living residence%')
+      union all
+      select 'quiz_question_explanations.explanation' from public.quiz_question_explanations, alr
+        where organization_id is null and (explanation ~ word or explanation ilike '%assisted living residence%')
+      union all
+      select 'training_types.name' from public.training_types, alr
+        where organization_id is null and (name ~ word or name ilike '%assisted living residence%')
+      union all
+      select 'training_types.description' from public.training_types, alr
+        where organization_id is null and (description ~ word or description ilike '%assisted living residence%')
+      union all
+      select 'training_types.required_roles_text' from public.training_types, alr
+        where organization_id is null and (required_roles_text ~ word or required_roles_text ilike '%assisted living residence%')
+      union all
+      select 'regulatory_rule_pack_templates.name' from public.regulatory_rule_pack_templates, alr
+        where name ~ word or name ilike '%assisted living residence%'
+    )
+    select coalesce(string_agg(distinct spot, ', ' order by spot), '(none)') from leaked
+  ),
+  '(none)',
+  'no platform-seeded learner-facing text says ALR or Assisted Living Residence -- the product term is ALF'
+);
 
 select * from finish();
 rollback;
