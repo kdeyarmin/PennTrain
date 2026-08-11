@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { totpCode } from "./helpers/totp";
+import { facilityToday } from "./helpers/facilityDay";
 
 type TestRole =
   | "platform_admin"
@@ -322,7 +323,7 @@ test.describe("role-aware release journeys", () => {
         first_name: "Portal",
         last_name: "Resident",
         room: "10",
-        admission_date: new Date().toISOString().slice(0, 10),
+        admission_date: facilityToday(),
       })
       .select("id")
       .single();
@@ -484,7 +485,7 @@ test.describe("role-aware release journeys", () => {
       training_type_id: trainingType.id,
       trainer_profile_id: trainer.id,
       class_name: "E2E QR check-in class",
-      class_date: new Date().toISOString().slice(0, 10),
+      class_date: facilityToday(),
       status: "scheduled",
     }).select("id").single();
     if (trainingClassError) throw trainingClassError;

@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { RESIDENT_JOURNEY_STEPS } from "../src/lib/residentJourney";
 import { buildIncidentStages } from "../src/lib/incidentStages";
 import { totpCode } from "./helpers/totp";
+import { facilityToday } from "./helpers/facilityDay";
 
 /**
  * The twelve-step resident lifecycle journey (program plan Phase 0, item 3).
@@ -169,7 +170,7 @@ test.describe("resident lifecycle journey", () => {
         special_instructions: options.instructions,
         frequency: "daily",
         responsible_role: "direct_care",
-        effective_from: new Date().toISOString().slice(0, 10),
+        effective_from: facilityToday(),
         status: "active",
       })
       .select("id")
@@ -178,7 +179,7 @@ test.describe("resident lifecycle journey", () => {
 
     // The generator's signature is (p_from, p_through, p_requirement_id) -- there is no
     // p_resident_id. Scoping to this requirement keeps each step's assertions about its own task.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = facilityToday();
     const { error: generateError } = await admin.rpc("generate_resident_service_tasks" as never, {
       p_from: today,
       p_through: today,
