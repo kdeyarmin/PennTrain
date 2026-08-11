@@ -34,6 +34,18 @@ function bundleAnalyzePlugin(): Plugin {
   };
 }
 
+// Vitest resolves this same config, and Vite derives `import.meta.env.PROD` from
+// process.env.NODE_ENV alone -- `mode` does not enter into it (vite/dist/node: `const
+// isProduction = process.env.NODE_ENV === "production"`). Vitest only defaults NODE_ENV
+// ("process.env.NODE_ENV ??= 'test'"), so an ambient NODE_ENV=production passes straight
+// through and the suite runs with MODE "test" but PROD true. Railway's builder sets exactly
+// that (hence `--prod=false` on the install), which is why a run that is green on every
+// developer machine can fail the deploy: production-gated branches switch on for the first
+// time inside tests that never arranged for them, with no product change behind the failure.
+// Pin it so a test run means the same thing everywhere. Guarded on VITEST, so dev servers and
+// real builds are untouched.
+if (process.env.VITEST) process.env.NODE_ENV = "test";
+
 const rawPort = process.env.PORT;
 const port =
   rawPort && !Number.isNaN(Number(rawPort)) && Number(rawPort) > 0
