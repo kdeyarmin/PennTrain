@@ -34,9 +34,25 @@ describe("client error reporting", () => {
     expect(report.route).toBe("/");
     expect(report.visibility).toBe("unknown");
     expect(report.online).toBe(true);
-    // Must still satisfy the edge function's strict UUID check, or the correlation id it
-    // logs is a server-minted one that ties back to nothing.
     expect(report.correlationId).toMatch(UUID_SHAPE);
+  });
+
+  // Node supplies a global `crypto` with `randomUUID`, so the test above takes the normal
+  // path for the correlation id and proves nothing about the fallback. The case the fallback
+  // exists for is a real browser on an insecure origin, where `randomUUID` is missing because
+  // it is secure-context only -- so remove it explicitly.
+  it("mints a v4-shaped correlation id where randomUUID is unavailable", () => {
+    vi.stubGlobal("crypto", {});
+
+    const first = buildClientErrorReport(new Error("boom"), "window-error").correlationId;
+    const second = buildClientErrorReport(new Error("boom"), "window-error").correlationId;
+
+    // Must satisfy the edge function's strict UUID check, or the correlation id it logs is a
+    // server-minted one that ties back to nothing: v4 version nibble, RFC 4122 variant.
+    expect(first).toMatch(UUID_SHAPE);
+    expect(first[14]).toBe("4");
+    expect("89ab").toContain(first[19]);
+    expect(second).not.toBe(first);
   });
 
   it("prefers real ambient values when the platform provides them", () => {
