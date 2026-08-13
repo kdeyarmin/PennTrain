@@ -213,10 +213,27 @@ function attachPhoneCall(
     }
     deps.tracker.start(trackerKey, "phone");
     meteredFrom = pending.from;
-    callerSpan = await deps.usage.phoneCallers.sessionStarted(meteredFrom);
-    if (abandonIfCallEnded()) return;
-    budgetSpan = await deps.usage.dailyBudget.sessionStarted();
-    if (abandonIfCallEnded()) return;
+    try {
+      callerSpan = await deps.usage.phoneCallers.sessionStarted(meteredFrom);
+      if (abandonIfCallEnded()) return;
+      // Pass the phone span so a Postgres-backed daily budget can adopt the
+      // row phoneCallers just inserted instead of writing a second one
+      // (channel='browser') that would double-count this call. The in-memory
+      // budget ignores the argument and still tracks its own span.
+      budgetSpan = await deps.usage.dailyBudget.sessionStarted(callerSpan);
+      if (abandonIfCallEnded()) return;
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          evt: "phone.transport.usage_meter_error",
+          callSid: pending.callSid,
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      finishTracker();
+      ws.close(1011, "state_store_unavailable");
+      return;
+    }
     session = new PhoneVoiceSession({
       config: deps.config,
       registry: deps.registry,
@@ -278,7 +295,16 @@ function attachPhoneCall(
     },
   };
 
-  if (claimed) void startSession(claimed);
+  if (claimed) void startSession(claimed).catch((err: unknown) => {
+    console.error(
+      JSON.stringify({
+        evt: "phone.transport.start_error",
+        message: err instanceof Error ? err.message : String(err),
+      }),
+    );
+    finishTracker();
+    if (ws.readyState === ws.OPEN) ws.close(1011, "state_store_unavailable");
+  });
 
   ws.on("message", (data) => {
     let envelope: Record<string, unknown>;
@@ -322,7 +348,16 @@ function attachPhoneCall(
               return;
             }
             if (ws.readyState !== ws.OPEN) return;
-            void startSession(pending);
+            void startSession(pending).catch((err: unknown) => {
+              console.error(
+                JSON.stringify({
+                  evt: "phone.transport.start_error",
+                  message: err instanceof Error ? err.message : String(err),
+                }),
+              );
+              finishTracker();
+              if (ws.readyState === ws.OPEN) ws.close(1011, "state_store_unavailable");
+            });
             clearTimeout(startDeadline);
           })
           .catch((err: unknown) => {

@@ -8,6 +8,7 @@ import {
   sanitizeProviderDetail,
   sha256Hex,
 } from "../_shared/notificationDelivery.ts";
+import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const MAX_FORM_BYTES = 64 * 1024;
 
@@ -41,9 +42,12 @@ Deno.serve(async (req: Request) => {
     return text("Unsupported media type", 415);
   }
 
-  const rawBody = await req.text();
-  if (new TextEncoder().encode(rawBody).byteLength > MAX_FORM_BYTES) {
-    return text("Payload too large", 413);
+  let rawBody: string;
+  try {
+    rawBody = await readTextBody(req, MAX_FORM_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return text("Payload too large", error.status);
+    throw error;
   }
 
   const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");

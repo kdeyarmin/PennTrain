@@ -12,19 +12,19 @@ export class RequestBodyError extends Error {
 }
 
 /**
- * Read raw request text with Content-Length and streaming byte caps so chunked
+ * Read raw request bytes with Content-Length and streaming byte caps so chunked
  * or length-spoofed bodies cannot force unbounded buffering.
  */
-export async function readTextBody(
+export async function readBytesBody(
   req: Request,
   maxBytes = DEFAULT_MAX_REQUEST_BYTES,
-): Promise<string> {
+): Promise<Uint8Array> {
   const declaredLength = Number(req.headers.get("content-length") ?? 0);
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     throw new RequestBodyError("Request body is too large", 413);
   }
 
-  if (!req.body) return "";
+  if (!req.body) return new Uint8Array();
 
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -51,7 +51,18 @@ export async function readTextBody(
     merged.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(merged);
+  return merged;
+}
+
+/**
+ * Read raw request text with Content-Length and streaming byte caps so chunked
+ * or length-spoofed bodies cannot force unbounded buffering.
+ */
+export async function readTextBody(
+  req: Request,
+  maxBytes = DEFAULT_MAX_REQUEST_BYTES,
+): Promise<string> {
+  return new TextDecoder().decode(await readBytesBody(req, maxBytes));
 }
 
 /**

@@ -65,21 +65,28 @@ export function useListWorkItems(filters: ListWorkItemsFilters = {}) {
   return useQuery({
     queryKey: ["work-items", "list", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("work_items")
-        .select(WORK_ITEM_SELECT)
-        .order("due_at", { ascending: true });
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.ownerProfileId) query = query.eq("owner_profile_id", filters.ownerProfileId);
-      if (filters.state) query = query.eq("state", filters.state);
-      if (filters.priority) query = query.eq("priority", filters.priority);
-      if (filters.sourceType) query = query.eq("source_type", filters.sourceType);
-      if (filters.dueBefore) query = query.lte("due_at", filters.dueBefore);
-      if (filters.dueAfter) query = query.gte("due_at", filters.dueAfter);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as WorkItemWithRelations[];
+      const pageSize = 1000;
+      const rows: WorkItemWithRelations[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("work_items")
+          .select(WORK_ITEM_SELECT)
+          .order("due_at", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.ownerProfileId) query = query.eq("owner_profile_id", filters.ownerProfileId);
+        if (filters.state) query = query.eq("state", filters.state);
+        if (filters.priority) query = query.eq("priority", filters.priority);
+        if (filters.sourceType) query = query.eq("source_type", filters.sourceType);
+        if (filters.dueBefore) query = query.lte("due_at", filters.dueBefore);
+        if (filters.dueAfter) query = query.gte("due_at", filters.dueAfter);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...((data ?? []) as unknown as WorkItemWithRelations[]));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
   });
 }

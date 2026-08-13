@@ -1,5 +1,5 @@
 begin;
-select plan(22);
+select plan(26);
 
 -- 20260810101000 restores the inspection_items maintenance the nightly recalc lost on
 -- 2026-07-05: logging an inspection event rolls the item's dates forward immediately
@@ -75,6 +75,38 @@ select is(
      and alert_type = 'inspection_due' and status = 'open' and severity = 'critical'),
   1,
   'an expired item raises a critical inspection_due alert'
+);
+
+-- A fail is evidence, not a completed inspection: dates and the open alert must not move.
+insert into public.inspection_events (
+  id, organization_id, facility_id, inspection_item_id, performed_date, performed_by, result
+) values (
+  '9c000000-0000-4000-8000-000000000204', '9c000000-0000-4000-8000-000000000001',
+  '9c000000-0000-4000-8000-000000000011', '9c000000-0000-4000-8000-000000000102',
+  public.pa_today(), 'Morgan Inspector', 'fail'
+);
+
+select is(
+  (select last_inspected_date from public.inspection_items where id = '9c000000-0000-4000-8000-000000000102'),
+  public.pa_today() - 120,
+  'a failed inspection does not stamp last_inspected_date'
+);
+select is(
+  (select next_due_date from public.inspection_items where id = '9c000000-0000-4000-8000-000000000102'),
+  public.pa_today() - 30,
+  'a failed inspection does not roll next_due_date forward'
+);
+select is(
+  (select status from public.inspection_items where id = '9c000000-0000-4000-8000-000000000102'),
+  'expired',
+  'a failed inspection leaves an overdue item expired'
+);
+select is(
+  (select count(*)::int from public.alerts
+   where inspection_item_id = '9c000000-0000-4000-8000-000000000102'
+     and alert_type = 'inspection_due' and status = 'open' and severity = 'critical'),
+  1,
+  'a failed inspection does not resolve the open inspection_due alert'
 );
 
 -- Re-inspecting the expired item brings it back and closes its alert.

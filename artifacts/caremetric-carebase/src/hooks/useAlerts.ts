@@ -58,14 +58,20 @@ export function useListAlerts(filters: ListAlertsFilters = {}) {
   return useQuery({
     queryKey: [...ALERTS_KEY, filters],
     queryFn: async () => {
-      let query = supabase.from("alerts").select("*").order("created_at", { ascending: false });
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.severity) query = query.eq("severity", filters.severity);
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const pageSize = 1000;
+      const rows: Alert[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("alerts").select("*").order("created_at", { ascending: false }).range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.severity) query = query.eq("severity", filters.severity);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     // Alerts are time-sensitive (e.g. another user just resolved one this tab hasn't seen yet) --
     // opt out of the app-wide 60s staleTime/refetchOnWindowFocus:false default in queryClient.ts

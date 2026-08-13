@@ -110,6 +110,70 @@ export function blankImportStatements(source) {
   );
 }
 
+/**
+ * Blank comments so a commented-out gate call cannot certify the function.
+ *
+ * `// requireCronRequest(req)` used to pass `blob.includes("requireCronRequest")`
+ * even after the live call was deleted. Strings are left intact: several
+ * guest-token markers live only as quoted SQL argument names (`p_token`,
+ * `token_sha256`) and blanking those would false-negative real gates.
+ * `https://` inside a string is not treated as a line comment.
+ */
+export function blankComments(source) {
+  let result = "";
+  let i = 0;
+  const n = source.length;
+  while (i < n) {
+    const ch = source[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      result += ch;
+      i += 1;
+      while (i < n) {
+        if (source[i] === "\\") {
+          result += source[i];
+          if (i + 1 < n) {
+            result += source[i + 1];
+            i += 2;
+            continue;
+          }
+          i += 1;
+          break;
+        }
+        result += source[i];
+        if (source[i] === ch) {
+          i += 1;
+          break;
+        }
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      while (i < n && source[i] !== "\n") {
+        result += " ";
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      result += "  ";
+      i += 2;
+      while (i < n && !(source[i] === "*" && source[i + 1] === "/")) {
+        result += source[i] === "\n" ? "\n" : " ";
+        i += 1;
+      }
+      if (i < n) {
+        result += "  ";
+        i += 2;
+      }
+      continue;
+    }
+    result += ch;
+    i += 1;
+  }
+  return result;
+}
+
 /** Resolve a function's transitive closure over RELATIVE imports only. */
 async function importClosure(entrypoint) {
   const seen = new Set();
@@ -125,7 +189,7 @@ async function importClosure(entrypoint) {
     } catch {
       continue; // a bare or remote specifier that resolved to nothing local
     }
-    sources.push(blankDeclarationHeads(text));
+    sources.push(blankComments(blankDeclarationHeads(text)));
     for (const match of text.matchAll(/from\s+"(\.[^"]+)"/g)) {
       queue.push(resolve(dirname(file), match[1]));
     }
@@ -244,6 +308,27 @@ const SELF_TEST_CASES = [
     run: () => {
       const called = 'import { requireCronRequest } from "../_shared/cronAuth.ts";\n\nDeno.serve((req) => requireCronRequest(req, {}) ?? new Response("ok"));\n';
       return gateIsProven("cron-secret", blankDeclarationHeads(called)) === true;
+    },
+  },
+  {
+    name: "a commented-out gate call does not prove the gate",
+    run: () => gateIsProven("cron-secret", blankComments("// requireCronRequest(req, headers)\nconst ok = true;\n")) === false,
+  },
+  {
+    name: "a block-commented gate call does not prove the gate",
+    run: () => gateIsProven("cron-secret", blankComments("/* requireCronRequest(req) */\nconst ok = true;\n")) === false,
+  },
+  {
+    name: "a real call still proves the gate after comments are blanked",
+    run: () => gateIsProven("cron-secret", blankComments("const e = requireCronRequest(req, H);\n")) === true,
+  },
+  {
+    name: "https:// inside a string is not treated as a line comment",
+    run: () => {
+      const source = 'const url = "https://example.com/requireCronRequest";\nconst e = requireCronRequest(req, H);\n';
+      const blanked = blankComments(source);
+      return blanked.includes("https://example.com/requireCronRequest")
+        && gateIsProven("cron-secret", blanked) === true;
     },
   },
   {

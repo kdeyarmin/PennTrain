@@ -9,6 +9,7 @@ import {
   sanitizeProviderDetail,
   sha256Hex,
 } from "../_shared/notificationDelivery.ts";
+import { readBytesBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_EVENTS = 1000;
@@ -43,14 +44,12 @@ function eventTime(
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return response("Method not allowed", 405);
 
-  const declaredLength = Number(req.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
-    return response("Payload too large", 413);
-  }
-
-  const payloadBytes = new Uint8Array(await req.arrayBuffer());
-  if (payloadBytes.byteLength > MAX_BODY_BYTES) {
-    return response("Payload too large", 413);
+  let payloadBytes: Uint8Array;
+  try {
+    payloadBytes = await readBytesBody(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return response("Payload too large", error.status);
+    throw error;
   }
 
   const signature = req.headers.get("x-twilio-email-event-webhook-signature") ??

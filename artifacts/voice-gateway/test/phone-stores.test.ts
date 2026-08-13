@@ -238,6 +238,16 @@ describe.skipIf(!scratch)("postgres phone stores (real Postgres)", () => {
     ).toBeNull();
   });
 
+  it("a phone session does not insert a second daily-budget span", async () => {
+    const stores = await handle();
+    const phoneSpan = await stores.usage.phoneCallers.sessionStarted("+15551230099");
+    const budgetSpan = await stores.usage.dailyBudget.sessionStarted(phoneSpan);
+    expect(budgetSpan.id).toBe(phoneSpan.id);
+    const browserSpan = await stores.usage.dailyBudget.sessionStarted();
+    expect(browserSpan.id).toBeTruthy();
+    expect(browserSpan.id).not.toBe(phoneSpan.id);
+  });
+
   it("claim-once holds across two instances racing on the same ticket", async () => {
     const a = await handle();
     const b = await handle();

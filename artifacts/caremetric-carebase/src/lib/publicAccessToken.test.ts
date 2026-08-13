@@ -30,6 +30,8 @@ describe("consumePublicAccessToken", () => {
       "",
       "/evidence-access?source=email#review",
     );
+    // Tests run with BASE_URL="/", so appPath(cleanPath) is the cleanPath itself.
+    // Under a path-bearing deploy the rewrite is prefixed; see publicAccessToken.ts.
   });
 
   it("restores the credential after reload on the scrubbed route", () => {

@@ -11,6 +11,7 @@ import { QueryError } from "@/components/QueryState";
 import { Award, ExternalLink, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { facilityDaysUntil, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { absoluteAppUrl } from "@/lib/appUrl";
 import { useMyTrainingPassport } from "@/hooks/useProductExperience";
 
 // Certificate PDFs render on a background job queue; while one is still pending/processing,
@@ -99,7 +100,7 @@ export default function MyCertificates() {
           {passport.data?.is_active ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline"><Link href={`/passport/${passport.data.slug}`}><ExternalLink className="mr-2 h-4 w-4" />Open passport</Link></Button>
-              <Button variant="outline" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/passport/${passport.data!.slug}`).then(() => toast({ title: "Passport link copied" }))}>Copy share link</Button>
+              <Button variant="outline" onClick={() => void navigator.clipboard.writeText(absoluteAppUrl(`/passport/${passport.data!.slug}`)).then(() => toast({ title: "Passport link copied" }))}>Copy share link</Button>
               <Button variant="destructive" disabled={passport.revoke.isPending} onClick={() => passport.revoke.mutate(undefined, { onSuccess: () => toast({ title: "Passport revoked" }), onError: (error: Error) => toast({ title: "Passport could not be revoked", description: error.message, variant: "destructive" }) })}>Revoke link</Button>
             </div>
           ) : (

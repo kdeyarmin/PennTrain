@@ -145,17 +145,20 @@ Deno.serve(async (req: Request) => {
   if (!invitation) {
     return json(req, { error: "Invitation not found" }, 404);
   }
-  if (["accepted", "revoked"].includes(invitation.status)) {
-    return json(req, { error: "Closed invitations cannot be resent" }, 409);
-  }
 
   if (callerRole !== "platform_admin") {
     if (invitation.organization_id !== callerOrgId) {
-      return json(req, { error: "Invitation is outside your organization" }, 403);
+      // Same 404 as "not found": a closed foreign invitation used to 409
+      // and a live one 403, which made this endpoint a cross-tenant oracle.
+      return json(req, { error: "Invitation not found" }, 404);
     }
     if (callerRole === "facility_manager" && !["trainer", "employee"].includes(invitation.invited_role)) {
       return json(req, { error: "Facility managers may only resend trainer or employee invitations" }, 403);
     }
+  }
+
+  if (["accepted", "revoked"].includes(invitation.status)) {
+    return json(req, { error: "Closed invitations cannot be resent" }, 409);
   }
 
   let redirectTo: string;
