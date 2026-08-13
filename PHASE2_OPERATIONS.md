@@ -169,7 +169,9 @@ Configure these Supabase Edge Function secrets:
 - `STRIPE_SECRET_KEY` for Checkout and Customer Portal session creation;
 - `STRIPE_BILLING_WEBHOOK_SECRET` for the signed subscription callback; and
 - optional `BILLING_RETURN_URL_ORIGINS` as a comma-separated allowlist of
-  permitted browser redirect origins.
+  permitted browser redirect origins. When unset, Checkout and the Customer
+  Portal honor `PUBLIC_APP_URL`, `SIGNUP_REDIRECT_ORIGINS`, and
+  `https://cmcarebase.com` so self-serve signup still completes.
 
 The billing gateway uses Stripe API version `2026-02-25.clover`. Configure the
 webhook endpoint to send supported subscription, subscription-item, invoice,

@@ -76,6 +76,9 @@ function resolveRedirectTo(candidate: string | undefined): string {
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new HttpError(400, "invalid_redirect", "Invalid signup redirect URL");
   }
+  if (url.username || url.password) {
+    throw new HttpError(400, "invalid_redirect", "Invalid signup redirect URL");
+  }
   if (!url.pathname.endsWith("/reset-password")) {
     throw new HttpError(400, "invalid_redirect", "Signup redirects must land on /reset-password");
   }
@@ -223,9 +226,6 @@ Deno.serve(async (req: Request) => {
 
   try {
     await verifyTurnstile(body.turnstile_token, ip);
-    attemptId = await reserveAttempt(
-      adminClient, emailHash, ipHash, legalAccepted, serviceAgreementVersion, baaVersion,
-    );
 
     const { data: signupSetting, error: signupSettingError } = await adminClient
       .from("platform_settings")
@@ -238,13 +238,25 @@ Deno.serve(async (req: Request) => {
       throw new HttpError(403, "signup_disabled", "Self-service signup is currently disabled. Please contact us directly.");
     }
 
+    attemptId = await reserveAttempt(
+      adminClient, emailHash, ipHash, legalAccepted, serviceAgreementVersion, baaVersion,
+    );
+
     const { data: trialDaysSetting, error: trialDaysError } = await adminClient
       .from("platform_settings")
       .select("value")
       .eq("key", "default_trial_days")
       .maybeSingle();
     if (trialDaysError) throw new HttpError(500, "settings_unavailable", "Signup is temporarily unavailable. Please try again later.", trialDaysError.message);
-    const trialDays = typeof trialDaysSetting?.value === "number" ? trialDaysSetting.value : 30;
+    const trialDaysRaw = trialDaysSetting?.value;
+    const trialDaysParsed = typeof trialDaysRaw === "number"
+      ? trialDaysRaw
+      : typeof trialDaysRaw === "string"
+      ? Number(trialDaysRaw)
+      : NaN;
+    const trialDays = Number.isInteger(trialDaysParsed) && trialDaysParsed > 0 && trialDaysParsed <= 365
+      ? trialDaysParsed
+      : 30;
     const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
 
     const redirectTo = resolveRedirectTo(body.redirect_to);
@@ -280,6 +292,13 @@ Deno.serve(async (req: Request) => {
     if (inviteError) throw new HttpError(400, "invite_failed", "We could not send an invitation to that email address. If you already have an account, sign in or reset your password instead.", inviteError.message);
     invitedUserId = invited.user.id;
 
+    const { error: metadataError } = await adminClient.auth.admin.updateUserById(invited.user.id, {
+      app_metadata: { role: "org_admin", organization_id: organization.id },
+    });
+    if (metadataError) {
+      throw new HttpError(500, "profile_update_failed", "Signup could not be completed. Please try again later.", metadataError.message);
+    }
+
     const { error: rpcError } = await adminClient.rpc("admin_update_profile", {
       p_user_id: invited.user.id,
       p_first_name: firstName,
@@ -299,23 +318,34 @@ Deno.serve(async (req: Request) => {
       organization: { id: organization.id, name: organization.name },
     });
   } catch (error) {
+    // Tear the org down first. enterprise_scope_memberships.profile_id is
+    // ON DELETE RESTRICT, so deleting the invited auth user while those rows
+    // exist fails and leaves an orphan tenant. rollback clears restrict FKs
+    // and detaches leftover profiles, then the invite user can go.
+    if (organizationId) {
+      const { error: rollbackError } = await adminClient.rpc("rollback_organization_signup", {
+        p_organization_id: organizationId,
+      });
+      if (rollbackError) {
+        console.error("Failed to roll back signup organization:", rollbackError.message, organizationId);
+      }
+    }
     if (invitedUserId) {
       await adminClient.auth.admin.deleteUser(invitedUserId).catch((deleteError: unknown) => {
         console.error("Failed to clean up invited signup user:", deleteError);
       });
-    }
-    if (organizationId) {
-      await adminClient.from("organizations").delete().eq("id", organizationId);
     }
 
     const status = error instanceof HttpError ? error.status : 500;
     const code = error instanceof HttpError ? error.code : "unexpected_error";
     // For HttpError, the message is intentionally user-facing. For unexpected errors, return a
     // generic message to avoid leaking internal details or stack traces to the caller.
-const isHttpError = error instanceof HttpError;
-const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
-const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
-if (!isHttpError || status >= 500 || internalDetail) console.error(isHttpError ? "Signup HttpError:" : "Unexpected signup error:", error, internalDetail ?? "");
+    const isHttpError = error instanceof HttpError;
+    const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
+    const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
+    if (!isHttpError || status >= 500 || internalDetail) {
+      console.error(isHttpError ? "Signup HttpError:" : "Unexpected signup error:", error, internalDetail ?? "");
+    }
     if (attemptId) await finalizeAttempt(adminClient, attemptId, false, code);
     return json(req, { success: false, error: message }, status);
   }

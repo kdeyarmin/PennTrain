@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 export interface SignupOrganizationRequest {
@@ -25,6 +26,17 @@ interface EdgeFunctionErrorShape {
   error?: string;
 }
 
+async function signupErrorMessage(error: unknown): Promise<string | null> {
+  if (!(error instanceof FunctionsHttpError)) return null;
+  try {
+    const body = (await error.context.json()) as { error?: unknown } | null;
+    if (typeof body?.error === "string" && body.error.trim()) return body.error;
+  } catch {
+    // Response body wasn't JSON -- keep the generic FunctionsHttpError message.
+  }
+  return null;
+}
+
 /**
  * Public, unauthenticated self-service signup: creates a brand-new organization and sends the
  * new org_admin an invite email via the signup-organization Edge Function. The function owns
@@ -49,7 +61,10 @@ export function useSignupOrganization() {
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        const parsed = await signupErrorMessage(error);
+        throw parsed ? new Error(parsed) : error;
+      }
       if (data && data.success === false) throw new Error(data.error ?? "Signup failed");
       return data as SignupOrganizationResponse;
     },
