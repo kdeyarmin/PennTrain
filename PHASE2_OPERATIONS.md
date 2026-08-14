@@ -196,9 +196,16 @@ A missing `STRIPE_BILLING_WEBHOOK_SECRET` is the one that stays silent.
 `stripe-billing-webhook` rejects every event with `400 invalid_signature`, and
 nothing schedules that endpoint -- only Stripe calls it -- so there is no run to
 fail and no alert to raise until real subscription traffic exists and quietly
-fails to reconcile. Confirm both secrets with `supabase secrets list` against
-the target project, and send a test event from the Stripe dashboard, before
-enabling self-serve checkout.
+fails to reconcile.
+
+So prove it rather than assume it, and prove it in the right order. Configure
+the webhook endpoint first (see below), then confirm both secrets with
+`supabase secrets list`, then send a test event from the Stripe dashboard and
+check that a row lands in `app_private.stripe_billing_events`. Running Checkout
+before the endpoint exists creates a real subscription in Stripe that never
+reconciles into `billing_subscriptions` -- the same silent divergence this
+section is warning about, produced by following the steps out of order. The
+activation checklist in BILLING_MODEL.md sequences this explicitly.
 
 The billing gateway uses Stripe API version `2026-02-25.clover`. Configure the
 webhook endpoint to send supported subscription, subscription-item, invoice,
