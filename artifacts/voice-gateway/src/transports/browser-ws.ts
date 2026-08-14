@@ -68,7 +68,11 @@ export async function handleBrowserUpgrade(
   }
   const url = new URL(req.url ?? "/", "http://gateway.internal");
   const sid = url.searchParams.get("sid") ?? "";
+  // The claim is async (the store may be Postgres). A hangup/RST while we
+  // wait must not crash the process — same contract as the phone upgrade.
+  socket.on("error", () => undefined);
   const pending = sid ? await deps.pendingStore.claim(sid) : null;
+  if (socket.destroyed) return;
   if (!pending || pending.appId !== app.id) {
     rejectUpgrade(socket, 401, "Invalid session");
     return;

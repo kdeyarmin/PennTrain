@@ -2,6 +2,7 @@ import {
   phase2BillingSha256,
   verifyPhase2StripeSignature,
 } from "../_shared/phase2Billing.ts";
+import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -30,11 +31,12 @@ export function createStripeBillingWebhookHandler({
 }: StripeBillingWebhookDependencies) {
   return async (req: Request): Promise<Response> => {
     if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-    const declaredLength = Number(req.headers.get("content-length") ?? "0");
-    if (declaredLength > MAX_BODY_BYTES) return json({ error: "payload_too_large" }, 413);
-    const rawBody = await req.text();
-    if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-      return json({ error: "payload_too_large" }, 413);
+    let rawBody: string;
+    try {
+      rawBody = await readTextBody(req, MAX_BODY_BYTES);
+    } catch (error) {
+      if (error instanceof RequestBodyError) return json({ error: "payload_too_large" }, error.status);
+      throw error;
     }
     const webhookSecret = getEnv("STRIPE_BILLING_WEBHOOK_SECRET") ?? "";
     const verification = await verifySignature(

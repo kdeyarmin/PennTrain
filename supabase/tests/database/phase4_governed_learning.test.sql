@@ -1,5 +1,5 @@
 begin;
-select plan(39);
+select plan(40);
 
 select has_table('public','governed_content_revisions','governed revisions exist');
 select has_table('public','policy_audience_rules','effective policy audiences exist');
@@ -113,6 +113,11 @@ update public.courses set training_type_id='44000000-0000-4000-8000-000000000801
 select set_config('app.privileged_write','off',true);
 select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 select lives_ok($$select public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0003',2,'{"progress":1,"completionStatus":"completed","successStatus":"passed","sessionTimeSeconds":120}'::jsonb)$$,'completed SCORM commit is accepted in sequence');
+select is(
+  public.commit_learning_runtime_state('44000000-0000-4000-8000-000000000502','commit-0003',2,'{"progress":1,"completionStatus":"completed","successStatus":"passed","sessionTimeSeconds":120}'::jsonb),
+  (select id from public.learning_runtime_commits where runtime_session_id='44000000-0000-4000-8000-000000000502' and idempotency_key='commit-0003'),
+  'a lost-response retry of the completing commit returns the existing id'
+);
 select is((select state from public.learning_runtime_sessions where id='44000000-0000-4000-8000-000000000502'),'completed','completed commit closes the runtime session');
 select is((select status from public.course_assignments where id='44000000-0000-4000-8000-000000000303'),'completed','completion bridge flips the assignment to completed');
 select is((select count(*)::integer from public.employee_training_records where employee_id='44000000-0000-4000-8000-000000000201' and training_type_id='44000000-0000-4000-8000-000000000801'),1,'completion bridge upserts the mapped training record');

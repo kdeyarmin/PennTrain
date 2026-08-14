@@ -73,11 +73,8 @@ Deno.serve(async (req: Request) => {
     .eq("id", body.package_id)
     .single();
   if (pkgError || !pkg) return json(req, { error: "Package not found" }, 404);
-  if (!["pending", "validating", "rejected"].includes(pkg.validation_status)) {
-    return json(req, { error: "Package is not in an acceptable state" }, 409);
-  }
 
-  // 1a. AUTHORIZE before anything destructive runs.
+  // 1a. AUTHORIZE before disclosing status or doing anything destructive.
   //
   // Having a valid session is not permission to touch THIS package. Everything between here and
   // step 9 uses the service-role client, which bypasses RLS: it downloads the package, rewrites the
@@ -86,6 +83,9 @@ Deno.serve(async (req: Request) => {
   // after all of that had already been committed. So any authenticated user of any tenant and any
   // role who had a learning_packages.id could have another organization's package rewritten and
   // re-hashed, and the 400 they got back from the RPC did not undo it.
+  //
+  // Status used to be checked first. That leaked whether a guessed id existed and was already
+  // accepted (409) versus unknown (404) to any authenticated caller of any tenant.
   //
   // RLS cannot stand in for the check here: the only SELECT policy on learning_packages
   // (learner_packages_select) requires validation_status='accepted', and this function exists to
@@ -104,6 +104,9 @@ Deno.serve(async (req: Request) => {
   if (!mayAccept) {
     // 404, not 403: a caller who may not act on this package should not learn that the id is real.
     return json(req, { error: "Package not found" }, 404);
+  }
+  if (!["pending", "validating", "rejected"].includes(pkg.validation_status)) {
+    return json(req, { error: "Package is not in an acceptable state" }, 409);
   }
 
   // 2. Download the zip from storage

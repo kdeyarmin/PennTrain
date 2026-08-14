@@ -6,6 +6,7 @@ import {
   phase2BillingStateForStripeStatus,
   phase2ProviderEventIsNewer,
   resolvePhase2BillingQuantity,
+  resolvePhase2BillingReturnOrigins,
   validatePhase2BillingReturnUrl,
   verifyPhase2StripeSignature,
 } from "./phase2Billing.ts";
@@ -88,6 +89,22 @@ Deno.test("billing redirects stay on configured origins only", () => {
   assertEquals(validatePhase2BillingReturnUrl("http://localhost:5173/billing", ["https://app.example.test"]), false);
   // A malformed configured entry does not disable the valid ones.
   assertEquals(validatePhase2BillingReturnUrl("https://app.example.test/billing", ["not a url", "https://app.example.test"]), true);
+});
+
+Deno.test("billing return origins fall back to the public app and production origin", () => {
+  assertEquals(
+    resolvePhase2BillingReturnOrigins(""),
+    ["https://cmcarebase.com"],
+  );
+  assertEquals(
+    resolvePhase2BillingReturnOrigins("", ["https://app.caremetric.test/app"]),
+    ["https://app.caremetric.test"],
+  );
+  const merged = resolvePhase2BillingReturnOrigins(
+    "https://cmcarebase.com",
+    ["https://staging.caremetric.test/", "not a url"],
+  );
+  assertEquals(new Set(merged), new Set(["https://cmcarebase.com", "https://staging.caremetric.test"]));
 });
 
 Deno.test("checkout forwards only the remaining in-app trial days", () => {

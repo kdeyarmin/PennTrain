@@ -212,6 +212,7 @@ Deno.test("create-billing-session flat checkout uses quantity 1 without usage RP
   const lineItems = stripeCalls[0].values.line_items as Array<{ price: string; quantity: number }>;
   assertEquals(lineItems[0].quantity, 1);
   assertEquals(lineItems[0].price, "price_flat_carebase");
+  assertEquals(stripeCalls[0].values.payment_method_collection, "always");
 });
 
 Deno.test("create-billing-session routes existing subscriptions to the portal", async () => {
@@ -291,3 +292,123 @@ Deno.test("create-billing-session routes existing subscriptions to the portal", 
   assertEquals(response.status, 409);
   assertEquals((await response.json()).error.code, "existing_subscription_requires_portal");
 });
+
+Deno.test("create-billing-session honors PUBLIC_APP_URL when billing origins are unset", async () => {
+  const orgId = "22222222-2222-4222-8222-222222222222";
+  const packageId = "33333333-3333-4333-8333-333333333333";
+  const handler = createCreateBillingSessionHandler({
+    createClient: (_url, key) => {
+      const isService = key === "service";
+      return {
+        auth: {
+          getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+          mfa: {
+            getAuthenticatorAssuranceLevel: async () => ({
+              data: { currentLevel: "aal2" },
+              error: null,
+            }),
+          },
+        },
+        rpc: async (name: string) => {
+          if (name === "identity_assurance_is_current") return { data: true, error: null };
+          if (name === "has_effective_permission") return { data: true, error: null };
+          return { data: null, error: null };
+        },
+        from: (table: string) => {
+          if (!isService && table === "profiles") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: async () => ({
+                    data: {
+                      id: "user-1",
+                      email: "admin@example.test",
+                      role: "org_admin",
+                      organization_id: orgId,
+                      is_active: true,
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "billing_accounts") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: { id: "ba-1", stripe_customer_id: null, billing_state: "trial" }, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === "billing_subscriptions") {
+            const q: Record<string, unknown> = {};
+            const self = () => q;
+            q.select = self;
+            q.eq = self;
+            q.in = self;
+            q.order = self;
+            q.limit = self;
+            q.maybeSingle = async () => ({ data: null, error: null });
+            return q;
+          }
+          if (table === "package_billing_prices") {
+            const q: Record<string, unknown> = {};
+            const self = () => q;
+            for (const m of ["select", "eq", "not", "lte", "or", "order", "limit"]) q[m] = self;
+            q.maybeSingle = async () => ({
+              data: {
+                stripe_price_id: "price_flat_carebase",
+                billing_metric: "flat",
+                pricing_model: "flat",
+                minimum_quantity: 1,
+                maximum_quantity: 1,
+                packages: { is_active: true, trial_days: 30 },
+              },
+              error: null,
+            });
+            return q;
+          }
+          if (table === "organizations") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: { trial_ends_at: "2099-01-01T00:00:00.000Z" },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "audit_logs") {
+            return { insert: async () => ({ error: null }) };
+          }
+          return chain({ data: null, error: null });
+        },
+      };
+    },
+    stripePost: async () => ({
+      ok: true,
+      status: 200,
+      data: { id: "cs_test_public", url: "https://checkout.stripe.test/session" },
+    }),
+    getEnv: (name) => {
+      if (name === "BILLING_RETURN_URL_ORIGINS") return "";
+      if (name === "PUBLIC_APP_URL") return "https://signup.caremetric.test";
+      return ENV[name as keyof typeof ENV];
+    },
+    nowIso: () => "2026-07-31T12:00:00.000Z",
+  });
+  const response = await handler(baseRequest({
+    action: "checkout",
+    packageId,
+    billingInterval: "month",
+    successUrl: "https://signup.caremetric.test/app/billing?billing=success",
+    cancelUrl: "https://signup.caremetric.test/app/billing?billing=cancelled",
+  }));
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).data.sessionId, "cs_test_public");
+});
+

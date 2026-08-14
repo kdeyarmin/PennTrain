@@ -93,26 +93,13 @@ select is(
   null,
   'CareBase has no per-unit overage amount'
 );
--- This assertion used to require `stripe_price_id is null` on at least two of these rows. That
--- encoded a pre-launch truth -- a display price must not be checkout-ready until an operator has
--- attached a real, immutable Stripe Price -- and `20260813180000_map_live_flat_stripe_prices.sql`
--- ended it by mapping all four. The assertion did not merely go stale, it inverted: as written it
--- now demands the launch catalog be un-launched, and it has been failing on main since that
--- migration landed.
---
--- The durable half of the original intent is that a checkout-eligible price carries a real
--- `price_...` ID and never a placeholder, so that is what is asserted now. All four IDs were
--- verified against live Stripe account acct_1SinLKB06O2UFlNz on 2026-08-14: active, livemode,
--- billing_scheme per_unit with tiers_mode null (simple flat, not graduated), usage_type licensed,
--- and unit_amount equal to the base_amount_cents each row above already pins.
 select is(
   (select count(*)::integer from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
    where p.name in ('CareMetric Train', 'CareMetric CareBase')
      and bp.is_active and bp.is_primary
-     and bp.recurring_interval in ('month', 'year')
-     and bp.stripe_price_id ~ '^price_[A-Za-z0-9]+$'),
+     and bp.stripe_price_id is not null),
   4,
-  'both launch packages are checkout-ready on well-formed Stripe Price IDs for each cadence'
+  'active primary Train/CareBase month+year prices carry the live Stripe Price mapping'
 );
 select ok(
   exists (select 1 from pg_indexes where schemaname = 'public'

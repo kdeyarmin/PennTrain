@@ -5,6 +5,7 @@ import {
   parseScimAuthorization,
   sha256Hex,
 } from "../_shared/phase2IdentitySecurity.ts";
+import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 const JSON_HEADERS = {
   "Content-Type": "application/json",
@@ -93,13 +94,14 @@ Deno.serve(async (request: Request) => {
     return json({ error: "rate_limit_exceeded" }, 429, requestId);
   }
 
-  const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
-    return json({ error: "Request body is too large" }, 413, requestId);
-  }
-  const rawBody = await request.text();
-  if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-    return json({ error: "Request body is too large" }, 413, requestId);
+  let rawBody: string;
+  try {
+    rawBody = await readTextBody(request, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return json({ error: "Request body is too large" }, 413, requestId);
+    }
+    throw error;
   }
 
   let body: ScimBody;

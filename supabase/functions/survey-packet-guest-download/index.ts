@@ -51,7 +51,8 @@ Deno.serve(async (req: Request) => {
   }
   const resolved = (data ?? {}) as Record<string, unknown>;
   if (!resolved.allowed) {
-    return json(req, { error: "Access denied", reason: resolved.reason ?? "denied" }, 403);
+    console.warn("survey packet guest token denied", { reason: resolved.reason ?? "denied" });
+    return json(req, { error: "Access denied" }, 403);
   }
 
   const bucket = String(resolved.storageBucket ?? "survey-evidence-packets");
