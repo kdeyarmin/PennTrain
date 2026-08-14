@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { checkinTokenRevokeReasonIssue } from "@/lib/classCheckinTokens";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useRoute, useLocation, Link } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -142,6 +143,10 @@ function QrCheckinCard({ classId }: { classId: string }) {
   const { toast: notify } = useToast();
   const [revoking, setRevoking] = useState(false);
   const [revokeReason, setRevokeReason] = useState("");
+  // The RPC's own rule, restated so the button can refuse before the click rather than after. It
+  // used to enable at five characters against a server that refuses under ten, so a short reason
+  // submitted, failed with a raw Postgres error, and left every outstanding code still working.
+  const revokeReasonIssue = checkinTokenRevokeReasonIssue(revokeReason);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,10 +200,13 @@ function QrCheckinCard({ classId }: { classId: string }) {
               onChange={(event) => setRevokeReason(event.target.value)}
               placeholder="Why (e.g. the code was shared outside the room)"
             />
+            {revokeReasonIssue && (
+              <p className="text-xs text-muted-foreground">{revokeReasonIssue}</p>
+            )}
             <div className="flex gap-2">
               <Button
                 size="sm" variant="destructive"
-                disabled={revokeReason.trim().length < 5 || revokeTokens.isPending}
+                disabled={revokeReasonIssue !== null || revokeTokens.isPending}
                 onClick={() => {
                   void revokeTokens.mutateAsync({ classId, reason: revokeReason.trim() })
                     .then(() => {
