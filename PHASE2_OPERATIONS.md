@@ -173,6 +173,26 @@ Configure these Supabase Edge Function secrets:
   Portal honor `PUBLIC_APP_URL`, `SIGNUP_REDIRECT_ORIGINS`, and
   `https://cmcarebase.com` so self-serve signup still completes.
 
+The first two are required; the third is genuinely optional but worth setting
+deliberately. `resolvePhase2BillingReturnOrigins` falls back through
+`PUBLIC_APP_URL` and `SIGNUP_REDIRECT_ORIGINS` to the `https://cmcarebase.com`
+default, so an unset allowlist is not an empty one -- but it does mean the
+allowlist is whatever that fallback chain resolves to. If the app is served
+from any other origin and none of those variables is set, Checkout and Portal
+redirects are refused with `400 invalid_return_url`. Set it explicitly to the
+production origin plus any approved staging origins, scheme and port included,
+rather than relying on the default matching. The request `Origin` header is
+caller-controlled and never extends the allowlist.
+
+A missing secret is silent at deploy time. Without `STRIPE_SECRET_KEY`,
+`create-billing-session` answers `503 billing_not_configured` and
+`sync-billing-quantities` answers `503 billing_sync_not_configured`; without
+`STRIPE_BILLING_WEBHOOK_SECRET`, `stripe-billing-webhook` rejects every event
+with `400 invalid_signature`, so nothing reconciles. None of that is visible
+until a customer tries to pay. Confirm both are present with
+`supabase secrets list` against the target project before enabling self-serve
+checkout.
+
 The billing gateway uses Stripe API version `2026-02-25.clover`. Configure the
 webhook endpoint to send supported subscription, subscription-item, invoice,
 and Checkout events to `stripe-billing-webhook`. The handler verifies the exact

@@ -349,6 +349,11 @@ select is(
 --   campaign targeting). 48 definitions, 47 active.
 -- 47 -> 48 when 20260803070000 registered spawn-policy-campaign-cycles (E4 recurrence).
 --   49 definitions, 48 active.
+-- 48 -> 47 when 20260814010000 removed the duplicate billing-quantity-sync-cron definition. Two
+--   rows described one job: the critical one carried no cron_job_name and the one holding the
+--   cron name was not critical, so run_system_job_watchdog()'s filter skipped both halves and a
+--   job failing hourly reported healthy. The critical definition now owns the cron name and the
+--   duplicate is gone -- a deletion, not a registration. 48 definitions, 47 active.
 --
 -- The old message claimed this proved the control plane "registers every platform job". It did not,
 -- and could not: a bare count over system_job_definitions cannot notice a cron job that is missing
@@ -359,7 +364,7 @@ select is(
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  48::bigint,
+  47::bigint,
   'the control plane returns one row per active registered job definition'
 );
 

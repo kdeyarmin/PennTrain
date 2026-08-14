@@ -110,10 +110,56 @@ export function createSyncBillingQuantitiesHandler({
   const authError = requireCron(req, CORS_HEADERS);
   if (authError) return authError;
 
+  const correlationId = (req.headers.get("x-correlation-id") || randomUUID()).slice(0, 200);
+  const requestId = (req.headers.get("x-request-id") || randomUUID()).slice(0, 200);
+
   const supabaseUrl = getEnv("SUPABASE_URL");
   const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
   const stripeSecretKey = getEnv("STRIPE_SECRET_KEY");
   if (!supabaseUrl || !serviceRoleKey || !stripeSecretKey) {
+    // Answering 503 and recording nothing is how a real outage stayed invisible: with no
+    // system_job_runs row, /admin/system-jobs shows this job as merely idle and the watchdog
+    // has no failure to find, so an hourly misconfiguration looked exactly like a quiet
+    // schedule. Supabase always injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, so the
+    // shape this takes in production is a missing STRIPE_SECRET_KEY -- which still leaves a
+    // usable admin client to write the failed run with.
+    if (supabaseUrl && serviceRoleKey) {
+      // Tracking is best effort: a failure to record must not turn the misconfiguration
+      // into a 500, which would read as a transient error rather than missing setup.
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tracker: any = createClient(supabaseUrl, serviceRoleKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const { data: claimRows } = await tracker.rpc("claim_system_job_execution", {
+          p_job_key: "billing-quantity-sync",
+          p_correlation_id: correlationId,
+          p_trigger_type: requestId.startsWith("manual:") ? "manual" : "scheduled",
+          p_provider_request_id: requestId,
+        });
+        const claimed = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+        // should_execute must be honored here exactly as the main path honors it below.
+        // claim_system_job_execution returns a real run_id with should_execute false when the
+        // (job_key, correlation_id) row already exists in a 'running' or 'succeeded' state, so
+        // finishing on run_id alone would mark another invocation's in-flight run failed -- or
+        // re-finish a completed one -- which is the opposite of durable tracking.
+        if (claimed?.run_id && claimed.should_execute) {
+          await tracker.rpc("finish_system_job", {
+            p_run_id: claimed.run_id,
+            p_status: "failed",
+            p_attempted_count: 0,
+            p_succeeded_count: 0,
+            p_failed_count: 1,
+            p_result: { correlationId, missingStripeSecretKey: !stripeSecretKey },
+            p_error_code: "billing_sync_not_configured",
+            p_error_message:
+              "STRIPE_SECRET_KEY is not set on this project, so no subscription quantity can be synchronized",
+          });
+        }
+      } catch {
+        console.error("Billing sync misconfiguration could not be recorded", { correlationId });
+      }
+    }
     return json({ error: "billing_sync_not_configured" }, 503);
   }
 
@@ -132,8 +178,6 @@ export function createSyncBillingQuantitiesHandler({
     ? Math.min(Math.max(Math.trunc(parsedMaxRuntimeMs), 1_000), 150_000)
     : 110_000;
   const deadlineAt = nowMs() + maxRuntimeMs;
-  const correlationId = (req.headers.get("x-correlation-id") || randomUUID()).slice(0, 200);
-  const requestId = (req.headers.get("x-request-id") || randomUUID()).slice(0, 200);
   // Typed as any so Deno typecheck does not require full Supabase client generics
   // in the injectable factory (production index wires the real createClient).
   const admin: any = createClient(supabaseUrl, serviceRoleKey, {
