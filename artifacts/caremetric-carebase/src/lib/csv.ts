@@ -3,6 +3,7 @@
 // hardening is spreadsheet-facing, though -- code that re-serializes CSV text for a
 // machine consumer (no spreadsheet ever opens it) should use csvQuoteField instead;
 // see its doc comment below.
+import { downloadCsvText } from "./browserDownload";
 
 export interface ParsedCsv {
   headers: string[];
@@ -102,12 +103,13 @@ export function downloadCsv(filename: string, rows: Record<string, unknown>[]): 
     Object.keys(row).forEach((key) => keys.add(key));
     return keys;
   }, new Set<string>()));
-  const csv = [headers.join(","), ...rows.map((row) => headers.map((key) => csvEscape(row[key])).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  // Header cells go through csvQuoteField for the same reason the data cells go through
+  // csvEscape: a key carrying a comma or a quote would otherwise split the header row and
+  // misalign every column beneath it. No formula guard -- a header is our own column name, not
+  // user-entered text.
+  const csv = [
+    headers.map(csvQuoteField).join(","),
+    ...rows.map((row) => headers.map((key) => csvEscape(row[key])).join(",")),
+  ].join("\n");
+  downloadCsvText(filename, csv);
 }

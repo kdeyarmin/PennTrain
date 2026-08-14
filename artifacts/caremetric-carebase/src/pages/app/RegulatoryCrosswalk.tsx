@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { csvEscape } from "@/lib/csv";
+import { downloadCsvText } from "@/lib/browserDownload";
 import { facilityToday } from "@/lib/dateUtils";
 import { buildRegulatoryCrosswalkRows, filterRegulatoryCrosswalkRows, type CrosswalkEvidenceSource, type CrosswalkStatus, type FacilityProgram } from "@/lib/regulatoryCrosswalk";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -109,15 +110,7 @@ export default function RegulatoryCrosswalk() {
       row.binderLocation,
       row.route,
     ])].map((line) => line.map(csvEscape).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `regulatory-crosswalk-${facilityToday()}.csv`;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    downloadCsvText(`regulatory-crosswalk-${facilityToday()}.csv`, csv);
   };
 
   // Each row claims a citation is or isn't covered, and the CSV export is handed to

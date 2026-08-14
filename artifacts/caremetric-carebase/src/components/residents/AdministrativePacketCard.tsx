@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
+import { downloadTextFile } from "@/lib/browserDownload";
 import { errorText } from "@/lib/errorText";
 import {
   PACKET_SECTIONS, packetSectionCount, packetSectionIsEmpty,
@@ -39,13 +40,11 @@ export function AdministrativePacketCard({
   const download = () => {
     if (!packet.data) return;
     try {
-      const blob = new Blob([JSON.stringify(packet.data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `administrative-packet-${residentName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadTextFile(
+        `administrative-packet-${residentName.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.json`,
+        JSON.stringify(packet.data, null, 2),
+        "application/json",
+      );
     } catch (error) {
       toast({ title: "Could not save the packet", description: errorText(error), variant: "destructive" });
     }

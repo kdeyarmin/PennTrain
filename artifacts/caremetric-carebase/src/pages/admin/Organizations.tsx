@@ -14,6 +14,7 @@ import { QueryError } from "@/components/QueryState";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { csvEscape } from "@/lib/csv";
+import { downloadCsvText } from "@/lib/browserDownload";
 import { humanize } from "@/lib/utils";
 import { facilityToday } from "@/lib/dateUtils";
 
@@ -38,13 +39,7 @@ function toCsv(headers: string[], rows: string[][]): string {
 }
 
 function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsvText(filename, csv);
 }
 
 interface OrgFormData {

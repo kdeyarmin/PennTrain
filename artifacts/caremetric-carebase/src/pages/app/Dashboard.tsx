@@ -23,6 +23,7 @@ import { Building2, Users, AlertTriangle, CheckCircle, Clock, XCircle, AlertCirc
 import { Link } from "wouter";
 import { supabase } from "@/lib/supabase";
 import { dashboardMetricDefinition, DASHBOARD_SCOPE_LABEL } from "@/lib/metricContract";
+import { downloadCsvText } from "@/lib/browserDownload";
 
 interface RecentUpload {
   id: string;
@@ -312,15 +313,7 @@ export default function OrgDashboard() {
     ];
 
     const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `caremetric-carebase-action-plan-${facilityToday()}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadCsvText(`caremetric-carebase-action-plan-${facilityToday()}.csv`, csv);
   };
 
   if (isError) {

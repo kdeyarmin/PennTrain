@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { csvEscape } from "@/lib/csv";
+import { downloadCsvText } from "@/lib/browserDownload";
 import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { containsFilterValue } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -387,13 +388,7 @@ function toCsv(headers: string[], rows: string[][]): string {
 }
 
 function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsvText(filename, csv);
 }
 
 function parsePagedReport(value: unknown): PagedReportData {

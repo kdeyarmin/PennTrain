@@ -1,3 +1,5 @@
+import { downloadCsvText } from "./browserDownload";
+
 export const IMPORT_DOMAINS = [
   "employees", "training_records", "credentials", "residents", "resident_contacts",
   "rooms", "assessments", "incidents",
@@ -124,12 +126,7 @@ export function requiredImportColumns(domain: ImportDomain): readonly string[] {
 }
 
 export function downloadCsv(filename: string, csv: string): void {
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  downloadCsvText(filename, csv);
 }
 
 export function rowsToErrorCsv(rows: Array<{ row_number: number; source_row: unknown; errors: unknown; warnings: unknown }>): string {

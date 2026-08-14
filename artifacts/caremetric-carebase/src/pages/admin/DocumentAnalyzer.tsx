@@ -53,6 +53,7 @@ import {
   summarizeAnalyzerJobs,
 } from "@/lib/documentAnalyzer";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { downloadBlob } from "@/lib/browserDownload";
 
 function statusLabel(status: string) {
   switch (status) {
@@ -380,12 +381,7 @@ export default function DocumentAnalyzer() {
         const result = await exportPacket.mutateAsync(batches[index]);
         const response = await fetch(result.url!);
         if (!response.ok) throw new Error(`Failed to download packet file ${index + 1} of ${batches.length}`);
-        const blobUrl = URL.createObjectURL(await response.blob());
-        const anchor = document.createElement("a");
-        anchor.href = blobUrl;
-        anchor.download = `state-form-packet-${index + 1}-of-${batches.length}.pdf`;
-        anchor.click();
-        URL.revokeObjectURL(blobUrl);
+        downloadBlob(`state-form-packet-${index + 1}-of-${batches.length}.pdf`, await response.blob());
         included += result.jobCount ?? 0;
       }
       toast({

@@ -1,5 +1,6 @@
 import { useId, useState, useMemo, useRef, useEffect } from "react";
 import { csvEscape } from "@/lib/csv";
+import { downloadCsvText } from "@/lib/browserDownload";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -796,13 +797,7 @@ export default function TrainingMatrix() {
         .map(row => row.map(csvEscape).join(","))
         .join("\n");
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "training-matrix.csv";
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadCsvText("training-matrix.csv", csvContent);
 
       // Say so rather than handing over a short file that looks complete.
       if (exportPage.totalCount > exportPage.rows.length) {

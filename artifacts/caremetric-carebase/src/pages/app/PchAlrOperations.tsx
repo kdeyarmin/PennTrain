@@ -4,6 +4,7 @@ import { AlertTriangle, BedDouble, Building2, CalendarClock, ChevronRight, Clipb
 import { PCH_ALR_OPERATIONS_ITEMS, buildInspectionDayChecklist, buildPchAlrEvidencePackage, evidencePackageToCsv, evidencePackageToText, searchPchAlrOperations, type OperationsDomain, type PchAlrOperationsItem } from "@/lib/pchAlrOperations";
 import { buildPchAlrOperationsQueueFromSnapshot, summarizePchAlrQueue } from "@/lib/pchAlrOperationalSnapshot";
 import { useAuth } from "@/lib/auth";
+import { downloadCsvText } from "@/lib/browserDownload";
 import { facilityToday } from "@/lib/dateUtils";
 import { facilityTypeLabel, PCH_ALR_ONLY_FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -98,15 +99,7 @@ export default function PchAlrOperations() {
   };
 
   const downloadEvidencePackageCsv = () => {
-    const blob = new Blob([evidencePackageToCsv(evidencePackage)], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `pch-alr-documentation-package-${facilityToday()}.csv`;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    downloadCsvText(`pch-alr-documentation-package-${facilityToday()}.csv`, evidencePackageToCsv(evidencePackage));
   };
 
   const openFacilityHuddle = (nextFacilityId: string) => {
