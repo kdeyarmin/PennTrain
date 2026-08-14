@@ -42,10 +42,17 @@ select is(
 -- enqueued the request) while the function has recorded no finished run of its own. Under the
 -- previous resolver this read as fresh forever; the job had never once succeeded.
 --
--- username must equal current_user: cron.job_run_details carries an RLS policy of
--- username = CURRENT_USER, which Postgres also applies as the INSERT check.
-insert into cron.job_run_details (jobid, status, username, database, command, start_time, end_time)
-select c.jobid, 'succeeded', current_user, current_database(), c.command, now(), now()
+-- Two constraints on this insert, both learned the hard way:
+--   * username must equal current_user -- cron.job_run_details carries an RLS policy of
+--     username = CURRENT_USER, which Postgres also applies as the INSERT check.
+--   * runid must be supplied explicitly. The column defaults to nextval('cron.runid_seq'), and
+--     the role running these tests has INSERT on the table but no USAGE on that sequence, so
+--     letting the default fire fails with "permission denied for sequence runid_seq".
+-- The explicit value is also load-bearing for the assertion: the watchdog reads the newest run by
+-- `order by runid desc`, so a high runid makes "this is the latest success" deterministic rather
+-- than dependent on whatever else the local stack has recorded.
+insert into cron.job_run_details (runid, jobid, status, username, database, command, start_time, end_time)
+select 9876543210, c.jobid, 'succeeded', current_user, current_database(), c.command, now(), now()
 from cron.job c
 where c.jobname = 'billing-quantity-sync';
 
