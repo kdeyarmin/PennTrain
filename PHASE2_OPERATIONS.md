@@ -184,14 +184,21 @@ production origin plus any approved staging origins, scheme and port included,
 rather than relying on the default matching. The request `Origin` header is
 caller-controlled and never extends the allowlist.
 
-A missing secret is silent at deploy time. Without `STRIPE_SECRET_KEY`,
-`create-billing-session` answers `503 billing_not_configured` and
-`sync-billing-quantities` answers `503 billing_sync_not_configured`; without
-`STRIPE_BILLING_WEBHOOK_SECRET`, `stripe-billing-webhook` rejects every event
-with `400 invalid_signature`, so nothing reconciles. None of that is visible
-until a customer tries to pay. Confirm both are present with
-`supabase secrets list` against the target project before enabling self-serve
-checkout.
+The two failures surface very differently, which is worth knowing before you
+go looking for them. A missing `STRIPE_SECRET_KEY` is now exercised hourly:
+`sync-billing-quantities` records a failed `system_job_runs` row with
+`billing_sync_not_configured` and the watchdog reports the job stale, so it is
+visible on /admin/system-jobs without anyone attempting a payment.
+`create-billing-session` separately answers `503 billing_not_configured` the
+first time an administrator opens Checkout or the Portal.
+
+A missing `STRIPE_BILLING_WEBHOOK_SECRET` is the one that stays silent.
+`stripe-billing-webhook` rejects every event with `400 invalid_signature`, and
+nothing schedules that endpoint -- only Stripe calls it -- so there is no run to
+fail and no alert to raise until real subscription traffic exists and quietly
+fails to reconcile. Confirm both secrets with `supabase secrets list` against
+the target project, and send a test event from the Stripe dashboard, before
+enabling self-serve checkout.
 
 The billing gateway uses Stripe API version `2026-02-25.clover`. Configure the
 webhook endpoint to send supported subscription, subscription-item, invoice,
