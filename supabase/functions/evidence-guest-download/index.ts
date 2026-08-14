@@ -2,6 +2,13 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+// The shared, trusted-hop derivation. See submit-confidential-intake for the reasoning: the local
+// version this replaces took `cf-connecting-ip` unconditionally (meaningful only when Cloudflare
+// verifiably fronts the function, otherwise just another caller-set header) and then fell back to
+// the FIRST hop of x-forwarded-for, which is the half of that list the caller writes. The
+// fingerprint below is stored on `evidence_guest_access_events` as the record of who downloaded a
+// surveyor's evidence, so a value the guest chose is worse than none.
+import { clientIp } from "../_shared/clientIp.ts";
 
 // Public evidence-room guest download. Guests have no Supabase session -- their whole
 // identity is the grant token, so authorization happens in the database:
@@ -23,9 +30,6 @@ function json(req: Request, body: unknown, status = 200) {
     headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req, CORS_OPTIONS) },
   });
 }
-
-const requestIp = (req: Request) =>
-  req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
 const sha256Hex = async (value: string) =>
   Array.from(
@@ -56,7 +60,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
-  const fingerprint = await sha256Hex(`${requestIp(req)}|${req.headers.get("user-agent") ?? ""}`);
+  const fingerprint = await sha256Hex(`${clientIp(req)}|${req.headers.get("user-agent") ?? ""}`);
 
   const { data: decision, error: authorizeError } = await adminClient.rpc("authorize_evidence_guest_artifact", {
     p_token: body.token,
