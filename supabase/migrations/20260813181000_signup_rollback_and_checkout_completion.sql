@@ -46,6 +46,27 @@ begin
   delete from public.enterprise_organization_memberships
   where organization_id = p_organization_id;
 
+  -- A leftover org_admin profile fires sync_profile_builtin_enterprise_access,
+  -- which writes enterprise_scope_memberships plus enterprise_access_grants
+  -- (membership_id ON DELETE RESTRICT). Clear grants (and any backfill
+  -- exceptions) before the memberships, or the scope delete fails and the
+  -- org stays behind.
+  delete from public.enterprise_access_grants g
+  using public.enterprise_scope_memberships m
+  where g.membership_id = m.id
+    and (
+      m.organization_id = p_organization_id
+      or m.profile_id in (
+        select p.id from public.profiles p where p.organization_id = p_organization_id
+      )
+    );
+
+  delete from public.enterprise_scope_backfill_exceptions
+  where organization_id = p_organization_id
+     or profile_id in (
+       select p.id from public.profiles p where p.organization_id = p_organization_id
+     );
+
   delete from public.enterprise_scope_memberships
   where organization_id = p_organization_id
      or profile_id in (
