@@ -13,11 +13,17 @@
     "Dashboard.tsx reported `route: \"/app/dashboard\"` to product telemetry for a page mounted at",
     "`/app`, so every benchmark_viewed row named a route that does not exist.",
     "",
-    "THE EXPECTED USE OF THIS FILE is a literal that is a PREFIX TO MATCH rather than a place to go.",
-    "The check reads every string literal in client source, which is what lets it see a path routed",
-    "through a constant or a ternary; the cost is that a list of prefixes used with startsWith() looks",
-    "the same as a list of destinations. Both entries below are that case, and each names the function",
-    "that consumes it so the claim is checkable.",
+    "THE EXPECTED USE OF THIS FILE is a literal that is never navigated to as written -- either a",
+    "PREFIX TO MATCH (fed to startsWith/routeMatches) or a CONCATENATION BASE (only ever used as",
+    "`${base}/${id}`). The check reads every string literal in client source, which is what lets it",
+    "see a path routed through a constant or a ternary; the cost is that neither of those shapes is",
+    "distinguishable from a destination by looking at the literal alone.",
+    "",
+    "Every entry names the code that consumes it, because that is the claim being made and it is the",
+    "part that can rot. A concatenation base is exempt only for as long as nothing navigates to it",
+    "bare -- `/admin/incidents` is one guard (`canLinkToOrgLists`) away from being a real dead link",
+    "for platform admins, and this file would not notice if that guard were removed. Re-read the",
+    "consumer before trusting an entry.",
     "",
     "It is NOT a place to excuse a link that is genuinely broken. Declare the route or correct the",
     "link instead."
@@ -30,5 +36,30 @@
   "/app/regulatory": {
     "reason": "A prefix to match, not a destination. `helpCopilot.ts` lists it in the compliance_risk intent's routePrefixes, which routeMatches() tests against the user's current location to pick which help answer applies. It is intentionally the shared stem of /app/regulatory-crosswalk and /app/regulatory-copilot -- both declared routes -- so that either page resolves to the same intent. Nothing navigates to /app/regulatory.",
     "consumed_by": "routePrefixes matching in artifacts/caremetric-carebase/src/lib/helpCopilot.ts"
+  },
+
+  "/admin/incidents": {
+    "reason": "A concatenation base for the platform-admin incident detail route, which IS declared (/admin/incidents/:id). No /admin/incidents list route exists. Alerts.tsx builds `${incidentDetailBase}/${alert.linked_incident_id}`. FacilityDetail.tsx also has a bare `${incidentsBasePath}?facility=…` link, but it renders inside `canLinkToOrgLists`, which is `user?.role !== \"platform_admin\"` -- so the branch that would produce this literal never renders it. Remove that guard and this becomes a real 404 for platform admins.",
+    "consumed_by": "incidentDetailBase in pages/app/Alerts.tsx; incidentsBasePath in pages/app/FacilityDetail.tsx (bare use guarded by canLinkToOrgLists)"
+  },
+  "/admin/inspections": {
+    "reason": "A concatenation base for the platform-admin inspection-item detail route, which IS declared (/admin/inspections/:id). No /admin/inspections list route exists. Only used as `${inspectionDetailBase}/${alert.linked_inspection_item_id}`.",
+    "consumed_by": "inspectionDetailBase in pages/app/Alerts.tsx"
+  },
+  "/admin/residents": {
+    "reason": "A concatenation base for the platform-admin resident routes, which ARE declared (/admin/residents/:id and /admin/residents/:residentId/assessment-forms/:formId). ResidentDetail.tsx states the rule in its own comment: \"There is no /admin/residents list route; keep nested links working, but return 'Back' to a valid origin.\" Every use appends a segment.",
+    "consumed_by": "residentsBasePath in components/layout/GlobalSearch.tsx; residentPathPrefix in pages/app/IncidentDetail.tsx, ResidentDetail.tsx, ResidentAssessmentFormEditor.tsx and the resident-tabs"
+  },
+  "/passport": {
+    "reason": "A `cleanPath` in PUBLIC_ACCESS_FLOWS, not a destination. A cleanPath is only navigated to when consumePublicAccessToken() rewrites the URL to hide a secret token, and that function requires a storageKey. The training-passport flow has `storageKey: null` -- its slug is public content identity, not a credential -- so nothing ever strips it and nothing lands on bare /passport. routeRegistration.test.ts encodes the same distinction: it asserts registration only for `PUBLIC_ACCESS_FLOWS.filter((flow) => flow.storageKey)`. The route users reach, /passport/:slug, is declared.",
+    "consumed_by": "PUBLIC_ACCESS_FLOWS in lib/publicAccessToken.ts; registration asserted for storage-backed flows only in lib/routeRegistration.test.ts"
+  },
+  "/verify": {
+    "reason": "Same as /passport: a `cleanPath` for the certificate-verification flow, which also has `storageKey: null`, so consumePublicAccessToken() never rewrites to it. /verify/:slug is declared.",
+    "consumed_by": "PUBLIC_ACCESS_FLOWS in lib/publicAccessToken.ts"
+  },
+  "/app/help/tickets": {
+    "reason": "A concatenation base for the support-ticket detail route, which IS declared (/app/help/tickets/:id). No bare /app/help/tickets list route exists -- the list lives at /app/help. Only used as `${admin ? \"/admin/support-tickets\" : \"/app/help/tickets\"}/${entityId}`.",
+    "consumed_by": "auditEntityResolver.ts entity link resolution"
   }
 }

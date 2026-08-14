@@ -1,7 +1,7 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { declaredRoutes, isInAppPath, routeMatches } from "./lib/appRoutes.mjs";
+import { declaredRoutes, governedPrefixes, isInAppPath, routeMatches } from "./lib/appRoutes.mjs";
 import { blankJsComments } from "./lib/jsComments.mjs";
 
 // Client-emitted link check -- the other half of check-server-route-links.mjs.
@@ -51,14 +51,14 @@ const ALLOWLIST = path.join(ROOT, "scripts", "frontend-route-link-allowlist.json
  * about routes as broken routes -- one of them a comment explaining that `/app/compliance` is not a
  * route, i.e. the note left behind by the very fix this check would have made unnecessary.
  */
-export function frontendLinkLiterals(source) {
+export function frontendLinkLiterals(source, prefixes) {
   const code = blankJsComments(source);
   const found = new Set();
   for (const re of [/'([^']*)'/g, /"([^"]*)"/g, /`([^`]*)`/g]) {
     for (const match of code.matchAll(re)) {
       // `${...}` becomes `*`, a stand-in whose possible expansions are decided by linkCandidates().
       const value = match[1].replace(/\$\{[^}]*\}/g, "*");
-      if (!isInAppPath(value)) continue;
+      if (!isInAppPath(value, prefixes)) continue;
       // Interpolation this cannot read (a whole path in one expression) proves nothing either way.
       if (/[${}]/.test(value)) continue;
       found.add(value);
@@ -84,15 +84,18 @@ export function frontendLinkLiterals(source) {
  *   glued on    -- `/app/survey-day${facilityQ}` may be a query string (`?facility=…`) or empty, and
  *                  may equally extend the segment, so both expansions stand.
  *
- * A literal with no interpolation may still be a concatenation prefix -- `${base}/${id}` is how this
- * codebase builds role-scoped detail links, leaving `/admin/incidents` in the source and
- * `/admin/incidents/<id>` on screen -- so a trailing segment is offered for those too. It costs
- * nothing in strictness: the path still has to match SOME declared route either way.
+ * A literal with NO interpolation gets no such latitude. An earlier version appended a `/x`
+ * candidate to every one of them, on the grounds that `${base}/${id}` is how this codebase builds
+ * role-scoped detail links and leaves `/admin/incidents` in the source. That reasoning came with
+ * the claim that it "costs nothing in strictness", which was wrong: it means a plain literal is
+ * certified by ANY declared route one segment below it, so a direct navigation to a list route
+ * that does not exist passes as long as its detail route does. `/admin/incidents` is exactly that
+ * case -- no such route is declared, `/admin/incidents/:id` is -- so the gate would have waved
+ * through a real link to a page that 404s. The four genuine concatenation bases are named in the
+ * allowlist instead, where each one records the code that appends to it.
  */
 export function linkCandidates(literal) {
-  if (!literal.includes("*")) {
-    return [...new Set([literal, `${literal.replace(/\/$/, "")}/x`])];
-  }
+  if (!literal.includes("*")) return [literal];
   const candidates = new Set();
   // Each `*` expands independently by position: after a `/` it is a whole segment, otherwise it is
   // glued to the preceding text and may also vanish.
@@ -123,8 +126,23 @@ if (process.argv.includes("--self-test")) {
     // Glued to a segment it may extend it, or be a query string, or be absent.
     [() => linkCandidates("/app/survey-day*"), ["/app/survey-dayx", "/app/survey-day"]],
     // A plain literal may still be a `${base}/${id}` prefix.
-    [() => linkCandidates("/app/today"), ["/app/today", "/app/today/x"]],
-    [() => linkCandidates("/admin/incidents/"), ["/admin/incidents/", "/admin/incidents/x"]],
+    [() => linkCandidates("/app/today"), ["/app/today"]],
+    // A plain literal is NOT treated as a detail-route prefix: that would let /admin/incidents/:id
+    // vouch for a direct link to /admin/incidents, which is not a declared route.
+    [() => linkCandidates("/admin/incidents"), ["/admin/incidents"]],
+    // Governed prefixes are derived from the route table, so the public and guest surface is in
+    // scope. The hand-maintained list covered the authenticated app only, and a typo in a /login or
+    // /evidence-access link -- the pages unauthenticated people are sent to -- passed untouched.
+    [
+      () => governedPrefixes(["/app/x", "/login", "/evidence-access/:token", "/passport/:slug", "/:rest*"]),
+      ["/app", "/evidence-access", "/login", "/passport"],
+    ],
+    [() => isInAppPath("/login/reset", ["/login"]), true],
+    [() => isInAppPath("/login", ["/app"]), false],
+    [
+      () => frontendLinkLiterals('<Link href="/evidence-access/abc">', ["/evidence-access"]),
+      ["/evidence-access/abc"],
+    ],
     // External and non-app paths are out of scope.
     [() => frontendLinkLiterals('href="https://www.pa.gov/app/thing"'), []],
     [() => frontendLinkLiterals('href="/functions/v1/thing"'), []],
@@ -134,6 +152,20 @@ if (process.argv.includes("--self-test")) {
     [() => frontendLinkLiterals('const x = 1; // "/app/gone"\nconst y = "/app/real";'), ["/app/real"]],
     // A `//` inside a string is not a comment opener.
     [() => frontendLinkLiterals('const u = "https://x.test/y"; const p = "/app/real";'), ["/app/real"]],
+    // A multiline template's later lines are template TEXT, not code, so a `/*` in them opens
+    // nothing. Resetting backtick state per line made that text parse as code, and the resulting
+    // block comment carried across lines and blanked real literals to some unrelated `*/`. It was
+    // already happening: lib/csv.ts and voice/pcmCaptureWorklet.ts had 343 characters silently
+    // blanked between them, and only luck kept a route literal out of the blanked regions.
+    [
+      () => frontendLinkLiterals('const t = `\n  text with /* an opener\n`;\nconst p = "/app/real";'),
+      ["/app/real"],
+    ],
+    // A template that legitimately spans lines still ends at its closing backtick.
+    [
+      () => frontendLinkLiterals('const t = `\n  line\n`;\nconst p = "/app/after-template";'),
+      ["/app/after-template"],
+    ],
     // The defect that motivated this check: telemetry naming a route that does not exist.
     [() => frontendLinkLiterals('{ eventName: "benchmark_viewed", route: "/app/dashboard" }'), ["/app/dashboard"]],
     [() => routeMatches("/app", "/app/dashboard"), false],
@@ -174,6 +206,11 @@ if (routes.length < 50) {
   );
 }
 
+// Governed prefixes come from the route table itself -- see governedPrefixes(). The previous
+// hand-maintained list covered the authenticated app only, so a typo in a /login, /signup,
+// /evidence-access or /passport link -- the surface unauthenticated people use -- passed untouched.
+const prefixes = governedPrefixes(routes);
+
 let allowlist = {};
 try {
   const parsed = JSON.parse(await readFile(ALLOWLIST, "utf8"));
@@ -192,7 +229,7 @@ const clientFiles = await walk(
 const findings = new Map();
 let linkCount = 0;
 for (const file of clientFiles) {
-  const links = frontendLinkLiterals(await readFile(file, "utf8"));
+  const links = frontendLinkLiterals(await readFile(file, "utf8"), prefixes);
   linkCount += links.length;
   for (const link of links) {
     if (allowlist[link]) continue;

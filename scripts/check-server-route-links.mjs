@@ -30,7 +30,7 @@ const ALLOWLIST = path.join(ROOT, "scripts", "server-route-link-allowlist.json")
 // check-frontend-route-links.mjs began enforcing the same invariant from the client side -- one
 // route table, one matching rule, read from both sides. Re-exported so this module's public
 // surface and its self-test below are unchanged.
-import { declaredRoutes, isInAppPath, routeMatches } from "./lib/appRoutes.mjs";
+import { declaredRoutes, governedPrefixes, isInAppPath, routeMatches } from "./lib/appRoutes.mjs";
 
 export { declaredRoutes, routeMatches };
 
@@ -46,13 +46,13 @@ export { declaredRoutes, routeMatches };
  * `compliance-copilot`'s `/app/inspection-items/${row.id}` -- a route that does not exist -- went
  * unreported the entire time the check claimed to be reading every server link.
  */
-export function serverLinkLiterals(source) {
+export function serverLinkLiterals(source, prefixes) {
   const found = new Set();
   for (const re of [/'([^']*)'/g, /"([^"]*)"/g, /`([^`]*)`/g]) {
     for (const match of source.matchAll(re)) {
       // An interpolated value fills one path segment, which is exactly what a `:param` route accepts.
       const value = match[1].replace(/\$\{[^}]*\}/g, "x");
-      if (!isInAppPath(value)) continue;
+      if (!isInAppPath(value, prefixes)) continue;
       // SQL concatenation, or interpolation this cannot read; the quoted prefix stands on its own.
       if (/[|${}]/.test(value)) continue;
       found.add(value);
@@ -118,6 +118,11 @@ if (routes.length < 50) {
   );
 }
 
+// Governed prefixes come from the route table itself, so the public and guest surface -- /login,
+// /evidence-access/:token, /passport/:slug and the marketing pages -- is covered without anyone
+// remembering to widen a constant.
+const prefixes = governedPrefixes(routes);
+
 let allowlist = {};
 try {
   const parsed = JSON.parse(await readFile(ALLOWLIST, "utf8"));
@@ -136,7 +141,7 @@ const serverFiles = [
 const findings = new Map();
 for (const file of serverFiles) {
   const source = await readFile(file, "utf8");
-  for (const link of serverLinkLiterals(source)) {
+  for (const link of serverLinkLiterals(source, prefixes)) {
     if (allowlist[link]) continue;
     if (routes.some((route) => routeMatches(route, link))) continue;
     if (!findings.has(link)) findings.set(link, path.relative(ROOT, file));

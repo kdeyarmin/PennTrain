@@ -60,14 +60,23 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # `steps.check.outcome`, not `failure()`. `failure()` is true after ANY earlier failed step,
-      # so a checkout problem, a setup-node problem, or a runner hiccup opened an issue titled
-      # "Official PA DHS source freshness check failed" while the sources were fine -- a false
-      # compliance signal, and a standing issue bumped by unrelated infrastructure noise is one
-      # people stop believing. `id: check` was already declared for this and simply never used.
-      # dependency-advisories.yml carries the same fix and the same reasoning.
+      # BOTH halves are load-bearing, and each one alone is a different bug.
+      #
+      # `failure()` alone was the original: true after ANY earlier failed step, so a checkout or
+      # setup-node hiccup opened an issue titled "Official PA DHS source freshness check failed"
+      # while every PA.gov source was fine. A standing compliance alert bumped by infrastructure
+      # noise is one people stop believing.
+      #
+      # `steps.check.outcome == 'failure'` alone -- the first attempt at that fix -- never runs at
+      # all. GitHub wraps any `if:` with no status-check function in an implicit `success()`, so
+      # once the check step fails the condition is `success() && …`, which is false, and the step is
+      # skipped in exactly the case it exists for. That silently removed the workflow's only
+      # persistent alert rather than narrowing it.
+      #
+      # Together they mean what was intended: run despite the failed step, but only when the failure
+      # was this check's own. If checkout fails, `steps.check.outcome` is `skipped`, not `failure`.
       - name: Open or update issue on failure
-        if: steps.check.outcome == 'failure'
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |

@@ -6,12 +6,40 @@
 // declared route serve this path?", and that question has exactly one correct answer, so it lives
 // in one place rather than being reimplemented per caller.
 
-/** The route prefixes these checks govern. Anything else in a string literal is not an in-app link. */
+/**
+ * Fallback prefix list, used only if the route table cannot be read.
+ *
+ * This was the whole governed set, hand-maintained, and it covered the authenticated app and
+ * nothing else. App.tsx also declares the entire public and guest surface -- `/login`, `/signup`,
+ * `/evidence-access/:token`, `/move-in-access/:token`, `/passport/:slug`, `/verify/:slug`, the
+ * marketing pages -- and a typo or a renamed route in any of those links passed both checks
+ * untouched, because the literal did not start with one of these seven strings. Those are the links
+ * an unauthenticated surveyor or a family member follows, so they are the ones with the least
+ * margin for a 404. `governedPrefixes()` derives the set from the routes themselves instead.
+ */
 export const APP_PREFIXES = ["/app", "/admin", "/account", "/employee", "/trainer", "/me", "/portal"];
 
 /** Route paths declared in App.tsx. */
 export function declaredRoutes(appSource) {
   return [...appSource.matchAll(/<Route\s+path=\{?["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
+}
+
+/**
+ * The first path segment of every declared route -- the set of prefixes these checks govern.
+ *
+ * Derived rather than listed so the governed surface cannot drift from the routing surface: a new
+ * top-level route family is covered the day it is declared, with nobody remembering to widen a
+ * constant. The bare `/` root is excluded deliberately -- it would govern every absolute string in
+ * the codebase, including API paths and storage keys, which is a different check with a much larger
+ * allowlist.
+ */
+export function governedPrefixes(routes) {
+  const prefixes = new Set();
+  for (const route of routes) {
+    const segment = route.split("/")[1];
+    if (segment && !segment.startsWith(":")) prefixes.add(`/${segment}`);
+  }
+  return [...prefixes].sort();
 }
 
 /**
@@ -32,7 +60,12 @@ export function routeMatches(route, link) {
   return candidates.some((candidate) => pattern.test(candidate));
 }
 
-/** True when `value` is an in-app path this family of checks is responsible for. */
-export function isInAppPath(value) {
-  return APP_PREFIXES.some((p) => value === p || value.startsWith(`${p}/`));
+/**
+ * True when `value` is an in-app path this family of checks is responsible for.
+ *
+ * `prefixes` defaults to the hand-maintained list only so a caller that has not read App.tsx still
+ * works; every real caller passes `governedPrefixes(declaredRoutes(...))`.
+ */
+export function isInAppPath(value, prefixes = APP_PREFIXES) {
+  return prefixes.some((p) => value === p || value.startsWith(`${p}/`));
 }

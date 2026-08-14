@@ -127,14 +127,32 @@ jobs:
           # critical path of every production deploy, before a single migration is pushed, to read
           # the same 50 responses twice.
           #
-          # `$( )` assignment rather than `< <( )` process substitution, deliberately: under
-          # `set -e` a failing `gh api` (rate limit, transient 5xx) aborts the step loudly, where
-          # process substitution would hide the error and read as "this run has no stamps" -- which
-          # the caller would take as "never deployed" and act on. Same silent-empty-on-error trap
-          # the path diff further down is written to avoid.
+          # The status is captured rather than left to `set -e`, for the same reason the run listing
+          # below captures its own: an aborted gate is a FAILED PRODUCTION DEPLOY, and this loop
+          # makes up to 50 sequential API calls, so it is the most rate-limit-exposed thing here.
+          # An earlier version let `set -e` kill the step on a transient 5xx and called that
+          # "failing loudly" -- but the two directions are not equally bad. Not knowing the history
+          # means deploying (redundant, and `db push` is idempotent); aborting means production does
+          # not get its migrations and someone has to notice the issue. Undetermined resolves toward
+          # deploying everywhere else in this gate; it does here too.
+          # Reports a failed lookup through its EXIT STATUS, not a variable. The caller reads this
+          # through `$( )`, which runs the function in a subshell, so anything it assigns is
+          # discarded when that subshell exits -- a first attempt set a `STAMP_LOOKUP_FAILED` flag
+          # here and the caller never saw it, so an unreadable run still silently counted as "no
+          # stamps" and the path short-circuit ran on a history with a hole in it. Status crosses
+          # the subshell boundary; assignments do not.
           stamp_shas_for_run() {
-            gh api "repos/${REPO}/actions/runs/$1/artifacts?per_page=100" \
-              --jq ".artifacts[] | select(.name | startswith(\"${STAMP_PREFIX}\")) | .name | ltrimstr(\"${STAMP_PREFIX}\")"
+            local status=0
+            local out
+            out=$(
+              gh api "repos/${REPO}/actions/runs/$1/artifacts?per_page=100" \
+                --jq ".artifacts[] | select(.name | startswith(\"${STAMP_PREFIX}\")) | .name | ltrimstr(\"${STAMP_PREFIX}\")"
+            ) || status=$?
+            if [ "${status}" -ne 0 ]; then
+              echo "::warning::Could not list artifacts for run $1 (gh exit ${status}); treating its deploy history as unknown." >&2
+              return 2
+            fi
+            printf '%s' "${out}"
           }
 
           # Dry-run always proceeds (operators want drift verification on demand).
@@ -182,8 +200,14 @@ jobs:
           #   2) Which SHA was deployed last? → PREV_SHA, the stamp on the newest run that has one,
           #      used by the path short-circuit below.
           PREV_SHA=""
+          STAMP_LOOKUP_FAILED=0
           for rid in "${RECENT[@]+"${RECENT[@]}"}"; do
-            STAMP_SHAS=$(stamp_shas_for_run "$rid")
+            LOOKUP_STATUS=0
+            STAMP_SHAS=$(stamp_shas_for_run "$rid") || LOOKUP_STATUS=$?
+            if [ "${LOOKUP_STATUS}" -ne 0 ]; then
+              STAMP_LOOKUP_FAILED=1
+              continue
+            fi
             [ -n "${STAMP_SHAS}" ] || continue
 
             if [ -z "${PREV_SHA}" ]; then
@@ -199,7 +223,15 @@ jobs:
             fi
           done
 
-          if [ -n "${PREV_SHA}" ] && [ "${PREV_SHA}" != "${SHA}" ]; then
+          # A lookup that failed above leaves a hole in the history, and the hole is not harmless:
+          # the newest run carrying a stamp may be one this loop could not read, in which case
+          # PREV_SHA names an OLDER deploy and diffing against it can find no Supabase changes and
+          # skip a deploy that was actually needed. A missed same-SHA stamp only costs a redundant
+          # idempotent deploy, but a wrong baseline costs a real one, so an incomplete scan
+          # disqualifies the path short-circuit entirely.
+          if [ "${STAMP_LOOKUP_FAILED}" -ne 0 ]; then
+            echo "::warning::Deploy history is incomplete (at least one artifact lookup failed); skipping the path short-circuit and deploying."
+          elif [ -n "${PREV_SHA}" ] && [ "${PREV_SHA}" != "${SHA}" ]; then
             # `|| true` used to swallow the exit status here, which made an ERRORED diff
             # indistinguishable from a diff that legitimately found nothing -- and the branch below
             # reads "nothing" as "skip the deploy". So an unfetchable PREV_SHA (a force-push, a
@@ -310,21 +342,31 @@ jobs:
   # when the job is cancelled by timeout-minutes) -- hence the check on `needs.deploy.result`
   # rather than a step-level `if: failure()` inside `deploy`.
   #
-  # `!cancelled()` rather than `always()`, for the reason ci.yml's `ci-result` spells out: the two
-  # are NOT interchangeable, because `always()` is true even when the whole RUN was cancelled. The
-  # `concurrency: deploy-migrations` group above queues deploys and GitHub keeps only one run
-  # pending, so a third merge landing while a second waits cancels the waiting run outright -- and
-  # every one of those opened a `[deploy] Production migration/function deploy failed` issue for a
-  # deploy that was superseded, not broken. Same for any human hitting cancel. A deploy alarm that
-  # fires on routine merge traffic is one people stop reading, which costs exactly the coverage
-  # this workflow exists to provide.
+  # `always()`, deliberately, after a round trip through `!cancelled()` and back.
   #
-  # The timeout case this job was written for is untouched: `timeout-minutes` cancels the JOB, not
-  # the run, so `cancelled()` is false, `needs.deploy.result` is `cancelled`, and the issue still
-  # opens.
+  # The case against `always()` is real: the `concurrency: deploy-migrations` group queues deploys
+  # and GitHub keeps only one run pending, so a third merge landing while a second waits cancels the
+  # waiting run, and each of those opens a `[deploy] … failed` issue for a deploy that was
+  # superseded rather than broken. `!cancelled()` suppresses exactly that.
+  #
+  # It also depends on an assumption GitHub does not actually document. The premise is that
+  # `timeout-minutes` cancels the JOB while leaving the RUN uncancelled, so `cancelled()` stays
+  # false and a timed-out deploy still reports. The expressions reference defines `cancelled()` only
+  # as "returns true if the workflow was canceled" and says nothing about job timeouts; a reviewer
+  # reading the same page concluded the opposite. Neither reading can be settled from the docs, and
+  # the two failure modes are not symmetric:
+  #
+  #   wrong about supersession -> a spurious issue, deduplicated by the script below, closed in a
+  #                               click, and visibly tied to a superseded run
+  #   wrong about timeouts     -> a production migration deploy times out and NOTHING says so
+  #
+  # A compliance product does not trade a guaranteed alert for tidier issues on an unverifiable
+  # premise. So this stays `always()` and the noise is handled where it can be described rather than
+  # guessed at: the issue body names supersession as the first thing to check when the deploy job
+  # was cancelled. If GitHub ever specifies the timeout semantics, this can narrow again.
   notify-failure:
     needs: deploy
-    if: ${{ !cancelled() && needs.deploy.result != 'success' && needs.deploy.result != 'skipped' }}
+    if: ${{ always() && needs.deploy.result != 'success' && needs.deploy.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -342,11 +384,29 @@ jobs:
             const result = process.env.DEPLOY_RESULT || 'unknown';
             const title = `[deploy] Production migration/function deploy failed (${short})`;
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            // `cancelled` is the one result with a benign explanation, so say so here rather than
+            // suppressing the whole notification on a guess about what produced it. Two things
+            // reach this job as `cancelled`: a run superseded in the deploy concurrency queue
+            // (harmless -- a later run deploys the same migrations, and `db push` is idempotent)
+            // and a deploy that exceeded `timeout-minutes` mid-flight (not harmless at all).
+            const cancelledNote = result === 'cancelled'
+              ? [
+                  '',
+                  '**This deploy was cancelled, which has two very different causes — check which one:**',
+                  '- *Superseded in the queue.* Another deploy for a newer commit was already waiting.',
+                  '  Harmless: the later run deploys these migrations too, and `db push` is idempotent.',
+                  '  The run above will show the job never started.',
+                  '- *Timed out mid-deploy.* The job hit `timeout-minutes` while running. Production may',
+                  '  be part-way through a migration or function deploy — check the run log and the',
+                  '  project before re-running.',
+                ]
+              : [];
             const body = [
               `Deploy workflow ended with \`${result}\` for \`${process.env.DEPLOY_SHA}\`.`,
               '',
               `- Run: ${runUrl}`,
               `- Event: ${context.eventName}`,
+              ...cancelledNote,
               '',
               'Opened automatically by `deploy-migrations.yml` (`notify-failure` job). Close after a successful re-run or a manual fix.',
             ].join('\n');
