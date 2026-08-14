@@ -83,10 +83,17 @@ running things in this environment.
   work. `/etc/docker/daemon.json` is preconfigured for this VM (Docker 29 needs
   `storage-driver: fuse-overlayfs` + `features.containerd-snapshotter: false`,
   and iptables is set to legacy). Docker is only needed for the local Supabase
-  stack and `pnpm run check:database`.
+  stack and `pnpm run check:database`. `check:database` mirrors the CI job exactly,
+  which means it stops any stack you have running and brings up a clean one --
+  anything living only in your local stack is gone when it runs.
 - **Local backend = local Supabase**: the SPA has no API server of its own; it
   talks to Supabase directly. From the repo root run
-  `npx --yes supabase@2.109.1 start` (applies all migrations + `supabase/seed.sql`).
+  `npx --yes supabase@2.109.1 start` (applies all migrations, no demo data:
+  `[db.seed] enabled = false` in `supabase/config.toml`, so the same single pass
+  serves CI and local work instead of `start` seeding and every automated path
+  then replaying the chain to undo it). For the demo tenants and the `demo123`
+  logins, follow it with `pnpm run db:reset:demo`, which replays the chain into a
+  clean database and loads `supabase/seed.sql`.
   It serves the API at `http://127.0.0.1:54321`, Studio at `:54323`, and Mailpit
   at `:54324`. Get keys any time with `npx --yes supabase@2.109.1 status`.
 - **App env**: `artifacts/caremetric-carebase/.env` (gitignored) must set
@@ -97,9 +104,10 @@ running things in this environment.
   restart) after changing them. Then `pnpm run dev` serves `http://localhost:5173`.
 - **Seed login roles**: `supabase/seed.sql` places `role` and `organization_id`
   in trusted `raw_app_meta_data`, matching `handle_new_user`. The five Sunrise
- customer-role accounts therefore resolve correctly after a local reset. The
- predictable `demo123` password is local-only, and no platform-admin credential
- is seeded.
+ customer-role accounts therefore resolve correctly after `pnpm run db:reset:demo`
+ (seeding is opt-in; plain `supabase start` and `supabase db reset` leave the
+ database free of demo data). The predictable `demo123` password is local-only,
+ and no platform-admin credential is seeded.
 - **MFA login gate defaults on for real tenants**: `MfaPolicyGate`
  (`src/components/layout/SessionSecurityGates.tsx`) reads `get_my_mfa_policy()`.
  As of migration `20260729130000_restore_privileged_mfa_default_except_demo.sql`,

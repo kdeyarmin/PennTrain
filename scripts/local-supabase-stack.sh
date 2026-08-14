@@ -19,7 +19,10 @@
 #   ./scripts/local-supabase-stack.sh          # start (idempotent)
 #   eval "$(supabase status -o env | sed 's/^/export /')"   # then export connection vars
 #
-# Verified against this repo: `supabase db reset --no-seed && supabase test db` -> 2537/2537 in ~40s.
+# The stack this brings up is the one CI tests: `supabase start` applies the full migration chain
+# and, because `[db.seed] enabled = false` in supabase/config.toml, loads no demo data. Nothing
+# needs to reset afterwards to strip seed rows -- `supabase test db` can run directly.
+# Verified against this repo: `supabase test db` -> 2537/2537 in ~40s.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -132,9 +135,14 @@ cat <<'NOTES'
   export VITE_SUPABASE_URL="$API_URL" VITE_SUPABASE_ANON_KEY="$ANON_KEY"
   export VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA E2E_ACCOUNT_PASSWORD=local-only
 
-  # Database tests. --no-seed matters: CI resets without seed.sql, and several suites fail
-  # against seeded data. Reproduce CI exactly or the result means nothing.
-  supabase db reset --no-seed && supabase test db
+  # Database tests. A stack this script just started already has the chain applied and no demo
+  # data -- exactly what CI runs against, so run the tests directly. Several suites fail against
+  # seeded data; do not load seed.sql first. Reproduce CI exactly or the result means nothing.
+  supabase test db
+
+  # If the script reused a stack that was already up, its schema may have drifted since; replay
+  # the chain into a clean database first. Seeding is off by default, so no `--no-seed` needed.
+  supabase db reset && supabase test db
 
   # Browser journeys (build first -- Vite inlines VITE_* at build time)
   pnpm --filter @workspace/caremetric-carebase run build
