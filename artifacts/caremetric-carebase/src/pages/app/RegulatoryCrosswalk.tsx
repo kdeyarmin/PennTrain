@@ -60,11 +60,21 @@ export default function RegulatoryCrosswalk() {
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
   const { data: trainingRecords, ...trainingRecordsQuery } = useListTrainingRecords({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
   const { data: credentials, ...credentialsQuery } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
-  const { data: residentItems, ...residentItemsQuery } = useListAllResidentComplianceItems({ facilityId: activeFacilityId || undefined });
-  const { data: incidents, ...incidentsQuery } = useListIncidents({ facilityId: activeFacilityId || undefined });
-  const { data: correctiveActions, ...correctiveActionsQuery } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined });
-  const { data: inspectionItems, ...inspectionItemsQuery } = useListInspectionItems({ facilityId: activeFacilityId || undefined });
-  const { data: violations, ...violationsQuery } = useListViolations({ facilityId: activeFacilityId || undefined });
+  // Every facility-scoped source is gated on the facility being known, the way the training and
+  // credential reads above already were. `activeFacilityId` is empty until useListFacilities
+  // resolves, and each of these hooks applies its facilityId filter only `if` truthy -- so an
+  // ungated one did not fetch "nothing" for the not-yet-known facility, it fetched the whole
+  // organization. Five of them did, and buildRegulatoryCrosswalkRows below runs on whatever has
+  // arrived: for that first paint the crosswalk rendered one facility's citation statuses, evidence
+  // counts and due dates out of other facilities' incidents, violations, inspection items,
+  // corrective actions and resident items. The wasted org-wide sweeps, immediately re-run scoped,
+  // were the cheaper half of the problem.
+  const scopedToFacility = { enabled: Boolean(activeFacilityId) };
+  const { data: residentItems, ...residentItemsQuery } = useListAllResidentComplianceItems({ facilityId: activeFacilityId || undefined }, scopedToFacility);
+  const { data: incidents, ...incidentsQuery } = useListIncidents({ facilityId: activeFacilityId || undefined }, scopedToFacility);
+  const { data: correctiveActions, ...correctiveActionsQuery } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined }, scopedToFacility);
+  const { data: inspectionItems, ...inspectionItemsQuery } = useListInspectionItems({ facilityId: activeFacilityId || undefined }, scopedToFacility);
+  const { data: violations, ...violationsQuery } = useListViolations({ facilityId: activeFacilityId || undefined }, scopedToFacility);
   const { data: policyDocuments, ...policyDocumentsQuery } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
   const { data: policyAttestations, ...policyAttestationsQuery } = useListPolicyAttestations(
     {},
@@ -151,6 +161,14 @@ export default function RegulatoryCrosswalk() {
       </div>
       )}
 
+      {/* Held back until the sources have landed, for the same reason the tiles dash out. `rows` is
+          empty while they load, and `[].every(...)` is true -- so the reassuring arm of this alert
+          is exactly what an empty page renders: "Governed rule coverage: 0 of 0 / Every crosswalk
+          obligation is backed by an approved, effective, checksum-pinned rule version." A vacuous
+          all-clear is the one thing this banner must never say. */}
+      {crosswalkBusy ? (
+        <div className="h-24 animate-pulse rounded-xl bg-muted" />
+      ) : (
       <Alert variant={rows.every((row) => row.governedRule) ? "default" : "destructive"}>
         <ShieldAlert className="h-4 w-4" />
         <AlertTitle>Governed rule coverage: {rows.filter((row) => row.governedRule).length} of {rows.length}</AlertTitle>
@@ -160,6 +178,7 @@ export default function RegulatoryCrosswalk() {
             : "Rows without a governed version are clearly marked reference mappings. They must not be treated as legal advice or activated compliance logic until independent review, fixtures, shadow comparison, and approval are complete."}
         </AlertDescription>
       </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -187,6 +206,16 @@ export default function RegulatoryCrosswalk() {
         </CardContent>
       </Card>
 
+      {/* The summary tiles above already dash out while a source is still in flight; the cards
+          below did not, so a half-loaded set rendered as a finished crosswalk. Every row here is a
+          status derived from several sources at once, and one that has not arrived reads as an
+          absence of evidence -- "missing documentation" for a citation whose evidence is simply
+          still loading. */}
+      {crosswalkBusy ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((row) => <div key={row} className="h-40 animate-pulse rounded-xl bg-muted" />)}
+        </div>
+      ) : (
       <div className="space-y-3">
         {filteredRows.map((row) => (
           <Card key={row.id}>
@@ -218,6 +247,7 @@ export default function RegulatoryCrosswalk() {
           </Card>
         ))}
       </div>
+      )}
     </div>
   );
 }
