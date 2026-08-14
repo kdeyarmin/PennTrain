@@ -292,7 +292,12 @@ export default function OrgDashboard() {
   useEffect(() => {
     if (!benchmarkQuery.data?.available) return;
     void supabase.functions.invoke("capture-product-event", {
-      body: { eventName: "benchmark_viewed", route: "/app/dashboard", properties: { surface: "dashboard" } },
+      // `/app`, which is this page's actual route (App.tsx maps OrgDashboard at `/app`). It read
+      // `/app/dashboard`, a path no <Route> declares, so every `benchmark_viewed` row landed on a
+      // route that does not exist -- unjoinable against the `route_viewed` rows ProductTelemetry
+      // emits for the same surface, which use the real wouter location. The other hand-written
+      // capture-product-event calls (InspectionReadiness, Reports) all pass their real route.
+      body: { eventName: "benchmark_viewed", route: "/app", properties: { surface: "dashboard" } },
     });
   }, [benchmarkQuery.data?.available]);
 

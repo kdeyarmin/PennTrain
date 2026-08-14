@@ -61,13 +61,23 @@ export default function AiCourseWizard() {
   const field = <K extends keyof WizardFormState>(k: K, v: WizardFormState[K]) =>
     setForm(f => ({ ...f, [k]: v }));
 
+  // Plan name and course count only exist in training-plan mode -- their inputs are inside the
+  // `generationMode === "training_plan"` block below, exactly like the organization picker that
+  // is already mode-gated at submit time. Keeping them in the payload for a single course meant
+  // switching the mode selector back to "One individual course" left the previously-typed plan
+  // name invisible but still live: it was submitted with a request that has no plan, and -- worse
+  // -- it still satisfied the "enough to generate" gate, so Generate would fire on a form that
+  // looked completely empty and draft a course from a field the user could no longer see.
+  const isTrainingPlan = form.generationMode === "training_plan";
+  const planName = isTrainingPlan ? form.planName.trim() : "";
+
   // Mirrors the Edge Function's own validation (at least one of plan_name,
   // title_hint, source_material, or notes is required) so we can catch it
   // before round-tripping.
-  const hasEnoughToGenerate = !!(form.titleHint.trim() || form.planName.trim() || form.sourceMaterial.trim() || form.notes.trim());
+  const hasEnoughToGenerate = !!(form.titleHint.trim() || planName || form.sourceMaterial.trim() || form.notes.trim());
 
   const handleGenerate = () => {
-    if (form.generationMode === "training_plan" && !form.organizationId) {
+    if (isTrainingPlan && !form.organizationId) {
       toast({ title: "Organization required", description: "Choose the organization that will own this training plan.", variant: "destructive" });
       return;
     }
@@ -85,16 +95,16 @@ export default function AiCourseWizard() {
     const courseCountRaw = form.courseCount.trim() ? Number(form.courseCount) : undefined;
     const courseCount = courseCountRaw !== undefined && Number.isFinite(courseCountRaw) ? Math.trunc(courseCountRaw) : undefined;
 
-    if (form.generationMode === "training_plan" && courseCount !== undefined && courseCount < 2) {
+    if (isTrainingPlan && courseCount !== undefined && courseCount < 2) {
       toast({ title: "Course count must be at least 2", description: "Training plans must include at least 2 courses.", variant: "destructive" });
       return;
     }
     generate(
       {
         generationMode: form.generationMode,
-        organizationId: form.generationMode === "training_plan" ? form.organizationId : undefined,
-        planName: form.planName.trim() || undefined,
-        courseCount: courseCount !== undefined && Number.isFinite(courseCount) ? courseCount : undefined,
+        organizationId: isTrainingPlan ? form.organizationId : undefined,
+        planName: planName || undefined,
+        courseCount: isTrainingPlan && courseCount !== undefined && Number.isFinite(courseCount) ? courseCount : undefined,
         titleHint: form.titleHint.trim() || undefined,
         category: form.category.trim() || undefined,
         trainingTypeId: form.trainingTypeId === NO_TRAINING_TYPE ? undefined : form.trainingTypeId,

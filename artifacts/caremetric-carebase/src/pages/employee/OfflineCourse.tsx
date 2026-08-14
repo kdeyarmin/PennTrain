@@ -44,6 +44,24 @@ export default function OfflineCourse() {
   const syncProgress = useSyncOfflineProgress();
   const [stepIndex, setStepIndex] = useState(0);
   const [resumedAssignmentId, setResumedAssignmentId] = useState<string | null>(null);
+  // `navigator.onLine` read straight into JSX is a one-shot value: it is not reactive, so nothing
+  // re-renders when the device reconnects. On this page in particular that is the whole workflow --
+  // an employee finishes a course on a bus, walks back into the building, and the "Sync N%
+  // progress" button stays disabled and the video link stays hidden until some unrelated state
+  // change happens to re-render. Subscribing to the events is the pattern DocumentCareDialog and
+  // UnsyncedDraftsPanel already use for exactly this.
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
 
   const record = offlineBundle.data?.record;
   const bundle = offlineBundle.data?.bundle.data as OfflineBundle | undefined;
@@ -135,7 +153,7 @@ export default function OfflineCourse() {
             <span>{progress.data?.syncedPercent ? `${progress.data.syncedPercent}% synchronized` : "No offline progress synchronized yet"}</span>
             <div className="flex flex-wrap gap-2">
               {percentComplete > (progress.data?.percentComplete ?? 0) && <Button size="sm" variant="outline" disabled={queueProgress.isPending} onClick={() => void recordProgress(stepIndex)}>Save {percentComplete}% checkpoint</Button>}
-              {hasUnsyncedProgress && <Button size="sm" variant="outline" disabled={!navigator.onLine || syncProgress.isPending} onClick={handleSync}>{syncProgress.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudUpload className="mr-2 h-4 w-4" />}Sync {progress.data?.percentComplete}% progress</Button>}
+              {hasUnsyncedProgress && <Button size="sm" variant="outline" disabled={!isOnline || syncProgress.isPending} onClick={handleSync}>{syncProgress.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudUpload className="mr-2 h-4 w-4" />}Sync {progress.data?.percentComplete}% progress</Button>}
             </div>
           </div>
         </CardContent>
@@ -145,7 +163,7 @@ export default function OfflineCourse() {
         <CardHeader><div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{current.type.replace(/_/g, " ")}</Badge>{current.type === "quiz" && <Badge variant="outline"><FileQuestion className="mr-1 h-3 w-3" />Review only</Badge>}</div><CardTitle className="flex items-center gap-2">{current.type === "video" ? <PlayCircle className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}{current.title ?? `Lesson ${stepIndex + 1}`}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {current.type === "text" && <p className="whitespace-pre-wrap rounded-lg border bg-muted/20 p-4 text-sm leading-7">{textContent(current.body)}</p>}
-          {current.type === "video" && <div className="space-y-3 rounded-lg border p-4"><p className="text-sm text-muted-foreground">Video assets are streamed only when a connection is available; the lesson title and sequence remain available offline.</p>{current.videoUrl && navigator.onLine && <Button asChild variant="outline"><a href={current.videoUrl} target="_blank" rel="noreferrer"><PlayCircle className="mr-2 h-4 w-4" />Open video</a></Button>}</div>}
+          {current.type === "video" && <div className="space-y-3 rounded-lg border p-4"><p className="text-sm text-muted-foreground">Video assets are streamed only when a connection is available; the lesson title and sequence remain available offline.</p>{current.videoUrl && isOnline && <Button asChild variant="outline"><a href={current.videoUrl} target="_blank" rel="noreferrer"><PlayCircle className="mr-2 h-4 w-4" />Open video</a></Button>}</div>}
           {(current.type === "pdf" || current.type === "scorm") && <p className="rounded-lg border p-4 text-sm text-muted-foreground">Protected document and package assets are not embedded in the offline copy. Reconnect and open the live course to view this lesson.</p>}
           {current.type === "quiz" && <div className="space-y-4">{current.quiz?.questions?.map((question, index) => <div key={question.id} className="rounded-lg border p-4"><p className="font-medium">{index + 1}. {question.questionText}</p><div className="mt-3 space-y-2">{question.answers.map((answer) => <div key={answer.id} className="rounded border bg-muted/20 px-3 py-2 text-sm">{answer.answerText}</div>)}</div></div>)}<Alert><CheckCircle2 className="h-4 w-4" /><AlertTitle>Reconnect to submit</AlertTitle><AlertDescription>Answer keys are intentionally excluded from offline storage. Take this knowledge check in the live course so attempts and documentation are recorded.</AlertDescription></Alert></div>}
           {!(["text", "video", "pdf", "scorm", "quiz"].includes(current.type)) && <p className="whitespace-pre-wrap text-sm">{textContent(current.body)}</p>}
