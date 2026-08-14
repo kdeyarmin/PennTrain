@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, CircleDot, ChevronRight, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, ChevronRight, Lock, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -64,9 +64,13 @@ export function JobChecklist({
       <CardContent className="space-y-2">
         <ol className="space-y-2">
           {steps.map((step, index) => {
+            // `blocked` gets its own mark. It previously fell through to the `upcoming` icon and
+            // colour, so a step the user cannot act on yet was indistinguishable from one they
+            // simply had not reached -- while still rendering a button (see below).
             const StatusIcon =
               step.status === "complete" ? CheckCircle2
               : step.status === "current" ? CircleDot
+              : step.status === "blocked" ? Lock
               : Circle;
             const iconClass =
               step.status === "complete" ? "text-success"
@@ -89,7 +93,11 @@ export function JobChecklist({
                   <p className={cn("font-medium", step.status === "complete" && "text-muted-foreground")}>{step.label}</p>
                   {step.detail ? <p className="text-xs text-muted-foreground mt-0.5">{step.detail}</p> : null}
                 </div>
-                {(step.href || step.onAction) && step.status !== "complete" && (
+                {/* Not on `complete` (nothing left to do) and not on `blocked` -- a blocked step
+                    is one the user cannot act on yet, and it is excluded from the progress
+                    denominator above as not-applicable, so offering its button contradicted both
+                    the label and the count. */}
+                {(step.href || step.onAction) && step.status !== "complete" && step.status !== "blocked" && (
                   step.href ? (
                     <Button asChild size="sm" variant={step.status === "current" ? "default" : "outline"} className="shrink-0 h-8">
                       <Link href={step.href}>

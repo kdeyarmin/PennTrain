@@ -17,9 +17,16 @@ on:
     - cron: "23 6 * * *"
   workflow_dispatch:
 
+# Read-only by default; the job below adds `issues: write` for its reporting step alone.
 permissions:
   contents: read
-  issues: write
+
+# A `workflow_dispatch` fired while the daily run is in flight would otherwise race it through the
+# "does an open issue already exist?" read, and both would create one. Queue instead of cancelling:
+# an audit already talking to the advisory database should finish and report.
+concurrency:
+  group: dependency-advisories
+  cancel-in-progress: false
 
 jobs:
   audit-main:
@@ -29,7 +36,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
 
@@ -51,8 +58,16 @@ jobs:
       # asserting main ships a high/critical vulnerability. That is a false security signal, and a
       # standing issue that gets bumped by unrelated infrastructure noise is worse than none --
       # people stop believing it. Conditioned on the audit step's own outcome instead.
+      #
+      # Second Codex review finding, and the reason `failure()` is back alongside it: narrowing to
+      # the outcome ALONE meant this step never ran. GitHub wraps any `if:` containing no
+      # status-check function in an implicit `success()`, so the moment the audit step failed the
+      # condition became `success() && …` and the step was skipped -- in precisely the case it
+      # exists for. The daily audit went red and opened nothing. Both halves are needed: `failure()`
+      # to run at all after the failed step, the outcome test to make sure it was THIS step that
+      # failed (on a checkout failure `steps.audit.outcome` is `skipped`, not `failure`).
       - name: Open or update issue on failure
-        if: steps.audit.outcome == 'failure'
+        if: ${{ failure() && steps.audit.outcome == 'failure' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |

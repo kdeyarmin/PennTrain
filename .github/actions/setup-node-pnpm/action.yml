@@ -16,7 +16,12 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+    # Same pinned SHA the workflows that do NOT use this composite already run
+    # (ci.yml migration-immutability + planning-registers, dhs-source-freshness,
+    # dependency-advisories). Two different setup-node pins across one repository meant two
+    # Node bootstraps to keep current and two chances for them to disagree; this one was the
+    # stale half, because .github/actions/* sat outside Dependabot's configured directories.
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version-file: .node-version
 
@@ -31,10 +36,15 @@ runs:
       shell: bash
       run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-    - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+    # Same pinned SHA ci.yml already uses for its Deno and Playwright caches.
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-        key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+        # `pnpm-lock.yaml`, not `**/pnpm-lock.yaml`: this is a single-lockfile pnpm workspace, so
+        # the glob only ever added the cost of walking the tree for it -- and hashFiles ignores
+        # .gitignore, so in any job where a lockfile-hashing cache step runs after an install it
+        # would also hash lockfiles shipped inside node_modules packages.
+        key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
         restore-keys: |
           pnpm-store-${{ runner.os }}-
 
