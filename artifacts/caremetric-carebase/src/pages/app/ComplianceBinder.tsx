@@ -4,6 +4,7 @@ import { useAuth, type Role } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useBinderDownloadUrl, useListBinderExports, type BinderAppendixSection } from "@/hooks/useComplianceBinder";
 import { downloadBlob } from "@/lib/browserDownload";
+import { appendixFiles, buildAppendixArchive } from "@/lib/binderAppendixArchive";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { QueryError } from "@/components/QueryState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,61 +39,54 @@ export default function ComplianceBinder() {
   const { data: exports, isLoading: exportsLoading, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
   const { mutate: fetchDownload, isPending: downloading, variables: downloadingJobId } = useBinderDownloadUrl();
 
-  // Fetches the manifest and every section CSV and hands each to the browser, reporting exactly
-  // what it can observe -- no more. Two different things can go wrong and only one of them is
-  // visible from here:
+  // Fetches the manifest and every section CSV and delivers them as ONE archive. Handing over a
+  // dozen separate files put the operator behind the browser's automatic-downloads permission --
+  // one prompt covering the batch in current Chrome, Firefox and Safari -- and declining it
+  // silently dropped every file after the first. Worse, this code could not tell: downloadBlob
+  // hands a blob to the browser and returns, with no callback, promise, or readable outcome, so
+  // the old success toast could only claim files were "handed over" and name the permission. A
+  // single save is never gated, so the failure is gone rather than described.
   //
-  //   * A signed URL can expire or 404 between the edge function issuing it and this loop reaching
-  //     it. That IS observable, and those files are named in a destructive toast.
-  //   * The browser can decline to save a file. Saving several files in a row is gated behind an
-  //     automatic-downloads permission -- one prompt covering the batch in current Chrome, Firefox
-  //     and Safari -- and if the operator declines it, the later saves are dropped. `downloadBlob`
-  //     hands the blob to the browser and returns; there is no callback, no promise, and no
-  //     readable outcome, so this code CANNOT know whether a file reached the disk.
-  //
-  // So the success message says what was actually done -- files fetched and handed over -- and
-  // names the permission, rather than asserting a save it did not witness. Claiming otherwise
-  // would be the same overstatement as the popup version this replaced, which reported eleven
-  // sections opened when the browser had blocked ten of them.
-  //
-  // The way to remove the second failure entirely is to deliver one archive instead of N files.
-  // That is a change to the artifact operators receive (the page's own copy points them at
-  // per-section CSV header rows), and it needs either a zip dependency in this bundle or an
-  // archive step in generate-compliance-binder -- a product call, not a review-pass one.
-  const saveAppendixFiles = async (
+  // What remains is observable and is reported: a signed URL can expire or 404 between the edge
+  // function issuing it and this code fetching it. Then the archive still ships with whatever was
+  // retrievable, but marked INCOMPLETE in its filename and carrying MISSING-SECTIONS.txt inside --
+  // both of which survive the file being emailed to a surveyor, which a toast on this page does
+  // not. See binderAppendixArchive.ts.
+  const saveAppendixArchive = async (
+    jobId: string,
     manifestUrl: string | undefined,
     sections: BinderAppendixSection[],
   ) => {
-    const files: { name: string; url: string }[] = [];
-    if (manifestUrl) files.push({ name: "compliance-binder-appendix-manifest.csv", url: manifestUrl });
-    for (const section of sections) {
-      if (section.csvUrl) files.push({ name: `compliance-binder-${section.key}.csv`, url: section.csvUrl });
-    }
-    let handedToBrowser = 0;
-    const failed: string[] = [];
-    for (const file of files) {
-      try {
-        const response = await fetch(file.url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        downloadBlob(file.name, await response.blob());
-        handedToBrowser += 1;
-      } catch {
-        failed.push(file.name);
-      }
-    }
-    if (failed.length > 0) {
+    const files = appendixFiles(manifestUrl, sections);
+    if (files.length === 0) {
       toast({
-        title: `${handedToBrowser} of ${files.length} appendix files could be downloaded`,
-        description: `Could not fetch: ${failed.join(", ")}. Re-export to get a fresh set of links.`,
+        title: "CSV appendix not available",
+        description: "This export recorded appendix sections but stored no CSVs. Re-export to generate them.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const archive = await buildAppendixArchive(jobId, files);
+    if (!archive) {
+      toast({
+        title: "Couldn't download CSV appendix",
+        description: `None of the ${files.length} appendix files could be fetched — the download links have most likely expired. Re-export to get a fresh set.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    downloadBlob(archive.filename, new Blob([archive.bytes], { type: "application/zip" }));
+    if (archive.failed.length > 0) {
+      toast({
+        title: `Appendix downloaded with ${archive.failed.length} of ${files.length} files missing`,
+        description: `Missing: ${archive.failed.join(", ")}. The archive is named INCOMPLETE and lists them inside. Re-export to get a fresh set of links.`,
         variant: "destructive",
       });
       return;
     }
     toast({
-      title: `Downloading ${files.length} appendix files`,
-      description:
-        "Your browser may ask permission to save multiple files — allow it, or they will not all "
-        + "arrive. Inclusion counts are set in each CSV's header row.",
+      title: `Downloading ${archive.fetched.length} appendix files as one archive`,
+      description: `Saved as ${archive.filename}. Inclusion counts are set in each CSV's header row.`,
     });
   };
 
@@ -115,9 +109,9 @@ export default function ComplianceBinder() {
         // binder. This used to call window.open() once per file: every browser blocks all but
         // the first popup from a handler that is already past an await, so the operator got one
         // tab, no error, and a toast claiming every section had opened. Fetch each signed URL and
-        // save it as a file instead, the same way DocumentAnalyzer.tsx hands over its multi-part
-        // packet. Sequential downloads are prompted once, not blocked silently.
-        void saveAppendixFiles(result.appendix?.manifestUrl, sections);
+        // pack them into a single archive instead -- one save, always permitted, and the set stays
+        // together as the operator hands it on.
+        void saveAppendixArchive(jobId, result.appendix?.manifestUrl, sections);
       },
       onError: (e: Error) =>
         toast({ title: "Couldn't download binder", description: e.message, variant: "destructive" }),
@@ -163,7 +157,8 @@ export default function ComplianceBinder() {
           <p className="text-xs text-muted-foreground">
             Detail lists in the PDF are capped at 500 rows per section (with a clear truncation note). Summary
             counts remain complete. Use <strong>CSV appendix</strong> on a finished export for the full,
-            untruncated machine-readable section lists and inclusion counts.
+            untruncated machine-readable section lists and inclusion counts -- it downloads as a single
+            .zip holding one CSV per section plus a manifest.
           </p>
           {canScopeFacility && (
             <div className="flex flex-col gap-1.5 max-w-xs">
@@ -243,7 +238,7 @@ export default function ComplianceBinder() {
                         <Button
                           variant="outline"
                           size="sm"
-                          title="Download CSV appendix"
+                          title="Download CSV appendix (.zip)"
                           disabled={downloading && downloadingJobId === job.id}
                           onClick={() => handleDownloadExisting(job.id, "appendix")}
                         >
