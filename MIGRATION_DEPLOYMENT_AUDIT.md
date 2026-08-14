@@ -63,7 +63,8 @@ Two properties make backfilling the 71 safe despite the interleaving:
   `DELETE FROM` statements are domain-scoped reconciliation/backfill logic inside functions and
   triggers, not blanket data wipes.
 - **Chain is CI-validated.** Every push to `main` runs the CI `database` job, which reapplies
-  the *entire* migration chain from scratch (`supabase db reset --no-seed`) and then runs the
+  the *entire* migration chain from scratch (`supabase start` on a stack stopped with
+  `--no-backup`, so the database is empty and every migration runs) and then runs the
   RLS tests, `db lint`, and security/performance advisors. `main` is green, so the 71 apply
   cleanly on a fresh database and pass every gate.
 - **Small live dataset.** The remote is lightly populated (2 organizations, 8 profiles, 16
