@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, type Role } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useBinderDownloadUrl, useListBinderExports } from "@/hooks/useComplianceBinder";
+import { useBinderDownloadUrl, useListBinderExports, type BinderAppendixSection } from "@/hooks/useComplianceBinder";
+import { downloadBlob } from "@/lib/browserDownload";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { QueryError } from "@/components/QueryState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,44 @@ export default function ComplianceBinder() {
   const { data: exports, isLoading: exportsLoading, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
   const { mutate: fetchDownload, isPending: downloading, variables: downloadingJobId } = useBinderDownloadUrl();
 
+  // Saves the manifest and every section CSV, reporting what actually landed. A signed URL can
+  // expire or 404 between the edge function issuing it and this loop reaching it, and a partial
+  // appendix that reports itself complete is the failure this whole page exists to avoid.
+  const saveAppendixFiles = async (
+    manifestUrl: string | undefined,
+    sections: BinderAppendixSection[],
+  ) => {
+    const files: { name: string; url: string }[] = [];
+    if (manifestUrl) files.push({ name: "compliance-binder-appendix-manifest.csv", url: manifestUrl });
+    for (const section of sections) {
+      if (section.csvUrl) files.push({ name: `compliance-binder-${section.key}.csv`, url: section.csvUrl });
+    }
+    let saved = 0;
+    const failed: string[] = [];
+    for (const file of files) {
+      try {
+        const response = await fetch(file.url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        downloadBlob(file.name, await response.blob());
+        saved += 1;
+      } catch {
+        failed.push(file.name);
+      }
+    }
+    if (failed.length > 0) {
+      toast({
+        title: `Saved ${saved} of ${files.length} appendix files`,
+        description: `Could not download: ${failed.join(", ")}. Re-export to get a fresh set of links.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: "CSV appendix saved",
+      description: `${sections.length} section file(s) · inclusion counts in each CSV header row set.`,
+    });
+  };
+
   const handleDownloadExisting = (jobId: string, mode: "pdf" | "appendix" = "pdf") => {
     fetchDownload(jobId, {
       onSuccess: (result) => {
@@ -52,17 +91,13 @@ export default function ComplianceBinder() {
           });
           return;
         }
-        // Open manifest first when present, then each section CSV.
-        if (result.appendix?.manifestUrl) {
-          window.open(result.appendix.manifestUrl, "_blank", "noopener,noreferrer");
-        }
-        for (const section of sections) {
-          if (section.csvUrl) window.open(section.csvUrl, "_blank", "noopener,noreferrer");
-        }
-        toast({
-          title: "CSV appendix opened",
-          description: `${sections.length} section file(s) · inclusion counts in each CSV header row set.`,
-        });
+        // The appendix is a manifest plus one CSV per section -- a dozen files for a full
+        // binder. This used to call window.open() once per file: every browser blocks all but
+        // the first popup from a handler that is already past an await, so the operator got one
+        // tab, no error, and a toast claiming every section had opened. Fetch each signed URL and
+        // save it as a file instead, the same way DocumentAnalyzer.tsx hands over its multi-part
+        // packet. Sequential downloads are prompted once, not blocked silently.
+        void saveAppendixFiles(result.appendix?.manifestUrl, sections);
       },
       onError: (e: Error) =>
         toast({ title: "Couldn't download binder", description: e.message, variant: "destructive" }),
