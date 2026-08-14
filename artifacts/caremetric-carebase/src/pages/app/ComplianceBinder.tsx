@@ -38,9 +38,27 @@ export default function ComplianceBinder() {
   const { data: exports, isLoading: exportsLoading, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
   const { mutate: fetchDownload, isPending: downloading, variables: downloadingJobId } = useBinderDownloadUrl();
 
-  // Saves the manifest and every section CSV, reporting what actually landed. A signed URL can
-  // expire or 404 between the edge function issuing it and this loop reaching it, and a partial
-  // appendix that reports itself complete is the failure this whole page exists to avoid.
+  // Fetches the manifest and every section CSV and hands each to the browser, reporting exactly
+  // what it can observe -- no more. Two different things can go wrong and only one of them is
+  // visible from here:
+  //
+  //   * A signed URL can expire or 404 between the edge function issuing it and this loop reaching
+  //     it. That IS observable, and those files are named in a destructive toast.
+  //   * The browser can decline to save a file. Saving several files in a row is gated behind an
+  //     automatic-downloads permission -- one prompt covering the batch in current Chrome, Firefox
+  //     and Safari -- and if the operator declines it, the later saves are dropped. `downloadBlob`
+  //     hands the blob to the browser and returns; there is no callback, no promise, and no
+  //     readable outcome, so this code CANNOT know whether a file reached the disk.
+  //
+  // So the success message says what was actually done -- files fetched and handed over -- and
+  // names the permission, rather than asserting a save it did not witness. Claiming otherwise
+  // would be the same overstatement as the popup version this replaced, which reported eleven
+  // sections opened when the browser had blocked ten of them.
+  //
+  // The way to remove the second failure entirely is to deliver one archive instead of N files.
+  // That is a change to the artifact operators receive (the page's own copy points them at
+  // per-section CSV header rows), and it needs either a zip dependency in this bundle or an
+  // archive step in generate-compliance-binder -- a product call, not a review-pass one.
   const saveAppendixFiles = async (
     manifestUrl: string | undefined,
     sections: BinderAppendixSection[],
@@ -50,29 +68,31 @@ export default function ComplianceBinder() {
     for (const section of sections) {
       if (section.csvUrl) files.push({ name: `compliance-binder-${section.key}.csv`, url: section.csvUrl });
     }
-    let saved = 0;
+    let handedToBrowser = 0;
     const failed: string[] = [];
     for (const file of files) {
       try {
         const response = await fetch(file.url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         downloadBlob(file.name, await response.blob());
-        saved += 1;
+        handedToBrowser += 1;
       } catch {
         failed.push(file.name);
       }
     }
     if (failed.length > 0) {
       toast({
-        title: `Saved ${saved} of ${files.length} appendix files`,
-        description: `Could not download: ${failed.join(", ")}. Re-export to get a fresh set of links.`,
+        title: `${handedToBrowser} of ${files.length} appendix files could be downloaded`,
+        description: `Could not fetch: ${failed.join(", ")}. Re-export to get a fresh set of links.`,
         variant: "destructive",
       });
       return;
     }
     toast({
-      title: "CSV appendix saved",
-      description: `${sections.length} section file(s) · inclusion counts in each CSV header row set.`,
+      title: `Downloading ${files.length} appendix files`,
+      description:
+        "Your browser may ask permission to save multiple files — allow it, or they will not all "
+        + "arrive. Inclusion counts are set in each CSV's header row.",
     });
   };
 
