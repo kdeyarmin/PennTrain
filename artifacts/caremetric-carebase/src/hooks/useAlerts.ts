@@ -61,7 +61,12 @@ export function useListAlerts(filters: ListAlertsFilters = {}) {
       const pageSize = 1000;
       const rows: Alert[] = [];
       for (let from = 0; ; from += pageSize) {
-        let query = supabase.from("alerts").select("*").order("created_at", { ascending: false }).range(from, from + pageSize - 1);
+        let query = supabase
+          .from("alerts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.status) query = query.eq("status", filters.status);
         if (filters.severity) query = query.eq("severity", filters.severity);
