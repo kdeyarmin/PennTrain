@@ -1,5 +1,25 @@
 project_id = "xsqobvvreaovwibxwyvv"
 
+# Demo data is opt-in rather than automatic, because with the CLI default (`enabled = true`)
+# every automated path in this repo applied the whole migration chain twice. `supabase start`
+# applies every migration and then runs seed.sql, so CI and `pnpm run check:database` followed
+# it with `supabase db reset --no-seed` -- a second replay of the entire chain whose only purpose
+# was to get rid of the demo rows `start` had just inserted. Several pgTAP suites
+# also fail against seeded data, so no automated path ever wanted them. With seeding off,
+# `supabase start` on a clean stack produces exactly the state those paths want: the full
+# chain, no demo data, applied once.
+#
+# The demo baseline (Sunrise tenants, the local-only `demo123` logins in seed.sql) is one
+# command away and unchanged otherwise:
+#
+#   pnpm run db:reset:demo      # supabase db reset --sql-paths ./seed.sql
+#
+# `--sql-paths` force-enables seeding for that single command, so this flag does not have to
+# be flipped -- and cannot drift into CI by being flipped and forgotten.
+[db.seed]
+enabled = false
+sql_paths = ["./seed.sql"]
+
 [functions.create-user]
 verify_jwt = true
 

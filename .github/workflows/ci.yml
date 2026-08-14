@@ -306,13 +306,18 @@ jobs:
         # "port 54322 already in use". Stopping first ensures a clean slate.
         run: supabase stop --no-backup 2>/dev/null || true
 
-      - name: Start clean local Supabase stack
+      - name: Start clean local Supabase stack and apply the full migration chain
         # Browser journeys need Auth, PostgREST, and the API gateway in addition
         # to Postgres. `supabase db start` starts only the database service.
+        #
+        # This step is also the from-scratch replay of the migration chain. The stop above
+        # leaves no volume behind, so start creates an empty database, applies every file in
+        # supabase/migrations in order, and fails the job on the first one that errors.
+        # A `supabase db reset --no-seed` used to follow this, replaying the whole chain a
+        # second time for no added coverage -- it existed only to drop the demo rows seed.sql
+        # inserts. `[db.seed] enabled = false` in supabase/config.toml keeps them out of this
+        # stack in the first place, so one pass is the whole story.
         run: supabase start
-
-      - name: Reapply full migration chain without demo data
-        run: supabase db reset --no-seed
 
       - name: Database and RLS tests
         run: supabase test db
