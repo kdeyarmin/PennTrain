@@ -82,7 +82,23 @@ export async function handleBrowserUpgrade(
     return;
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
-    void attachSession(deps, app, pending, ws);
+    // Backstop only — attachSession handles its own failures (see its trailing catch). This
+    // callback runs after the promise handleBrowserUpgrade returns has already settled, so
+    // nothing upstream can catch a rejection from here; an uncaught one would end the process.
+    void attachSession(deps, app, pending, ws).catch((error: unknown) => {
+      console.error(
+        JSON.stringify({
+          evt: "voice.browser.attach_error",
+          sessionId: pending.sessionId,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      try {
+        ws.close(1011, "session_start_failed");
+      } catch {
+        /* already closed */
+      }
+    });
   });
 }
 
@@ -192,21 +208,45 @@ async function attachSession(
     },
   };
 
-  session = new VoiceSession({
-    config: deps.config,
-    app,
-    pending,
-    sink,
-    sendControl: sendJson,
-    fetchImpl: deps.fetchImpl,
-    webSocketFactory: deps.webSocketFactory,
-    onClosed(reason) {
-      if (finished) return;
+  // Everything past tracker.start() has to release what it took, on every exit. Constructing a
+  // VoiceSession is real work — it builds the app's instructions and opens the upstream Realtime
+  // socket — and a throw here left the user's slot and the global concurrency slot held forever,
+  // with the daily-minutes span still open. attachSession is `void`-ed from the upgrade callback
+  // and is NOT part of the promise handleBrowserUpgrade returns (that one resolves as soon as
+  // handleUpgrade is called), so index.ts's .catch never saw it either: an unhandled rejection,
+  // which Node terminates the process for, taking every other live session with it. The phone
+  // transport already releases its tracker slot the same way in startSession's catch.
+  try {
+    session = new VoiceSession({
+      config: deps.config,
+      app,
+      pending,
+      sink,
+      sendControl: sendJson,
+      fetchImpl: deps.fetchImpl,
+      webSocketFactory: deps.webSocketFactory,
+      onClosed(reason) {
+        if (finished) return;
+        finished = true;
+        deps.tracker.finish(pending.userId);
+        void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
+        sendJson({ type: "closed", reason });
+        ws.close(1000, reason);
+      },
+    });
+  } catch (err) {
+    console.error(
+      JSON.stringify({
+        evt: "voice.transport.session_start_error",
+        sessionId: pending.sessionId,
+        message: err instanceof Error ? err.message : String(err),
+      }),
+    );
+    if (!finished) {
       finished = true;
       deps.tracker.finish(pending.userId);
       void deps.usage.dailyBudget.sessionEnded(budgetSpan).catch(logUsageMeterError);
-      sendJson({ type: "closed", reason });
-      ws.close(1000, reason);
-    },
-  });
+    }
+    if (ws.readyState === ws.OPEN) ws.close(1011, "session_start_failed");
+  }
 }

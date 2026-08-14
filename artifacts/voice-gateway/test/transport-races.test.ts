@@ -202,7 +202,7 @@ describe("transport connect-window races", () => {
     return listen(s).then((base) => ({ base, pendingStore, tracker, sockets }));
   }
 
-  function startBrowserServer(usage: UsageLimits) {
+  function startBrowserServer(usage: UsageLimits, app: AppDefinition = TEST_APP) {
     const pendingStore = new InMemoryPendingSessionStore();
     const tracker = new ActiveSessionTracker();
     const sockets: FakeRealtimeSocket[] = [];
@@ -212,7 +212,7 @@ describe("transport connect-window races", () => {
       void handleBrowserUpgrade(
         {
           config: CONFIG,
-          registry: new Map([[TEST_APP.id, TEST_APP]]),
+          registry: new Map([[app.id, app]]),
           pendingStore,
           tracker,
           usage,
@@ -227,7 +227,7 @@ describe("transport connect-window races", () => {
         req,
         socket,
         head,
-        TEST_APP.id,
+        app.id,
       );
     });
     return listen(s).then((base) => ({ base, pendingStore, tracker, sockets }));
@@ -320,6 +320,47 @@ describe("transport connect-window races", () => {
 
     await waitFor(() => counts.budgetEnded === 1, "budget span ended");
     await waitFor(() => h.tracker.canStart("user-1", CONFIG), "user slot released");
+    expect(h.sockets.length).toBe(0);
+  });
+
+  // A VoiceSession constructor throw (bad app instructions, an upstream socket
+  // factory that refuses) used to leak the slot and the span, and the rejection
+  // had nowhere to go: attachSession is void-ed from a handleUpgrade callback
+  // that runs after handleBrowserUpgrade's own promise has settled, so an
+  // uncaught one ends the gateway process and every other live session with it.
+  it("releases the browser session slot when opening the upstream session throws", async () => {
+    const { usage, counts, release } = gatedUsage();
+    const brokenApp: AppDefinition = {
+      ...TEST_APP,
+      buildInstructions: () => {
+        throw new Error("instruction build failed");
+      },
+    };
+    const h = await startBrowserServer(usage, brokenApp);
+    await h.pendingStore.register({
+      sessionId: "sess-construct-throw",
+      appId: brokenApp.id,
+      userId: "user-throw",
+      role: "facility_manager",
+      facilityId: null,
+      jwt: "jwt",
+      expiresAt: Date.now() + 60_000,
+    });
+
+    const client = connect(
+      `${h.base}/apps/testapp/realtime?sid=sess-construct-throw`,
+      "http://localhost:5173",
+    );
+    const closes: number[] = [];
+    client.on("close", (code) => closes.push(code));
+    await new Promise<void>((resolve) => client.on("open", () => resolve()));
+    await waitFor(() => counts.budgetStarted === 1, "budget write in flight");
+    release();
+
+    await waitFor(() => counts.budgetEnded === 1, "budget span ended");
+    await waitFor(() => h.tracker.canStart("user-throw", CONFIG), "user slot released");
+    await waitFor(() => closes.length === 1, "client socket closed");
+    expect(closes).toEqual([1011]);
     expect(h.sockets.length).toBe(0);
   });
 });
