@@ -5,15 +5,18 @@
 -- unique index on (employee_id, certification_version_id). approve_certification_attempt
 -- would then issue two qualifications for the same definition.
 --
--- Close any extras (keep the newest), then add a partial unique index. The
--- RPC still raises the same 23505 message; the index is what makes two
--- concurrent starts unable to both succeed.
+-- Close any extras (prefer submitted over in_progress, then newest), then add a
+-- partial unique index. The RPC still raises the same 23505 message; the index is
+-- what makes two concurrent starts unable to both succeed.
 
 with ranked as (
   select id,
          row_number() over (
            partition by employee_id, certification_version_id
-           order by created_at desc, id desc
+           order by
+             case when status = 'submitted' then 0 else 1 end,
+             created_at desc,
+             id desc
          ) as rn
   from public.certification_attempts
   where status in ('in_progress', 'submitted')

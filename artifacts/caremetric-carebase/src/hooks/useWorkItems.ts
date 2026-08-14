@@ -72,6 +72,7 @@ export function useListWorkItems(filters: ListWorkItemsFilters = {}) {
           .from("work_items")
           .select(WORK_ITEM_SELECT)
           .order("due_at", { ascending: true })
+          .order("id", { ascending: true })
           .range(from, from + pageSize - 1);
         if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
