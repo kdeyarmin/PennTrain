@@ -1,0 +1,24 @@
+{
+  "_readme": [
+    "In-app path literals in CareBase client source that check-frontend-route-links.mjs must not",
+    "fail on.",
+    "",
+    "WHY THIS GATE EXISTS. check-server-route-links.mjs enforces that every in-app path built in a",
+    "migration or an edge function matches a route declared in App.tsx. The client had the same",
+    "defect and no check. carebaseGlossary.ts still carries the note: `/app/compliance` is not a",
+    "route App.tsx registers -- these three sent the reader to the 404 page. check-server-route-links",
+    "verifies exactly this rule, but only for links built in migrations and edge functions; a",
+    "client-side registry like this one is outside its scope. Three dead links reached users, were",
+    "repaired by hand, and the gap was written down instead of closed. Nothing stopped the fourth:",
+    "Dashboard.tsx reported `route: \"/app/dashboard\"` to product telemetry for a page mounted at",
+    "`/app`, so every benchmark_viewed row named a route that does not exist.",
+    "",
+    "THE EXPECTED USE OF THIS FILE is a literal that is deliberately not a route -- a path handed to",
+    "a non-router consumer that happens to share an in-app prefix. It is empty today, which is the",
+    "state to prefer: the check reads only navigation forms (href/to/setLocation/navigate and the",
+    "object keys nav tables use), so a string that is not a destination should not reach it at all.",
+    "",
+    "It is NOT a place to excuse a link that is genuinely broken. Declare the route or correct the",
+    "link instead. An entry must say why the literal is not a route, in terms someone can check."
+  ]
+}

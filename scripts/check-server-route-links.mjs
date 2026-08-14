@@ -26,13 +26,13 @@ const MIGRATIONS = path.join(ROOT, "supabase", "migrations");
 const EDGE_FUNCTIONS = path.join(ROOT, "supabase", "functions");
 const ALLOWLIST = path.join(ROOT, "scripts", "server-route-link-allowlist.json");
 
-// The route prefixes this check governs. Anything else in a string literal is not an in-app link.
-const APP_PREFIXES = ["/app", "/admin", "/account", "/employee", "/trainer", "/me", "/portal"];
+// `declaredRoutes`, `routeMatches` and the prefix list moved to scripts/lib/appRoutes.mjs when
+// check-frontend-route-links.mjs began enforcing the same invariant from the client side -- one
+// route table, one matching rule, read from both sides. Re-exported so this module's public
+// surface and its self-test below are unchanged.
+import { declaredRoutes, isInAppPath, routeMatches } from "./lib/appRoutes.mjs";
 
-/** Route paths declared in App.tsx. */
-export function declaredRoutes(appSource) {
-  return [...appSource.matchAll(/<Route\s+path=\{?["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
-}
+export { declaredRoutes, routeMatches };
 
 /**
  * In-app path literals in server source.
@@ -52,30 +52,13 @@ export function serverLinkLiterals(source) {
     for (const match of source.matchAll(re)) {
       // An interpolated value fills one path segment, which is exactly what a `:param` route accepts.
       const value = match[1].replace(/\$\{[^}]*\}/g, "x");
-      if (!APP_PREFIXES.some((p) => value === p || value.startsWith(`${p}/`))) continue;
+      if (!isInAppPath(value)) continue;
       // SQL concatenation, or interpolation this cannot read; the quoted prefix stands on its own.
       if (/[|${}]/.test(value)) continue;
       found.add(value);
     }
   }
   return [...found].sort();
-}
-
-/**
- * Whether a declared route can serve this link.
- *
- * `:param` matches one segment. A link ending in `/` is a concatenation prefix, so it is tested as
- * though an id follows it -- that is what the server actually produces. A query string is not part
- * of the route: `/app/alerts?status=open` is `/app/alerts`, and several notification links carry
- * deep-link filters that way.
- */
-export function routeMatches(route, link) {
-  const pathname = link.split("?")[0];
-  const candidates = pathname.endsWith("/") ? [pathname.slice(0, -1), `${pathname}id`] : [pathname];
-  const pattern = new RegExp(
-    `^${route.split("/").map((seg) => (seg.startsWith(":") ? "[^/]+" : seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).join("/")}$`,
-  );
-  return candidates.some((candidate) => pattern.test(candidate));
 }
 
 if (process.argv.includes("--self-test")) {
