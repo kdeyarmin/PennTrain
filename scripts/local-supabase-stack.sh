@@ -21,8 +21,8 @@
 #
 # The stack this brings up is the one CI tests: `supabase start` applies the full migration chain
 # and, because `[db.seed] enabled = false` in supabase/config.toml, loads no demo data. Nothing
-# needs to reset afterwards to strip seed rows -- `supabase test db` can run directly.
-# Verified against this repo: `supabase test db` -> 2537/2537 in ~40s.
+# needs to reset afterwards to strip seed rows -- `supabase test db` can run directly, and CI runs
+# that same suite against that same one-pass stack, so a pass here means what a pass there means.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
