@@ -134,6 +134,43 @@ Deno.test("sync-billing-quantities records a failed run when STRIPE_SECRET_KEY i
   assertEquals(finished[0].p_failed_count, 1);
 });
 
+Deno.test("sync-billing-quantities does not finish another invocation's in-flight run", async () => {
+  // claim_system_job_execution returns a real run_id with should_execute false when the
+  // (job_key, correlation_id) row already exists in 'running' or 'succeeded'. Finishing on
+  // run_id alone would mark a concurrent invocation's run failed, or re-finish a completed one.
+  const finished: Array<Record<string, unknown>> = [];
+  const handler = createSyncBillingQuantitiesHandler({
+    createClient: () => ({
+      rpc: async (name: string, args?: Record<string, unknown>) => {
+        if (name === "claim_system_job_execution") {
+          return {
+            data: [{ run_id: "run-held-by-someone-else", should_execute: false, existing_status: "running" }],
+            error: null,
+          };
+        }
+        if (name === "finish_system_job") {
+          finished.push(args ?? {});
+          return { data: null, error: null };
+        }
+        return { data: null, error: null };
+      },
+    }),
+    stripePost: async () => ({ ok: false, status: 500, data: {} }),
+    stripeGet: async () => ({ ok: false, status: 500, data: {} }),
+    getEnv: (name) => (name === "STRIPE_SECRET_KEY" ? undefined : `value-for-${name}`),
+    requireCron: () => null,
+  });
+
+  const response = await handler(new Request("https://example.test", {
+    method: "POST",
+    body: JSON.stringify({ batchSize: 10 }),
+  }));
+
+  assertEquals(response.status, 503);
+  assertEquals(await response.json(), { error: "billing_sync_not_configured" });
+  assertEquals(finished.length, 0);
+});
+
 Deno.test("sync-billing-quantities still answers 503 when its own run tracking fails", async () => {
   // Tracking is best effort: a tracker that throws must not turn missing configuration into
   // a 500, which operators would read as a transient provider error rather than missing setup.

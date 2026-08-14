@@ -138,7 +138,12 @@ export function createSyncBillingQuantitiesHandler({
           p_provider_request_id: requestId,
         });
         const claimed = Array.isArray(claimRows) ? claimRows[0] : claimRows;
-        if (claimed?.run_id) {
+        // should_execute must be honored here exactly as the main path honors it below.
+        // claim_system_job_execution returns a real run_id with should_execute false when the
+        // (job_key, correlation_id) row already exists in a 'running' or 'succeeded' state, so
+        // finishing on run_id alone would mark another invocation's in-flight run failed -- or
+        // re-finish a completed one -- which is the opposite of durable tracking.
+        if (claimed?.run_id && claimed.should_execute) {
           await tracker.rpc("finish_system_job", {
             p_run_id: claimed.run_id,
             p_status: "failed",

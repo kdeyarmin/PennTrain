@@ -62,8 +62,13 @@
 -- One definition owns the cron entry, and it is the critical one
 -- ---------------------------------------------------------------------------
 
+-- Deactivated as well as unnamed. The delete below is guarded by run history, so on a project
+-- that recorded runs under this key the row survives -- and a surviving row left is_active would
+-- be a job definition that can never be scheduled again yet still lists on /admin/system-jobs and
+-- still counts in get_system_job_control_plane(). An active-looking job that cannot run is the
+-- same class of misleading signal this migration exists to remove.
 update app_private.system_job_definitions
-set cron_job_name = null, updated_at = now()
+set cron_job_name = null, is_active = false, updated_at = now()
 where job_key = 'billing-quantity-sync-cron';
 
 delete from app_private.system_job_definitions d
