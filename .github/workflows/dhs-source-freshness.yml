@@ -5,9 +5,16 @@ on:
     - cron: "17 13 * * 1"
   workflow_dispatch:
 
+# Read-only by default; the job below adds `issues: write` for its reporting step alone.
 permissions:
   contents: read
-  issues: write
+
+# A `workflow_dispatch` fired while the weekly run is in flight would otherwise race it through
+# the "does an open issue already exist?" read, and both would create one. Queue instead of
+# cancelling: a run that is already probing pa.gov should finish and report.
+concurrency:
+  group: dhs-source-freshness
+  cancel-in-progress: false
 
 jobs:
   official-source-health:
@@ -17,7 +24,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -25,19 +32,42 @@ jobs:
 
       - name: Verify official PA DHS links and human-review freshness
         id: check
-        run: node scripts/check-dhs-sources.mjs
+        shell: bash
+        run: |
+          # `pipefail` so `tee` cannot mask the checker's exit status -- `steps.check.outcome`
+          # below is what decides whether an issue is opened.
+          set -o pipefail
+          node scripts/check-dhs-sources.mjs 2>&1 | tee /tmp/dhs-source-check.txt
 
-      - name: Upload source-check summary
+      # The checker writes its report -- one `OK <status> <url>` line per source, `FAIL <url>: …`
+      # for anything unreachable, and both verification ages -- to stdout. That report is what
+      # someone opening a failed run actually needs, so it goes on the run summary page.
+      #
+      # This replaces an "Upload source-check summary" artifact that uploaded
+      # `src/lib/dhsFormsLibrary.ts`: a file this job never writes, already committed at the SHA
+      # being tested, and one `git show` away for anyone who wanted it. It was not a summary of
+      # anything -- the checker creates no files at all -- and it banked a copy for 30 days every
+      # week.
+      - name: Publish source-check report to the run summary
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dhs-source-check-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/caremetric-carebase/src/lib/dhsFormsLibrary.ts
-          if-no-files-found: ignore
-          retention-days: 30
+        shell: bash
+        run: |
+          {
+            echo "## PA DHS source freshness"
+            echo
+            echo '```'
+            cat /tmp/dhs-source-check.txt 2>/dev/null || echo "(the check produced no output — it failed before running)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
+      # `steps.check.outcome`, not `failure()`. `failure()` is true after ANY earlier failed step,
+      # so a checkout problem, a setup-node problem, or a runner hiccup opened an issue titled
+      # "Official PA DHS source freshness check failed" while the sources were fine -- a false
+      # compliance signal, and a standing issue bumped by unrelated infrastructure noise is one
+      # people stop believing. `id: check` was already declared for this and simply never used.
+      # dependency-advisories.yml carries the same fix and the same reasoning.
       - name: Open or update issue on failure
-        if: failure()
+        if: steps.check.outcome == 'failure'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -47,6 +77,7 @@ jobs:
               'The weekly DHS source freshness job failed.',
               '',
               `- Run: ${runUrl}`,
+              '- Per-source report: the run summary on that page lists every URL checked and which ones failed.',
               '- Script: `scripts/check-dhs-sources.mjs`',
               '- Typical causes: PA.gov link dead, content-type change, or `DHS_FORMS_LAST_VERIFIED` older than 45 days.',
               '',

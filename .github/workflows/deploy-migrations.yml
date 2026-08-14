@@ -37,10 +37,11 @@ on:
         type: boolean
         default: false
 
+# Workflow-level default is read-only; each job adds exactly what it uses. `issues: write` used to
+# sit here, which handed it to `deploy` as well -- the job that checks out code and holds the
+# production Supabase credentials, and never touches the issues API.
 permissions:
   contents: read
-  actions: read
-  issues: write
 
 # Never let two deploys run against the database at once; queue them instead of cancelling,
 # since cancelling a half-applied `db push` is worse than waiting.
@@ -73,10 +74,11 @@ jobs:
        github.event.workflow_run.head_repository.full_name == github.repository) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     environment: production
+    # `actions: read` is load-bearing here and only here: the gate below queries this workflow's
+    # own run and artifact history to decide whether this SHA was already deployed.
     permissions:
       contents: read
       actions: read
-      issues: write
     outputs:
       skipped: ${{ steps.gate.outputs.skip }}
       reason: ${{ steps.gate.outputs.reason }}
@@ -92,7 +94,7 @@ jobs:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Deploy exactly the commit CI validated; for a manual dispatch, main's tip. Never a
           # caller-selected feature ref, so unmerged migrations cannot reach production.
@@ -115,37 +117,24 @@ jobs:
           echo "Deploy candidate SHA=${SHA} dry_run=${DRY_RUN}"
           echo "deploy_sha=${SHA}" >> "$GITHUB_OUTPUT"
 
-          # Stamp artifact name embeds the *validated* DEPLOY_SHA so we never trust the
-          # workflow run's REST head_sha (on workflow_run that is tip-of-main at dispatch,
-          # which can disagree with the commit we actually checked out).
-          stamp_name_for() {
-            echo "${STAMP_PREFIX}$1"
-          }
-
-          has_stamp_for_sha() {
-            local run_id="$1"
-            local want="$2"
-            local want_name
-            want_name=$(stamp_name_for "$want")
-            local count
-            count=$(
-              gh api "repos/${REPO}/actions/runs/${run_id}/artifacts" \
-                --jq "[.artifacts[] | select(.name==\"${want_name}\")] | length"
-            )
-            [ "${count}" -gt 0 ]
-          }
-
-          first_stamp_sha_from_run() {
-            local run_id="$1"
-            local name
-            name=$(
-              gh api "repos/${REPO}/actions/runs/${run_id}/artifacts" \
-                --jq "[.artifacts[] | select(.name | startswith(\"${STAMP_PREFIX}\")) | .name] | .[0] // empty"
-            )
-            if [ -z "${name}" ] || [ "${name}" = "null" ]; then
-              return 1
-            fi
-            echo "${name#"${STAMP_PREFIX}"}"
+          # Deploy SHAs stamped by one run, newest artifact first, one line each. The stamp
+          # artifact name embeds the *validated* DEPLOY_SHA so we never trust the workflow run's
+          # REST head_sha (on workflow_run that is tip-of-main at dispatch, which can disagree
+          # with the commit we actually checked out).
+          #
+          # One listing per run answers BOTH gate questions below. They used to be two functions
+          # walking the same 50 runs one after the other -- up to 100 sequential REST calls on the
+          # critical path of every production deploy, before a single migration is pushed, to read
+          # the same 50 responses twice.
+          #
+          # `$( )` assignment rather than `< <( )` process substitution, deliberately: under
+          # `set -e` a failing `gh api` (rate limit, transient 5xx) aborts the step loudly, where
+          # process substitution would hide the error and read as "this run has no stamps" -- which
+          # the caller would take as "never deployed" and act on. Same silent-empty-on-error trap
+          # the path diff further down is written to avoid.
+          stamp_shas_for_run() {
+            gh api "repos/${REPO}/actions/runs/$1/artifacts?per_page=100" \
+              --jq ".artifacts[] | select(.name | startswith(\"${STAMP_PREFIX}\")) | .name | ltrimstr(\"${STAMP_PREFIX}\")"
           }
 
           # Dry-run always proceeds (operators want drift verification on demand).
@@ -163,31 +152,51 @@ jobs:
             exit 0
           fi
 
-          # 1) Same-SHA already *really* deployed (stamp artifact named with this SHA) → no-op.
-          # Path-skip successes for this SHA do not count — they never touched production.
-          # Scan recent successful deploy runs (do NOT filter by run head_sha — that is unreliable
-          # under workflow_run).
-          mapfile -t RECENT < <(
+          # Candidate runs to compare against: recent successful deploy runs, newest first. Do NOT
+          # filter by run head_sha -- that is unreliable under workflow_run.
+          #
+          # An empty list here is the safe direction (no prior deploy known → nothing to skip
+          # against → deploy, and `db push` is idempotent), so a transient `gh` failure must not
+          # abort the step the way `$( )` under `set -e` would -- that would turn an API blip into
+          # a failed production deploy and a deploy-failure issue. It must not be SILENT either,
+          # so the status is captured and warned on rather than discarded.
+          RECENT_STATUS=0
+          RECENT_IDS=$(
             gh api "repos/${REPO}/actions/workflows/deploy-migrations.yml/runs?status=completed&per_page=50" \
               --jq ".workflow_runs[] | select(.conclusion==\"success\" and .id != ${RUN_ID}) | .id"
-          )
+          ) || RECENT_STATUS=$?
+          if [ "${RECENT_STATUS}" -ne 0 ]; then
+            echo "::warning::Could not list recent deploy runs (gh exit ${RECENT_STATUS}); proceeding with a full deploy rather than short-circuiting on an unknown history."
+            RECENT_IDS=""
+          fi
+          RECENT=()
+          if [ -n "${RECENT_IDS}" ]; then
+            mapfile -t RECENT <<< "${RECENT_IDS}"
+          fi
+
+          # Two questions, one walk over those runs:
+          #   1) Is this SHA already *really* deployed (a stamp artifact named with it)? → no-op.
+          #      Path-skip successes for this SHA do not count -- they never touched production.
+          #      Every candidate is scanned, not just the newest: an older run may hold this SHA's
+          #      stamp after a rollback or a re-run.
+          #   2) Which SHA was deployed last? → PREV_SHA, the stamp on the newest run that has one,
+          #      used by the path short-circuit below.
+          PREV_SHA=""
           for rid in "${RECENT[@]+"${RECENT[@]}"}"; do
-            if has_stamp_for_sha "$rid" "$SHA"; then
+            STAMP_SHAS=$(stamp_shas_for_run "$rid")
+            [ -n "${STAMP_SHAS}" ] || continue
+
+            if [ -z "${PREV_SHA}" ]; then
+              PREV_SHA=$(printf '%s\n' "${STAMP_SHAS}" | head -n 1)
+              echo "Last real deploy: run ${rid} sha ${PREV_SHA}"
+            fi
+
+            if printf '%s\n' "${STAMP_SHAS}" | grep -qxF "${SHA}"; then
               echo "skip=true" >> "$GITHUB_OUTPUT"
               echo "reason=same-sha-already-deployed" >> "$GITHUB_OUTPUT"
               echo "SHA ${SHA} already deployed in run ${rid} (stamp artifact present)"
               exit 0
             fi
-          done
-
-          # 2) Path short-circuit vs last *real* deploy (run that uploaded a stamp keyed by SHA).
-          PREV_SHA=""
-          for rid in "${RECENT[@]+"${RECENT[@]}"}"; do
-            if PREV_SHA=$(first_stamp_sha_from_run "$rid"); then
-              echo "Last real deploy: run ${rid} sha ${PREV_SHA}"
-              break
-            fi
-            PREV_SHA=""
           done
 
           if [ -n "${PREV_SHA}" ] && [ "${PREV_SHA}" != "${SHA}" ]; then
@@ -298,13 +307,28 @@ jobs:
           path: edge-function-deploy-stamp.json
 
   # Survives job timeouts/cancellations of `deploy` (in-job `if: failure()` does not run
-  # when the job is cancelled by timeout-minutes).
+  # when the job is cancelled by timeout-minutes) -- hence the check on `needs.deploy.result`
+  # rather than a step-level `if: failure()` inside `deploy`.
+  #
+  # `!cancelled()` rather than `always()`, for the reason ci.yml's `ci-result` spells out: the two
+  # are NOT interchangeable, because `always()` is true even when the whole RUN was cancelled. The
+  # `concurrency: deploy-migrations` group above queues deploys and GitHub keeps only one run
+  # pending, so a third merge landing while a second waits cancels the waiting run outright -- and
+  # every one of those opened a `[deploy] Production migration/function deploy failed` issue for a
+  # deploy that was superseded, not broken. Same for any human hitting cancel. A deploy alarm that
+  # fires on routine merge traffic is one people stop reading, which costs exactly the coverage
+  # this workflow exists to provide.
+  #
+  # The timeout case this job was written for is untouched: `timeout-minutes` cancels the JOB, not
+  # the run, so `cancelled()` is false, `needs.deploy.result` is `cancelled`, and the issue still
+  # opens.
   notify-failure:
     needs: deploy
-    if: always() && needs.deploy.result != 'success' && needs.deploy.result != 'skipped'
+    if: ${{ !cancelled() && needs.deploy.result != 'success' && needs.deploy.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      contents: read
       issues: write
     steps:
       - name: Open issue on deploy failure

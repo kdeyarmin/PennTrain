@@ -3,10 +3,29 @@ updates:
   # Keep third-party Actions SHAs/tags current. Pin bumps still land as PRs
   # so review can re-verify commit SHAs before merge.
   - package-ecosystem: github-actions
-    directory: /
+    # `directories`, not `directory: /`. For the github-actions ecosystem a bare `/` covers
+    # `.github/workflows` ONLY -- composite actions are found through the directory that holds
+    # their `action.yml`, and `.github/actions/*` was never listed. The effect was visible in the
+    # tree: every workflow pin sat on a current release while `.github/actions/setup-node-pnpm`
+    # was still on `actions/setup-node` v4 and `actions/cache` v4.2.3, because nothing was
+    # watching that file. The glob keeps any future composite action covered on the day it is
+    # added rather than on the day someone notices.
+    directories:
+      - /
+      - /.github/actions/*
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # One PR for the week's action bumps instead of up to ten. These pins live in
+    # `.github/workflows/*` and `.github/actions/*`, which the CI path filter treats as
+    # application- AND database-affecting -- so each separate bump PR booted the full matrix,
+    # including the 45-minute `database` job with its local Supabase stack, 581 migrations and
+    # Playwright suite. Ten of those a week is most of a CI budget spent re-proving the same tree
+    # against near-identical diffs. Grouped, they are reviewed and validated once.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     labels:
       - dependencies
       - github-actions

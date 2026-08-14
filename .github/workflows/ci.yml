@@ -36,10 +36,19 @@ jobs:
       database: ${{ steps.filter.outputs.database }}
       migrations: ${{ steps.filter.outputs.migrations }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need base..head history for an accurate PR diff.
+          #
+          # `blob:none` makes that history a partial clone: every commit and tree is fetched (which
+          # is all `git diff --name-only` compares -- tree entries, not file contents), and blobs
+          # arrive lazily only if something actually reads a file. This repository carries several
+          # hundred-kilobyte living registers -- BACKLOG.md alone is ~300 KB and churns constantly
+          # -- so historical blobs are the bulk of a full clone here. That matters most in THIS
+          # job: it is the run's critical path, every other job is gated on its outputs, and the
+          # comment above already records a checkout slow enough to blow the job budget.
           fetch-depth: 0
+          filter: blob:none
 
       - name: Detect changed path groups
         id: filter
@@ -58,7 +67,34 @@ jobs:
 
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
-          mapfile -t FILES < <(git diff --name-only "$BASE"..."$HEAD")
+
+          # Read the diff into a variable rather than `mapfile < <(git diff ...)`: process
+          # substitution is covered by neither `set -e` nor `pipefail`, so mapfile swallowed git's
+          # exit status entirely. An ERRORED diff -- base object pruned after a force-push, a
+          # partial fetch that did not reach BASE, a repository in a bad state -- produced an empty
+          # FILES array, which the branch below reads as "nothing changed". Every gated job was
+          # then skipped, and `ci-result` counts a skipped job as success: a git error merged the
+          # pull request with no validation at all. This is the same trap deploy-migrations.yml
+          # already settled for its own path short-circuit, and it settles it the same way -- when
+          # the path check cannot be determined, do the expensive safe thing, not the cheap unsafe
+          # one.
+          DIFF_STATUS=0
+          DIFF_OUTPUT=$(git diff --name-only "$BASE"..."$HEAD") || DIFF_STATUS=$?
+          if [ "$DIFF_STATUS" -ne 0 ]; then
+            echo "::warning::Could not diff ${BASE}...${HEAD} (git exit ${DIFF_STATUS}); running the full matrix rather than skipping every gated job on an undetermined path check."
+            {
+              echo "application=true"
+              echo "database=true"
+              echo "migrations=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A single empty line is one empty element to mapfile, not zero, so guard the empty case.
+          FILES=()
+          if [ -n "$DIFF_OUTPUT" ]; then
+            mapfile -t FILES <<< "$DIFF_OUTPUT"
+          fi
 
           if [ "${#FILES[@]}" -eq 0 ]; then
             echo "application=false" >> "$GITHUB_OUTPUT"
@@ -88,11 +124,18 @@ jobs:
           # application → check:all (typecheck, unit tests, edge-function checks, builds)
           #
           # `supabase/migrations/**` belongs here as well as in DB_PATTERNS: check:all runs
-          # check:migration-policies, check:raise-arity, check:migration-drift and
-          # check:date-only-parsing, which read the migration files directly. Without it a
-          # migrations-only PR would skip exactly the static checks written to guard migrations.
+          # check:migration-policies, check:raise-arity and check:date-only-parsing, which read the
+          # migration files directly. Without it a migrations-only PR would skip exactly the static
+          # checks written to guard migrations. (check:migration-drift is NOT one of them: check:all
+          # runs only its --self-test, and the real drift check belongs to deploy-migrations.yml,
+          # which needs remote credentials.)
           # deno.lock pins the Edge Function dependency graph that check:edge-functions resolves.
-          # `.github/*` covers workflow/composite/action changes so path-filter edits re-validate.
+          # `.github/workflows/*` and `.github/actions/*` cover workflow and composite-action
+          # changes so path-filter edits re-validate. Deliberately NOT a bare `.github/*`: that
+          # also matched `.github/dependabot.yml` -- and would match any issue template or
+          # CODEOWNERS file added later -- so editing one booted the whole 45-minute `database`
+          # job, a local Supabase stack, 581 migrations and a Playwright suite, to validate a file
+          # no job reads.
           APP_PATTERNS=(
             "artifacts/*"
             "scripts/*"
@@ -105,7 +148,8 @@ jobs:
             "supabase/migrations/*"
             "supabase/config.toml"
             "deno.lock"
-            ".github/*"
+            ".github/workflows/*"
+            ".github/actions/*"
             # Deploy and toolchain config that nothing else in this list covers. A PR touching only
             # these set application=false AND database=false, every gated job was skipped, and
             # ci-result aggregates a skipped job as success -- so it merged with no validation at
@@ -135,7 +179,8 @@ jobs:
             "scripts/check-raise-arity*"
             "scripts/check-journey-coverage*"
             "scripts/seed-course-video-placeholders*"
-            ".github/*"
+            ".github/workflows/*"
+            ".github/actions/*"
             # The e2e run builds CareBase, and every workspace tsconfig extends this one.
             "tsconfig.base.json"
           )
@@ -166,20 +211,26 @@ jobs:
     if: needs.changes.outputs.application == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # No `actions: read`: this job never reads the Actions API (that is deploy-migrations.yml's
+    # stamp gate). Caching and artifact upload authenticate with the runtime token, not GITHUB_TOKEN.
     permissions:
       contents: read
-      actions: read
     env:
       VITE_SUPABASE_URL: https://example.supabase.co
       VITE_SUPABASE_ANON_KEY: test-anon-key
       VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The dependency gate reads the base ref's pnpm-lock.yaml to tell a newly-introduced
           # advisory from one the base already carries, so it needs the base branch, not just
           # this PR's head. Same reason migration-immutability checks out with full history.
+          #
+          # Partial clone is safe here: the gate reaches into history through `git ls-tree` (trees
+          # only) and a handful of `git show <base>:<path>` reads, each of which lazily fetches
+          # just that blob. A working tree still materializes normally.
           fetch-depth: 0
+          filter: blob:none
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -216,7 +267,14 @@ jobs:
       - name: Application release gate
         run: pnpm run check:all
 
+      # Push-only. On a pull request `github.sha` is the ephemeral merge commit, which ceases to
+      # exist once the branch merges -- so a per-PR copy is not a record of anything that will
+      # still be identifiable later, and nothing in this repository (no workflow, no deploy path,
+      # no runbook) ever downloads one. What is left is the storage: a full `dist/public` bundle
+      # per PR push, held 14 days. Keeping it on main preserves the provenance record for commits
+      # that actually shipped.
       - name: Publish immutable application artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: caremetric-carebase-${{ github.sha }}
@@ -231,11 +289,10 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-      actions: read
     env:
       VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -260,28 +317,32 @@ jobs:
       - name: Database and RLS tests
         run: supabase test db
 
+      # `--fail-on error` is not redundant with `--level error`. `--level` selects which findings
+      # are PRINTED; `--fail-on` selects which findings change the EXIT CODE, and it defaults to
+      # `none`. Without it this step printed lint errors and exited 0 every time -- a gate that
+      # reported and never blocked. BACKLOG.md G25.1 records exactly that: `db lint --level error`
+      # "had been reporting" two real errors while only `pnpm run check:database`, which does pass
+      # `--fail-on error`, went red. This is the same invocation the next step already uses for
+      # advisors, and the same one package.json's `check:database` uses.
       - name: Database lint
-        run: supabase db lint --level error
+        run: supabase db lint --level error --fail-on error
 
       - name: Database security and performance advisors
         run: supabase db advisors --local --type all --fail-on error
 
+      # Compares committed types against freshly generated ones, ignoring only trailing-newline
+      # differences. `"$(cat f)"` strips every trailing newline and `printf '%s\n'` puts exactly
+      # one back, which is what the previous Python heredoc did the long way round -- and it did it
+      # by reaching for a Python interpreter this repository does not otherwise use, declare, or
+      # pin anywhere in its toolchain (.node-version, deno.lock, the Supabase CLI pin).
       - name: Verify generated database types
         shell: bash
         run: |
-          supabase gen types typescript --local > /tmp/database.types.ts
-          python - <<'PY'
-          from pathlib import Path
-
-          paths = [
-            ("artifacts/caremetric-carebase/src/lib/database.types.ts", "/tmp/database.types.repo.ts"),
-            ("/tmp/database.types.ts", "/tmp/database.types.generated.ts"),
-          ]
-          for source, destination in paths:
-            normalized = Path(source).read_text().rstrip("\n") + "\n"
-            Path(destination).write_text(normalized)
-          PY
-          diff -u /tmp/database.types.repo.ts /tmp/database.types.generated.ts
+          set -euo pipefail
+          supabase gen types typescript --local > /tmp/database.types.generated.ts
+          diff -u \
+            <(printf '%s\n' "$(cat artifacts/caremetric-carebase/src/lib/database.types.ts)") \
+            <(printf '%s\n' "$(cat /tmp/database.types.generated.ts)")
 
       - name: Export local Supabase browser-test environment
         shell: bash
@@ -315,7 +376,13 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          # `pnpm-lock.yaml`, not `**/pnpm-lock.yaml`. This is a single-lockfile pnpm workspace, so
+          # the glob never matched more at the root -- but hashFiles does not respect .gitignore,
+          # and this step runs AFTER `pnpm install`, so `**` also walked node_modules and hashed
+          # any lockfile a published package happens to ship. That makes the key depend on the
+          # installed tree rather than on this repository, which is both slower to compute and
+          # capable of missing a cache that should have hit.
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             playwright-${{ runner.os }}-
 
@@ -364,11 +431,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The check diffs merge-base(base, HEAD)..HEAD, so it needs history and the
-          # base branch, not just the PR merge commit.
+          # base branch, not just the PR merge commit. Partial clone: the check reads trees
+          # (`git diff --name-status`, `git ls-tree`) plus one `git show` of the allowlist file.
           fetch-depth: 0
+          filter: blob:none
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -403,11 +472,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # PR mode diffs merge-base(base, HEAD)..HEAD and tree mode walks baseline..HEAD;
           # both need real history, which is exactly what the shallow default cannot give.
+          #
+          # `filter: blob:none` is a PARTIAL clone, not a shallow one, so the check's own
+          # `git rev-parse --is-shallow-repository` guard still reports false and tree mode runs
+          # for real -- the whole point of this job on main. Both modes walk history with
+          # `git log --name-only` and `git diff --name-only`, which need trees, not blobs.
           fetch-depth: 0
+          filter: blob:none
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -431,8 +506,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Full clone on purpose, and the one checkout here that must NOT be `filter: blob:none`:
+          # gitleaks reads the content of every historical blob, so a partial clone would refetch
+          # all of them one at a time instead of once in bulk -- strictly slower, same bytes.
           fetch-depth: 0
 
       - name: Scan repository history for committed secrets

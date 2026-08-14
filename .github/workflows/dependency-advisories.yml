@@ -17,9 +17,16 @@ on:
     - cron: "23 6 * * *"
   workflow_dispatch:
 
+# Read-only by default; the job below adds `issues: write` for its reporting step alone.
 permissions:
   contents: read
-  issues: write
+
+# A `workflow_dispatch` fired while the daily run is in flight would otherwise race it through the
+# "does an open issue already exist?" read, and both would create one. Queue instead of cancelling:
+# an audit already talking to the advisory database should finish and report.
+concurrency:
+  group: dependency-advisories
+  cancel-in-progress: false
 
 jobs:
   audit-main:
@@ -29,7 +36,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
 
