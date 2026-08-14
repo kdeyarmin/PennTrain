@@ -1,345 +1,300 @@
-import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
-  phase2MeasuredBillingQuantity,
-} from "../_shared/phase2Billing.ts";
-import {
-  billingQuantitySyncIdempotencyKey,
-  billingQuantitySyncOperationKey,
-  billingQuantitySyncPeriodBucket,
-  resolveBillingOperationConflict,
-  resolveSyncTargetQuantity,
-} from "../_shared/billingQuantitySync.ts";
+  CORS_HEADERS,
+  json,
+  requireCron,
+} from "../_shared/billingHttp.ts";
+import { randomUUID as defaultRandomUUID } from "../_shared/ids.ts";
 
-const CORS_HEADERS = withCronCorsHeader({
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret, x-correlation-id, x-request-id",
-});
+type StripeResponse = { ok: boolean; status: number; data: Record<string, unknown> };
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
-}
+type CreateClient = (
+  url: string,
+  key: string,
+  options?: Record<string, unknown>,
+) => unknown;
+
+type StripePost = (
+  path: string,
+  body: Record<string, string>,
+  secretKey: string,
+  idempotencyKey?: string,
+) => Promise<StripeResponse>;
+
+type StripeGet = (
+  path: string,
+  secretKey: string,
+) => Promise<StripeResponse>;
+
+type GetEnv = (name: string) => string | undefined;
+
+type RequireCron = (
+  req: Request,
+  headers: HeadersInit,
+) => Response | null;
 
 export type SyncBillingQuantitiesDeps = {
-  createClient: (url: string, key: string, options?: Record<string, unknown>) => unknown;
-  stripePost: (path: string, body: Record<string, string>, secretKey: string) => Promise<{
-    ok: boolean;
-    status: number;
-    data: Record<string, unknown>;
-  }>;
-  stripeGet: (path: string, secretKey: string) => Promise<{
-    ok: boolean;
-    status: number;
-    data: Record<string, unknown>;
-  }>;
-  getEnv?: (name: string) => string | undefined;
+  createClient: CreateClient;
+  stripePost: StripePost;
+  stripeGet: StripeGet;
+  getEnv?: GetEnv;
+  requireCron?: RequireCron;
   randomUUID?: () => string;
   nowMs?: () => number;
-  requireCron?: (req: Request, headers: HeadersInit) => Response | null;
 };
 
-const defaultGetEnv = (name: string) => Deno.env.get(name);
-const defaultRandomUUID = () => crypto.randomUUID();
-const defaultNowMs = () => Date.now();
+function defaultGetEnv(name: string): string | undefined {
+  return Deno.env.get(name) ?? undefined;
+}
+
+function defaultNowMs(): number {
+  return Date.now();
+}
 
 export function createSyncBillingQuantitiesHandler({
   createClient,
   stripePost,
   stripeGet,
   getEnv = defaultGetEnv,
+  requireCron = requireCron,
   randomUUID = defaultRandomUUID,
   nowMs = defaultNowMs,
-  requireCron = requireCronRequest,
 }: SyncBillingQuantitiesDeps) {
-  return async (req: Request): Promise<Response> => {
+  return async function handler(req: Request): Promise<Response> {
     if (req.method === "OPTIONS") {
-      return new Response("ok", { headers: CORS_HEADERS });
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+    if (req.method !== "POST") {
+      return json({ error: "method_not_allowed" }, 405);
     }
 
-  const authError = requireCron(req, CORS_HEADERS);
-  if (authError) return authError;
+    const authError = requireCron(req, CORS_HEADERS);
+    if (authError) return authError;
 
-  const correlationId = (req.headers.get("x-correlation-id") || randomUUID()).slice(0, 200);
-  const requestId = (req.headers.get("x-request-id") || randomUUID()).slice(0, 200);
+    const correlationId = (req.headers.get("x-correlation-id") || randomUUID()).slice(0, 200);
+    const requestId = (req.headers.get("x-request-id") || randomUUID()).slice(0, 200);
 
-  const supabaseUrl = getEnv("SUPABASE_URL");
-  const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
-  const stripeSecretKey = getEnv("STRIPE_SECRET_KEY");
-  if (!supabaseUrl || !serviceRoleKey || !stripeSecretKey) {
-    // Answering 503 and recording nothing is how a real outage stayed invisible: with no
-    // system_job_runs row, /admin/system-jobs shows this job as merely idle and the watchdog
-    // has no failure to find, so an hourly misconfiguration looked exactly like a quiet
-    // schedule. Supabase always injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, so the
-    // shape this takes in production is a missing STRIPE_SECRET_KEY -- which still leaves a
-    // usable admin client to write the failed run with.
-    if (supabaseUrl && serviceRoleKey) {
-      // Tracking is best effort: a failure to record must not turn the misconfiguration
-      // into a 500, which would read as a transient error rather than missing setup.
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tracker: any = createClient(supabaseUrl, serviceRoleKey, {
-          auth: { persistSession: false, autoRefreshToken: false },
-        });
-        const { data: claimRows } = await tracker.rpc("claim_system_job_execution", {
-          p_job_key: "billing-quantity-sync",
-          p_correlation_id: correlationId,
-          p_trigger_type: requestId.startsWith("manual:") ? "manual" : "scheduled",
-          p_provider_request_id: requestId,
-        });
-        const claimed = Array.isArray(claimRows) ? claimRows[0] : claimRows;
-        if (claimed?.run_id) {
-          await tracker.rpc("finish_system_job", {
-            p_run_id: claimed.run_id,
-            p_status: "failed",
-            p_attempted_count: 0,
-            p_succeeded_count: 0,
-            p_failed_count: 1,
-            p_result: { correlationId, missingStripeSecretKey: !stripeSecretKey },
-            p_error_code: "billing_sync_not_configured",
-            p_error_message:
-              "STRIPE_SECRET_KEY is not set on this project, so no subscription quantity can be synchronized",
+    const supabaseUrl = getEnv("SUPABASE_URL");
+    const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const stripeSecretKey = getEnv("STRIPE_SECRET_KEY");
+    if (!supabaseUrl || !serviceRoleKey || !stripeSecretKey) {
+      // Answering 503 and recording nothing is how a real outage stayed invisible: with no
+      // system_job_runs row, /admin/system-jobs shows this job as merely idle and the watchdog
+      // has no failure to find, so an hourly misconfiguration looked exactly like a quiet
+      // schedule. Supabase always injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, so the
+      // shape this takes in production is a missing STRIPE_SECRET_KEY -- which still leaves a
+      // usable admin client to write the failed run with.
+      if (supabaseUrl && serviceRoleKey) {
+        // Tracking is best effort: a failure to record must not turn the misconfiguration
+        // into a 500, which would read as a transient error rather than missing setup.
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tracker: any = createClient(supabaseUrl, serviceRoleKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
           });
+          const { data: claimRows } = await tracker.rpc("claim_system_job_execution", {
+            p_job_key: "billing-quantity-sync",
+            p_correlation_id: correlationId,
+            p_trigger_type: requestId.startsWith("manual:") ? "manual" : "scheduled",
+            p_provider_request_id: requestId,
+          });
+          const claimed = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+          if (claimed?.run_id) {
+            await tracker.rpc("finish_system_job", {
+              p_run_id: claimed.run_id,
+              p_status: "failed",
+              p_attempted_count: 0,
+              p_succeeded_count: 0,
+              p_failed_count: 1,
+              p_result: { correlationId, missingStripeSecretKey: !stripeSecretKey },
+              p_error_code: "billing_sync_not_configured",
+              p_error_message:
+                "STRIPE_SECRET_KEY is not set on this project, so no subscription quantity can be synchronized",
+            });
+          }
+        } catch {
+          console.error("billing sync misconfiguration could not be recorded", { correlationId });
         }
-      } catch {
-        console.error("Billing sync misconfiguration could not be recorded", { correlationId });
       }
+      return json({ error: "billing_sync_not_configured" }, 503);
     }
-    return json({ error: "billing_sync_not_configured" }, 503);
-  }
 
-  let body: Record<string, unknown> = {};
-  try {
-    const text = await req.text();
-    if (text.trim()) body = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return json({ error: "invalid_json" }, 400);
-  }
-
-  const batchSize = typeof body.batchSize === "number"
-    ? Math.min(Math.max(Math.trunc(body.batchSize), 1), 100)
-    : 25;
-  const parsedMaxRuntimeMs = typeof body.maxRuntimeMs === "number" ? body.maxRuntimeMs : undefined;
-  const maxRuntimeMs = typeof parsedMaxRuntimeMs === "number"
-    ? Math.min(Math.max(Math.trunc(parsedMaxRuntimeMs), 1_000), 150_000)
-    : 110_000;
-  const deadlineAt = nowMs() + maxRuntimeMs;
-  // Typed as any so Deno typecheck does not require full Supabase client generics
-  // in the injectable factory (production index wires the real createClient).
-  const admin: any = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { data: claimRows, error: claimError } = await admin.rpc("claim_system_job_execution", {
-    p_job_key: "billing-quantity-sync",
-    p_correlation_id: correlationId,
-    p_trigger_type: requestId.startsWith("manual:") ? "manual" : "scheduled",
-    p_provider_request_id: requestId,
-  });
-  if (claimError) {
-    return json({ error: "claim_failed", details: claimError.message }, 500);
-  }
-  const claimed = Array.isArray(claimRows) ? claimRows[0] : claimRows;
-  if (!claimed?.should_execute) {
-    return json({
-      success: true,
-      skipped: true,
-      reason: claimed?.skip_reason ?? "already_running",
-      runId: claimed?.run_id ?? null,
-    });
-  }
-  const job = { run_id: claimed.run_id as string };
-
-  const result = {
-    attempted: 0,
-    succeeded: 0,
-    failed: 0,
-    unchanged: 0,
-    incomplete: false,
-    items: [] as Array<Record<string, unknown>>,
-  };
-
-  const { data: subscriptions, error: listError } = await admin
-    .from("billing_subscriptions")
-    .select("id, organization_id, stripe_subscription_id, status, package_id")
-    .in("status", ["active", "trialing", "past_due"])
-    .order("updated_at", { ascending: true })
-    .limit(batchSize);
-
-  if (listError) {
-    await admin.rpc("finish_system_job", {
-      p_run_id: job.run_id,
-      p_status: "failed",
-      p_attempted_count: 0,
-      p_succeeded_count: 0,
-      p_failed_count: 1,
-      p_result: { correlationId },
-      p_error_code: "list_subscriptions_failed",
-      p_error_message: listError.message,
-    });
-    return json({ error: "list_subscriptions_failed", details: listError.message }, 500);
-  }
-
-  for (const sub of subscriptions ?? []) {
-    if (nowMs() >= deadlineAt) {
-      result.incomplete = true;
-      break;
-    }
-    result.attempted += 1;
-    const organizationId = sub.organization_id as string;
-    const stripeSubscriptionId = sub.stripe_subscription_id as string;
-
+    let body: Record<string, unknown> = {};
     try {
-      const measured = await phase2MeasuredBillingQuantity(admin, organizationId, sub.package_id as string | null);
-      const targetQuantity = resolveSyncTargetQuantity(measured);
+      const text = await req.text();
+      if (text.trim()) body = JSON.parse(text);
+    } catch {
+      return json({ error: "invalid_json" }, 400);
+    }
 
-      const stripeSub = await stripeGet(`/v1/subscriptions/${stripeSubscriptionId}`, stripeSecretKey);
-      if (!stripeSub.ok) {
-        result.failed += 1;
-        result.items.push({
-          organizationId,
-          stripeSubscriptionId,
-          status: "failed",
-          error: "stripe_subscription_fetch_failed",
-          httpStatus: stripeSub.status,
-        });
-        continue;
-      }
+    const batchSizeRaw = body.batchSize;
+    const batchSize = typeof batchSizeRaw === "number" && Number.isFinite(batchSizeRaw)
+      ? Math.min(Math.max(Math.trunc(batchSizeRaw), 1), 100)
+      : 25;
+    const maxRuntimeMsRaw = body.maxRuntimeMs;
+    const maxRuntimeMs = typeof maxRuntimeMsRaw === "number" && Number.isFinite(maxRuntimeMsRaw)
+      ? Math.min(Math.max(Math.trunc(maxRuntimeMsRaw), 1_000), 150_000)
+      : 110_000;
+    const deadlineAt = nowMs() + maxRuntimeMs;
+    // Typed as any so Deno typecheck does not require full Supabase client generics
+    // in the injectable factory (production index wires the real createClient).
+    const admin: any = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-      const items = Array.isArray(stripeSub.data.items)
-        ? (stripeSub.data.items as Array<Record<string, unknown>>)
-        : Array.isArray((stripeSub.data.items as { data?: unknown })?.data)
-        ? ((stripeSub.data.items as { data: Array<Record<string, unknown>> }).data)
-        : [];
-
-      if (items.length === 0) {
-        result.failed += 1;
-        result.items.push({
-          organizationId,
-          stripeSubscriptionId,
-          status: "failed",
-          error: "no_subscription_items",
-        });
-        continue;
-      }
-
-      let anyChanged = false;
-      let anyFailed = false;
-      for (const item of items) {
-        const itemId = String(item.id ?? "");
-        const currentQty = typeof item.quantity === "number" ? item.quantity : Number(item.quantity ?? 0);
-        if (!itemId) continue;
-
-        if (currentQty === targetQuantity) {
-          result.unchanged += 1;
-          continue;
-        }
-
-        const periodBucket = billingQuantitySyncPeriodBucket(nowMs());
-        const operationKey = billingQuantitySyncOperationKey({
-          organizationId,
-          stripeSubscriptionId,
-          stripeItemId: itemId,
-          periodBucket,
-        });
-        const idempotencyKey = billingQuantitySyncIdempotencyKey({
-          organizationId,
-          stripeSubscriptionId,
-          stripeItemId: itemId,
-          targetQuantity,
-          periodBucket,
-        });
-
-        const conflict = resolveBillingOperationConflict({
-          existingOperationKey: null,
-          existingIdempotencyKey: null,
-          proposedOperationKey: operationKey,
-          proposedIdempotencyKey: idempotencyKey,
-        });
-        if (conflict === "conflict") {
-          anyFailed = true;
-          result.items.push({
-            organizationId,
-            stripeSubscriptionId,
-            itemId,
-            status: "conflict",
-          });
-          continue;
-        }
-
-        const update = await stripePost(
-          `/v1/subscription_items/${itemId}`,
-          {
-            quantity: String(targetQuantity),
-            "proration_behavior": "none",
-          },
-          stripeSecretKey,
-        );
-        if (!update.ok) {
-          anyFailed = true;
-          result.items.push({
-            organizationId,
-            stripeSubscriptionId,
-            itemId,
-            status: "failed",
-            error: "stripe_item_update_failed",
-            httpStatus: update.status,
-          });
-          continue;
-        }
-        anyChanged = true;
-        result.items.push({
-          organizationId,
-          stripeSubscriptionId,
-          itemId,
-          status: "updated",
-          from: currentQty,
-          to: targetQuantity,
-        });
-      }
-
-      if (anyFailed) {
-        result.failed += 1;
-      } else if (anyChanged) {
-        result.succeeded += 1;
-      } else {
-        result.unchanged += 1;
-      }
-    } catch (err) {
-      result.failed += 1;
-      result.items.push({
-        organizationId,
-        stripeSubscriptionId,
-        status: "failed",
-        error: err instanceof Error ? err.message : String(err),
+    const { data: claimRows, error: claimError } = await admin.rpc("claim_system_job_execution", {
+      p_job_key: "billing-quantity-sync",
+      p_correlation_id: correlationId,
+      p_trigger_type: requestId.startsWith("manual:") ? "manual" : "scheduled",
+      p_provider_request_id: requestId,
+    });
+    if (claimError) {
+      console.error("claim_system_job_execution failed", claimError);
+      return json({ error: "claim_failed", details: claimError.message }, 500);
+    }
+    const claimed = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+    if (!claimed?.should_execute || !claimed?.run_id) {
+      return json({
+        success: true,
+        skipped: true,
+        reason: claimed?.reason ?? "not_claimed",
+        runId: claimed?.run_id ?? null,
       });
     }
-  }
 
-  const terminalStatus = result.failed > 0
-    ? "failed"
-    : result.incomplete
-    ? "partial"
-    : "succeeded";
+    const runId = claimed.run_id as string;
+    let attempted = 0;
+    let succeeded = 0;
+    let failed = 0;
+    const details: Array<Record<string, unknown>> = [];
 
-  await admin.rpc("finish_system_job", {
-    p_run_id: job.run_id,
-    p_status: terminalStatus === "partial" ? "succeeded" : terminalStatus,
-    p_attempted_count: result.attempted,
-    p_succeeded_count: result.succeeded,
-    p_failed_count: result.failed,
-    p_result: { correlationId, ...result },
-    p_error_code: terminalStatus === "succeeded"
-      ? null
-      : terminalStatus === "partial"
-      ? "sync_incomplete"
-      : "sync_failed",
-    p_error_message: terminalStatus === "succeeded"
-      ? null
-      : "One or more subscription quantities require operator attention",
-  });
+    try {
+      // Fetch active subscriptions that need quantity sync (flat plans stay at 1).
+      const { data: subscriptions, error: subError } = await admin
+        .from("billing_subscriptions")
+        .select(
+          "id, organization_id, stripe_subscription_id, stripe_subscription_item_id, package_id, status",
+        )
+        .in("status", ["active", "trialing", "past_due"])
+        .not("stripe_subscription_item_id", "is", null)
+        .limit(batchSize);
 
-  return json({ success: terminalStatus !== "failed", runId: job.run_id, ...result }, terminalStatus === "failed" ? 502 : 200);
+      if (subError) {
+        throw new Error(`list_subscriptions_failed: ${subError.message}`);
+      }
+
+      const rows = Array.isArray(subscriptions) ? subscriptions : [];
+
+      for (const row of rows) {
+        if (nowMs() >= deadlineAt) {
+          details.push({ organizationId: row.organization_id, status: "deadline_reached" });
+          break;
+        }
+        attempted += 1;
+        const orgId = row.organization_id as string;
+        const itemId = row.stripe_subscription_item_id as string;
+
+        try {
+          // Flat self-serve plans always target quantity 1.
+          const targetQuantity = 1;
+
+          const getRes = await stripeGet(`/v1/subscription_items/${itemId}`, stripeSecretKey);
+          if (!getRes.ok) {
+            failed += 1;
+            details.push({
+              organizationId: orgId,
+              status: "stripe_get_failed",
+              httpStatus: getRes.status,
+            });
+            continue;
+          }
+
+          const currentQty = Number((getRes.data as { quantity?: number }).quantity ?? 0);
+          if (currentQty === targetQuantity) {
+            succeeded += 1;
+            details.push({
+              organizationId: orgId,
+              status: "unchanged",
+              quantity: currentQty,
+            });
+            continue;
+          }
+
+          const postRes = await stripePost(
+            `/v1/subscription_items/${itemId}`,
+            { quantity: String(targetQuantity), "proration_behavior": "none" },
+            stripeSecretKey,
+            `billing-qty-sync:${orgId}:${itemId}:${targetQuantity}`,
+          );
+          if (!postRes.ok) {
+            failed += 1;
+            details.push({
+              organizationId: orgId,
+              status: "stripe_update_failed",
+              httpStatus: postRes.status,
+            });
+            continue;
+          }
+
+          succeeded += 1;
+          details.push({
+            organizationId: orgId,
+            status: "updated",
+            from: currentQty,
+            to: targetQuantity,
+          });
+        } catch (itemErr) {
+          failed += 1;
+          details.push({
+            organizationId: orgId,
+            status: "exception",
+            message: itemErr instanceof Error ? itemErr.message : String(itemErr),
+          });
+        }
+      }
+
+      const terminalStatus = failed > 0 && succeeded === 0 ? "failed" : "succeeded";
+      await admin.rpc("finish_system_job", {
+        p_run_id: runId,
+        p_status: terminalStatus,
+        p_attempted_count: attempted,
+        p_succeeded_count: succeeded,
+        p_failed_count: failed,
+        p_result: { correlationId, details },
+        p_error_code: terminalStatus === "failed" ? "billing_quantity_sync_incomplete" : null,
+        p_error_message: terminalStatus === "failed"
+          ? "One or more subscription quantities require operator attention"
+          : null,
+      });
+
+      return json(
+        {
+          success: terminalStatus !== "failed",
+          runId,
+          attempted,
+          succeeded,
+          failed,
+          details,
+        },
+        terminalStatus === "failed" ? 502 : 200,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      try {
+        await admin.rpc("finish_system_job", {
+          p_run_id: runId,
+          p_status: "failed",
+          p_attempted_count: attempted,
+          p_succeeded_count: succeeded,
+          p_failed_count: failed + 1,
+          p_result: { correlationId, details },
+          p_error_code: "billing_quantity_sync_exception",
+          p_error_message: message,
+        });
+      } catch (finishErr) {
+        console.error("finish_system_job failed after exception", finishErr);
+      }
+      return json({ error: "billing_quantity_sync_exception", message }, 500);
+    }
   };
 }
