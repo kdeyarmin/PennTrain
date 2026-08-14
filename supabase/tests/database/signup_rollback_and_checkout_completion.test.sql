@@ -193,6 +193,13 @@ select lives_ok(
 );
 
 select is(
+  (select package_id from public.organizations
+   where id = '35000000-0000-4000-8000-000000000012'),
+  '35000000-0000-4000-8000-000000000001'::uuid,
+  'trial checkout stamps the purchased package immediately'
+);
+
+select is(
   (select stripe_customer_id from public.billing_accounts
    where organization_id = '35000000-0000-4000-8000-000000000012'),
   'cus_checkoutTrial1',
