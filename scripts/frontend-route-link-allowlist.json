@@ -13,12 +13,22 @@
     "Dashboard.tsx reported `route: \"/app/dashboard\"` to product telemetry for a page mounted at",
     "`/app`, so every benchmark_viewed row named a route that does not exist.",
     "",
-    "THE EXPECTED USE OF THIS FILE is a literal that is deliberately not a route -- a path handed to",
-    "a non-router consumer that happens to share an in-app prefix. It is empty today, which is the",
-    "state to prefer: the check reads only navigation forms (href/to/setLocation/navigate and the",
-    "object keys nav tables use), so a string that is not a destination should not reach it at all.",
+    "THE EXPECTED USE OF THIS FILE is a literal that is a PREFIX TO MATCH rather than a place to go.",
+    "The check reads every string literal in client source, which is what lets it see a path routed",
+    "through a constant or a ternary; the cost is that a list of prefixes used with startsWith() looks",
+    "the same as a list of destinations. Both entries below are that case, and each names the function",
+    "that consumes it so the claim is checkable.",
     "",
     "It is NOT a place to excuse a link that is genuinely broken. Declare the route or correct the",
-    "link instead. An entry must say why the literal is not a route, in terms someone can check."
-  ]
+    "link instead."
+  ],
+
+  "/account": {
+    "reason": "A prefix to match, not a destination. `productModules.ts` uses it in INTERNAL_APP_PREFIXES, which productModuleForPath() feeds to matchesPath() to decide whether a path is inside the app shell at all before any module gate is consulted. The routes underneath it are real and declared (/account/security, /account/notifications, /account/announcements, /account/whats-new, /account/manager-digest/:id); bare /account is deliberately not one of them.",
+    "consumed_by": "productModuleForPath() in artifacts/caremetric-carebase/src/lib/productModules.ts"
+  },
+  "/app/regulatory": {
+    "reason": "A prefix to match, not a destination. `helpCopilot.ts` lists it in the compliance_risk intent's routePrefixes, which routeMatches() tests against the user's current location to pick which help answer applies. It is intentionally the shared stem of /app/regulatory-crosswalk and /app/regulatory-copilot -- both declared routes -- so that either page resolves to the same intent. Nothing navigates to /app/regulatory.",
+    "consumed_by": "routePrefixes matching in artifacts/caremetric-carebase/src/lib/helpCopilot.ts"
+  }
 }

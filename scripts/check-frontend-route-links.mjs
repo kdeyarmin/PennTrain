@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { declaredRoutes, isInAppPath, routeMatches } from "./lib/appRoutes.mjs";
+import { blankJsComments } from "./lib/jsComments.mjs";
 
 // Client-emitted link check -- the other half of check-server-route-links.mjs.
 //
@@ -33,32 +34,28 @@ const ALLOWLIST = path.join(ROOT, "scripts", "frontend-route-link-allowlist.json
 /**
  * In-app path literals in client source.
  *
- * Only the forms that actually navigate or declare a destination, rather than every quoted string:
- * a bare string starting with `/app` may be a storage key, an analytics label, or a comment
- * fragment, and treating all of them as links is how a check like this ends up with an allowlist
- * longer than its findings.
+ * EVERY string and template literal, filtered by prefix -- the same reading check-server-route-links
+ * does, and for the same reason it learned to. An earlier version of this check matched only the
+ * syntactic forms that obviously navigate (`href=`, `setLocation(`, and the object keys nav tables
+ * use). That reads well and is wrong in one direction: a path routed through a constant
+ * (`const RESIDENTS = "/app/residents"`, used later as `href={RESIDENTS}`), a ternary
+ * (`role === "platform_admin" ? "/admin/incidents" : "/app/incidents"`), or an array of
+ * destinations is invisible to it, and this codebase uses all three. The server check's own header
+ * records the identical mistake: "Skipping them was the first version's blind spot."
  *
- *   href="/x"  href={"/x"}  href={`/x/${id}`}  to="/x"
- *   href: "/x"  path: "/x"  route: "/x"  url: "/x"  link: "/x"  destination: "/x"
- *   setLocation("/x")  navigate("/x")  setLocation(`/x/${id}`)
+ * `<Route path="/x">` still is not a link -- but it needs no special case, because a declared route
+ * trivially matches itself.
  *
- * `<Route path="/x">` is deliberately not one of them -- that is a declaration, not a link, and
- * matching it against itself proves nothing.
+ * Comments are blanked first. The prose in this repository is full of route paths, because people
+ * document routing decisions where they make them, and reading it as code reported three sentences
+ * about routes as broken routes -- one of them a comment explaining that `/app/compliance` is not a
+ * route, i.e. the note left behind by the very fix this check would have made unnecessary.
  */
-const LINK_PATTERNS = [
-  /\b(?:href|to)=\{?["'`]([^"'`]+)["'`]\}?/g,
-  /\b(?:href|to)=\{`([^`]+)`\}/g,
-  /\b(?:href|path|route|to|url|link|destination)\s*:\s*["'`]([^"'`]+)["'`]/g,
-  /\b(?:href|path|route|to|url|link|destination)\s*:\s*`([^`]+)`/g,
-  /\b(?:setLocation|navigate)\(\s*["'`]([^"'`]+)["'`]/g,
-  /\b(?:setLocation|navigate)\(\s*`([^`]+)`/g,
-];
-
 export function frontendLinkLiterals(source) {
+  const code = blankJsComments(source);
   const found = new Set();
-  for (const re of LINK_PATTERNS) {
-    re.lastIndex = 0;
-    for (const match of source.matchAll(re)) {
+  for (const re of [/'([^']*)'/g, /"([^"]*)"/g, /`([^`]*)`/g]) {
+    for (const match of code.matchAll(re)) {
       // `${...}` becomes `*`, a stand-in whose possible expansions are decided by linkCandidates().
       const value = match[1].replace(/\$\{[^}]*\}/g, "*");
       if (!isInAppPath(value)) continue;
@@ -73,44 +70,70 @@ export function frontendLinkLiterals(source) {
 /**
  * The paths a link literal could actually resolve to at runtime.
  *
- * A `*` stands for an interpolated expression, and this check cannot know its value -- so a link is
- * only a defect when NO expansion of it resolves. Two expansions matter, and both occur in this
- * codebase:
+ * A `*` stands for an interpolated expression whose value this check cannot know, so a link is only
+ * a defect when NO expansion of it resolves. WHICH expansions are possible depends on where the
+ * expression sits, and reading that from the position rather than allowing every expansion
+ * everywhere is what keeps the check strict:
  *
- *   one segment  -- `/app/residents/${id}`      → `/app/residents/x`, matching `:id`
- *   empty/suffix -- `/app/survey-day${facilityQ}` → `/app/survey-day`, where the expression is a
- *                   query string (`?facility=…`) or the empty string
+ *   own segment -- `/app/residents/${id}` (a `*` right after `/`) fills exactly one segment, so the
+ *                  only expansion is `/app/residents/x`, which `:id` serves. Allowing the empty
+ *                  expansion too, as this once did, also accepted `/app/residents` -- a real but
+ *                  DIFFERENT route (the list page). Any `/app/<list>/${id}` link would then have
+ *                  passed on the strength of the list route alone, even with no detail route
+ *                  declared at all: precisely the dead link this check exists to catch.
+ *   glued on    -- `/app/survey-day${facilityQ}` may be a query string (`?facility=…`) or empty, and
+ *                  may equally extend the segment, so both expansions stand.
  *
- * Substituting a segment unconditionally was wrong for the second shape and reported
- * `/app/survey-dayx` -- a path no route serves and no user ever visits -- as a dead link.
+ * A literal with no interpolation may still be a concatenation prefix -- `${base}/${id}` is how this
+ * codebase builds role-scoped detail links, leaving `/admin/incidents` in the source and
+ * `/admin/incidents/<id>` on screen -- so a trailing segment is offered for those too. It costs
+ * nothing in strictness: the path still has to match SOME declared route either way.
  */
 export function linkCandidates(literal) {
-  if (!literal.includes("*")) return [literal];
-  return [...new Set([literal.replaceAll("*", "x"), literal.replaceAll("*", "")])];
+  if (!literal.includes("*")) {
+    return [...new Set([literal, `${literal.replace(/\/$/, "")}/x`])];
+  }
+  const candidates = new Set();
+  // Each `*` expands independently by position: after a `/` it is a whole segment, otherwise it is
+  // glued to the preceding text and may also vanish.
+  const segmentOnly = literal.replace(/(^|\/)\*/g, "$1x");
+  candidates.add(segmentOnly.replaceAll("*", "x"));
+  candidates.add(segmentOnly.replaceAll("*", ""));
+  return [...candidates];
 }
 
 if (process.argv.includes("--self-test")) {
   const cases = [
     [() => frontendLinkLiterals('<Link href="/app/residents">'), ["/app/residents"]],
-    [() => frontendLinkLiterals('<Link href={"/app/x"}>'), ["/app/x"]],
     [() => frontendLinkLiterals("<Link href={`/app/residents/${id}`}>"), ["/app/residents/*"]],
     [() => frontendLinkLiterals('<Redirect to="/app/today" />'), ["/app/today"]],
     [() => frontendLinkLiterals('{ href: "/app/incidents", label: "Incidents" }'), ["/app/incidents"]],
-    [() => frontendLinkLiterals('{ route: "/app/state-forms" }'), ["/app/state-forms"]],
     [() => frontendLinkLiterals('setLocation("/app/work")'), ["/app/work"]],
     [() => frontendLinkLiterals("navigate(`/app/residents/${r.id}/forms`)"), ["/app/residents/*/forms"]],
-    // A whole segment expands to one value; a suffix glued to a segment may also be empty, which is
-    // the `?facility=…` shape the survey-path checklist builds.
-    [() => linkCandidates("/app/residents/*"), ["/app/residents/x", "/app/residents/"]],
+    // The forms the narrow first version could not see: a constant, a ternary, an array.
+    [() => frontendLinkLiterals('const RESIDENTS = "/app/residents";'), ["/app/residents"]],
+    [
+      () => frontendLinkLiterals('role === "platform_admin" ? "/admin/incidents" : "/app/incidents"'),
+      ["/admin/incidents", "/app/incidents"],
+    ],
+    [() => frontendLinkLiterals('const P = ["/app/a", "/app/b"];'), ["/app/a", "/app/b"]],
+    // A `*` on its own segment fills that segment and nothing else -- notably NOT the empty string,
+    // which would let a list route vouch for a missing detail route.
+    [() => linkCandidates("/app/residents/*"), ["/app/residents/x"]],
+    // Glued to a segment it may extend it, or be a query string, or be absent.
     [() => linkCandidates("/app/survey-day*"), ["/app/survey-dayx", "/app/survey-day"]],
-    [() => linkCandidates("/app/today"), ["/app/today"]],
-    // A declaration is not a link; matching the route table against itself proves nothing.
-    [() => frontendLinkLiterals('<Route path="/app/today">'), []],
+    // A plain literal may still be a `${base}/${id}` prefix.
+    [() => linkCandidates("/app/today"), ["/app/today", "/app/today/x"]],
+    [() => linkCandidates("/admin/incidents/"), ["/admin/incidents/", "/admin/incidents/x"]],
     // External and non-app paths are out of scope.
     [() => frontendLinkLiterals('href="https://www.pa.gov/app/thing"'), []],
     [() => frontendLinkLiterals('href="/functions/v1/thing"'), []],
-    // A bare quoted string that is not a navigation form is not a link.
-    [() => frontendLinkLiterals('const key = "/app/cache-key";'), []],
+    // Comments are prose about routes, not routes. This sentence exists in workItemSources.ts.
+    [() => frontendLinkLiterals('// The Command Center, not "/app/compliance" -- no such route.'), []],
+    [() => frontendLinkLiterals("/* see `/app/compliance` */"), []],
+    [() => frontendLinkLiterals('const x = 1; // "/app/gone"\nconst y = "/app/real";'), ["/app/real"]],
+    // A `//` inside a string is not a comment opener.
+    [() => frontendLinkLiterals('const u = "https://x.test/y"; const p = "/app/real";'), ["/app/real"]],
     // The defect that motivated this check: telemetry naming a route that does not exist.
     [() => frontendLinkLiterals('{ eventName: "benchmark_viewed", route: "/app/dashboard" }'), ["/app/dashboard"]],
     [() => routeMatches("/app", "/app/dashboard"), false],
