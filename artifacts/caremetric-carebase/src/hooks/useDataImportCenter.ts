@@ -28,6 +28,10 @@ export function useDataImportJobs(filters: DataImportJobFilters = {}) {
         .from("data_import_jobs")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
+        // Unique tie-break so page boundaries are stable: several jobs queued from one upload
+        // share a `created_at`, and paging inside a run of equal keys without it lets Postgres
+        // order each request differently.
+        .order("id", { ascending: true })
         .range(from, to);
       if (filters.domain && filters.domain !== "all") query = query.eq("domain", filters.domain);
       if (filters.status && filters.status !== "all") query = query.eq("status", filters.status);

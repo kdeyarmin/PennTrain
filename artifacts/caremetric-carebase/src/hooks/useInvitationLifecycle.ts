@@ -26,6 +26,10 @@ export function useInvitationLifecycle(filters: InvitationListFilters = {}) {
         .from("user_invitation_lifecycle")
         .select("*", { count: "exact" })
         .order("last_sent_at", { ascending: false })
+        // Unique tie-break: a bulk invite stamps one `last_sent_at` across every row it sends, so
+        // that column alone leaves the list as one run of equal keys. A page boundary inside it
+        // would repeat invitations on one page and drop them from the next.
+        .order("id", { ascending: true })
         .range(from, to);
       if (filters.status && filters.status !== "all") {
         query = query.eq("status", filters.status);

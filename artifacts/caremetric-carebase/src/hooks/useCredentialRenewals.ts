@@ -24,6 +24,10 @@ export function useCredentialRenewalSubmissions(filters: CredentialRenewalFilter
         .from("credential_renewal_submissions")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
+        // Unique tie-break: submissions the renewal job creates in one pass share a `created_at`,
+        // so without it a page boundary inside that run can repeat one submission and hide
+        // another.
+        .order("id", { ascending: true })
         .range(from, to);
       if (filters.status && filters.status !== "all") {
         query = query.eq("status", filters.status);

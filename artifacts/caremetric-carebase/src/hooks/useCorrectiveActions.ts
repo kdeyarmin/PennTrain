@@ -20,10 +20,14 @@ export function useListCorrectiveActions(filters: ListCorrectiveActionsFilters =
   return useQuery({
     queryKey: ["corrective_actions", filters],
     queryFn: async () => {
+      // `id` tie-break: every corrective action written off one inspection event shares that
+      // event's due date, so `due_date` alone leaves long runs of equal keys. Paging inside such a
+      // run without a unique tie-break lets Postgres order each page's request differently, which
+      // drops actions from one page while repeating them on another.
       const pageSize = 1000;
       const rows: CorrectiveAction[] = [];
       for (let from = 0; ; from += pageSize) {
-        let query = supabase.from("corrective_actions").select("*").order("due_date").range(from, from + pageSize - 1);
+        let query = supabase.from("corrective_actions").select("*").order("due_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.incidentId) query = query.eq("incident_id", filters.incidentId);
         if (filters.inspectionEventId) query = query.eq("inspection_event_id", filters.inspectionEventId);
         if (filters.violationId) query = query.eq("violation_id", filters.violationId);

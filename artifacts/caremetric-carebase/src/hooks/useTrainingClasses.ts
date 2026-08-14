@@ -66,12 +66,19 @@ export function useClassAttendeeCounts() {
     queryFn: async () => {
       // PostgREST caps a single select. Page through every attendee row so list-view counts stay
       // accurate once total attendees exceed max-rows (commonly 1000).
+      //
+      // The ORDER BY is what makes that paging sound. `.range()` without one is a bare
+      // OFFSET/LIMIT over an unordered relation: Postgres may return the rows in a different
+      // order for each page's request, so an attendee can land in two pages (counted twice) or in
+      // neither (never counted). Ordering by the primary key is a total order, which is exactly
+      // what OFFSET paging needs.
       const pageSize = 1000;
       const counts: Record<string, number> = {};
       for (let from = 0; ; from += pageSize) {
         const { data, error } = await supabase
           .from("training_class_attendees")
           .select("class_id")
+          .order("id", { ascending: true })
           .range(from, from + pageSize - 1);
         if (error) throw error;
         for (const row of data ?? []) counts[row.class_id] = (counts[row.class_id] ?? 0) + 1;

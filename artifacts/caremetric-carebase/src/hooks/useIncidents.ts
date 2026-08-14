@@ -23,10 +23,14 @@ export function useListIncidents(filters: ListIncidentsFilters = {}, options: { 
   return useQuery({
     queryKey: ["incidents", filters],
     queryFn: async () => {
+      // `id` tie-break: `occurred_at` is entered by a human, so incidents from one shift routinely
+      // share a rounded time, and bulk-imported incidents share it exactly. Paging inside a run of
+      // equal keys without a unique tie-break lets Postgres order each page's request differently,
+      // dropping incidents from one page and repeating them on another.
       const pageSize = 1000;
       const rows: Incident[] = [];
       for (let from = 0; ; from += pageSize) {
-        let query = supabase.from("incidents").select("*").order("occurred_at", { ascending: false }).range(from, from + pageSize - 1);
+        let query = supabase.from("incidents").select("*").order("occurred_at", { ascending: false }).order("id", { ascending: false }).range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.residentId) query = query.eq("resident_id", filters.residentId);
         if (filters.incidentType) query = query.eq("incident_type", filters.incidentType);
