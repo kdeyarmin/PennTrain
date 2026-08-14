@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { absoluteAppUrl } from "@/lib/appUrl";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
 export type TrainingClass = Tables<"training_classes">;
@@ -352,7 +353,7 @@ export function useGenerateClassNoticePdf() {
     mutationFn: async (classId: string): Promise<GenerateClassNoticePdfResult> => {
       const { data, error } = await supabase.functions.invoke<GenerateClassNoticePdfResponse>(
         "generate-class-notice-pdf",
-        { body: { classId, baseUrl: window.location.origin } },
+        { body: { classId, baseUrl: absoluteAppUrl("/") } },
       );
       if (error) throw error;
       if (!data || data.success === false || !data.url) {

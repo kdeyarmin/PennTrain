@@ -33,6 +33,7 @@ import {
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateForDisplay, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { absoluteAppUrl } from "@/lib/appUrl";
 import {
   ArrowLeft, Copy, FileCheck2, FolderLock, History, Link2, Loader2, Plus, Scale, ShieldOff, Undo2,
 } from "lucide-react";
@@ -122,7 +123,7 @@ export default function EvidenceCollectionDetail() {
 
   const activeArtifacts = (artifacts ?? []).filter((a) => !a.withdrawn_at);
 
-  const guestLinkFor = (token: string) => `${window.location.origin}/evidence-access/${token}`;
+  const guestLinkFor = (token: string) => absoluteAppUrl(`/evidence-access/${token}`);
 
   const copyGuestLink = async (token: string) => {
     try {

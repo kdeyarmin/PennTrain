@@ -215,6 +215,30 @@ export function validatePhase2BillingReturnUrl(
   }
 }
 
+export const DEFAULT_BILLING_RETURN_ORIGIN = "https://cmcarebase.com";
+
+// BILLING_RETURN_URL_ORIGINS is optional. An empty allowlist used to reject
+// every Checkout/Portal return URL. Merge the configured list with the public
+// app and signup-redirect origins, then fall back to production so self-serve
+// checkout still works on a fresh deploy.
+export function resolvePhase2BillingReturnOrigins(
+  configuredList: string,
+  extras: Array<string | undefined> = [],
+): string[] {
+  const origins = new Set<string>();
+  for (const candidate of [...configuredList.split(","), ...extras]) {
+    const trimmed = (candidate ?? "").trim().replace(/\/+$/, "");
+    if (!trimmed) continue;
+    try {
+      origins.add(new URL(trimmed).origin);
+    } catch {
+      // ignore malformed entries
+    }
+  }
+  if (origins.size === 0) origins.add(DEFAULT_BILLING_RETURN_ORIGIN);
+  return [...origins];
+}
+
 // One trial budget across the product: Stripe's trial_period_days may cover
 // only the days still remaining on the in-app trial stamped at signup
 // (organizations.trial_ends_at). A lapsed or never-stamped in-app trial yields

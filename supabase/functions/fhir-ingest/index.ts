@@ -7,6 +7,7 @@ import {
   phase2IntegrationSha256,
 } from "../_shared/phase2Integration.ts";
 import { mapFhirBundle } from "../_shared/fhirMapping.ts";
+import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 // fhir.bundle.import is a registered per-command contract: the versioned command inbox requires
 // its submissions to carry the command's registered schema version, not the global baseline.
@@ -85,13 +86,14 @@ Deno.serve(async (req: Request) => {
     return response(req, { error: { code: "invalid_idempotency_key" }, meta: { correlationId } }, 400, correlationId, rate);
   }
 
-  const declaredLength = Number(req.headers.get("content-length") ?? "0");
-  if (declaredLength > MAX_BODY_BYTES) {
-    return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
-  }
-  const rawBody = await req.text();
-  if (new TextEncoder().encode(rawBody).byteLength > MAX_BODY_BYTES) {
-    return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
+  let rawBody: string;
+  try {
+    rawBody = await readTextBody(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
+    }
+    throw error;
   }
   let bundle: Record<string, unknown>;
   try {

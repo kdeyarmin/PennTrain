@@ -1,4 +1,5 @@
 import { decryptOfflinePayload, encryptOfflinePayload, generateOfflineDeviceKey, type EncryptedOfflinePayload } from "./offlineLearning";
+import { createRunLatch } from "./runLatch";
 
 const DATABASE_NAME = "carebase-offline-learning";
 const DATABASE_VERSION = 2;
@@ -71,8 +72,18 @@ async function clearDatabase(db: IDBDatabase) {
   })));
 }
 
+const initializeDeviceLatch = createRunLatch<{ metadata: OfflineDeviceMetadata; isNew: boolean }>();
+
 export async function initializeOfflineDevice(identity: OfflineIdentity): Promise<{ metadata: OfflineDeviceMetadata; isNew: boolean }> {
   if (identity.role !== "employee") throw new Error("Offline learning is available only to active employee accounts.");
+  // Two overlapping first-downloads used to each mint an AES key and each write
+  // metadata; last writer won and the first bundle became undecryptable. Same-realm
+  // callers join this latch; the write transaction below re-reads so a second tab
+  // that finished while we generated a key is adopted instead of overwritten.
+  return initializeDeviceLatch(() => initializeOfflineDeviceUnlocked(identity));
+}
+
+async function initializeOfflineDeviceUnlocked(identity: OfflineIdentity): Promise<{ metadata: OfflineDeviceMetadata; isNew: boolean }> {
   const db = await openDatabase();
   const existing = await request(db.transaction(META_STORE).objectStore(META_STORE).get("device")) as OfflineDeviceMetadata | undefined;
   if (existing && (existing.profileId !== identity.profileId || existing.organizationId !== identity.organizationId || existing.role !== identity.role)) {
@@ -84,6 +95,10 @@ export async function initializeOfflineDevice(identity: OfflineIdentity): Promis
   const marker = base64(crypto.getRandomValues(new Uint8Array(32)));
   const metadata: OfflineDeviceMetadata = { ...identity, publicMarker: marker, fingerprintSha256: await sha256(marker), createdAt: new Date().toISOString() };
   const transaction = db.transaction([KEY_STORE, META_STORE], "readwrite");
+  const raced = await request(transaction.objectStore(META_STORE).get("device")) as OfflineDeviceMetadata | undefined;
+  if (raced && raced.profileId === identity.profileId && raced.organizationId === identity.organizationId && raced.role === identity.role) {
+    return { metadata: raced, isNew: false };
+  }
   transaction.objectStore(KEY_STORE).put(key, "content");
   transaction.objectStore(META_STORE).put(metadata, "device");
   await new Promise<void>((resolve, reject) => { transaction.oncomplete = () => resolve(); transaction.onerror = () => reject(transaction.error); });

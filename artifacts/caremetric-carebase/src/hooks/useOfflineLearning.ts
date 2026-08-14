@@ -6,8 +6,36 @@ import {
   listCachedCourseBundles, markOfflineProgressAttempt, queueOfflineProgress, readCachedCourseBundle,
   removeCachedCourseBundle, saveOfflineDeviceId, wipeOfflineLearning,
 } from "@/lib/offlineCourseCache";
+import { createRunLatch } from "@/lib/runLatch";
 
 function rpc() { return supabase as any; }
+
+const ensureOfflineDeviceLatch = createRunLatch<{
+  metadata: Awaited<ReturnType<typeof initializeOfflineDevice>>["metadata"];
+  deviceId: string;
+}>();
+
+async function ensureRegisteredOfflineDevice(identity: {
+  organizationId: string;
+  profileId: string;
+  role: string;
+}) {
+  return ensureOfflineDeviceLatch(async () => {
+    const initialized = await initializeOfflineDevice(identity);
+    const latest = await getOfflineDeviceMetadata();
+    let deviceId = latest?.deviceId ?? initialized.metadata.deviceId;
+    if (!deviceId) {
+      const { data, error } = await rpc().rpc("register_offline_learning_device", {
+        p_device_public_key: initialized.metadata.publicMarker,
+        p_device_fingerprint_sha256: initialized.metadata.fingerprintSha256,
+      });
+      if (error) throw error;
+      deviceId = data as string;
+      await saveOfflineDeviceId(deviceId);
+    }
+    return { metadata: latest ?? initialized.metadata, deviceId };
+  });
+}
 
 export function useOfflineCourseLibrary() {
   const { user } = useAuth();
@@ -88,20 +116,10 @@ export function useDownloadCourseForOffline() {
     mutationFn: async ({ assignmentId, title }: { assignmentId: string; title: string }) => {
       if (!user?.id || !user.organizationId || user.role !== "employee") throw new Error("Offline learning requires an employee account.");
       const identity = { organizationId: user.organizationId, profileId: user.id, role: user.role };
-      const initialized = await initializeOfflineDevice(identity);
-      let deviceId = initialized.metadata.deviceId;
-      if (!deviceId) {
-        const { data, error } = await rpc().rpc("register_offline_learning_device", {
-          p_device_public_key: initialized.metadata.publicMarker,
-          p_device_fingerprint_sha256: initialized.metadata.fingerprintSha256,
-        });
-        if (error) throw error;
-        deviceId = data as string;
-        await saveOfflineDeviceId(deviceId);
-      }
+      const { metadata, deviceId } = await ensureRegisteredOfflineDevice(identity);
       const { data, error } = await rpc().rpc("prepare_offline_course_bundle", {
         p_device_id: deviceId, p_assignment_id: assignmentId,
-        p_encrypted_content_key: `device-bound:${initialized.metadata.fingerprintSha256}`,
+        p_encrypted_content_key: `device-bound:${metadata.fingerprintSha256}`,
       });
       if (error) throw error;
       const bundle = data as any;

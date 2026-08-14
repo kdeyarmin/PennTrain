@@ -41125,6 +41125,10 @@ export type Database = {
         Args: { p_job_id: string }
         Returns: Json
       }
+      rollback_organization_signup: {
+        Args: { p_organization_id: string }
+        Returns: undefined
+      }
       rotate_facility_safety_report_token: {
         Args: { p_facility_id: string }
         Returns: string

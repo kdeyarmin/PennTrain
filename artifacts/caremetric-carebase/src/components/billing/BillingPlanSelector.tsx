@@ -1,5 +1,6 @@
 import { useId, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   CalendarClock,
@@ -84,6 +85,7 @@ export function BillingPlanSelector() {
   const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const session = useCreateBillingSession();
   const isPlatformAdmin = user?.role === "platform_admin";
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
@@ -145,26 +147,46 @@ export function BillingPlanSelector() {
   }, [packages, pricesQuery.data, interval]);
 
   // Surface Stripe Checkout return status once, then scrub the query string.
+  // After a successful checkout the webhook may still be in flight, so keep
+  // refetching billing state for a short window until the stub/package land.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const billing = params.get("billing");
     if (billing !== "success" && billing !== "cancelled") return;
     if (billing === "success") {
+      // Keep ?billing=success until the org is known so a slow profile load
+      // does not scrub the flag before we can refetch.
+      if (!organizationId) return;
       toast({
         title: "Checkout complete",
         description: "Stripe accepted the session. Subscription status will update when the webhook lands.",
       });
-    } else {
-      toast({
-        title: "Checkout cancelled",
-        description: "No charge was made. You can start checkout again when you are ready.",
-      });
+      const refreshBilling = () => {
+        if (!organizationId) return;
+        void queryClient.invalidateQueries({ queryKey: ["organization-billing-account", organizationId] });
+        void queryClient.invalidateQueries({ queryKey: ["organizations", organizationId] });
+      };
+      refreshBilling();
+      const interval = window.setInterval(refreshBilling, 2000);
+      const timeout = window.setTimeout(() => window.clearInterval(interval), 16_000);
+      params.delete("billing");
+      const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+      window.history.replaceState({}, "", next);
+      return () => {
+        window.clearInterval(interval);
+        window.clearTimeout(timeout);
+      };
     }
+    toast({
+      title: "Checkout cancelled",
+      description: "No charge was made. You can start checkout again when you are ready.",
+    });
     params.delete("billing");
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
     window.history.replaceState({}, "", next);
-  }, [toast]);
+    return undefined;
+  }, [toast, queryClient, organizationId]);
 
   const openPortal = async () => {
     if (!organizationId) return;

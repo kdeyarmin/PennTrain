@@ -149,7 +149,7 @@ export class DailyMinutesBudget {
     return usedMs >= config.dailyMinutesBudget * MINUTE_MS;
   }
 
-  async sessionStarted(): Promise<SessionSpan> {
+  async sessionStarted(_existing?: SessionSpan): Promise<SessionSpan> {
     this.roll();
     const span: SessionSpan = { startedAt: this.now() };
     this.live.add(span);

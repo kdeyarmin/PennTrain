@@ -509,7 +509,14 @@ class PostgresDailyMinutesBudget {
     return Number(result.rows[0]?.used_ms ?? 0) >= config.dailyMinutesBudget * 60_000;
   }
 
-  async sessionStarted(): Promise<SessionSpan> {
+  async sessionStarted(existing?: SessionSpan): Promise<SessionSpan> {
+    // Phone transport always calls phoneCallers.sessionStarted() immediately
+    // before this method, which already INSERTed a channel='phone' row. The
+    // daily budget sums every session_spans row, so a second INSERT
+    // (historically channel='browser') double-counted every phone call.
+    // Adopt the phone row instead. Browser transport never writes a phone
+    // row first, so it still inserts here.
+    if (existing?.id) return existing;
     await this.state.ready;
     const result = await this.state.pool.query<{ id: string; started_at: Date }>(
       `INSERT INTO voice_gateway.session_spans (channel)

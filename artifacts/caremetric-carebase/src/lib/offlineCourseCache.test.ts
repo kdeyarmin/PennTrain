@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  getOfflineProgressCheckpoint, markOfflineProgressAttempt, queueOfflineProgress,
+  getOfflineProgressCheckpoint, initializeOfflineDevice, markOfflineProgressAttempt, queueOfflineProgress,
 } from "./offlineCourseCache";
 
 /**
@@ -44,13 +44,18 @@ function fakeIndexedDB() {
     createObjectStore: (name: string, options?: { keyPath?: string }) => {
       stores.set(name, { data: new Map(), keyPath: options?.keyPath ?? null });
     },
-    transaction: (_storeNames: string | string[], _mode?: string) => ({
-      oncomplete: null as (() => void) | null,
-      onerror: null as (() => void) | null,
-      onabort: null as (() => void) | null,
-      error: null as unknown,
-      objectStore,
-    }),
+    transaction: (_storeNames: string | string[], _mode?: string) => {
+      const tx = {
+        oncomplete: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+        onabort: null as (() => void) | null,
+        error: null as unknown,
+        objectStore,
+      };
+      // initializeOfflineDevice waits on oncomplete for the write txn.
+      setTimeout(() => tx.oncomplete?.(), 0);
+      return tx;
+    },
   };
 
   const open = () => {
@@ -127,5 +132,25 @@ describe("markOfflineProgressAttempt sync receipts", () => {
     expect(receipt.idempotencyKey).toBe(queued.idempotencyKey);
     expect(receipt.clientSequence).toBe(queued.clientSequence);
     expect(receipt.baseVersion).toBe(2);
+  });
+});
+
+describe("initializeOfflineDevice first-write race", () => {
+  beforeEach(() => {
+    vi.stubGlobal("indexedDB", fakeIndexedDB().stub);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("concurrent first inits share one device key and marker", async () => {
+    const identity = { organizationId: "org-1", profileId: "user-1", role: "employee" as const };
+    const [first, second] = await Promise.all([
+      initializeOfflineDevice(identity),
+      initializeOfflineDevice(identity),
+    ]);
+    expect(first.metadata.publicMarker).toBe(second.metadata.publicMarker);
+    expect(first.metadata.fingerprintSha256).toBe(second.metadata.fingerprintSha256);
   });
 });

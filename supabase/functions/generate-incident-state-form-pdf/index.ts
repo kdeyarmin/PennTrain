@@ -96,7 +96,8 @@ Deno.serve(async (req: Request) => {
 
   // RLS-scoped read on the caller's own client: incidents_select already gates who can see this
   // incident (platform_admin, org_admin/auditor org-wide, facility_manager assigned to its
-  // facility) -- matches generate-incident-report-pdf's posture, no separate write-access check.
+  // facility) -- but that's a read policy, and it includes auditor, who must not be able to
+  // trigger a service-role overwrite of the official state-form PDF.
   const { data: incident, error: incidentError } = await callerClient
     .from("incidents")
     .select(
@@ -108,6 +109,28 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   if (incidentError) return json(req, { error: incidentError.message }, 500);
   if (!incident) return json(req, { error: "Incident not found" }, 404);
+
+  const isPlatformAdmin = callerProfile.role === "platform_admin";
+  const isOrgAdminInOrg =
+    callerProfile.role === "org_admin" &&
+    callerProfile.organization_id === incident.organization_id;
+  let hasWriteAccess = isPlatformAdmin || isOrgAdminInOrg;
+  if (
+    !hasWriteAccess &&
+    callerProfile.role === "facility_manager" &&
+    callerProfile.organization_id === incident.organization_id
+  ) {
+    const { data: assignment } = await callerClient
+      .from("facility_assignments")
+      .select("id")
+      .eq("profile_id", callerUser.id)
+      .eq("facility_id", incident.facility_id)
+      .maybeSingle();
+    hasWriteAccess = !!assignment;
+  }
+  if (!hasWriteAccess) {
+    return json(req, { error: "Not authorized to generate this document" }, 403);
+  }
 
   const facility = incident.facilities as unknown as {
     name: string; facility_type: string; license_number: string | null;

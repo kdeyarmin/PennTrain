@@ -1,3 +1,5 @@
+import { appPath } from "./appUrl";
+
 export interface PublicAccessFlow {
   name: string;
   tokenPath: string;
@@ -50,7 +52,10 @@ export function consumePublicAccessToken(
   if (supplied) {
     sessionStorage.setItem(storageKey, supplied);
     const current = new URL(window.location.href);
-    window.history.replaceState(null, "", `${cleanPath}${current.search}${current.hash}`);
+    // appPath, not the bare cleanPath: under a BASE_PATH deploy the tokenized
+    // URL is /train/evidence-access/<token>, and rewriting to /evidence-access
+    // leaves the SPA entirely. Tests run with BASE_URL="/" so this is a no-op there.
+    window.history.replaceState(null, "", `${appPath(cleanPath)}${current.search}${current.hash}`);
     return supplied;
   }
   return sessionStorage.getItem(storageKey)?.trim() ?? "";

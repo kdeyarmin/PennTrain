@@ -1,8 +1,10 @@
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import {
   phase2CheckoutTrialDays,
   phase2MeasuredBillingQuantity,
   resolvePhase2BillingQuantity,
+  resolvePhase2BillingReturnOrigins,
   STRIPE_API_VERSION,
   validatePhase2BillingReturnUrl,
 } from "../_shared/phase2Billing.ts";
@@ -49,8 +51,6 @@ export function createCreateBillingSessionHandler({
 
   if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: "authorization, x-client-info, apikey, content-type, idempotency-key, x-correlation-id, x-request-id" });
   if (req.method !== "POST") return json(req, { error: { code: "method_not_allowed" } }, 405);
-  const declaredLength = Number(req.headers.get("content-length") ?? "0");
-  if (declaredLength > 32 * 1024) return json(req, { error: { code: "payload_too_large" } }, 413);
 
   const supabaseUrl = getEnv("SUPABASE_URL");
   const anonKey = getEnv("SUPABASE_ANON_KEY");
@@ -97,8 +97,15 @@ export function createCreateBillingSessionHandler({
     idempotencyKey?: string;
   };
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req, 32 * 1024);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return json(
+        req,
+        { error: { code: error.status === 413 ? "payload_too_large" : "invalid_json" } },
+        error.status,
+      );
+    }
     return json(req, { error: { code: "invalid_json" } }, 400);
   }
   const organizationId = profile.role === "platform_admin"
@@ -129,8 +136,13 @@ export function createCreateBillingSessionHandler({
 
   // Return URLs are validated against configured origins only; the request
   // Origin header is caller-controlled and must not extend the allowlist.
-  const configuredOrigins = (getEnv("BILLING_RETURN_URL_ORIGINS") ?? "")
-    .split(",").map((value) => value.trim()).filter(Boolean);
+  const configuredOrigins = resolvePhase2BillingReturnOrigins(
+    getEnv("BILLING_RETURN_URL_ORIGINS") ?? "",
+    [
+      getEnv("PUBLIC_APP_URL"),
+      ...((getEnv("SIGNUP_REDIRECT_ORIGINS") ?? "").split(",")),
+    ],
+  );
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const { data: account } = await admin.from("billing_accounts")
     .select("id, stripe_customer_id, billing_state").eq("organization_id", organizationId).maybeSingle();
@@ -254,6 +266,10 @@ export function createCreateBillingSessionHandler({
       typeof organization.trial_ends_at === "string" ? organization.trial_ends_at : null,
       configuredTrialDays,
     );
+    // Never bind the platform operator's email to a tenant's first Stripe
+    // customer; Checkout collects the payer email instead. An existing
+    // customer must not also receive customer_email (Stripe rejects both).
+    const bindCustomerEmail = !account?.stripe_customer_id && profile.role !== "platform_admin";
     stripeResult = await stripePost(
       "/v1/checkout/sessions",
       stripeSecretKey,
@@ -261,12 +277,13 @@ export function createCreateBillingSessionHandler({
         mode: "subscription",
         client_reference_id: organizationId,
         customer: account?.stripe_customer_id ?? undefined,
-        // A platform operator creating a tenant's first Stripe customer must
-        // not bind the operator's own email to it (the tenant would never see
-        // its invoices); Stripe Checkout collects the payer email instead.
-        customer_email: account?.stripe_customer_id || profile.role === "platform_admin"
-          ? undefined
-          : profile.email,
+        customer_email: bindCustomerEmail ? profile.email : undefined,
+        // Always collect a card so a remaining in-app trial converts when it
+        // ends instead of pausing for a missing payment method. Do not send
+        // customer_update.address=auto: Stripe rejects it unless
+        // billing_address_collection is required, which would fail first
+        // checkout on a tenant that already has a customer id.
+        payment_method_collection: "always",
         success_url: body.successUrl,
         cancel_url: body.cancelUrl,
         line_items: [{ price: price.stripe_price_id, quantity }],

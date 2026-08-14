@@ -93,11 +93,13 @@ select is(
   null,
   'CareBase has no per-unit overage amount'
 );
-select ok(
+select is(
   (select count(*)::integer from public.package_billing_prices bp join public.packages p on p.id = bp.package_id
    where p.name in ('CareMetric Train', 'CareMetric CareBase')
-     and bp.is_active and bp.is_primary and bp.stripe_price_id is null) >= 2,
-  'active primary Train/CareBase prices require explicit Stripe Price mapping before checkout'
+     and bp.is_active and bp.is_primary
+     and bp.stripe_price_id is not null),
+  4,
+  'active primary Train/CareBase month+year prices carry the live Stripe Price mapping'
 );
 select ok(
   exists (select 1 from pg_indexes where schemaname = 'public'

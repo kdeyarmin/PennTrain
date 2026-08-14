@@ -110,10 +110,10 @@ function gatedUsage() {
       },
     } as unknown as PhoneCallerLimiter,
     dailyBudget: {
-      async sessionStarted(): Promise<SessionSpan> {
+      async sessionStarted(existing?: SessionSpan): Promise<SessionSpan> {
         counts.budgetStarted += 1;
         await gate();
-        return inner.dailyBudget.sessionStarted();
+        return inner.dailyBudget.sessionStarted(existing);
       },
       async sessionEnded(span: SessionSpan): Promise<void> {
         counts.budgetEnded += 1;

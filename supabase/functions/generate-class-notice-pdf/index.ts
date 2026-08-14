@@ -22,12 +22,56 @@ const SIGNIN_ROWS = 18;
 // generate-certificate-pdf already prints on issued certificates ("Verify at
 // cmcarebase.com/verify/...") for consistency across every PDF this app generates.
 const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
-// Known app origins (see DEPLOYMENT.md's Supabase Auth redirect URL config) -- the caller-supplied
-// baseUrl is only honored if it matches one of these, so this endpoint can't be used to embed an
-// arbitrary attacker domain in the check-in QR code printed on the class notice.
-const ALLOWED_APP_ORIGINS = new Set([
+const DEFAULT_ALLOWED_APP_ORIGINS = new Set([
   "https://cmcarebase.com",
 ]);
+
+function allowedAppOrigins() {
+  const configured = (Deno.env.get("SIGNUP_REDIRECT_ORIGINS") ?? "")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+  const extras = [];
+  const publicUrl = (Deno.env.get("PUBLIC_APP_URL") ?? "").replace(/\/+$/, "");
+  if (publicUrl) {
+    try {
+      extras.push(new URL(publicUrl).origin);
+    } catch {
+      // ignore a malformed PUBLIC_APP_URL; the production default still stands
+    }
+  }
+  return new Set([...DEFAULT_ALLOWED_APP_ORIGINS, ...configured, ...extras]);
+}
+
+function fallbackAppBase() {
+  const configured = (Deno.env.get("PUBLIC_APP_URL") ?? DEFAULT_APP_ORIGIN).replace(/\/+$/, "");
+  try {
+    const parsed = new URL(configured.includes("://") ? configured : `https://${configured}`);
+    const prefix = parsed.pathname.replace(/\/$/, "");
+    return `${parsed.origin}${prefix}`;
+  } catch {
+    return DEFAULT_APP_ORIGIN;
+  }
+}
+
+/**
+ * Honor a caller-supplied app URL only when its origin is allowlisted, but keep
+ * any pathname prefix (Vite BASE_PATH). An exact-origin check used to reject
+ * `https://cmcarebase.com/train` and then print `/checkin/<token>` at the domain
+ * root — a 404 under a path-bearing deploy. Staging/preview origins come from
+ * PUBLIC_APP_URL and SIGNUP_REDIRECT_ORIGINS, same as invite-user.
+ */
+export function resolveClassNoticeBase(baseUrl, allowed = allowedAppOrigins(), fallback = fallbackAppBase()) {
+  if (!baseUrl) return fallback;
+  try {
+    const parsed = new URL(baseUrl);
+    if (!allowed.has(parsed.origin)) return fallback;
+    const prefix = parsed.pathname.replace(/\/$/, "");
+    return `${parsed.origin}${prefix}`;
+  } catch {
+    return fallback;
+  }
+}
 
 class PdfWriter {
   doc!: PDFDocument;
@@ -122,8 +166,7 @@ Deno.serve(async (req: Request) => {
   });
   if (tokenError) return json(req, { error: tokenError.message }, 500);
 
-  const requestedOrigin = baseUrl?.replace(/\/$/, "");
-  const origin = requestedOrigin && ALLOWED_APP_ORIGINS.has(requestedOrigin) ? requestedOrigin : DEFAULT_APP_ORIGIN;
+  const origin = resolveClassNoticeBase(baseUrl);
   const checkinUrl = `${origin}/checkin/${token}`;
   const qrPng = await QRCode.toBuffer(checkinUrl, { width: 220, margin: 1 });
 

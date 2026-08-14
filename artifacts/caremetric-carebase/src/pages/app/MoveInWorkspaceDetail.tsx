@@ -29,6 +29,7 @@ import { useListProfiles } from "@/hooks/useProfiles";
 import { useListResidentDocuments, useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 import { QueryError } from "@/components/QueryState";
 import { addFacilityCalendarDays, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { absoluteAppUrl } from "@/lib/appUrl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -165,7 +166,7 @@ export default function MoveInWorkspaceDetail() {
       expiresAt: facilityDayBounds(addFacilityCalendarDays(facilityToday(), days)).through,
     }, {
       onSuccess: result => {
-        const link = `${window.location.origin}/move-in-access/${result.token}`;
+        const link = absoluteAppUrl(`/move-in-access/${result.token}`);
         setIssuedLink(link);
         toast({ title: "Guest signing link created", description: "Copy it now; the token is not stored in plain text." });
       },
