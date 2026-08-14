@@ -82,9 +82,13 @@ export async function handleBrowserUpgrade(
     return;
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
-    // Backstop only — attachSession handles its own failures (see its trailing catch). This
-    // callback runs after the promise handleBrowserUpgrade returns has already settled, so
-    // nothing upstream can catch a rejection from here; an uncaught one would end the process.
+    // DO NOT REMOVE THIS CATCH. attachSession guards the two failures it knows how to release
+    // cleanly (the awaited budget write, and constructing the VoiceSession), but it is an async
+    // function, so a throw from anywhere else in it — or from an await a later edit adds between
+    // those guards — becomes a rejection that only this handler can see. This callback runs after
+    // the promise handleBrowserUpgrade returns has already settled, so index.ts's .catch is not
+    // upstream of it and nothing else is either. Node terminates the process on an unhandled
+    // rejection, taking every other live session on the instance with it.
     void attachSession(deps, app, pending, ws).catch((error: unknown) => {
       console.error(
         JSON.stringify({
