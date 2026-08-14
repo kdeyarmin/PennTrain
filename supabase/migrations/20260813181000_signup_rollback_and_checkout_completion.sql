@@ -73,6 +73,18 @@ begin
        select p.id from public.profiles p where p.organization_id = p_organization_id
      );
 
+  -- Signup also auto-provisions CASCADE children whose DELETE would write
+  -- more append-only audit_logs while organizations is still being removed
+  -- (audit_logs.organization_id is ON DELETE NO ACTION). Clear them first.
+  delete from public.billing_accounts
+  where organization_id = p_organization_id;
+
+  delete from public.organization_settings
+  where organization_id = p_organization_id;
+
+  delete from public.schedule_eligibility_policies
+  where organization_id = p_organization_id;
+
   -- profiles.organization_id has no ON DELETE clause (NO ACTION). A leftover
   -- org_admin profile from a failed invite would block the org delete.
   -- privileged_write is required to move organization_id.
@@ -80,6 +92,14 @@ begin
   update public.profiles
   set organization_id = null
   where organization_id = p_organization_id;
+
+  -- Provisioning + the teardown above write audit_logs. The append-only
+  -- trigger rejects DELETE/UPDATE, so disable it only for this failed-signup
+  -- tenant (already refused if Stripe customer/subscription exists).
+  alter table public.audit_logs disable trigger prevent_audit_log_mutation;
+  delete from public.audit_logs
+  where organization_id = p_organization_id;
+  alter table public.audit_logs enable trigger prevent_audit_log_mutation;
 
   delete from public.organizations
   where id = p_organization_id;
@@ -90,6 +110,28 @@ revoke all on function public.rollback_organization_signup(uuid)
   from public, anon, authenticated;
 grant execute on function public.rollback_organization_signup(uuid)
   to service_role;
+
+-- Checkout / webhook updates of package_id were silently reverted:
+-- protect_subscription_fields only lets is_platform_admin() through, and the
+-- Stripe command has no JWT. Honor the same privileged_write hatch used
+-- everywhere else for trusted SECURITY DEFINER writers.
+create or replace function public.protect_organization_subscription_fields()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if public.is_platform_admin()
+     or coalesce(current_setting('app.privileged_write', true), '') = 'on' then
+    return new;
+  end if;
+  new.subscription_status := old.subscription_status;
+  new.package_id := old.package_id;
+  new.max_facilities := old.max_facilities;
+  new.max_users := old.max_users;
+  return new;
+end;
+$$;
 
 create or replace function public.process_stripe_billing_event(
   p_event_id text,
@@ -218,6 +260,10 @@ begin
   -- back only this block's work (implicit savepoint) while the receipt above
   -- survives as the dead-letter record.
   begin
+    -- Trusted billing writer: allow package_id / subscription_status stamps
+    -- past protect_subscription_fields (no JWT on the webhook path).
+    perform set_config('app.privileged_write', 'on', true);
+
     -- Cross-tenant customer binding fails closed before any account write, so
     -- the rejection is a deterministic 42501 dead letter instead of a unique
     -- violation (23505) raised from the upsert below, which the retry
