@@ -358,6 +358,8 @@ select is(
 --   found shipped but never scheduled: durable-data-import-worker (stranded imports),
 --   fhir-writeback-drain (queued clinical write-backs), and integration-command-inbox-drain
 --   (accepted partner bundles). 51 definitions, 50 active.
+-- 50 -> 51 when 20260815132000 registered sam-sweep-continuation, the hourly tick that
+--   resumes a SAM.gov roster sweep parked at its durable cursor. 52 definitions, 51 active.
 --
 -- The old message claimed this proved the control plane "registers every platform job". It did not,
 -- and could not: a bare count over system_job_definitions cannot notice a cron job that is missing
@@ -368,7 +370,7 @@ select is(
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  50::bigint,
+  51::bigint,
   'the control plane returns one row per active registered job definition'
 );
 

@@ -37955,6 +37955,7 @@ export type Database = {
       }
       export_organization_table: {
         Args: {
+          p_after_id?: string
           p_limit?: number
           p_offset?: number
           p_organization_id: string
@@ -38291,6 +38292,7 @@ export type Database = {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: Json
       }
+      get_exclusion_sam_sweep_state: { Args: never; Returns: Json }
       get_facility_benchmark_comparison: {
         Args: { p_facility_id: string }
         Returns: Json

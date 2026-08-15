@@ -96,19 +96,32 @@ async function exportTableRows(
   table: string,
   organizationId: string,
 ): Promise<JsonRow[]> {
+  // Keyset (`id > last`) after the first page, mirroring fetchAllByOrganization: each page
+  // is its own transaction, and OFFSET dropped the row at each page boundary whenever a
+  // concurrent delete shifted the order. Tables without an `id` key in their rows (none in
+  // the catalog today) fall back to the RPC's stable-order OFFSET path.
   const pageSize = 1000;
   const rows: JsonRow[] = [];
-  for (let offset = 0;; offset += pageSize) {
+  let afterId: string | null = null;
+  let useKeyset = true;
+  for (;;) {
     const { data, error } = await admin.rpc("export_organization_table", {
       p_organization_id: organizationId,
       p_table_name: table,
-      p_offset: offset,
+      p_offset: useKeyset ? 0 : rows.length,
       p_limit: pageSize,
+      p_after_id: useKeyset ? afterId : null,
     });
     if (error) throw new Error(`${table}: ${error.message}`);
     const page = (data ?? []) as JsonRow[];
     rows.push(...page);
     if (page.length < pageSize) break;
+    const lastId = page[page.length - 1]?.id;
+    if (lastId === undefined || lastId === null) {
+      useKeyset = false;
+    } else {
+      afterId = String(lastId);
+    }
   }
   return rows;
 }
