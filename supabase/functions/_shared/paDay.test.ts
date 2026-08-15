@@ -57,3 +57,10 @@ Deno.test("paZonelessToUtcIso passes zoned and malformed values through unchange
   assertEquals(paZonelessToUtcIso("2026-08-14T10:00:00-04:00"), "2026-08-14T10:00:00-04:00");
   assertEquals(paZonelessToUtcIso("not-a-date"), "not-a-date");
 });
+
+Deno.test("paZonelessToUtcIso converts fractional-second wall-clock values too", () => {
+  // The importer's validation (bare Date.parse) accepts this shape; an unclaimed shape
+  // would fall through unconverted and be misread as UTC again.
+  assertEquals(paZonelessToUtcIso("2026-08-14 21:30:00.123"), "2026-08-15T01:30:00.123Z");
+  assertEquals(paZonelessToUtcIso("2026-08-14T21:30:00.1234567"), "2026-08-15T01:30:00.123Z");
+});

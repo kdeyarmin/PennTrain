@@ -61,10 +61,15 @@ function paOffsetMinutesAt(instant: Date): number {
  */
 export function paZonelessToUtcIso(value: string): string {
   const trimmed = value.trim();
-  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(trimmed);
+  // Fractional seconds are part of the zone-less shape too: the importer's validation
+  // (bare Date.parse) accepts "YYYY-MM-DD HH:MM:SS.sss", and a shape this regex does not
+  // claim falls through unconverted -- back to the UTC misread this function exists to fix.
+  // Digits beyond milliseconds are truncated.
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?)?$/.exec(trimmed);
   if (!match) return trimmed;
-  const [, y, mo, d, h = "00", mi = "00", s = "00"] = match;
-  const asUtc = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s));
+  const [, y, mo, d, h = "00", mi = "00", s = "00", frac = ""] = match;
+  const ms = frac ? Number(`${frac}000`.slice(0, 3)) : 0;
+  const asUtc = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s), ms);
   // Derive the ET offset from the UTC-interpreted instant, then once more from the corrected
   // instant so a wall-clock time near a DST transition lands on the offset actually in effect.
   const firstGuess = new Date(asUtc - paOffsetMinutesAt(new Date(asUtc)) * 60_000);
