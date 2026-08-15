@@ -1,4 +1,10 @@
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+// The shared, trusted-hop derivation. See submit-confidential-intake for the full reasoning: the
+// local version this replaces honored `cf-connecting-ip` / `x-real-ip` unconditionally -- headers
+// any caller can set unless Cloudflare verifiably fronts the function -- and then fell back to the
+// FIRST hop of x-forwarded-for, which is the half of that list the caller writes. Only the LAST hop
+// is the address the platform gateway itself observed and appended.
+import { clientIp } from "../_shared/clientIp.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -9,12 +15,12 @@ function json(req: Request, body: unknown, status = 200) {
 
 // ESIGN/UETA needs an attributable, non-repudiable record of intent -- this only runs as an Edge
 // Function (rather than a plain RPC) because a plain Postgres RPC has no way to read the caller's
-// IP address or User-Agent from the request itself.
-function clientIp(req: Request): string | null {
-  const trusted = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip");
-  if (trusted) return trusted;
-  const forwardedFor = req.headers.get("x-forwarded-for");
-  return forwardedFor ? forwardedFor.split(",")[0].trim() : null;
+// IP address or User-Agent from the request itself. That record is the reason the derivation has
+// to be the trusted-hop one: an address the attester chose is worse than no address, because the
+// column reads as evidence.
+function attestationIp(req: Request): string | null {
+  const derived = clientIp(req);
+  return derived === "unknown" ? null : derived;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -132,7 +138,7 @@ export function createAttestPolicyHandler({
         attested_at: new Date().toISOString(),
         document_version_hash: contentHash,
         auth_method: "authenticated_session",
-        ip_address: clientIp(req),
+        ip_address: attestationIp(req),
         user_agent: req.headers.get("user-agent"),
       })
       .eq("id", attestationId)

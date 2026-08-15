@@ -11,7 +11,15 @@ export interface ListViolationsFilters {
   status?: string;
 }
 
-export function useListViolations(filters: ListViolationsFilters = {}) {
+// `options.enabled` matters for callers that intend to scope by facilityId but don't have one yet
+// (a page whose facility picker defaults to the first facility, before the facility list resolves) --
+// every filter field here is applied only `if` truthy, so an absent facilityId doesn't scope to
+// "nothing," it scopes to "no filter at all," returning every violation RLS permits. Passing
+// `enabled: false` in that case is the only way to get "no results yet" rather than one org-wide
+// sweep followed by the scoped one. Mirrors useIncidents.ts's useListIncidents. Defaults to
+// `undefined`, which react-query treats as "always enabled," so callers that don't pass `options`
+// are unaffected.
+export function useListViolations(filters: ListViolationsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["dhs_violations", filters],
     queryFn: async () => {
@@ -22,6 +30,7 @@ export function useListViolations(filters: ListViolationsFilters = {}) {
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled,
   });
 }
 

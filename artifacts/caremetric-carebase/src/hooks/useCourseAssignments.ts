@@ -86,8 +86,11 @@ export function useListCourseAssignmentsPaginated(filters: ListCourseAssignments
         query = query.or(clauses.join(","));
       }
       // Most recently assigned first -- matches the client-side sort CourseAssignments.tsx applied
-      // before this hook existed.
-      query = query.order("assigned_at", { ascending: false });
+      // before this hook existed. The `id` tie-break keeps the page boundaries stable: assigning a
+      // course to a whole facility writes every row with the same `assigned_at`, so `assigned_at`
+      // alone is one long run of equal keys and Postgres may order each page's request differently
+      // inside it -- putting the same assignment on two pages and none on a third.
+      query = query.order("assigned_at", { ascending: false }).order("id", { ascending: true });
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       query = query.range(from, to);
       const { data, error, count } = await query;

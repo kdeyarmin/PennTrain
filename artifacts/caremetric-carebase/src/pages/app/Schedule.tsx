@@ -29,7 +29,13 @@ export default function Schedule() {
 
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
 
-  const schedulesQuery = useListSchedules({ facilityId: activeFacilityId || undefined });
+  // Gated on the facility being known: the filter is applied only `if` truthy, so until
+  // useListFacilities resolves an ungated read lists every schedule in the organization under this
+  // facility's picker, then re-fetches scoped.
+  const schedulesQuery = useListSchedules(
+    { facilityId: activeFacilityId || undefined },
+    { enabled: Boolean(activeFacilityId) },
+  );
   const { data: schedules, isLoading } = schedulesQuery;
   const createSchedule = useCreateSchedule();
 

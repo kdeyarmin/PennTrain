@@ -36,7 +36,16 @@ type ResidentComplianceItemSummary = Pick<
   | "completed_date" | "triggered_by_item_id" | "renewal_interval_days"
 >;
 
-export function useListAllResidentComplianceItems(filters: ListAllResidentComplianceItemsFilters = {}) {
+// `options.enabled` matters for callers that intend to scope by facilityId but don't have one yet
+// (a page whose facility picker defaults to the first facility, before the facility list resolves) --
+// every filter field here is applied only `if` truthy, so an absent facilityId doesn't scope to
+// "nothing," it scopes to "no filter at all," and this query then sweeps every resident item RLS
+// permits. Mirrors useIncidents.ts's useListIncidents. Defaults to `undefined`, which react-query
+// treats as "always enabled," so callers that don't pass `options` are unaffected.
+export function useListAllResidentComplianceItems(
+  filters: ListAllResidentComplianceItemsFilters = {},
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["resident_compliance_items_all", filters],
     queryFn: async () => {
@@ -70,6 +79,7 @@ export function useListAllResidentComplianceItems(filters: ListAllResidentCompli
       }
       return all;
     },
+    enabled: options.enabled,
   });
 }
 

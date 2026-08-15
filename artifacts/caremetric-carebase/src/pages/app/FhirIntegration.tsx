@@ -64,7 +64,13 @@ export default function FhirIntegration() {
     [credentials.data],
   );
   const workspace = useFhirIntegration(facilityId || undefined);
-  const residents = useListResidents({ facilityId: facilityId || undefined });
+  // Gated on the facility being known. `useListResidents` applies its facility filter only `if`
+  // truthy, so before the picker resolves an ungated read pulls every resident name and room
+  // number in the organization into the browser to build a lookup map that is then thrown away.
+  const residents = useListResidents(
+    { facilityId: facilityId || undefined },
+    { enabled: Boolean(facilityId) },
+  );
   const residentNames = useMemo(
     () => new Map((residents.data ?? []).map((resident) => [resident.id, `${resident.last_name}, ${resident.first_name}${resident.room ? ` · Room ${resident.room}` : ""}`])),
     [residents.data],

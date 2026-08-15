@@ -53,7 +53,16 @@ export function useListAuditLogsPaginated(filters: ListAuditLogsPaginatedFilters
   return useQuery({
     queryKey: ["audit_logs", "paginated", filters],
     queryFn: async () => {
-      let query = supabase.from("audit_logs").select("*", { count: "exact" }).order("created_at", { ascending: false });
+      // The `id` tie-break makes the sort a total order, which OFFSET paging needs: one RPC or
+      // trigger can write many audit rows inside a single statement, all sharing `created_at`, and
+      // a page boundary inside that run would otherwise let Postgres resolve the two page requests
+      // differently -- repeating entries on one page and dropping them from the next. An audit log
+      // that omits entries when read page-by-page is the one list that must never do so.
+      let query = supabase
+        .from("audit_logs")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
       if (filters.entityType) query = query.eq("entity_type", filters.entityType);
       if (filters.entityId) query = query.eq("entity_id", filters.entityId);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);

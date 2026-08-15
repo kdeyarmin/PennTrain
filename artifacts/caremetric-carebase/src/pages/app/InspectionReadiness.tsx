@@ -36,6 +36,7 @@ import { buildBestAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { supabase } from "@/lib/supabase";
+import { downloadBlob } from "@/lib/browserDownload";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
@@ -379,9 +380,7 @@ export default function InspectionReadiness() {
       const { data, error } = await supabase.functions.invoke("generate-mock-inspection-report", { body: { runId: mockInspectionRunId } });
       if (error) throw error;
       const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob); const link = document.createElement("a");
-      link.href = url; link.download = `mock-inspection-${today}.pdf`; document.body.appendChild(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
+      downloadBlob(`mock-inspection-${today}.pdf`, blob);
     } catch (error) {
       toast({ title: "Gap report download failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }

@@ -2,6 +2,13 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+// The shared, trusted-hop derivation. See submit-confidential-intake for the reasoning: the local
+// version this replaces took `cf-connecting-ip` unconditionally (meaningful only when Cloudflare
+// verifiably fronts the function, otherwise just another caller-set header) and then fell back to
+// the FIRST hop of x-forwarded-for, which is the half of that list the caller writes. The
+// fingerprint below is the access record for a resident document reached with nothing but a guest
+// token, so an address the holder chose is worse than none.
+import { clientIp } from "../_shared/clientIp.ts";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 const MAX_REQUEST_BYTES = 16_384;
@@ -18,7 +25,6 @@ function json(req: Request, body: unknown, status = 200) {
   });
 }
 
-const requestIp = (req: Request) => req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 const sha256Hex = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))), (byte) => byte.toString(16).padStart(2, "0")).join("");
 
 Deno.serve(async (req: Request) => {
@@ -42,7 +48,7 @@ Deno.serve(async (req: Request) => {
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const fingerprint = await sha256Hex(`${requestIp(req)}|${req.headers.get("user-agent") ?? ""}`);
+  const fingerprint = await sha256Hex(`${clientIp(req)}|${req.headers.get("user-agent") ?? ""}`);
   const { data: decision, error: authorizeError } = await adminClient.rpc("authorize_resident_portal_document_download", {
     p_token: body.token, p_shared_document_id: body.sharedDocumentId, p_request_fingerprint_sha256: fingerprint,
   });

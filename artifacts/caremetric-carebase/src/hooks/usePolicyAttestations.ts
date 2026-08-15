@@ -69,6 +69,12 @@ export function useListPolicyAttestations(filters: ListPolicyAttestationsFilters
     queryFn: async () => {
       // PostgREST caps a single response. Page until exhausted so readiness / crosswalk views do
       // not silently under-count overdue attestations once a campaign fans out past max-rows.
+      //
+      // The `id` tie-break is what makes that paging sound: a campaign stamps ONE due_date across
+      // every attestation it fans out, so `due_date` alone leaves the whole table as a single run
+      // of equal keys and Postgres is free to order each page's request differently. Rows would
+      // then repeat on one page and vanish from another -- silently under-counting the very
+      // overdue attestations this loop exists to find.
       const pageSize = 1000;
       const rows: PolicyAttestation[] = [];
       for (let from = 0; ; from += pageSize) {
@@ -76,6 +82,7 @@ export function useListPolicyAttestations(filters: ListPolicyAttestationsFilters
           .from("policy_attestations")
           .select("*")
           .order("due_date", { ascending: true, nullsFirst: false })
+          .order("id", { ascending: true })
           .range(from, from + pageSize - 1);
         if (filters.campaignId) query = query.eq("campaign_id", filters.campaignId);
         if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);

@@ -18,6 +18,7 @@ import { ShieldAlert, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 import { auditActionDescription, auditEntityLabel, auditEntityRoute } from "@/lib/auditEntityResolver";
 import { addFacilityCalendarDays, facilityDateRangeBounds, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { downloadTextFile } from "@/lib/browserDownload";
 
 // audit_log_trigger() (see supabase/migrations/20260704053624_compliance_rpcs_and_audit_trigger.sql)
 // writes actions as `${tg_table_name}_${created|updated|deleted}`, e.g. "employees_created".
@@ -153,13 +154,11 @@ export default function AuditLog() {
       });
       if (error) throw error;
 
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `audit-manifest-${facilityToday()}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadTextFile(
+        `audit-manifest-${facilityToday()}.json`,
+        JSON.stringify(data, null, 2),
+        "application/json",
+      );
       toast({ title: "Audit manifest created", description: "The JSON includes the independently verifiable SHA-256 checksum." });
     } catch (error) {
       toast({

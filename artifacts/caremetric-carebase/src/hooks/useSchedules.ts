@@ -11,7 +11,12 @@ export interface ListSchedulesFilters {
   status?: string;
 }
 
-export function useListSchedules(filters: ListSchedulesFilters = {}) {
+// `options.enabled` matters for callers whose facility picker defaults to the first facility: until
+// the facility list resolves there is no facilityId, and the filter below is applied only `if`
+// truthy, so an ungated read is not "no schedules yet" but every schedule RLS permits. Mirrors
+// useIncidents.ts's useListIncidents. Defaults to `undefined`, which react-query treats as "always
+// enabled," so callers that don't pass `options` are unaffected.
+export function useListSchedules(filters: ListSchedulesFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["schedules", filters],
     queryFn: async () => {
@@ -22,6 +27,7 @@ export function useListSchedules(filters: ListSchedulesFilters = {}) {
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled,
   });
 }
 

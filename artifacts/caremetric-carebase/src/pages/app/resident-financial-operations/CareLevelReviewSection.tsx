@@ -9,6 +9,7 @@ import {
   type ResidentLike,
 } from "@/lib/careLevelReview";
 import { csvEscape } from "@/lib/csv";
+import { downloadCsvText } from "@/lib/browserDownload";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,12 +57,7 @@ export function CareLevelReviewSection({
         .join(","),
     );
     const csv = [header.map(csvEscape).join(","), ...lines].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `care-level-review-${today()}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadCsvText(`care-level-review-${today()}.csv`, csv);
   };
 
   return (

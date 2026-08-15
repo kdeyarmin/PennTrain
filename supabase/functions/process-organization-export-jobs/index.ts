@@ -68,11 +68,19 @@ async function fetchAllByOrganization(
   table: string,
   organizationId: string,
 ): Promise<JsonRow[]> {
+  // Ordered by primary key, because `.range()` is OFFSET/LIMIT and OFFSET over an unordered
+  // relation is not a stable sweep: Postgres may return a different row order for each page, so a
+  // document reference can land in two pages or in none. Silently omitting one from the export
+  // archive is the failure mode that matters here -- the manifest would still call the export
+  // complete. `export_organization_table` already orders by `t.id` for the same reason; this path
+  // (the storage-reference collection) was the one sweep that did not.
   const pageSize = 1000;
   const rows: JsonRow[] = [];
   for (let from = 0;; from += pageSize) {
     const { data, error } = await admin.from(table).select("*")
-      .eq("organization_id", organizationId).range(from, from + pageSize - 1);
+      .eq("organization_id", organizationId)
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
     rows.push(...((data ?? []) as JsonRow[]));
     if (!data || data.length < pageSize) break;

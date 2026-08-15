@@ -124,8 +124,11 @@ export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters
       const column = SORT_COLUMNS[filters.sortField ?? "lastName"] ?? SORT_COLUMNS.lastName;
       query = query.order(column, { ascending: (filters.sortDir ?? "asc") === "asc" });
       // Secondary tiebreaker so equal-value rows (e.g. many employees with the same status) don't
-      // reorder between pages as the underlying table changes between requests.
+      // reorder between pages as the underlying table changes between requests. `last_name` is not
+      // unique either -- two Smiths on one roster leave a run of equal keys that a page boundary
+      // can fall inside -- so the primary key closes it out and makes the sort a total order.
       if (column !== "last_name") query = query.order("last_name", { ascending: true });
+      query = query.order("id", { ascending: true });
       const [from, to] = rangeFor(filters.page, filters.pageSize);
       query = query.range(from, to);
       const { data, error, count } = await query;

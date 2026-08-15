@@ -48,6 +48,7 @@ import {
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { buildTrainingClassesIcs } from "@/lib/calendarExport";
+import { downloadTextFile } from "@/lib/browserDownload";
 
 export default function TrainerClasses() {
   const [, navigate] = useLocation();
@@ -200,15 +201,7 @@ export default function TrainerClasses() {
       location: cls.location,
       status: cls.status,
     })));
-    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "caremetric-carebase-training-classes.ics";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadTextFile("caremetric-carebase-training-classes.ics", ics, "text/calendar;charset=utf-8");
     toast({ title: `Exported ${filtered.length} class${filtered.length === 1 ? "" : "es"} to calendar` });
   }
 

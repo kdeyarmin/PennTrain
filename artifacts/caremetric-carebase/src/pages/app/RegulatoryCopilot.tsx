@@ -139,9 +139,14 @@ export default function RegulatoryCopilot() {
     return (facilities ?? []).filter((facility) => assignedIds.has(facility.id));
   }, [facilities, isFacilityManager, myAssignments]);
   const activeFacilityId = facilityId || selectableFacilities[0]?.id || "";
-  const employeesQuery = useListEmployees({ facilityId: activeFacilityId || undefined });
+  // Both are facility-scoped context for the question below, and both apply their facilityId filter
+  // only `if` truthy -- so before the facility list resolves, an ungated read is org-wide rather
+  // than empty, and the employee picker briefly offers staff from facilities this question is not
+  // about. Nothing can be submitted without a facility anyway (see the Generate button's guard).
+  const scopedToFacility = { enabled: Boolean(activeFacilityId) };
+  const employeesQuery = useListEmployees({ facilityId: activeFacilityId || undefined }, scopedToFacility);
   const { data: employees } = employeesQuery;
-  const violationsQuery = useListViolations({ facilityId: activeFacilityId || undefined });
+  const violationsQuery = useListViolations({ facilityId: activeFacilityId || undefined }, scopedToFacility);
   const { data: violations } = violationsQuery;
   const history = useComplianceCopilotHistory(activeFacilityId || undefined);
   const dispositions = useCopilotDispositions(activeFacilityId || undefined);

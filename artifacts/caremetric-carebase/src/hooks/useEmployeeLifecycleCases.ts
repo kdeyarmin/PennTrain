@@ -26,6 +26,10 @@ export function useEmployeeLifecycleCases(filters: LifecycleCaseFilters = {}) {
         .from("employee_lifecycle_cases")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
+        // Unique tie-break: cases opened by one bulk transition share a `created_at`, and a page
+        // boundary inside that run would otherwise let Postgres order the two requests
+        // differently -- showing the same case on two pages and hiding another entirely.
+        .order("id", { ascending: true })
         .range(from, to);
       if (filters.status && filters.status !== "all") query = query.eq("status", filters.status);
       if (filters.transition && filters.transition !== "all") {

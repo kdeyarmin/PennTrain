@@ -17,10 +17,14 @@ export function useListInspectionItems(filters: ListInspectionItemsFilters = {},
   return useQuery({
     queryKey: ["inspection_items", filters],
     queryFn: async () => {
+      // `id` tie-break: items on the same schedule roll forward to the same `next_due_date` (and
+      // inactive ones carry NULL), so it is not a total order. Without a unique tie-break Postgres
+      // may order each page's request differently inside a run of equal keys, silently dropping
+      // items from the readiness sweep.
       const pageSize = 1000;
       const rows: InspectionItem[] = [];
       for (let from = 0; ; from += pageSize) {
-        let query = supabase.from("inspection_items").select("*").order("next_due_date").range(from, from + pageSize - 1);
+        let query = supabase.from("inspection_items").select("*").order("next_due_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.itemKind) query = query.eq("item_kind", filters.itemKind);
         if (filters.status) query = query.eq("status", filters.status);

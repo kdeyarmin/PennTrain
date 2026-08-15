@@ -5,6 +5,7 @@ import {
   type ResidentAccountingExport,
 } from "@/hooks/useResidentFinancialOperations";
 import { csvEscape } from "@/lib/csv";
+import { CSV_MIME_TYPE, downloadTextFile } from "@/lib/browserDownload";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -157,12 +158,11 @@ function downloadExport(item: ResidentAccountingExport) {
         headers.map((header) => csvEscape(row[header])).join(","),
       ),
     ].join("\n");
-    type = "text/csv;charset=utf-8";
+    type = CSV_MIME_TYPE;
   }
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `resident-accounting-${item.period_start}-${item.period_end}.${item.export_format}`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  downloadTextFile(
+    `resident-accounting-${item.period_start}-${item.period_end}.${item.export_format}`,
+    content,
+    type,
+  );
 }

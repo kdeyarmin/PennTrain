@@ -25,10 +25,14 @@ export function useListEmployeeCredentials(filters: ListEmployeeCredentialsFilte
   return useQuery({
     queryKey: ["employee_credentials", filters],
     queryFn: async () => {
+      // `id` tie-break: `expiration_date` repeats across a cohort credentialled together and is
+      // NULL for credentials that never expire, so it is not a total order. Paging a run of equal
+      // keys without a unique tie-break lets Postgres order each request differently, dropping
+      // rows from one page while repeating them on another.
       const pageSize = 1000;
       const rows: EmployeeCredential[] = [];
       for (let from = 0; ; from += pageSize) {
-        let query = supabase.from("employee_credentials").select("*").order("expiration_date").range(from, from + pageSize - 1);
+        let query = supabase.from("employee_credentials").select("*").order("expiration_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.credentialType) query = query.eq("credential_type", filters.credentialType);

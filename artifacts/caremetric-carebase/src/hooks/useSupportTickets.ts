@@ -47,6 +47,11 @@ export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
           .from("support_tickets")
           .select("*")
           .order("last_message_at", { ascending: false })
+          // Unique tie-break so paging is deterministic: tickets that have had no reply since
+          // creation share their creation instant, and Postgres is free to order each page's
+          // request differently inside a run of equal keys -- which would repeat tickets on one
+          // page and drop them from another, exactly the under-count this loop exists to prevent.
+          .order("id", { ascending: false })
           .range(from, from + pageSize - 1);
         if (filters.status) query = query.eq("status", filters.status);
         if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);

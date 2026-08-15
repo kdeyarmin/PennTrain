@@ -47,10 +47,16 @@ export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {},
 
       // PostgREST caps a single response. Page until exhausted so readiness / roster views do not
       // silently under-count outstanding training once a facility grows past max-rows.
+      //
+      // `due_date` alone is not a total order -- a renewal cycle gives every employee on the same
+      // training type the same due date, and records with no completion carry a NULL one. Postgres
+      // may resolve each page's request differently inside a run of equal keys, so without the `id`
+      // tie-break rows repeat on one page and are dropped from another: the same silent
+      // under-count this loop exists to prevent.
       const pageSize = 1000;
       const rows: TrainingRecord[] = [];
       for (let from = 0; ; from += pageSize) {
-        let query = supabase.from("employee_training_records").select("*").order("due_date").range(from, from + pageSize - 1);
+        let query = supabase.from("employee_training_records").select("*").order("due_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (sortedEmployeeIds && sortedEmployeeIds.length > 0) {
           query = query.in("employee_id", sortedEmployeeIds);
         } else if (filters.employeeId) {
