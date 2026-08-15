@@ -250,3 +250,35 @@ export function useIssueSurveyPacketGuestGrant() {
     },
   });
 }
+
+/**
+ * Guest-side download for a surveyor holding a packet grant token. Anonymous by design: the
+ * token is the whole credential, and survey-packet-guest-download re-validates
+ * expiry/revocation server-side and logs the access before minting a short-lived signed URL.
+ */
+export function useSurveyPacketGuestDownload() {
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const { data, error } = await supabase.functions.invoke<{
+        success?: boolean;
+        downloadUrl?: string;
+        expiresInSeconds?: number;
+        guestLabel?: string;
+        byteSize?: number;
+        contentSha256?: string;
+        error?: string;
+      }>("survey-packet-guest-download", { body: { token } });
+      if (error) throw error;
+      if (!data?.success || !data.downloadUrl) {
+        throw new Error(data?.error ?? "This packet is no longer available");
+      }
+      return data as {
+        downloadUrl: string;
+        expiresInSeconds?: number;
+        guestLabel?: string;
+        byteSize?: number;
+        contentSha256?: string;
+      };
+    },
+  });
+}

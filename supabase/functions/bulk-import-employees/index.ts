@@ -4,6 +4,7 @@ import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
+import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -90,8 +91,9 @@ Deno.serve(async (req: Request) => {
     duplicate_strategy?: "create" | "skip" | "update";
   };
   try {
-    body = await req.json();
-  } catch {
+    body = await readJsonBody(req, MAX_IMPORT_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
     return json(req, { error: "Invalid JSON body" }, 400);
   }
 
@@ -180,7 +182,11 @@ Deno.serve(async (req: Request) => {
   const allowedFacilityIds = new Set(orgFacilities.map((facility) => facility.id));
   const facilityIdByName = new Map(orgFacilities.map((facility) => [facility.name.trim().toLowerCase(), facility.id]));
 
-  const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
+  // An omitted limit is capped to the ledger RPC's own 200-row chunk contract rather than the
+  // whole file: applying every row and then having the single chunk receipt refused (the RPC
+  // hard-rejects >200 rows) left writes unreceipted, the job stuck pre-applied, and a retry
+  // reporting the landed rows as duplicates. Callers see nextOffset and keep paging.
+  const endIndex = Math.min(offset + (limit ?? 200), rows.length);
   if (offset >= rows.length) {
     return json(req, {
       success: true,
@@ -273,6 +279,16 @@ Deno.serve(async (req: Request) => {
       trainer_status: row.trainer_status?.trim().toLowerCase() === "true",
       administers_medications: row.administers_medications?.trim().toLowerCase() === "true",
     };
+    // An update writes only the columns this CSV actually carries. `normalized` fills absent
+    // columns with defaults, which is right for a create but was whole-record replacement on
+    // update: re-importing a job-title-fix roster nulled email/phone/hire_date and flipped
+    // on_leave/inactive employees back to "active" via the status default.
+    const presentColumns = new Set(Object.keys(rows[0]));
+    const updatePayload = Object.fromEntries(
+      Object.entries(normalized).filter(([key]) =>
+        key === "organization_id" || key === "facility_id" || presentColumns.has(key)
+      ),
+    );
 
     let existingEmployee: Record<string, unknown> | null = null;
     if (!rowErrors.length && normalized.employee_number) {
@@ -307,13 +323,17 @@ Deno.serve(async (req: Request) => {
         warnings.push("Existing employee matched and will be updated.");
       }
     }
+    // The ledger must hold what the apply path writes: the durable worker replays
+    // normalizedRow verbatim when it rescues a stranded job, so an update row records the
+    // header-filtered payload, not the default-padded create shape.
+    const ledgerNormalized = action === "update" ? updatePayload : normalized;
 
     if (rowErrors.length > 0) {
       results.push({ row: rowNumber, success: false, error: rowErrors.join("; "), action, preview: mode === "validate" });
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "invalid",
         targetTable: "employees",
@@ -330,7 +350,7 @@ Deno.serve(async (req: Request) => {
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "skipped",
         targetTable: "employees",
@@ -347,7 +367,7 @@ Deno.serve(async (req: Request) => {
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "valid",
         targetTable: "employees",
@@ -360,7 +380,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const mutation = action === "update"
-      ? callerClient.from("employees").update(normalized).eq("id", existingEmployee!.id).select("id").single()
+      ? callerClient.from("employees").update(updatePayload).eq("id", existingEmployee!.id).select("id").single()
       : callerClient.from("employees").insert(normalized).select("id").single();
     const { data, error } = await mutation;
 
@@ -369,7 +389,7 @@ Deno.serve(async (req: Request) => {
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "failed",
         targetTable: "employees",
@@ -394,7 +414,7 @@ Deno.serve(async (req: Request) => {
       p_row: {
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "applied",
         targetTable: "employees",

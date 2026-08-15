@@ -5207,6 +5207,7 @@ export type Database = {
           review_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          scan_attempts: number
           scan_evidence: Json
           scan_provider: string | null
           scan_status: string
@@ -5232,6 +5233,7 @@ export type Database = {
           review_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          scan_attempts?: number
           scan_evidence?: Json
           scan_provider?: string | null
           scan_status?: string
@@ -5257,6 +5259,7 @@ export type Database = {
           review_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          scan_attempts?: number
           scan_evidence?: Json
           scan_provider?: string | null
           scan_status?: string
@@ -36957,6 +36960,7 @@ export type Database = {
           p_error?: string
           p_external_resource_id?: string
           p_id: string
+          p_retryable?: boolean
           p_success: boolean
         }
         Returns: undefined
@@ -37951,6 +37955,7 @@ export type Database = {
       }
       export_organization_table: {
         Args: {
+          p_after_id?: string
           p_limit?: number
           p_offset?: number
           p_organization_id: string
@@ -38287,6 +38292,7 @@ export type Database = {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: Json
       }
+      get_exclusion_sam_sweep_state: { Args: never; Returns: Json }
       get_facility_benchmark_comparison: {
         Args: { p_facility_id: string }
         Returns: Json

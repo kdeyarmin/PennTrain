@@ -4,6 +4,8 @@ import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
+import { paZonelessDateImpossible, paZonelessToUtcIso } from "../_shared/paDay.ts";
+import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -77,7 +79,10 @@ Deno.serve(async (req: Request) => {
   }
 
   let body: any;
-  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  try { body = await readJsonBody(req, MAX_IMPORT_BODY_BYTES); } catch (error) {
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
   const csv = body.csv;
   if (!csv || typeof csv !== "string") return json(req, { error: "csv (string) is required" }, 400);
   const offset = Number.isFinite(body.offset) ? Math.max(0, Math.floor(body.offset)) : 0;
@@ -131,7 +136,9 @@ Deno.serve(async (req: Request) => {
   }
   const facilityByName = new Map(facilities.map((f: any) => [String(f.name).trim().toLowerCase(), f.id as string]));
 
-  const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
+  // An omitted limit is capped to the ledger RPC's 200-row chunk contract rather than the whole
+  // file -- see bulk-import-employees for the failure this prevents. Callers page via nextOffset.
+  const endIndex = Math.min(offset + (limit ?? 200), rows.length);
   if (offset >= rows.length) {
     return json(req, { success: true, mode, job_id: jobId, total: 0, succeeded: 0, failed: 0, results: [], totalRows: rows.length, offset, nextOffset: null });
   }
@@ -165,7 +172,16 @@ Deno.serve(async (req: Request) => {
     if (!occurredAt) rowErrors.push("occurred_at is required");
     else if (!/^\d{4}-\d{2}-\d{2}([T ].+)?$/.test(occurredAt) || Number.isNaN(Date.parse(occurredAt))) {
       rowErrors.push("occurred_at must be an ISO 8601 date or timestamp (YYYY-MM-DD or YYYY-MM-DD HH:MM)");
+    } else if (paZonelessDateImpossible(occurredAt)) {
+      // Date.parse is finite for "2026-02-30" (V8 rolls the day), so the check above passes
+      // it; the converter refuses to invent a different day, so refuse the row here instead
+      // of letting apply fail -- or worse, record the incident on a date nobody wrote.
+      rowErrors.push("occurred_at names a calendar date that does not exist");
     }
+    // Zone-less values are Pennsylvania wall clock: Postgres would otherwise parse them in
+    // the UTC session zone and an evening (or date-only) incident lands on the previous ET
+    // calendar day in every report -- the exact bug class _shared/paDay.ts exists for.
+    const occurredAtUtc = occurredAt ? paZonelessToUtcIso(occurredAt) : occurredAt;
     if (!incidentType) rowErrors.push("incident_type is required");
     else if (!VALID_INCIDENT_TYPES.has(incidentType)) {
       rowErrors.push(`incident_type must be one of: ${[...VALID_INCIDENT_TYPES].join("|")}`);
@@ -182,9 +198,15 @@ Deno.serve(async (req: Request) => {
 
     let resident: any = null;
     if (!rowErrors.length && externalId) {
-      const { data } = await callerClient.from("residents").select("id, first_name, last_name")
+      const { data } = await callerClient.from("residents").select("id, first_name, last_name, facility_id")
         .eq("organization_id", effectiveOrgId).eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
       if (!data) rowErrors.push(`Unknown resident_external_id: ${externalId}`);
+      // Both apply paths (validate_incident_resident_scope and import_apply_incident) reject a
+      // resident outside the incident's facility -- refuse it in the dry run too, instead of
+      // calling the row valid and letting apply fail with a raw DB error.
+      else if (facilityId && data.facility_id !== facilityId) {
+        rowErrors.push(`Resident ${externalId} belongs to a different facility than this row's facility`);
+      }
       else resident = data;
     }
     if (!rowErrors.length && !resident) {
@@ -194,7 +216,7 @@ Deno.serve(async (req: Request) => {
 
     const action: "create" | "update" | "skip" = "create";
     const payload = {
-      organization_id: effectiveOrgId, facility_id: facilityId, occurred_at: occurredAt,
+      organization_id: effectiveOrgId, facility_id: facilityId, occurred_at: occurredAtUtc,
       incident_type: incidentType, severity, narrative: summary,
       resident_id: resident?.id,
       resident_identifier_snapshot: resident ? `${resident.last_name}, ${resident.first_name}` : null,
@@ -219,7 +241,7 @@ Deno.serve(async (req: Request) => {
       p_resident_identifier_snapshot: `${resident.last_name}, ${resident.first_name}`,
       p_incident_type: incidentType,
       p_severity: severity,
-      p_occurred_at: occurredAt,
+      p_occurred_at: occurredAtUtc,
       p_location_detail: "Imported via data migration center",
       p_narrative: summary,
       p_idempotency_key: `import:${jobId}:${rowNumber}`,

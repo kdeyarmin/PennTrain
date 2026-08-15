@@ -141,14 +141,19 @@ export function parseFromAddress(
 
 export function normalizeSmsRecipient(raw: string): string | null {
   const digits = raw.replace(/\D/g, "");
+  // An explicit "+" is an explicit country code: take the international branch
+  // first, never the US heuristics. Checking the 10/11-digit US branches first
+  // rewrote e.g. "+354 555 1234" (Iceland, 10 digits) into an unrelated US
+  // number. The E.164 bounds below already handle "+1..." inputs correctly.
+  if (raw.trim().startsWith("+")) {
+    if (digits.length >= 8 && digits.length <= 15 && !digits.startsWith("0")) {
+      return `+${digits}`;
+    }
+    return null;
+  }
+  // No explicit country code: assume US.
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-  if (
-    raw.trim().startsWith("+") && digits.length >= 8 && digits.length <= 15 &&
-    !digits.startsWith("0")
-  ) {
-    return `+${digits}`;
-  }
   return null;
 }
 

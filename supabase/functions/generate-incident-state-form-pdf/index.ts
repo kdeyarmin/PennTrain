@@ -102,7 +102,8 @@ Deno.serve(async (req: Request) => {
     .from("incidents")
     .select(
       "id, organization_id, facility_id, incident_type, status, occurred_at, reported_by_profile_id, " +
-        "resident_identifier, narrative, investigation_findings, root_cause, final_report_submitted_at, " +
+        "resident_id, resident_identifier, resident_identifier_snapshot, " +
+        "narrative, investigation_findings, root_cause, final_report_submitted_at, " +
         "organizations(name), facilities(name, facility_type, license_number, address, city, state, zip, phone)",
     )
     .eq("id", incidentId)
@@ -138,6 +139,15 @@ Deno.serve(async (req: Request) => {
   } | null;
   const organizationName = (incident.organizations as unknown as { name: string } | null)?.name ?? "";
 
+  // resident_id is the real FK when the incident was RPC-created; legacy rows hold a
+  // residents.id as text in resident_identifier only when picked via the dropdown, so guard
+  // with a UUID shape check before querying a uuid column (a free-text value like "Room 12"
+  // would otherwise error, not just miss). Mirrors generate-incident-report-pdf.
+  const residentLookupId = incident.resident_id ??
+    (incident.resident_identifier && UUID_PATTERN.test(incident.resident_identifier)
+      ? incident.resident_identifier
+      : null);
+
   const [
     { data: staff, error: staffError },
     { data: notifications, error: notificationsError },
@@ -167,16 +177,13 @@ Deno.serve(async (req: Request) => {
         .eq("id", incident.reported_by_profile_id)
         .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    // resident_identifier is a plain text column, not a resident_id FK (see Incidents.tsx/
-    // IncidentDetail.tsx) -- it holds a real residents.id only when picked via the dropdown, so
-    // guard with a UUID shape check before querying a uuid column (a free-text value like "Room
-    // 12" would otherwise error, not just miss). Scoped to the incident's own facility, matching
-    // IncidentDetail.tsx's resolution -- never resolve across facilities.
-    incident.resident_identifier && UUID_PATTERN.test(incident.resident_identifier)
+    // Scoped to the incident's own facility, matching IncidentDetail.tsx's resolution --
+    // never resolve across facilities.
+    residentLookupId
       ? callerClient
         .from("residents")
         .select("first_name, last_name, date_of_birth")
-        .eq("id", incident.resident_identifier)
+        .eq("id", residentLookupId)
         .eq("facility_id", incident.facility_id)
         .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -262,7 +269,10 @@ Deno.serve(async (req: Request) => {
     // to the wrong day.
     const residentName = matchedResident
       ? `${matchedResident.last_name}, ${matchedResident.first_name}`
-      : incident.resident_identifier;
+      // Snapshot (the name captured at incident creation) covers a since-deleted or
+      // transferred resident; the raw identifier is last -- for legacy free-text rows it is a
+      // description, but for resident-linked rows it would be a bare UUID on a DHS form.
+      : incident.resident_identifier_snapshot ?? incident.resident_identifier;
     fillText([["firstrow1"]], residentName);
     if (matchedResident?.date_of_birth) {
       fillText([["birthrow1"]], matchedResident.date_of_birth);

@@ -2,6 +2,12 @@
 
 export const DEFAULT_MAX_REQUEST_BYTES = 16_384;
 
+// Cap for the bulk-import functions: the whole CSV travels in every chunk call (the file
+// checksum has to match the job receipt), so this covers the largest legitimate file, not a
+// single chunk. 8MB is far beyond a 1000-row roster; without a cap, req.json() buffered
+// whatever an authenticated org member posted.
+export const MAX_IMPORT_BODY_BYTES = 8 * 1024 * 1024;
+
 export class RequestBodyError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -74,9 +80,17 @@ export async function readJsonBody<T = Record<string, unknown>>(
   maxBytes = DEFAULT_MAX_REQUEST_BYTES,
 ): Promise<T> {
   const rawBody = await readTextBody(req, maxBytes);
+  let parsed: unknown;
   try {
-    return JSON.parse(rawBody) as T;
+    parsed = JSON.parse(rawBody);
   } catch {
     throw new RequestBodyError("Invalid JSON body", 400);
   }
+  // `JSON.parse("null")` (and bare scalars) parse fine but are not the object every caller
+  // property-accesses immediately -- a literal `null` body turned into an uncaught TypeError
+  // 500 on public endpoints instead of this contract's clean 400.
+  if (parsed === null || typeof parsed !== "object") {
+    throw new RequestBodyError("Invalid JSON body", 400);
+  }
+  return parsed as T;
 }

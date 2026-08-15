@@ -7,6 +7,7 @@ import {
 } from "../_shared/cronAuth.ts";
 import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 /**
  * This function serves BOTH the browser and the cron worker, so its CORS headers have to be
@@ -47,11 +48,15 @@ const MARGIN = 60;
 const PA_TIME_ZONE = "America/New_York";
 
 function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
-  let s = str;
+  // Every rendered string passes through here, so this is the one WinAnsi boundary:
+  // Helvetica throws inside widthOfTextAtSize on any non-CP1252 character (real employee
+  // names hit this), which failed the render job before any drawText ran.
+  const encodable = toWinAnsi(str);
+  let s = encodable;
   while (s.length > 1 && font.widthOfTextAtSize(s, size) > maxWidth) {
     s = s.slice(0, -1);
   }
-  return s === str ? s : s.slice(0, -1) + "…";
+  return s === encodable ? s : s.slice(0, -1) + "…";
 }
 
 async function buildCertificatePdf(input: {
@@ -504,8 +509,14 @@ Deno.serve(async (req: Request) => {
           expiresIn: SIGNED_URL_TTL_SECONDS,
         });
       } catch (error) {
+        // Storage/signing internals stay in the log; the caller (cron or an authenticated
+        // user replaying a finished job) gets the correlation id to quote instead.
+        console.error(
+          "certificate replay: signing failed",
+          error instanceof Error ? error.message : String(error),
+        );
         return json({
-          error: error instanceof Error ? error.message : String(error),
+          error: "Unable to issue the certificate download link",
           correlationId,
         }, 500);
       }

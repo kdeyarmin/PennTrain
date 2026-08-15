@@ -5,6 +5,7 @@ import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { paToday } from "../_shared/paDay.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { facilityTypeLabel } from "../_shared/facilityTypes.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 const BINDER_JOB_KEY = "binder-export-generation";
 const BINDER_BUCKET = "binder-exports";
@@ -39,16 +40,20 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
-  let s = str;
+  // WinAnsi boundary: Helvetica throws inside widthOfTextAtSize on any non-CP1252
+  // character, and one such character in any rendered value (a resident or staff name,
+  // an alert title) failed the whole organization's binder job.
+  const encodable = toWinAnsi(str);
+  let s = encodable;
   while (s.length > 1 && font.widthOfTextAtSize(s, size) > maxWidth - 6) {
     s = s.slice(0, -1);
   }
-  return s === str ? s : s.slice(0, -1) + "…";
+  return s === encodable ? s : s.slice(0, -1) + "…";
 }
 
 function wrapText(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
   const lines: string[] = [];
-  for (const paragraph of text.split(/\r?\n/)) {
+  for (const paragraph of toWinAnsi(text).split(/\r?\n/)) {
     const words = paragraph.split(/\s+/).filter(Boolean);
     if (words.length === 0) {
       lines.push("");
@@ -108,7 +113,9 @@ class PdfWriter {
   }
 
   setCover(orgName: string, subtitle: string, meta: string[]) {
-    this.cover = { orgName, subtitle, meta };
+    // Cover and TOC strings are drawn directly (no truncate/wrapText pass), so they need
+    // the WinAnsi boundary here.
+    this.cover = { orgName: toWinAnsi(orgName), subtitle: toWinAnsi(subtitle), meta: meta.map(toWinAnsi) };
   }
 
   private ensureSpace(height: number) {
@@ -139,7 +146,7 @@ class PdfWriter {
     this.text(str, { size: 13, bold: true, gap: 10 });
     // Record the 1-based page this heading landed on for the table of contents (page 1 is the
     // reserved cover/TOC page, so content headings resolve to page 2+).
-    this.tocEntries.push({ title: str, page: this.doc.getPages().indexOf(this.page) + 1 });
+    this.tocEntries.push({ title: toWinAnsi(str), page: this.doc.getPages().indexOf(this.page) + 1 });
   }
 
   table(headers: string[], rows: string[][], widths: number[]) {
@@ -931,6 +938,12 @@ async function buildBinderPdf(
       shown.map((a) => [a.severity, a.title, new Date(a.created_at).toLocaleDateString("en-US", { timeZone: PA_TIME_ZONE })]),
       [80, 300, 100],
     );
+    if (alerts.length > MAX_LISTED_ROWS) {
+      pdf.text(`...and ${alerts.length - MAX_LISTED_ROWS} more (truncated for report length; full counts remain accurate above).`, {
+        size: 8,
+        color: [0.5, 0.5, 0.5],
+      });
+    }
   }
 
   pdf.heading("Policy Attestation Compliance Summary");

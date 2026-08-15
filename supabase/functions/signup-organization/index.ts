@@ -111,6 +111,8 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
   const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",
     body: form,
+    // Bound the vendor round-trip -- a Turnstile brownout must fail fast, not hold the request open.
+    signal: AbortSignal.timeout(10_000),
   });
   const data = await response.json().catch(() => null) as { success?: boolean; "error-codes"?: string[] } | null;
   if (!response.ok || !data?.success) {

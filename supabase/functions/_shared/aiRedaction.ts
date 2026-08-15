@@ -236,8 +236,12 @@ export function scrubSsnLike(text: string): string {
 
 const MONTH = String.raw`(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?`;
 const DATE_TOKEN = String.raw`(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|${MONTH}\s+\d{1,2},?\s+\d{4})`;
+// The DOB alternative tolerates the dotted clinical shorthand ("D.O.B.", "d.o.b"): letters may be
+// separated by dots/spaces. The label group deliberately ends at the "b" (a trailing dot would sit
+// on a non-word position and break the \b); the shorthand's final "." is consumed by the separator
+// class instead, which therefore includes "." alongside ":" and "-".
 const BIRTHDATE_REGEX = new RegExp(
-  String.raw`\b(dob|date\s+of\s+birth|birth\s*date|born(?:\s+on)?)\b\s*[:\-]?\s*(${DATE_TOKEN})`,
+  String.raw`\b(d\.?\s*o\.?\s*b|date\s+of\s+birth|birth\s*date|born(?:\s+on)?)\b\s*[.:\-]?\s*(${DATE_TOKEN})`,
   "gi",
 );
 

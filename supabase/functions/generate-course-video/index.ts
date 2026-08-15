@@ -72,11 +72,17 @@ Deno.serve(async (req: Request) => {
 
   const { data: block, error: blockError } = await callerClient
     .from("course_blocks")
-    .select("id, block_type, body")
+    .select("id, block_type, body, course_versions(status)")
     .eq("id", course_block_id)
     .single();
   if (blockError || !block) return json(req, { error: "course block not found" }, 404);
   if (block.block_type !== "video") return json(req, { error: "course block is not a video block" }, 400);
+  // Same early guard regenerate-course-block has: without it, the published lock only surfaces at
+  // the UPDATE below (lock_published_course_block() -> 403) -- AFTER HeyGen has been billed for a
+  // render whose result can never be persisted, orphaning a paid job.
+  if (block.course_versions?.status === "published") {
+    return json(req, { error: "cannot generate a video on a published course version" }, 409);
+  }
 
   const heygenRes = await fetch("https://api.heygen.com/v3/videos", {
     method: "POST",
@@ -88,6 +94,7 @@ Deno.serve(async (req: Request) => {
       script,
       title: title ?? undefined,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
   const heygenBody = await heygenRes.json().catch(() => null);
   if (!heygenRes.ok || !heygenBody?.data?.video_id) {

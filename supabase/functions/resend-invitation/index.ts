@@ -63,6 +63,8 @@ async function sendViaSendGrid(message: { to: string; subject: string; text: str
         { type: "text/html", value: message.html },
       ],
     }),
+    // Bound the vendor round-trip -- a SendGrid brownout must fail fast, not hold the request open.
+    signal: AbortSignal.timeout(10_000),
   });
   if (!resp.ok) {
     const data = await resp.json().catch(() => ({}));
@@ -127,7 +129,8 @@ Deno.serve(async (req: Request) => {
       return json(req, { error: "Demo workspaces cannot resend invitations" }, 403);
     }
   } catch (error) {
-    return json(req, { error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
+    console.error("resend-invitation: demo workspace check failed", error instanceof Error ? error.message : error);
+    return json(req, { error: "Unable to verify demo workspace" }, 500);
   }
 
   const assurance = await requireFreshAal2(callerClient, "identity_admin");
@@ -216,9 +219,8 @@ Deno.serve(async (req: Request) => {
       await sendViaSendGrid(message);
     }
   } catch (error) {
-    return json(req, {
-      error: error instanceof Error ? error.message : "Invitation email could not be delivered",
-    }, 502);
+    console.error("resend-invitation: invitation email send failed", error instanceof Error ? error.message : error);
+    return json(req, { error: "Unable to send the invitation email" }, 502);
   }
 
   const { data: receipt, error: receiptError } = await adminClient.rpc("record_user_invitation_resent", {

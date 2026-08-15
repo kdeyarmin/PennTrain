@@ -55,6 +55,8 @@ async function sendViaSendGrid(message: AuthEmailMessage): Promise<void> {
         { type: "text/html", value: message.html },
       ],
     }),
+    // Bound the vendor round-trip -- a SendGrid brownout must fail fast, not hold the request open.
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!resp.ok) {

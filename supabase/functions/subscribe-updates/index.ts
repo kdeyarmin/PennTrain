@@ -61,9 +61,12 @@ async function verifyTurnstile(token: string | undefined, ip: string): Promise<v
   form.set("response", token);
   if (ip !== "unknown") form.set("remoteip", ip);
 
+  // Bounded: a Turnstile brownout must fail this request in seconds, not hold the public
+  // endpoint open until the platform wall-clock kill.
   const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",
     body: form,
+    signal: AbortSignal.timeout(10_000),
   });
   const data = (await response.json().catch(() => null)) as
     | { success?: boolean; "error-codes"?: string[] }
@@ -120,6 +123,7 @@ async function sendWelcomeEmail(params: {
     });
     const resp = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: params.email }] }],
@@ -230,12 +234,18 @@ Deno.serve(async (req: Request) => {
   try {
     await verifyTurnstile(body.turnstile_token, ip);
 
+    // The IP cap runs before the email lookup so every request is limited identically. Capping
+    // only the insert branch made the limiter itself an oracle: after exhausting the cap, a 429
+    // meant "not on the list" while {ok:true} meant "subscribed" -- exactly the distinction the
+    // response-shape comment below exists to prevent. A returning subscriber updating their
+    // preferences shares the cap now; that is the price of indistinguishability.
+    await enforceIpRateLimit(adminClient, ipHash);
+
     // Idempotent by email: an existing subscriber is reactivated and their topics merged, rather
-    // than erroring on the unique constraint. Only cap NEW inserts by IP so a returning subscriber
-    // updating their preferences isn't blocked by the flood cap.
+    // than erroring on the unique constraint.
     const { data: existing, error: lookupError } = await adminClient
       .from("newsletter_subscribers")
-      .select("id, status, topics, unsubscribe_token")
+      .select("id, status, topics, unsubscribe_token, name, organization, source_path")
       .eq("email", email)
       .maybeSingle();
     if (lookupError) {
@@ -248,9 +258,13 @@ Deno.serve(async (req: Request) => {
     if (existing) {
       const mergedTopics = Array.from(new Set([...(existing.topics ?? []), ...topics]));
       const update: Record<string, unknown> = { status: "subscribed", topics: mergedTopics };
-      if (name) update.name = name;
-      if (organization) update.organization = organization;
-      if (sourcePath) update.source_path = sourcePath;
+      // Fill empty contact fields, never overwrite stored ones: this endpoint is anonymous, so
+      // anyone who knows a subscriber's address could otherwise rewrite the name/organization
+      // on that subscriber's row (and a reactivation mail would then greet them with
+      // attacker-chosen text).
+      if (name && !existing.name) update.name = name;
+      if (organization && !existing.organization) update.organization = organization;
+      if (sourcePath && !existing.source_path) update.source_path = sourcePath;
       const { error: updateError } = await adminClient
         .from("newsletter_subscribers")
         .update(update)
@@ -259,10 +273,11 @@ Deno.serve(async (req: Request) => {
         throw new HttpError(500, "subscribe_failed", "We could not process your subscription. Please try again later.", updateError.message);
       }
       unsubscribeToken = existing.unsubscribe_token ?? null;
-      // Re-welcome someone who had previously unsubscribed/bounced; stay silent for a duplicate submit.
+      // Re-welcome someone who had previously unsubscribed/bounced; stay silent for a duplicate
+      // submit. The welcome email doubles as the notice that the address was reactivated -- its
+      // one-click unsubscribe is the recovery path if the owner didn't ask for this.
       sendWelcome = existing.status !== "subscribed";
     } else {
-      await enforceIpRateLimit(adminClient, ipHash);
       const { data: inserted, error: insertError } = await adminClient
         .from("newsletter_subscribers")
         .insert({

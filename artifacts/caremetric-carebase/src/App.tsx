@@ -96,6 +96,7 @@ const EvidenceRoom = lazy(() => import("@/pages/app/EvidenceRoom"));
 const GuestAccessCenter = lazy(() => import("@/pages/app/GuestAccessCenter"));
 const EvidenceCollectionDetail = lazy(() => import("@/pages/app/EvidenceCollectionDetail"));
 const EvidenceGuestRoom = lazy(() => import("@/pages/public/EvidenceGuestRoom"));
+const SurveyPacketGuestDownload = lazy(() => import("@/pages/public/SurveyPacketGuestDownload"));
 const TrainingPassport = lazy(() => import("@/pages/public/TrainingPassport"));
 const Violations = lazy(() => import("@/pages/app/Violations"));
 const ViolationDetail = lazy(() => import("@/pages/app/ViolationDetail"));
@@ -468,6 +469,8 @@ function Router() {
       <Route path="/move-in-access">{() => <MaintenanceGatedRoute component={MoveInGuestPortal} />}</Route>
       <Route path="/resident-agreement-access/:token">{() => <MaintenanceGatedRoute component={ResidentAgreementGuestPortal} />}</Route>
       <Route path="/resident-agreement-access">{() => <MaintenanceGatedRoute component={ResidentAgreementGuestPortal} />}</Route>
+      <Route path="/survey-packet-access/:token">{() => <MaintenanceGatedRoute component={SurveyPacketGuestDownload} />}</Route>
+      <Route path="/survey-packet-access">{() => <MaintenanceGatedRoute component={SurveyPacketGuestDownload} />}</Route>
       <Route path="/resident-portal">{() => <MaintenanceGatedRoute component={ResidentDesignatedPersonPortal} />}</Route>
 
       <Route path="/account/security">

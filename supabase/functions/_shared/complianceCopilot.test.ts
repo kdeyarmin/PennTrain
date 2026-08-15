@@ -1,5 +1,6 @@
 import {
   COPILOT_SAFEGUARDS,
+  COPILOT_SYSTEM_PROMPT,
   determinationKindForIntent,
   extractCopilotToolInput,
   validateGroundedResponse,
@@ -94,6 +95,14 @@ Deno.test("requires finding evidence to be retained in the immutable receipt", (
   });
   if (!parsed || !validateGroundedResponse(parsed, sources, evidence)?.includes("omitted from the receipt")) {
     throw new Error("finding evidence could be omitted from the receipt");
+  }
+});
+
+Deno.test("system prompt pins the product's ALF terminology over the regulation's wording", () => {
+  // Answers render verbatim to users, and the org's terminology rule (CLAUDE.md) requires
+  // "Assisted Living Facility (ALF)" in customer-facing text -- never "Assisted Living Residence".
+  if (!COPILOT_SYSTEM_PROMPT.includes('Refer to the ALR facility type as "Assisted Living Facility (ALF)"')) {
+    throw new Error("ALF terminology instruction missing from the system prompt");
   }
 });
 

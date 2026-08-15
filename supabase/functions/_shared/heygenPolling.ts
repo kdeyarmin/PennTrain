@@ -32,6 +32,88 @@ export interface HeygenPollResult {
 }
 
 /**
+ * Generous upper bound on how long a HeyGen render may stay in-flight before the cron poller
+ * gives up on it. A deleted/expired video_id makes the status fetch error on every poll, and an
+ * errored poll (by design) writes nothing -- so without a cutoff the block is re-selected forever
+ * and the UI stays stuck on "processing". Real renders finish in minutes; 24 hours is far past
+ * any legitimate render window.
+ */
+export const HEYGEN_MAX_RENDER_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Error note written onto a job that exceeded HEYGEN_MAX_RENDER_WINDOW_MS. */
+export const HEYGEN_AGED_OUT_ERROR = "video generation timed out";
+
+// Single write seam shared by pollAndResolveHeygenVideo and failAgedOutHeygenJob -- see
+// pollAndResolveHeygenVideo's doc comment for why `usePrivilegedRpc` routes through
+// write_course_block_heygen_state() instead of a bare `.update()`.
+function writeHeygenBlockState(
+  writeClient: SupabaseClient,
+  blockId: string,
+  updates: { body: Record<string, unknown>; video_url?: string },
+  usePrivilegedRpc: boolean,
+) {
+  return usePrivilegedRpc
+    ? writeClient.rpc("write_course_block_heygen_state", {
+      p_block_id: blockId,
+      p_body: updates.body,
+      p_video_url: updates.video_url ?? null,
+    })
+    : writeClient.from("course_blocks").update(updates).eq("id", blockId);
+}
+
+/**
+ * True when the block's in-flight HeyGen job is older than HEYGEN_MAX_RENDER_WINDOW_MS, dated by
+ * heygen.requested_at (stamped by generate-course-video when the job is created). Legacy rows
+ * without a parseable requested_at have no other timestamp to age by -- the heygen object stores
+ * nothing else until completion -- so they are deliberately never aged out here rather than
+ * mass-failing rows that cannot be dated.
+ */
+export function isHeygenJobAgedOut(
+  job: HeygenJobState | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  const requestedAtMs = typeof job?.requested_at === "string"
+    ? Date.parse(job.requested_at)
+    : NaN;
+  if (!Number.isFinite(requestedAtMs)) return false;
+  return nowMs - requestedAtMs > HEYGEN_MAX_RENDER_WINDOW_MS;
+}
+
+/**
+ * Writes the terminal aged-out state ("failed" + HEYGEN_AGED_OUT_ERROR) for a job the poller
+ * could not resolve within the render window, preserving sibling body keys (body.script etc.)
+ * exactly like every other write in this module. Callers decide WHEN to age out (poll first, so
+ * a job that genuinely finished can still resolve); this only performs the write. Never marks
+ * completed -- an aged-out job is only ever failed.
+ */
+export async function failAgedOutHeygenJob(
+  writeClient: SupabaseClient,
+  block: HeygenPollableBlock,
+  usePrivilegedRpc = false,
+): Promise<HeygenPollResult> {
+  const job = block.body?.heygen;
+  if (!job?.video_id) {
+    return {
+      status: "no_job",
+      error: "no pending video generation for this block",
+    };
+  }
+  const { error: writeError } = await writeHeygenBlockState(
+    writeClient,
+    block.id,
+    {
+      body: {
+        ...block.body,
+        heygen: { ...job, status: "failed", error: HEYGEN_AGED_OUT_ERROR },
+      },
+    },
+    usePrivilegedRpc,
+  );
+  if (writeError) return { status: "error", error: writeError.message };
+  return { status: "failed", error: HEYGEN_AGED_OUT_ERROR };
+}
+
+/**
  * Polls HeyGen for the current status of a single course_block's in-flight video job and, when
  * complete, downloads the video from HeyGen's expiring URL and re-uploads it into the
  * course-videos storage bucket. Writes the resolved state back onto the block via `writeClient`
@@ -73,14 +155,7 @@ export async function pollAndResolveHeygenVideo(
 
   const writeCourseBlock = (
     updates: { body: Record<string, unknown>; video_url?: string },
-  ) =>
-    usePrivilegedRpc
-      ? writeClient.rpc("write_course_block_heygen_state", {
-        p_block_id: block.id,
-        p_body: updates.body,
-        p_video_url: updates.video_url ?? null,
-      })
-      : writeClient.from("course_blocks").update(updates).eq("id", block.id);
+  ) => writeHeygenBlockState(writeClient, block.id, updates, usePrivilegedRpc);
 
   const statusRes = await fetch(
     `https://api.heygen.com/v3/videos/${job.video_id}`,

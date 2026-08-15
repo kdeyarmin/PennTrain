@@ -229,11 +229,22 @@ Deno.serve(async (req: Request) => {
     }
     const { error: revokeError } = await adminClient.auth.admin.signOut(accessToken, "local");
     if (revokeError) return json(req, { error: "Failed to revoke the impersonated Auth session" }, 500);
-    const { error: endError } = await adminClient
+    // The session is already revoked above, so a transient failure here only leaves the
+    // context row un-finalized (holding its target_session_id unique slot until expiry).
+    // One immediate retry clears the common transient case before surfacing the 500.
+    let endError = (await adminClient
       .from("impersonation_sessions")
       .update({ ended_at: new Date().toISOString() })
       .eq("id", context.id)
-      .is("ended_at", null);
+      .is("ended_at", null)).error;
+    if (endError) {
+      console.error("impersonate-user: end finalization failed, retrying once", endError.message);
+      endError = (await adminClient
+        .from("impersonation_sessions")
+        .update({ ended_at: new Date().toISOString() })
+        .eq("id", context.id)
+        .is("ended_at", null)).error;
+    }
     if (endError) return json(req, { error: "Session was revoked but lifecycle finalization failed" }, 500);
     return json(req, { success: true });
   }

@@ -87,6 +87,7 @@ Deno.serve(async (req: Request) => {
     : [isEvents ? "events:read" : "entitlements:read"];
   const secretSha256 = await phase2IntegrationSha256(plaintextKey);
   let credential: Record<string, unknown> | null = null;
+  let authRpcFailed = false;
   for (const requiredScope of scopeCandidates) {
     const { data: authRows, error: authError } = await admin.rpc(
       "authenticate_integration_api_credential",
@@ -96,12 +97,21 @@ Deno.serve(async (req: Request) => {
         p_correlation_id: correlationId,
       },
     );
-    if (authError) break;
+    if (authError) {
+      authRpcFailed = true;
+      break;
+    }
     const row = Array.isArray(authRows) ? authRows[0] : authRows;
     if (row) {
       credential = row as Record<string, unknown>;
       break;
     }
+  }
+  // A failed authenticate RPC is a service fault, not a dead credential: answering 401 here makes
+  // partner clients treat a healthy key as revoked (and page someone) whenever the DB hiccups.
+  // 503 tells them to retry; 401 stays reserved for a credential the RPC actually rejected.
+  if (authRpcFailed) {
+    return response(req, { error: { code: "authentication_unavailable" }, meta: { correlationId } }, 503, correlationId);
   }
   if (!credential) {
     return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);

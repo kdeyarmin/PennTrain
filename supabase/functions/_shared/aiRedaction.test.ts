@@ -123,6 +123,12 @@ Deno.test("exact birthdates reduce to the year; other dates stay", () => {
   expectEqual(scrubBirthdates("Next visit 03/04/2026."), "Next visit 03/04/2026.", "non-birth dates untouched");
 });
 
+Deno.test("dotted D.O.B. clinical shorthand reduces to the year", () => {
+  expectEqual(scrubBirthdates("D.O.B. 3/4/1950"), "D.O.B: 1950", "dotted shorthand with trailing period");
+  expectEqual(scrubBirthdates("d.o.b: 1/2/1960"), "d.o.b: 1960", "lowercase dotted shorthand with colon");
+  expectEqual(scrubBirthdates("Adobe update 3/4/2026 installed."), "Adobe update 3/4/2026 installed.", "embedded letters do not match");
+});
+
 Deno.test("phones, emails, and street addresses are removed", () => {
   expectEqual(scrubPhones("Call (555) 123-4567 or 555-123-4567 or 5551234567."), "Call [phone removed] or [phone removed] or [phone removed].", "phone forms");
   expectEqual(scrubEmails("Reach me at jane.doe+alf@example.org today."), "Reach me at [email removed] today.", "email");

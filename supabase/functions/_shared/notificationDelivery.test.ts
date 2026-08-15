@@ -220,6 +220,18 @@ Deno.test("normalizes US SMS recipients to E.164", () => {
   assertEquals(normalizeSmsRecipient("123"), null);
 });
 
+Deno.test("never rewrites an explicit international number as a US number", () => {
+  // 10- and 11-digit "+..." inputs previously fell into the US branches and
+  // came back as unrelated +1 numbers.
+  assertEquals(normalizeSmsRecipient("+354 555 1234"), "+3545551234");
+  assertEquals(normalizeSmsRecipient("+20 2 555 0123"), "+2025550123");
+  assertEquals(normalizeSmsRecipient("+1 (215) 555-0123"), "+12155550123");
+  // "+" numbers outside the E.164 bounds (or with a leading zero) stay invalid
+  // instead of degrading to a US guess.
+  assertEquals(normalizeSmsRecipient("+0 215 555 0123"), null);
+  assertEquals(normalizeSmsRecipient("+1234567"), null);
+});
+
 Deno.test("produces stable SHA-256 and HMAC fingerprints", async () => {
   assertEquals(
     await sha256Hex("abc"),

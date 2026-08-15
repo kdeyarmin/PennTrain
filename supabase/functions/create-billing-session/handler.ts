@@ -270,6 +270,15 @@ export function createCreateBillingSessionHandler({
     // customer; Checkout collects the payer email instead. An existing
     // customer must not also receive customer_email (Stripe rejects both).
     const bindCustomerEmail = !account?.stripe_customer_id && profile.role !== "platform_admin";
+    // Deterministic default key for checkout: the existing-subscription guard above is
+    // check-then-act, so two admins (or two tabs) racing it both passed and -- with the old
+    // fresh-UUID default -- minted two completable sessions and ultimately two live
+    // subscriptions billing the same org. With a stable key, concurrent identical requests
+    // collapse into one Stripe session; a param drift inside the window surfaces as Stripe's
+    // idempotency error instead of a duplicate. The hour bucket bounds replay staleness (the
+    // real race lasts seconds); callers may still supply their own key.
+    const checkoutIdempotencyKey = suppliedIdempotency?.slice(0, 200) ??
+      `checkout:${organizationId}:${body.packageId}:${billingInterval}:${quantity}:${new Date().toISOString().slice(0, 13)}`;
     stripeResult = await stripePost(
       "/v1/checkout/sessions",
       stripeSecretKey,
@@ -305,7 +314,7 @@ export function createCreateBillingSessionHandler({
           ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
         },
       },
-      idempotencyKey,
+      checkoutIdempotencyKey,
     );
     checkoutConfiguration = { billingMetric: price.billing_metric, billingInterval, quantity };
     kind = "checkout";

@@ -1,6 +1,7 @@
 // @ts-nocheck -- retained: npm pdf-lib/canvas modules cause widespread type errors
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 // Rolls up every logged fire drill for one facility + one calendar month into a single,
 // DHS-submittable tracker PDF -- the monthly companion to InspectionItemDetail.tsx's per-item
@@ -127,7 +128,9 @@ const COLUMNS: { header: string; width: number; wrap?: boolean }[] = [
  * problems encountered) and for the footer boilerplate paragraph.
  */
 export function wrapTextToLines(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
-  const words = (text || "—").split(/\s+/).filter(Boolean);
+  // WinAnsi boundary: Helvetica throws inside widthOfTextAtSize on non-CP1252 characters
+  // (facility names, DHS free-text narrative), which 500'd the whole tracker.
+  const words = toWinAnsi(text || "—").split(/\s+/).filter(Boolean);
   if (words.length === 0) return ["—"];
   const lines: string[] = [];
   let line = "";
@@ -192,7 +195,7 @@ export class PdfWriter {
   heading(text: string) {
     this.ensureSpace(28);
     this.y -= 20;
-    this.page.drawText(text, { x: MARGIN, y: this.y, size: 13, font: this.bold, color: rgb(0.16, 0.22, 0.44) });
+    this.page.drawText(toWinAnsi(text), { x: MARGIN, y: this.y, size: 13, font: this.bold, color: rgb(0.16, 0.22, 0.44) });
     this.y -= 4;
     this.page.drawLine({
       start: { x: MARGIN, y: this.y }, end: { x: PAGE_WIDTH - MARGIN, y: this.y },
@@ -204,7 +207,7 @@ export class PdfWriter {
   field(label: string, value: string) {
     this.ensureSpace(16);
     this.page.drawText(label, { x: MARGIN, y: this.y, size: 9, font: this.bold, color: rgb(0.35, 0.35, 0.35) });
-    this.page.drawText(value || "—", { x: MARGIN + 130, y: this.y, size: 10, font: this.font, color: rgb(0.1, 0.1, 0.1) });
+    this.page.drawText(toWinAnsi(value || "—"), { x: MARGIN + 130, y: this.y, size: 10, font: this.font, color: rgb(0.1, 0.1, 0.1) });
     this.y -= 16;
   }
 
@@ -220,11 +223,12 @@ export class PdfWriter {
   }
 
   truncate(str: string, maxWidth: number, font: PDFFont, size: number): string {
-    let s = str;
+    const encodable = toWinAnsi(str);
+    let s = encodable;
     while (s.length > 1 && font.widthOfTextAtSize(s, size) > maxWidth - 6) {
       s = s.slice(0, -1);
     }
-    return s === str ? s : (s.length > 1 ? `${s.slice(0, -1)}…` : s);
+    return s === encodable ? s : (s.length > 1 ? `${s.slice(0, -1)}…` : s);
   }
 
   tableHeader() {
@@ -303,7 +307,7 @@ export async function buildFireDrillTrackerPdf(input: {
 
   w.page.drawText("Monthly Fire Drill Tracker", { x: MARGIN, y: w.y, size: 18, font: w.bold, color: rgb(0.16, 0.22, 0.44) });
   w.y -= 22;
-  w.page.drawText(`${input.organizationName} — ${input.facilityName}`, { x: MARGIN, y: w.y, size: 11, font: w.font, color: rgb(0.35, 0.35, 0.35) });
+  w.page.drawText(toWinAnsi(`${input.organizationName} — ${input.facilityName}`), { x: MARGIN, y: w.y, size: 11, font: w.font, color: rgb(0.35, 0.35, 0.35) });
   w.y -= 15;
   w.page.drawText(
     `${facilityTypeLabel(input.facilityType)}${input.licenseNumber ? ` · License #${input.licenseNumber}` : ""}`,

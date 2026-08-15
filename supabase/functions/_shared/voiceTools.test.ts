@@ -34,6 +34,15 @@ Deno.test("parseVoiceToolRequest accepts each supported tool", () => {
     envelope("get_upcoming_deadlines", { days: 14 }),
   );
   assertEquals(deadlines.ok, true);
+
+  const citations = parseVoiceToolRequest(
+    envelope("ask_compliance_question", {
+      question: "What citations do we have for medication errors?",
+      topic: "citations",
+      citation_query: "medication",
+    }),
+  );
+  assertEquals(citations.ok, true);
 });
 
 Deno.test("parseVoiceToolRequest rejects bad envelopes", () => {
@@ -66,6 +75,44 @@ Deno.test("parseVoiceToolRequest rejects bad envelopes", () => {
     parseVoiceToolRequest(envelope("get_upcoming_deadlines", { days: 365 })).ok,
     false,
   );
+});
+
+Deno.test("parseVoiceToolRequest requires a citation_query for the citations topic", () => {
+  // Without one, the copilot's citation_evidence intent structurally 400s.
+  const missing = parseVoiceToolRequest(
+    envelope("ask_compliance_question", {
+      question: "What citations do we have on file?",
+      topic: "citations",
+    }),
+  );
+  assertEquals(missing.ok, false);
+  if (!missing.ok) {
+    assertEquals(missing.error, 'citation_query is required when topic is "citations"');
+  }
+  const blank = parseVoiceToolRequest(
+    envelope("ask_compliance_question", {
+      question: "What citations do we have on file?",
+      topic: "citations",
+      citation_query: "   ",
+    }),
+  );
+  assertEquals(blank.ok, false);
+  const wrongType = parseVoiceToolRequest(
+    envelope("ask_compliance_question", {
+      question: "What citations do we have on file?",
+      topic: "citations",
+      citation_query: 42,
+    }),
+  );
+  assertEquals(wrongType.ok, false);
+  // Other topics stay valid without one.
+  const otherTopic = parseVoiceToolRequest(
+    envelope("ask_compliance_question", {
+      question: "What is due soon?",
+      topic: "deadlines",
+    }),
+  );
+  assertEquals(otherTopic.ok, true);
 });
 
 Deno.test("copilotIntentForTopic maps every topic to a copilot intent", () => {
@@ -138,8 +185,8 @@ Deno.test("summarizeDeadlines counts, sorts, caps, and stays name-free", () => {
     ],
     [
       {
-        credential_label: "CPR_certification",
-        credential_type: "cpr",
+        credential_label: "CPR certification — Mary Jones",
+        credential_type: "tb_screening",
         status: "active",
         expiration_date: "2026-07-24",
       },
@@ -156,16 +203,38 @@ Deno.test("summarizeDeadlines counts, sorts, caps, and stays name-free", () => {
     residentItemsDue: 3,
   });
   assertEquals(result.topItems.length, 5);
+  // Spoken from the constrained credential_type, never the free-text
+  // credential_label (which can carry a person's name).
   assertEquals(result.topItems[0], {
     kind: "credential",
-    label: "CPR certification expiring",
+    label: "tb screening expiring",
     dueOn: "2026-07-24",
   });
   assertEquals(result.topItems[1]?.dueOn, "2026-07-25");
+  assertEquals(JSON.stringify(result).includes("Mary"), false);
   // Labels are type labels only — nothing id- or name-shaped.
   for (const item of result.topItems) {
     assertEquals(/^[A-Za-z ]/.test(item.label), true);
   }
+});
+
+Deno.test("summarizeDeadlines never speaks credential_label and degrades to a generic token", () => {
+  const result = summarizeDeadlines(
+    7,
+    [],
+    [
+      // A name-carrying label with no usable type must fall back to the
+      // generic token, not to the label.
+      { credential_label: "John Smith RN license", credential_type: null, status: "active", expiration_date: "2026-07-22" },
+      { credential_type: "act34_criminal_history", status: "due_soon", expiration_date: "2026-07-23" },
+    ],
+    [],
+  );
+  assertEquals(result.topItems, [
+    { kind: "credential", label: "Staff credential expiring", dueOn: "2026-07-22" },
+    { kind: "credential", label: "act34 criminal history expiring", dueOn: "2026-07-23" },
+  ]);
+  assertEquals(JSON.stringify(result).includes("Smith"), false);
 });
 
 Deno.test("summarizeDeadlines speaks the exact totals, not the row-page sizes", () => {

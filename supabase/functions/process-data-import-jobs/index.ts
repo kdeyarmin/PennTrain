@@ -47,6 +47,9 @@ type ClaimedJob = {
   id: string;
   domain: string;
   organization_id: string;
+  // Loaded after claim, before processing: the set of facilities the job's creator may write
+  // into (facility_manager creators only), or null for roles with org-wide reach.
+  creatorFacilityScope?: Set<string> | null;
 };
 
 type ImportLedgerRow = {
@@ -273,6 +276,43 @@ async function ensureFacilityInOrganization(
   return facilityCache.get(facilityId) === true;
 }
 
+// The durable worker runs with the service role, so it must re-impose the one boundary every
+// interactive applier gets from RLS: a facility_manager writes only into facilities they are
+// assigned to. The ledger rows were receipted by the authenticated creator, but
+// record_data_import_chunk accepts arbitrary normalizedRow content -- without this check a
+// manager could hand-craft rows for an unassigned facility (facilities_select is org-wide, so
+// the UUIDs are readable) and have the service role apply them once the lease lapsed.
+async function loadCreatorFacilityScope(
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+): Promise<Set<string> | null> {
+  const { data: jobRow, error: jobErr } = await supabase
+    .from("data_import_jobs")
+    .select("created_by")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (jobErr) throw jobErr;
+  const createdBy = asStringOrNull((jobRow as { created_by?: string } | null)?.created_by);
+  if (!createdBy) return null;
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", createdBy)
+    .maybeSingle();
+  if (profileErr) throw profileErr;
+  if ((profile as { role?: string } | null)?.role !== "facility_manager") return null;
+  const { data: assignments, error: assignErr } = await supabase
+    .from("facility_assignments")
+    .select("facility_id")
+    .eq("profile_id", createdBy);
+  if (assignErr) throw assignErr;
+  return new Set(((assignments ?? []) as Array<{ facility_id: string }>).map((a) => String(a.facility_id)));
+}
+
+function facilityOutsideCreatorScope(job: ClaimedJob, facilityId: string): boolean {
+  return job.creatorFacilityScope != null && !job.creatorFacilityScope.has(facilityId);
+}
+
 async function finalizeAndReleaseJob(
   supabase: ReturnType<typeof createClient>,
   jobId: string,
@@ -345,6 +385,10 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
       await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: facility_id is not in the job organization`);
       continue;
     }
+    if (facilityOutsideCreatorScope(job, facilityId)) {
+      await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: facility is outside the creating manager's assigned scope`);
+      continue;
+    }
 
     const action = normalizeAction(row.proposed_action);
     if (action === "skip") {
@@ -367,7 +411,37 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
         await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: update action is missing target_id`);
         continue;
       }
-      const { organization_id: _org, ...updatePayload } = payload;
+      // Only fields the ledger row actually carries: the browser applier records a
+      // header-filtered payload for updates, and re-padding it with buildEmployeePayload's
+      // defaults would null absent columns and flip status back to "active" on rescue --
+      // the exact whole-record replacement the filtered ledger exists to prevent. Legacy
+      // full-shape ledger rows carry every key, so this filter changes nothing for them.
+      const ledgerKeys = new Set(Object.keys(asRecord(row.normalized_row)));
+      const updatePayload = Object.fromEntries(
+        Object.entries(payload).filter(([key]) => key !== "organization_id" && ledgerKeys.has(key)),
+      );
+      // The creator-scope boundary must hold for the target's CURRENT facility, not just
+      // the facility the ledger payload names: the payload is a snapshot from validation
+      // time (or a hand-crafted chunk row), and checking it alone let a facility manager's
+      // rescued update reach an employee since transferred out of their scope -- or move
+      // one back in.
+      if (job.creatorFacilityScope != null) {
+        const { data: targetEmployee, error: targetErr } = await supabase
+          .from("employees")
+          .select("facility_id")
+          .eq("id", row.target_id)
+          .eq("organization_id", job.organization_id)
+          .maybeSingle();
+        if (targetErr) {
+          await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: failed to verify update target scope (${targetErr.message})`);
+          continue;
+        }
+        const targetFacility = asStringOrNull((targetEmployee as { facility_id?: string } | null)?.facility_id);
+        if (!targetFacility || facilityOutsideCreatorScope(job, targetFacility)) {
+          await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: update target's facility is outside the creating manager's assigned scope`);
+          continue;
+        }
+      }
       const { data: updatedEmployee, error: updateErr } = await supabase
         .from("employees")
         .update(updatePayload)
@@ -481,6 +555,10 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
       await markLedgerRowFailureForTable(supabase, row, RESIDENT_TARGET_TABLE, `Row ${row.row_number}: failed to verify facility scope (${message})`);
       continue;
     }
+    if (facilityOutsideCreatorScope(job, facilityId)) {
+      await markLedgerRowFailureForTable(supabase, row, RESIDENT_TARGET_TABLE, `Row ${row.row_number}: facility is outside the creating manager's assigned scope`);
+      continue;
+    }
 
     const action = normalizeAction(row.proposed_action);
     if (action === "skip") {
@@ -499,7 +577,7 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
       }
       const { data: existingResident, error: existingResidentErr } = await supabase
         .from("residents")
-        .select("id,organization_id")
+        .select("id,organization_id,facility_id")
         .eq("id", row.target_id)
         .eq("organization_id", job.organization_id)
         .maybeSingle();
@@ -512,15 +590,24 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
         );
         continue;
       }
+      // Same boundary as employees: the target's CURRENT facility must sit inside the
+      // creating manager's scope, not merely the facility the ledger snapshot names.
+      if (facilityOutsideCreatorScope(job, String(existingResident.facility_id ?? ""))) {
+        await markLedgerRowFailureForTable(supabase, row, RESIDENT_TARGET_TABLE, `Row ${row.row_number}: update target's facility is outside the creating manager's assigned scope`);
+        continue;
+      }
+      // Mirror bulk-import-residents' update semantics: only columns the ledger row carries.
+      // buildResidentPayload pads absent columns with nulls/defaults, which erased a
+      // resident's recorded date of birth and room on rescue of a re-import that touched
+      // neither. Legacy full-shape ledger rows carry every key, so nothing changes for them.
+      const ledgerKeys = new Set(Object.keys(asRecord(row.normalized_row)));
+      const residentUpdate: Record<string, unknown> = {};
+      for (const field of ["first_name", "last_name", "date_of_birth", "room", "preferred_name"]) {
+        if (ledgerKeys.has(field)) residentUpdate[field] = payload[field as keyof typeof payload];
+      }
       const { error: updateErr } = await supabase
         .from("residents")
-        .update({
-          first_name: payload.first_name,
-          last_name: payload.last_name,
-          date_of_birth: payload.date_of_birth,
-          room: payload.room,
-          preferred_name: payload.preferred_name,
-        })
+        .update(residentUpdate)
         .eq("id", row.target_id)
         .eq("organization_id", job.organization_id);
       if (updateErr) {
@@ -566,7 +653,7 @@ async function processResidentContactJob(supabase: ReturnType<typeof createClien
   if (rowsErr) throw rowsErr;
 
   const ledgerRows = (rows ?? []) as ImportLedgerRow[];
-  const residentCache = new Map<string, { id: string; organization_id: string } | null>();
+  const residentCache = new Map<string, { id: string; organization_id: string; facility_id: string } | null>();
 
   for (const row of ledgerRows) {
     const payload = buildResidentContactPayload(row.normalized_row);
@@ -584,7 +671,7 @@ async function processResidentContactJob(supabase: ReturnType<typeof createClien
     if (!residentCache.has(residentId)) {
       const { data: resident, error: residentErr } = await supabase
         .from("residents")
-        .select("id,organization_id")
+        .select("id,organization_id,facility_id")
         .eq("id", residentId)
         .maybeSingle();
       if (residentErr) {
@@ -594,12 +681,17 @@ async function processResidentContactJob(supabase: ReturnType<typeof createClien
       residentCache.set(residentId, resident ? {
         id: String(resident.id),
         organization_id: String(resident.organization_id),
+        facility_id: String(resident.facility_id),
       } : null);
     }
 
     const resident = residentCache.get(residentId);
     if (!resident || resident.organization_id !== job.organization_id) {
       await markLedgerRowFailureForTable(supabase, row, RESIDENT_CONTACT_TARGET_TABLE, `Row ${row.row_number}: resident is not in the job organization`);
+      continue;
+    }
+    if (facilityOutsideCreatorScope(job, resident.facility_id)) {
+      await markLedgerRowFailureForTable(supabase, row, RESIDENT_CONTACT_TARGET_TABLE, `Row ${row.row_number}: resident's facility is outside the creating manager's assigned scope`);
       continue;
     }
 
@@ -690,7 +782,7 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
   if (rowsErr) throw rowsErr;
 
   const ledgerRows = (rows ?? []) as ImportLedgerRow[];
-  const residentCache = new Map<string, { id: string; organization_id: string } | null>();
+  const residentCache = new Map<string, { id: string; organization_id: string; facility_id: string } | null>();
 
   for (const row of ledgerRows) {
     const payload = buildAssessmentPayload(row.normalized_row);
@@ -708,7 +800,7 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
     if (!residentCache.has(residentId)) {
       const { data: resident, error: residentErr } = await supabase
         .from("residents")
-        .select("id,organization_id")
+        .select("id,organization_id,facility_id")
         .eq("id", residentId)
         .maybeSingle();
       if (residentErr) {
@@ -718,12 +810,17 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
       residentCache.set(residentId, resident ? {
         id: String(resident.id),
         organization_id: String(resident.organization_id),
+        facility_id: String(resident.facility_id),
       } : null);
     }
 
     const resident = residentCache.get(residentId);
     if (!resident || resident.organization_id !== job.organization_id) {
       await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: resident is not in the job organization`);
+      continue;
+    }
+    if (facilityOutsideCreatorScope(job, resident.facility_id)) {
+      await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: resident's facility is outside the creating manager's assigned scope`);
       continue;
     }
 
@@ -836,6 +933,10 @@ async function processRoomJob(supabase: ReturnType<typeof createClient>, job: Cl
       await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: facility_id is missing or invalid`);
       continue;
     }
+    if (facilityOutsideCreatorScope(job, facilityId)) {
+      await markLedgerRowFailureForTable(supabase, row, ROOM_TARGET_TABLE, `Row ${row.row_number}: facility is outside the creating manager's assigned scope`);
+      continue;
+    }
 
     const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_room_with_beds", {
       p_organization_id: job.organization_id,
@@ -874,6 +975,7 @@ async function processCredentialJob(supabase: ReturnType<typeof createClient>, j
   if (rowsErr) throw rowsErr;
 
   const ledgerRows = (rows ?? []) as ImportLedgerRow[];
+  const employeeFacilityCache = new Map<string, string | null>();
 
   for (const row of ledgerRows) {
     const payload = buildCredentialPayload(row.normalized_row, job.organization_id);
@@ -892,6 +994,28 @@ async function processCredentialJob(supabase: ReturnType<typeof createClient>, j
     if (!employeeId || !UUID_PATTERN.test(employeeId)) {
       await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: employee_id is missing or invalid`);
       continue;
+    }
+    // Resolve the parent employee's facility for the creator-scope boundary (cached per
+    // employee). Only needed when the creating manager is facility-scoped.
+    if (job.creatorFacilityScope != null) {
+      if (!employeeFacilityCache.has(employeeId)) {
+        const { data: parentEmployee, error: parentErr } = await supabase
+          .from("employees")
+          .select("facility_id")
+          .eq("id", employeeId)
+          .eq("organization_id", job.organization_id)
+          .maybeSingle();
+        if (parentErr) {
+          await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: failed to verify employee scope (${parentErr.message})`);
+          continue;
+        }
+        employeeFacilityCache.set(employeeId, parentEmployee ? asStringOrNull((parentEmployee as { facility_id?: string }).facility_id) : null);
+      }
+      const employeeFacility = employeeFacilityCache.get(employeeId) ?? null;
+      if (!employeeFacility || facilityOutsideCreatorScope(job, employeeFacility)) {
+        await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: employee's facility is outside the creating manager's assigned scope`);
+        continue;
+      }
     }
 
     if (action === "update") {
@@ -946,6 +1070,7 @@ async function processTrainingRecordJob(supabase: ReturnType<typeof createClient
   if (rowsErr) throw rowsErr;
 
   const ledgerRows = (rows ?? []) as ImportLedgerRow[];
+  const employeeFacilityCache = new Map<string, string | null>();
 
   for (const row of ledgerRows) {
     const payload = buildTrainingRecordPayload(row.normalized_row);
@@ -964,6 +1089,28 @@ async function processTrainingRecordJob(supabase: ReturnType<typeof createClient
     if (!employeeId || !UUID_PATTERN.test(employeeId)) {
       await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: employee_id is missing or invalid`);
       continue;
+    }
+    // Resolve the parent employee's facility for the creator-scope boundary (cached per
+    // employee). Only needed when the creating manager is facility-scoped.
+    if (job.creatorFacilityScope != null) {
+      if (!employeeFacilityCache.has(employeeId)) {
+        const { data: parentEmployee, error: parentErr } = await supabase
+          .from("employees")
+          .select("facility_id")
+          .eq("id", employeeId)
+          .eq("organization_id", job.organization_id)
+          .maybeSingle();
+        if (parentErr) {
+          await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: failed to verify employee scope (${parentErr.message})`);
+          continue;
+        }
+        employeeFacilityCache.set(employeeId, parentEmployee ? asStringOrNull((parentEmployee as { facility_id?: string }).facility_id) : null);
+      }
+      const employeeFacility = employeeFacilityCache.get(employeeId) ?? null;
+      if (!employeeFacility || facilityOutsideCreatorScope(job, employeeFacility)) {
+        await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: employee's facility is outside the creating manager's assigned scope`);
+        continue;
+      }
     }
 
     if (action === "update") {
@@ -1042,6 +1189,10 @@ async function processIncidentJob(supabase: ReturnType<typeof createClient>, job
       await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: facility_id is missing or invalid`);
       continue;
     }
+    if (facilityOutsideCreatorScope(job, facilityId)) {
+      await markLedgerRowFailureForTable(supabase, row, INCIDENT_TARGET_TABLE, `Row ${row.row_number}: facility is outside the creating manager's assigned scope`);
+      continue;
+    }
 
     // Same key format as the browser applier (bulk-import-incidents), so rescuing a row the
     // browser already applied -- but whose chunk receipt failed -- finds the existing
@@ -1083,20 +1234,52 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return response({ error: "Service credentials are missing" }, 503);
 
+  const supabase = createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  let systemJobRunId: string | undefined;
   try {
-    const supabase = createClient(url, serviceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     const payload = await req.json().catch(() => ({}));
     const requested = Number((payload as { limit?: number }).limit ?? 3);
     const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 10) : 3;
 
+    // The run ledger is what the watchdog and /admin/system-jobs read -- pg_cron delivery
+    // success is deliberately ignored for edge_cron definitions (the 20260814010000
+    // lesson), so a worker that never records runs reads as permanently stale while its
+    // cron requests succeed, and operator "run now" rows stay stuck at queued.
+    const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
+    const { data: jobClaim, error: jobClaimError } = await supabase.rpc("claim_system_job_execution", {
+      p_job_key: "durable-data-import-worker",
+      p_correlation_id: correlationId,
+      p_trigger_type: "scheduled",
+      p_provider_request_id: req.headers.get("x-request-id"),
+    });
+    if (jobClaimError) throw jobClaimError;
+    const runClaim = Array.isArray(jobClaim) ? jobClaim[0] : jobClaim;
+    systemJobRunId = (runClaim as { run_id?: string } | null)?.run_id;
+    if (!systemJobRunId) throw new Error("durable-data-import-worker job claim returned no run");
+    if (!(runClaim as { should_execute?: boolean }).should_execute) {
+      return response({ success: true, replayed: true, correlationId, runId: systemJobRunId });
+    }
+
     const { data: claimed, error: claimErr } = await supabase.rpc("claim_data_import_jobs", {
       p_limit: limit,
       p_claim_seconds: 600,
     });
-    if (claimErr) throw claimErr;
+    if (claimErr) {
+      await supabase.rpc("finish_system_job", {
+        p_run_id: systemJobRunId,
+        p_status: "failed",
+        p_attempted_count: 0,
+        p_succeeded_count: 0,
+        p_failed_count: 0,
+        p_result: { correlationId },
+        p_error_code: "import_claim_failed",
+        p_error_message: String(claimErr.message ?? claimErr).slice(0, 2000),
+      });
+      throw claimErr;
+    }
 
     const jobs = (claimed ?? []) as ClaimedJob[];
     const results: Array<{
@@ -1129,6 +1312,7 @@ Deno.serve(async (req) => {
       }
 
       try {
+        job.creatorFacilityScope = await loadCreatorFacilityScope(supabase, job.id);
         const workerResult = job.domain === "employees"
           ? await processEmployeeJob(supabase, job)
           : job.domain === "residents"
@@ -1176,9 +1360,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    const failedJobs = results.filter((entry) => !entry.ok).length;
+    const { error: finishErr } = await supabase.rpc("finish_system_job", {
+      p_run_id: systemJobRunId,
+      p_status: failedJobs === 0 ? "succeeded" : (failedJobs === results.length && results.length > 0 ? "failed" : "partial"),
+      p_attempted_count: jobs.length,
+      p_succeeded_count: results.length - failedJobs,
+      p_failed_count: failedJobs,
+      p_result: { correlationId, claimed: jobs.length, results },
+      p_error_code: failedJobs > 0 ? "import_jobs_failed" : null,
+      p_error_message: failedJobs > 0 ? `${failedJobs} import job(s) failed this run` : null,
+    });
+    if (finishErr) console.error("process-data-import-jobs: finish_system_job failed", finishErr.message);
     return response({ success: true, claimed: jobs.length, results });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // Close the run ledger too, or a mid-run throw leaves the watchdog staring at a
+    // permanently 'running' row instead of a failure it can alert on.
+    if (systemJobRunId) {
+      const { error: finishErr } = await supabase.rpc("finish_system_job", {
+        p_run_id: systemJobRunId,
+        p_status: "failed",
+        p_attempted_count: 0,
+        p_succeeded_count: 0,
+        p_failed_count: 0,
+        p_result: {},
+        p_error_code: "import_worker_failed",
+        p_error_message: message.slice(0, 2000),
+      });
+      if (finishErr) console.error("process-data-import-jobs: failure finish_system_job failed", finishErr.message);
+    }
     return response({ success: false, error: message }, 500);
   }
 });

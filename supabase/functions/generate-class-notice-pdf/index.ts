@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import QRCode from "npm:qrcode@1.5.4";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -99,7 +100,7 @@ class PdfWriter {
   heading(text: string, size = 13) {
     this.ensureSpace(size + 14);
     this.y -= size;
-    this.page.drawText(text, { x: MARGIN, y: this.y, size, font: this.bold, color: rgb(0.16, 0.22, 0.44) });
+    this.page.drawText(toWinAnsi(text), { x: MARGIN, y: this.y, size, font: this.bold, color: rgb(0.16, 0.22, 0.44) });
     this.y -= 6;
   }
 
@@ -107,9 +108,49 @@ class PdfWriter {
     const size = opts.size ?? 10;
     const font = opts.bold ? this.bold : this.font;
     const [r, g, b] = opts.color ?? [0, 0, 0];
-    this.ensureSpace(size + 4);
-    this.page.drawText(str, { x: MARGIN, y: this.y, size, font, color: rgb(r, g, b) });
-    this.y -= size + (opts.gap ?? 6);
+    // Wrap to the drawable width -- a single drawText clipped long class names/locations/notes
+    // at the page edge, silently losing DHS-facing notice content. toWinAnsi first: Helvetica
+    // throws on non-CP1252 characters (names, pasted notes) inside width measurement.
+    const maxWidth = PAGE_WIDTH - MARGIN * 2;
+    const lines: string[] = [];
+    for (const paragraph of toWinAnsi(str).split("\n")) {
+      const words = paragraph.split(/\s+/).filter(Boolean);
+      if (words.length === 0) {
+        lines.push("");
+        continue;
+      }
+      let current = "";
+      for (const word of words) {
+        const candidate = current ? `${current} ${word}` : word;
+        if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+          current = candidate;
+          continue;
+        }
+        if (current) lines.push(current);
+        if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+          current = word;
+          continue;
+        }
+        // A single unbroken token wider than the line (URLs, run-together IDs) is hard-broken
+        // rather than left to overflow.
+        let chunk = "";
+        for (const ch of word) {
+          if (chunk && font.widthOfTextAtSize(chunk + ch, size) > maxWidth) {
+            lines.push(chunk);
+            chunk = ch;
+          } else {
+            chunk += ch;
+          }
+        }
+        current = chunk;
+      }
+      if (current) lines.push(current);
+    }
+    for (let i = 0; i < lines.length; i++) {
+      this.ensureSpace(size + 4);
+      this.page.drawText(lines[i], { x: MARGIN, y: this.y, size, font, color: rgb(r, g, b) });
+      this.y -= size + (i === lines.length - 1 ? (opts.gap ?? 6) : 3);
+    }
   }
 
   async save() {
@@ -154,7 +195,10 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", classId)
     .maybeSingle();
-  if (clsError) return json(req, { error: clsError.message }, 500);
+  if (clsError) {
+    console.error("class notice: training_classes read failed", clsError.message);
+    return json(req, { error: "Unable to load this training class" }, 500);
+  }
   if (!cls) return json(req, { error: "Training class not found" }, 404);
 
   // generate_class_checkin_token() enforces its own authorization (trainer-owns-class or

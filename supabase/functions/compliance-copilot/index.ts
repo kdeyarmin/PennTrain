@@ -21,6 +21,7 @@ import {
   type CopilotIntent,
   type CopilotRuleSource,
 } from "../_shared/complianceCopilot.ts";
+import { facilityTypeLabel } from "../_shared/facilityTypes.ts";
 import { paToday } from "../_shared/paDay.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
@@ -656,7 +657,10 @@ Deno.serve(async (req: Request) => {
     `INTENT: ${intent}`,
     `RESPONSE_LABEL: ${determinationKind}`,
     `AS_OF_DATE: ${asOf}`,
-    `FACILITY: ${JSON.stringify({ id: facility.id, name: facility.name, facilityType: facility.facility_type, jurisdictionCode })}`,
+    // Display label, never the stored "ALR" code: the model echoes facility wording verbatim into
+    // user-facing answers, and this org's terminology rule (see _shared/facilityTypes.ts /
+    // /CLAUDE.md) requires "Assisted Living Facility (ALF)" there.
+    `FACILITY: ${JSON.stringify({ id: facility.id, name: facility.name, facilityType: facilityTypeLabel(facility.facility_type), jurisdictionCode })}`,
     `SERVER_MISSING_INFORMATION: ${JSON.stringify(missingInformation.map((item) => redactForModel(item)))}`,
     `RULE_SOURCES: ${JSON.stringify(sources)}`,
     `SYSTEM_EVIDENCE: ${JSON.stringify(redactEvidenceForModel(systemEvidence, directory))}`,

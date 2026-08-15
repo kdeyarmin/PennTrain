@@ -86,6 +86,18 @@ export function parseVoiceToolRequest(
     ) {
       return { ok: false, error: "topic must be a supported copilot topic" };
     }
+    // The "citations" topic maps to the copilot's citation_evidence intent, which
+    // rejects a request without its citation context — require it at parse time so
+    // the voice path fails with a speakable reason instead of a structural 400.
+    if (args.topic === "citations") {
+      const citationQuery = args.citation_query;
+      if (typeof citationQuery !== "string" || citationQuery.trim().length === 0) {
+        return {
+          ok: false,
+          error: "citation_query is required when topic is \"citations\"",
+        };
+      }
+    }
   }
   if (tool === "get_upcoming_deadlines") {
     const days = args.days;
@@ -221,7 +233,10 @@ export interface TrainingDueRow {
   due_date: unknown;
 }
 export interface CredentialRow {
-  credential_label: unknown;
+  /** Free-text column that can carry a person's name (e.g. "Mary Jones RN
+   *  license") — never spoken; summarizeDeadlines ignores it even when a
+   *  caller still fetches it. */
+  credential_label?: unknown;
   credential_type: unknown;
   status: unknown;
   expiration_date: unknown;
@@ -300,9 +315,12 @@ export function summarizeDeadlines(
   }
   for (const row of credentials) {
     if (typeof row.expiration_date !== "string") continue;
+    // Speak the constrained credential_type code, never credential_label:
+    // the label is free text and can carry a person's name, which would
+    // break this module's "type labels, never person names" contract.
     items.push({
       kind: "credential",
-      label: `${humanizeToken(row.credential_label ?? row.credential_type, "Staff credential")} expiring`,
+      label: `${humanizeToken(row.credential_type, "Staff credential")} expiring`,
       dueOn: row.expiration_date,
     });
   }

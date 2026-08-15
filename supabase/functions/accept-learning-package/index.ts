@@ -115,7 +115,8 @@ Deno.serve(async (req: Request) => {
     .from(bucket)
     .download(pkg.storage_path);
   if (dlError || !zipBlob) {
-    return json(req, { error: `Storage download failed: ${dlError?.message ?? "no data"}` }, 502);
+    console.error("accept-learning-package: storage download failed", dlError?.message ?? "no data");
+    return json(req, { error: "Unable to stage the learning package" }, 502);
   }
   const zipBytesOriginal = new Uint8Array(await zipBlob.arrayBuffer());
   if (zipBytesOriginal.byteLength > MAX_ZIP_BYTES) {
@@ -194,7 +195,8 @@ Deno.serve(async (req: Request) => {
     .from(bucket)
     .upload(pkg.storage_path, newZipBytes, { contentType: "application/zip", upsert: true });
   if (uploadError) {
-    return json(req, { error: `Storage upload failed: ${uploadError.message}` }, 502);
+    console.error("accept-learning-package: storage upload failed", uploadError.message);
+    return json(req, { error: "Unable to stage the learning package" }, 502);
   }
 
   // 8. Update content_sha256 to reflect the modified package
@@ -203,7 +205,8 @@ Deno.serve(async (req: Request) => {
     .update({ content_sha256: newHash })
     .eq("id", pkg.id);
   if (hashUpdateError) {
-    return json(req, { error: `Failed to update content hash: ${hashUpdateError.message}` }, 502);
+    console.error("accept-learning-package: content hash update failed", hashUpdateError.message);
+    return json(req, { error: "Unable to stage the learning package" }, 502);
   }
 
   // 9. Mark accepted via RPC (uses the caller JWT so auth.uid() is correct in audit log)

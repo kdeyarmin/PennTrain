@@ -110,23 +110,44 @@ Deno.serve(async (req: Request) => {
   const binderItem = packetItems.find((i) => i.source_type === "binder_export" && i.source_id);
   const effectiveBinderId = binderItem?.source_id ?? binderJobId;
   if (effectiveBinderId) {
-    // Scoped to the resolved organization. `binder_export_job_id` arrives straight from the request
-    // body, and this read uses the service-role client, which bypasses RLS -- so without the
-    // organization_id predicate a user entitled to build a packet for their OWN org could name
-    // another tenant's binder job and have that organization's compliance binder PDF, its appendix
-    // manifest and its CSVs packaged into the signed download they receive. `orgId` is already
-    // resolved above (the caller's own org, or the packet's org for a platform_admin); the binder
-    // simply has to belong to it.
-    const { data: job } = await admin.from("binder_export_jobs")
+    // `binder_export_job_id` arrives straight from the request body, and the storage download
+    // below uses the service-role client, which bypasses RLS. Visibility is therefore proved
+    // through the caller's own client first: binder_export_jobs_select scopes org_admins to
+    // their org and facility_managers to binders whose facility_ids sit inside their
+    // assignments (an org-wide binder is deliberately NOT theirs to take -- see
+    // 20260714214435's remediation notes). Reading with `admin` scoped only to organization_id
+    // let an FM package an org-wide or foreign-facility binder that binder RLS and the
+    // binder-exports storage policy both refuse to hand them directly. platform_admin keeps
+    // the service-role read (their reach is all orgs); the org predicate stays as belt and
+    // braces for them.
+    const binderReader = profile.role === "platform_admin" ? admin : caller;
+    const { data: job, error: jobError } = await binderReader.from("binder_export_jobs")
       .select("id, status, storage_bucket, storage_path, content_sha256, organization_id")
       .eq("id", effectiveBinderId)
       .eq("organization_id", orgId)
       .maybeSingle();
-    if (job?.status === "succeeded" && job.storage_path) {
+    if (jobError) {
+      console.error("survey packet: binder job read failed", jobError.message);
+      return json(req, { error: "Unable to verify the binder export" }, 500);
+    }
+    // The binder was explicitly part of this packet. Packaging without it would record an
+    // immutable, hash-stamped export whose central document is silently absent -- an
+    // incomplete packet that reads as authoritative survey evidence. Refuse instead.
+    if (!job) {
+      return json(req, { error: "Binder export not found or not accessible for this packet" }, 409);
+    }
+    if (job.status !== "succeeded" || !job.storage_path) {
+      return json(req, { error: "Binder export is not finished yet — retry once it has succeeded" }, 409);
+    }
+    {
       const { data: fileBlob, error: dlErr } = await admin.storage
         .from(job.storage_bucket || "binder-exports")
         .download(job.storage_path);
-      if (!dlErr && fileBlob) {
+      if (dlErr || !fileBlob) {
+        console.error("survey packet: binder download failed", dlErr?.message ?? "no data");
+        return json(req, { error: "Unable to download the binder export — retry shortly" }, 502);
+      }
+      {
         const bytes = new Uint8Array(await fileBlob.arrayBuffer());
         await zip.addFile("binder/compliance-binder.pdf", bytes, { compress: false });
         binderIncluded = true;
