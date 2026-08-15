@@ -5207,6 +5207,7 @@ export type Database = {
           review_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          scan_attempts: number
           scan_evidence: Json
           scan_provider: string | null
           scan_status: string
@@ -5232,6 +5233,7 @@ export type Database = {
           review_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          scan_attempts?: number
           scan_evidence?: Json
           scan_provider?: string | null
           scan_status?: string
@@ -5257,6 +5259,7 @@ export type Database = {
           review_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          scan_attempts?: number
           scan_evidence?: Json
           scan_provider?: string | null
           scan_status?: string
@@ -36957,6 +36960,7 @@ export type Database = {
           p_error?: string
           p_external_resource_id?: string
           p_id: string
+          p_retryable?: boolean
           p_success: boolean
         }
         Returns: undefined
