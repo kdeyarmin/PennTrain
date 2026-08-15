@@ -14,7 +14,11 @@
 -- carry their own contract-validation exception handling -- they mark the receipt
 -- 'rejected' and file an integration exception rather than raising -- so the loop's own
 -- handler only catches the unexpected, marking that receipt 'dead_letter' instead of
--- wedging the whole drain behind one poison command.
+-- wedging the whole drain behind one poison command. One nuance the apply functions force
+-- on this loop: their catch-everything marks TRANSIENT database faults (deadlock,
+-- serialization, resource pressure) 'rejected' too, which is terminal -- so the drain
+-- inspects the returned errorCode and re-opens receipts whose failure class is transient,
+-- bounded by a retry counter so nothing cycles forever.
 
 create or replace function app_private.drain_integration_command_inbox(p_limit integer default 20)
 returns jsonb
@@ -26,8 +30,17 @@ declare
   v_row record;
   v_applied integer := 0;
   v_rejected integer := 0;
+  v_retried integer := 0;
   v_dead integer := 0;
   v_result jsonb;
+  v_error_code text;
+  v_prior_retries integer;
+  -- Transient database conditions: serialization/deadlock, lock and resource pressure,
+  -- statement cancellation, connection-class faults. The apply functions catch these
+  -- internally and mark the receipt 'rejected' -- terminal -- which would lose an accepted
+  -- partner bundle to a deadlock. The drain re-opens such receipts (bounded) instead.
+  v_transient constant text[] := array['40001', '40P01', '55P03', '57014'];
+  v_max_transient_retries constant integer := 5;
 begin
   for v_row in
     select r.id, r.command_type
@@ -48,7 +61,34 @@ begin
         v_result := public.apply_medication_integration_command(v_row.id);
       end if;
       if v_result ? 'errorCode' then
-        v_rejected := v_rejected + 1;
+        v_error_code := v_result->>'errorCode';
+        if v_error_code = any (v_transient)
+           or v_error_code like '53%'
+           or v_error_code like '08%' then
+          -- The apply function already marked the receipt 'rejected'; re-open it so the
+          -- next tick retries, carrying a bounded counter so a persistently "transient"
+          -- failure still terminates visibly instead of cycling forever.
+          select coalesce((r.result->>'transientRetries')::integer, 0)
+          into v_prior_retries
+          from app_private.integration_command_receipts r
+          where r.id = v_row.id;
+          if v_prior_retries < v_max_transient_retries then
+            update app_private.integration_command_receipts
+            set status = 'accepted',
+                result = coalesce(result, '{}'::jsonb)
+                  || jsonb_build_object('transientRetries', v_prior_retries + 1),
+                updated_at = now()
+            where id = v_row.id;
+            v_retried := v_retried + 1;
+          else
+            update app_private.integration_command_receipts
+            set status = 'dead_letter', updated_at = now()
+            where id = v_row.id;
+            v_dead := v_dead + 1;
+          end if;
+        else
+          v_rejected := v_rejected + 1;
+        end if;
       else
         v_applied := v_applied + 1;
       end if;
@@ -62,7 +102,8 @@ begin
     end;
   end loop;
 
-  return jsonb_build_object('applied', v_applied, 'rejected', v_rejected, 'deadLettered', v_dead);
+  return jsonb_build_object('applied', v_applied, 'rejected', v_rejected,
+    'transientRetried', v_retried, 'deadLettered', v_dead);
 end;
 $$;
 

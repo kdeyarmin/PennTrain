@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1.0.14";
-import { paToday, paZonelessToUtcIso } from "./paDay.ts";
+import { paToday, paZonelessDateImpossible, paZonelessToUtcIso } from "./paDay.ts";
 
 // The clock is injected rather than mocked, so these assert on fixed instants and cannot drift.
 
@@ -63,4 +63,14 @@ Deno.test("paZonelessToUtcIso converts fractional-second wall-clock values too",
   // would fall through unconverted and be misread as UTC again.
   assertEquals(paZonelessToUtcIso("2026-08-14 21:30:00.123"), "2026-08-15T01:30:00.123Z");
   assertEquals(paZonelessToUtcIso("2026-08-14T21:30:00.1234567"), "2026-08-15T01:30:00.123Z");
+});
+
+Deno.test("impossible calendar dates pass through unconverted and are detectable", () => {
+  // Date.UTC would roll 2026-02-30 to March 2 -- a valid instant on a day nobody wrote.
+  assertEquals(paZonelessToUtcIso("2026-02-30"), "2026-02-30");
+  assertEquals(paZonelessToUtcIso("2026-02-30 10:00"), "2026-02-30 10:00");
+  assertEquals(paZonelessDateImpossible("2026-02-30"), true);
+  assertEquals(paZonelessDateImpossible("2026-02-28"), false);
+  assertEquals(paZonelessDateImpossible("2024-02-29"), false); // leap day is real
+  assertEquals(paZonelessDateImpossible("not-a-date"), false); // wrong shape is not this failure
 });

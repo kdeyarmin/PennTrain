@@ -82,10 +82,52 @@ Deno.serve(async (req: Request) => {
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const limit = Math.min(Math.max(Math.trunc(body.limit ?? body.batchSize ?? 20), 1), 100);
 
+  // The run ledger is what the watchdog and /admin/system-jobs read -- pg_cron delivery
+  // success is deliberately ignored for edge_cron definitions (the 20260814010000 lesson),
+  // so a drain that never records runs reads as permanently stale while its cron requests
+  // succeed, and operator "run now" rows stay stuck at queued.
+  const { data: jobClaim, error: jobClaimError } = await admin.rpc("claim_system_job_execution", {
+    p_job_key: "fhir-writeback-drain",
+    p_correlation_id: correlationId,
+    p_trigger_type: "scheduled",
+    p_provider_request_id: req.headers.get("x-request-id"),
+  });
+  if (jobClaimError) return json({ error: "job_claim_failed", correlationId }, 500);
+  const claim = Array.isArray(jobClaim) ? jobClaim[0] : jobClaim;
+  const systemJobRunId = claim?.run_id as string | undefined;
+  if (!systemJobRunId) return json({ error: "job_claim_failed", correlationId }, 500);
+  if (!claim?.should_execute) {
+    return json({ success: true, replayed: true, correlationId, runId: systemJobRunId });
+  }
+
+  const finishRun = async (
+    status: "succeeded" | "partial" | "failed",
+    attempted: number,
+    succeeded: number,
+    failedCount: number,
+    result: Record<string, unknown>,
+    errorMessage: string | null,
+  ) => {
+    const { error } = await admin.rpc("finish_system_job", {
+      p_run_id: systemJobRunId,
+      p_status: status,
+      p_attempted_count: attempted,
+      p_succeeded_count: succeeded,
+      p_failed_count: failedCount,
+      p_result: result,
+      p_error_code: errorMessage ? "writeback_drain_failed" : null,
+      p_error_message: errorMessage,
+    });
+    if (error) console.error("fhir-writeback: finish_system_job failed", error.message);
+  };
+
   const { data: claimRows, error: claimError } = await admin.rpc("claim_fhir_writeback_batch", {
     p_limit: limit,
   });
-  if (claimError) return json({ error: "claim_failed", correlationId }, 500);
+  if (claimError) {
+    await finishRun("failed", 0, 0, 0, { correlationId }, "claim_fhir_writeback_batch failed");
+    return json({ error: "claim_failed", correlationId }, 500);
+  }
 
   const claimed = (claimRows ?? []) as ClaimedWriteback[];
   let sent = 0;
@@ -109,6 +151,21 @@ Deno.serve(async (req: Request) => {
         if (!destination.valid) {
           throw new TypeError(`Unsafe write-back destination: ${destination.reason ?? "rejected"}`);
         }
+        // Retries are only safe if a re-sent create cannot duplicate the resource: a network
+        // error or timeout is ambiguous AFTER the POST bytes left -- the EHR may have created
+        // the resource without this worker seeing the response. Stamp a deterministic
+        // identifier (the queue row's origin id, unique per source observation) into the
+        // payload and send FHIR conditional create (If-None-Exist) keyed on it, so a
+        // conforming server treats the retry as a no-op returning the existing resource.
+        // Non-conforming servers ignore the header, which degrades to today's risk, not
+        // below it.
+        const identifierSystem = `https://cmcarebase.com/fhir/identifiers/${row.origin_kind.replace(/_/g, "-")}`;
+        const payloadWithIdentity = {
+          ...row.fhir_payload,
+          identifier: Array.isArray(row.fhir_payload.identifier)
+            ? row.fhir_payload.identifier
+            : [{ system: identifierSystem, value: row.origin_id }],
+        };
         const outbound = await phase2PinnedWebhookRequest(
           fhirCreateUrl(row.target_url, row.resource_type),
           {
@@ -118,8 +175,9 @@ Deno.serve(async (req: Request) => {
               "Accept": "application/fhir+json",
               "User-Agent": "CareMetric-CareBase-FHIR-Writeback/1.0",
               "X-Correlation-Id": correlationId,
+              "If-None-Exist": `identifier=${identifierSystem}|${row.origin_id}`,
             },
-            body: JSON.stringify(row.fhir_payload),
+            body: JSON.stringify(payloadWithIdentity),
             timeoutMs: 15_000,
           },
           destination.addresses,
@@ -171,5 +229,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const result = { claimed: claimed.length, sent, failed, persistenceErrors, correlationId };
+  await finishRun(
+    persistenceErrors > 0 ? "partial" : "succeeded",
+    claimed.length,
+    sent,
+    failed + persistenceErrors,
+    result,
+    persistenceErrors > 0 ? "some write-back outcomes could not be recorded" : null,
+  );
   return json(result, persistenceErrors > 0 ? 500 : 200);
 });

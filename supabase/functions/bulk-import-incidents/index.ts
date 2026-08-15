@@ -4,7 +4,7 @@ import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
-import { paZonelessToUtcIso } from "../_shared/paDay.ts";
+import { paZonelessDateImpossible, paZonelessToUtcIso } from "../_shared/paDay.ts";
 import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
@@ -172,6 +172,11 @@ Deno.serve(async (req: Request) => {
     if (!occurredAt) rowErrors.push("occurred_at is required");
     else if (!/^\d{4}-\d{2}-\d{2}([T ].+)?$/.test(occurredAt) || Number.isNaN(Date.parse(occurredAt))) {
       rowErrors.push("occurred_at must be an ISO 8601 date or timestamp (YYYY-MM-DD or YYYY-MM-DD HH:MM)");
+    } else if (paZonelessDateImpossible(occurredAt)) {
+      // Date.parse is finite for "2026-02-30" (V8 rolls the day), so the check above passes
+      // it; the converter refuses to invent a different day, so refuse the row here instead
+      // of letting apply fail -- or worse, record the incident on a date nobody wrote.
+      rowErrors.push("occurred_at names a calendar date that does not exist");
     }
     // Zone-less values are Pennsylvania wall clock: Postgres would otherwise parse them in
     // the UTC session zone and an evening (or date-only) incident lands on the previous ET

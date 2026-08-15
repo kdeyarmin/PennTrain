@@ -420,6 +420,28 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
       const updatePayload = Object.fromEntries(
         Object.entries(payload).filter(([key]) => key !== "organization_id" && ledgerKeys.has(key)),
       );
+      // The creator-scope boundary must hold for the target's CURRENT facility, not just
+      // the facility the ledger payload names: the payload is a snapshot from validation
+      // time (or a hand-crafted chunk row), and checking it alone let a facility manager's
+      // rescued update reach an employee since transferred out of their scope -- or move
+      // one back in.
+      if (job.creatorFacilityScope != null) {
+        const { data: targetEmployee, error: targetErr } = await supabase
+          .from("employees")
+          .select("facility_id")
+          .eq("id", row.target_id)
+          .eq("organization_id", job.organization_id)
+          .maybeSingle();
+        if (targetErr) {
+          await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: failed to verify update target scope (${targetErr.message})`);
+          continue;
+        }
+        const targetFacility = asStringOrNull((targetEmployee as { facility_id?: string } | null)?.facility_id);
+        if (!targetFacility || facilityOutsideCreatorScope(job, targetFacility)) {
+          await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: update target's facility is outside the creating manager's assigned scope`);
+          continue;
+        }
+      }
       const { data: updatedEmployee, error: updateErr } = await supabase
         .from("employees")
         .update(updatePayload)
@@ -555,7 +577,7 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
       }
       const { data: existingResident, error: existingResidentErr } = await supabase
         .from("residents")
-        .select("id,organization_id")
+        .select("id,organization_id,facility_id")
         .eq("id", row.target_id)
         .eq("organization_id", job.organization_id)
         .maybeSingle();
@@ -566,6 +588,12 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
           RESIDENT_TARGET_TABLE,
           `Row ${row.row_number}: ${existingResidentErr?.message ?? "resident target was not found in the job organization"}`,
         );
+        continue;
+      }
+      // Same boundary as employees: the target's CURRENT facility must sit inside the
+      // creating manager's scope, not merely the facility the ledger snapshot names.
+      if (facilityOutsideCreatorScope(job, String(existingResident.facility_id ?? ""))) {
+        await markLedgerRowFailureForTable(supabase, row, RESIDENT_TARGET_TABLE, `Row ${row.row_number}: update target's facility is outside the creating manager's assigned scope`);
         continue;
       }
       // Mirror bulk-import-residents' update semantics: only columns the ledger row carries.
@@ -1206,20 +1234,52 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return response({ error: "Service credentials are missing" }, 503);
 
+  const supabase = createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  let systemJobRunId: string | undefined;
   try {
-    const supabase = createClient(url, serviceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     const payload = await req.json().catch(() => ({}));
     const requested = Number((payload as { limit?: number }).limit ?? 3);
     const limit = Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested), 1), 10) : 3;
 
+    // The run ledger is what the watchdog and /admin/system-jobs read -- pg_cron delivery
+    // success is deliberately ignored for edge_cron definitions (the 20260814010000
+    // lesson), so a worker that never records runs reads as permanently stale while its
+    // cron requests succeed, and operator "run now" rows stay stuck at queued.
+    const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
+    const { data: jobClaim, error: jobClaimError } = await supabase.rpc("claim_system_job_execution", {
+      p_job_key: "durable-data-import-worker",
+      p_correlation_id: correlationId,
+      p_trigger_type: "scheduled",
+      p_provider_request_id: req.headers.get("x-request-id"),
+    });
+    if (jobClaimError) throw jobClaimError;
+    const runClaim = Array.isArray(jobClaim) ? jobClaim[0] : jobClaim;
+    systemJobRunId = (runClaim as { run_id?: string } | null)?.run_id;
+    if (!systemJobRunId) throw new Error("durable-data-import-worker job claim returned no run");
+    if (!(runClaim as { should_execute?: boolean }).should_execute) {
+      return response({ success: true, replayed: true, correlationId, runId: systemJobRunId });
+    }
+
     const { data: claimed, error: claimErr } = await supabase.rpc("claim_data_import_jobs", {
       p_limit: limit,
       p_claim_seconds: 600,
     });
-    if (claimErr) throw claimErr;
+    if (claimErr) {
+      await supabase.rpc("finish_system_job", {
+        p_run_id: systemJobRunId,
+        p_status: "failed",
+        p_attempted_count: 0,
+        p_succeeded_count: 0,
+        p_failed_count: 0,
+        p_result: { correlationId },
+        p_error_code: "import_claim_failed",
+        p_error_message: String(claimErr.message ?? claimErr).slice(0, 2000),
+      });
+      throw claimErr;
+    }
 
     const jobs = (claimed ?? []) as ClaimedJob[];
     const results: Array<{
@@ -1300,9 +1360,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    const failedJobs = results.filter((entry) => !entry.ok).length;
+    const { error: finishErr } = await supabase.rpc("finish_system_job", {
+      p_run_id: systemJobRunId,
+      p_status: failedJobs === 0 ? "succeeded" : (failedJobs === results.length && results.length > 0 ? "failed" : "partial"),
+      p_attempted_count: jobs.length,
+      p_succeeded_count: results.length - failedJobs,
+      p_failed_count: failedJobs,
+      p_result: { correlationId, claimed: jobs.length, results },
+      p_error_code: failedJobs > 0 ? "import_jobs_failed" : null,
+      p_error_message: failedJobs > 0 ? `${failedJobs} import job(s) failed this run` : null,
+    });
+    if (finishErr) console.error("process-data-import-jobs: finish_system_job failed", finishErr.message);
     return response({ success: true, claimed: jobs.length, results });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // Close the run ledger too, or a mid-run throw leaves the watchdog staring at a
+    // permanently 'running' row instead of a failure it can alert on.
+    if (systemJobRunId) {
+      const { error: finishErr } = await supabase.rpc("finish_system_job", {
+        p_run_id: systemJobRunId,
+        p_status: "failed",
+        p_attempted_count: 0,
+        p_succeeded_count: 0,
+        p_failed_count: 0,
+        p_result: {},
+        p_error_code: "import_worker_failed",
+        p_error_message: message.slice(0, 2000),
+      });
+      if (finishErr) console.error("process-data-import-jobs: failure finish_system_job failed", finishErr.message);
+    }
     return response({ success: false, error: message }, 500);
   }
 });

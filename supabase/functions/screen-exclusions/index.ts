@@ -81,6 +81,11 @@ interface SamSweepResume {
   cursor: string | null;
   screenedNames: number;
   totalNames: number;
+  // When the sweep began. The completion pass re-screens names from employees created or
+  // renamed after this instant whose keys sort into the already-swept prefix -- without it,
+  // a new hire whose name sorts before the cursor would be skipped by every resumed run and
+  // the snapshot would activate "complete" without ever querying them.
+  startedAt: string;
 }
 
 function errorMessage(error: unknown): string {
@@ -342,6 +347,7 @@ async function sweepSamGov(
   apiKey: string,
   snapshotId: string,
   resumeCursor: string | null,
+  sweepStartedAt: string,
   deadlineAt: number,
 ): Promise<SamSweepOutcome> {
   const names = await loadSamRosterNameKeys(adminClient);
@@ -381,6 +387,45 @@ async function sweepSamGov(
     screened += 1;
   }
 
+  // Completion catch-up: the roster is reloaded per invocation, so an employee hired or
+  // renamed while the sweep was parked -- whose key sorts INTO the already-swept prefix --
+  // was skipped by the cursor on every resumed pass. Screen exactly those late arrivals
+  // before the snapshot may activate as complete. Idempotent across partial catch-ups: the
+  // updated_at filter re-selects them until this pass finishes inside one budget.
+  const { data: lateRows, error: lateErr } = await adminClient
+    .from("employees")
+    .select("first_name, last_name")
+    .eq("status", "active")
+    .gte("updated_at", sweepStartedAt);
+  if (lateErr) {
+    throw new Error(`Failed to load late roster changes for SAM.gov screening: ${lateErr.message}`);
+  }
+  const lateNames = new Map<string, { first: string; last: string; key: string }>();
+  for (const row of (lateRows ?? []) as Array<{ first_name: string; last_name: string }>) {
+    const key = `${row.first_name}\u0000${row.last_name}`.toLowerCase();
+    if (cursor !== null && key <= cursor && !lateNames.has(key)) {
+      lateNames.set(key, { first: row.first_name, last: row.last_name, key });
+    }
+  }
+  for (const name of lateNames.values()) {
+    if (Date.now() >= deadlineAt) {
+      return { completed: false, cursor, screenedNames: screened, totalNames: names.length, throttled };
+    }
+    let entries: ExclusionListEntryRow[];
+    try {
+      entries = await loadSamGovForEmployee(apiKey, name.first, name.last);
+    } catch (error) {
+      if (error instanceof SamThrottleError) {
+        throttled = true;
+        return { completed: false, cursor, screenedNames: screened, totalNames: names.length, throttled };
+      }
+      throw error;
+    }
+    if (entries.length > 0) {
+      await stageEntries(adminClient, snapshotId, deduplicateEntries(entries));
+    }
+  }
+
   return { completed: true, cursor, screenedNames: screened, totalNames: names.length, throttled };
 }
 
@@ -417,13 +462,16 @@ async function getSamSweepResume(
     candidate && typeof candidate === "object" &&
     typeof candidate.refreshCorrelationId === "string" &&
     UUID_PATTERN.test(candidate.refreshCorrelationId) &&
-    (candidate.cursor === null || typeof candidate.cursor === "string")
+    (candidate.cursor === null || typeof candidate.cursor === "string") &&
+    typeof candidate.startedAt === "string" &&
+    Number.isFinite(Date.parse(candidate.startedAt))
   ) {
     return {
       refreshCorrelationId: candidate.refreshCorrelationId,
       cursor: candidate.cursor,
       screenedNames: Number(candidate.screenedNames) || 0,
       totalNames: Number(candidate.totalNames) || 0,
+      startedAt: candidate.startedAt,
     };
   }
   return null;
@@ -647,6 +695,7 @@ async function refreshSamResumable(
   // staging run and snapshot, and resets a failed run back to staging. A fresh sweep mints
   // a fresh id and therefore a fresh snapshot.
   const refreshCorrelationId = priorResume?.refreshCorrelationId ?? crypto.randomUUID();
+  const sweepStartedAt = priorResume?.startedAt ?? new Date().toISOString();
   const handle = await beginRefresh(adminClient, refreshCorrelationId, "sam_exclusions");
   if (handle.status === "succeeded" || handle.status === "superseded") {
     // A stale cursor pointing at an already-terminal run: nothing to continue.
@@ -659,6 +708,7 @@ async function refreshSamResumable(
       apiKey,
       handle.snapshotId,
       priorResume?.cursor ?? null,
+      sweepStartedAt,
       deadlineAt,
     );
     if (!sweep.completed) {
@@ -677,6 +727,7 @@ async function refreshSamResumable(
           cursor: sweep.cursor,
           screenedNames: sweep.screenedNames,
           totalNames: sweep.totalNames,
+          startedAt: sweepStartedAt,
         },
         partial: true,
       };
