@@ -5,6 +5,7 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
 import { paToday } from "../_shared/paDay.ts";
+import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -56,7 +57,10 @@ Deno.serve(async (req: Request) => {
   }
 
   let body: any;
-  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  try { body = await readJsonBody(req, MAX_IMPORT_BODY_BYTES); } catch (error) {
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
   const csv = body.csv;
   if (!csv || typeof csv !== "string") return json(req, { error: "csv (string) is required" }, 400);
   const offset = Number.isFinite(body.offset) ? Math.max(0, Math.floor(body.offset)) : 0;
@@ -110,7 +114,9 @@ Deno.serve(async (req: Request) => {
   }
   const facilityByName = new Map(facilities.map((f: any) => [String(f.name).trim().toLowerCase(), f.id as string]));
 
-  const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
+  // An omitted limit is capped to the ledger RPC's 200-row chunk contract rather than the whole
+  // file -- see bulk-import-employees for the failure this prevents. Callers page via nextOffset.
+  const endIndex = Math.min(offset + (limit ?? 200), rows.length);
   if (offset >= rows.length) {
     return json(req, { success: true, mode, job_id: jobId, total: 0, succeeded: 0, failed: 0, results: [], totalRows: rows.length, offset, nextOffset: null });
   }
@@ -207,10 +213,17 @@ Deno.serve(async (req: Request) => {
     let data: any = null;
     let error: any = null;
     if (action === "update") {
-      const res = await callerClient.from("residents").update({
-        first_name: first, last_name: last, date_of_birth: dob, room,
+      // Only columns this CSV actually carries: `dob`/`room` default to null when their
+      // header is absent, and writing them unconditionally erased a resident's recorded
+      // date of birth and room on a re-import meant to touch neither.
+      const updatePayload: any = {
+        first_name: first,
+        last_name: last,
         preferred_name: externalId ? `import:${externalId}` : existing.preferred_name,
-      }).eq("id", existing.id).select("id").single();
+      };
+      if ("date_of_birth" in rows[0]) updatePayload.date_of_birth = dob;
+      if ("room" in rows[0]) updatePayload.room = room;
+      const res = await callerClient.from("residents").update(updatePayload).eq("id", existing.id).select("id").single();
       data = res.data; error = res.error;
     } else {
       const res = await callerClient.from("residents").insert(payload).select("id").single();
@@ -221,7 +234,17 @@ Deno.serve(async (req: Request) => {
       ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "failed", targetTable: TARGET, targetId: existing?.id ?? null, beforeSnapshot: existing, errors: [error.message], warnings });
     } else {
       results.push({ row: rowNumber, success: true, record_id: data.id, action });
-      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "applied", targetTable: TARGET, targetId: data.id, beforeSnapshot: existing, errors: [], warnings });
+      // Receipt each applied row before touching the next one -- batching receipts at chunk
+      // end meant a died tab left rows written but still "valid" in the ledger, and the
+      // durable worker's rescue then re-applied them as duplicates (the fix bulk-import-
+      // employees already carries; see its per-row receipt comment).
+      const { error: receiptError } = await callerClient.rpc("record_data_import_row_receipt", {
+        p_job_id: jobId,
+        p_row: { rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "applied", targetTable: TARGET, targetId: data.id, beforeSnapshot: existing, errors: [], warnings },
+      });
+      if (receiptError) {
+        return json(req, { error: `Row ${rowNumber} was applied but its import receipt failed: ${receiptError.message}`, job_id: jobId }, 500);
+      }
     }
   }
 

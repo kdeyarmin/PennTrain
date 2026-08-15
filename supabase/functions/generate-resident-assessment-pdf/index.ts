@@ -14,6 +14,7 @@ import {
   selectFirstMatchingRadioOption,
   setFirstMatchingTextField,
 } from "../_shared/dhsStateFormFill.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -455,7 +456,9 @@ function drawTemplateText(
   maxChars = 42,
 ): boolean {
   if (!text) return false;
-  const value = String(text).replace(/\s+/g, " ").trim();
+  // toWinAnsi: Helvetica's WinAnsi encoder throws on non-CP1252 characters (resident and
+  // contact names), which failed the whole packet render.
+  const value = toWinAnsi(String(text)).replace(/\s+/g, " ").trim();
   if (!value) return false;
   page.drawText(
     value.length > maxChars ? `${value.slice(0, maxChars - 1)}…` : value,
@@ -684,10 +687,35 @@ class PdfWriter {
   }
 
   wrapText(text: string, x: number, maxWidth: number, size: number) {
-    const words = (text || "—").split(/\s+/);
+    // toWinAnsi: widthOfTextAtSize throws on non-CP1252 characters before any draw runs.
+    const words = toWinAnsi(text || "—").split(/\s+/);
     let line = "";
     let first = true;
-    for (const word of words) {
+    for (let word of words) {
+      // A single unbroken token wider than the column (pasted URLs, run-together IDs) would
+      // silently draw past the page edge -- hard-break it at character level instead.
+      if (this.font.widthOfTextAtSize(word, size) > maxWidth) {
+        if (line) {
+          this.ensureSpace(14);
+          this.page.drawText(line, { x, y: this.y, size, font: this.font, color: rgb(0.1, 0.1, 0.1) });
+          this.y -= 14;
+          line = "";
+          first = false;
+        }
+        let chunk = "";
+        for (const ch of word) {
+          if (chunk && this.font.widthOfTextAtSize(chunk + ch, size) > maxWidth) {
+            this.ensureSpace(14);
+            this.page.drawText(chunk, { x, y: this.y, size, font: this.font, color: rgb(0.1, 0.1, 0.1) });
+            this.y -= 14;
+            first = false;
+            chunk = ch;
+          } else {
+            chunk += ch;
+          }
+        }
+        word = chunk;
+      }
       const candidate = line ? `${line} ${word}` : word;
       if (this.font.widthOfTextAtSize(candidate, size) > maxWidth && line) {
         this.ensureSpace(14);
@@ -910,7 +938,17 @@ async function buildAssessmentPdf(input: {
   );
   w.field("Prepared Date", input.preparedDate ?? "—");
   if (input.finalizedAt)
-    w.field("Finalized", new Date(input.finalizedAt).toLocaleString());
+    // Pin the facility's zone: the Deno runtime default is UTC on Supabase, which printed an
+    // evening Eastern finalization as the next calendar day -- directly under a Prepared/Signed
+    // date it then appeared to postdate.
+    w.field(
+      "Finalized",
+      new Date(input.finalizedAt).toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "America/New_York",
+      }),
+    );
 
   w.heading("Part I & II — Resident and Assessment Information");
   w.field("Resident", input.residentName);
@@ -1281,7 +1319,22 @@ Deno.serve(async (req: Request) => {
     uploaded_by_profile_id: callerUser.id,
     is_state_form: false,
   });
-  if (docError) return json(req, { error: docError.message }, 500);
+  if (docError) {
+    // Racing duplicate requests (a double-clicked "Generate PDF") can both pass the pre-check;
+    // the loser hits resident_documents_resident_document_label_udx. Answer it like the
+    // pre-check does -- the document exists -- instead of surfacing a raw constraint error.
+    if (docError.code === "23505") {
+      return json(req,
+        {
+          error:
+            "A document has already been generated for this finalized form. Contact an administrator if it needs to be replaced.",
+        },
+        409,
+      );
+    }
+    console.error("resident assessment pdf: resident_documents insert failed", docError.message);
+    return json(req, { error: "Unable to record the generated document" }, 500);
+  }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)

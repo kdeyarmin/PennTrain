@@ -89,6 +89,7 @@ describe("public access flow governance", () => {
       "/move-in-access/:token",
       "/passport/:slug",
       "/resident-agreement-access/:token",
+      "/survey-packet-access/:token",
       "/verify/:slug",
     ]);
   });

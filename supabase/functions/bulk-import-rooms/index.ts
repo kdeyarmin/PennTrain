@@ -4,6 +4,7 @@ import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
+import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -51,7 +52,10 @@ Deno.serve(async (req: Request) => {
   }
 
   let body: any;
-  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  try { body = await readJsonBody(req, MAX_IMPORT_BODY_BYTES); } catch (error) {
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
   const csv = body.csv;
   if (!csv || typeof csv !== "string") return json(req, { error: "csv (string) is required" }, 400);
   const offset = Number.isFinite(body.offset) ? Math.max(0, Math.floor(body.offset)) : 0;
@@ -105,7 +109,9 @@ Deno.serve(async (req: Request) => {
   }
   const facilityByName = new Map(facilities.map((f: any) => [String(f.name).trim().toLowerCase(), f.id as string]));
 
-  const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
+  // An omitted limit is capped to the ledger RPC's 200-row chunk contract rather than the whole
+  // file -- see bulk-import-employees for the failure this prevents. Callers page via nextOffset.
+  const endIndex = Math.min(offset + (limit ?? 200), rows.length);
   if (offset >= rows.length) {
     return json(req, { success: true, mode, job_id: jobId, total: 0, succeeded: 0, failed: 0, results: [], totalRows: rows.length, offset, nextOffset: null });
   }

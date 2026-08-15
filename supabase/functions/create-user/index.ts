@@ -90,7 +90,8 @@ Deno.serve(async (req: Request) => {
       return json(req, { error: "Demo workspaces cannot invite or provision users" }, 403);
     }
   } catch (error) {
-    return json(req, { error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
+    console.error("create-user: demo workspace check failed", error instanceof Error ? error.message : error);
+    return json(req, { error: "Unable to verify demo workspace" }, 500);
   }
 
   // Authorization matrix: who may create which role, in which org.

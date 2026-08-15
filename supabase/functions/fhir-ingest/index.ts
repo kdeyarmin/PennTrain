@@ -56,8 +56,14 @@ Deno.serve(async (req: Request) => {
     p_required_scope: "commands:write",
     p_correlation_id: correlationId,
   });
+  // A failed authenticate RPC is a service fault, not a dead credential: answering 401 makes
+  // partner clients treat a healthy key as revoked (and page someone) whenever the DB hiccups.
+  // 503 tells them to retry; 401 stays reserved for a credential the RPC actually rejected.
+  if (authError) {
+    return response(req, { error: { code: "authentication_unavailable" }, meta: { correlationId } }, 503, correlationId);
+  }
   const credential = Array.isArray(authRows) ? authRows[0] : authRows;
-  if (authError || !credential) {
+  if (!credential) {
     return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
   }
   const { data: rateRows, error: rateError } = await admin.rpc("consume_integration_rate_limit", {

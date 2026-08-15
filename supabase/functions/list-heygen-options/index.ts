@@ -43,9 +43,16 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "not authorized to list HeyGen options" }, 403);
   }
 
+  // Bound the vendor round-trips -- a HeyGen brownout must fail fast, not hold the request open.
   const [avatarsRes, voicesRes] = await Promise.all([
-    fetch("https://api.heygen.com/v3/avatars/looks?limit=50", { headers: { "x-api-key": heygenApiKey } }),
-    fetch("https://api.heygen.com/v3/voices?limit=50", { headers: { "x-api-key": heygenApiKey } }),
+    fetch("https://api.heygen.com/v3/avatars/looks?limit=50", {
+      headers: { "x-api-key": heygenApiKey },
+      signal: AbortSignal.timeout(10_000),
+    }),
+    fetch("https://api.heygen.com/v3/voices?limit=50", {
+      headers: { "x-api-key": heygenApiKey },
+      signal: AbortSignal.timeout(10_000),
+    }),
   ]);
   const [avatarsBody, voicesBody] = await Promise.all([
     avatarsRes.json().catch(() => null),

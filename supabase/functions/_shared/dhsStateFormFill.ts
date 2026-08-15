@@ -5,6 +5,8 @@
 // The DHS PDFs are the source of truth: these helpers never invent a substitute layout, and a
 // template whose fields were renamed or removed simply fills fewer (or zero) fields.
 
+import { toWinAnsi } from "./pdfText.ts";
+
 export interface DhsTemplateSource {
   url: string;
   sourceLabel: string;
@@ -155,7 +157,10 @@ export function setFirstMatchingTextField(
     try {
       if (typeof field.setText === "function") {
         if (fontSize != null && typeof field.setFontSize === "function") field.setFontSize(fontSize);
-        field.setText(String(value));
+        // WinAnsi boundary: appearance regeneration (updateFieldAppearances / flatten /
+        // doc.save) throws on non-CP1252 characters in a field value when the template's
+        // appearance font is a standard one, which failed the whole form export.
+        field.setText(toWinAnsi(String(value)));
         if (lock) field.enableReadOnly?.();
         return true;
       }

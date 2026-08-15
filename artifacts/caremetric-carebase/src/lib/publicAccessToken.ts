@@ -12,6 +12,7 @@ export const PUBLIC_ACCESS_FLOWS: readonly PublicAccessFlow[] = [
   { name: "documentation guest", tokenPath: "/evidence-access/:token", cleanPath: "/evidence-access", storageKey: "carebase-evidence-room-token", requiresServerAudit: true },
   { name: "move-in guest", tokenPath: "/move-in-access/:token", cleanPath: "/move-in-access", storageKey: "carebase-move-in-guest-token", requiresServerAudit: true },
   { name: "resident agreement guest", tokenPath: "/resident-agreement-access/:token", cleanPath: "/resident-agreement-access", storageKey: "carebase-resident-agreement-token", requiresServerAudit: true },
+  { name: "survey packet guest", tokenPath: "/survey-packet-access/:token", cleanPath: "/survey-packet-access", storageKey: "carebase-survey-packet-token", requiresServerAudit: true },
   { name: "maintenance/check-in", tokenPath: "/checkin/:token", cleanPath: "/checkin", storageKey: "checkin-access-token", requiresServerAudit: true },
   { name: "training passport", tokenPath: "/passport/:slug", cleanPath: "/passport", storageKey: null, requiresServerAudit: false },
   { name: "certificate verification", tokenPath: "/verify/:slug", cleanPath: "/verify", storageKey: null, requiresServerAudit: false },

@@ -8,6 +8,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 const ANALYZER_BUCKET = "state-form-analyzer";
 const SIGNED_URL_TTL_SECONDS = 600;
@@ -34,27 +35,8 @@ function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
 }
 
 // Extracted handwriting transcriptions routinely carry characters outside WinAnsi (check
-// marks, smart punctuation from OCR, accented names beyond Latin-1); pdf-lib's standard
-// Helvetica throws on the first such character, which would fail the whole packet.
-// Substitute rather than crash -- the reviewer approved the on-screen text; the PDF marks
-// what it cannot render.
-const WINANSI_EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ ");
-function toWinAnsi(text: string): string {
-  let out = "";
-  for (const ch of text.normalize("NFC").replace(/\r\n?/g, "\n").replace(/\t/g, "  ")) {
-    const code = ch.codePointAt(0)!;
-    if (ch === "\n" || (code >= 0x20 && code <= 0x7e) || (code >= 0xa1 && code <= 0xff) || WINANSI_EXTRA.has(ch)) {
-      out += ch;
-    } else if (ch === "✓" || ch === "✔" || ch === "☑") {
-      out += "[x]";
-    } else if (ch === "☐" || ch === "☒") {
-      out += "[ ]";
-    } else {
-      out += "?";
-    }
-  }
-  return out;
-}
+// marks, smart punctuation from OCR, accented names beyond Latin-1); shared toWinAnsi
+// substitutes rather than letting pdf-lib's Helvetica throw and fail the whole packet.
 
 function wrapText(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
   const lines: string[] = [];
@@ -272,8 +254,13 @@ Deno.serve(async (req: Request) => {
       ? callerClient.from("facilities").select("id, name").in("id", facilityIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (approversRes.error) return json(req, { error: approversRes.error.message }, 500);
-  if (facilitiesRes.error) return json(req, { error: facilitiesRes.error.message }, 500);
+  if (approversRes.error || facilitiesRes.error) {
+    console.error(
+      "analyzer packet: lookup reads failed",
+      approversRes.error?.message ?? facilitiesRes.error?.message,
+    );
+    return json(req, { error: "Unable to load packet reference data" }, 500);
+  }
   const approverById = new Map((approversRes.data ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`]));
   const facilityById = new Map((facilitiesRes.data ?? []).map((f) => [f.id, f.name]));
 

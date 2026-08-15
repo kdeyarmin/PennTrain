@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -44,7 +45,9 @@ interface CorrectiveActionRow { description: string; due_date: string; completed
 // pasted URL) is hard-broken across lines rather than left to overflow -- nothing is ever clipped
 // at the page edge.
 function wrapTextToLines(text: string, maxWidth: number, font: PDFFont, size: number): string[] {
-  const words = (text || "—").split(/\s+/).filter(Boolean);
+  // toWinAnsi: widthOfTextAtSize throws on non-CP1252 characters (names, pasted narrative)
+  // before any draw runs, which 500'd the whole report.
+  const words = toWinAnsi(text || "—").split(/\s+/).filter(Boolean);
   if (words.length === 0) return ["—"];
   const lines: string[] = [];
   let line = "";
@@ -102,7 +105,7 @@ class PdfWriter {
   heading(text: string) {
     this.ensureSpace(28);
     this.y -= 20;
-    this.page.drawText(text, { x: MARGIN, y: this.y, size: 13, font: this.bold, color: rgb(0.16, 0.22, 0.44) });
+    this.page.drawText(toWinAnsi(text), { x: MARGIN, y: this.y, size: 13, font: this.bold, color: rgb(0.16, 0.22, 0.44) });
     this.y -= 4;
     this.page.drawLine({
       start: { x: MARGIN, y: this.y }, end: { x: PAGE_WIDTH - MARGIN, y: this.y },
@@ -114,26 +117,14 @@ class PdfWriter {
   field(label: string, value: string) {
     this.ensureSpace(16);
     this.page.drawText(label, { x: MARGIN, y: this.y, size: 9, font: this.bold, color: rgb(0.35, 0.35, 0.35) });
-    this.page.drawText(value || "—", { x: MARGIN + 130, y: this.y, size: 10, font: this.font, color: rgb(0.1, 0.1, 0.1) });
+    this.page.drawText(toWinAnsi(value || "—"), { x: MARGIN + 130, y: this.y, size: 10, font: this.font, color: rgb(0.1, 0.1, 0.1) });
     this.y -= 16;
   }
 
   paragraph(text: string) {
-    const maxWidth = PAGE_WIDTH - MARGIN * 2;
-    const words = (text || "—").split(/\s+/);
-    let line = "";
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (this.font.widthOfTextAtSize(candidate, 10) > maxWidth && line) {
-        this.ensureSpace(14);
-        this.page.drawText(line, { x: MARGIN, y: this.y, size: 10, font: this.font });
-        this.y -= 14;
-        line = word;
-      } else {
-        line = candidate;
-      }
-    }
-    if (line) {
+    // Delegate to wrapTextToLines so a single long token (a pasted pharmacy-portal URL in a
+    // narrative) is hard-broken instead of drawn past the page edge and lost in print.
+    for (const line of wrapTextToLines(text, PAGE_WIDTH - MARGIN * 2, this.font, 10)) {
       this.ensureSpace(14);
       this.page.drawText(line, { x: MARGIN, y: this.y, size: 10, font: this.font });
       this.y -= 14;
@@ -176,7 +167,7 @@ async function buildIncidentReportPdf(input: {
 
   w.page.drawText("Reportable Incident Report", { x: MARGIN, y: w.y, size: 18, font: w.bold, color: rgb(0.16, 0.22, 0.44) });
   w.y -= 22;
-  w.page.drawText(`${input.organizationName} — ${input.facilityName}`, { x: MARGIN, y: w.y, size: 11, font: w.font, color: rgb(0.35, 0.35, 0.35) });
+  w.page.drawText(toWinAnsi(`${input.organizationName} — ${input.facilityName}`), { x: MARGIN, y: w.y, size: 11, font: w.font, color: rgb(0.35, 0.35, 0.35) });
   w.y -= 20;
 
   w.heading("Incident Summary");

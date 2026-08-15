@@ -16,7 +16,12 @@ function json(req: Request, body: unknown, status = 200) {
  */
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return corsPreflightResponse(req);
-  if (req.method !== "POST" && req.method !== "GET") {
+  // POST-only, like the sibling guest endpoints (evidence-guest-download,
+  // resident-portal-download): a GET ?token= form put the long-lived grant credential into
+  // browser history and any gateway/proxy log line for a PHI-bearing packet, and nothing ever
+  // minted such a URL -- the guest page at /survey-packet-access carries the token instead and
+  // POSTs it from tab-scoped storage.
+  if (req.method !== "POST") {
     return json(req, { error: "Method not allowed" }, 405);
   }
 
@@ -25,19 +30,14 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(supabaseUrl, serviceKey);
 
   let token = "";
-  if (req.method === "GET") {
-    const url = new URL(req.url);
-    token = url.searchParams.get("token") ?? "";
-  } else {
-    try {
-      // Capped read. This endpoint is public (verify_jwt=false) and req.json() buffers whatever
-      // it is sent; every other public function here goes through readJsonBody for that reason.
-      const body = await readJsonBody<{ token?: unknown }>(req);
-      token = typeof body?.token === "string" ? body.token : "";
-    } catch (error) {
-      if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
-      return json(req, { error: "Invalid JSON body" }, 400);
-    }
+  try {
+    // Capped read. This endpoint is public (verify_jwt=false) and req.json() buffers whatever
+    // it is sent; every other public function here goes through readJsonBody for that reason.
+    const body = await readJsonBody<{ token?: unknown }>(req);
+    token = typeof body?.token === "string" ? body.token : "";
+  } catch (error) {
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
   }
   if (token.length < 32) return json(req, { error: "token is required" }, 400);
 

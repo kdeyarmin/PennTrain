@@ -122,7 +122,8 @@ Deno.serve(async (req: Request) => {
       return json(req, { error: "Demo workspaces cannot invite or provision users" }, 403);
     }
   } catch (error) {
-    return json(req, { error: error instanceof Error ? error.message : "Unable to verify demo workspace" }, 500);
+    console.error("invite-user: demo workspace check failed", error instanceof Error ? error.message : error);
+    return json(req, { error: "Unable to verify demo workspace" }, 500);
   }
 
   // Same authorization matrix as create-user, minus the password/org-required distinction --
@@ -277,6 +278,24 @@ Deno.serve(async (req: Request) => {
       user_id: invited.user.id,
       lifecycle_error: invitationError.message,
     });
+    // On an employee invite, provisioning already linked employees.profile_id to the new
+    // profile, and that FK (ON DELETE NO ACTION) blocks the auth-user delete below -- the
+    // compensating cleanup then failed and the "retry cleanly" promise broke with an
+    // account stuck half-provisioned. Detach the link first so the delete can succeed.
+    if (employeeToLink?.id) {
+      const { error: detachError } = await adminClient
+        .from("employees")
+        .update({ profile_id: null })
+        .eq("id", employeeToLink.id)
+        .eq("profile_id", invited.user.id);
+      if (detachError) {
+        console.error("invite-user lifecycle cleanup could not detach employee link", {
+          user_id: invited.user.id,
+          employee_id: employeeToLink.id,
+          detach_error: detachError.message,
+        });
+      }
+    }
     const { error: cleanupError } = await adminClient.auth.admin.deleteUser(invited.user.id);
     if (cleanupError) {
       console.error("invite-user lifecycle cleanup failed", {

@@ -68,22 +68,25 @@ async function fetchAllByOrganization(
   table: string,
   organizationId: string,
 ): Promise<JsonRow[]> {
-  // Ordered by primary key, because `.range()` is OFFSET/LIMIT and OFFSET over an unordered
-  // relation is not a stable sweep: Postgres may return a different row order for each page, so a
-  // document reference can land in two pages or in none. Silently omitting one from the export
-  // archive is the failure mode that matters here -- the manifest would still call the export
-  // complete. `export_organization_table` already orders by `t.id` for the same reason; this path
-  // (the storage-reference collection) was the one sweep that did not.
+  // Keyset pagination (`id > last`), not OFFSET: each page is its own transaction, and a row
+  // deleted mid-sweep shifts every later row back one slot under OFFSET, silently dropping the
+  // row at each page boundary from an export whose manifest still calls itself complete.
+  // Ordering by primary key keeps the sweep stable for the same reason.
   const pageSize = 1000;
   const rows: JsonRow[] = [];
-  for (let from = 0;; from += pageSize) {
-    const { data, error } = await admin.from(table).select("*")
+  let lastId: unknown = null;
+  for (;;) {
+    let query = admin.from(table).select("*")
       .eq("organization_id", organizationId)
       .order("id", { ascending: true })
-      .range(from, from + pageSize - 1);
+      .limit(pageSize);
+    if (lastId !== null) query = query.gt("id", lastId);
+    const { data, error } = await query;
     if (error) throw new Error(`${table}: ${error.message}`);
-    rows.push(...((data ?? []) as JsonRow[]));
-    if (!data || data.length < pageSize) break;
+    const page = (data ?? []) as JsonRow[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    lastId = page[page.length - 1].id;
   }
   return rows;
 }

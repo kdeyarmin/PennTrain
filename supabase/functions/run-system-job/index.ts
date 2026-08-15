@@ -31,6 +31,14 @@ const EDGE_JOBS: Record<
     functionName: "send-regulatory-digest",
     body: { recipientCap: 500 },
   },
+  "durable-data-import-worker": {
+    functionName: "process-data-import-jobs",
+    body: { limit: 3 },
+  },
+  "fhir-writeback-drain": {
+    functionName: "fhir-writeback",
+    body: {},
+  },
 };
 
 function json(req: Request, body: unknown, status = 200) {

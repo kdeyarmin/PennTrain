@@ -98,6 +98,11 @@ Deno.serve(async (req: Request) => {
       let success = false;
       let externalId: string | null = null;
       let errorMessage: string | null = null;
+      // Transient provider trouble (network failure, timeout, throttle, server error) goes
+      // back to 'pending' for the next tick instead of parking at terminal 'failed' -- one
+      // EHR restart at drain time otherwise stranded the observation forever. Config and
+      // contract failures (bad destination, 4xx) stay terminal.
+      let retryable = false;
       try {
         if (!row.target_url) throw new TypeError("Write-back source has no FHIR base URL");
         const destination = await validatePhase2WebhookDestination(row.target_url);
@@ -125,9 +130,13 @@ Deno.serve(async (req: Request) => {
           externalId = extractResourceId(responseText);
         } else {
           errorMessage = `FHIR endpoint returned HTTP ${outbound.status}`;
+          retryable = outbound.status === 408 || outbound.status === 429 || outbound.status >= 500;
         }
       } catch (error) {
         errorMessage = sanitizePhase2IntegrationError(error);
+        // TypeError marks this run's own configuration guards above; everything else out of
+        // the pinned transport is a network-level failure worth retrying.
+        retryable = !(error instanceof TypeError);
       }
 
       // The resource has ALREADY been POSTed by this point, so failing to record the outcome is
@@ -142,6 +151,7 @@ Deno.serve(async (req: Request) => {
           p_success: success,
           p_external_resource_id: externalId,
           p_error: errorMessage,
+          p_retryable: retryable,
         });
         completionError = error;
         if (!error) break;

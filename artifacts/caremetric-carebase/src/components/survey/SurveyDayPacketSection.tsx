@@ -22,6 +22,7 @@ import {
 } from "@/lib/surveyEvidencePacket";
 import { QueryError } from "@/components/QueryState";
 import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { absoluteAppUrl } from "@/lib/appUrl";
 
 /**
  * Lazy Survey Day section: packet selection, zip package, and surveyor guest grant.
@@ -158,7 +159,7 @@ export default function SurveyDayPacketSection({
   const [packetCitation, setPacketCitation] = useState("");
   const [assembledManifest, setAssembledManifest] = useState<Record<string, unknown> | null>(null);
   const [guestLabel, setGuestLabel] = useState("Surveyor packet access");
-  const [lastGuestToken, setLastGuestToken] = useState<string | null>(null);
+  const [lastGuestLink, setLastGuestLink] = useState<string | null>(null);
 
   const packetManifest = surveyEvidencePacketManifest(pinnedBinder);
   const latestExport = (packetExports.data ?? [])[0] ?? null;
@@ -360,10 +361,14 @@ export default function SurveyDayPacketSection({
                       expiresAt: expires,
                     })
                     .then((grant) => {
-                      setLastGuestToken(grant.token);
+                      // The full link, not the bare token: nothing else ever tells the issuer
+                      // where the token can be used, so a raw token left surveyors with a
+                      // credential and no door. The guest page moves it into tab-scoped
+                      // storage and scrubs the URL on first open.
+                      setLastGuestLink(absoluteAppUrl(`/survey-packet-access/${grant.token}`));
                       toast({
                         title: "Guest grant issued",
-                        description: "Copy the token now — it is shown once.",
+                        description: "Copy the link now — it is shown once.",
                       });
                     })
                     .catch((e: unknown) => {
@@ -374,9 +379,9 @@ export default function SurveyDayPacketSection({
                 Issue surveyor guest link
               </Button>
             </div>
-            {lastGuestToken && (
+            {lastGuestLink && (
               <p className="break-all rounded bg-amber-50 p-2 font-mono text-[11px] text-amber-800">
-                Token (copy now): {lastGuestToken}
+                Surveyor link (copy now): {lastGuestLink}
               </p>
             )}
             <GuestGrantList

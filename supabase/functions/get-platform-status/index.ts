@@ -34,10 +34,16 @@ Deno.serve(async (req: Request) => {
   let maintenanceMode = false;
   let signupEnabled = true;
 
-  const { data: rows } = await adminClient
+  const { data: rows, error } = await adminClient
     .from("platform_settings")
     .select("key, value")
     .in("key", ["maintenance_mode", "signup_enabled"]);
+  // Failing open (maintenance off, signups on) is the designed fallback, but doing it silently
+  // hid the difference between "settings read fine" and "the maintenance gate just vanished for
+  // everyone because the select failed" -- leave a trace an operator can find.
+  if (error) {
+    console.error("get-platform-status: platform_settings read failed; serving fail-open defaults", error.message);
+  }
 
   for (const row of rows ?? []) {
     if (row.key === "maintenance_mode") maintenanceMode = Boolean(row.value);

@@ -35,3 +35,39 @@ const PA_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
 export function paToday(now: Date = new Date()): string {
   return PA_DAY_FORMAT.format(now);
 }
+
+const PA_OFFSET_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  timeZoneName: "longOffset",
+});
+
+/** The America/New_York UTC offset in minutes at a given instant (-300 EST, -240 EDT). */
+function paOffsetMinutesAt(instant: Date): number {
+  const name = PA_OFFSET_FORMAT.formatToParts(instant).find((part) => part.type === "timeZoneName")?.value ?? "";
+  const match = /GMT([+-])(\d{2}):(\d{2})/.exec(name);
+  if (!match) return -300;
+  const sign = match[1] === "-" ? -1 : 1;
+  return sign * (Number(match[2]) * 60 + Number(match[3]));
+}
+
+/**
+ * Interpret a zone-less "YYYY-MM-DD" or "YYYY-MM-DD[ T]HH:MM[:SS]" wall-clock value as
+ * Pennsylvania local time and return a UTC ISO string. Values that already carry a zone
+ * ("Z" or a +/-HH:MM offset) pass through unchanged.
+ *
+ * Why: Postgres parses a zone-less timestamptz literal in the SESSION zone (UTC here), so an
+ * imported incident logged as "2026-08-14" landed at midnight UTC -- 8 PM ET on 2026-08-13 --
+ * and the incident rendered on the previous calendar day in every report an inspector reads.
+ */
+export function paZonelessToUtcIso(value: string): string {
+  const trimmed = value.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(trimmed);
+  if (!match) return trimmed;
+  const [, y, mo, d, h = "00", mi = "00", s = "00"] = match;
+  const asUtc = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s));
+  // Derive the ET offset from the UTC-interpreted instant, then once more from the corrected
+  // instant so a wall-clock time near a DST transition lands on the offset actually in effect.
+  const firstGuess = new Date(asUtc - paOffsetMinutesAt(new Date(asUtc)) * 60_000);
+  const offsetMinutes = paOffsetMinutesAt(firstGuess);
+  return new Date(asUtc - offsetMinutes * 60_000).toISOString();
+}

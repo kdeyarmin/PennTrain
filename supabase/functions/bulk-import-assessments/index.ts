@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
+import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -66,7 +67,10 @@ Deno.serve(async (req: Request) => {
   }
 
   let body: any;
-  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  try { body = await readJsonBody(req, MAX_IMPORT_BODY_BYTES); } catch (error) {
+    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
   const csv = body.csv;
   if (!csv || typeof csv !== "string") return json(req, { error: "csv (string) is required" }, 400);
   const offset = Number.isFinite(body.offset) ? Math.max(0, Math.floor(body.offset)) : 0;
@@ -121,7 +125,9 @@ Deno.serve(async (req: Request) => {
   const leaseError = await acquireImportJobLease(callerClient, jobId);
   if (leaseError) return json(req, { error: leaseError, job_id: jobId }, 409);
 
-  const endIndex = limit === null ? rows.length : Math.min(offset + limit, rows.length);
+  // An omitted limit is capped to the ledger RPC's 200-row chunk contract rather than the whole
+  // file -- see bulk-import-employees for the failure this prevents. Callers page via nextOffset.
+  const endIndex = Math.min(offset + (limit ?? 200), rows.length);
   if (offset >= rows.length) {
     return json(req, {
       success: true, mode, job_id: jobId, total: 0, succeeded: 0, failed: 0, results: [],
@@ -184,25 +190,37 @@ Deno.serve(async (req: Request) => {
 
     let existing: any = null;
     if (!rowErrors.length && resident && formType) {
-      const { data } = await callerClient.from("resident_assessment_forms").select("*")
-        .eq("resident_id", resident.id)
-        .eq("form_type", formType)
-        .eq("status", "draft")
-        .contains("content", { csv_import: { source_reference: sourceRef ?? "" } })
-        .order("created_at", { ascending: false })
-        .limit(1).maybeSingle();
-      // Fallback match: same form_type + prepared_date draft for this resident
-      if (!data && assessmentDate) {
+      // Match by source_reference only when the CSV carries one: the stored marker holds
+      // `source_reference: null` for rows imported without it, and matching on "" never found
+      // those -- a re-uploaded two-column CSV then previewed every row as a clean create and
+      // apply silently duplicated the drafts.
+      let bySourceRef: any = null;
+      if (sourceRef) {
+        const { data } = await callerClient.from("resident_assessment_forms").select("*")
+          .eq("resident_id", resident.id)
+          .eq("form_type", formType)
+          .eq("status", "draft")
+          .contains("content", { csv_import: { source_reference: sourceRef } })
+          .order("created_at", { ascending: false })
+          .limit(1).maybeSingle();
+        bySourceRef = data;
+      }
+      if (bySourceRef) {
+        existing = bySourceRef;
+      } else if (assessmentDate) {
+        // Fallback match: same form_type + prepared_date draft for this resident -- but only
+        // drafts that already carry the csv_import marker. Matching ANY draft here let an
+        // update-strategy import overwrite a nurse's hand-authored in-progress form with the
+        // import stub, and rollback cannot restore an overwrite (it reverts creates only).
         const { data: byDate } = await callerClient.from("resident_assessment_forms").select("*")
           .eq("resident_id", resident.id)
           .eq("form_type", formType)
           .eq("status", "draft")
           .eq("prepared_date", assessmentDate)
+          .contains("content", { csv_import: {} })
           .order("created_at", { ascending: false })
           .limit(1).maybeSingle();
         existing = byDate;
-      } else {
-        existing = data;
       }
     }
 
@@ -280,10 +298,17 @@ Deno.serve(async (req: Request) => {
       });
     } else {
       results.push({ row: rowNumber, success: true, record_id: data.id, action });
-      ledgerRows.push({
-        rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "applied",
-        targetTable: TARGET, targetId: data.id, beforeSnapshot: existing, errors: [], warnings,
+      // Receipt each applied row before touching the next one -- batching receipts at chunk
+      // end meant a died tab left rows written but still "valid" in the ledger, and the
+      // durable worker's rescue then re-applied them as duplicates (the fix bulk-import-
+      // employees already carries; see its per-row receipt comment).
+      const { error: receiptError } = await callerClient.rpc("record_data_import_row_receipt", {
+        p_job_id: jobId,
+        p_row: { rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "applied", targetTable: TARGET, targetId: data.id, beforeSnapshot: existing, errors: [], warnings },
       });
+      if (receiptError) {
+        return json(req, { error: `Row ${rowNumber} was applied but its import receipt failed: ${receiptError.message}`, job_id: jobId }, 500);
+      }
     }
   }
 

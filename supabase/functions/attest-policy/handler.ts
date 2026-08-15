@@ -77,7 +77,10 @@ export function createAttestPolicyHandler({
       )
       .eq("id", attestationId)
       .maybeSingle();
-    if (attestationError) return json(req, { error: attestationError.message }, 500);
+    if (attestationError) {
+      console.error("attest-policy: attestation read failed", attestationError.message);
+      return json(req, { error: "Unable to load this attestation" }, 500);
+    }
     if (!attestation) return json(req, { error: "Attestation not found" }, 404);
 
     const typedAttestation = attestation as unknown as {
@@ -112,7 +115,10 @@ export function createAttestPolicyHandler({
       .from("policy_campaign_questions")
       .select("id", { count: "exact", head: true })
       .eq("campaign_id", typedAttestation.campaign_id);
-    if (questionCountError) return json(req, { error: questionCountError.message }, 500);
+    if (questionCountError) {
+      console.error("attest-policy: question count read failed", questionCountError.message);
+      return json(req, { error: "Unable to verify the knowledge check" }, 500);
+    }
 
     if ((questionCount ?? 0) > 0) {
       const { data: passedAttempt, error: attemptError } = await adminClient
@@ -122,7 +128,10 @@ export function createAttestPolicyHandler({
         .eq("passed", true)
         .limit(1)
         .maybeSingle();
-      if (attemptError) return json(req, { error: attemptError.message }, 500);
+      if (attemptError) {
+        console.error("attest-policy: attempt read failed", attemptError.message);
+        return json(req, { error: "Unable to verify the knowledge check" }, 500);
+      }
       if (!passedAttempt) {
         return json(req, {
           error: "This policy requires passing its knowledge check before you can attest.",
@@ -145,7 +154,10 @@ export function createAttestPolicyHandler({
       .eq("status", "pending")
       .select("id, status, attested_at")
       .maybeSingle();
-    if (updateError) return json(req, { error: updateError.message }, 500);
+    if (updateError) {
+      console.error("attest-policy: attestation update failed", updateError.message);
+      return json(req, { error: "Unable to record this attestation" }, 500);
+    }
     if (!updated) return json(req, { error: "This policy has already been attested" }, 409);
 
     return json(req, { success: true, attestation: updated });

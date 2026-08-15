@@ -1,7 +1,9 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
+  failAgedOutHeygenJob,
   type HeygenJobState,
+  isHeygenJobAgedOut,
   pollAndResolveHeygenVideo,
 } from "../_shared/heygenPolling.ts";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
@@ -156,11 +158,29 @@ Deno.serve(async (req: Request) => {
         heygenApiKey,
         true,
       );
-      if (result.status === "completed") completed++;
-      else if (result.status === "failed" || result.status === "error") {
-        failed++;
-      } else stillProcessing++;
+      let outcome = result.status;
+      // Age out permanently-stalled jobs: a deleted/expired video_id errors on every poll, and an
+      // errored poll writes nothing, so the block would otherwise be re-selected forever with the
+      // UI stuck on "processing". Polling happens FIRST so a job that genuinely finished can still
+      // resolve (and re-host its video) however old it is; only jobs the poll could not terminate
+      // and whose requested_at exceeds the generous render window are written as failed, through
+      // the same privileged path as every other poller write. Rows that cannot be dated are never
+      // aged out (isHeygenJobAgedOut), and an error never becomes "completed".
+      if (
+        outcome !== "completed" && outcome !== "failed" && outcome !== "no_job" &&
+        isHeygenJobAgedOut(block.body?.heygen)
+      ) {
+        outcome = (await failAgedOutHeygenJob(adminClient, block, true)).status;
+      }
+      if (outcome === "completed") completed++;
+      else if (outcome === "failed" || outcome === "error") failed++;
+      else stillProcessing++;
     } catch {
+      // A thrown poll (network-level failure) also writes nothing; age out here too so a
+      // permanently unreachable job still terminates once it exceeds the render window.
+      if (isHeygenJobAgedOut(block.body?.heygen)) {
+        await failAgedOutHeygenJob(adminClient, block, true).catch(() => {});
+      }
       failed++;
     }
     processed++;

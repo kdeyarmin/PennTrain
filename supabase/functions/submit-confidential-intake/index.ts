@@ -62,8 +62,9 @@ Deno.serve(async (req) => {
   form.set("secret", secret);
   form.set("response", String(body.turnstile_token));
   if (ip !== "unknown") form.set("remoteip", ip);
+  // Bound the vendor round-trip -- a Turnstile brownout must fail fast, not hold the request open.
   const verified = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-    method: "POST", body: form,
+    method: "POST", body: form, signal: AbortSignal.timeout(10_000),
   }).then((response) => response.json()).catch(() => null) as { success?: boolean } | null;
   if (!verified?.success) {
     await finalize(false, "turnstile_failed");

@@ -221,8 +221,11 @@ Deno.serve(async (req: Request) => {
             .select("status,due_date")
             .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through)
             .order("due_date", { ascending: true }).limit(DEADLINE_ROW_LIMIT),
+          // credential_label is deliberately not selected: it is free text that
+          // can carry a person's name, and summarizeDeadlines only speaks the
+          // constrained credential_type.
           callerClient.from("employee_credentials")
-            .select("credential_type,credential_label,status,expiration_date")
+            .select("credential_type,status,expiration_date")
             .eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through)
             .order("expiration_date", { ascending: true }).limit(DEADLINE_ROW_LIMIT),
           callerClient.from("resident_compliance_items")

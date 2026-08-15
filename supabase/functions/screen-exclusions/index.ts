@@ -185,29 +185,63 @@ async function loadSamGovForEmployee(
   firstName: string,
   lastName: string,
 ): Promise<ExclusionListEntryRow[]> {
-  const url = `${SAM_GOV_BASE_URL}?api_key=${
-    encodeURIComponent(apiKey)
-  }&firstName=${encodeURIComponent(firstName)}&lastName=${
-    encodeURIComponent(lastName)
-  }`;
-  const resp = await fetch(url, {
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!resp.ok) {
-    // Silently treating throttling/server errors as "no matches" would activate a partial source.
-    throw new Error(`SAM.gov exclusion query failed: HTTP ${resp.status}`);
-  }
-  const data = (await resp.json().catch(() => null)) as {
-    excludedEntity?: SamExclusionRecord[];
-  } | null;
-  if (
-    !data ||
-    (data.excludedEntity !== undefined && !Array.isArray(data.excludedEntity))
-  ) {
-    throw new Error("SAM.gov exclusion query returned an invalid response");
+  // Page until totalRecords is reached: SAM.gov paginates (small default page), and reading
+  // only the first page silently dropped later records -- for a common name, the actual
+  // excluded individual could sit on page 2 and screen clear while listed. The page cap is a
+  // runaway guard; hitting it fails the refresh loudly rather than activating a partial list.
+  const pageSize = 100;
+  const maxPages = 25;
+  const records: SamExclusionRecord[] = [];
+  let totalRecords: number | null = null;
+  for (let page = 0; ; page++) {
+    if (page >= maxPages) {
+      throw new Error(`SAM.gov exclusion query exceeded ${maxPages} pages for one name`);
+    }
+    // The key travels in the X-Api-Key header, never the URL: a transport-level failure
+    // embeds the full URL in the error message, and that message is persisted into
+    // exclusion_refresh_runs.error / exclusion_source_state.last_error -- columns every
+    // tenant's admins can read. api.data.gov-fronted SAM.gov accepts the header form.
+    const url = `${SAM_GOV_BASE_URL}?firstName=${encodeURIComponent(firstName)}&lastName=${
+      encodeURIComponent(lastName)
+    }&page=${page}&size=${pageSize}`;
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        headers: { "X-Api-Key": apiKey },
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (error) {
+      // Deno network errors quote the full request URL (query names included); rethrow
+      // without it so nothing employee-identifying or secret-adjacent lands in the shared
+      // error columns.
+      const name = error instanceof Error ? error.name : "Error";
+      throw new Error(`SAM.gov exclusion query failed: network error (${name})`);
+    }
+    if (!resp.ok) {
+      // Silently treating throttling/server errors as "no matches" would activate a partial source.
+      throw new Error(`SAM.gov exclusion query failed: HTTP ${resp.status}`);
+    }
+    const data = (await resp.json().catch(() => null)) as {
+      totalRecords?: number;
+      excludedEntity?: SamExclusionRecord[];
+    } | null;
+    if (
+      !data ||
+      (data.excludedEntity !== undefined && !Array.isArray(data.excludedEntity))
+    ) {
+      throw new Error("SAM.gov exclusion query returned an invalid response");
+    }
+    const pageRecords = data.excludedEntity ?? [];
+    records.push(...pageRecords);
+    if (typeof data.totalRecords === "number" && Number.isFinite(data.totalRecords)) {
+      totalRecords = data.totalRecords;
+    }
+    // Stop on an empty page (nothing more to read) or once the reported total is in hand.
+    if (pageRecords.length === 0) break;
+    if (totalRecords !== null && records.length >= totalRecords) break;
   }
 
-  return deduplicateEntries((data.excludedEntity ?? []).map((record) => ({
+  return deduplicateEntries(records.map((record) => ({
     source: "sam_exclusions" as const,
     last_name: record.lastName?.trim() || lastName,
     first_name: record.firstName?.trim() || firstName,
