@@ -304,6 +304,10 @@ type CertificateRecord = {
   pdf_storage_bucket: string | null;
   pdf_storage_path: string | null;
   course_assignment_id: string | null;
+  // Snapshotted at issuance (20260830210000). Null only on certificates issued before that,
+  // which fall back to the live profile below.
+  training_provider: string | null;
+  provider_credential: string | null;
   courses:
     | {
       title: string;
@@ -342,6 +346,7 @@ async function loadCertificate(
     .select(
       "id, organization_id, slug, credential_number, issued_at, expires_at, " +
         "pdf_storage_bucket, pdf_storage_path, course_assignment_id, " +
+        "training_provider, provider_credential, " +
         "courses(title, catalog_code, course_provider_profiles(provider_full_name, credential)), " +
         "employees(first_name, last_name), organizations(name), facilities(name)",
     )
@@ -446,8 +451,11 @@ async function loadCertificateDetail(
   return {
     courseVersion,
     regulatoryReference: wording?.reference ?? null,
-    trainingProvider: profile?.provider_full_name ?? null,
-    providerCredential: profile?.credential ?? null,
+    // The snapshot taken at issuance wins. The live profile is consulted only for certificates
+    // issued before snapshotting existed -- otherwise editing the provider would restate what an
+    // already-printed certificate says, and a reprint would disagree with the original.
+    trainingProvider: cert.training_provider ?? profile?.provider_full_name ?? null,
+    providerCredential: cert.provider_credential ?? profile?.credential ?? null,
     finalExamScore,
     statement: wording?.statement ?? null,
   };

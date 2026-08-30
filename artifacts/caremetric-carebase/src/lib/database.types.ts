@@ -1387,7 +1387,9 @@ export type Database = {
           pdf_status: string
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
+          provider_credential: string | null
           slug: string
+          training_provider: string | null
           updated_at: string
         }
         Insert: {
@@ -1408,7 +1410,9 @@ export type Database = {
           pdf_status?: string
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
+          provider_credential?: string | null
           slug?: string
+          training_provider?: string | null
           updated_at?: string
         }
         Update: {
@@ -1429,7 +1433,9 @@ export type Database = {
           pdf_status?: string
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
+          provider_credential?: string | null
           slug?: string
+          training_provider?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -41989,7 +41995,9 @@ export type Database = {
           pdf_status: string
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
+          provider_credential: string | null
           slug: string
+          training_provider: string | null
           updated_at: string
         }
         SetofOptions: {

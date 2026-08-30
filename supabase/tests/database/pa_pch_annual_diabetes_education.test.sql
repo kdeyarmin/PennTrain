@@ -21,7 +21,7 @@ select results_eq(
     join public.course_versions cv on cv.id = c.current_version_id
     where c.organization_id is null and c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
   $$,
-  $$ values ('published'::text, 'published'::text, '2026.1'::text, 365) $$,
+  $$ values ('published'::text, 'published'::text, '2026.2'::text, 365) $$,
   'the annual diabetes course ships ACTIVE, not as a draft awaiting approval'
 );
 
@@ -87,11 +87,16 @@ select is(
   (
     select coalesce(string_agg(distinct spot, ', ' order by spot), '(none)')
     from (
-      select 'learner recording or upload step' as spot
+      -- 'video' is presenter instruction -- Kevin talking over slides -- and is the opposite of a
+      -- learner-recorded competency: nothing about it asks the learner to submit anything. The
+      -- block vocabulary carries no learner-submission type at all (text, video, pdf, scorm, quiz,
+      -- attestation), so this catches an unexpected block type rather than proving a negative; the
+      -- competency, upload and review-queue absences are asserted against their own tables below.
+      select 'unexpected block type: ' || cb.block_type as spot
       from public.course_blocks cb
       join public.courses c on c.current_version_id = cb.course_version_id
       where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
-        and cb.block_type not in ('text', 'quiz', 'attestation')
+        and cb.block_type not in ('text', 'video', 'quiz', 'attestation')
       union all
       select 'unreviewed AI content gate'
       from public.course_versions cv
@@ -311,15 +316,17 @@ select set_config('app.privileged_write', 'off', true);
 -- The video version's renders
 -- ---------------------------------------------------------------------------
 --
--- v2026.2 carries twelve rendered HeyGen jobs but no storage URL: the poller owns that column,
--- and a block that carries a URL before the object exists is a player broken for whoever opens
--- it first. Both halves of that are asserted, because getting either wrong ships a dead video.
+-- v2026.2 carries twelve rendered HeyGen jobs, each now resolved: an id, a completed status, and
+-- the storage path the poller re-hosted to. The sequencing that got here mattered -- the seed
+-- carried narration and a null URL so no player could ship before its object existed, the wiring
+-- added the ids, and only the publish step records the finished URLs -- but what has to hold now
+-- is the end state, because a published version with a missing id or URL is a dead video.
 
 select results_eq(
   $$
     select count(*)::integer,
            count(*) filter (where cb.body->'heygen'->>'video_id' is not null)::integer,
-           count(*) filter (where cb.body->'heygen'->>'status' = 'processing')::integer,
+           count(*) filter (where cb.body->'heygen'->>'status' = 'completed')::integer,
            count(*) filter (where cb.video_url is not null)::integer
     from public.course_blocks cb
     join public.course_versions cv on cv.id = cb.course_version_id
@@ -328,8 +335,8 @@ select results_eq(
       and cv.version_label = '2026.2'
       and cb.block_type = 'video'
   $$,
-  $$ values (12, 12, 12, 0) $$,
-  'all twelve video blocks carry a render id and none carries a storage URL yet'
+  $$ values (12, 12, 12, 12) $$,
+  'all twelve video blocks carry a render id, a completed job and a storage path'
 );
 
 -- Wiring the ids on must not have disturbed the narration or the step minutes the comprehensive
@@ -672,9 +679,14 @@ select lives_ok(
 
 select ok(
   (
+    -- Derived from the version the learner was actually assigned rather than pinned to a literal:
+    -- the claim is that the stored statement and version come from the published block, and
+    -- hardcoding a version number tests the catalog's current contents instead of that mechanism.
     select la.attestation_text like 'I attest that I personally completed this training%'
-       and la.attestation_version = 'PA-PCH-DIABETES-ANNUAL-2026.1'
+       and la.attestation_version = 'PA-PCH-DIABETES-ANNUAL-' || cv.version_label
     from public.course_learner_attestations la
+    join public.course_assignments ca on ca.id = la.course_assignment_id
+    join public.course_versions cv on cv.id = ca.course_version_id
     where la.course_assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008'
   ),
   'the signed statement and its version are stored from the published block, not from the client'
@@ -778,9 +790,16 @@ select pg_temp.act_as('d1a0e7e5-0000-4000-8000-000000000003');
 
 select ok(
   (
-    select cv.version_label = '2026.1' and cv.status = 'published'
+    -- What has to hold is that every piece of evidence names ONE version -- the one the learner
+    -- was assigned -- not that the version is any particular number. Pinning the number made this
+    -- fail the moment v2026.2 published, which is drift in the test, not in the binding.
+    select cv.status = 'published'
+       and cv.course_id = c.id
+       and la.attestation_version = 'PA-PCH-DIABETES-ANNUAL-' || cv.version_label
     from public.course_assignments ca
     join public.course_versions cv on cv.id = ca.course_version_id
+    join public.courses c on c.id = ca.course_id
+    join public.course_learner_attestations la on la.course_assignment_id = ca.id
     where ca.id = 'd1a0e7e5-0000-4000-8000-000000000008'
   ),
   'the completion stays bound to the exact course version it was taken against'
