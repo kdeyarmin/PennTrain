@@ -575,6 +575,34 @@ $function$;
 revoke all on function public.instantiate_missing_requirements(uuid)
   from public, anon, authenticated, service_role;
 
+-- The gate above is only half the wiring. instantiate_missing_requirements() now narrows on
+-- administers_insulin, but the trigger that CALLS it on an employee edit listed only facility,
+-- medication-administration, trainer and status as the signals worth reacting to. Flagging an
+-- existing employee -- the ordinary case, since insulin duties are assigned to people already on
+-- the roster far more often than to new hires -- would therefore change the flag and instantiate
+-- nothing, and the requirement would appear only whenever some unrelated field happened to move.
+-- A legally targeted staff member would be missing from every compliance view until then.
+create or replace function public.trigger_instantiate_requirements_on_employee_change()
+returns trigger language plpgsql security definer set search_path to 'public' as $function$
+begin
+  if tg_op = 'INSERT' then
+    perform public.instantiate_missing_requirements(new.id);
+  elsif tg_op = 'UPDATE' and (
+    new.facility_id is distinct from old.facility_id
+    or new.administers_medications is distinct from old.administers_medications
+    or new.administers_insulin is distinct from old.administers_insulin
+    or new.trainer_status is distinct from old.trainer_status
+    or (new.status = 'active' and old.status is distinct from 'active')
+  ) then
+    perform public.instantiate_missing_requirements(new.id);
+  end if;
+  return new;
+end;
+$function$;
+
+revoke all on function public.trigger_instantiate_requirements_on_employee_change()
+  from public, anon, authenticated, service_role;
+
 -- ---------------------------------------------------------------------------
 -- 6. Training provider / clinical review metadata
 -- ---------------------------------------------------------------------------
@@ -817,8 +845,11 @@ begin
   v_was_completed := v_assignment.status = 'completed';
   select * into v_course from public.courses where id = v_assignment.course_id;
 
-  -- Integrity gates apply only to an employee's first transition. A replay of an already-valid
-  -- completion must be able to repair a missing certificate without rewriting evidence dates.
+  -- Pacing gates stay scoped to a learner's own first transition: they exist to stop somebody
+  -- clicking through their own training, and applying them to a manager recording an in-person
+  -- class on a non-comprehensive course would break a legitimate flow. A replay of an
+  -- already-valid completion skips them so a missing certificate can be repaired without
+  -- rewriting evidence dates.
   if v_is_self and not v_was_completed then
     select * into v_progress
     from public.course_progress
@@ -841,6 +872,27 @@ begin
         using errcode = 'check_violation', hint = 'Continue through the training content, then try again.';
     end if;
 
+  end if;
+
+  -- Evidence gates are wider on purpose. require_comprehensive_self_completion() already holds
+  -- progress, the final step, applied responses and seat time against EVERY completer of a
+  -- comprehensive version, whoever calls this. What it does not check is the two things this
+  -- course's certificate actually claims: that the examination was passed and the attestation
+  -- signed. Leaving those inside the self-only branch let an authorized org admin, facility
+  -- manager or trainer call this RPC directly and mint a certificate -- and a DIABETES-EDU
+  -- renewal record -- for a learner who failed the exam and signed nothing. The management UI
+  -- hides Mark Complete for comprehensive versions, but a hidden button is not a boundary.
+  --
+  -- Scoped to comprehensive versions rather than all courses so manager-recorded completions of
+  -- ordinary courses keep working exactly as before.
+  if not v_was_completed and (
+    v_is_self
+    or exists (
+      select 1 from public.course_versions cv
+      where cv.id = v_assignment.course_version_id
+        and cv.content_standard = 'comprehensive'
+    )
+  ) then
     if exists (
       select 1
       from public.course_blocks cb

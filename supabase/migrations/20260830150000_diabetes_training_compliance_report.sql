@@ -81,12 +81,24 @@ begin
       ca.status,
       ca.completed_at,
       ca.course_version_id,
+      -- Completed assignments outrank open ones (nulls LAST), which matters for the whole of
+      -- every renewal window: self_enroll_course() lets a learner start next year's course 30
+      -- days before this year's completion expires, and that new assignment has a null
+      -- completed_at. Ranking nulls first would hand the report the open renewal and label
+      -- somebody holding a valid, unexpired certificate as not_started -- a false
+      -- non-compliance for thirty days a year, for every employee who renews on time.
       row_number() over (
         partition by ca.employee_id
-        order by ca.completed_at desc nulls first, ca.assigned_at desc
+        order by ca.completed_at desc nulls last, ca.assigned_at desc
       ) as recency
     from public.course_assignments ca
     join course c on c.id = ca.course_id
+    -- Sandbox facilities are excluded HERE, before row_number(), not only at the display join.
+    -- Ranking over a wider set than the report shows means an employee whose most recent
+    -- assignment happens to be a sandbox one wins recency with a row the display join then drops,
+    -- and the employee vanishes from a compliance report they belong on -- the one kind of error
+    -- this report must not make, because a missing row reads as nobody to chase.
+    join public.facilities sf on sf.id = ca.facility_id and not sf.is_sandbox
     where (p_facility_id is null or ca.facility_id = p_facility_id)
   ),
   latest as (

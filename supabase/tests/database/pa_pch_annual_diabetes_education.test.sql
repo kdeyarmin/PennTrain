@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(46);
+select plan(48);
 
 -- ---------------------------------------------------------------------------
 -- What the published course promises
@@ -249,6 +249,19 @@ select lives_ok(
     where catalog_code = 'PA-PCH-DIABETES-ANNUAL'
   $$,
   'and its duration stays writable with that credit active'
+);
+
+-- The flag buys exactly one thing: crediting more hours than the duration covers. It is not a
+-- licence to carry an active credit against no duration at all, which is broken data rather than
+-- a decision anybody made.
+select throws_ok(
+  $$
+    update public.courses set estimated_duration_minutes = 0
+    where catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  $$,
+  '23514',
+  'course duration cannot be shorter than an active compliance credit',
+  'but an exempt course still cannot drop to a zero duration while a credit is active'
 );
 
 -- Withdraw the exemption and both guards come straight back, which is what makes this a flag on
@@ -789,6 +802,39 @@ select ok(
     ) ->> 'totalRows')::integer >= 1
   ),
   'the PA PCH Diabetes Training Compliance Report returns the learner'
+);
+
+-- A sandbox assignment must not be able to hide a real one. This learner's newest assignment is
+-- in a sandbox facility the report never displays; if recency were ranked before that facility
+-- set was narrowed, the sandbox row would win and the display join would then drop the employee
+-- entirely -- a compliance report quietly reporting nobody to chase.
+insert into public.facilities
+  (id, organization_id, name, facility_type, state, is_sandbox, sandbox_seed_version) values
+  ('d1a0e7e5-0000-4000-8000-000000000012', 'd1a0e7e5-0000-4000-8000-000000000001',
+   'Diabetes Sandbox PCH', 'PCH', 'PA', true, 1);
+
+insert into public.course_assignments (
+  id, organization_id, facility_id, employee_id, course_id, course_version_id, assigned_by,
+  assigned_at
+)
+select
+  'd1a0e7e5-0000-4000-8000-000000000013',
+  'd1a0e7e5-0000-4000-8000-000000000001',
+  'd1a0e7e5-0000-4000-8000-000000000012',
+  'd1a0e7e5-0000-4000-8000-000000000005',
+  c.id,
+  c.current_version_id,
+  'd1a0e7e5-0000-4000-8000-000000000003',
+  now() + interval '1 day'
+from public.courses c
+where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL';
+
+select ok(
+  (
+    select (public.generate_diabetes_training_compliance_report(null, null, null, 100, 0)
+      ->> 'totalRows')::integer >= 1
+  ),
+  'and a newer sandbox assignment does not hide the learner from the all-facilities view'
 );
 
 reset role;

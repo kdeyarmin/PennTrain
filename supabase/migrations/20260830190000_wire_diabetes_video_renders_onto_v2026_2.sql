@@ -13,11 +13,15 @@
 -- body->heygen->>status is not already completed or failed, re-hosts the MP4 into the
 -- course-videos bucket, and writes the URL itself. Writing a guessed path here would race that.
 --
--- requested_at is the real submission time rather than the deploy time, which matters in one
--- direction only: it is past HEYGEN_MAX_RENDER_WINDOW_MS (24h) if this deploys a day late, and
--- the poller would then consider the job aged out. That is safe because the poller polls BEFORE
--- it ages anything out -- its own comment says so -- and all twelve jobs already report completed
--- at HeyGen, so the first tick resolves them whatever the clock says.
+-- requested_at is stamped at DEPLOY time, not at render-submission time, and the difference is
+-- load-bearing. The poller does poll before it ages a job out, so a clean tick resolves a
+-- completed job however old it is -- but a tick that errors (a transient status call, a download,
+-- a Storage upload) writes nothing and then, if the job is past HEYGEN_MAX_RENDER_WINDOW_MS (24h),
+-- goes straight to failAgedOutHeygenJob() and marks the block failed for good. Stamping the real
+-- submission time would put all twelve blocks past that window before this migration ever ran,
+-- so one hiccup on one block would permanently kill it and v2026.2 could not publish without
+-- hand repair. Deploy time gives the re-host the full retry window the constant intends. The
+-- true submission time is recorded in the deck's `rendered` key, which is where it belongs.
 --
 -- The version stays a DRAFT. current_version_id is untouched, so v2026.1 keeps serving every
 -- learner until v2 is published deliberately -- and that publication keeps the catalog duration
@@ -65,7 +69,8 @@ begin
           'status', 'processing',
           'avatar_id', '3fd2086f9f31438cb28ae57134b6affa',
           'voice_id', 'e27fe997edb94c61b755e8f4c563fe5b',
-          'requested_at', '2026-08-30T04:20:00Z'
+          -- Deploy time, deliberately: see the header note on the age-out window.
+          'requested_at', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
         ))
   from ids
   where cb.course_version_id = v_version_id

@@ -292,12 +292,14 @@ export default function TakeQuiz() {
       return map;
     }, [reviewAnswers]);
 
-    // Revealing the correct answer + explanation is safe only once there's no
-    // more opportunity to use it to game a retake: either the employee already
-    // passed, or they've used up every attempt allowed. While retakes remain
-    // on a failed attempt, only the correct/incorrect verdict is shown (as
-    // before) so the quiz still tests recall, not memorized answer letters.
-    const canRevealAnswers = !!passed || exhausted;
+    // Revealing the correct answer + explanation is safe once there's no more opportunity to use
+    // it to game a retake -- the employee passed, or used up every allowed attempt -- and also on
+    // a quiz that opts in as a formative knowledge check, where immediate feedback after a wrong
+    // answer is the entire point of the step. That opt-in cannot leak an examination key: the
+    // database constrains reveals_answers_after_attempt to quiz_kind = 'knowledge_check', so a
+    // final exam can never carry it, and its key stays hidden until the learner passes.
+    const canRevealAnswers = !!passed || exhausted ||
+      activeQuiz.reveals_answers_after_attempt === true;
     const { data: reviewChoices } = useGetQuizReview(canRevealAnswers ? attemptId : undefined);
     const reviewByQuestion = useMemo(() => {
       const map = new Map<string, { correctText: string | null; explanation: string | null }>();

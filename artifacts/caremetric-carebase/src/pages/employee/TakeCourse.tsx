@@ -1048,7 +1048,8 @@ useEffect(() => {
                           </label>
                           <p id={`${__fieldIds}-attestation-help`} className="text-xs text-muted-foreground">
                             Your name, the date and time, this course version, and the exact statement text are
-                            recorded with your training record. Your certificate is issued as soon as you sign.
+                            recorded with your training record. Signing is the last requirement -- finish the
+                            course below and your certificate is issued automatically, without anyone else's approval.
                           </p>
                           <Button
                             onClick={handleSignAttestation}

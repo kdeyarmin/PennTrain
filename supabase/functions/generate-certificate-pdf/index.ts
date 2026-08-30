@@ -246,8 +246,9 @@ async function buildCertificatePdf(input: {
     0.5,
   ]);
   y -= 16;
-  const verifyUrl = `https://cmcarebase.com/verify/${input.slug}`;
-  center(`Verify at cmcarebase.com/verify/${input.slug}`, y, 9, font, [
+  const verifyBase = verificationBase();
+  const verifyUrl = `${verifyBase}/verify/${input.slug}`;
+  center(`Verify at ${verifyUrl.replace(/^https?:\/\//, "")}`, y, 9, font, [
     0.5,
     0.5,
     0.5,
@@ -359,6 +360,25 @@ async function loadCertificate(
  * training was designed to address, which is what the regulation supports. Extending this map is
  * how another regulated course gets its own line; a course that is not in it prints no statement.
  */
+const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+
+/**
+ * Origin for the printed and encoded verification link.
+ *
+ * A certificate outlives the request that made it, and a staging or preview deployment that
+ * hard-codes production sends every scanner to a host where its own certificate slug does not
+ * exist. generate-class-notice-pdf resolves generated links the same way.
+ */
+function verificationBase(): string {
+  const configured = (Deno.env.get("PUBLIC_APP_URL") ?? DEFAULT_APP_ORIGIN).replace(/\/+$/, "");
+  try {
+    const parsed = new URL(configured.includes("://") ? configured : `https://${configured}`);
+    return `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return DEFAULT_APP_ORIGIN;
+  }
+}
+
 const CERTIFICATE_STATEMENTS: Record<string, { statement: string; reference: string }> = {
   "PA-PCH-DIABETES-ANNUAL": {
     statement:
@@ -391,11 +411,15 @@ async function loadCertificateDetail(
 
   if (cert.course_assignment_id) {
     // The version the learner actually took, not whatever the course points at today.
-    const { data: assignment } = await adminClient
+    const { data: assignment, error: versionError } = await adminClient
       .from("course_assignments")
       .select("course_versions(version_label, version_number)")
       .eq("id", cert.course_assignment_id)
       .maybeSingle();
+    // A transient failure here is not "this certificate has no version". Swallowing it would
+    // print a regulatory document missing its version and examination score, upload it, and mark
+    // the job succeeded -- so the retry path that exists for exactly this never runs.
+    if (versionError) throw versionError;
     const rawVersion = (assignment as { course_versions?: unknown } | null)?.course_versions ?? null;
     const version = (Array.isArray(rawVersion) ? rawVersion[0] : rawVersion) as
       | { version_label: string | null; version_number: number }
@@ -404,12 +428,13 @@ async function loadCertificateDetail(
       courseVersion = version.version_label ?? `v${version.version_number}`;
     }
 
-    const { data: attempts } = await adminClient
+    const { data: attempts, error: attemptsError } = await adminClient
       .from("quiz_attempts")
       .select("score_percent, quizzes!inner(quiz_kind)")
       .eq("assignment_id", cert.course_assignment_id)
       .eq("passed", true)
       .eq("quizzes.quiz_kind", "final_exam");
+    if (attemptsError) throw attemptsError;
     for (const row of (attempts ?? []) as Array<{ score_percent: number | null }>) {
       if (row.score_percent === null) continue;
       finalExamScore = finalExamScore === null

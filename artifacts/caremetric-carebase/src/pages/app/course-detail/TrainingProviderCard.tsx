@@ -66,7 +66,11 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isLoading || loadedFor === courseId) return;
+    // isError matters as much as isLoading here. On a failed load the query settles with
+    // profile undefined, so hydrating would blank every field AND mark the course loaded --
+    // after which a successful Retry can no longer fill the form in, and an administrator
+    // looking at blanks could save them over the stored regulatory metadata.
+    if (isLoading || isError || loadedFor === courseId) return;
     setForm({
       provider_full_name: profile?.provider_full_name ?? "",
       professional_title: profile?.professional_title ?? "",

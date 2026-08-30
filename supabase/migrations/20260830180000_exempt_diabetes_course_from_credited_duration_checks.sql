@@ -18,9 +18,10 @@
 --
 -- Exempting only the first would leave the second free to reject the same arrangement from the
 -- other side, so the flag is honoured by both. What it switches off in each is exactly the
--- credit-hours-versus-duration comparison; the structural checks around it stay on, because a
--- crosswalk that points at another course's version or at a course with no duration at all is
--- broken for reasons that have nothing to do with how long the course runs.
+-- credit-hours-versus-duration comparison, and nothing else: in BOTH validators a course that
+-- carries an active credit must still have a positive duration, and a crosswalk must still
+-- point at its own course's version. Those are broken for reasons that have nothing to do with
+-- how long the course runs, so no flag should wave them through.
 --
 -- Scope is one row. The default is false, every other course keeps both checks unchanged, and
 -- the flag lives on courses, which already carries an audit_log_trigger, so switching it on or
@@ -44,10 +45,10 @@ language plpgsql
 set search_path = 'public'
 as $function$
 begin
-  if new.credited_duration_check_exempt then
-    return new;
-  end if;
-
+  -- The flag guards the hours comparison ONLY. A course carrying an active credit still has to
+  -- have a positive duration, exempt or not: "credits four hours against sixty minutes" is a
+  -- decision someone made, "credits four hours against no duration at all" is broken data, and an
+  -- early return here would have waved both through.
   if exists (
     select 1
     from public.course_compliance_credits cc
@@ -56,7 +57,10 @@ begin
       and (
         new.estimated_duration_minutes is null
         or new.estimated_duration_minutes <= 0
-        or cc.credit_hours > round(new.estimated_duration_minutes::numeric / 60.0, 2)
+        or (
+          not new.credited_duration_check_exempt
+          and cc.credit_hours > round(new.estimated_duration_minutes::numeric / 60.0, 2)
+        )
       )
   ) then
     raise exception 'course duration cannot be shorter than an active compliance credit'
