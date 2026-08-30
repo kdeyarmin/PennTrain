@@ -108,16 +108,26 @@ select is(
   'the course is reading, knowledge checks and an attestation only -- no recording, upload or review step'
 );
 
+-- The provider is one string in one field, at the provider's direction. The empty columns are the
+-- assertion, not an omission: the certificate prints "name, credential" when both are set, so
+-- anything repopulating those fields puts a second claim on the certificate that was explicitly
+-- not wanted -- and post-nominals living in the name is what keeps it to one line.
 select results_eq(
   $$
-    select p.credential, p.content_version, tt.code
+    select p.provider_full_name, p.professional_title, p.credential, p.credential_number,
+           p.credential_issuing_organization, p.credential_expires_on,
+           p.content_version, tt.code
     from public.courses c
     join public.course_provider_profiles p on p.course_id = c.id
     join public.training_types tt on tt.id = c.renewal_training_type_id
     where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
   $$,
-  $$ values ('CDCES'::text, '2026.1'::text, 'DIABETES-EDU'::text) $$,
-  'provider credential and the annual renewal requirement are recorded on the course'
+  $$ values (
+    'Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'::text,
+    null::text, null::text, null::text, null::text, null::date,
+    '2026.1'::text, 'DIABETES-EDU'::text
+  ) $$,
+  'the course names its responsible provider, with the credential fields deliberately empty'
 );
 
 -- ---------------------------------------------------------------------------
@@ -757,11 +767,17 @@ select ok(
 
 select ok(
   (
+    -- trainer_credentials is null because the provider directed that the separate credential
+    -- field stay empty; the attribution is not lost, it moved. trainer_name and training_provider
+    -- both carry the full string, post-nominals included, so the regulatory record still names a
+    -- credentialed person -- which is what this assertion is actually for.
     select r.status = 'compliant'
        and r.due_date = r.completion_date + 365
        and r.score = 90.00
        and r.certificate_number is not null
-       and r.trainer_credentials = 'CDCES'
+       and r.trainer_credentials is null
+       and r.trainer_name = 'Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'
+       and r.training_provider = 'Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'
     from public.employee_training_records r
     join public.training_types tt on tt.id = r.training_type_id
     where r.employee_id = 'd1a0e7e5-0000-4000-8000-000000000005'
