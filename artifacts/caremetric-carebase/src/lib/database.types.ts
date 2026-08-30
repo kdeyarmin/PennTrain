@@ -5225,6 +5225,7 @@ export type Database = {
           content_standard: string
           course_id: string
           created_at: string
+          credited_duration_rationale: string | null
           description: string | null
           id: string
           organization_id: string | null
@@ -5241,6 +5242,7 @@ export type Database = {
           content_standard?: string
           course_id: string
           created_at?: string
+          credited_duration_rationale?: string | null
           description?: string | null
           id?: string
           organization_id?: string | null
@@ -5257,6 +5259,7 @@ export type Database = {
           content_standard?: string
           course_id?: string
           created_at?: string
+          credited_duration_rationale?: string | null
           description?: string | null
           id?: string
           organization_id?: string | null

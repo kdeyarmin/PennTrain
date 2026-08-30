@@ -109,11 +109,17 @@ select is(
     where c.organization_id is null
       and c.status = 'published'
       and cv.content_standard = 'comprehensive'
-      and public.get_course_version_designed_minutes(cv.id)
-        <> c.estimated_duration_minutes
+      -- A version may deliver the credited duration in less step time when the training provider
+      -- records why (20260830170000). Without that written determination the two must still match
+      -- exactly, and with it the steps may never exceed what the course credits.
+      and case
+        when cv.credited_duration_rationale is null
+          then public.get_course_version_designed_minutes(cv.id) <> c.estimated_duration_minutes
+        else public.get_course_version_designed_minutes(cv.id) > c.estimated_duration_minutes
+      end
   ),
   0,
-  'every comprehensive curriculum exactly matches its catalog duration'
+  'every comprehensive curriculum matches its catalog duration, or records why it delivers in less'
 );
 
 select is(

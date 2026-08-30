@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(34);
+select plan(38);
 
 -- ---------------------------------------------------------------------------
 -- What the published course promises
@@ -114,6 +114,86 @@ select results_eq(
   $$ values ('CDCES'::text, '2026.1'::text, 'DIABETES-EDU'::text) $$,
   'provider credential and the annual renewal requirement are recorded on the course'
 );
+
+-- ---------------------------------------------------------------------------
+-- Credited duration versus delivered time
+-- ---------------------------------------------------------------------------
+--
+-- The course credits four hours and its written v2026.1 takes that long; the video-led v2026.2
+-- delivers the same curriculum in about an hour. That difference is a recorded provider
+-- determination rather than a gap in the data, and the rules around it are what these four assert.
+
+select results_eq(
+  $$
+    select c.estimated_duration_minutes,
+           public.get_course_version_designed_minutes(cv.id),
+           cv.credited_duration_rationale is not null
+    from public.courses c
+    join public.course_versions cv on cv.course_id = c.id and cv.version_label = '2026.2'
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  $$,
+  $$ values (240, 60, true) $$,
+  'the course credits 240 minutes while its video version delivers in 60, with a rationale on file'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.course_versions cv
+    join public.courses c on c.id = cv.course_id
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+      and cv.version_label = '2026.1'
+      and (cv.credited_duration_rationale is not null
+           or public.get_course_version_designed_minutes(cv.id) <> c.estimated_duration_minutes)
+  ),
+  0,
+  'the written version still matches its catalog duration exactly and needs no rationale'
+);
+
+-- The exemption is opt-in, and withdrawing it brings the strict rule straight back rather than
+-- leaving the standard permanently loosened for this course.
+select set_config('app.privileged_write', 'on', true);
+
+-- The update is its own statement on purpose: a function called from the same statement that
+-- writes the row reads the pre-update snapshot and would report on the rationale still being there.
+update public.course_versions set credited_duration_rationale = null
+where version_label = '2026.2'
+  and course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+
+select ok(
+  (
+    select array_to_string(public.get_comprehensive_course_version_issues(cv.id), ' ')
+      like '%must equal the catalog duration%'
+    from public.course_versions cv
+    join public.courses c on c.id = cv.course_id
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL' and cv.version_label = '2026.2'
+  ),
+  'withdrawing the rationale restores exact equality as a publish blocker'
+);
+
+-- Restore it, then prove the exemption only ever shortens delivery.
+update public.course_versions
+set credited_duration_rationale = repeat('Recorded training provider determination for this version. ', 2)
+where version_label = '2026.2'
+  and course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+update public.courses set estimated_duration_minutes = 30
+where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
+
+select ok(
+  (
+    select array_to_string(public.get_comprehensive_course_version_issues(cv.id), ' ')
+      like '%exceeds the catalog duration%'
+    from public.course_versions cv
+    join public.courses c on c.id = cv.course_id
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL' and cv.version_label = '2026.2'
+  ),
+  'a rationale can shorten delivery but never let the steps exceed what the course credits'
+);
+
+-- Put the catalog back before the learner fixtures run against it.
+update public.courses set estimated_duration_minutes = 240
+where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
+select set_config('app.privileged_write', 'off', true);
 
 -- ---------------------------------------------------------------------------
 -- Fixture: one organization, one learner, one assignment
