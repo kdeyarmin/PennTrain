@@ -11,6 +11,10 @@ reproduced or re-cut without rewriting the copy.
 Each in-service course carries three presenter segments, interleaved with its
 written steps, for roughly seven minutes of video per course.
 
+Deck-built courses keep their narration inline in `decks/*.json` rather than in this
+directory, because there is no earlier segment to reuse and the deck is already
+source. `PA-PCH-DIABETES-ANNUAL` is the one built that way from the start.
+
 ## Presenter identity
 
 Every CareBase presenter video uses the same look and voice, so the instructor
@@ -107,7 +111,9 @@ The five-minute talking head is not the only shape. `compose-course-video.mjs`
 takes a deck — a JSON list of blocks, each a sequence of `avatar` and `image`
 scenes — and composes twenty-plus minutes of course video out of title cards,
 section frames, and slides Kevin narrates over. `decks/falls-prevention.json` and
-`decks/infection-control.json` are the two worked examples.
+`decks/infection-control.json` are the two worked examples, and
+`decks/pa-pch-diabetes-annual.json` is the largest — twelve blocks, thirty minutes,
+one per module of the annual diabetes course, at roughly 3,200 credits.
 
 Slides are cheaper than avatar footage in both dimensions that matter: about
 0.04MB per second against 0.27, and roughly 59 credits per minute against 178.
@@ -129,6 +135,21 @@ HEYGEN_API_KEY=... node scripts/heygen/compose-course-video.mjs \
 
 Record the returned ids under the deck's `rendered` key before doing anything
 else. The render is the paid artifact; losing the ids means paying again.
+
+Both scripts default to `slides-out` for the PNGs, so `--slides` is only needed
+when they are rendered somewhere else. For the diabetes deck the whole run is:
+
+```
+node scripts/heygen/slides/render-slides.mjs scripts/heygen/decks/pa-pch-diabetes-annual-slides.json
+node scripts/heygen/compose-course-video.mjs scripts/heygen/decks/pa-pch-diabetes-annual.json --dry-run
+HEYGEN_API_KEY=... node scripts/heygen/compose-course-video.mjs scripts/heygen/decks/pa-pch-diabetes-annual.json
+```
+
+The course version those ids belong on is already seeded, as a draft, by
+`20260830160000_pa_pch_diabetes_annual_video_version.sql`: its twelve video blocks
+carry the same narration this deck renders and a null `video_url`, waiting for the
+ids. Wiring them on is the follow-up migration described above, and publishing v2
+is a third one that also moves the catalog duration from 240 minutes to 60.
 
 ### Two things that will bite you
 

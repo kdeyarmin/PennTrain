@@ -1,0 +1,319 @@
+[
+  {
+    "id": "db-title",
+    "kind": "title",
+    "eyebrow": "Annual in-service",
+    "title": "Annual Diabetes Patient Education",
+    "subtitle": "For staff at Pennsylvania personal care homes who administer insulin or provide diabetes-related care. 55 Pa. Code 2600.190(b) and (c).",
+    "footerRight": "One hour · Annual"
+  },
+  {
+    "id": "db-biology",
+    "kind": "points",
+    "eyebrow": "The only biology you need",
+    "title": "Sugar, the key, and the two types",
+    "points": [
+      "Sugar is fuel; it rides in the blood",
+      "It needs a key to get into cells",
+      "Insulin is the key",
+      "Type 1: the key is not made at all",
+      "Type 2: the lock has gotten stiff"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-two-jobs",
+    "kind": "rule",
+    "eyebrow": "Two different things that look alike",
+    "quote": "Carrying out an order and deciding a dose are not the same job, and only one of them is yours.",
+    "attribution": "Adding a couple of units because the number looks high is a prescriber's decision made by someone who is not the prescriber.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-glucose",
+    "kind": "section",
+    "eyebrow": "Part two",
+    "title": "Checking a blood sugar",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-check",
+    "kind": "points",
+    "eyebrow": "Where the number goes wrong",
+    "title": "Getting a reading you can trust",
+    "points": [
+      "Dry the finger completely first",
+      "Side of the fingertip, not the pad",
+      "Let the drop come; do not squeeze",
+      "One lancet, one person, then sharps",
+      "Write the number down right then"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-not-the-number",
+    "kind": "rule",
+    "eyebrow": "When the meter and the person disagree",
+    "quote": "Treat the resident in front of you, according to the resident's own order.",
+    "attribution": "A meter is a tool. Someone sweating and confused is the actual situation, whatever the screen says.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-hypo",
+    "kind": "section",
+    "eyebrow": "Part three",
+    "title": "Low blood sugar",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-low-signs",
+    "kind": "points",
+    "eyebrow": "First the alarm, then the brain",
+    "title": "What low blood sugar looks like",
+    "points": [
+      "Sweating, cool and clammy skin",
+      "Shaking, racing heart, sudden hunger",
+      "Anxiety with nothing attached to it",
+      "Confusion, slurred or rambling speech",
+      "Anger or tears from someone calm"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-nothing-in-mouth",
+    "kind": "rule",
+    "eyebrow": "If they cannot swallow safely",
+    "quote": "Nothing goes in the mouth. Not juice, not gel, not a tablet in the cheek.",
+    "attribution": "Someone who cannot protect their airway will aspirate it, and now they have a low blood sugar and a lung full of juice.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-hyper",
+    "kind": "section",
+    "eyebrow": "Part four",
+    "title": "High blood sugar",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-high-signs",
+    "kind": "points",
+    "eyebrow": "It runs on dehydration",
+    "title": "What high blood sugar looks like",
+    "points": [
+      "Urinating more, up through the night",
+      "Thirsty, dry mouth, drinking constantly",
+      "Weak, tired, blurred vision",
+      "Then confused, drowsy, hard to wake",
+      "Often an infection nobody has found"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-do-not-diagnose",
+    "kind": "rule",
+    "eyebrow": "Two names, one instruction",
+    "quote": "Recognize that it is serious. Do not decide which one it is.",
+    "attribution": "Ketoacidosis and hyperosmolar state are both life-threatening and neither is yours to diagnose. Vomiting, odd breathing, or hard to rouse is an emergency now.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-insulin",
+    "kind": "section",
+    "eyebrow": "Part five",
+    "title": "Understanding insulin",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-categories",
+    "kind": "points",
+    "eyebrow": "The difference is timing",
+    "title": "Five shapes of insulin",
+    "points": [
+      "Rapid-acting: around a meal",
+      "Short-acting: also mealtime, slower",
+      "Intermediate: broad peak mid-run",
+      "Long-acting: background, roughly daily",
+      "Premixed: two of those, fixed ratio"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-concentration",
+    "kind": "rule",
+    "eyebrow": "The error that multiplies",
+    "quote": "Same amount of liquid. Several times as many units in it.",
+    "attribution": "A device built for one concentration does not measure another. Read the concentration against the order every time, and never convert it yourself.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-storage",
+    "kind": "section",
+    "eyebrow": "Part six",
+    "title": "Storage and handling",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-storage",
+    "kind": "points",
+    "eyebrow": "Damage that does not show",
+    "title": "Keeping insulin worth giving",
+    "points": [
+      "Unopened: refrigerated, off the back wall",
+      "In use: the maker's period, not a habit",
+      "Date it when you open it",
+      "Frozen once is finished forever",
+      "Clumps, crystals, unreadable label: stop"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-order",
+    "kind": "section",
+    "eyebrow": "Part seven",
+    "title": "Reading the order and the MAR",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-six-elements",
+    "kind": "points",
+    "eyebrow": "Ten seconds, every time",
+    "title": "What a complete order contains",
+    "points": [
+      "The right resident",
+      "The insulin, full name and suffix",
+      "The concentration",
+      "The dose, in units, an actual number",
+      "The route and the time"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-stop-list",
+    "kind": "rule",
+    "eyebrow": "Missing, conflicting, unreadable, unavailable",
+    "quote": "You are not refusing to work. You are refusing to guess.",
+    "attribution": "A scale that stops at 299 has no instruction for 312. Do not extend it. Stop, get it clarified, and report the number.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-syringe",
+    "kind": "section",
+    "eyebrow": "Part eight",
+    "title": "Drawing up with a syringe",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-syringe",
+    "kind": "points",
+    "eyebrow": "The lines are not the same",
+    "title": "Before you draw anything",
+    "points": [
+      "Smallest syringe that holds the dose",
+      "Work out what one line means",
+      "On some 100-unit syringes, one line is 2",
+      "Clear the bubbles, re-pull to the mark",
+      "Read it at eye level, never from above"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-pens",
+    "kind": "section",
+    "eyebrow": "Part nine",
+    "title": "Insulin pens",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-pens",
+    "kind": "points",
+    "eyebrow": "One pen, one resident, always",
+    "title": "Pens differ from each other",
+    "points": [
+      "New needle for every injection",
+      "Prime it the way that maker says",
+      "Dial it, then read the dose window",
+      "Hold the needle in for their count",
+      "No name on it: report, do not relabel"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-admin",
+    "kind": "section",
+    "eyebrow": "Part ten",
+    "title": "Giving the injection",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sites",
+    "kind": "points",
+    "eyebrow": "Why rotation is not a formality",
+    "title": "Sites and skin",
+    "points": [
+      "Abdomen, outer arms, thighs, buttocks",
+      "Move a finger's width from the last one",
+      "Same spot repeatedly thickens the tissue",
+      "Thick tissue absorbs unpredictably",
+      "Not into bruised, broken or lumpy skin"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-after",
+    "kind": "rule",
+    "eyebrow": "A blank space is not a record",
+    "quote": "A refusal, a held dose and an omitted dose are all real events with real documentation.",
+    "attribution": "Document at the point of care, with the reason and who you told. Never as though it happened, never left empty.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-errors",
+    "kind": "section",
+    "eyebrow": "Part eleven",
+    "title": "When something goes wrong",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-four-steps",
+    "kind": "points",
+    "eyebrow": "In this order, and the order is the point",
+    "title": "What to do about an error",
+    "points": [
+      "Stop. Do not finish the dose",
+      "Protect the resident, before paperwork",
+      "Report it through your process now",
+      "Get clinical or emergency help",
+      "A near miss gets reported too"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-never-fix",
+    "kind": "rule",
+    "eyebrow": "Two things that are never the response",
+    "quote": "You do not fix a dose yourself, and you do not wait to see whether anything happens.",
+    "attribution": "The whole point of reporting fast is that somebody can still act. Insulin given an hour ago is still working.",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-sec-close",
+    "kind": "section",
+    "eyebrow": "Part twelve",
+    "title": "Four decisions",
+    "footerRight": "Annual Diabetes Patient Education"
+  },
+  {
+    "id": "db-four-actions",
+    "kind": "points",
+    "eyebrow": "Often two of them at once",
+    "title": "Which one are you in",
+    "points": [
+      "Proceed: the order is complete",
+      "Stop and clarify: something is missing",
+      "Notify: outside their parameters",
+      "Emergency: danger right now",
+      "You are the person who notices"
+    ],
+    "footerRight": "Annual Diabetes Patient Education"
+  }
+]

@@ -62,6 +62,9 @@ Thumbs.db
 # HeyGen render output (video ids get written into a migration, not committed)
 rendered-segments.json
 *-blocks.json
+# Slide PNGs, regenerated from decks/*-slides.json in seconds by slides/render-slides.mjs.
+# "slides-out" is that script's default --out, so a render leaves this directory behind.
+artifacts/caremetric-carebase/slides-out/
 
 # Playwright output. Only produced when the browser suite runs locally, which needs a local
 # Supabase stack -- see scripts/local-supabase-stack.sh. Traces and videos are large, and CI
