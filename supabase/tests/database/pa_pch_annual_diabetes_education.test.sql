@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(38);
+select plan(44);
 
 -- ---------------------------------------------------------------------------
 -- What the published course promises
@@ -191,6 +191,105 @@ select ok(
 );
 
 -- Put the catalog back before the learner fixtures run against it.
+update public.courses set estimated_duration_minutes = 240
+where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
+
+-- ---------------------------------------------------------------------------
+-- The compliance-credit duration exemption
+-- ---------------------------------------------------------------------------
+--
+-- Separate from the content standard above: two triggers hold the rule that a course may not
+-- credit more hours than its catalog duration covers, one watching the duration and one watching
+-- the credit. This course is exempt from both, by the training provider's decision, so it can
+-- credit four hours against however long it actually runs. These six assert that the exemption
+-- reaches both triggers, stops at this course, and is the only thing holding either of them open.
+
+select is(
+  (
+    select credited_duration_check_exempt
+    from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  ),
+  true,
+  'the annual diabetes course is exempt from the credited-duration checks'
+);
+
+select is(
+  (
+    select count(*)::integer from public.courses
+    where credited_duration_check_exempt
+      and catalog_code is distinct from 'PA-PCH-DIABETES-ANNUAL'
+  ),
+  0,
+  'and no other course in the catalog is'
+);
+
+-- Drop the catalog duration to the hour the video version actually takes, then hang a four-hour
+-- crosswalk on it: the exact arrangement both triggers exist to reject.
+update public.courses set estimated_duration_minutes = 60
+where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
+
+select lives_ok(
+  $$
+    insert into public.course_compliance_credits
+      (course_id, course_version_id, training_type_id, topic_code, credit_hours,
+       credit_mode, citation_note)
+    select c.id, cv.id, tt.id, 'DIABETES', 4.00, 'verified_only',
+           '55 Pa. Code 2600.190(b)'
+    from public.courses c
+    join public.course_versions cv on cv.course_id = c.id and cv.version_label = '2026.2'
+    join public.training_types tt on tt.code = 'DIABETES-EDU' and tt.organization_id is null
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  $$,
+  'an exempt course may carry a four-hour credit against a sixty-minute catalog duration'
+);
+
+select lives_ok(
+  $$
+    update public.courses set estimated_duration_minutes = 60
+    where catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  $$,
+  'and its duration stays writable with that credit active'
+);
+
+-- Withdraw the exemption and both guards come straight back, which is what makes this a flag on
+-- one course rather than a hole in the rule.
+update public.courses set credited_duration_check_exempt = false
+where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
+
+select throws_ok(
+  $$
+    update public.courses set estimated_duration_minutes = 60
+    where catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  $$,
+  '23514',
+  'course duration cannot be shorter than an active compliance credit',
+  'without it, validate_course_duration_for_compliance_credit rejects the same write'
+);
+
+delete from public.course_compliance_credits cc
+using public.courses c
+where cc.course_id = c.id and c.catalog_code = 'PA-PCH-DIABETES-ANNUAL';
+
+select throws_ok(
+  $$
+    insert into public.course_compliance_credits
+      (course_id, course_version_id, training_type_id, topic_code, credit_hours,
+       credit_mode, citation_note)
+    select c.id, cv.id, tt.id, 'DIABETES', 4.00, 'verified_only',
+           '55 Pa. Code 2600.190(b)'
+    from public.courses c
+    join public.course_versions cv on cv.course_id = c.id and cv.version_label = '2026.2'
+    join public.training_types tt on tt.code = 'DIABETES-EDU' and tt.organization_id is null
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  $$,
+  '23514',
+  $msg$course compliance credit 4.00 hours exceeds the course's designed duration of 60 minutes$msg$,
+  'and validate_course_compliance_credit rejects the same credit'
+);
+
+-- Restore the course exactly as the catalog ships it before the learner fixtures run.
+update public.courses set credited_duration_check_exempt = true
+where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
 update public.courses set estimated_duration_minutes = 240
 where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
 select set_config('app.privileged_write', 'off', true);

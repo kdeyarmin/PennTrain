@@ -123,6 +123,15 @@ export function CourseOverviewSection({
                 <p className="text-xs text-muted-foreground">{selectedVersion.credited_duration_rationale}</p>
               </div>
             )}
+            {/* A course-level fact rather than a version-level one, so it prints on its own: with
+                the exemption on, nothing in the database ties the credited hours to how long the
+                course actually runs, and whoever is reading the duration should know that. */}
+            {course.credited_duration_check_exempt && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Compliance-credit duration checks are off for this course. It credits its catalog
+                duration regardless of how long a version takes to deliver.
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Employee Rating</p>

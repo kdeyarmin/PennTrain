@@ -5299,6 +5299,7 @@ export type Database = {
           category: string | null
           created_at: string
           created_by: string | null
+          credited_duration_check_exempt: boolean
           current_version_id: string | null
           description: string | null
           estimated_duration_minutes: number | null
@@ -5316,6 +5317,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           created_by?: string | null
+          credited_duration_check_exempt?: boolean
           current_version_id?: string | null
           description?: string | null
           estimated_duration_minutes?: number | null
@@ -5333,6 +5335,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           created_by?: string | null
+          credited_duration_check_exempt?: boolean
           current_version_id?: string | null
           description?: string | null
           estimated_duration_minutes?: number | null
@@ -42743,6 +42746,7 @@ export type Database = {
           category: string | null
           created_at: string
           created_by: string | null
+          credited_duration_check_exempt: boolean
           current_version_id: string | null
           description: string | null
           estimated_duration_minutes: number | null
