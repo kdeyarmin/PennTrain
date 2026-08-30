@@ -245,3 +245,9 @@ begin
   );
 end;
 $function$;
+
+-- CREATE OR REPLACE keeps the old COMMENT, which still advertised "training provider and
+-- credential" -- so psql introspection and any generated docs would describe a column this
+-- function no longer returns. Restate it to match what it actually emits.
+comment on function public.generate_diabetes_training_compliance_report(uuid, text, text, integer, integer) is
+  'One RLS-scoped page of the PA PCH Diabetes Training Compliance Report: staff member, facility, course, version, training provider, completion date, final examination score, number of examination attempts, certificate number, annual renewal date, attestation date, and current status.';

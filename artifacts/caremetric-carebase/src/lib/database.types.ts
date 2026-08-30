@@ -1388,6 +1388,7 @@ export type Database = {
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           provider_credential: string | null
+          provider_snapshot_at: string | null
           slug: string
           training_provider: string | null
           updated_at: string
@@ -1411,6 +1412,7 @@ export type Database = {
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           provider_credential?: string | null
+          provider_snapshot_at?: string | null
           slug?: string
           training_provider?: string | null
           updated_at?: string
@@ -1434,6 +1436,7 @@ export type Database = {
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           provider_credential?: string | null
+          provider_snapshot_at?: string | null
           slug?: string
           training_provider?: string | null
           updated_at?: string
@@ -41996,6 +41999,7 @@ export type Database = {
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           provider_credential: string | null
+          provider_snapshot_at: string | null
           slug: string
           training_provider: string | null
           updated_at: string

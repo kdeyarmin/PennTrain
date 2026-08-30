@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(48);
+select plan(50);
 
 -- ---------------------------------------------------------------------------
 -- What the published course promises
@@ -764,6 +764,45 @@ select ok(
   ),
   'the certificate expires twelve months after completion'
 );
+
+-- Provenance is frozen at issuance, and the empty credential is the case that matters. The
+-- snapshot marker is what separates "snapshotted, and the credential was deliberately blank" from
+-- "issued before snapshotting existed"; keying the fallback on the value being null instead would
+-- read this certificate as legacy and serve whatever the profile says at read time.
+select results_eq(
+  $$
+    select cert.training_provider, cert.provider_credential, cert.provider_snapshot_at is not null
+    from public.certificates cert
+    where cert.course_assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008'
+  $$,
+  $$ values ('Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'::text, null::text, true) $$,
+  'the certificate snapshots the provider at issuance, empty credential included'
+);
+
+-- The whole point, exercised rather than asserted: give the live profile a credential it did not
+-- have when this certificate was issued, and the certificate must not acquire one.
+select set_config('app.privileged_write', 'on', true);
+
+update public.course_provider_profiles
+set credential = 'ADDED-AFTER-ISSUANCE'
+where course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+
+select results_eq(
+  $$
+    select v.training_provider, v.provider_credential
+    from public.certificates cert
+    cross join lateral public.verify_certificate(cert.slug) v
+    where cert.course_assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008'
+  $$,
+  $$ values ('Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'::text, null::text) $$,
+  'and editing the provider afterwards cannot put a credential on a certificate issued without one'
+);
+
+update public.course_provider_profiles
+set credential = null
+where course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+
+select set_config('app.privileged_write', 'off', true);
 
 select ok(
   (

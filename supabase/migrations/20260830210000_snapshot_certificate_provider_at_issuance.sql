@@ -20,13 +20,17 @@
 
 alter table public.certificates
   add column training_provider text,
-  add column provider_credential text;
+  add column provider_credential text,
+  add column provider_snapshot_at timestamptz;
 
 comment on column public.certificates.training_provider is
   'The training provider named on this certificate, copied from course_provider_profiles at issuance so a later edit to that profile cannot restate what an already-issued certificate claims. Null on certificates issued before snapshotting existed; those fall back to the live profile.';
 
 comment on column public.certificates.provider_credential is
   'The provider credential named on this certificate, snapshotted at issuance for the same reason as training_provider.';
+
+comment on column public.certificates.provider_snapshot_at is
+  'When the provider snapshot was taken. This is what distinguishes "snapshotted, and the value was legitimately empty" from "issued before snapshotting existed" -- readers fall back to the live profile only when this is null. Without it, a null training_provider or provider_credential would read as an absent snapshot and quietly pick up whatever the profile says later, which is the retroactive restatement these columns exist to prevent.';
 
 -- A BEFORE INSERT trigger rather than a change to complete_course_assignment(): the snapshot
 -- belongs to the certificate however it comes to exist, and every issuance path -- the completion
@@ -37,17 +41,31 @@ language plpgsql
 security definer
 set search_path to 'public'
 as $function$
+declare
+  v_name text;
+  v_credential text;
 begin
-  -- An explicit value wins: a restore or a correction that supplies the provider deliberately
-  -- must not be overwritten by whatever the profile happens to say now.
-  if new.training_provider is not null or new.provider_credential is not null then
+  -- A caller that stamps provider_snapshot_at is declaring a complete snapshot of its own -- a
+  -- restore replaying a historical certificate -- and is left entirely alone.
+  if new.provider_snapshot_at is not null then
     return new;
   end if;
 
   select pp.provider_full_name, pp.credential
-    into new.training_provider, new.provider_credential
+    into v_name, v_credential
   from public.course_provider_profiles pp
   where pp.course_id = new.course_id;
+
+  -- Each column fills independently, so supplying one does not suppress the other, and an
+  -- explicitly supplied value is never overwritten by what the profile says now.
+  new.training_provider := coalesce(new.training_provider, v_name);
+  new.provider_credential := coalesce(new.provider_credential, v_credential);
+
+  -- Stamped unconditionally, including when the course has no provider profile at all or the
+  -- profile's fields are empty. "Nobody was recorded" and "the credential was deliberately blank"
+  -- are both real snapshots, and marking them is what stops a profile edited later from filling
+  -- them in behind the certificate's back.
+  new.provider_snapshot_at := now();
 
   return new;
 end;
@@ -89,10 +107,15 @@ language sql stable security definer set search_path to 'public' as $function$
     cv.title_version,
     cert.credential_number,
     exam.score_percent,
-    -- The snapshot first. pp is consulted only for certificates issued before 20260830210000,
-    -- which carry no snapshot and never will.
-    coalesce(cert.training_provider, pp.provider_full_name),
-    coalesce(cert.provider_credential, pp.credential)
+    -- Switched on provider_snapshot_at, NOT on whether each field happens to be null. A
+    -- coalesce per field would read a legitimately empty credential as "no snapshot" and serve
+    -- whatever the live profile says today -- so adding a credential to the profile would
+    -- retroactively put one on certificates issued without it, which is the exact restatement
+    -- this migration exists to stop. pp is consulted only for rows issued before snapshotting.
+    case when cert.provider_snapshot_at is not null
+         then cert.training_provider else pp.provider_full_name end,
+    case when cert.provider_snapshot_at is not null
+         then cert.provider_credential else pp.credential end
   from public.certificates cert
   join public.employees     e on e.id = cert.employee_id
   join public.courses       c on c.id = cert.course_id
@@ -138,9 +161,12 @@ begin
 
   -- Nothing may already carry a snapshot: this migration adds the columns, and backfilling them
   -- from the live profile would be exactly the retroactive restatement it exists to prevent.
+  -- Every pre-existing certificate must read as legacy, which is provider_snapshot_at being null.
   if exists (
     select 1 from public.certificates
-    where training_provider is not null or provider_credential is not null
+    where training_provider is not null
+       or provider_credential is not null
+       or provider_snapshot_at is not null
   ) then
     raise exception 'certificate provider snapshots must start empty; existing rows fall back to the live profile';
   end if;
