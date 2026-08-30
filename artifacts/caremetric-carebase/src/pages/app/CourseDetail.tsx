@@ -33,6 +33,7 @@ import { CourseOverviewSection } from "./course-detail/CourseOverviewSection";
 import { VersionsCard } from "./course-detail/VersionsCard";
 import { PrePublishSection } from "./course-detail/PrePublishSection";
 import { ContentBlocksCard } from "./course-detail/ContentBlocksCard";
+import { TrainingProviderCard } from "./course-detail/TrainingProviderCard";
 import { EditCourseDialog, UnpublishCourseDialog } from "./course-detail/CourseDialogs";
 import { NewVersionDialog, StudentPreviewDialog } from "./course-detail/VersionDialogs";
 import {
@@ -158,6 +159,17 @@ export default function CourseDetail() {
   // Client-side backstop that keeps in-flight HeyGen video statuses fresh without requiring
   // the manual "check status" button (which stays below as an instant fallback).
   useAutoCheckVideoStatuses(blocks);
+
+  // The selected version's own designed step time. get_course_version_designed_minutes() is the
+  // database's authority on this and is revoked from authenticated, so the browser sums the same
+  // 1-120 body values the comprehensive standard counts rather than calling it.
+  const designedMinutes = useMemo(
+    () => (blocks ?? []).reduce((total, block) => {
+      const minutes = Number((block.body as { estimated_minutes?: unknown } | null)?.estimated_minutes);
+      return total + (Number.isInteger(minutes) && minutes >= 1 && minutes <= 120 ? minutes : 0);
+    }, 0),
+    [blocks],
+  );
 
   const [showStudentPreview, setShowStudentPreview] = useState(false);
   const [studentPreviewChecked, setStudentPreviewChecked] = useState(false);
@@ -743,6 +755,7 @@ export default function CourseDetail() {
         feedbackSummary={feedbackSummary}
         feedbackLoading={feedbackLoading}
         feedbackError={feedbackError}
+        designedMinutes={designedMinutes}
       />
 
       <VersionsCard
@@ -758,6 +771,8 @@ export default function CourseDetail() {
         publishingVersionId={publishingVersionId}
         onPublish={handlePublish}
       />
+
+      <TrainingProviderCard courseId={course.id} canManage={canManage} />
 
       <PrePublishSection
         canManage={canManage}

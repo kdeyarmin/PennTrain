@@ -70,6 +70,7 @@ export function getBlockLabel(blockType: string | null | undefined) {
     case "pdf": return "Document";
     case "scorm": return "Interactive";
     case "quiz": return "Knowledge check";
+    case "attestation": return "Attestation";
     default: return "Lesson";
   }
 }
@@ -85,6 +86,7 @@ export function getLearningStepLabel(block: Pick<LearningToolBlock, "block_type"
     case "facility_verification": return "Facility verification";
     case "sources": return "Sources and scope";
     case "assessment": return "Final assessment";
+    case "attestation": return "Learner attestation";
     default: return getBlockLabel(block?.block_type);
   }
 }
@@ -121,13 +123,20 @@ export interface CourseStepGateState {
   videoGateBlocksAdvance: boolean;
   appliedResponseRequired: boolean;
   appliedResponseComplete: boolean;
+  /** True on an attestation step the learner has not signed yet. */
+  attestationRequired?: boolean;
+  attestationSigned?: boolean;
 }
 
 export function canAdvanceCourseStep(gates: CourseStepGateState) {
   if (gates.completionEvidenceLocked) return true;
   return (!gates.isQuizBlock || gates.currentQuizPassed)
     && !gates.videoGateBlocksAdvance
-    && (!gates.appliedResponseRequired || gates.appliedResponseComplete);
+    && (!gates.appliedResponseRequired || gates.appliedResponseComplete)
+    // An unsigned attestation blocks the same way an unpassed quiz does. The database enforces
+    // the same rule in complete_course_assignment(), so this only keeps the button honest --
+    // it is not the boundary.
+    && (!gates.attestationRequired || gates.attestationSigned === true);
 }
 
 export interface CourseShortcutState {
@@ -144,6 +153,11 @@ export function shouldEnableCourseShortcuts(state: CourseShortcutState) {
     && !state.showClearLearningToolsConfirm;
 }
 
+/** An attestation step asks for a signature, which is a gate rather than a written response. */
+export function requiresAttestation(block: Pick<LearningToolBlock, "block_type"> | undefined) {
+  return block?.block_type === "attestation";
+}
+
 export function estimateBlockMinutes(block: Pick<LearningToolBlock, "block_type" | "body"> | undefined) {
   if (!block) return 1;
   const designedMinutes = (block.body as { estimated_minutes?: unknown } | null)?.estimated_minutes;
@@ -158,6 +172,7 @@ export function estimateBlockMinutes(block: Pick<LearningToolBlock, "block_type"
   if (block.block_type === "video") return 5;
   if (block.block_type === "pdf" || block.block_type === "scorm") return 4;
   if (block.block_type === "quiz") return 3;
+  if (block.block_type === "attestation") return 2;
   const content = (block.body as { content?: string } | null)?.content ?? "";
   const words = content.trim().split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.ceil(words / 180));

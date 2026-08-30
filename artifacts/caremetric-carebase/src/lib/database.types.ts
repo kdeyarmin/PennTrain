@@ -4990,6 +4990,101 @@ export type Database = {
           },
         ]
       }
+      course_learner_attestations: {
+        Row: {
+          attestation_text: string
+          attestation_version: string
+          attested_at: string
+          course_assignment_id: string
+          course_block_id: string
+          course_id: string
+          course_version_id: string
+          created_at: string
+          employee_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+        }
+        Insert: {
+          attestation_text: string
+          attestation_version: string
+          attested_at?: string
+          course_assignment_id: string
+          course_block_id: string
+          course_id: string
+          course_version_id: string
+          created_at?: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+        }
+        Update: {
+          attestation_text?: string
+          attestation_version?: string
+          attested_at?: string
+          course_assignment_id?: string
+          course_block_id?: string
+          course_id?: string
+          course_version_id?: string
+          created_at?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_learner_attestations_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_learner_attestations_course_block_id_fkey"
+            columns: ["course_block_id"]
+            isOneToOne: false
+            referencedRelation: "course_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_learner_attestations_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_learner_attestations_course_version_id_fkey"
+            columns: ["course_version_id"]
+            isOneToOne: false
+            referencedRelation: "course_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_learner_attestations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_learner_attestations_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_learner_attestations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_progress: {
         Row: {
           assignment_id: string
@@ -5038,6 +5133,90 @@ export type Database = {
           },
         ]
       }
+      course_provider_profiles: {
+        Row: {
+          content_version: string | null
+          course_author: string | null
+          course_id: string
+          created_at: string
+          credential: string | null
+          credential_expires_on: string | null
+          credential_issuing_organization: string | null
+          credential_number: string | null
+          id: string
+          last_clinical_review_date: string | null
+          next_review_due: string | null
+          professional_title: string | null
+          provider_full_name: string
+          provider_signature_name: string | null
+          provider_signature_recorded_at: string | null
+          regulation_review_date: string | null
+          review_notes: string | null
+          reviewed_by: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          content_version?: string | null
+          course_author?: string | null
+          course_id: string
+          created_at?: string
+          credential?: string | null
+          credential_expires_on?: string | null
+          credential_issuing_organization?: string | null
+          credential_number?: string | null
+          id?: string
+          last_clinical_review_date?: string | null
+          next_review_due?: string | null
+          professional_title?: string | null
+          provider_full_name: string
+          provider_signature_name?: string | null
+          provider_signature_recorded_at?: string | null
+          regulation_review_date?: string | null
+          review_notes?: string | null
+          reviewed_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          content_version?: string | null
+          course_author?: string | null
+          course_id?: string
+          created_at?: string
+          credential?: string | null
+          credential_expires_on?: string | null
+          credential_issuing_organization?: string | null
+          credential_number?: string | null
+          id?: string
+          last_clinical_review_date?: string | null
+          next_review_due?: string | null
+          professional_title?: string | null
+          provider_full_name?: string
+          provider_signature_name?: string | null
+          provider_signature_recorded_at?: string | null
+          regulation_review_date?: string | null
+          review_notes?: string | null
+          reviewed_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_provider_profiles_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: true
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_provider_profiles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_versions: {
         Row: {
           ai_generated: boolean
@@ -5046,12 +5225,14 @@ export type Database = {
           content_standard: string
           course_id: string
           created_at: string
+          credited_duration_rationale: string | null
           description: string | null
           id: string
           organization_id: string | null
           published_at: string | null
           status: string
           title: string
+          version_label: string | null
           version_number: number
         }
         Insert: {
@@ -5061,12 +5242,14 @@ export type Database = {
           content_standard?: string
           course_id: string
           created_at?: string
+          credited_duration_rationale?: string | null
           description?: string | null
           id?: string
           organization_id?: string | null
           published_at?: string | null
           status?: string
           title: string
+          version_label?: string | null
           version_number: number
         }
         Update: {
@@ -5076,12 +5259,14 @@ export type Database = {
           content_standard?: string
           course_id?: string
           created_at?: string
+          credited_duration_rationale?: string | null
           description?: string | null
           id?: string
           organization_id?: string | null
           published_at?: string | null
           status?: string
           title?: string
+          version_label?: string | null
           version_number?: number
         }
         Relationships: [
@@ -5114,12 +5299,14 @@ export type Database = {
           category: string | null
           created_at: string
           created_by: string | null
+          credited_duration_check_exempt: boolean
           current_version_id: string | null
           description: string | null
           estimated_duration_minutes: number | null
           id: string
           organization_id: string | null
           recurrence_interval_days: number | null
+          renewal_training_type_id: string | null
           status: string
           title: string
           training_type_id: string | null
@@ -5130,12 +5317,14 @@ export type Database = {
           category?: string | null
           created_at?: string
           created_by?: string | null
+          credited_duration_check_exempt?: boolean
           current_version_id?: string | null
           description?: string | null
           estimated_duration_minutes?: number | null
           id?: string
           organization_id?: string | null
           recurrence_interval_days?: number | null
+          renewal_training_type_id?: string | null
           status?: string
           title: string
           training_type_id?: string | null
@@ -5146,12 +5335,14 @@ export type Database = {
           category?: string | null
           created_at?: string
           created_by?: string | null
+          credited_duration_check_exempt?: boolean
           current_version_id?: string | null
           description?: string | null
           estimated_duration_minutes?: number | null
           id?: string
           organization_id?: string | null
           recurrence_interval_days?: number | null
+          renewal_training_type_id?: string | null
           status?: string
           title?: string
           training_type_id?: string | null
@@ -5177,6 +5368,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_renewal_training_type_id_fkey"
+            columns: ["renewal_training_type_id"]
+            isOneToOne: false
+            referencedRelation: "training_types"
             referencedColumns: ["id"]
           },
           {
@@ -8878,6 +9076,7 @@ export type Database = {
       }
       employees: {
         Row: {
+          administers_insulin: boolean
           administers_medications: boolean
           checkin_pin_hash: string | null
           cleared_for_unsupervised_duty: boolean
@@ -8904,6 +9103,7 @@ export type Database = {
           worker_type: string
         }
         Insert: {
+          administers_insulin?: boolean
           administers_medications?: boolean
           checkin_pin_hash?: string | null
           cleared_for_unsupervised_duty?: boolean
@@ -8930,6 +9130,7 @@ export type Database = {
           worker_type?: string
         }
         Update: {
+          administers_insulin?: boolean
           administers_medications?: boolean
           checkin_pin_hash?: string | null
           cleared_for_unsupervised_duty?: boolean
@@ -21891,6 +22092,7 @@ export type Database = {
           id: string
           organization_id: string
           passed: boolean | null
+          passing_score_percent_at_attempt: number | null
           quiz_id: string
           score_percent: number | null
           started_at: string
@@ -21905,6 +22107,7 @@ export type Database = {
           id?: string
           organization_id: string
           passed?: boolean | null
+          passing_score_percent_at_attempt?: number | null
           quiz_id: string
           score_percent?: number | null
           started_at?: string
@@ -21919,6 +22122,7 @@ export type Database = {
           id?: string
           organization_id?: string
           passed?: boolean | null
+          passing_score_percent_at_attempt?: number | null
           quiz_id?: string
           score_percent?: number | null
           started_at?: string
@@ -22012,6 +22216,8 @@ export type Database = {
           question_type: string
           quiz_id: string
           sort_order: number
+          topic_code: string | null
+          topic_label: string | null
         }
         Insert: {
           created_at?: string
@@ -22022,6 +22228,8 @@ export type Database = {
           question_type: string
           quiz_id: string
           sort_order?: number
+          topic_code?: string | null
+          topic_label?: string | null
         }
         Update: {
           created_at?: string
@@ -22032,6 +22240,8 @@ export type Database = {
           question_type?: string
           quiz_id?: string
           sort_order?: number
+          topic_code?: string | null
+          topic_label?: string | null
         }
         Relationships: [
           {
@@ -22058,6 +22268,10 @@ export type Database = {
           max_attempts: number | null
           organization_id: string | null
           passing_score_percent: number
+          quiz_kind: string
+          reveals_answers_after_attempt: boolean
+          shuffle_answers: boolean
+          shuffle_questions: boolean
           title: string
         }
         Insert: {
@@ -22067,6 +22281,10 @@ export type Database = {
           max_attempts?: number | null
           organization_id?: string | null
           passing_score_percent?: number
+          quiz_kind?: string
+          reveals_answers_after_attempt?: boolean
+          shuffle_answers?: boolean
+          shuffle_questions?: boolean
           title: string
         }
         Update: {
@@ -22076,6 +22294,10 @@ export type Database = {
           max_attempts?: number | null
           organization_id?: string | null
           passing_score_percent?: number
+          quiz_kind?: string
+          reveals_answers_after_attempt?: boolean
+          shuffle_answers?: boolean
+          shuffle_questions?: boolean
           title?: string
         }
         Relationships: [
@@ -33630,6 +33852,7 @@ export type Database = {
         Row: {
           accepted_evidence_types: Json | null
           admin_approval_required: boolean
+          applies_to_administers_insulin: boolean
           applies_to_administers_meds: boolean | null
           applies_to_facility_type: string
           applies_to_trainers: boolean | null
@@ -33658,6 +33881,7 @@ export type Database = {
         Insert: {
           accepted_evidence_types?: Json | null
           admin_approval_required?: boolean
+          applies_to_administers_insulin?: boolean
           applies_to_administers_meds?: boolean | null
           applies_to_facility_type?: string
           applies_to_trainers?: boolean | null
@@ -33686,6 +33910,7 @@ export type Database = {
         Update: {
           accepted_evidence_types?: Json | null
           admin_approval_required?: boolean
+          applies_to_administers_insulin?: boolean
           applies_to_administers_meds?: boolean | null
           applies_to_facility_type?: string
           applies_to_trainers?: boolean | null
@@ -38112,6 +38337,16 @@ export type Database = {
         Args: { p_requirement_id: string }
         Returns: number
       }
+      generate_diabetes_training_compliance_report: {
+        Args: {
+          p_facility_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
       generate_due_preventive_maintenance_work_orders: {
         Args: { p_as_of?: string }
         Returns: number
@@ -38272,6 +38507,26 @@ export type Database = {
           feature_key: string
           is_entitled: boolean
           value_type: string
+        }[]
+      }
+      get_employee_diabetes_training_history: {
+        Args: { p_employee_id: string }
+        Returns: {
+          attested_at: string
+          certificate_id: string
+          certificate_number: string
+          certificate_slug: string
+          completed_at: string
+          course_assignment_id: string
+          course_code: string
+          course_title: string
+          course_version: string
+          exam_attempts: number
+          final_exam_score: number
+          is_current: boolean
+          provider_credential: string
+          renewal_due_at: string
+          training_provider: string
         }[]
       }
       get_enterprise_operations_control_plane: {
@@ -38451,6 +38706,15 @@ export type Database = {
           id: string
           question_id: string
           sort_order: number
+        }[]
+      }
+      get_quiz_attempt_topic_review: {
+        Args: { p_attempt_id: string }
+        Returns: {
+          incorrect: number
+          questions: number
+          topic_code: string
+          topic_label: string
         }[]
       }
       get_quiz_review: {
@@ -40049,6 +40313,10 @@ export type Database = {
       }
       record_copilot_run_disposition: {
         Args: { p_disposition: string; p_note: string; p_run_id: string }
+        Returns: string
+      }
+      record_course_attestation: {
+        Args: { p_assignment_id: string; p_block_id: string }
         Returns: string
       }
       record_credential_renewal_extraction: {
@@ -42478,12 +42746,14 @@ export type Database = {
           category: string | null
           created_at: string
           created_by: string | null
+          credited_duration_check_exempt: boolean
           current_version_id: string | null
           description: string | null
           estimated_duration_minutes: number | null
           id: string
           organization_id: string | null
           recurrence_interval_days: number | null
+          renewal_training_type_id: string | null
           status: string
           title: string
           training_type_id: string | null
@@ -42907,12 +43177,18 @@ export type Database = {
       verify_certificate: {
         Args: { p_slug: string }
         Returns: {
+          course_code: string
           course_title: string
+          course_version: string
+          credential_number: string
           employee_name: string
           expires_at: string
+          final_exam_score: number
           is_valid: boolean
           issued_at: string
           organization_name: string
+          provider_credential: string
+          training_provider: string
         }[]
       }
       verify_food_safety_log: {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
@@ -18,6 +18,11 @@ import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/use
 import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
 import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
 import { useGetCourseFeedbackForAssignment, useCreateCourseFeedback } from "@/hooks/useCourseFeedback";
+import {
+  useListCourseAttestations,
+  useRecordCourseAttestation,
+  parseAttestationBlock,
+} from "@/hooks/useCourseAttestations";
 import { useToast } from "@/hooks/use-toast";
 import {
   buildStudyGuide,
@@ -34,6 +39,7 @@ import {
   MIN_APPLIED_RESPONSE_CHARACTERS,
   parseLearningToolsState,
   requiresAppliedResponse,
+  requiresAttestation,
   sanitizeLearningToolsState,
   shouldEnableCourseShortcuts,
   type LearningToolsState,
@@ -56,8 +62,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Copy, Download, FileText, Lightbulb, ListChecks, RotateCcw, Trash2, Video, BookOpen, Star, Target,
+  ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Copy, Download, FileText, Lightbulb, ListChecks, RotateCcw, ShieldCheck, Trash2, Video, BookOpen, Star, Target,
   type LucideIcon,
 } from "lucide-react";
 
@@ -134,6 +141,7 @@ function AssignmentStatusBadge({ status }: { status: string }) {
 }
 
 export default function TakeCourse() {
+  const __fieldIds = useId();
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -464,6 +472,38 @@ useEffect(() => {
 // Video blocks always gate advance for open assignments: a learner cannot skip past an
 // unwatched mandated video. The player also clamps forward seeking until watched through.
 // Completed assignments stay unlocked for review.
+  // The attestation step. There is no client write policy on course_learner_attestations: signing
+  // goes through record_course_attestation(), which copies the statement out of the published
+  // block, so a signature can never be recorded against text the learner did not see.
+  const attestationRequired = requiresAttestation(currentBlock);
+  const attestationContent = attestationRequired ? parseAttestationBlock(currentBlock?.body) : null;
+  const { data: attestations } = useListCourseAttestations(assignmentId);
+  const recordAttestation = useRecordCourseAttestation();
+  const currentAttestation = currentBlock
+    ? (attestations ?? []).find(row => row.course_block_id === currentBlock.id)
+    : undefined;
+  const attestationSigned = !!currentAttestation;
+  const [attestationChecked, setAttestationChecked] = useState(false);
+
+  useEffect(() => {
+    // Ticking the box is a per-step act, so it resets when the learner moves between steps.
+    setAttestationChecked(false);
+  }, [currentBlock?.id]);
+
+  const handleSignAttestation = () => {
+    if (!assignmentId || !currentBlock || !attestationChecked || attestationSigned) return;
+    recordAttestation.mutate(
+      { assignmentId, blockId: currentBlock.id },
+      {
+        onSuccess: () => toast({
+          title: "Attestation signed",
+          description: "Your signature, the date and time, and the exact statement are recorded with your training record.",
+        }),
+        onError: (e: Error) => toast({ title: "Could not record your attestation", description: e.message, variant: "destructive" }),
+      },
+    );
+  };
+
   const isVideoBlock = currentBlock?.block_type === "video" && !!currentBlock?.video_url;
   const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
   const videoGateBlocksAdvance =
@@ -475,6 +515,8 @@ useEffect(() => {
     videoGateBlocksAdvance,
     appliedResponseRequired,
     appliedResponseComplete,
+    attestationRequired,
+    attestationSigned,
   });
 
   const handleLessonNoteChange = (value: string) => {
@@ -970,7 +1012,64 @@ useEffect(() => {
                 </div>
               )}
 
-              {currentBlock && (
+              {currentBlock?.block_type === "attestation" && (
+                <div className="space-y-4">
+                  {attestationContent?.intro && (
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{attestationContent.intro}</p>
+                  )}
+                  {attestationContent ? (
+                    <>
+                      <blockquote className="rounded-lg border-l-4 border-primary bg-muted/30 p-4 text-sm leading-6">
+                        {attestationContent.statement}
+                      </blockquote>
+                      {attestationSigned ? (
+                        <div className="flex items-start gap-2 rounded-lg border bg-success/10 p-3">
+                          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                          <div className="text-sm">
+                            <p className="font-medium text-foreground">Attestation signed</p>
+                            <p className="text-muted-foreground">
+                              Signed {formatDateForDisplay(currentAttestation!.attested_at)} &middot; statement version{" "}
+                              {currentAttestation!.attestation_version}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <label className="flex cursor-pointer items-start gap-2.5">
+                            <Checkbox
+                              checked={attestationChecked}
+                              onCheckedChange={(checked) => setAttestationChecked(checked === true)}
+                              disabled={completionEvidenceLocked}
+                              aria-describedby={`${__fieldIds}-attestation-help`}
+                            />
+                            <span className="text-sm">
+                              I have read the statement above and I attest to it.
+                            </span>
+                          </label>
+                          <p id={`${__fieldIds}-attestation-help`} className="text-xs text-muted-foreground">
+                            Your name, the date and time, this course version, and the exact statement text are
+                            recorded with your training record. Signing is the last requirement -- finish the
+                            course below and your certificate is issued automatically, without anyone else's approval.
+                          </p>
+                          <Button
+                            onClick={handleSignAttestation}
+                            disabled={!attestationChecked || recordAttestation.isPending || completionEvidenceLocked}
+                          >
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            {recordAttestation.isPending ? "Signing..." : "Sign attestation"}
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      This attestation step has no published statement yet. Contact your administrator.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {currentBlock && currentBlock.block_type !== "attestation" && (
                 <div className="rounded-lg border bg-background p-4">
                   <div className="flex items-start gap-3">
                     <div className="rounded-full bg-secondary p-2 text-secondary-foreground">
@@ -1104,7 +1203,9 @@ useEffect(() => {
                 ? "Watch the video above to continue."
                 : appliedResponseRequired && !appliedResponseComplete
                   ? `Enter an applied response of at least ${MIN_APPLIED_RESPONSE_CHARACTERS} characters to continue.`
-                  : "Pass the quiz above to continue."}
+                  : attestationRequired && !attestationSigned
+                    ? "Read and sign the attestation above to finish this training."
+                    : "Pass the quiz above to continue."}
             </p>
           )}
           <p className="text-xs text-muted-foreground text-center">

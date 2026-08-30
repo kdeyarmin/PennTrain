@@ -23,6 +23,7 @@ export interface EmpFormData {
   hireDate: string;
   status: "active" | "inactive" | "terminated" | "on_leave";
   administersMedications: boolean;
+  administersInsulin: boolean;
   trainerStatus: boolean;
   notes: string;
   scheduledHoursPerWeek: string;
@@ -32,7 +33,8 @@ export interface EmpFormData {
 export const EMPTY_EMPLOYEE_FORM: EmpFormData = {
   firstName: "", lastName: "", email: "", phone: "", jobTitle: "",
   department: "", employeeNumber: "", facilityId: "none", hireDate: "",
-  status: "active", administersMedications: false, trainerStatus: false, notes: "",
+  status: "active", administersMedications: false, administersInsulin: false,
+  trainerStatus: false, notes: "",
   scheduledHoursPerWeek: "", workerType: "regular",
 };
 
@@ -52,6 +54,7 @@ export function employeeToFormData(emp: Employee): EmpFormData {
     hireDate: emp.hire_date ?? "",
     status: emp.status as EmpFormData["status"],
     administersMedications: emp.administers_medications ?? false,
+    administersInsulin: emp.administers_insulin ?? false,
     trainerStatus: emp.trainer_status ?? false,
     notes: emp.notes ?? "",
     scheduledHoursPerWeek: emp.scheduled_hours_per_week != null ? String(emp.scheduled_hours_per_week) : "",
@@ -174,6 +177,18 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
             className="h-4 w-4 rounded border-border"
           />
           <span className="text-[13px]">Administers Medications</span>
+        </label>
+        {/* Insulin handling is narrower than medication administration: it is what places an
+            employee in the annual diabetes education audience (55 Pa. Code 2600.190(b)), and it is
+            off until an administrator says otherwise so nobody is auto-assigned the training. */}
+        <label className="flex items-center gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.administersInsulin}
+            onChange={e => onChange("administersInsulin", e.target.checked)}
+            className="h-4 w-4 rounded border-border"
+          />
+          <span className="text-[13px]">Administers Insulin</span>
         </label>
         <label className="flex items-center gap-2.5 cursor-pointer">
           <input

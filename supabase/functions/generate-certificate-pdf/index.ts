@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
+import QRCode from "npm:qrcode@1.5.4";
 import {
   CRON_SECRET_HEADER,
   requireCronRequest,
@@ -59,14 +60,57 @@ function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
   return s === encodable ? s : s.slice(0, -1) + "…";
 }
 
+/**
+ * One "Label: value" line, or nothing at all when the course does not record that fact. A
+ * certificate for a course with no examination and no named provider therefore prints exactly as
+ * it did before these fields existed, rather than a column of dashes.
+ */
+type DetailLine = { label: string; value: string };
+
+/**
+ * QR image for the public verification URL, or null.
+ *
+ * Deliberately best-effort: a certificate that renders without a QR is still a valid certificate
+ * with the verification URL printed on it, and PDF generation for every course in the product runs
+ * through this function. A QR encoder problem must not be able to stop a learner getting their
+ * certificate.
+ */
+async function verificationQrPng(url: string): Promise<Uint8Array | null> {
+  try {
+    const dataUrl: string = await QRCode.toDataURL(url, {
+      width: 240,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    });
+    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch (error) {
+    console.error("Certificate QR encoding failed; falling back to the printed URL", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 async function buildCertificatePdf(input: {
   employeeName: string;
   courseTitle: string;
   organizationName: string;
+  facilityName: string | null;
   issuedAt: string;
   expiresAt: string | null;
   slug: string;
   credentialNumber: string;
+  courseCode: string | null;
+  courseVersion: string | null;
+  regulatoryReference: string | null;
+  trainingProvider: string | null;
+  providerCredential: string | null;
+  finalExamScore: number | null;
+  statement: string | null;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -126,17 +170,28 @@ async function buildCertificatePdf(input: {
   ]);
   y -= 28;
   center(input.courseTitle, y, 16, bold);
-  y -= 44;
+  y -= 30;
+
+  // The regulatory statement, when the course supplies one. Deliberately never "DHS APPROVED":
+  // this certificate states what the training was designed to address, not that a department
+  // approved it.
+  if (input.statement) {
+    center(input.statement, y, 10, italic, [0.3, 0.3, 0.3]);
+    y -= 22;
+  }
 
   const issuedLine = `Issued: ${dateFmt(input.issuedAt)}`;
   const expiresLine = input.expiresAt
-    ? `   |   Expires: ${dateFmt(input.expiresAt)}`
+    ? `   |   Renewal due: ${dateFmt(input.expiresAt)}`
     : "";
   center(issuedLine + expiresLine, y, 11, font, [0.25, 0.25, 0.25]);
   y -= 20;
 
   if (input.organizationName) {
-    center(`Issued by ${input.organizationName}`, y, 11, font, [
+    const issuedBy = input.facilityName
+      ? `${input.organizationName} -- ${input.facilityName}`
+      : input.organizationName;
+    center(`Issued by ${issuedBy}`, y, 11, font, [
       0.25,
       0.25,
       0.25,
@@ -144,18 +199,83 @@ async function buildCertificatePdf(input: {
     y -= 20;
   }
 
-  y -= 16;
+  const details: DetailLine[] = [];
+  if (input.courseCode) details.push({ label: "Course code", value: input.courseCode });
+  if (input.courseVersion) details.push({ label: "Course version", value: input.courseVersion });
+  if (input.regulatoryReference) {
+    details.push({ label: "Regulatory reference", value: input.regulatoryReference });
+  }
+  if (input.finalExamScore !== null) {
+    details.push({ label: "Final examination score", value: `${input.finalExamScore}%` });
+  }
+  if (input.trainingProvider) {
+    details.push({
+      label: "Training provider",
+      value: input.providerCredential
+        ? `${input.trainingProvider}, ${input.providerCredential}`
+        : input.trainingProvider,
+    });
+  }
+
+  if (details.length > 0) {
+    y -= 6;
+    // Two columns, so a long list does not push the credential number off the page.
+    const columnWidth = (PAGE_WIDTH - MARGIN * 2) / 2;
+    const rows = Math.ceil(details.length / 2);
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < 2; column += 1) {
+        const detail = details[row * 2 + column];
+        if (!detail) continue;
+        const text = truncate(`${detail.label}: ${detail.value}`, columnWidth - 20, font, 9);
+        page.drawText(text, {
+          x: MARGIN + column * columnWidth + 10,
+          y,
+          size: 9,
+          font,
+          color: rgb(0.3, 0.3, 0.3),
+        });
+      }
+      y -= 14;
+    }
+  }
+
+  y -= 10;
   center(`Credential number: ${input.credentialNumber}`, y, 9, font, [
     0.5,
     0.5,
     0.5,
   ]);
   y -= 16;
-  center(`Verify at cmcarebase.com/verify/${input.slug}`, y, 9, font, [
+  const verifyBase = verificationBase();
+  const verifyUrl = `${verifyBase}/verify/${input.slug}`;
+  center(`Verify at ${verifyUrl.replace(/^https?:\/\//, "")}`, y, 9, font, [
     0.5,
     0.5,
     0.5,
   ]);
+
+  // The URL stays printed whether or not the QR renders: a surveyor with a phone scans, a surveyor
+  // with a keyboard types, and neither depends on the other.
+  const qrPng = await verificationQrPng(verifyUrl);
+  if (qrPng) {
+    const qrImage = await doc.embedPng(qrPng);
+    const qrSize = 72;
+    page.drawImage(qrImage, {
+      x: PAGE_WIDTH - MARGIN - qrSize,
+      y: MARGIN - 8,
+      width: qrSize,
+      height: qrSize,
+    });
+    const caption = "Scan to verify";
+    page.drawText(caption, {
+      x: PAGE_WIDTH - MARGIN - qrSize
+        + (qrSize - font.widthOfTextAtSize(caption, 7)) / 2,
+      y: MARGIN - 18,
+      size: 7,
+      font,
+      color: rgb(0.5, 0.5, 0.5),
+    });
+  }
 
   return await doc.save();
 }
@@ -183,9 +303,20 @@ type CertificateRecord = {
   expires_at: string | null;
   pdf_storage_bucket: string | null;
   pdf_storage_path: string | null;
-  courses: { title: string } | null;
+  course_assignment_id: string | null;
+  courses:
+    | {
+      title: string;
+      catalog_code: string | null;
+      course_provider_profiles:
+        | { provider_full_name: string; credential: string | null }
+        | Array<{ provider_full_name: string; credential: string | null }>
+        | null;
+    }
+    | null;
   employees: { first_name: string; last_name: string } | null;
   organizations: { name: string } | null;
+  facilities: { name: string } | null;
 };
 
 async function signPdf(
@@ -210,8 +341,9 @@ async function loadCertificate(
     .from("certificates")
     .select(
       "id, organization_id, slug, credential_number, issued_at, expires_at, " +
-        "pdf_storage_bucket, pdf_storage_path, courses(title), " +
-        "employees(first_name, last_name), organizations(name)",
+        "pdf_storage_bucket, pdf_storage_path, course_assignment_id, " +
+        "courses(title, catalog_code, course_provider_profiles(provider_full_name, credential)), " +
+        "employees(first_name, last_name), organizations(name), facilities(name)",
     )
     .eq("id", certificateId)
     .single();
@@ -219,6 +351,106 @@ async function loadCertificate(
     throw new Error(error?.message ?? "Certificate not found");
   }
   return data as unknown as CertificateRecord;
+}
+
+/**
+ * Course code to the statement that belongs on that course's certificate.
+ *
+ * A certificate must never claim a department approved the course. The wording here says what the
+ * training was designed to address, which is what the regulation supports. Extending this map is
+ * how another regulated course gets its own line; a course that is not in it prints no statement.
+ */
+const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+
+/**
+ * Origin for the printed and encoded verification link.
+ *
+ * A certificate outlives the request that made it, and a staging or preview deployment that
+ * hard-codes production sends every scanner to a host where its own certificate slug does not
+ * exist. generate-class-notice-pdf resolves generated links the same way.
+ */
+function verificationBase(): string {
+  const configured = (Deno.env.get("PUBLIC_APP_URL") ?? DEFAULT_APP_ORIGIN).replace(/\/+$/, "");
+  try {
+    const parsed = new URL(configured.includes("://") ? configured : `https://${configured}`);
+    return `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return DEFAULT_APP_ORIGIN;
+  }
+}
+
+const CERTIFICATE_STATEMENTS: Record<string, { statement: string; reference: string }> = {
+  "PA-PCH-DIABETES-ANNUAL": {
+    statement:
+      "Successful completion of Annual Diabetes Patient Education designed to address the " +
+      "training requirements of 55 Pa. Code Section 2600.190(b).",
+    reference: "55 Pa. Code Section 2600.190(b)",
+  },
+};
+
+async function loadCertificateDetail(
+  adminClient: ReturnType<typeof createClient>,
+  cert: CertificateRecord,
+): Promise<{
+  courseVersion: string | null;
+  regulatoryReference: string | null;
+  trainingProvider: string | null;
+  providerCredential: string | null;
+  finalExamScore: number | null;
+  statement: string | null;
+}> {
+  // PostgREST returns an embedded one-to-one as an object and a one-to-many as an array
+  // depending on how it resolves the relationship, so accept both rather than guessing.
+  const rawProfile = cert.courses?.course_provider_profiles ?? null;
+  const profile = Array.isArray(rawProfile) ? rawProfile[0] ?? null : rawProfile;
+  const catalogCode = cert.courses?.catalog_code ?? null;
+  const wording = catalogCode ? CERTIFICATE_STATEMENTS[catalogCode] ?? null : null;
+
+  let courseVersion: string | null = null;
+  let finalExamScore: number | null = null;
+
+  if (cert.course_assignment_id) {
+    // The version the learner actually took, not whatever the course points at today.
+    const { data: assignment, error: versionError } = await adminClient
+      .from("course_assignments")
+      .select("course_versions(version_label, version_number)")
+      .eq("id", cert.course_assignment_id)
+      .maybeSingle();
+    // A transient failure here is not "this certificate has no version". Swallowing it would
+    // print a regulatory document missing its version and examination score, upload it, and mark
+    // the job succeeded -- so the retry path that exists for exactly this never runs.
+    if (versionError) throw versionError;
+    const rawVersion = (assignment as { course_versions?: unknown } | null)?.course_versions ?? null;
+    const version = (Array.isArray(rawVersion) ? rawVersion[0] : rawVersion) as
+      | { version_label: string | null; version_number: number }
+      | null;
+    if (version) {
+      courseVersion = version.version_label ?? `v${version.version_number}`;
+    }
+
+    const { data: attempts, error: attemptsError } = await adminClient
+      .from("quiz_attempts")
+      .select("score_percent, quizzes!inner(quiz_kind)")
+      .eq("assignment_id", cert.course_assignment_id)
+      .eq("passed", true)
+      .eq("quizzes.quiz_kind", "final_exam");
+    if (attemptsError) throw attemptsError;
+    for (const row of (attempts ?? []) as Array<{ score_percent: number | null }>) {
+      if (row.score_percent === null) continue;
+      finalExamScore = finalExamScore === null
+        ? row.score_percent
+        : Math.max(finalExamScore, row.score_percent);
+    }
+  }
+
+  return {
+    courseVersion,
+    regulatoryReference: wording?.reference ?? null,
+    trainingProvider: profile?.provider_full_name ?? null,
+    providerCredential: profile?.credential ?? null,
+    finalExamScore,
+    statement: wording?.statement ?? null,
+  };
 }
 
 async function finishFailedJob(
@@ -254,16 +486,25 @@ async function processClaimedJob(
   try {
     const cert = await loadCertificate(adminClient, claim.certificate_id);
     const employee = cert.employees;
+    const detail = await loadCertificateDetail(adminClient, cert);
     const pdfBytes = await buildCertificatePdf({
       employeeName: employee
         ? `${employee.first_name} ${employee.last_name}`
         : "Unknown Employee",
       courseTitle: cert.courses?.title ?? "Untitled Course",
       organizationName: cert.organizations?.name ?? "",
+      facilityName: cert.facilities?.name ?? null,
       issuedAt: cert.issued_at,
       expiresAt: cert.expires_at,
       slug: cert.slug,
       credentialNumber: cert.credential_number,
+      courseCode: cert.courses?.catalog_code ?? null,
+      courseVersion: detail.courseVersion,
+      regulatoryReference: detail.regulatoryReference,
+      trainingProvider: detail.trainingProvider,
+      providerCredential: detail.providerCredential,
+      finalExamScore: detail.finalExamScore,
+      statement: detail.statement,
     });
     const path = `${cert.organization_id}/${cert.id}.pdf`;
 

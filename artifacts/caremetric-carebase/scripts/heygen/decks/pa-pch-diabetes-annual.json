@@ -1,0 +1,352 @@
+{
+  "course": "PA-PCH-DIABETES-ANNUAL",
+  "slides": "pa-pch-diabetes-annual-slides.json",
+  "note": "Twelve studio blocks, one per module of the annual diabetes course, in the same shape as the five in-service decks before it: a section frame, Kevin, and slides he narrates over. Every block stays near three minutes so its file clears the ~50MB storage re-host. Narration is written for this deck rather than reused, because the course has no earlier presenter segments to draw on -- and the identical text is carried on each course block's body.script by 20260830160000, so the transcript a learner reads is what Kevin says. Every resident, order and MAR example in the narration is fictional.",
+  "blocks": [
+    {
+      "id": "db-b1-role",
+      "title": "Diabetes, insulin, and what your job actually is",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-title",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "I'm Kevin. Twenty years in this field, five running a nursing home, seventeen in hospice.\n\nI want to start with the thing that made me want this course to exist.\n\nA woman I'll call Mrs. Delgado sat in a day room one afternoon, quiet, sweating a little, not really answering anybody. Three people walked past her. Every one of them thought she was tired, or having an off day, or getting a bit confused the way people do. She wasn't. Her blood sugar was falling, and it had been falling for about forty minutes by the time somebody actually stopped.\n\nNobody in that hallway was careless. That's what I need you to hear. They were busy and they didn't know what they were looking at.\n\nSo that's what this hour is for. Not to make you a nurse. To make you the person who stops.\n\nThe other half of it is insulin, and insulin is different from almost everything else you'll ever hand somebody. The gap between the right dose and a dangerous one is small enough to fit in a couple of lines on a syringe. Which is why the rule underneath every single thing I'm about to say is the same rule, and I'll say it more times than you want to hear it.\n\nYou do what the order says. Exactly what it says. And when the order doesn't tell you what to do, you stop and you ask."
+        },
+        {
+          "type": "slide",
+          "slide": "db-biology",
+          "script": "Let's do the biology fast, because you need it and you don't need much of it.\n\nSugar in the blood is fuel. It comes from food, mostly from carbohydrates, and it has to get out of the blood and into the cells to be any use. It can't do that on its own. It needs a key, and the key is insulin.\n\nIn type one diabetes the body has stopped making the key. That person needs insulin from outside every day of their life. Not most days. Every day.\n\nIn type two, which is what most of your residents have, the key is still being made, the lock has just gotten stiff. Diet, pills, injections, insulin, some combination. And a resident with type two who's on insulin needs it exactly as reliably as anybody else.\n\nHigh sugar over years wrecks things slowly. Circulation, nerves, kidneys, eyes, wounds that won't close.\n\nLow sugar wrecks things in minutes. That's the difference, and it's why the low one is the one that will find you on a shift."
+        },
+        {
+          "type": "slide",
+          "slide": "db-two-jobs",
+          "script": "Now the part that's actually about your job.\n\nYou are not the person who decides how much insulin somebody needs. That decision belongs to the prescriber, and it was made before you got there.\n\nHere's what carrying out an order looks like. The order says check a sugar before breakfast and give ten units of a named long-acting insulin at eight. You check. You write the number down. You check the resident, the insulin, the concentration, the dose, the route, the time. You give ten. You document it.\n\nHere's what a clinical decision looks like. The number's higher than usual so you give a couple extra. Or it's on the low side so you give half. Or there's a gap in the order and you fill it in from what the last place did.\n\nEvery one of those has hurt somebody. Not because the person was reckless. Because the gap was inconvenient and the answer seemed obvious."
+        }
+      ]
+    },
+    {
+      "id": "db-b2-glucose",
+      "title": "Checking a blood sugar, and reading one that does not fit",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-glucose",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "A blood sugar check answers exactly one question. How much sugar is in this person's blood right now.\n\nThat's it. It doesn't tell you what to do about it. The order tells you that.\n\nYou check because there's an order to check, at the times the order names. Before meals, at bedtime, overnight, whatever it says for that resident. You don't add checks because you're worried and you don't skip them because somebody looks fine.\n\nAnd I want to be blunt about the infection control piece, because this is the one where a shortcut has actually infected people in buildings like yours.\n\nA lancet is used once, on one person, and it goes straight into the sharps container. Not in your pocket. Not back in the device. Once, one person, sharps container.\n\nLancing devices belong to one resident. If your building shares a meter it gets cleaned between residents the way the manufacturer says, and some meters aren't approved to be shared at all.\n\nNobody sets out to transmit hepatitis down a hallway. It has happened anyway, in real buildings, every single time because somebody was saving thirty seconds."
+        },
+        {
+          "type": "slide",
+          "slide": "db-check",
+          "script": "The mechanics matter more than people think.\n\nWash the hands with warm water and dry them all the way, or clean the site with alcohol and let it actually dry. A wet finger dilutes the drop and gives you a number that's lower than the truth.\n\nUse the side of the fingertip, not the middle. It hurts less and it bleeds better. Rotate fingers.\n\nLance it and let the drop come. If you squeeze hard you're pushing tissue fluid into the sample and the number drifts. Warm the hand, hang it down, lance again with a fresh one. Don't milk the finger.\n\nThen write the number down. Right then. Not at the end of rounds, not from memory in the med room.\n\nI know that sounds like the least important sentence in this whole course. It isn't. A sugar written down twenty minutes later, slightly wrong, is how somebody gets the wrong dose two hours after that."
+        },
+        {
+          "type": "slide",
+          "slide": "db-not-the-number",
+          "script": "Here's the judgment part, and it's the only part of this module I'd ask you to memorize.\n\nA reading is questionable when it doesn't fit the person in front of you.\n\nMeter says forty-eight and she's chatting about the weather. Meter says one-ten and he's grey and sweating and can't finish a sentence. Either way, something is wrong, and it might be the strip, the site, the meter, or the person.\n\nWhat you do about a questionable reading comes from the device instructions and your facility's policy. What you never do is pick whichever of two numbers you like better and dose off it.\n\nAnd when the number and the person disagree, the person wins your attention. Symptoms get acted on under that resident's own ordered protocol while you're still sorting out the meter.\n\nOne last thing. If the order ties a dose to a sugar and you don't have a sugar, you don't have a complete instruction. You stop."
+        }
+      ]
+    },
+    {
+      "id": "db-b3-hypo",
+      "title": "Low blood sugar: the emergency in this course",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-hypo",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "Low blood sugar is the emergency in this course.\n\nNot because it's the most common thing you'll see. Because it's the one where minutes count and the clock is already running when you notice.\n\nThe brain runs on sugar and it keeps almost none in reserve. Hours of high sugar do slow damage. Twenty minutes of low sugar can take somebody apart in front of you.\n\nAnd the causes are painfully ordinary. Insulin went in and then the meal didn't. A tray came back untouched and nobody flagged it. Somebody was more active than usual. Somebody's got a stomach bug. A dose got given twice because two people each thought the other hadn't done it.\n\nLook at that list again. Almost none of it is clinical. It's timing and it's communication. Which is exactly why the boring parts of this job, the documenting and the handing off, are not the boring parts of this job.\n\nThe thing I'd most like you to take out of this module is a habit of mind. Any sudden change in how a resident is thinking or behaving, in somebody with diabetes, gets low blood sugar considered. Every time. Before you decide it's the dementia, or a bad day, or being tired."
+        },
+        {
+          "type": "slide",
+          "slide": "db-low-signs",
+          "script": "Here's what it actually looks like, in the order it usually arrives.\n\nFirst the alarm system. Sweating, often cool and clammy. Shaking. Heart going. Sudden hunger. Anxiety that has no reason attached to it. Pale. Dizzy. Blurred vision. A headache out of nowhere.\n\nThen the brain starts running short, and that looks like confusion, slurred or rambling speech, unsteadiness that honestly looks like being drunk, irritability, tearfulness, temper from someone who doesn't have one.\n\nIn an older resident, or someone with dementia, that second group is often the whole thing. There's no dramatic sweating stage. They just aren't themselves.\n\nAnd here's the part that catches people. Somebody who's had diabetes for thirty years may have lost the warning symptoms completely. Certain blood pressure medications blunt them too. So a resident can go from apparently fine to badly impaired with almost nothing in between."
+        },
+        {
+          "type": "slide",
+          "slide": "db-nothing-in-mouth",
+          "script": "Two situations, two different responses.\n\nIf the resident is awake, alert, and can swallow safely, you follow that resident's own ordered treatment. What to give, how much, when to recheck, when to repeat. It's written for them. You don't carry a number in your head from a previous job.\n\nIf the resident cannot swallow safely, cannot follow you, is seizing, or is unconscious, then nothing goes in their mouth. Not juice. Not gel. Not a tablet tucked in a cheek.\n\nI want to earn that one rather than just assert it. A person who can't protect their airway will aspirate what you put in their mouth, and now they have a low blood sugar and a lung full of orange juice. You have made it worse while trying to help. That is your facility's emergency procedure, including calling EMS, and you stay with them.\n\nThen you report it. Not at the end of shift. A resident who went low once is a resident whose plan may need to change."
+        }
+      ]
+    },
+    {
+      "id": "db-b4-hyper",
+      "title": "High blood sugar, dehydration, and when it stops waiting",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-hyper",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "High blood sugar behaves like the opposite problem, and it is, but not in the way people expect.\n\nLow sugar is a fast emergency. High sugar is usually a slow problem that turns into an emergency if nobody catches it. And the thing that turns it is dehydration.\n\nHere's the mechanism, because it explains everything else. When there's too much sugar in the blood the kidneys dump it into the urine, and water goes with it. So the resident is urinating more, up at night, sometimes incontinent when they normally aren't. That costs them fluid. So they're thirsty.\n\nNow put that in an eighty-eight-year-old who doesn't feel thirst the way you do, or a resident with dementia who can't ask for a drink and won't drink what's put in front of her.\n\nThe fluid keeps going out and much less comes back in.\n\nAnd what you see from the doorway, eventually, is not thirst. It's mental status. Confused. Drowsy. Hard to wake. Agitated in a way that isn't like them."
+        },
+        {
+          "type": "slide",
+          "slide": "db-high-signs",
+          "script": "What usually causes an unexplained run of high numbers is not the diet.\n\nIt's infection. A urinary tract infection, a chest infection, cellulitis, sometimes just a bad cold will push blood sugar up, often before anything else about the infection is obvious.\n\nMissed doses do it. Steroids do it. Pain and stress do it. A new medication does it.\n\nSo a resident who's normally well controlled and is suddenly running high for three days is telling you something, and most of the time what they're telling you is that they have an infection nobody has found yet.\n\nReport the pattern, not just the single number. Three days of readings in the two-hundreds is a different piece of information from one reading in the two-hundreds, and it's the pattern that gets a prescriber to act.\n\nThe other things worth reporting in the same breath. Drinking constantly. Up all night. Eating badly. A wound that looks worse than it did. A fever."
+        },
+        {
+          "type": "slide",
+          "slide": "db-do-not-diagnose",
+          "script": "Two names you should know, and one instruction about them.\n\nDiabetic ketoacidosis. Not enough insulin for the body to use sugar at all, so it burns fat instead and makes acid. Vomiting, belly pain, deep fast breathing, a fruity smell on the breath, getting sleepier. Hours to a day or two. Life-threatening.\n\nHyperosmolar hyperglycemic state. More typical of older people with type two. Sugar climbs very high over days while the person dries out. Severe dehydration and altered mental status. Also life-threatening.\n\nNow the instruction. You are not going to diagnose either of these and you should not try. Not because you're not smart enough. Because it's not your call and getting it wrong in either direction is worse than not guessing.\n\nWhat the two names are for is urgency. They're the reason a resident with high sugar who's vomiting, or breathing strangely, or hard to wake, is not a call-in-the-morning situation."
+        }
+      ]
+    },
+    {
+      "id": "db-b5-insulin",
+      "title": "The insulins, and the two things that multiply an error",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-insulin",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "Every insulin does the same job. Gets sugar out of the blood and into the cells.\n\nWhat's different between them is timing. How fast it starts. When it's working hardest. How long it lasts.\n\nThat sounds like pharmacology trivia. It isn't. It's the reason the time on the order is part of the order, and not a suggestion you can move for convenience.\n\nTake a rapid-acting insulin. Starts inside about fifteen minutes, hardest at one to three hours, done in a few. It's there to cover a meal. So if it goes in and the meal doesn't happen, you have given somebody a key with no door. That's a low, and it's coming in about an hour.\n\nLong-acting is a different animal. Slow, steady, roughly a day, no real peak. It's background. It gets given at the same time each day whether or not there's food in front of them, because it isn't covering food.\n\nWhich is why \"she didn't eat much, should I still give it\" has two different answers depending on which insulin is in your hand. And why that question goes to somebody who can answer it, not to your own judgment."
+        },
+        {
+          "type": "slide",
+          "slide": "db-categories",
+          "script": "The categories, quickly, and then the part that actually hurts people.\n\nRapid-acting, around a meal. Short-acting, also mealtime, a bit slower. Intermediate, usually NPH, broad peak in the middle of its run. Long-acting, background, roughly daily. Premixed, which is two of those in one pen at a fixed ratio, and behaves like both.\n\nNow concentration.\n\nMost insulin is U-100. A hundred units in a millilitre. But concentrated insulins exist. U-200. U-300. U-500.\n\nSame amount of liquid. Several times as many units in it.\n\nA syringe or a pen built for one concentration does not measure another correctly. And a mistake here doesn't give somebody a slightly wrong dose. It gives them five times the dose. U-500 in particular has put people in hospital.\n\nSo you read the concentration on the label against the order. Every time. You use only the device meant for that product. And you never convert between concentrations yourself."
+        },
+        {
+          "type": "slide",
+          "slide": "db-concentration",
+          "script": "The other structural trap is the names.\n\nInsulin brand names come in families. Same first syllables, different ending. Same brand in a rapid version and a long-acting version. A number or a mix ratio printed after the name that changes what it is entirely. And the cartons in a family look alike, because they're from the same company and they're meant to.\n\nOnce it's in the syringe, nobody can tell which one you drew.\n\nThe defense is not a better memory. It's a habit. Read the whole name on the label, including the suffix and the number. Read the concentration. Compare it against the order, character by character, with the product actually in your hand.\n\nNot the shelf it lives on. Not the colour of the cap. Not what this resident usually gets.\n\nThat's why insulin is called a high-alert medication. It isn't a comment on how careful you are. It's a statement about the drug."
+        }
+      ]
+    },
+    {
+      "id": "db-b6-storage",
+      "title": "Storage, and damage that does not show",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-storage",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "Insulin is a protein, and proteins are fragile.\n\nHeat kills it. Freezing kills it. Time kills it. And here's the problem: none of that shows. Degraded insulin looks exactly like insulin. What you see instead, days later, is a resident whose sugar has climbed on a dose that used to work fine, and nobody connects it to a vial that sat in a warm window.\n\nSo storage isn't housekeeping. It's part of whether the dose you give does anything.\n\nThe rule for every product is the manufacturer's instructions, and I mean that literally, because these genuinely differ. Vials, pens, cartridges, rapid, long-acting, premixed, concentrated. Different storage, different in-use periods.\n\nWhich brings me to the one habit of memory I most want to break in this module.\n\nThere is no single after-opening period that applies to all insulin. Whatever number you learned at your last job for whatever product they stocked is not a fact about insulin. It came from that product's instructions, and the product in your hand may be different."
+        },
+        {
+          "type": "slide",
+          "slide": "db-storage",
+          "script": "Unopened, generally refrigerated, in the range the manufacturer states, until the printed date. Not shoved against the back wall where it can freeze.\n\nIn use is different. Many products can sit at room temperature for a limited number of days once opened, and most residents find a room-temperature injection more comfortable. How many days comes from that product.\n\nSo an in-use vial has two clocks running. The in-use period after opening, and the printed expiration. Whichever ends first, ends it.\n\nThat's why dating an opened vial isn't paperwork. An undated open vial is one nobody can vouch for.\n\nOn temperature, both directions are damaging and one is silent. Heat is the one people watch for. Freezing is the one they miss, and freezing is permanent. Once, briefly, warmed back up, doesn't matter. It's finished.\n\nAnd inspect it before every dose. Clear insulin should be clear. Cloudy insulin should go uniformly cloudy once you resuspend it the way the maker says. Clumps, crystals, a cracked vial, a label you can't fully read, and it does not get used."
+        }
+      ]
+    },
+    {
+      "id": "db-b7-order",
+      "title": "Reading the order and the MAR",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-order",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "This is the module where most insulin errors are either prevented or made.\n\nEverything else in this course exists to support about ninety seconds of work. You read an order. You compare it against a label and a chart. And you decide whether what you're holding is a complete, unambiguous instruction.\n\nA complete insulin order has six things in it. The resident. The insulin, full name including any suffix or number. The concentration. The dose, in units, an actual number. The route. The time.\n\nIf the dose depends on a blood sugar, that's a seventh, and it has to be a sugar you actually obtained, the way the order says to obtain it.\n\nThen there are hold parameters and call parameters, which tell you when not to give it and when to phone somebody.\n\nSix things. It takes ten seconds to run the list. I have watched people skip it a hundred times without consequence and I have watched what it looks like the one time it matters, and the second one is why I'm saying it slowly."
+        },
+        {
+          "type": "slide",
+          "slide": "db-six-elements",
+          "script": "Let me give you a real-shaped example. Fictional resident, fictional order.\n\nAlma Sorenson. Insulin lispro, U-100, subcutaneously before meals per correction scale. Below seventy, hold and follow the low protocol and call the nurse. Seventy to one forty-nine, zero units. One fifty to one ninety-nine, two units. Two hundred to two forty-nine, four units. Two fifty to two ninety-nine, six units. Above three forty-nine, eight units and call the prescriber.\n\nHer pre-lunch sugar is two-twelve.\n\nThe order gives four units. Not five because she runs high. Not six because lunch is pasta. Four.\n\nNow Ray Kobayashi. Same shape of scale, but it stops at two ninety-nine. His pre-dinner sugar is three-twelve.\n\nThere is no instruction for three-twelve. So you do not continue the pattern upward and give eight. The prescriber did not write eight. You stop, you don't give it, you get it clarified, and you report the number, because a resident sitting at three-twelve needs somebody told regardless."
+        },
+        {
+          "type": "slide",
+          "slide": "db-stop-list",
+          "script": "Here's the whole list of things that stop you.\n\nSomething's missing. No concentration. No route. A scale with a gap in it, or nothing written above the top row.\n\nSomething conflicts. The chart says one number of units and the order says another. Two orders and you can't tell which is current.\n\nSomething's unreadable. You can't tell if it's four units or fourteen.\n\nSomething's unavailable. The insulin isn't there. The sugar was never taken. The meter's broken.\n\nSomething doesn't fit. The dose is nothing like what this resident normally gets and nobody mentioned a change.\n\nIn every one of those the action is identical, and it does not change with how busy the shift is. Don't give it. Get it clarified. Write down what you found.\n\nYou are not refusing to work. You are refusing to guess. Those are different things and only one of them is a problem."
+        }
+      ]
+    },
+    {
+      "id": "db-b8-syringe",
+      "title": "Drawing up a dose, and the line that is worth two",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-syringe",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "An insulin syringe is not a small regular syringe. It's marked in units of insulin, and it's built for one insulin concentration. Almost always U-100.\n\nThree sizes you'll see. Thirty units, fifty units, a hundred units. Use the smallest one that holds the dose, because the lines are further apart and you can actually read where you are.\n\nAnd now the thing that has doubled doses in real buildings.\n\nThe lines are not the same across sizes. On a lot of thirty and fifty unit syringes, one line is one unit. On a lot of hundred unit syringes, one line is two units.\n\nSo if you're used to a fifty and you pick up a hundred and draw to the line you always draw to, you have just given twice the dose. It looked identical while you were doing it.\n\nThere's no trick for this. You look at the numbers on the syringe in your hand, and you work out what one line means, before you draw anything. Every time. Including the time you're sure."
+        },
+        {
+          "type": "slide",
+          "slide": "db-syringe",
+          "script": "The sequence, and then two absolutes.\n\nVerify the order. Gather what you need. Hands, gloves. Read the vial with the vial actually in your hand, all of it, the resident's name, the full product name, the concentration, the date. Look at the insulin itself.\n\nClean the stopper and let it dry. Draw air equal to the dose, push it into the vial, invert it, keep the needle under the liquid, pull back to just past your mark.\n\nThen deal with the bubbles, because a bubble is not nothing. It's space in the barrel that isn't insulin. The number on the syringe says twelve and the resident gets less than twelve. Tap them up, push them back, re-pull to the exact line.\n\nCheck it at eye level. Not from above. If your building requires a second person, that happens now, before you go anywhere near the resident, and it's a real second look and not a nod.\n\nTwo absolutes. You never estimate a dose. And you never convert between concentrations yourself. If the concentration on the vial isn't the concentration in the order, you stop."
+        }
+      ]
+    },
+    {
+      "id": "db-b9-pens",
+      "title": "Insulin pens, and the one that belongs to one person",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-pens",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "Pens are easier than syringes. Easier to hold, easier to read, easier to dose accurately. That's why they're everywhere.\n\nThey also have their own ways of going wrong, and almost all of them come from treating one pen like another pen.\n\nStart with the one that has the worst consequences. A pen belongs to one resident. Full stop.\n\nChanging the needle does not make it safe to share. During an injection, tiny amounts of blood and tissue can be drawn back into the cartridge. So a pen used on a second person can carry infection from the first, with a brand-new needle on it.\n\nThat is not a theoretical risk somebody dreamed up for a training slide. It has happened, in real facilities, and it ends with hundreds of people getting letters telling them to go and get tested.\n\nIf you find a pen with no name on it, or somebody else's name in the wrong drawer, you don't use it and you don't relabel it. You report it."
+        },
+        {
+          "type": "slide",
+          "slide": "db-pens",
+          "script": "The second thing about pens is that they aren't interchangeable.\n\nDifferent makers, different priming instructions, different maximum doses, different dial increments, and different instructions for how long to hold the needle in after you press. The instructions that apply are the ones for the pen in your hand.\n\nFresh needle every single injection. A needle left on between doses lets insulin leak out and air in, which changes the next dose somebody gives, and it's a contamination route.\n\nPrime it the way the maker says. Priming clears air and proves insulin actually comes out. Air in the path means the resident gets less than the dial says. If it won't prime after you've followed the instructions, the pen doesn't get used.\n\nDial the dose and then read the dose window. Straight on, not at an angle.\n\nThen, after you press all the way down, hold the needle in for the time that maker specifies. This is the step people skip, and skipping it costs the resident insulin, because it leaks back out of the site. The count differs by product, which is exactly why you follow the instruction instead of a number you remember."
+        }
+      ]
+    },
+    {
+      "id": "db-b10-admin",
+      "title": "Giving the injection, start to finish",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-admin",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "Let's put the whole thing together, from before you walk in the room to after you've written it down.\n\nBefore. Hands. Read the order and the chart for this resident, this time. And look at whether the dose has already been documented as given, because duplicate insulin doses are a real category of harm and they cluster at shift change and around interruptions.\n\nIn the room. Identify the resident using your facility's procedure. Positively. Every time. Including the resident you've known for two years, because wrong-resident errors happen most with the people staff know best, in familiar rooms, on busy mornings, and after somebody's changed rooms.\n\nTell them what you're doing. They're allowed to know and they're allowed to say no.\n\nSugar first if it's ordered. Compare it to their parameters. Hold if it says hold. Call if it says call. Work out the correction dose from the range the number actually falls in.\n\nThen prepare it, verify it against the order with the product in your hand, and only then approach."
+        },
+        {
+          "type": "slide",
+          "slide": "db-sites",
+          "script": "Sites. Abdomen, outer upper arms, front and outer thighs, upper outer buttocks. The abdomen is the most predictable and it's what most orders use.\n\nRotate. And I want to give you the reason, because \"rotate your sites\" gets taught as a rule and ignored as a rule.\n\nInject in the same spot over and over and the tissue underneath thickens up. Feels rubbery. Insulin absorbed out of thickened tissue absorbs unpredictably, so you get unexplained highs and unexplained lows on a dose nobody has changed. The chart looks like the diabetes is getting worse. It isn't. It's the tissue.\n\nSo move about a finger's width from the last one, follow your building's pattern, and write down where you went so the next person can move on from it.\n\nLook at the skin and feel it before you inject. Not into bruised, broken, scarred, inflamed, or lumpy tissue. And report new lumps or hard areas, because that's the thickening starting."
+        },
+        {
+          "type": "slide",
+          "slide": "db-after",
+          "script": "After the injection there's still a job.\n\nWatch them. Know roughly when what you gave is going to be working hardest. And if you gave mealtime insulin and the tray comes back untouched, that gets reported now, not watched hopefully.\n\nDocument at the point of care. Date, time, product, concentration, dose in units, route, site, the sugar if one was required, and who you are.\n\nThen the situations that aren't routine.\n\nA refusal is a refusal. You don't argue, you don't hide it in food, you don't give it anyway. You document it and you report it promptly, because a missed insulin dose matters.\n\nA held dose gets documented as held, with the reason and who you told.\n\nA dose not given for any other reason gets documented as not given, with the reason. Never a blank space. Never filled in as though it happened.\n\nAnd the rule from the very beginning still holds at the bedside. You give what's ordered, exactly. When it's unclear, you stop."
+        }
+      ]
+    },
+    {
+      "id": "db-b11-errors",
+      "title": "When something goes wrong",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-errors",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "I want to talk about what happens after something goes wrong, because this is where good people make it worse.\n\nHere's a situation. You've drawn fifteen units of a long-acting insulin, you're standing at Mr. Alvarez's bedside, and you notice the vial in your hand has Mr. Nowak's name on it. Nothing has been injected yet.\n\nHere's another. You gave Mrs. Reilly her mealtime insulin at quarter to eight and charted it. At ten past, the aide covering the other hall mentions that she gave Mrs. Reilly her mealtime insulin before she started rounds.\n\nThe instinct in both of those is the same and it is the wrong one. The instinct is to sort it out quietly and get on with the med pass.\n\nI understand it completely. Nobody wants to be the person who stopped everything. But an error you've noticed and not yet acted on is the cheapest error there is, and it only stays cheap for about the next thirty seconds."
+        },
+        {
+          "type": "slide",
+          "slide": "db-four-steps",
+          "script": "Four steps, in this order, and the order is the point.\n\nStop. Whatever you were doing, stop doing it. Don't finish the dose because it's already drawn up. Don't come back to it after the med pass.\n\nProtect the resident. Before paperwork, before telling anybody, before working out how it happened. If insulin went in wrongly, that person is now at risk of going low and they do not get left alone. If a dose was missed, the risk runs the other way and they still need watching.\n\nFollow your facility's medication error process. Immediately. To the person your policy names. Written down factually: what happened, when, what you saw, what you did, who you told. You don't alter an earlier entry and you don't write what you wish had happened.\n\nGet clinical help. Somebody with the authority to decide what happens next decides it. That is not you, and it is not something you can settle by watching and hoping."
+        },
+        {
+          "type": "slide",
+          "slide": "db-never-fix",
+          "script": "Two things that are never part of the response, and I want to be very clear about both.\n\nYou do not fix a dose yourself. Not a make-up dose after a missed one. Not a smaller one later to balance a double. Not skipping tomorrow's to even it out. Every one of those is a second error stacked on the first, and now nobody downstream can reconstruct what actually happened.\n\nAnd you do not wait to see whether anything bad happens before you report it.\n\nThat one deserves the reason rather than the rule. The entire point of reporting an error quickly is that somebody can still act. Insulin given an hour ago is still working. Waiting to see if she gets shaky means you have spent the window in which it was easy to help her.\n\nA near miss gets reported too. The one you caught. That's not you confessing to something. That's your building finding the hole before it takes somebody down."
+        }
+      ]
+    },
+    {
+      "id": "db-b12-close",
+      "title": "Four decisions, and the one thing to carry out",
+      "scenes": [
+        {
+          "type": "slide",
+          "slide": "db-sec-close",
+          "duration": 5
+        },
+        {
+          "type": "avatar",
+          "script": "We're at the end, so let me give you the shape of the whole thing in four decisions.\n\nAlmost everything that happens with diabetes on your shift is one of four actions, and knowing which one you're in is most of the skill.\n\nProceed. The order is complete, you have what it needs, nothing about the resident contradicts it. You carry it out exactly and you document it.\n\nStop and clarify. Something is missing, contradictory, unreadable, unavailable, or unclear. You don't give it. You get it sorted.\n\nNotify. Something is outside this resident's parameters, or something has changed that the clinical team needs to act on. Through your process, promptly.\n\nEmergency. The resident is or might be in danger right now. Your facility's emergency procedure, including EMS, and you stay with them.\n\nMore than one can apply at once, and often two should. A sugar above the top of the scale is a stop-and-clarify and a notify in the same breath."
+        },
+        {
+          "type": "slide",
+          "slide": "db-four-actions",
+          "script": "I'll leave you with the three things I actually want you to carry out of here.\n\nThe order is the instruction, and finishing it exactly is the job. Not improving it. Not adjusting it for what you know about her. Not extending it into a range the prescriber didn't write.\n\nAn incomplete order is not a puzzle for you to solve. Everybody who has ever done this work has felt the pull to fill in the gap, because the gap is inconvenient and the answer looks obvious and the shift is short-staffed. That pull is the whole reason this course exists. Stopping to ask takes minutes. An insulin error takes somebody to hospital.\n\nAnd the third one, which is the one I'd keep if I could only keep one. You are the person who notices.\n\nYou see these residents every day. The prescriber sees them twice a year.\n\nSo when somebody isn't themselves at three in the afternoon, and you can't say why, and it would be easier to assume it's nothing.\n\nBe the person who stops."
+        }
+      ]
+    }
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "db-b1-role": {
+        "video_id": "b98a71c650826271b0a24d77de6dfd42",
+        "seconds": 190,
+        "mb": 18.7
+      },
+      "db-b2-glucose": {
+        "video_id": "dbb1fb54d4c89aa06a8a967682040b44",
+        "seconds": 176,
+        "mb": 16.4
+      },
+      "db-b3-hypo": {
+        "video_id": "87e2ca3eb83c873777394fd5c159c3b0",
+        "seconds": 189,
+        "mb": 17.4
+      },
+      "db-b4-hyper": {
+        "video_id": "169ff77e06220694dee62bae9e74dfb7",
+        "seconds": 181,
+        "mb": 15.3
+      },
+      "db-b5-insulin": {
+        "video_id": "bdf769bc40176c4f80534418fcdc0f0d",
+        "seconds": 191,
+        "mb": 17.2
+      },
+      "db-b6-storage": {
+        "video_id": "68f7bdb18febfc44bc77836cc16334ae",
+        "seconds": 145,
+        "mb": 15.6
+      },
+      "db-b7-order": {
+        "video_id": "fe9550019996150765b46bb53f0e7a2e",
+        "seconds": 185,
+        "mb": 18.3
+      },
+      "db-b8-syringe": {
+        "video_id": "d7a568b85f70c11d40f201239da3c7e3",
+        "seconds": 125,
+        "mb": 13.5
+      },
+      "db-b9-pens": {
+        "video_id": "3070adf02c007f67305e5e9edfe08f1e",
+        "seconds": 132,
+        "mb": 14
+      },
+      "db-b10-admin": {
+        "video_id": "05bb208ea265011ad34ab0db8a6664e4",
+        "seconds": 185,
+        "mb": 15.9
+      },
+      "db-b11-errors": {
+        "video_id": "4e15fa3dc2f70adf7516abdcd26c82e9",
+        "seconds": 160,
+        "mb": 14.1
+      },
+      "db-b12-close": {
+        "video_id": "00f1790d8b19c156292083e687e98a5e",
+        "seconds": 127,
+        "mb": 14.7
+      }
+    }
+  }
+}

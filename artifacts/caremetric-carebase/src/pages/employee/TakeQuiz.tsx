@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ListChecks, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ListChecks, CheckCircle2, XCircle, AlertTriangle, BookOpen, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -24,7 +24,9 @@ import {
   useListQuizAttempts,
   useGetQuizAttempt,
   useGetQuizReview,
+  useGetQuizAttemptTopicReview,
 } from "@/hooks/useQuizzes";
+import { orderAnswersForAttempt, orderQuestionsForAttempt } from "@/lib/quizShuffle";
 
 export default function TakeQuiz() {
   const { assignmentId, quizId } = useParams<{ assignmentId: string; quizId: string }>();
@@ -101,6 +103,13 @@ export default function TakeQuiz() {
     }
   }, [activeAttemptId, attemptAnswers, seededFor]);
 
+  // Presentation order for a randomized examination. Seeded from the attempt id rather than
+  // Math.random, because every saved answer re-renders this page and a fresh shuffle would reorder
+  // the paper underneath the person taking it. See src/lib/quizShuffle.ts.
+  const orderingAttemptId = activeAttemptId ?? lastGraded?.id ?? null;
+  const shuffleQuestions = quiz?.shuffle_questions === true;
+  const shuffleAnswers = quiz?.shuffle_answers === true;
+
   const choicesByQuestion = useMemo(() => {
     const map = new Map<string, { id: string; question_id: string; answer_text: string; sort_order: number }[]>();
     for (const c of choices ?? []) {
@@ -108,9 +117,12 @@ export default function TakeQuiz() {
       list.push(c);
       map.set(c.question_id, list);
     }
-    for (const list of map.values()) list.sort((a, b) => a.sort_order - b.sort_order);
+    for (const [questionId, list] of map) {
+      list.sort((a, b) => a.sort_order - b.sort_order);
+      map.set(questionId, orderAnswersForAttempt(list, orderingAttemptId, questionId, shuffleAnswers));
+    }
     return map;
-  }, [choices]);
+  }, [choices, orderingAttemptId, shuffleAnswers]);
 
   const { mutate: startAttempt, isPending: starting } = useStartQuizAttempt();
   const { mutate: saveAnswer } = useSubmitQuizAttemptAnswer();
@@ -231,7 +243,7 @@ export default function TakeQuiz() {
     );
   }
 
-  const allQuestions = questions ?? [];
+  const allQuestions = orderQuestionsForAttempt(questions ?? [], orderingAttemptId, shuffleQuestions);
 
   if (allQuestions.length === 0) {
     return (
@@ -248,6 +260,9 @@ export default function TakeQuiz() {
   // inside the ResultCard closure below -- TS control-flow narrowing from
   // the guard clauses above doesn't carry into nested function bodies.
   const activeQuiz = quiz;
+  const isFinalExam = quiz.quiz_kind === "final_exam";
+  const retakeLabel = isFinalExam ? "Retake Exam" : "Retake Quiz";
+  const reviewLabel = isFinalExam ? "Review Course" : "Review Training";
 
   const isGraded = !!activeAttemptId && activeAttempt && activeAttempt.submitted_at !== null;
 
@@ -267,18 +282,24 @@ export default function TakeQuiz() {
     exhausted: boolean;
   }) {
     const { data: reviewAnswers } = useListQuizAttemptAnswers(attemptId);
+    // Which content areas to go back to. Counts only -- no question text, no answer key -- so it
+    // is safe to show after a failed attempt on an examination the learner may retake immediately.
+    const { data: topicReview } = useGetQuizAttemptTopicReview(passed === false ? attemptId : undefined);
+    const areasToReview = (topicReview ?? []).filter((row) => row.incorrect > 0);
     const isCorrectById = useMemo(() => {
       const map = new Map<string, boolean | null>();
       for (const a of reviewAnswers ?? []) map.set(a.question_id, a.is_correct);
       return map;
     }, [reviewAnswers]);
 
-    // Revealing the correct answer + explanation is safe only once there's no
-    // more opportunity to use it to game a retake: either the employee already
-    // passed, or they've used up every attempt allowed. While retakes remain
-    // on a failed attempt, only the correct/incorrect verdict is shown (as
-    // before) so the quiz still tests recall, not memorized answer letters.
-    const canRevealAnswers = !!passed || exhausted;
+    // Revealing the correct answer + explanation is safe once there's no more opportunity to use
+    // it to game a retake -- the employee passed, or used up every allowed attempt -- and also on
+    // a quiz that opts in as a formative knowledge check, where immediate feedback after a wrong
+    // answer is the entire point of the step. That opt-in cannot leak an examination key: the
+    // database constrains reveals_answers_after_attempt to quiz_kind = 'knowledge_check', so a
+    // final exam can never carry it, and its key stays hidden until the learner passes.
+    const canRevealAnswers = !!passed || exhausted ||
+      activeQuiz.reveals_answers_after_attempt === true;
     const { data: reviewChoices } = useGetQuizReview(canRevealAnswers ? attemptId : undefined);
     const reviewByQuestion = useMemo(() => {
       const map = new Map<string, { correctText: string | null; explanation: string | null }>();
@@ -310,8 +331,42 @@ export default function TakeQuiz() {
             </Badge>
             <span className="text-sm text-muted-foreground">
               Attempt #{attemptNumber} &middot; Passing score {activeQuiz.passing_score_percent}%
+              {maxAttempts == null ? " \u00b7 Unlimited attempts" : ""}
             </span>
           </div>
+
+          {/* A failed attempt on an unlimited-retry assessment is a prompt to review, not a
+              dead end: no administrator has to authorize the next try, and nothing is locked. */}
+          {!passed && !exhausted && (
+            <div
+              className="rounded-lg border bg-muted/30 p-3 space-y-1"
+              role="status"
+              aria-live="polite"
+            >
+              <p className="text-sm font-semibold text-foreground">Score: {scorePercent ?? 0}%</p>
+              <p className="text-sm text-muted-foreground">
+                A minimum score of {activeQuiz.passing_score_percent}% is required. Review the material and try again.
+              </p>
+            </div>
+          )}
+
+          {!passed && areasToReview.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Areas to review
+              </p>
+              <ul className="space-y-1">
+                {areasToReview.map((row) => (
+                  <li key={row.topic_code} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate">{row.topic_label}</span>
+                    <Badge variant="secondary" className="shrink-0">
+                      {row.incorrect} of {row.questions} missed
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {exhausted && !passed && (
             <div className="flex items-start gap-2 p-3 rounded-lg border bg-muted/30">
@@ -358,13 +413,17 @@ export default function TakeQuiz() {
             </div>
           )}
 
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             {showRetake && (
               <Button onClick={handleStart} disabled={starting}>
-                {starting ? "Starting..." : "Retake Quiz"}
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {starting ? "Starting..." : retakeLabel}
               </Button>
             )}
-            <Button variant="outline" onClick={() => navigate(backHref)}>Back to Training</Button>
+            <Button variant="outline" onClick={() => navigate(backHref)}>
+              <BookOpen className="mr-2 h-4 w-4" />
+              {passed ? "Back to Training" : reviewLabel}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -491,8 +550,18 @@ export default function TakeQuiz() {
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground space-y-1">
               <p>{allQuestions.length} question{allQuestions.length === 1 ? "" : "s"}</p>
-              <p>Passing score: {quiz.passing_score_percent}%</p>
-              <p>{maxAttempts == null ? "Unlimited attempts" : `Up to ${maxAttempts} attempt${maxAttempts === 1 ? "" : "s"}`}</p>
+              <p>
+                Passing score: {quiz.passing_score_percent}%
+                {isFinalExam && allQuestions.length > 0
+                  ? ` (${Math.ceil((quiz.passing_score_percent / 100) * allQuestions.length)} of ${allQuestions.length} correct)`
+                  : ""}
+              </p>
+              <p>
+                {maxAttempts == null
+                  ? "Unlimited attempts -- you can retake this as many times as you need"
+                  : `Up to ${maxAttempts} attempt${maxAttempts === 1 ? "" : "s"}`}
+              </p>
+              {shuffleQuestions && <p>Question and answer order is randomized for each attempt.</p>}
             </div>
             <Button onClick={handleStart} disabled={starting}>
               {starting ? "Starting..." : "Start Quiz"}

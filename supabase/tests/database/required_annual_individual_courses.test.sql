@@ -79,9 +79,10 @@ select results_eq(
       ('PA-DHS-STANDALONE-SAFE-MANAGEMENT'::text),
       ('PA-PCH-2600-236-DEMENTIA-FOUNDATIONS'::text),
       ('PA-PCH-ANNUAL-ASSESSED-NEEDS'::text),
-      ('PA-PCH-ANNUAL-PERSONAL-CARE-SERVICES'::text)
+      ('PA-PCH-ANNUAL-PERSONAL-CARE-SERVICES'::text),
+      ('PA-PCH-DIABETES-ANNUAL'::text)
   $$,
-  'the stable individual PA DHS catalog contains all 28 seeded courses'
+  'the stable individual PA DHS catalog contains all 29 seeded courses'
 );
 
 select results_eq(

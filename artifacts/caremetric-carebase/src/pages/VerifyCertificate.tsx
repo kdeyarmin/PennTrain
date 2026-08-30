@@ -112,6 +112,51 @@ export default function VerifyCertificate() {
                     </p>
                   </div>
                 )}
+
+                {/* The regulatory detail a surveyor scanning the QR code on a printed certificate
+                    is actually checking. Each field is omitted when the course does not record
+                    it, so a certificate with no examination or no named provider reads cleanly. */}
+                {(result.course_code
+                  || result.course_version
+                  || result.final_exam_score != null
+                  || result.training_provider
+                  || result.credential_number) && (
+                  <dl className="border-t pt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-center">
+                    {result.course_code && (
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Course code</dt>
+                        <dd className="text-sm font-medium text-foreground mt-0.5">{result.course_code}</dd>
+                      </div>
+                    )}
+                    {result.course_version && (
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Course version</dt>
+                        <dd className="text-sm font-medium text-foreground mt-0.5">{result.course_version}</dd>
+                      </div>
+                    )}
+                    {result.final_exam_score != null && (
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Final examination score</dt>
+                        <dd className="text-sm font-medium text-foreground mt-0.5">{result.final_exam_score}%</dd>
+                      </div>
+                    )}
+                    {result.credential_number && (
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Certificate number</dt>
+                        <dd className="text-sm font-medium text-foreground mt-0.5">{result.credential_number}</dd>
+                      </div>
+                    )}
+                    {result.training_provider && (
+                      <div className="col-span-2">
+                        <dt className="text-xs text-muted-foreground">Training provider</dt>
+                        <dd className="text-sm font-medium text-foreground mt-0.5">
+                          {result.training_provider}
+                          {result.provider_credential ? `, ${result.provider_credential}` : ""}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                )}
               </CardContent>
             </>
           )}

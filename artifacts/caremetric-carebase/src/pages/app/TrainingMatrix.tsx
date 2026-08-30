@@ -32,9 +32,14 @@ import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { DiabetesEducationComplianceCard } from "@/components/training/DiabetesEducationComplianceCard";
 
 // Matches employee_training_records_insert/_update RLS.
 const TRAINING_RECORD_MANAGE_ROLES: Role[] = ["org_admin", "facility_manager", "trainer"];
+
+// Matches generate_diabetes_training_compliance_report's own role gate, which mirrors
+// generate_paged_compliance_report: reporting is an administrator and auditor surface.
+const DIABETES_REPORT_ROLES: string[] = ["org_admin", "facility_manager", "auditor"];
 
 const PAGE_SIZE = 15;
 
@@ -903,6 +908,14 @@ export default function TrainingMatrix() {
           {exporting ? "Exporting…" : "Export CSV"}
         </Button>
       </div>
+
+      {/* Shares the page's facility filter so the two views always agree about scope. Rendered
+          only for the roles generate_diabetes_training_compliance_report accepts -- a trainer can
+          reach this page but not that report, and showing them a permission error would be worse
+          than showing them nothing. */}
+      {DIABETES_REPORT_ROLES.includes(user?.role ?? "") && (
+        <DiabetesEducationComplianceCard facilityId={facilityId} />
+      )}
 
       <Card>
         <CardHeader className="pb-2">

@@ -23,6 +23,7 @@ export function CourseOverviewSection({
   feedbackSummary,
   feedbackLoading = false,
   feedbackError = false,
+  designedMinutes,
 }: {
   course: Course;
   userRole: Role | undefined;
@@ -38,6 +39,8 @@ export function CourseOverviewSection({
   feedbackSummary: { average: number | null; count: number };
   feedbackLoading?: boolean;
   feedbackError?: boolean;
+  /** Sum of the selected version's designed step minutes, for the credited-duration note below. */
+  designedMinutes: number;
 }) {
   return (
     <>
@@ -108,6 +111,27 @@ export function CourseOverviewSection({
           <div>
             <p className="text-xs text-muted-foreground">Estimated Duration</p>
             <p className="text-sm">{course.estimated_duration_minutes ? `${course.estimated_duration_minutes} minutes` : "—"}</p>
+            {/* When a version delivers the credited duration in less step time, both numbers are
+                printed together. The difference is a recorded provider determination, so it should
+                never be something a reader has to discover by adding up the steps themselves. */}
+            {selectedVersion?.credited_duration_rationale && (
+              <div className="mt-1.5 rounded-md border bg-muted/30 p-2.5 space-y-1">
+                <p className="text-xs font-medium">
+                  Version {selectedVersion.version_label ?? `v${selectedVersion.version_number}`} delivers this in{" "}
+                  {designedMinutes} minute{designedMinutes === 1 ? "" : "s"} of designed step time.
+                </p>
+                <p className="text-xs text-muted-foreground">{selectedVersion.credited_duration_rationale}</p>
+              </div>
+            )}
+            {/* A course-level fact rather than a version-level one, so it prints on its own: with
+                the exemption on, nothing in the database ties the credited hours to how long the
+                course actually runs, and whoever is reading the duration should know that. */}
+            {course.credited_duration_check_exempt && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Compliance-credit duration checks are off for this course. It credits its catalog
+                duration regardless of how long a version takes to deliver.
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Employee Rating</p>
