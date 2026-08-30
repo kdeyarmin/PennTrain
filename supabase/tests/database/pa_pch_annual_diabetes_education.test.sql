@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(44);
+select plan(46);
 
 -- ---------------------------------------------------------------------------
 -- What the published course promises
@@ -293,6 +293,49 @@ where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
 update public.courses set estimated_duration_minutes = 240
 where catalog_code = 'PA-PCH-DIABETES-ANNUAL';
 select set_config('app.privileged_write', 'off', true);
+
+-- ---------------------------------------------------------------------------
+-- The video version's renders
+-- ---------------------------------------------------------------------------
+--
+-- v2026.2 carries twelve rendered HeyGen jobs but no storage URL: the poller owns that column,
+-- and a block that carries a URL before the object exists is a player broken for whoever opens
+-- it first. Both halves of that are asserted, because getting either wrong ships a dead video.
+
+select results_eq(
+  $$
+    select count(*)::integer,
+           count(*) filter (where cb.body->'heygen'->>'video_id' is not null)::integer,
+           count(*) filter (where cb.body->'heygen'->>'status' = 'processing')::integer,
+           count(*) filter (where cb.video_url is not null)::integer
+    from public.course_blocks cb
+    join public.course_versions cv on cv.id = cb.course_version_id
+    join public.courses c on c.id = cv.course_id
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+      and cv.version_label = '2026.2'
+      and cb.block_type = 'video'
+  $$,
+  $$ values (12, 12, 12, 0) $$,
+  'all twelve video blocks carry a render id and none carries a storage URL yet'
+);
+
+-- Wiring the ids on must not have disturbed the narration or the step minutes the comprehensive
+-- standard measures -- body is merged, never replaced.
+select is(
+  (
+    select count(*)::integer
+    from public.course_blocks cb
+    join public.course_versions cv on cv.id = cb.course_version_id
+    join public.courses c on c.id = cv.course_id
+    where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+      and cv.version_label = '2026.2'
+      and cb.block_type = 'video'
+      and (length(cb.body->>'script') < 100
+           or (cb.body->>'estimated_minutes')::integer not between 1 and 120)
+  ),
+  0,
+  'and each kept its narration and its step minutes'
+);
 
 -- ---------------------------------------------------------------------------
 -- Fixture: one organization, one learner, one assignment
