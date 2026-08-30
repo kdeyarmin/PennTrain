@@ -283,5 +283,46 @@
         }
       ]
     }
-  ]
+  ],
+  "rendered": {
+    "note": "HeyGen video ids for this deck, one per block, in the Kevin - Voice avatar voice. Recorded here because the render is the paid artifact: a follow-up migration wires these onto course blocks, and losing them means paying to render the course again.",
+    "blocks": {
+      "db-b1-role": {
+        "video_id": "b98a71c650826271b0a24d77de6dfd42"
+      },
+      "db-b2-glucose": {
+        "video_id": "dbb1fb54d4c89aa06a8a967682040b44"
+      },
+      "db-b3-hypo": {
+        "video_id": "87e2ca3eb83c873777394fd5c159c3b0"
+      },
+      "db-b4-hyper": {
+        "video_id": "169ff77e06220694dee62bae9e74dfb7"
+      },
+      "db-b5-insulin": {
+        "video_id": "bdf769bc40176c4f80534418fcdc0f0d"
+      },
+      "db-b6-storage": {
+        "video_id": "68f7bdb18febfc44bc77836cc16334ae"
+      },
+      "db-b7-order": {
+        "video_id": "fe9550019996150765b46bb53f0e7a2e"
+      },
+      "db-b8-syringe": {
+        "video_id": "d7a568b85f70c11d40f201239da3c7e3"
+      },
+      "db-b9-pens": {
+        "video_id": "3070adf02c007f67305e5e9edfe08f1e"
+      },
+      "db-b10-admin": {
+        "video_id": "05bb208ea265011ad34ab0db8a6664e4"
+      },
+      "db-b11-errors": {
+        "video_id": "4e15fa3dc2f70adf7516abdcd26c82e9"
+      },
+      "db-b12-close": {
+        "video_id": "00f1790d8b19c156292083e687e98a5e"
+      }
+    }
+  }
 }
