@@ -13,6 +13,7 @@ import {
   MIN_APPLIED_RESPONSE_CHARACTERS,
   parseLearningToolsState,
   requiresAppliedResponse,
+  requiresAttestation,
   sanitizeLearningToolsState,
   shouldEnableCourseShortcuts,
   type LearningToolBlock,
@@ -90,6 +91,38 @@ describe("course learning tools", () => {
       videoGateBlocksAdvance: false,
       appliedResponseRequired: false,
     })).toBe(true);
+  });
+
+  it("blocks an unsigned attestation step and clears once it is signed", () => {
+    // The database enforces the same rule inside complete_course_assignment(); this only keeps the
+    // Next / Mark Training Complete button honest about it.
+    const attestation = {
+      completionEvidenceLocked: false,
+      isQuizBlock: false,
+      currentQuizPassed: false,
+      videoGateBlocksAdvance: false,
+      appliedResponseRequired: false,
+      appliedResponseComplete: true,
+      attestationRequired: true,
+      attestationSigned: false,
+    };
+    expect(canAdvanceCourseStep(attestation)).toBe(false);
+    expect(canAdvanceCourseStep({ ...attestation, attestationSigned: true })).toBe(true);
+    // A completed assignment is read-only documentation and stays walkable.
+    expect(canAdvanceCourseStep({ ...attestation, completionEvidenceLocked: true })).toBe(true);
+    // Every step that is not an attestation is unaffected.
+    expect(canAdvanceCourseStep({ ...attestation, attestationRequired: false })).toBe(true);
+  });
+
+  it("labels and sizes an attestation step", () => {
+    expect(getBlockLabel("attestation")).toBe("Attestation");
+    expect(getLearningStepLabel(block({
+      block_type: "attestation",
+      body: { activity_type: "attestation" },
+    }))).toBe("Learner attestation");
+    expect(requiresAttestation(block({ block_type: "attestation" }))).toBe(true);
+    expect(requiresAttestation(block({ block_type: "text" }))).toBe(false);
+    expect(estimateBlockMinutes(block({ block_type: "attestation", body: {} }))).toBe(2);
   });
 
   it("disables lesson shortcuts while a modal course dialog is open", () => {

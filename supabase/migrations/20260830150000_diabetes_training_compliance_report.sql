@@ -1,0 +1,316 @@
+-- The PA PCH Diabetes Training Compliance Report -- the row an inspector asks for.
+--
+-- Kept as its own function rather than a twenty-third branch inside
+-- generate_paged_compliance_report(): that function is already 900 lines, every branch shares one
+-- set of locals, and this report joins a different spine (a course's assignments and certificates,
+-- not employee_training_records). It returns the identical jsonb envelope, so ReportViewer, the CSV
+-- exporter, and the paging controls consume it unchanged.
+--
+-- SECURITY INVOKER on purpose: every table it reads already has tenant and facility RLS, so an
+-- org_admin sees their organization, a facility_manager sees their facilities, and no cross-tenant
+-- row can appear no matter what arguments are passed.
+create or replace function public.generate_diabetes_training_compliance_report(
+  p_facility_id uuid default null,
+  p_status text default null,
+  p_search text default null,
+  p_limit integer default 100,
+  p_offset integer default 0
+)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $function$
+declare
+  v_limit integer := least(greatest(coalesce(p_limit, 100), 1), 1000);
+  v_offset integer := greatest(coalesce(p_offset, 0), 0);
+  v_status text := nullif(btrim(coalesce(p_status, '')), '');
+  v_search text := nullif(btrim(coalesce(p_search, '')), '');
+  v_today date := public.pa_today();
+  v_headers jsonb;
+  v_rows jsonb := '[]'::jsonb;
+  v_summary jsonb;
+  v_total bigint := 0;
+  v_current bigint := 0;
+  v_due_soon bigint := 0;
+  v_urgent bigint := 0;
+  v_expired bigint := 0;
+  v_in_progress bigint := 0;
+  v_not_started bigint := 0;
+  v_exam_not_passed bigint := 0;
+begin
+  if not public.current_profile_active()
+     or public.current_role() not in ('org_admin', 'facility_manager', 'auditor') then
+    raise exception 'Not authorized to generate the diabetes training compliance report'
+      using errcode = '42501';
+  end if;
+
+  if v_status is not null and v_status not in (
+    'current', 'due_soon', 'urgent', 'expired', 'not_started', 'in_progress', 'exam_not_passed', 'completed'
+  ) then
+    raise exception 'Unsupported diabetes training compliance status filter'
+      using errcode = '22023';
+  end if;
+
+  -- Because this function is SECURITY INVOKER, this lookup also proves that the caller can see
+  -- the requested facility through normal facilities RLS.
+  if p_facility_id is not null and not exists (
+    select 1 from public.facilities f where f.id = p_facility_id and not f.is_sandbox
+  ) then
+    raise exception 'Facility is outside the caller scope'
+      using errcode = '42501';
+  end if;
+
+  with course as (
+    select c.id, c.title, c.catalog_code, c.recurrence_interval_days
+    from public.courses c
+    where c.organization_id is null
+      and c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  ),
+  provider as (
+    select p.provider_full_name, p.credential
+    from public.course_provider_profiles p
+    join course c on c.id = p.course_id
+  ),
+  assignments as (
+    select
+      ca.id,
+      ca.employee_id,
+      ca.facility_id,
+      ca.status,
+      ca.completed_at,
+      ca.course_version_id,
+      row_number() over (
+        partition by ca.employee_id
+        order by ca.completed_at desc nulls first, ca.assigned_at desc
+      ) as recency
+    from public.course_assignments ca
+    join course c on c.id = ca.course_id
+    where (p_facility_id is null or ca.facility_id = p_facility_id)
+  ),
+  latest as (
+    select * from assignments where recency = 1
+  ),
+  detailed as (
+    select
+      e.last_name,
+      e.first_name,
+      (e.first_name || ' ' || e.last_name)::text as employee_name,
+      e.employee_number,
+      f.name as facility_name,
+      c.title as course_title,
+      coalesce(cv.version_label, 'v' || cv.version_number::text) as course_version,
+      coalesce(pr.provider_full_name, 'CareMetric CareBase Training Suite') as training_provider,
+      coalesce(pr.credential, '--') as provider_credential,
+      l.status as assignment_status,
+      l.completed_at,
+      cert.credential_number,
+      cert.expires_at,
+      exam.best_score,
+      coalesce(exam.attempt_count, 0) as attempt_count,
+      att.attested_at,
+      case
+        when l.status <> 'completed' and coalesce(exam.attempt_count, 0) = 0 and l.status = 'assigned'
+          then 'not_started'
+        when l.status <> 'completed' and coalesce(exam.passed_count, 0) = 0 and coalesce(exam.attempt_count, 0) > 0
+          then 'exam_not_passed'
+        when l.status <> 'completed'
+          then 'in_progress'
+        when cert.expires_at is null
+          then 'current'
+        when (cert.expires_at at time zone 'America/New_York')::date < v_today
+          then 'expired'
+        when (cert.expires_at at time zone 'America/New_York')::date <= v_today + 14
+          then 'urgent'
+        when (cert.expires_at at time zone 'America/New_York')::date <= v_today + 60
+          then 'due_soon'
+        else 'current'
+      end as compliance_status
+    from latest l
+    join public.employees e on e.id = l.employee_id
+    join public.facilities f on f.id = l.facility_id and not f.is_sandbox
+    join public.course_versions cv on cv.id = l.course_version_id
+    cross join course c
+    left join provider pr on true
+    left join public.certificates cert on cert.course_assignment_id = l.id
+    left join lateral (
+      select
+        max(qa.score_percent) filter (where qa.passed) as best_score,
+        count(*) filter (where qa.submitted_at is not null) as attempt_count,
+        count(*) filter (where qa.passed) as passed_count
+      from public.quiz_attempts qa
+      join public.quizzes q on q.id = qa.quiz_id
+      where qa.assignment_id = l.id and q.quiz_kind = 'final_exam'
+    ) exam on true
+    left join lateral (
+      select max(la.attested_at) as attested_at
+      from public.course_learner_attestations la
+      where la.course_assignment_id = l.id
+    ) att on true
+    where not e.is_synthetic
+  ),
+  filtered as (
+    select * from detailed
+    where (
+        v_status is null
+        or (v_status = 'completed' and assignment_status = 'completed')
+        or compliance_status = v_status
+      )
+      and (
+        v_search is null
+        or employee_name ilike '%' || v_search || '%'
+        or coalesce(employee_number, '') ilike '%' || v_search || '%'
+        or facility_name ilike '%' || v_search || '%'
+      )
+  ),
+  paged as (
+    select * from filtered
+    order by last_name, first_name, employee_name
+    limit v_limit offset v_offset
+  )
+  select
+    (select count(*) from filtered),
+    (select count(*) from filtered where compliance_status = 'current'),
+    (select count(*) from filtered where compliance_status = 'due_soon'),
+    (select count(*) from filtered where compliance_status = 'urgent'),
+    (select count(*) from filtered where compliance_status = 'expired'),
+    (select count(*) from filtered where compliance_status = 'in_progress'),
+    (select count(*) from filtered where compliance_status = 'not_started'),
+    (select count(*) from filtered where compliance_status = 'exam_not_passed'),
+    coalesce((
+      select jsonb_agg(jsonb_build_array(
+        employee_name,
+        coalesce(employee_number, '--'),
+        facility_name,
+        course_title,
+        course_version,
+        training_provider,
+        provider_credential,
+        coalesce((completed_at at time zone 'America/New_York')::date::text, '--'),
+        case when best_score is null then '--' else best_score::text || '%' end,
+        attempt_count::text,
+        coalesce(credential_number, '--'),
+        coalesce((expires_at at time zone 'America/New_York')::date::text, '--'),
+        coalesce((attested_at at time zone 'America/New_York')::date::text, '--'),
+        replace(compliance_status, '_', ' ')
+      ) order by last_name, first_name, employee_name)
+      from paged
+    ), '[]'::jsonb)
+    into v_total, v_current, v_due_soon, v_urgent, v_expired, v_in_progress, v_not_started,
+         v_exam_not_passed, v_rows;
+
+  v_headers := '["Employee","Employee Number","Facility","Course","Course Version","Training Provider","Provider Credential","Completion Date","Final Exam Score","Exam Attempts","Certificate Number","Renewal Due","Attested","Status"]'::jsonb;
+
+  v_summary := jsonb_build_array(
+    jsonb_build_object('label', 'Assigned Staff', 'value', v_total),
+    jsonb_build_object('label', 'Current', 'value', v_current, 'variant', 'success'),
+    jsonb_build_object('label', 'Due within 60 days', 'value', v_due_soon,
+      'variant', case when v_due_soon > 0 then 'warning' else 'success' end),
+    jsonb_build_object('label', 'Due within 14 days', 'value', v_urgent,
+      'variant', case when v_urgent > 0 then 'warning' else 'success' end),
+    jsonb_build_object('label', 'Expired', 'value', v_expired,
+      'variant', case when v_expired > 0 then 'danger' else 'success' end),
+    jsonb_build_object('label', 'In progress', 'value', v_in_progress),
+    jsonb_build_object('label', 'Not started', 'value', v_not_started,
+      'variant', case when v_not_started > 0 then 'warning' else 'success' end),
+    jsonb_build_object('label', 'Exam not yet passed', 'value', v_exam_not_passed,
+      'variant', case when v_exam_not_passed > 0 then 'warning' else 'success' end)
+  );
+
+  return jsonb_build_object(
+    'headers', v_headers,
+    'rows', v_rows,
+    'summaryCards', v_summary,
+    'totalRows', v_total,
+    'pageSize', v_limit,
+    'pageOffset', v_offset,
+    'hasMore', v_offset + jsonb_array_length(v_rows) < v_total,
+    'generatedAt', now()
+  );
+end;
+$function$;
+
+comment on function public.generate_diabetes_training_compliance_report(uuid, text, text, integer, integer) is
+  'One RLS-scoped page of the PA PCH Diabetes Training Compliance Report: staff member, facility, course, version, training provider and credential, completion date, final examination score, number of examination attempts, certificate number, annual renewal date, attestation date, and current status.';
+
+revoke all on function public.generate_diabetes_training_compliance_report(uuid, text, text, integer, integer)
+  from public, anon, authenticated;
+grant execute on function public.generate_diabetes_training_compliance_report(uuid, text, text, integer, integer)
+  to authenticated;
+
+-- Every annual completion an employee has ever recorded for this course, newest first, so an
+-- employee's training history shows each year rather than only the current one. The report above
+-- deliberately shows one row per employee (their latest assignment); this is the drill-down.
+create or replace function public.get_employee_diabetes_training_history(p_employee_id uuid)
+returns table (
+  course_assignment_id uuid,
+  course_title text,
+  course_code text,
+  course_version text,
+  training_provider text,
+  provider_credential text,
+  completed_at timestamptz,
+  final_exam_score numeric,
+  exam_attempts integer,
+  certificate_id uuid,
+  certificate_number text,
+  certificate_slug text,
+  renewal_due_at timestamptz,
+  attested_at timestamptz,
+  is_current boolean
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $function$
+  select
+    ca.id,
+    c.title,
+    c.catalog_code,
+    coalesce(cv.version_label, 'v' || cv.version_number::text),
+    coalesce(pp.provider_full_name, 'CareMetric CareBase Training Suite'),
+    pp.credential,
+    ca.completed_at,
+    exam.best_score,
+    coalesce(exam.attempt_count, 0)::integer,
+    cert.id,
+    cert.credential_number,
+    cert.slug,
+    cert.expires_at,
+    att.attested_at,
+    (cert.id is not null and (cert.expires_at is null or cert.expires_at > now()))
+  from public.course_assignments ca
+  join public.courses c on c.id = ca.course_id
+  join public.course_versions cv on cv.id = ca.course_version_id
+  left join public.course_provider_profiles pp on pp.course_id = c.id
+  left join public.certificates cert on cert.course_assignment_id = ca.id
+  left join lateral (
+    select
+      max(qa.score_percent) filter (where qa.passed) as best_score,
+      count(*) filter (where qa.submitted_at is not null) as attempt_count
+    from public.quiz_attempts qa
+    join public.quizzes q on q.id = qa.quiz_id
+    where qa.assignment_id = ca.id and q.quiz_kind = 'final_exam'
+  ) exam on true
+  left join lateral (
+    select max(la.attested_at) as attested_at
+    from public.course_learner_attestations la
+    where la.course_assignment_id = ca.id
+  ) att on true
+  where ca.employee_id = p_employee_id
+    and c.organization_id is null
+    and c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
+  order by ca.completed_at desc nulls last, ca.assigned_at desc;
+$function$;
+
+comment on function public.get_employee_diabetes_training_history(uuid) is
+  'Every annual diabetes education completion for one employee, newest first, each still bound to the exact course version it was taken against. SECURITY INVOKER, so tenant and facility RLS on course_assignments decides what a caller can see.';
+
+revoke all on function public.get_employee_diabetes_training_history(uuid) from public, anon, authenticated;
+grant execute on function public.get_employee_diabetes_training_history(uuid) to authenticated;
+
+-- Supports the report's per-employee latest-assignment window and the history drill-down.
+create index if not exists course_assignments_employee_course_recency_idx
+  on public.course_assignments(employee_id, course_id, completed_at desc nulls last, assigned_at desc);

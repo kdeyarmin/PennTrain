@@ -66,6 +66,7 @@ import {
   Loader2,
   Bell,
   Printer,
+  Syringe,
 } from "lucide-react";
 
 interface ReportDef {
@@ -133,6 +134,15 @@ const ALL_REPORTS: ReportDef[] = [
     icon: FileText,
     category: "Training",
     requiredBy: "55 Pa. Code §2600.77",
+  },
+  {
+    id: "diabetes-education-compliance",
+    title: "PA PCH Diabetes Training Compliance Report",
+    description:
+      "Annual diabetes patient education for every assigned staff member: facility, course version, training provider and credential, completion date, final examination score, number of examination attempts, certificate number, renewal due date, and current status.",
+    icon: Syringe,
+    category: "Training",
+    requiredBy: "55 Pa. Code \u00a72600.190(b)",
   },
   {
     id: "training-matrix",
@@ -322,6 +332,7 @@ interface ActiveReportRequest {
 }
 
 const REPORT_DATE_FIELD_LABEL: Record<string, string | null> = {
+  "diabetes-education-compliance": null,
   "compliance-summary": "Due Date",
   "facility-compliance": "Due Date",
   "survey-readiness": "Due Date",
@@ -416,6 +427,11 @@ function parsePagedReport(value: unknown): PagedReportData {
   };
 }
 
+// The diabetes report joins a different spine (a course's assignments and certificates rather
+// than employee_training_records) and lives in its own RPC. It returns the identical envelope, so
+// everything downstream -- ReportViewer, the CSV exporter, the paging controls -- is unchanged.
+const DIABETES_REPORT_ID = "diabetes-education-compliance";
+
 async function requestReportPage(
   report: ReportDef,
   options: {
@@ -427,6 +443,16 @@ async function requestReportPage(
     offset: number;
   },
 ): Promise<PagedReportData> {
+  if (report.id === DIABETES_REPORT_ID) {
+    const { data, error } = await supabase.rpc("generate_diabetes_training_compliance_report", {
+      p_facility_id: options.facilityId === "all" ? undefined : options.facilityId,
+      p_limit: options.limit,
+      p_offset: options.offset,
+    });
+    if (error) throw error;
+    return parsePagedReport(data);
+  }
+
   const { data, error } = await supabase.rpc("generate_paged_compliance_report", {
     p_report_id: report.id,
     p_facility_id: options.facilityId === "all" ? undefined : options.facilityId,

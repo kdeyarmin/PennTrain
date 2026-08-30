@@ -241,6 +241,7 @@ export default function Employees() {
       hire_date: form.hireDate || null,
       status: form.status,
       administers_medications: form.administersMedications,
+      administers_insulin: form.administersInsulin,
       trainer_status: form.trainerStatus,
       notes: form.notes || null,
       scheduled_hours_per_week: form.scheduledHoursPerWeek.trim() ? Number(form.scheduledHoursPerWeek) : null,

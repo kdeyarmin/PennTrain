@@ -339,6 +339,35 @@ export interface QuizReviewRow {
   explanation: string | null;
 }
 
+/**
+ * Per-content-area right/wrong counts for one graded attempt.
+ *
+ * This is what an unlimited-retry examination can safely show after a FAILED attempt: which
+ * modules to go back to, with no question text and no answer key. `get_quiz_review` above stays
+ * gated on passing (or, for a formative knowledge check, on the quiz opting into immediate
+ * feedback), so nothing here becomes a back door into the key.
+ */
+export interface QuizTopicReviewRow {
+  topic_code: string;
+  topic_label: string;
+  questions: number;
+  incorrect: number;
+}
+
+export function useGetQuizAttemptTopicReview(attemptId: string | undefined) {
+  return useQuery({
+    queryKey: ["quiz_topic_review", attemptId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_quiz_attempt_topic_review", {
+        p_attempt_id: attemptId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as QuizTopicReviewRow[];
+    },
+    enabled: !!attemptId,
+  });
+}
+
 export function useGetQuizReview(attemptId: string | undefined) {
   return useQuery({
     queryKey: ["quiz_review", attemptId],
@@ -482,6 +511,8 @@ export function useGradeQuizAttempt() {
       // onto quiz_attempt_answers, so both need invalidating.
       queryClient.invalidateQueries({ queryKey: ["quiz_attempts"] });
       queryClient.invalidateQueries({ queryKey: ["quiz_attempt_answers", attemptId] });
+      // The per-content-area breakdown is derived from the is_correct values grading just wrote.
+      queryClient.invalidateQueries({ queryKey: ["quiz_topic_review", attemptId] });
     },
   });
 }

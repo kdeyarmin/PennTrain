@@ -58,6 +58,7 @@ import { useInviteUser } from "@/hooks/useProfiles";
 import { useEmployeeAccessActive } from "@/hooks/useEmployeeAccess";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
+import { DiabetesTrainingHistoryCard } from "@/components/employees/DiabetesTrainingHistoryCard";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
@@ -252,6 +253,7 @@ export default function EmployeeDetail() {
         hire_date: empForm.hireDate || null,
         status: empForm.status,
         administers_medications: empForm.administersMedications,
+        administers_insulin: empForm.administersInsulin,
         trainer_status: empForm.trainerStatus,
         notes: empForm.notes || null,
         scheduled_hours_per_week: empForm.scheduledHoursPerWeek.trim() ? Number(empForm.scheduledHoursPerWeek) : null,
@@ -382,6 +384,7 @@ export default function EmployeeDetail() {
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <StatusBadge status={employee.status} type="employee" />
               {employee.administers_medications && <Badge variant="outline">Medication Administrator</Badge>}
+              {employee.administers_insulin && <Badge variant="outline">Administers Insulin</Badge>}
               {employee.trainer_status && <Badge variant="outline">Trainer</Badge>}
               {employee.worker_type !== "regular" && <Badge variant="outline">{employee.worker_type}</Badge>}
               {/* `profile_id` only says an account was linked. Whether access is *active* also
@@ -736,6 +739,8 @@ export default function EmployeeDetail() {
               )}
             </CardContent>
           </Card>
+
+          <DiabetesTrainingHistoryCard employeeId={employee.id} />
 
           <Card>
             <CardHeader>

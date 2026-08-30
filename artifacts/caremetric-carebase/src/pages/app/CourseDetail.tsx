@@ -33,6 +33,7 @@ import { CourseOverviewSection } from "./course-detail/CourseOverviewSection";
 import { VersionsCard } from "./course-detail/VersionsCard";
 import { PrePublishSection } from "./course-detail/PrePublishSection";
 import { ContentBlocksCard } from "./course-detail/ContentBlocksCard";
+import { TrainingProviderCard } from "./course-detail/TrainingProviderCard";
 import { EditCourseDialog, UnpublishCourseDialog } from "./course-detail/CourseDialogs";
 import { NewVersionDialog, StudentPreviewDialog } from "./course-detail/VersionDialogs";
 import {
@@ -758,6 +759,8 @@ export default function CourseDetail() {
         publishingVersionId={publishingVersionId}
         onPublish={handlePublish}
       />
+
+      <TrainingProviderCard courseId={course.id} canManage={canManage} />
 
       <PrePublishSection
         canManage={canManage}
