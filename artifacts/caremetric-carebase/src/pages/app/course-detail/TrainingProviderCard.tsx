@@ -15,13 +15,14 @@ import {
 } from "@/hooks/useCourseProviderProfiles";
 import { facilityDaysUntil, formatDateForDisplay } from "@/lib/dateUtils";
 
+// professional_title, credential, credential_number, credential_issuing_organization and
+// credential_expires_on are deliberately absent. The provider's post-nominals belong in the name
+// itself -- the certificate prints "name, credential" when both are set, so splitting them states
+// the same thing twice -- and a form that offers five more boxes invites somebody to do exactly
+// that. The columns remain on course_provider_profiles and are not written from here, so any
+// value another course already stored is left untouched rather than blanked on save.
 interface ProviderFormState {
   provider_full_name: string;
-  professional_title: string;
-  credential: string;
-  credential_number: string;
-  credential_issuing_organization: string;
-  credential_expires_on: string;
   course_author: string;
   provider_signature_name: string;
   content_version: string;
@@ -34,11 +35,6 @@ interface ProviderFormState {
 
 const EMPTY_FORM: ProviderFormState = {
   provider_full_name: "",
-  professional_title: "",
-  credential: "",
-  credential_number: "",
-  credential_issuing_organization: "",
-  credential_expires_on: "",
   course_author: "",
   provider_signature_name: "",
   content_version: "",
@@ -73,11 +69,6 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
     if (isLoading || isError || loadedFor === courseId) return;
     setForm({
       provider_full_name: profile?.provider_full_name ?? "",
-      professional_title: profile?.professional_title ?? "",
-      credential: profile?.credential ?? "",
-      credential_number: profile?.credential_number ?? "",
-      credential_issuing_organization: profile?.credential_issuing_organization ?? "",
-      credential_expires_on: profile?.credential_expires_on ?? "",
       course_author: profile?.course_author ?? "",
       provider_signature_name: profile?.provider_signature_name ?? "",
       content_version: profile?.content_version ?? "",
@@ -94,9 +85,6 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
     setForm((previous) => ({ ...previous, [key]: value }));
 
   const reviewOverdueDays = profile?.next_review_due ? facilityDaysUntil(profile.next_review_due) : null;
-  const credentialExpiredDays = profile?.credential_expires_on
-    ? facilityDaysUntil(profile.credential_expires_on)
-    : null;
 
   const handleSave = () => {
     const trimmedName = form.provider_full_name.trim();
@@ -109,11 +97,9 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
       {
         course_id: courseId,
         provider_full_name: trimmedName,
-        professional_title: nullableField(form.professional_title),
-        credential: nullableField(form.credential),
-        credential_number: nullableField(form.credential_number),
-        credential_issuing_organization: nullableField(form.credential_issuing_organization),
-        credential_expires_on: nullableField(form.credential_expires_on),
+        // The five credential columns are omitted, not nulled. PostgREST's upsert only writes the
+        // keys it is given, so leaving them out preserves whatever another course already stored
+        // instead of blanking it from a form that no longer shows it.
         course_author: nullableField(form.course_author),
         provider_signature_name: signature,
         // A signature and the moment it was recorded travel together; clearing one clears both,
@@ -173,12 +159,8 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
         <CardTitle className="flex flex-wrap items-center gap-2">
           <BadgeCheck className="h-5 w-5" />
           Training provider and clinical review
-          {profile?.credential && <Badge variant="outline">{profile.credential}</Badge>}
           {reviewOverdueDays !== null && reviewOverdueDays < 0 && (
             <Badge variant="destructive">Review overdue</Badge>
-          )}
-          {credentialExpiredDays !== null && credentialExpiredDays < 0 && (
-            <Badge variant="destructive">Credential expired</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -191,12 +173,12 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {field("provider_full_name", "Provider full name")}
-          {field("professional_title", "Professional title")}
-          {field("credential", "Credential", "text", "For example CDCES.")}
-          {field("credential_number", "Credential number")}
-          {field("credential_issuing_organization", "Credential issuing organization")}
-          {field("credential_expires_on", "Credential expiration date", "date")}
+          {field(
+            "provider_full_name",
+            "Provider full name",
+            "text",
+            "Include any post-nominals here, as they should read on the certificate.",
+          )}
           {field("course_author", "Course author")}
           {field("provider_signature_name", "Provider signature", "text", "Typed signature; the date and time are stamped when it is saved.")}
         </div>

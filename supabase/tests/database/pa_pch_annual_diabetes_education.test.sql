@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(48);
+select plan(50);
 
 -- ---------------------------------------------------------------------------
 -- What the published course promises
@@ -21,7 +21,7 @@ select results_eq(
     join public.course_versions cv on cv.id = c.current_version_id
     where c.organization_id is null and c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
   $$,
-  $$ values ('published'::text, 'published'::text, '2026.1'::text, 365) $$,
+  $$ values ('published'::text, 'published'::text, '2026.2'::text, 365) $$,
   'the annual diabetes course ships ACTIVE, not as a draft awaiting approval'
 );
 
@@ -87,11 +87,16 @@ select is(
   (
     select coalesce(string_agg(distinct spot, ', ' order by spot), '(none)')
     from (
-      select 'learner recording or upload step' as spot
+      -- 'video' is presenter instruction -- Kevin talking over slides -- and is the opposite of a
+      -- learner-recorded competency: nothing about it asks the learner to submit anything. The
+      -- block vocabulary carries no learner-submission type at all (text, video, pdf, scorm, quiz,
+      -- attestation), so this catches an unexpected block type rather than proving a negative; the
+      -- competency, upload and review-queue absences are asserted against their own tables below.
+      select 'unexpected block type: ' || cb.block_type as spot
       from public.course_blocks cb
       join public.courses c on c.current_version_id = cb.course_version_id
       where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
-        and cb.block_type not in ('text', 'quiz', 'attestation')
+        and cb.block_type not in ('text', 'video', 'quiz', 'attestation')
       union all
       select 'unreviewed AI content gate'
       from public.course_versions cv
@@ -103,16 +108,26 @@ select is(
   'the course is reading, knowledge checks and an attestation only -- no recording, upload or review step'
 );
 
+-- The provider is one string in one field, at the provider's direction. The empty columns are the
+-- assertion, not an omission: the certificate prints "name, credential" when both are set, so
+-- anything repopulating those fields puts a second claim on the certificate that was explicitly
+-- not wanted -- and post-nominals living in the name is what keeps it to one line.
 select results_eq(
   $$
-    select p.credential, p.content_version, tt.code
+    select p.provider_full_name, p.professional_title, p.credential, p.credential_number,
+           p.credential_issuing_organization, p.credential_expires_on,
+           p.content_version, tt.code
     from public.courses c
     join public.course_provider_profiles p on p.course_id = c.id
     join public.training_types tt on tt.id = c.renewal_training_type_id
     where c.catalog_code = 'PA-PCH-DIABETES-ANNUAL'
   $$,
-  $$ values ('CDCES'::text, '2026.1'::text, 'DIABETES-EDU'::text) $$,
-  'provider credential and the annual renewal requirement are recorded on the course'
+  $$ values (
+    'Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'::text,
+    null::text, null::text, null::text, null::text, null::date,
+    '2026.1'::text, 'DIABETES-EDU'::text
+  ) $$,
+  'the course names its responsible provider, with the credential fields deliberately empty'
 );
 
 -- ---------------------------------------------------------------------------
@@ -311,15 +326,17 @@ select set_config('app.privileged_write', 'off', true);
 -- The video version's renders
 -- ---------------------------------------------------------------------------
 --
--- v2026.2 carries twelve rendered HeyGen jobs but no storage URL: the poller owns that column,
--- and a block that carries a URL before the object exists is a player broken for whoever opens
--- it first. Both halves of that are asserted, because getting either wrong ships a dead video.
+-- v2026.2 carries twelve rendered HeyGen jobs, each now resolved: an id, a completed status, and
+-- the storage path the poller re-hosted to. The sequencing that got here mattered -- the seed
+-- carried narration and a null URL so no player could ship before its object existed, the wiring
+-- added the ids, and only the publish step records the finished URLs -- but what has to hold now
+-- is the end state, because a published version with a missing id or URL is a dead video.
 
 select results_eq(
   $$
     select count(*)::integer,
            count(*) filter (where cb.body->'heygen'->>'video_id' is not null)::integer,
-           count(*) filter (where cb.body->'heygen'->>'status' = 'processing')::integer,
+           count(*) filter (where cb.body->'heygen'->>'status' = 'completed')::integer,
            count(*) filter (where cb.video_url is not null)::integer
     from public.course_blocks cb
     join public.course_versions cv on cv.id = cb.course_version_id
@@ -328,8 +345,8 @@ select results_eq(
       and cv.version_label = '2026.2'
       and cb.block_type = 'video'
   $$,
-  $$ values (12, 12, 12, 0) $$,
-  'all twelve video blocks carry a render id and none carries a storage URL yet'
+  $$ values (12, 12, 12, 12) $$,
+  'all twelve video blocks carry a render id, a completed job and a storage path'
 );
 
 -- Wiring the ids on must not have disturbed the narration or the step minutes the comprehensive
@@ -672,9 +689,14 @@ select lives_ok(
 
 select ok(
   (
+    -- Derived from the version the learner was actually assigned rather than pinned to a literal:
+    -- the claim is that the stored statement and version come from the published block, and
+    -- hardcoding a version number tests the catalog's current contents instead of that mechanism.
     select la.attestation_text like 'I attest that I personally completed this training%'
-       and la.attestation_version = 'PA-PCH-DIABETES-ANNUAL-2026.1'
+       and la.attestation_version = 'PA-PCH-DIABETES-ANNUAL-' || cv.version_label
     from public.course_learner_attestations la
+    join public.course_assignments ca on ca.id = la.course_assignment_id
+    join public.course_versions cv on cv.id = ca.course_version_id
     where la.course_assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008'
   ),
   'the signed statement and its version are stored from the published block, not from the client'
@@ -743,13 +765,58 @@ select ok(
   'the certificate expires twelve months after completion'
 );
 
+-- Provenance is frozen at issuance, and the empty credential is the case that matters. The
+-- snapshot marker is what separates "snapshotted, and the credential was deliberately blank" from
+-- "issued before snapshotting existed"; keying the fallback on the value being null instead would
+-- read this certificate as legacy and serve whatever the profile says at read time.
+select results_eq(
+  $$
+    select cert.training_provider, cert.provider_credential, cert.provider_snapshot_at is not null
+    from public.certificates cert
+    where cert.course_assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008'
+  $$,
+  $$ values ('Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'::text, null::text, true) $$,
+  'the certificate snapshots the provider at issuance, empty credential included'
+);
+
+-- The whole point, exercised rather than asserted: give the live profile a credential it did not
+-- have when this certificate was issued, and the certificate must not acquire one.
+select set_config('app.privileged_write', 'on', true);
+
+update public.course_provider_profiles
+set credential = 'ADDED-AFTER-ISSUANCE'
+where course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+
+select results_eq(
+  $$
+    select v.training_provider, v.provider_credential
+    from public.certificates cert
+    cross join lateral public.verify_certificate(cert.slug) v
+    where cert.course_assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008'
+  $$,
+  $$ values ('Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'::text, null::text) $$,
+  'and editing the provider afterwards cannot put a credential on a certificate issued without one'
+);
+
+update public.course_provider_profiles
+set credential = null
+where course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+
+select set_config('app.privileged_write', 'off', true);
+
 select ok(
   (
+    -- trainer_credentials is null because the provider directed that the separate credential
+    -- field stay empty; the attribution is not lost, it moved. trainer_name and training_provider
+    -- both carry the full string, post-nominals included, so the regulatory record still names a
+    -- credentialed person -- which is what this assertion is actually for.
     select r.status = 'compliant'
        and r.due_date = r.completion_date + 365
        and r.score = 90.00
        and r.certificate_number is not null
-       and r.trainer_credentials = 'CDCES'
+       and r.trainer_credentials is null
+       and r.trainer_name = 'Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'
+       and r.training_provider = 'Dr. Kevin Deyarmin, ND, MSW, CHPCA, NCG'
     from public.employee_training_records r
     join public.training_types tt on tt.id = r.training_type_id
     where r.employee_id = 'd1a0e7e5-0000-4000-8000-000000000005'
@@ -778,9 +845,16 @@ select pg_temp.act_as('d1a0e7e5-0000-4000-8000-000000000003');
 
 select ok(
   (
-    select cv.version_label = '2026.1' and cv.status = 'published'
+    -- What has to hold is that every piece of evidence names ONE version -- the one the learner
+    -- was assigned -- not that the version is any particular number. Pinning the number made this
+    -- fail the moment v2026.2 published, which is drift in the test, not in the binding.
+    select cv.status = 'published'
+       and cv.course_id = c.id
+       and la.attestation_version = 'PA-PCH-DIABETES-ANNUAL-' || cv.version_label
     from public.course_assignments ca
     join public.course_versions cv on cv.id = ca.course_version_id
+    join public.courses c on c.id = ca.course_id
+    join public.course_learner_attestations la on la.course_assignment_id = ca.id
     where ca.id = 'd1a0e7e5-0000-4000-8000-000000000008'
   ),
   'the completion stays bound to the exact course version it was taken against'
