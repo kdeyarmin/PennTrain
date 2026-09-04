@@ -64,6 +64,7 @@ checked.
 | [docs/design/SCORM_PRODUCTION_HARDENING.md](docs/design/SCORM_PRODUCTION_HARDENING.md) | Reference — SCORM production PR plan |
 | [docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md](docs/ops/TIER_A_PILOT_OPS_CHECKLIST.md) | Reference — ops-only Tier A rows |
 | [docs/ops/SG2_DECISION.md](docs/ops/SG2_DECISION.md) | Reference — SG-2 counsel-cleared option 2 record; activation follow-up remains (2026-08-02) |
+| [docs/ops/GO_LIVE_READINESS_REVIEW_PLAN.md](docs/ops/GO_LIVE_READINESS_REVIEW_PLAN.md) | Reference — go-live readiness review plan (prepared 2026-09-04): what to verify, how, and in what order before accepting a paying customer; its findings become rows here, it carries no status of its own |
 | ROADMAP.md, WORKFLOW_UX_REVIEW_2026-07-31.md, docs/audits/\*, CAREBASE_25_\*, EFFICIENCY_REVIEW.md, END_USER_REVIEW.md, ENHANCEMENT_REPORT.md, PLATFORM_ENHANCEMENTS.md, root `PennTrain_*` | **Superseded.** Dated evidence only — do not plan from them |
 
 Six of those superseded documents still read as live registers before this pass, and two
