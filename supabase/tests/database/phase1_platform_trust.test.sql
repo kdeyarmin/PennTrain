@@ -367,10 +367,19 @@ select is(
 -- every_scheduled_job_is_watched.test.sql, which joins cron.job against the definitions and names
 -- any job neither the watchdog nor /admin/system-jobs can see.
 --
+-- 51 -> 47 when 20260904050000 closed the larger half of G270. Four critical definitions were
+--   judged by a cron entry whose command is a net.http_post -- so pg_cron's "succeeded" recorded
+--   that the REQUEST was enqueued, not that the work happened -- while a sibling definition that
+--   the Edge Function actually claims and finishes carried no cron name at all. The cron entry
+--   moved onto the sibling in each pair and the four now-redundant rows were deleted:
+--   certificate-pdf-jobs, binder-export-jobs, document-analyzer-jobs and
+--   integration-webhook-dispatch-cron. 48 definitions, 47 active. This is the deliberate deletion
+--   the ratchet is here to make someone acknowledge.
+--
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  51::bigint,
+  47::bigint,
   'the control plane returns one row per active registered job definition'
 );
 

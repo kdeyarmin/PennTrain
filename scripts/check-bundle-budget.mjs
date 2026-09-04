@@ -49,7 +49,16 @@ const budgets = {
   // 520.7 KiB (91.3%), tipping an already-maxed metric. Both figures are from
   // building each ref the same way. Restores ~19% headroom over the 520.7 KiB
   // measurement so the next few branches do not each re-raise it.
-  largestJavaScript: 620 * 1024,
+  // Raised 620 -> 650 on the go-live readiness branch. The entry chunk measured 564.6 KiB
+  // (91.1%) building main's application code, so the metric was already past the 90% warning
+  // line and emitting the "raise the budget to restore headroom" warning on every branch --
+  // which is this file's own designed prompt to do exactly this, deliberately, rather than let
+  // the next unrelated branch be the one that fails on it. No shell growth is being excused:
+  // F5 measured what a first load actually costs (five preloaded chunks, 922 KiB raw, 220 KiB
+  // brotli over the wire) and found the entry chunk is the app shell rather than anything
+  // liftable, so splitting it is not the cheaper move here. Restores ~15% headroom over the
+  // 564.6 KiB measurement, matching the sizing of the three raises above.
+  largestJavaScript: 650 * 1024,
   // Measured 2811.9 KiB when this headroom policy was adopted; raised 3250 -> 3300
   // when the dietary food-safety operations and document-analyzer branches merged
   // together. Raised 3300 -> 3650 with the lucide-react tree-shaking change (icons

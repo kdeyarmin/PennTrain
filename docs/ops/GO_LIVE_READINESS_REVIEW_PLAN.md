@@ -22,7 +22,8 @@ same person wearing a different hat, and the sequence in section 10 is single-th
 ## 1. Summary
 
 **Verdict as of 2026-09-04: the code is credible; the deployment is not yet operable for a paying
-customer.** The application, the migration chain, and the edge functions are exactly what `main`
+customer.** (Ten blockers were found; six were fixed the same day — see the addendum below — and
+the four that remain each need a credential, a console, or a person.) The application, the migration chain, and the edge functions are exactly what `main`
 says they are, every automated gate that can run outside CI is green, and the site is up behind the
 right headers. What is not ready is the operational layer around the code: billing has no
 credentials, no notification has ever been delivered, the exclusion-screening data is stale and one
@@ -63,6 +64,32 @@ for one person.
 | B8 | Six HIGH npm advisories affect `main` (browserslist ≤4.28.6 ×2, fast-uri <3.1.6 ×4); the nightly audit has failed 2026-09-02 and 2026-09-03 and opened its issue | S |
 | B9 | The PA DHS human source review is 53 days old against the 45-day limit; the weekly freshness workflow went red 2026-08-31 | S |
 | B10 | The one real organization is `trial` with `trial_ends_at = null`, which `20260724180000` treats as never expiring; it also has no `organization_settings` row and no BAA stamp. Decide what it is (internal org, or the first customer) and make its record say so | S |
+
+### Addendum, same day: what was fixed rather than only recorded
+
+The findings above are the review's output as first written. Everything below was then fixed in
+the same change set, verified against a clean local Supabase stack (full chain replayed, complete
+pgTAP suite, `db lint`, advisors, generated-types diff) rather than by reading. Status lives in
+BACKLOG.md Tier H; this section only says which of the ten blockers moved and which did not, so a
+reader of the table above is not misled by it.
+
+| Blocker | Outcome | Where |
+| --- | --- | --- |
+| B1 SG-2 | **Reviewed, one real defect fixed, re-dated not closed.** Both PA templates cited the subsections that state no hours — `2600.65(f)-(g)` and `2800.65(i)-(j)` — when the floors live in `(e)` and `(h)`. Values all verified correct against the published sections. Activation is blocked on facts, not effort: submit/approve/activate each require AAL2 and no account has an enrolled factor (B6), and approval requires a second identity | `20260904010000`, BACKLOG SG-2 |
+| B3 Notifications | **Backfill shipped.** Every organization now has a settings row with email and SMS enabled. Enforcement was attempted and withdrawn: a creation trigger broke `record_organization_signup` outright and seven other suites — recorded in the migration, because the lesson (a trigger writing to a second table rewrites that table's contract for every caller) outlives the change | `20260904020000`, H4 |
+| B4 Stranded run | **Ledger fixed; the outage itself is still ops.** Abandoned runs now close automatically, keyed on the heartbeat so the resumable SAM sweep is never swept. Why the 2026-08-12 LEIE refresh died, and re-running it, still needs the function log | `20260904080000`, H6 |
+| B5 Synthetic health | **Both counters fixed.** A never-configured exclusion source is no longer counted as an integrity violation, and the one pre-atomic-issuance completion got its certificate (and its PDF job) with a cutoff so a *recent* miss stays visible | `20260904030000`, `20260904040000`, H5 |
+| B8 Advisories | **Zero high/critical.** `fast-uri` → 3.1.7, `browserslist` → 4.28.8, verified by a strict-mode audit of the new lockfile | `pnpm-workspace.yaml`, H1 |
+| B10 Trial | **Forward-only guard.** New non-demo trials get a deadline; the existing null is deliberately left, because stamping it would start a clock on the tenant holding both platform-admin identities | `20260904070000`, H7 |
+| N1 / G270 | **Four of six closed.** Each cron entry moved onto the definition its Edge Function actually finishes. The remaining two record no runs at all, so repointing them would swap an always-green signal for an always-red one | `20260904050000`, G270 |
+| N2 search_path | **Pinned** | `20260904060000`, H8 |
+| N14 bundle budget | **Raised deliberately to 650 KiB** with the reasoning recorded inline | `check-bundle-budget.mjs`, H3 |
+| N15 dependency gate | **Short-circuits an identical dependency set**, so a registry outage stops reddening branches that changed no dependency. Strict mode untouched | `check-dependencies.mjs`, H2 |
+| B2, B6, B7, B9 | **Unchanged, and not fixable from a repository.** Stripe secrets, MFA enrolment, Auth dashboard toggles, and a human re-attestation of 35 DHS form sources each need a credential, a console or a person | H9–H12 |
+
+One finding was added by doing the work rather than by reviewing it: **N15**, the dependency gate's
+fail-closed behaviour during a registry outage, which this document's own pull request hit three
+times in seven minutes.
 
 ---
 
