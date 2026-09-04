@@ -91,6 +91,52 @@ One finding was added by doing the work rather than by reviewing it: **N15**, th
 fail-closed behaviour during a registry outage, which this document's own pull request hit three
 times in seven minutes.
 
+### Then the fixes were reviewed against themselves
+
+The change set above was put through the same adversarial reading the code under review got. It
+returned eleven findings, **seven of them correctness defects in work that had already been written
+and verified here** — which is the honest measure of how much a self-review is worth and why it is
+not optional. Each was confirmed against the source before being acted on rather than accepted on
+the reviewer's word; each is now covered by a test or an argued note. The full list is BACKLOG H18.
+The two that changed the shape of the work rather than fixing a defect:
+
+- **The post-deploy paging window is not zero, and is now written down.** The watchdog's staleness
+  predicate reads a null last-success as stale *immediately*, not after the SLA elapses. So the
+  moment `20260904090000` flips both definitions onto their ledgers — which happens before the
+  Edge Functions carrying the instrumentation deploy — both warn, and keep warning until each
+  records its first successful run: minutes for `organization-data-export` (every 15 min), up to a
+  day for `data-lifecycle` (07:35 UTC daily). Expected, self-clearing, and cheaper than the
+  two-deploy alternative that leaves the always-green signal in place in between.
+- **`process-organization-export-jobs` was split handler/entrypoint and given nine runtime tests**,
+  the shape `run-data-lifecycle` already used, so its ledger behaviour is asserted rather than
+  asserted-about. `check-edge-functions.mjs`'s runtime-test floor ratchets 9 → 10 with it.
+
+### And re-verifying the fixes found one more, a layer below everything above
+
+Running the suite on a Supabase CLI newer than the repository's pinned 2.109.1 turned two
+privilege assertions red — assertions that have been green in CI for months and are green under
+the pin. Chasing that down produced **H19**, and it is the sharpest finding of the whole pass
+because of what it says about the other 3,411:
+
+- The two CLI versions ship base images with different `alter default privileges` for role
+  `postgres` in `public`. Under the pin a migration-created table inherits **nothing** for `anon`
+  or `authenticated`; under the newer image it inherits `arwd`. Production was built by the hosted
+  image.
+- Measured against production: `authenticated` holds 120 write grants on RLS-enabled tables that
+  no policy uses, and **`anon` — the unauthenticated browser role — holds INSERT, UPDATE and
+  DELETE on 87 of them**. A clean replay of the same chain produces **zero** for both roles.
+- Nothing is open: RLS denies every one of those writes. What is gone is the second lock — and the
+  test that exists to say so passes, because the local image never created the grant it is looking
+  for. **A green assertion about privileges was describing the local image, not the deployment.**
+
+`20260904100000` revokes exactly the write grants RLS already denies, per table and per command,
+which cannot change behaviour. The lasting part is the pair of invariants now asserted in both
+directions, since the repair itself is a no-op on any clean database and CI can never exercise it.
+The broader lesson belongs in the gate matrix: **a local stack that is more restrictive than
+production turns every privilege assertion into a false green**, and the pinned CLI is what makes
+the two diverge. Bumping the pin will turn those two assertions red again; the fix then is the
+explicit revoke, not a revert of the bump.
+
 ---
 
 ## 2. How to use this plan
@@ -762,6 +808,17 @@ passes only if every expected result was observed, not if the steps merely compl
 Run on the pinned toolchain (`.node-version` 24.15.0, `packageManager` pnpm 11.13.0, Deno 2.5.6,
 Docker for anything database-shaped). `bash scripts/setup-codex-cloud.sh` installs the pins.
 
+**The Supabase CLI pin is part of that, and not only for reproducibility.** CI installs 2.109.1
+(`.github/actions/setup-supabase-cli`). Running the database lane on a newer CLI turns two
+privilege assertions in `carebase_remediation_plan.test.sql` red, because the newer base image's
+default privileges grant `anon` and `authenticated` write access to every migration-created table
+and 2.109.1's grant nothing — see H19. Two consequences worth carrying: **verify on the pin, or a
+green run is not comparable to CI's**; and when the pin is eventually bumped, those assertions go
+red on their own and the fix is the explicit revoke, never a revert of the bump. The deeper point
+is that the pinned image is *more restrictive than production*, so any assertion of the form
+"a browser role cannot write to X" describes the local image unless something also checks the
+deployment. Appendix C's probes are that something.
+
 | Command | Lane | Proves | Expected | Status 2026-09-04 |
 | --- | --- | --- | --- | --- |
 | `pnpm install --frozen-lockfile` | L1 | lockfile integrity | clean | ✅ (install succeeded here) |
@@ -951,6 +1008,22 @@ from public.profiles p
 left join auth.mfa_factors f on f.user_id = p.id and f.status = 'verified'
 where p.is_active and p.role in ('platform_admin', 'org_admin', 'facility_manager')
 group by 1;
+
+-- 11. Grant drift: write grants row-level security already denies (H19). This is the probe the
+-- local suite cannot be: it asks the deployment, not the pinned image. Expected 0 rows after
+-- 20260904100000; 381 before it. Any row is a lock the policy layer thinks it does not have.
+select c.relname as table_name, ro.role_name, x.priv
+from pg_class c
+cross join (values ('INSERT'), ('UPDATE'), ('DELETE')) as x(priv)
+cross join (values ('anon'), ('authenticated')) as ro(role_name)
+where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') and c.relrowsecurity
+  and has_table_privilege(ro.role_name, c.oid, x.priv)
+  and not exists (
+    select 1 from pg_policies p
+    where p.schemaname = 'public' and p.tablename = c.relname and p.permissive = 'PERMISSIVE'
+      and p.cmd in (x.priv, 'ALL')
+      and (ro.role_name = any(p.roles) or 'public' = any(p.roles)))
+order by 1, 2, 3;
 ```
 
 Log-stream probe (Supabase `query_logs`, last 24 h):

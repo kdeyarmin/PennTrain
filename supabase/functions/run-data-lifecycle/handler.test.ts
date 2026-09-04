@@ -277,13 +277,14 @@ Deno.test("run-data-lifecycle records a system job run for the sweep", async () 
     p_trigger_type: "scheduled",
     p_provider_request_id: null,
   }]);
-  // Two steps: the one active policy and the export-archive sweep. Both succeeded, so the run
-  // closes 'succeeded' -- which is the signal the watchdog reads instead of pg_cron's.
+  // Three units: the one active policy, the export-archive sweep, and the benchmark refresh.
+  // All succeeded, so the run closes 'succeeded' -- the signal the watchdog reads instead of
+  // pg_cron's.
   assertEquals(ledger.finishes.length, 1);
   assertEquals(ledger.finishes[0].p_run_id, "run-1");
   assertEquals(ledger.finishes[0].p_status, "succeeded");
-  assertEquals(ledger.finishes[0].p_attempted_count, 2);
-  assertEquals(ledger.finishes[0].p_succeeded_count, 2);
+  assertEquals(ledger.finishes[0].p_attempted_count, 3);
+  assertEquals(ledger.finishes[0].p_succeeded_count, 3);
   assertEquals(ledger.finishes[0].p_failed_count, 0);
 });
 
@@ -310,12 +311,109 @@ Deno.test("run-data-lifecycle closes the run as partial when one policy fails", 
   });
 
   assertEquals((await handler(new Request("https://example.test", { method: "POST" }))).status, 207);
-  // One step failed and one succeeded: 'partial', not 'failed'. A single stuck retention policy
+  // One unit failed and two succeeded: 'partial', not 'failed'. A single stuck retention policy
   // must not read the same as the whole sweep never running.
   assertEquals(ledger.finishes[0].p_status, "partial");
-  assertEquals(ledger.finishes[0].p_attempted_count, 2);
-  assertEquals(ledger.finishes[0].p_succeeded_count, 1);
+  assertEquals(ledger.finishes[0].p_attempted_count, 3);
+  assertEquals(ledger.finishes[0].p_succeeded_count, 2);
   assertEquals(ledger.finishes[0].p_failed_count, 1);
+});
+
+// The review case: every retention policy purges correctly and only the benchmark refresh fails.
+// Counting the benchmark as a run-level error rather than as one unit closed the whole nightly
+// run as 'failed' -- which blocks last_known_good_at and pages the critical watchdog claiming
+// retention has not run, on a night when retention ran perfectly.
+Deno.test("run-data-lifecycle stays partial when only the benchmark refresh fails", async () => {
+  const ledger = { claims: [] as Array<Record<string, unknown>>, finishes: [] as Array<Record<string, unknown>> };
+  const policyQuery: any = {
+    select: () => policyQuery,
+    eq: () => policyQuery,
+    order: async () => ({ data: [{ policy_key: "audit-log" }], error: null }),
+  };
+  const handler = createRunDataLifecycleHandler({
+    createClient: () => ({
+      from: () => policyQuery,
+      rpc: withJobLedger(async (name: string, args: Record<string, unknown>) => {
+        if (name === "refresh_benchmark_snapshots") return { data: null, error: { message: "benchmark timeout" } };
+        if (name === "list_expired_organization_exports") return { data: [], error: null };
+        return { data: { policyKey: args.p_policy_key, rowsAffected: 7 }, error: null };
+      }, ledger),
+      storage: { from: () => ({ remove: async () => ({ data: [], error: null }) }) },
+    }),
+    getEnv: configuredEnvironment,
+    now: () => new Date("2026-07-17T04:30:00.000Z"),
+    authorizeRequest: () => null,
+  });
+
+  assertEquals((await handler(new Request("https://example.test", { method: "POST" }))).status, 200);
+  assertEquals(ledger.finishes[0].p_status, "partial");
+  assertEquals(ledger.finishes[0].p_succeeded_count, 2);
+  assertEquals(ledger.finishes[0].p_failed_count, 1);
+  assertEquals(ledger.finishes[0].p_error_code, "benchmark_refresh_failed");
+});
+
+// The correlation id is the join between the cron invocation, the Edge Function log line and the
+// run ledger -- and, when run-system-job dispatches an operator's "Run now", it is the id of the
+// queued row that must be adopted rather than a new one opened beside it.
+Deno.test("run-data-lifecycle adopts the caller's correlation id", async () => {
+  const ledger = { claims: [] as Array<Record<string, unknown>>, finishes: [] as Array<Record<string, unknown>> };
+  const policyQuery: any = {
+    select: () => policyQuery,
+    eq: () => policyQuery,
+    order: async () => ({ data: [], error: null }),
+  };
+  const handler = createRunDataLifecycleHandler({
+    createClient: () => ({
+      from: () => policyQuery,
+      rpc: withJobLedger(async (name: string) => {
+        if (name === "list_expired_organization_exports") return { data: [], error: null };
+        return { data: 1, error: null };
+      }, ledger),
+      storage: { from: () => ({ remove: async () => ({ data: [], error: null }) }) },
+    }),
+    getEnv: configuredEnvironment,
+    now: () => new Date("2026-07-17T04:30:00.000Z"),
+    authorizeRequest: () => null,
+    newCorrelationId: () => "generated-not-used",
+  });
+
+  await handler(new Request("https://example.test", {
+    method: "POST",
+    headers: { "x-correlation-id": "operator-rerun-42" },
+  }));
+  assertEquals(ledger.claims[0].p_correlation_id, "operator-rerun-42");
+});
+
+// A throw anywhere in the sweep must close the run as failed. Inheriting a success default here
+// would stamp last_known_good_at for a run that crashed -- the false green this instrumentation
+// exists to remove.
+Deno.test("run-data-lifecycle closes the run as failed when the sweep throws", async () => {
+  const ledger = { claims: [] as Array<Record<string, unknown>>, finishes: [] as Array<Record<string, unknown>> };
+  const policyQuery: any = {
+    select: () => policyQuery,
+    eq: () => policyQuery,
+    order: async () => { throw new Error("connection reset"); },
+  };
+  const handler = createRunDataLifecycleHandler({
+    createClient: () => ({
+      from: () => policyQuery,
+      rpc: withJobLedger(async () => ({ data: null, error: null }), ledger),
+    }),
+    getEnv: configuredEnvironment,
+    now: () => new Date("2026-07-17T04:30:00.000Z"),
+    authorizeRequest: () => null,
+  });
+
+  let threw = false;
+  try {
+    await handler(new Request("https://example.test", { method: "POST" }));
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
+  assertEquals(ledger.finishes.length, 1);
+  assertEquals(ledger.finishes[0].p_status, "failed");
+  assertEquals(ledger.finishes[0].p_error_code, "unhandled_error");
 });
 
 Deno.test("run-data-lifecycle does no work when the ledger refuses the claim", async () => {

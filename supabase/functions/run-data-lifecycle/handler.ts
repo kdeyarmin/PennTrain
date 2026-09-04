@@ -99,11 +99,20 @@ export function createRunDataLifecycleHandler({
 
     const admin = createClient(url, serviceRoleKey);
 
+    // The cron entry mints a correlation id and sends it as X-Correlation-Id
+    // (20260730200300), and run-system-job forwards the id of the queued row an operator's
+    // "Run now" created. Honouring it is what makes the claim below adopt THAT row instead of
+    // opening an unrelated one -- otherwise a manual rerun stays queued for ever, and this
+    // repository's own abandoned-run reconciler (20260904080000) later rewrites it as a crash
+    // that never happened. Same contract as dispatch-integration-webhooks, generate-certificate-pdf
+    // and send-regulatory-digest.
+    const correlationId = (request.headers.get("x-correlation-id") || newCorrelationId()).slice(0, 200);
+
     // Claim before any work, so a run that dies mid-sweep leaves a claimed row the watchdog's
-    // abandoned-run reconciler can close (20260904080000) rather than no trace at all.
+    // abandoned-run reconciler can close rather than no trace at all.
     const { data: claimRows, error: claimError } = await admin.rpc("claim_system_job_execution", {
       p_job_key: DATA_LIFECYCLE_JOB_KEY,
-      p_correlation_id: newCorrelationId(),
+      p_correlation_id: correlationId,
       p_trigger_type: "scheduled",
       p_provider_request_id: null,
     });
@@ -116,48 +125,39 @@ export function createRunDataLifecycleHandler({
     }
     const runId = claimedRun.run_id;
 
-    let attempted = 0;
-    let succeeded = 0;
-    let failed = 0;
-    let errorCode: string | null = null;
-    let errorMessage: string | null = null;
+    // Default to the failure shape. Only an outcome the sweep actually reached overwrites this,
+    // so a throw anywhere below closes the run as failed instead of inheriting a success default
+    // -- the false green this instrumentation exists to remove.
+    let outcome = {
+      status: "failed",
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+      errorCode: "unhandled_error" as string | null,
+      errorMessage: "The lifecycle sweep threw before recording an outcome." as string | null,
+    };
 
     try {
-      return await runLifecycle();
-    } finally {
-      // `return` inside try still runs this, so every exit path -- including the early 500 when
-      // policies cannot be loaded -- closes the run it opened.
-      await admin.rpc("finish_system_job", {
-        p_run_id: runId,
-        p_status: errorCode
-          ? "failed"
-          : failed > 0
-            ? (succeeded > 0 ? "partial" : "failed")
-            : "succeeded",
-        p_attempted_count: attempted,
-        p_succeeded_count: succeeded,
-        p_failed_count: failed,
-        p_result: {},
-        p_error_code: errorCode,
-        p_error_message: errorMessage,
-      });
-    }
-
-    async function runLifecycle(): Promise<Response> {
-    const { data: policies, error: policyError } = await admin
+      const { data: policies, error: policyError } = await admin
       .from("data_lifecycle_policies")
       .select("policy_key")
       .eq("is_active", true)
       .order("policy_key");
-    if (policyError) {
-      errorCode = "policies_unavailable";
-      errorMessage = policyError.message ?? "Lifecycle policies could not be loaded";
-      return json({ error: "Lifecycle policies could not be loaded" }, 500);
-    }
+      if (policyError) {
+        outcome = {
+          status: "failed",
+          attempted: 0,
+          succeeded: 0,
+          failed: 0,
+          errorCode: "policies_unavailable",
+          errorMessage: policyError.message ?? "Lifecycle policies could not be loaded",
+        };
+        return json({ error: "Lifecycle policies could not be loaded" }, 500);
+      }
 
-    const periodEnd = paToday(now());
-    const lifecycle: Array<Record<string, unknown>> = [];
-    for (const policy of policies ?? []) {
+      const periodEnd = paToday(now());
+      const lifecycle: Array<Record<string, unknown>> = [];
+      for (const policy of policies ?? []) {
       const { data, error } = await admin.rpc("run_data_lifecycle_policy", {
         p_policy_key: policy.policy_key,
         p_limit: 5000,
@@ -170,41 +170,78 @@ export function createRunDataLifecycleHandler({
             ? data as Record<string, unknown>
             : { policyKey: policy.policy_key, result: data },
       );
-    }
+      }
 
-    // Expired organization export archives (PT-006B). These are transient
-    // download artifacts, not retention-managed records, and their storage
-    // objects can only be removed through the Storage API -- which is why this
-    // sweep is a dedicated step here instead of a run_data_lifecycle_policy row.
-    // list_expired_organization_exports honors active data_lifecycle_holds
-    // (source_table 'organization_export_jobs' or all-table holds); objects are
-    // removed first and only then are their job rows purged, so a removal
-    // failure leaves the row (and the audit trail of what still exists) intact.
-    lifecycle.push(await sweepExpiredOrganizationExports(admin));
+      // Expired organization export archives (PT-006B). These are transient
+      // download artifacts, not retention-managed records, and their storage
+      // objects can only be removed through the Storage API -- which is why this
+      // sweep is a dedicated step here instead of a run_data_lifecycle_policy row.
+      // list_expired_organization_exports honors active data_lifecycle_holds
+      // (source_table 'organization_export_jobs' or all-table holds); objects are
+      // removed first and only then are their job rows purged, so a removal
+      // failure leaves the row (and the audit trail of what still exists) intact.
+      lifecycle.push(await sweepExpiredOrganizationExports(admin));
 
-    const { data: benchmarks, error: benchmarkError } = await admin.rpc(
+      const { data: benchmarks, error: benchmarkError } = await admin.rpc(
       "refresh_benchmark_snapshots",
       { p_period_end: periodEnd, p_k_threshold: 10 },
-    );
-    const hasLifecycleError = lifecycle.some((result) => "error" in result);
+      );
+      const hasLifecycleError = lifecycle.some((result) => "error" in result);
 
-    // Each lifecycle step is one unit of work, so a single failing policy reports as `partial`
-    // rather than taking the whole sweep down. A failed benchmark refresh is recorded as the
-    // run's error without changing the per-step tally, because it is not one of the steps.
-    attempted = lifecycle.length;
-    failed = lifecycle.filter((result) => "error" in result).length;
-    succeeded = attempted - failed;
-    if (benchmarkError) {
-      errorCode = "benchmark_refresh_failed";
-      errorMessage = benchmarkError.message ?? "Benchmark refresh failed";
-    }
+      // Every step is one unit of work -- each retention policy, the export-archive sweep, and
+      // the benchmark refresh. Counting the benchmark as a unit rather than as a run-level error
+      // is what keeps a night where every policy purged correctly from being recorded as a failed
+      // retention sweep: it reports `partial`, which is what actually happened.
+      const failedSteps = lifecycle.filter((result) => "error" in result).length
+        + (benchmarkError ? 1 : 0);
+      const attemptedSteps = lifecycle.length + 1;
+      const firstFailure = lifecycle.find((result) => "error" in result);
+      outcome = {
+        status: failedSteps === 0
+          ? "succeeded"
+          : failedSteps < attemptedSteps ? "partial" : "failed",
+        attempted: attemptedSteps,
+        succeeded: attemptedSteps - failedSteps,
+        failed: failedSteps,
+        errorCode: failedSteps === 0
+          ? null
+          : firstFailure ? "lifecycle_step_failed" : "benchmark_refresh_failed",
+        errorMessage: failedSteps === 0
+          ? null
+          : String(firstFailure?.error ?? benchmarkError?.message ?? "Lifecycle step failed"),
+      };
 
-    return json({
-      lifecycle,
-      benchmarks: benchmarkError
-        ? { error: benchmarkError.message }
-        : { cohortsRefreshed: benchmarks },
-    }, hasLifecycleError ? 207 : 200);
+      return json({
+        lifecycle,
+        benchmarks: benchmarkError
+          ? { error: benchmarkError.message }
+          : { cohortsRefreshed: benchmarks },
+      }, hasLifecycleError ? 207 : 200);
+    } finally {
+      // `return` inside try still runs this, so every exit path -- including the early 500 when
+      // policies cannot be loaded, and any throw -- closes the run it opened. A finalize that
+      // itself fails is logged rather than swallowed: silence there leaves the run 'running'
+      // until the reconciler mislabels it.
+      const { error: finishError } = await admin.rpc("finish_system_job", {
+        p_run_id: runId,
+        p_status: outcome.status,
+        p_attempted_count: outcome.attempted,
+        p_succeeded_count: outcome.succeeded,
+        p_failed_count: outcome.failed,
+        p_result: {},
+        p_error_code: outcome.errorCode,
+        p_error_message: outcome.errorMessage,
+      });
+      if (finishError) {
+        console.error(
+          JSON.stringify({
+            event: "data_lifecycle.finish_system_job_failed",
+            runId,
+            correlationId,
+            error: finishError.message,
+          }),
+        );
+      }
     }
   };
 }

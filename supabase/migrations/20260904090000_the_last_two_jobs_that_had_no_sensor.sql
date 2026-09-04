@@ -18,13 +18,21 @@
 --
 --   * `run-data-lifecycle` reports against `data-lifecycle`. Each lifecycle step (every active
 --     retention policy, plus the export-archive sweep) is one unit, so a single stuck policy
---     closes the run `partial` rather than taking the whole sweep down with it. Eight Deno tests
---     cover it, three of them new and specifically about the ledger: the claim's arguments, the
---     partial outcome, and that a refused claim does no work and finishes nothing.
+--     closes the run `partial` rather than taking the whole sweep down with it. Eleven Deno tests
+--     cover it, six of them new and specifically about the ledger: the claim's arguments, a
+--     partial outcome from a failed policy, a partial outcome from a failed benchmark refresh,
+--     that a caller-supplied correlation id is adopted rather than replaced, that a throw closes
+--     the run `failed` instead of leaving it running, and that a refused claim does no work and
+--     finishes nothing.
 --   * `process-organization-export-jobs` reports against `organization-data-export`. An empty
 --     queue is a successful run with nothing attempted, which is what keeps the freshness signal
 --     alive on a day with no exports -- the alternative, staying silent when idle, would make a
---     quiet day and a dead worker look identical, which is this whole class of bug.
+--     quiet day and a dead worker look identical, which is this whole class of bug. Its
+--     entrypoint was split into handler.ts + index.ts (the shape run-data-lifecycle already
+--     used) so the ledger has nine Deno tests of its own: the claim comes before the queue, an
+--     idle sweep closes `succeeded`, an unavailable queue closes `queue_unavailable`, a throw
+--     closes `unhandled_error`, a refused claim does nothing at all, and a finalize that itself
+--     fails is logged rather than swallowed.
 --
 -- Claiming BEFORE the work is deliberate in both. A run that dies mid-sweep then leaves a claimed
 -- row that 20260904080000's reconciler closes as `abandoned_run`, instead of leaving no trace that
@@ -45,6 +53,26 @@
 -- what happened with the billing sync. Neither is expected to: both cron entries have run
 -- successfully every scheduled tick for the last seven days, and the failure mode being removed
 -- is that nobody would have known if they had not. Freshness SLAs are unchanged.
+--
+-- THE DEPLOY WINDOW, WHICH IS NOT ZERO. `deploy-migrations.yml` pushes migrations first and
+-- deploys Edge Functions second, so for the length of one workflow run these two definitions are
+-- being judged by a ledger that the deployed functions do not yet write to. The watchdog's
+-- staleness predicate is `last_success_at is null or last_success_at + freshness_sla < now()`, and
+-- for a non-`sql_cron` kind `last_success_at` is the ledger's own last succeeded run -- so a null
+-- is stale IMMEDIATELY, not after the SLA elapses. Both jobs therefore warn on the first watchdog
+-- tick after this migration (`system-job-last-success-watchdog`, every 5 minutes), and keep
+-- warning until each function records its first successful run:
+--
+--   * `organization-data-export` runs every 15 minutes, so it self-clears within roughly 15
+--     minutes of the function deploy -- one or two warnings.
+--   * `data-lifecycle` runs once a day at 07:35 UTC, so if the deploy lands just after that tick
+--     it can warn for nearly 24 hours before its first claimed run closes the gap.
+--
+-- This is expected and self-clearing, not a signal to act on: an operator who sees either key go
+-- stale within a day of this deploy should confirm the function deploy succeeded and then wait for
+-- the next scheduled tick. The alternative -- flipping the sensor only after a tick had already
+-- been observed -- needs two deploys to close a gap that already exists, and leaves the
+-- always-green signal in place in between. A day of known-cause warnings is the cheaper side.
 --
 -- Rollback: restore the organization-export-jobs definition with its cron name, clear it from
 -- organization-data-export, and set data-lifecycle's execution_kind back to 'sql_cron'. The Edge

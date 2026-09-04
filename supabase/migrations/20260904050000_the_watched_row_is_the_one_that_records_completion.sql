@@ -51,10 +51,24 @@
 -- claim and finish a run, which is an Edge Function change with its own tests and its own deploy;
 -- it is recorded in BACKLOG.md as the remainder of G270 rather than half-done here.
 --
+-- AND THE SAME NARROWING HAS TO REACH THE SECOND READER, which is the part a review caught
+-- before this shipped. `run_system_job_watchdog` was taught by 20260814010000 to consult the
+-- cron-side signal only for `execution_kind = 'sql_cron'`. `get_system_job_control_plane` -- the
+-- function behind /admin/system-jobs, the surface this migration's own comments keep pointing at
+-- -- was not: it resolves `greatest(own_success_at, cron_success_at)` unconditionally, and
+-- `greatest` ignores NULLs. Before this migration the four recording rows carried
+-- `cron_job_name = null`, so the page judged them by their own ledger and the gap was
+-- unreachable. Moving the cron names onto them would have opened it: a worker answering 503 on
+-- every invocation would page correctly through the watchdog while the page beside it showed a
+-- last success minutes old and `is_stale = false`. Fixing one reader and not the other would
+-- have left this migration half-done in the most confusing possible way, so the same case
+-- expression is applied here.
+--
 -- BLAST RADIUS. Four cron entries change which definition observes them; two definitions become
--- critical; four redundant definitions are removed where they have no run history. No cron
--- schedule, command, function, or Edge Function changes, so no job's actual execution is altered
--- -- only which row the watchdog reads to decide whether it happened.
+-- critical; four redundant definitions are removed where they have no run history; one reporting
+-- function stops reading freshness off the wrong sensor. No cron schedule, command, function
+-- body, or Edge Function changes, so no job's actual execution is altered -- only which row, and
+-- which column, the two readers use to decide whether it happened.
 --
 -- Rollback: restore the four removed definitions and clear cron_job_name from the four survivors.
 
@@ -97,3 +111,194 @@ $$;
 
 comment on column app_private.system_job_definitions.cron_job_name is
   'The cron entry whose freshness this definition is judged by. It must sit on the definition that RECORDS the work through claim_system_job_execution / finish_system_job, not on a sibling that merely schedules it: for a cron command that is a net.http_post, pg_cron''s exit status proves the request was enqueued and nothing more. Splitting the two across separate rows is how the billing sync failed hourly for weeks under a green light (20260814010000) and how four more jobs were still being judged as of 20260904050000.';
+
+
+-- ---------------------------------------------------------------------------
+-- /admin/system-jobs stops reading freshness off pg_cron for non-sql_cron jobs
+-- ---------------------------------------------------------------------------
+
+create or replace function public.get_system_job_control_plane()
+returns table (
+  job_key text,
+  display_name text,
+  description text,
+  schedule text,
+  execution_kind text,
+  is_critical boolean,
+  retry_mode text,
+  operator_route text,
+  last_status text,
+  last_attempt_at timestamptz,
+  last_success_at timestamptz,
+  next_expected_at timestamptz,
+  last_duration_ms bigint,
+  attempted_count bigint,
+  succeeded_count bigint,
+  failed_count bigint,
+  error_message text,
+  is_stale boolean
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_platform_admin() then
+    raise exception 'Only platform_admin may inspect system jobs'
+      using errcode = '42501';
+  end if;
+
+  return query
+  with job_state as (
+    select
+      d.*,
+      c.schedule,
+      own.status as own_status,
+      own.started_at as own_started_at,
+      own.finished_at as own_finished_at,
+      own.attempted_count as own_attempted_count,
+      own.succeeded_count as own_succeeded_count,
+      own.failed_count as own_failed_count,
+      own.error_message as own_error_message,
+      own_success.started_at as own_success_at,
+      cron_run.status as cron_status,
+      cron_run.start_time as cron_started_at,
+      cron_run.end_time as cron_finished_at,
+      cron_run.return_message as cron_error_message,
+      cron_success.start_time as cron_success_at
+    from app_private.system_job_definitions as d
+    left join cron.job as c
+      on c.jobname = d.cron_job_name
+    left join lateral (
+      select r.*
+      from app_private.system_job_runs as r
+      where r.job_key = d.job_key
+      order by r.started_at desc
+      limit 1
+    ) as own on true
+    left join lateral (
+      select r.started_at
+      from app_private.system_job_runs as r
+      where r.job_key = d.job_key
+        and r.status = 'succeeded'
+      order by r.started_at desc
+      limit 1
+    ) as own_success on true
+    left join lateral (
+      select cr.status, cr.start_time, cr.end_time, cr.return_message
+      from cron.job_run_details as cr
+      where cr.jobid = c.jobid
+      order by cr.runid desc
+      limit 1
+    ) as cron_run on true
+    left join lateral (
+      select cr.start_time
+      from cron.job_run_details as cr
+      where cr.jobid = c.jobid
+        and cr.status = 'succeeded'
+      order by cr.runid desc
+      limit 1
+    ) as cron_success on true
+    where d.is_active
+  ),
+  resolved as (
+    select
+      s.*,
+      case
+        when coalesce(s.own_started_at, '-infinity'::timestamptz)
+           >= coalesce(s.cron_started_at, '-infinity'::timestamptz)
+          then s.own_status
+        else s.cron_status
+      end as resolved_status,
+      greatest(s.own_started_at, s.cron_started_at) as resolved_started_at,
+      case
+        when coalesce(s.own_started_at, '-infinity'::timestamptz)
+           >= coalesce(s.cron_started_at, '-infinity'::timestamptz)
+          then s.own_finished_at
+        else s.cron_finished_at
+      end as resolved_finished_at,
+      -- Narrowed by execution_kind, exactly as run_system_job_watchdog is (20260814010000).
+      -- For edge_cron and worker definitions the cron row proves delivery at most: an Edge
+      -- Function that answers 503 on every invocation still leaves a trail of 'succeeded' cron
+      -- rows, and `greatest` ignores NULLs, so before this change a definition that had never
+      -- recorded a run of its own read as fresh off pg_cron alone. That is the billing-sync
+      -- failure mode (20260814010000) surviving on the human-facing reader after the pager was
+      -- fixed -- and 20260904050000 made it reachable for four more jobs by moving their cron
+      -- names onto the rows that record completion.
+      case
+        when s.execution_kind <> 'sql_cron' then s.own_success_at
+        else greatest(s.own_success_at, s.cron_success_at)
+      end as resolved_success_at,
+      case
+        when coalesce(s.own_started_at, '-infinity'::timestamptz)
+           >= coalesce(s.cron_started_at, '-infinity'::timestamptz)
+          then s.own_error_message
+        when s.cron_status <> 'succeeded' then s.cron_error_message
+        else null
+      end as resolved_error_message
+    from job_state as s
+  )
+  select
+    r.job_key,
+    r.display_name,
+    r.description,
+    r.schedule,
+    r.execution_kind,
+    r.is_critical,
+    r.retry_mode,
+    r.operator_route,
+    coalesce(r.resolved_status, 'never') as last_status,
+    r.resolved_started_at as last_attempt_at,
+    r.resolved_success_at as last_success_at,
+    case
+      when r.cron_job_name is not null
+        then r.resolved_success_at + r.expected_interval
+      else null
+    end as next_expected_at,
+    case
+      when r.resolved_started_at is not null and r.resolved_finished_at is not null
+        then (extract(epoch from (r.resolved_finished_at - r.resolved_started_at)) * 1000)::bigint
+      else null
+    end as last_duration_ms,
+    case
+      when coalesce(r.own_started_at, '-infinity'::timestamptz)
+         >= coalesce(r.cron_started_at, '-infinity'::timestamptz)
+        then r.own_attempted_count
+      else null
+    end as attempted_count,
+    case
+      when coalesce(r.own_started_at, '-infinity'::timestamptz)
+         >= coalesce(r.cron_started_at, '-infinity'::timestamptz)
+        then r.own_succeeded_count
+      else null
+    end as succeeded_count,
+    case
+      when coalesce(r.own_started_at, '-infinity'::timestamptz)
+         >= coalesce(r.cron_started_at, '-infinity'::timestamptz)
+        then r.own_failed_count
+      else null
+    end as failed_count,
+    r.resolved_error_message as error_message,
+    case
+      when r.cron_job_name is null then
+        r.resolved_status in ('queued', 'running')
+        and r.resolved_started_at + r.freshness_sla < now()
+      else
+        r.resolved_success_at is null
+        or r.resolved_success_at + r.freshness_sla < now()
+    end as is_stale
+  from resolved as r
+  order by
+    case
+      when r.cron_job_name is null then
+        r.resolved_status in ('queued', 'running')
+        and r.resolved_started_at + r.freshness_sla < now()
+      else
+        r.resolved_success_at is null
+        or r.resolved_success_at + r.freshness_sla < now()
+    end desc,
+    r.is_critical desc,
+    r.display_name;
+end;
+$$;

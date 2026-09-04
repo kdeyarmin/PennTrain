@@ -1,5 +1,5 @@
 begin;
-select plan(22);
+select plan(26);
 
 -- Pins the repairs made for the go-live readiness review (BACKLOG rows B3, B4, B5, B10, G270,
 -- N2, SG-2). Every assertion here exists because the condition it describes was TRUE on
@@ -223,6 +223,76 @@ select isnt(
    where n.nspname = 'app_private' and p.proname = 'clinical_disclosure_allowed'),
   null,
   'clinical_disclosure_allowed pins its search_path -- it gates every outbound clinical disclosure'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- B4: certificates for completions that predate atomic issuance.
+--
+-- The repair itself is a one-shot DO block in 20260904040000, so what is worth guarding here is
+-- the state it leaves behind and the bounded tool that finishes any overflow. If either assertion
+-- fails, either the migration was reverted or something reintroduced the pre-atomic gap.
+-- ---------------------------------------------------------------------------------------
+select is(
+  (select count(*)::int
+   from public.course_assignments ca
+   where ca.status = 'completed'
+     and coalesce(ca.completed_at, ca.updated_at) < timestamptz '2026-07-11 15:48:19+00'
+     and not exists (select 1 from public.certificates c where c.course_assignment_id = ca.id)),
+  0,
+  'no completion predating atomic issuance is left without a certificate'
+);
+
+select has_function(
+  'public',
+  'reconcile_course_completion_certificates',
+  array['uuid', 'integer'],
+  'the bounded repair the migration defers overflow to still exists'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- H19: the grant layer and the policy layer say the same thing.
+--
+-- 20260904100000 repairs production, where the hosted image's default privileges left `anon` and
+-- `authenticated` holding 381 write grants no policy uses. On a clean database it revokes nothing,
+-- so these two assertions are what actually carries the invariant forward: the first fails if a
+-- migration grants a write no policy permits, the second if one writes a policy it forgot to grant
+-- for. Both directions matter -- an unused grant is a lock left open, an unbacked policy is a
+-- feature that silently does nothing.
+-- ---------------------------------------------------------------------------------------
+select is(
+  (select count(*)::int
+   from pg_class c
+   cross join (values ('INSERT'), ('UPDATE'), ('DELETE')) as x(priv)
+   cross join (values ('anon'), ('authenticated')) as ro(role_name)
+   where c.relnamespace = 'public'::regnamespace
+     and c.relkind in ('r', 'p')
+     and c.relrowsecurity
+     and has_table_privilege(ro.role_name, c.oid, x.priv)
+     and not exists (
+       select 1 from pg_policies p
+       where p.schemaname = 'public' and p.tablename = c.relname
+         and p.permissive = 'PERMISSIVE' and p.cmd in (x.priv, 'ALL')
+         and (ro.role_name = any(p.roles) or 'public' = any(p.roles))
+     )),
+  0,
+  'no browser role holds a write grant that row-level security already denies'
+);
+
+select is(
+  (select count(*)::int
+   from (
+     select p.tablename, r as role_name,
+            unnest(case when p.cmd = 'ALL' then array['INSERT', 'UPDATE', 'DELETE'] else array[p.cmd] end) as priv
+     from pg_policies p, unnest(p.roles) as r
+     where p.schemaname = 'public' and p.permissive = 'PERMISSIVE'
+       and p.cmd in ('ALL', 'INSERT', 'UPDATE', 'DELETE')
+       and r in ('anon', 'authenticated')
+   ) pol
+   join pg_class c on c.relname = pol.tablename
+     and c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+   where not has_table_privilege(pol.role_name, c.oid, pol.priv)),
+  0,
+  'no permissive write policy is left without the grant it needs to ever fire'
 );
 
 select * from finish();

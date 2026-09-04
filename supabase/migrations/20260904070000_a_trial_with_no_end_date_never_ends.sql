@@ -18,11 +18,22 @@
 -- non-demo organization, created 2026-07-04, status 'trial', trial_ends_at null, no BAA stamp,
 -- and no billing_subscriptions row.
 --
--- THE FIX IS FORWARD-ONLY, AND THAT IS DELIBERATE. An AFTER INSERT trigger stamps a deadline on
+-- THE FIX IS FORWARD-ONLY, AND THAT IS DELIBERATE. A BEFORE INSERT trigger stamps a deadline on
 -- any new non-demo organization that arrives on a trial without one, using the operator-controlled
 -- `default_trial_days` platform setting (30) and falling back to 30 if the setting is missing or
 -- malformed. Demo organizations are exempt: they are supposed to run indefinitely, and
 -- `organizations.is_demo` already carries that meaning everywhere else.
+--
+-- BEFORE, NOT AFTER, and a review caught the difference before this shipped. An AFTER INSERT
+-- trigger has to UPDATE the row it just observed, and on this table that second write is not
+-- free: it re-fires `set_updated_at`, the UPDATE-only guards `protect_subscription_fields` and
+-- `protect_baa_fields`, and the audit trigger -- so every newly created organization would gain a
+-- spurious audit_logs 'update' entry moments after its own creation, and 20260725000000's header
+-- comment that "record_organization_signup INSERTs (the trigger is UPDATE-only)" would stop being
+-- true. Worse for correctness: an AFTER trigger's write is invisible to the triggering statement,
+-- so any creation path doing `insert ... returning trial_ends_at` would read NULL and could
+-- re-stamp or mis-report the deadline. Assigning `new.trial_ends_at` BEFORE the insert is one
+-- write, no extra audit row, and correct under RETURNING.
 --
 -- IT DOES NOT BACKFILL THE EXISTING ROW, and that omission is the safest part of this migration.
 -- Stamping a deadline on the one existing non-demo organization would start a clock on what is
@@ -32,7 +43,7 @@
 -- is recorded in BACKLOG.md, and it needs a person rather than a migration. What this migration
 -- guarantees is only that the next organization cannot land in the same undefined state.
 --
--- BLAST RADIUS. One AFTER INSERT trigger on public.organizations, firing only for rows where
+-- BLAST RADIUS. One BEFORE INSERT trigger on public.organizations, firing only for rows where
 -- is_demo is false, subscription_status is 'trial', and trial_ends_at is null. No existing row is
 -- read or written. Every trial that already carries a deadline is untouched, and a caller that
 -- passes an explicit trial_ends_at (which record_organization_signup does) keeps it exactly.
@@ -68,10 +79,7 @@ begin
     v_days := 30;
   end if;
 
-  update public.organizations
-  set trial_ends_at = now() + make_interval(days => v_days)
-  where id = new.id;
-
+  new.trial_ends_at := now() + make_interval(days => v_days);
   return new;
 end;
 $$;
@@ -83,5 +91,5 @@ comment on function app_private.ensure_trial_has_an_end_date() is
 
 drop trigger if exists ensure_trial_has_an_end_date on public.organizations;
 create trigger ensure_trial_has_an_end_date
-after insert on public.organizations
+before insert on public.organizations
 for each row execute function app_private.ensure_trial_has_an_end_date();

@@ -21,11 +21,19 @@
 -- ledger, which is the record of what the platform actually did, contains an entry that is simply
 -- false, and it will stay false forever.
 --
--- THE FIX. `app_private.reconcile_abandoned_system_job_runs()` closes out any run still 'queued' or
--- 'running' whose heartbeat is older than six hours, marking it failed with error_code
--- 'abandoned_run'. The watchdog calls it at the top of every pass, so this self-heals from now on
--- instead of needing a migration each time, and the migration calls it once to close the row that
--- is already stranded.
+-- THE FIX. `app_private.reconcile_abandoned_system_job_runs()` closes out any run still 'running'
+-- whose heartbeat is older than six hours, marking it failed with error_code 'abandoned_run'. The
+-- watchdog calls it at the top of every pass, so this self-heals from now on instead of needing a
+-- migration each time, and the migration calls it once to close the row that is already stranded.
+--
+-- 'RUNNING' ONLY, NOT 'QUEUED', and the distinction is the whole safety of this sweep. A first
+-- draft sweeps both. It should not: a queued row has never been claimed by any worker. It is what
+-- `request_system_job_rerun` and `replay_system_job_dead_letter` insert when an OPERATOR asks for
+-- a run, carrying `requested_by = auth.uid()` and a mandatory `request_reason`, with an
+-- audit_logs entry pointing at it. Sweeping those would stamp 'the worker that claimed this run
+-- never finished it' onto a row no worker ever touched -- a fabricated crash record on an audited
+-- operator request, which is worse than the stale row this migration exists to remove. A queued
+-- run that nobody picks up is a dispatch problem and needs its own diagnosis, not this label.
 --
 -- SIX HOURS, AND KEYED ON THE HEARTBEAT RATHER THAN THE START. The heartbeat is the right signal
 -- because it distinguishes "still working" from "died": a genuinely long job that is making
@@ -71,7 +79,9 @@ begin
       error_message = 'No heartbeat for over six hours; the worker that claimed this run never '
         || 'finished it. Closed by app_private.reconcile_abandoned_system_job_runs.',
       updated_at = now()
-  where r.status in ('queued', 'running')
+  -- 'running' only: see the header. A 'queued' row is an operator's audited rerun request that no
+  -- worker has claimed yet, and labelling it a worker death would be a fabricated crash record.
+  where r.status = 'running'
     and coalesce(r.last_heartbeat_at, r.started_at, r.created_at) < now() - interval '6 hours';
 
   get diagnostics v_closed = row_count;
@@ -82,7 +92,7 @@ $$;
 revoke all on function app_private.reconcile_abandoned_system_job_runs() from public, anon, authenticated;
 
 comment on function app_private.reconcile_abandoned_system_job_runs() is
-  'Closes system job runs whose worker died without calling finish_system_job, so the run ledger stops reporting a dead run as in progress. Keyed on last_heartbeat_at, not started_at, so a long job that is genuinely making progress is never swept. Deliberately does not route through finish_system_job: this is a bookkeeping correction, not a new failure for the circuit breaker to count. See 20260904080000.';
+  'Closes system job runs whose worker died without calling finish_system_job, so the run ledger stops reporting a dead run as in progress. Three deliberate narrowings: ''running'' only, because a ''queued'' row is an operator''s audited rerun request that no worker has claimed and must not be labelled a worker death; keyed on last_heartbeat_at rather than started_at, so a long job genuinely making progress is never swept; and not routed through finish_system_job, because this is a bookkeeping correction rather than a new failure for the circuit breaker to count. See 20260904080000.';
 
 create or replace function public.run_system_job_watchdog()
 returns integer
