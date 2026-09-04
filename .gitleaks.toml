@@ -36,7 +36,11 @@ description = "Ignore the non-secret PA PCH personnel rule-pack identifier"
 condition = "AND"
 regexTarget = "secret"
 regexes = ['''^pa\.pch\.2600\.65\.personnel$''']
-paths = ['''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''']
+paths = [
+  '''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''',
+  '''^supabase/migrations/20260904010000_the_pa_templates_cited_the_subsections_without_the_hours\.sql$''',
+  '''^supabase/tests/database/go_live_readiness_repairs\.test\.sql$''',
+]
 
 [[rules.allowlists]]
 description = "Ignore the non-secret PA ALF personnel rule-pack identifier"
@@ -46,6 +50,8 @@ regexes = ['''^pa\.alf\.2800\.65\.personnel$''']
 paths = [
   '''^supabase/migrations/20260804020000_activation_no_longer_waits_on_a_shadow_period\.sql$''',
   '''^supabase/migrations/20260810110000_the_alr_sweep_matched_only_the_prefix\.sql$''',
+  '''^supabase/migrations/20260904010000_the_pa_templates_cited_the_subsections_without_the_hours\.sql$''',
+  '''^supabase/tests/database/go_live_readiness_repairs\.test\.sql$''',
 ]
 
 [[rules.allowlists]]

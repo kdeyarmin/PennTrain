@@ -8,13 +8,29 @@ const enterpriseFoundationSource = readFileSync(resolve(__dirname, "../pages/adm
 const regulatoryCopilotSource = readFileSync(resolve(__dirname, "../pages/app/RegulatoryCopilot.tsx"), "utf8");
 
 describe("SG-2 activation messaging", () => {
-  it("keeps the backlog aligned with the counsel-cleared but not-yet-activated PA state", () => {
+  it("keeps the backlog aligned with the reviewed-but-not-yet-activated PA state", () => {
     expect(backlogSource).toContain("SG-2 counsel-cleared option 2; templates seeded; activation remains");
-    expect(backlogSource).toContain("| SG-2 | Counsel cleared option 2");
+    expect(backlogSource).toContain("| SG-2 | **Attempted close on 2026-09-04");
     expect(backlogSource).toContain("pa.pch.2600.65.personnel");
     expect(backlogSource).toContain("pa.alf.2800.65.personnel");
     expect(backlogSource).not.toContain("**SG-2 PA governed rule pack**");
     expect(backlogSource).not.toContain("decided option 3");
+  });
+
+  // The 2026-09-04 review pass read both templates against the published sections and found the
+  // hour floors cited to the wrong subsection in each. These pin the two things that must not
+  // quietly revert: that the row still records the verification, and that it still says activation
+  // has NOT happened. A row claiming an active PA pack while regulatory_rule_versions is empty is
+  // the exact over-claim SG-2 exists to prevent.
+  it("records that the PA hour floors were read against the published sections", () => {
+    expect(backlogSource).toContain("2600.65(e) states the 12-hour PCH annual floor");
+    expect(backlogSource).toContain("2800.65(h) states the 16-hour ALF floor");
+  });
+
+  it("still says activation has not happened, and why", () => {
+    expect(backlogSource).toContain("regulatory_rule_packs` and `regulatory_rule_versions` are both still empty on production");
+    expect(backlogSource).toContain("zero verified factors");
+    expect(backlogSource).not.toContain("a PA governed version is active");
   });
 
   it("offers PA installs in Enterprise Foundation while keeping Ohio as a mechanism demo", () => {

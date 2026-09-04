@@ -58,14 +58,34 @@ overrides:
   # Patch a transitive fast-uri (via ajv) off the range flagged by GHSA-v2hh-gcrm-f6hx (host
   # confusion via a literal backslash authority delimiter), then GHSA-7p8r-x3mc-p8w7, which found
   # that fix bypassable via a BACKSLASH authority introducer and widened the affected range to
-  # >=3.0.0 <3.1.5 -- taking 3.1.4, this override's own previous target, with it. Bumped to 3.1.5.
+  # >=3.0.0 <3.1.5 -- taking 3.1.4, this override's own previous target, with it. Then FOUR more
+  # (GHSA-f65p-4m7j-42xc SSRF via malformed IPv6 normalization, GHSA-jqff-g426-hqxp host confusion
+  # via percent-encoded scheme normalization, GHSA-fph4-wmhf-6fwf SSRF via repeated hostname
+  # percent-decoding, GHSA-5jgf-p345-68v8 host confusion via skipped IDN canonicalization) landed
+  # together and every one of them reaches <3.1.6 -- so they took 3.1.5, this override's own
+  # previous target, exactly as the last round took 3.1.4. That is now twice, which is the reason
+  # this entry targets the latest mature 3.x patch rather than the lowest version that clears the
+  # advisories: 3.1.6 is the fix, 3.1.7 is the same fix plus whatever followed it, and the cost of
+  # aiming low is a third round of this.
   # Deliberately not 4.x: fast-uri is transitive via ajv, and a major bump risks an API break for a
   # patch that does not need one.
   #
   # Same shape as the brace-expansion entry below, and the same caveat applies: this surfaces as a
   # CI failure on every branch the day the advisory publishes, main included, because
   # check-dependencies.mjs audits the live advisory database rather than a snapshot.
-  'fast-uri@>=3.0.0 <=3.1.4': 3.1.5
+  'fast-uri@>=3.0.0 <=3.1.6': 3.1.7
+  # Patch a transitive browserslist (via @babel/helper-compilation-targets and core-js-compat) off
+  # the range flagged by GHSA-c83g-rgw3-j3cx (unbounded memory growth: the query cache never
+  # evicts, so distinct queries grow it without limit until the process OOMs) and
+  # GHSA-73wf-gq98-2v4g (normalizeStats writes through attacker-controlled keys from a
+  # browserslist-stats.json, giving an uncaught crash or a prototype write). Both reach <=4.28.6
+  # and both are fixed in 4.28.7; pinned to 4.28.8, the latest mature 4.28.x patch, for the reason
+  # the fast-uri entry above learned the hard way.
+  #
+  # Build-time only -- browserslist resolves target browsers during the Vite/Babel build and ships
+  # nothing to a browser -- so neither advisory describes a risk to a served page. It is bumped
+  # because the gate is a gate: a high advisory on main is fixed, not adjudicated.
+  'browserslist@<=4.28.6': 4.28.8
   # Patch a transitive postcss (via tailwindcss/vite) off the range flagged by
   # GHSA-r28c-9q8g-f849 (path traversal in sourceMappingURL auto-loading -> arbitrary
   # .map disclosure); fixed in 8.5.18, pinned to the latest mature 8.5.x patch.

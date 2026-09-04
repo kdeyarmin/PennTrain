@@ -223,6 +223,46 @@ function buildAuditSet(lockfileContent, denoSources) {
 const HIGH_SEVERITY = new Set(["high", "critical"]);
 
 /**
+ * True when two audit sets name exactly the same packages at exactly the same versions.
+ *
+ * WHY A SECURITY GATE IS ALLOWED TO SKIP ITSELF. It is not skipping itself. `--base` mode asks
+ * one question -- did THIS change introduce a high or critical advisory? -- and answers it by
+ * auditing two dependency sets and diffing the results. When the two sets are identical, both
+ * audits send the same payload to the same endpoint and get back the same reply, so every
+ * advisory lands in `preExisting` and `introduced` is empty by construction, whatever the
+ * registry says today or tomorrow. The verdict is knowable from the sets alone, so asking is
+ * not a check -- it is a network call whose answer cannot change the outcome.
+ *
+ * WHY IT MATTERS. The audit fails closed on a transport error, and it runs FIRST in the
+ * `application` job, ahead of check:all. So an unreachable registry does not degrade one
+ * signal; it reddens the whole job on every open branch at once, including branches that touch
+ * no dependency at all. Observed on 2026-09-04: one `503 Service Unavailable` followed by 60s
+ * timeouts on every retry, across three job runs in seven minutes, on a documentation-only
+ * branch. That is exactly the "people learn to read a red gate as noise" failure this script's
+ * own header was written to prevent, arriving through the transport instead of through the
+ * advisory feed -- and the header's fix (ask whether the change introduced it) already contains
+ * the answer.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO. It does not weaken strict mode: with no `--base`, or an
+ * unreadable one, `baseSet` is null, no comparison is possible, and every high advisory fails
+ * as before. Pushes to main pass no base, so main still goes red for a pre-existing advisory,
+ * which is the branch that should. And the comparison is exact in both directions -- a changed
+ * version, an added package, a removed package, an added version of a package already present
+ * -- because "close enough" here would let a real dependency change skip the audit.
+ */
+function auditSetsAreIdentical(headPackages, basePackages) {
+  if (headPackages.size !== basePackages.size) return false;
+  for (const [name, versions] of headPackages) {
+    const baseVersions = basePackages.get(name);
+    if (!baseVersions || baseVersions.size !== versions.size) return false;
+    for (const version of versions) {
+      if (!baseVersions.has(version)) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Sort HEAD's advisories into what this change introduced and what the base already carried.
  *
  * Pure, and exported-in-spirit for --self-test, because this is the one piece of judgment in
@@ -390,6 +430,40 @@ function runSelfTest() {
     shape(classifyAdvisories({ a: [high(1), high(2)] }, { a: [high(2)] })),
     { introduced: ["a:1"], preExisting: ["a:2"], lowOrModerate: 0 });
 
+  // The identical-set short-circuit. Every one of these has to be exact: if any "nearly the
+  // same" set read as identical, a real dependency change would skip the audit entirely, which
+  // is the one way this optimization could become a hole.
+  const auditSet = (entries) => new Map(entries.map(([name, versions]) => [name, new Set(versions)]));
+
+  check("identical sets are identical regardless of insertion order",
+    auditSetsAreIdentical(
+      auditSet([["a", ["1.0.0"]], ["b", ["2.0.0"]]]),
+      auditSet([["b", ["2.0.0"]], ["a", ["1.0.0"]]]),
+    ),
+    true);
+
+  check("a changed version is not identical",
+    auditSetsAreIdentical(auditSet([["a", ["1.0.0"]]]), auditSet([["a", ["1.0.1"]]])),
+    false);
+
+  check("an added package is not identical",
+    auditSetsAreIdentical(auditSet([["a", ["1.0.0"]], ["b", ["2.0.0"]]]), auditSet([["a", ["1.0.0"]]])),
+    false);
+
+  check("a removed package is not identical",
+    auditSetsAreIdentical(auditSet([["a", ["1.0.0"]]]), auditSet([["a", ["1.0.0"]], ["b", ["2.0.0"]]])),
+    false);
+
+  // Same package count and the same name, one extra version: the outer size check passes and
+  // only the per-package version comparison catches it.
+  check("an added version of a package already present is not identical",
+    auditSetsAreIdentical(auditSet([["a", ["1.0.0", "1.1.0"]]]), auditSet([["a", ["1.0.0"]]])),
+    false);
+
+  check("two empty sets are identical",
+    auditSetsAreIdentical(auditSet([]), auditSet([])),
+    true);
+
   const failed = cases.filter((c) => !c.ok);
   for (const c of failed) {
     console.error(`  FAIL ${c.name}`);
@@ -459,6 +533,18 @@ if (options.baseRef) {
   console.log(
     "No --base given; auditing in strict mode (every high or critical advisory fails).",
   );
+}
+
+// The one case whose answer is already known: see auditSetsAreIdentical. Resolving it from the
+// sets in hand keeps a registry outage from failing branches that changed no dependency, without
+// touching what the gate concludes when they did.
+if (baseSet && auditSetsAreIdentical(packages, baseSet.packages)) {
+  console.log(
+    `Dependency set is identical to ${options.baseRef} (${packages.size} packages, same versions), ` +
+      `so this change cannot introduce an advisory -- every result would classify as pre-existing. ` +
+      `Skipping the advisory audit; ${options.baseRef}'s own strict run owns anything pre-existing.`,
+  );
+  process.exit(0);
 }
 
 const toPayload = (set) =>

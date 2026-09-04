@@ -39,6 +39,18 @@ const EDGE_JOBS: Record<
     functionName: "fhir-writeback",
     body: {},
   },
+  // Required by 20260904090000, which corrects this definition's execution_kind from `sql_cron`
+  // to `edge_cron`. Without an entry here "Run now" falls through to execute_registered_sql_job,
+  // whose case list has no `data-lifecycle` arm, so it raises 22023 and its own handler records a
+  // durable FAILED run. That was harmless while the kind was `sql_cron` -- finish_system_job only
+  // opens a circuit for `edge_cron` and `external` -- but after the relabel three such clicks
+  // reach failure_alert_threshold, open the circuit for 15 minutes, and
+  // claim_system_job_execution then rejects the SCHEDULED nightly sweep. An operator trying to
+  // recover the job would be the thing that stops it running.
+  "data-lifecycle": {
+    functionName: "run-data-lifecycle",
+    body: {},
+  },
 };
 
 function json(req: Request, body: unknown, status = 200) {
