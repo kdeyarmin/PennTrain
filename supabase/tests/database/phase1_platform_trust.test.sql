@@ -375,11 +375,16 @@ select is(
 --   certificate-pdf-jobs, binder-export-jobs, document-analyzer-jobs and
 --   integration-webhook-dispatch-cron. 48 definitions, 47 active. This is the deliberate deletion
 --   the ratchet is here to make someone acknowledge.
+-- 47 -> 46 when 20260904090000 finished G270. organization-export-jobs was the fifth row of that
+--   shape and was deleted the same way, once process-organization-export-jobs had been
+--   instrumented to claim and finish a run so organization-data-export had something to be judged
+--   on. data-lifecycle, the sixth, is not a duplicate and survives -- only its execution_kind was
+--   wrong. 47 definitions, 46 active.
 --
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  47::bigint,
+  46::bigint,
   'the control plane returns one row per active registered job definition'
 );
 

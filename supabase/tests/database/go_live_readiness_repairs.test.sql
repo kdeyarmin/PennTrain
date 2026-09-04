@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(22);
 
 -- Pins the repairs made for the go-live readiness review (BACKLOG rows B3, B4, B5, B10, G270,
 -- N2, SG-2). Every assertion here exists because the condition it describes was TRUE on
@@ -145,12 +145,27 @@ select is(
    where d.is_active
      and d.is_critical
      and d.execution_kind = 'sql_cron'
-     and c.command ilike '%net.http_post%'
-     -- The two whose Edge Functions record no run at all: repointing them would replace an
-     -- always-green signal with an always-red one. Tracked in BACKLOG.md as G270's remainder.
-     and d.job_key not in ('data-lifecycle', 'organization-export-jobs')),
+     and c.command ilike '%net.http_post%'),
   '(none)',
   'no critical sql_cron definition is judged by a cron entry that only fires an HTTP request'
+);
+
+-- 20260904050000 had to exempt data-lifecycle and organization-export-jobs from the assertion
+-- above, because neither Edge Function recorded a run at all -- so there was no true signal to
+-- point the watchdog at. 20260904090000 instrumented both functions and repointed them, which is
+-- what let the exemption go. These pin the shape that replaced it.
+select is(
+  (select execution_kind from app_private.system_job_definitions where job_key = 'data-lifecycle'),
+  'edge_cron',
+  'data-lifecycle is labelled for what its cron entry actually does -- fire an HTTP request'
+);
+
+select is(
+  (select job_key || ':' || is_critical::text
+   from app_private.system_job_definitions
+   where cron_job_name = 'process-organization-export-jobs'),
+  'organization-data-export:true',
+  'the export cron entry is owned by the worker that claims and finishes the run'
 );
 
 select is(

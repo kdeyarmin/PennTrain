@@ -14,7 +14,17 @@ interface RunDataLifecycleDependencies {
   getEnv?: (name: string) => string | undefined;
   now?: () => Date;
   authorizeRequest?: AuthorizeRequest;
+  // Injectable so the suite can assert an exact rpc call list. Production always takes the
+  // default: the correlation id must be unique per invocation or claim_system_job_execution
+  // treats a second run as a retry of the first.
+  newCorrelationId?: () => string;
 }
+
+// The definition this worker reports against. Until 20260904090000 nothing here claimed a run at
+// all, so `data-lifecycle` had an empty ledger and the watchdog fell back to pg_cron's exit
+// status -- which, for a cron entry whose command is a net.http_post, records that the request
+// was enqueued and nothing about whether the sweep ran. See BACKLOG G270.
+const DATA_LIFECYCLE_JOB_KEY = "data-lifecycle";
 
 function json(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {
@@ -75,6 +85,7 @@ export function createRunDataLifecycleHandler({
   getEnv = (name) => Deno.env.get(name),
   now = () => new Date(),
   authorizeRequest = requireCronRequest,
+  newCorrelationId = () => crypto.randomUUID(),
 }: RunDataLifecycleDependencies) {
   return async (request: Request): Promise<Response> => {
     const authError = authorizeRequest(request, RUN_DATA_LIFECYCLE_HEADERS);
@@ -87,12 +98,60 @@ export function createRunDataLifecycleHandler({
     }
 
     const admin = createClient(url, serviceRoleKey);
+
+    // Claim before any work, so a run that dies mid-sweep leaves a claimed row the watchdog's
+    // abandoned-run reconciler can close (20260904080000) rather than no trace at all.
+    const { data: claimRows, error: claimError } = await admin.rpc("claim_system_job_execution", {
+      p_job_key: DATA_LIFECYCLE_JOB_KEY,
+      p_correlation_id: newCorrelationId(),
+      p_trigger_type: "scheduled",
+      p_provider_request_id: null,
+    });
+    if (claimError) {
+      return json({ error: claimError.message }, 500);
+    }
+    const claimedRun = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+    if (!claimedRun?.should_execute) {
+      return json({ skipped: true, status: claimedRun?.existing_status ?? "skipped" }, 200);
+    }
+    const runId = claimedRun.run_id;
+
+    let attempted = 0;
+    let succeeded = 0;
+    let failed = 0;
+    let errorCode: string | null = null;
+    let errorMessage: string | null = null;
+
+    try {
+      return await runLifecycle();
+    } finally {
+      // `return` inside try still runs this, so every exit path -- including the early 500 when
+      // policies cannot be loaded -- closes the run it opened.
+      await admin.rpc("finish_system_job", {
+        p_run_id: runId,
+        p_status: errorCode
+          ? "failed"
+          : failed > 0
+            ? (succeeded > 0 ? "partial" : "failed")
+            : "succeeded",
+        p_attempted_count: attempted,
+        p_succeeded_count: succeeded,
+        p_failed_count: failed,
+        p_result: {},
+        p_error_code: errorCode,
+        p_error_message: errorMessage,
+      });
+    }
+
+    async function runLifecycle(): Promise<Response> {
     const { data: policies, error: policyError } = await admin
       .from("data_lifecycle_policies")
       .select("policy_key")
       .eq("is_active", true)
       .order("policy_key");
     if (policyError) {
+      errorCode = "policies_unavailable";
+      errorMessage = policyError.message ?? "Lifecycle policies could not be loaded";
       return json({ error: "Lifecycle policies could not be loaded" }, 500);
     }
 
@@ -129,11 +188,23 @@ export function createRunDataLifecycleHandler({
     );
     const hasLifecycleError = lifecycle.some((result) => "error" in result);
 
+    // Each lifecycle step is one unit of work, so a single failing policy reports as `partial`
+    // rather than taking the whole sweep down. A failed benchmark refresh is recorded as the
+    // run's error without changing the per-step tally, because it is not one of the steps.
+    attempted = lifecycle.length;
+    failed = lifecycle.filter((result) => "error" in result).length;
+    succeeded = attempted - failed;
+    if (benchmarkError) {
+      errorCode = "benchmark_refresh_failed";
+      errorMessage = benchmarkError.message ?? "Benchmark refresh failed";
+    }
+
     return json({
       lifecycle,
       benchmarks: benchmarkError
         ? { error: benchmarkError.message }
         : { cohortsRefreshed: benchmarks },
     }, hasLifecycleError ? 207 : 200);
+    }
   };
 }

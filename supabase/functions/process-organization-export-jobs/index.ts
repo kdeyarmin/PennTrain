@@ -15,6 +15,7 @@ const HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
   "Content-Type": "application/json",
 });
+const EXPORT_WORKER_JOB_KEY = "organization-data-export";
 const EXPORT_BUCKET = "organization-exports";
 
 // The job framework (claim_organization_export_jobs / finish_organization_export_job)
@@ -554,9 +555,39 @@ Deno.serve(async (request: Request) => {
   };
   const deadlineAt = Date.now() + RUN_DEADLINE_MS;
 
+  // Claim a system-job run before touching the export queue. Until 20260904090000 this worker
+  // recorded nothing, so `organization-data-export` had an empty ledger and the watchdog fell
+  // back to pg_cron's exit status for the cron entry that invokes it -- which, for a
+  // `net.http_post` command, only ever proves the request was enqueued. See BACKLOG G270 and the
+  // same pattern in generate-compliance-binder. Claiming FIRST also means a run that dies
+  // mid-export leaves a row the abandoned-run reconciler can close (20260904080000).
+  const { data: claimRows, error: claimError } = await admin.rpc("claim_system_job_execution", {
+    p_job_key: EXPORT_WORKER_JOB_KEY,
+    p_correlation_id: crypto.randomUUID(),
+    p_trigger_type: "scheduled",
+    p_provider_request_id: null,
+  });
+  if (claimError) return response({ error: claimError.message }, 500);
+  const claimedRun = Array.isArray(claimRows) ? claimRows[0] : claimRows;
+  if (!claimedRun?.should_execute) {
+    return response({ skipped: true, status: claimedRun?.existing_status ?? "skipped" }, 200);
+  }
+  const runId = claimedRun.run_id;
+  let runErrorCode: string | null = null;
+  let runErrorMessage: string | null = null;
+  let claimedCount = 0;
+  let succeededCount = 0;
+  let failedCount = 0;
+
+  try {
   const { data, error } = await admin.rpc("claim_organization_export_jobs", { p_batch_size: 2 });
-  if (error) return response({ error: error.message }, 500);
+  if (error) {
+    runErrorCode = "queue_unavailable";
+    runErrorMessage = error.message;
+    return response({ error: error.message }, 500);
+  }
   const claims = (data ?? []) as ExportClaim[];
+  claimedCount = claims.length;
   const results: JsonRow[] = [];
 
   for (const claim of claims) {
@@ -603,5 +634,27 @@ Deno.serve(async (request: Request) => {
     }
   }
 
+  succeededCount = results.filter((item) => item.status === "succeeded").length;
+  failedCount = results.filter((item) => item.status === "failed").length;
+
   return response({ claimed: claims.length, results }, results.some((item) => item.status === "failed") ? 207 : 200);
+  } finally {
+    // `return` inside the try still runs this, so every exit path -- including the early 500 when
+    // the queue cannot be claimed -- closes the run it opened. An empty queue is a successful
+    // run with nothing attempted, which is what keeps the freshness signal alive on a quiet day.
+    await admin.rpc("finish_system_job", {
+      p_run_id: runId,
+      p_status: runErrorCode
+        ? "failed"
+        : failedCount > 0
+          ? (succeededCount > 0 ? "partial" : "failed")
+          : "succeeded",
+      p_attempted_count: claimedCount,
+      p_succeeded_count: succeededCount,
+      p_failed_count: failedCount,
+      p_result: {},
+      p_error_code: runErrorCode,
+      p_error_message: runErrorMessage,
+    });
+  }
 });
