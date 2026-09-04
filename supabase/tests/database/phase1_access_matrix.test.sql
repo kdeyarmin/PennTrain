@@ -180,6 +180,11 @@ select ok(
       ('course_versions', 'INSERT'),
       ('course_blocks', 'SELECT'),
       ('course_blocks', 'INSERT'),
+      -- generate-certificate-pdf prints the version the learner took and their best final-exam
+      -- score; granted by 20260904110000 after every production render failed without them.
+      ('course_assignments', 'SELECT'),
+      ('quiz_attempts', 'SELECT'),
+      ('quizzes', 'SELECT'),
       ('facility_assignments', 'INSERT'),
       ('alerts', 'SELECT'),
       ('certificates', 'SELECT'),
@@ -332,6 +337,11 @@ select ok(
         ('course_versions', 'INSERT'),
         ('course_blocks', 'SELECT'),
         ('course_blocks', 'INSERT'),
+        -- Approved 20260904110000: SELECT only, for the certificate PDF worker. A write on any
+        -- of the three still fails this assertion.
+        ('course_assignments', 'SELECT'),
+        ('quiz_attempts', 'SELECT'),
+        ('quizzes', 'SELECT'),
         ('facility_assignments', 'INSERT'),
         ('alerts', 'SELECT'),
         ('certificates', 'SELECT'),

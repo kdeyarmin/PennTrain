@@ -89,6 +89,11 @@ export const CORE_PATHS = [
   "/app/users",
   "/app/settings",
   "/app/help",
+  // Billing is core on purpose: the day a trial lapses, get_effective_entitlements returns
+  // is_entitled=false for every module and ProtectedRoute redirects any non-core path to the home
+  // path. If this page is not core, the "trial ended -- choose a plan" screen, the checkout button
+  // and the T-7/T-1 notice links all become unreachable at exactly the moment they exist for.
+  "/app/billing",
   "/trainer/facilities",
   "/trainer/employees",
   "/me/help",

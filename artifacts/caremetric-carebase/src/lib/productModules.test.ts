@@ -28,6 +28,13 @@ describe("product module routing", () => {
     expect(productModuleForPath("/app/resident-finance")).toBe("billing");
   });
 
+  it("keeps the billing page reachable after a trial lapses", () => {
+    // A lapsed trial leaves an organization with core routes only; the page that sells a plan
+    // must be one of them or the lockout has no exit.
+    expect(productModuleForPath("/app/billing")).toBe("core");
+    expect(productModuleForPath("/app/billing?plan=carebase")).toBe("core");
+  });
+
   it("makes CareBase include every operational pillar", () => {
     expect([...withModuleDependencies(["carebase"])]).toEqual([
       "core",

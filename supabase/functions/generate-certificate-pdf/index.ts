@@ -9,6 +9,7 @@ import {
 import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { toWinAnsi } from "../_shared/pdfText.ts";
+import { errorMessage } from "../_shared/errorMessage.ts";
 
 /**
  * This function serves BOTH the browser and the cron worker, so its CORS headers have to be
@@ -89,7 +90,7 @@ async function verificationQrPng(url: string): Promise<Uint8Array | null> {
     return bytes;
   } catch (error) {
     console.error("Certificate QR encoding failed; falling back to the printed URL", {
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMessage(error),
     });
     return null;
   }
@@ -474,7 +475,7 @@ async function finishFailedJob(
   claim: CertificatePdfClaim,
   error: unknown,
 ) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   const { error: finishError } = await adminClient.rpc(
     "finish_certificate_pdf_job",
     {
@@ -770,7 +771,7 @@ Deno.serve(async (req: Request) => {
         // user replaying a finished job) gets the correlation id to quote instead.
         console.error(
           "certificate replay: signing failed",
-          error instanceof Error ? error.message : String(error),
+          errorMessage(error),
         );
         return json({
           error: "Unable to issue the certificate download link",
@@ -825,7 +826,7 @@ Deno.serve(async (req: Request) => {
         expiresIn: SIGNED_URL_TTL_SECONDS,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       try {
         await finishSystemRun(
           adminClient,
@@ -898,7 +899,7 @@ Deno.serve(async (req: Request) => {
         failed++;
         errors.push({
           certificateId: claim.certificate_id,
-          message: (error instanceof Error ? error.message : String(error))
+          message: (errorMessage(error))
             .slice(0, 500),
         });
       }
@@ -998,7 +999,7 @@ Deno.serve(async (req: Request) => {
           succeeded[0].path,
         );
       } catch (error) {
-        deliveryError = (error instanceof Error ? error.message : String(error))
+        deliveryError = (errorMessage(error))
           .slice(0, 500);
       }
     }
@@ -1070,7 +1071,7 @@ Deno.serve(async (req: Request) => {
       expiresIn: SIGNED_URL_TTL_SECONDS,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     if (!systemFinished) {
       try {
         await finishSystemRun(
