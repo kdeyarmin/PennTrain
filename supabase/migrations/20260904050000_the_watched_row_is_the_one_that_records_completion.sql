@@ -205,14 +205,28 @@ begin
   resolved as (
     select
       s.*,
+      -- Every one of these is narrowed by execution_kind for the same reason resolved_success_at
+      -- is, below. Picking "whichever side started later" is right only when the cron row IS the
+      -- work. For edge_cron and worker definitions the cron row records that a net.http_post was
+      -- enqueued: an Edge Function that answers 503 before claiming a run leaves a cron row that
+      -- is both NEWER than the last real run and marked 'succeeded'. Reading status off that row
+      -- puts "succeeded", a cron duration and no error on /admin/system-jobs for an invocation
+      -- that never executed -- while resolved_success_at, correctly, calls the job stale. A
+      -- surface that contradicts itself in adjacent columns is worse than one that is simply
+      -- wrong, because the reader cannot tell which half to believe.
       case
+        when s.execution_kind <> 'sql_cron' then s.own_status
         when coalesce(s.own_started_at, '-infinity'::timestamptz)
            >= coalesce(s.cron_started_at, '-infinity'::timestamptz)
           then s.own_status
         else s.cron_status
       end as resolved_status,
-      greatest(s.own_started_at, s.cron_started_at) as resolved_started_at,
       case
+        when s.execution_kind <> 'sql_cron' then s.own_started_at
+        else greatest(s.own_started_at, s.cron_started_at)
+      end as resolved_started_at,
+      case
+        when s.execution_kind <> 'sql_cron' then s.own_finished_at
         when coalesce(s.own_started_at, '-infinity'::timestamptz)
            >= coalesce(s.cron_started_at, '-infinity'::timestamptz)
           then s.own_finished_at
@@ -231,6 +245,7 @@ begin
         else greatest(s.own_success_at, s.cron_success_at)
       end as resolved_success_at,
       case
+        when s.execution_kind <> 'sql_cron' then s.own_error_message
         when coalesce(s.own_started_at, '-infinity'::timestamptz)
            >= coalesce(s.cron_started_at, '-infinity'::timestamptz)
           then s.own_error_message
@@ -261,19 +276,25 @@ begin
         then (extract(epoch from (r.resolved_finished_at - r.resolved_started_at)) * 1000)::bigint
       else null
     end as last_duration_ms,
+    -- Same narrowing as resolved_status: for a non-sql_cron kind the ledger is the only source
+    -- of counts, so a newer cron row must not blank them. Leaving these on the "newer side" rule
+    -- while status reads the ledger would print a failed run with empty counts.
     case
+      when r.execution_kind <> 'sql_cron' then r.own_attempted_count
       when coalesce(r.own_started_at, '-infinity'::timestamptz)
          >= coalesce(r.cron_started_at, '-infinity'::timestamptz)
         then r.own_attempted_count
       else null
     end as attempted_count,
     case
+      when r.execution_kind <> 'sql_cron' then r.own_succeeded_count
       when coalesce(r.own_started_at, '-infinity'::timestamptz)
          >= coalesce(r.cron_started_at, '-infinity'::timestamptz)
         then r.own_succeeded_count
       else null
     end as succeeded_count,
     case
+      when r.execution_kind <> 'sql_cron' then r.own_failed_count
       when coalesce(r.own_started_at, '-infinity'::timestamptz)
          >= coalesce(r.cron_started_at, '-infinity'::timestamptz)
         then r.own_failed_count

@@ -67,15 +67,33 @@ begin
 
   -- Operator-controlled, with a fallback: a missing or non-numeric setting must not leave the
   -- organization in the very state this trigger exists to prevent.
+  --
+  -- The bounds are the load-bearing part, and they are not defensive padding. `jsonb_typeof =
+  -- 'number'` admits any JSON number, and the Platform Settings screen renders default_trial_days
+  -- as a plain numeric input with no range. Casting that straight to `integer` means a saved
+  -- 9999999999 raises 22003 `integer out of range`, and 1.5 raises 22P02 -- inside a BEFORE INSERT
+  -- trigger with no handler, so the exception propagates and EVERY new trial organization fails to
+  -- insert. A setting meant to tune a default would take signup down.
+  --
+  -- `::numeric` first is what makes the check safe: numeric is arbitrary precision, so it cannot
+  -- overflow on the way in, and the bounds are tested before anything narrows to integer.
+  --
+  -- The range mirrors signup-organization/index.ts exactly (integral, 1..365, else 30). Two paths
+  -- create trial organizations and they must agree: if they disagreed, the trial length would
+  -- depend on which one made the row, which is the kind of difference nobody finds until a
+  -- customer is billed on it.
   select case
-           when jsonb_typeof(s.value) = 'number' then (s.value #>> '{}')::integer
+           when jsonb_typeof(s.value) = 'number'
+            and (s.value #>> '{}')::numeric = trunc((s.value #>> '{}')::numeric)
+            and (s.value #>> '{}')::numeric between 1 and 365
+             then ((s.value #>> '{}')::numeric)::integer
            else null
          end
     into v_days
   from public.platform_settings s
   where s.key = 'default_trial_days';
 
-  if v_days is null or v_days <= 0 then
+  if v_days is null then
     v_days := 30;
   end if;
 

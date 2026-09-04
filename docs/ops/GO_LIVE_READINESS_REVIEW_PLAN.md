@@ -137,6 +137,37 @@ production turns every privilege assertion into a false green**, and the pinned 
 the two diverge. Bumping the pin will turn those two assertions red again; the fix then is the
 explicit revoke, not a revert of the bump.
 
+### And the automated reviewers found four more
+
+Two bots reviewed `71d70b4`. Copilot raised three, of which **none survived verification** — its
+correlation-id findings assumed `Headers.get()` can return a whitespace-only string, which the
+Headers API rules out by stripping OWS. Worth recording how that was caught: the fix was written
+first, then reverted to check the new test failed — and it passed either way. **A test that is
+green with the code under test removed is pinning the platform, not the change.** Both were backed
+out rather than shipped as a defensive no-op with a comment describing a mechanism that does not
+exist.
+
+Codex raised four and **all four were real** (BACKLOG H20). The sharpest is a regression this
+branch introduced and nothing else would have caught:
+
+- **An operator's "Run now" could have stopped the nightly retention sweep.** Relabelling
+  `data-lifecycle` to `edge_cron` is what makes the watchdog read its ledger — and it is also what
+  arms the circuit breaker, which `finish_system_job` applies only to `edge_cron` and `external`.
+  `run-system-job` had no dispatch entry for the key, so every "Run now" recorded a durable failed
+  run; three of them open the circuit and `claim_system_job_execution` then rejects the *scheduled*
+  run. The recovery action would have been the outage.
+- **The operator surface still contradicted the pager.** The self-review narrowed
+  `resolved_success_at` by execution kind and stopped there. Status, timings, counts and error
+  still took "whichever side started later", so `/admin/system-jobs` could print "succeeded" beside
+  a `last_success_at` the same query called stale. Now narrowed across all eight columns, pinned by
+  an assertion that was verified to fail without the fix, plus a `sql_cron` control proving the
+  cron signal is narrowed rather than discarded.
+
+The pattern across both rounds is worth stating plainly, because it is the plan's own thesis
+turned on the plan: **every one of these was a signal that read healthy for a reason unrelated to
+health** — a false green in a dispatch map, in an operator column, in a settings cast, in a repair
+that only counted what it had already fixed.
+
 ---
 
 ## 2. How to use this plan

@@ -69,6 +69,7 @@ declare
   v_repair_cap  constant integer := 500;
   v_repaired    integer;
   v_remaining   bigint;
+  v_remaining_after_cutoff bigint;
 begin
   perform set_config('app.privileged_write', 'on', true);
 
@@ -99,19 +100,35 @@ begin
 
   get diagnostics v_repaired = row_count;
 
-  select count(*) into v_remaining
+  -- Counted WITHOUT the cutoff, deliberately, and that asymmetry with the repair above is the
+  -- point. The cutoff is the file's own version timestamp, which is when 20260711154819 was
+  -- WRITTEN, not when it reached a given database -- so a completion in the window between those
+  -- two instants used the old non-atomic path and is not repaired here. Counting only pre-cutoff
+  -- rows would hide exactly those, and `completedAssignmentsWithoutCertificate` would stay red
+  -- after a deploy that reported nothing left to do. So the repair stays narrow (a recent miss
+  -- means the atomic path itself failed and must stay visible) while the report stays total.
+  select
+    count(*),
+    count(*) filter (
+      where coalesce(ca.completed_at, ca.updated_at) >= timestamptz '2026-07-11 15:48:19+00'
+    )
+  into v_remaining, v_remaining_after_cutoff
   from public.course_assignments ca
   where ca.status = 'completed'
-    and coalesce(ca.completed_at, ca.updated_at) < timestamptz '2026-07-11 15:48:19+00'
     and not exists (
       select 1 from public.certificates c where c.course_assignment_id = ca.id
     );
 
   raise notice 'Issued % certificate(s) for completions that predate atomic issuance.', v_repaired;
 
-  if v_remaining > 0 then
+  if v_remaining - v_remaining_after_cutoff > 0 then
     raise warning 'ATTENTION: % pre-cutoff completion(s) still have no certificate; this migration repairs at most % per deploy. Finish with: select public.reconcile_course_completion_certificates(null, 500); (service role, repeat until missing_certificates_remaining is 0).',
-      v_remaining, v_repair_cap;
+      v_remaining - v_remaining_after_cutoff, v_repair_cap;
+  end if;
+
+  if v_remaining_after_cutoff > 0 then
+    raise warning 'ATTENTION: % completion(s) at or after the atomic-issuance cutoff have no certificate. These are NOT repaired here and must not be repaired blindly: either they completed in the window between 20260711154819 being written and being deployed to this database (historical, safe to reconcile), or the atomic path itself failed (a live P1). Establish which before running public.reconcile_course_completion_certificates.',
+      v_remaining_after_cutoff;
   end if;
 end;
 $$;

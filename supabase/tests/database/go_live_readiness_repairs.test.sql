@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(29);
 
 -- Pins the repairs made for the go-live readiness review (BACKLOG rows B3, B4, B5, B10, G270,
 -- N2, SG-2). Every assertion here exists because the condition it describes was TRUE on
@@ -294,6 +294,113 @@ select is(
   0,
   'no permissive write policy is left without the grant it needs to ever fire'
 );
+
+-- ---------------------------------------------------------------------------------------
+-- The operator surface must not contradict the pager.
+--
+-- 20260904050000 narrowed run_system_job_watchdog's freshness signal AND every resolved_* column
+-- of get_system_job_control_plane by execution_kind. The watchdog half is covered by
+-- billing_sync_watchdog_reads_real_success.test.sql; this is the /admin/system-jobs half, which
+-- was still reading status, timings, counts and error off pg_cron whenever the cron row was newer
+-- than the last claimed run. That is precisely the shape an Edge Function produces when it answers
+-- 503 before claiming: a 'succeeded' cron row NEWER than the last real run. The screen then read
+-- "succeeded" beside a last_success_at the same query called stale.
+-- ---------------------------------------------------------------------------------------
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+) values (
+  '00000000-0000-0000-0000-000000000000', '70000000-0000-0000-0000-000000000001',
+  'authenticated', 'authenticated', 'control-plane-admin@test.local', 'x', now(),
+  '{}'::jsonb, '{}'::jsonb, now(), now(), '', '', '', '', '', '', false, false
+);
+
+select set_config('app.privileged_write', 'on', true);
+insert into public.profiles (id, organization_id, email, first_name, last_name, role, is_active)
+values ('70000000-0000-0000-0000-000000000001', null, 'control-plane-admin@test.local',
+        'Control', 'Plane', 'platform_admin', true)
+on conflict (id) do update set role = excluded.role, is_active = true;
+select set_config('app.privileged_write', 'off', true);
+
+-- The failing shape: a claimed run that FAILED, and a pg_cron row that is both newer and
+-- 'succeeded'. Same two constraints as the watchdog suite -- username must equal current_user for
+-- the RLS check, and runid must be explicit because the test role has no USAGE on runid_seq.
+insert into app_private.system_job_runs (
+  job_key, correlation_id, trigger_type, status, started_at, finished_at,
+  attempted_count, succeeded_count, failed_count, error_code, error_message
+) values (
+  'data-lifecycle', 'control-plane-test', 'scheduled', 'failed',
+  now() - interval '2 hours', now() - interval '2 hours',
+  3, 0, 3, 'lifecycle_step_failed', 'every retention policy failed'
+);
+
+insert into cron.job_run_details (runid, jobid, status, username, database, command, start_time, end_time)
+select 9876543211, c.jobid, 'succeeded', current_user, current_database(), c.command,
+       now() - interval '1 minute', now() - interval '1 minute'
+from cron.job c
+where c.jobname = 'run-data-lifecycle-nightly';
+
+select ok(
+  exists(
+    select 1 from cron.job_run_details r
+    join cron.job c on c.jobid = r.jobid
+    where c.jobname = 'run-data-lifecycle-nightly'
+      and r.status = 'succeeded'
+      and r.start_time > (
+        select max(started_at) from app_private.system_job_runs where job_key = 'data-lifecycle'
+      )
+  ),
+  'fixture precondition: the cron row is newer than the claimed run and says succeeded'
+);
+
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', '70000000-0000-0000-0000-000000000001',
+    'role', 'authenticated',
+    'aal', 'aal2'
+  )::text,
+  true
+);
+set local role authenticated;
+
+select is(
+  (select last_status from public.get_system_job_control_plane() where job_key = 'data-lifecycle'),
+  'failed',
+  'an edge_cron job reports its own failed run, not the newer cron row that only proves delivery'
+);
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- The control, over identical data. For sql_cron the scheduled command IS the work, so pg_cron's
+-- exit status genuinely reports it and must still win when it is newer. Narrowing by execution
+-- kind must not blind the surface for the jobs the signal is actually valid for.
+update app_private.system_job_definitions
+set execution_kind = 'sql_cron'
+where job_key = 'data-lifecycle';
+
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object(
+    'sub', '70000000-0000-0000-0000-000000000001',
+    'role', 'authenticated',
+    'aal', 'aal2'
+  )::text,
+  true
+);
+set local role authenticated;
+
+select is(
+  (select last_status from public.get_system_job_control_plane() where job_key = 'data-lifecycle'),
+  'succeeded',
+  'the same cron row still wins for a sql_cron job -- the signal is narrowed, not discarded'
+);
+
+reset role;
+select set_config('request.jwt.claims', null, true);
 
 select * from finish();
 rollback;
