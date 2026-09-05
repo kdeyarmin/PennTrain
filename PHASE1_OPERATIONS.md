@@ -165,6 +165,13 @@ only after identity, checksum, shape, count, and freshness validation.
    idempotency; identical content must not create conflicting evidence.
 5. Escalate loss or replacement of a valid active snapshot by malformed or
    partial data as Sev-1.
+6. A refresh that stops reporting progress no longer needs closing by hand.
+   `run_system_job_watchdog()` fails any run left staging for six hours, so
+   `exclusion_source_health` shows a failure with a reason rather than a load
+   that appears to still be running. A run that merely ran out of budget parks
+   instead, keeps its `stage_cursor`, and is finished by the hourly
+   continuation -- do not "Run now" on top of one; that reuses the same open
+   run anyway.
 
 ## Notification delivery recovery
 
@@ -190,6 +197,130 @@ permanently failed outcomes.
 
 If webhook verification is unavailable, leave callbacks fail-closed, alert the
 on-call owner, and reconcile provider outcomes after verification is restored.
+
+## Backups, and the part they do not cover
+
+Verified against the production project on 2026-09-05. Everything here is a
+fact about the platform or a number read from the database; the one thing that
+cannot be read from outside the dashboard is called out as such.
+
+**What is running already.** Project `xsqobvvreaovwibxwyvv` (region us-west-2,
+Postgres 17.6.1.141) sits in a **Pro** organization, so Supabase takes an
+automatic **daily** backup and keeps **the last seven days**. Nobody enabled
+this and nobody can forget to: it is a property of the plan. Postgres is newer
+than 15.8.1.079, so these are physical backups.
+
+**Point-in-Time Recovery is a paid add-on and Pro does not include it.**
+Whether it has been bought for this project is the one thing to check in
+Database → Backups → Point in Time; it is not visible from the database or the
+Management API without an access token. The difference is the whole recovery
+point objective: without PITR the worst case is **one day of lost data**, with
+it about **two minutes**. The 7-day tier is roughly $100/month.
+
+**The database is 579 MB.** That is what sets restore downtime, and the project
+is inaccessible while a restore runs.
+
+**There are zero replication slots** (`select count(*) from
+pg_replication_slots` returns 0), so the documented "drop subscriptions and
+replication slots before restoring" step does not currently apply. Re-run that
+query before any restore rather than trusting this line; Realtime's own slot is
+handled by the platform either way.
+
+**What the backup does not contain, which is the part that matters here.**
+Database backups do not include Storage objects -- the database holds only
+metadata about them. Today that is **84 objects and about 943 MB** across 27
+private buckets, and it is not incidental content:
+
+| Bucket | Objects |
+| --- | --- |
+| `course-videos` | 66 (988,407,298 bytes -- essentially all of the volume) |
+| `binder-exports` | 12 |
+| `policy-documents` | 2 |
+| `class-notices`, `incident-reports`, `resident-documents`, `violation-documents` | 1 each |
+
+A database restore brings back the rows that point at those objects. If an
+object was deleted after the backup was taken, the restore does not bring it
+back, and the row now points at nothing. The buckets that are empty today are
+the ones a pilot fills first -- `certificates`, `credential-documents`,
+`incident-documents`, `compliance-evidence` -- so this gap grows the moment a
+real facility starts using the product. For a deployment holding PHI under a
+signed BAA, "we have backups" is a statement about the database only, and
+saying it without that qualifier would be wrong.
+
+Two smaller ones from the same source: daily backups do not store passwords for
+custom roles, and deleting the project permanently deletes its backups too.
+
+**The rehearsal, and a correction to how the plan words it.** The pilot plan
+says "restore once into a branch". That is not a thing that can be done:
+Supabase branching is a schema and preview feature, not a restore target. The
+two real options are restoring the project in place -- destructive, with
+downtime -- and restoring to a **new project** (the Duplicate Project flow).
+The rehearsal must use the second, because the first is the thing being
+rehearsed *for*.
+
+1. Write down the restore point and, from production, the row counts you intend
+   to check (`organizations`, `profiles`, `employees`, `residents`,
+   `audit_logs`) and `select count(*) from storage.objects`.
+2. Database → Backups → restore to a new project. With PITR enabled the
+   Management API equivalent is
+   `POST /v1/projects/{ref}/database/backups/restore-pitr` with
+   `recovery_time_target_unix`.
+3. Time it. The number is the input to every future decision about whether to
+   restore in place during an incident.
+4. On the clone, re-run the counts and compare. Then check whether the Storage
+   metadata still resolves to real objects -- that is the finding this rehearsal
+   exists to produce, not the row counts.
+5. Delete the clone.
+
+**Evidence to keep:** the restore point and the elapsed time, the count
+comparison, the Storage finding, and one screenshot of the backups page showing
+the retention that is actually configured. Until that exists, treat the recovery
+posture as unproven regardless of what the plan says.
+
+## Incident response
+
+Severity definitions, the accountable owners and the safe operator actions are
+above; this is the procedure that uses them. It is deliberately short. A runbook
+nobody can finish reading at 3am is not a runbook.
+
+**Declare early.** Anyone may declare. Declaring costs a message; not declaring
+costs the window in which the blast radius was still small. The declarer names
+an incident lead, and the lead's first job is to stop being the person typing.
+
+**First fifteen minutes.**
+
+1. **Contain before diagnosing.** The controls already exist: disable the job
+   (kill switch) at `/admin/system-jobs`; leave an open circuit breaker open;
+   suspend an organization; revoke a user's sessions from `/app/users`; reset a
+   compromised authenticator (see *Lost authenticator device*). Containment that
+   turns out to have been unnecessary is cheap.
+2. **Write down the time you noticed and what you saw.** Screens change under
+   you during an incident and the audit trail will be reconstructed from this.
+3. **Decide whether data was lost or exposed** -- those are different incidents
+   with different clocks, and the second one has a regulator attached.
+4. **Do not blindly replay** a request whose provider acceptance is unknown.
+   Reconcile the ambiguous-outcome queue first.
+
+**If PHI may have been exposed, the clock starts at discovery.** CareMetric is
+a business associate: 45 CFR 164.410 requires notifying the covered entity --
+the facility -- without unreasonable delay and no later than 60 days after
+discovery. The signed BAA may impose something shorter, and it governs; read it
+before relying on 60 days. The facility, not CareMetric, notifies individuals
+and HHS. Pennsylvania's own breach-notification statute may also apply and its
+scope is a question for counsel, not for this page. Involve the Privacy Officer
+at the moment exposure becomes *possible*, not once it is confirmed.
+
+**Communicating.** Tell affected facilities what happened, what it means for
+them, and what you are doing, in that order -- before they notice and ask.
+During a pilot the entire user base can be reached by phone in an afternoon,
+which will not be true later; use that while it is.
+
+**Closing it.** An incident is not closed when the symptom stops. It is closed
+when the record is true again -- ledgers reconciled, audit rows explained, any
+fabricated state corrected -- and when there is a written answer to "what made
+this possible" that is not "someone was careless". File the follow-up as a
+BACKLOG.md row with its residual scope stated, the way every other finding in
+this repository is filed.
 
 ## Pre-pilot console work, and how to tell it is done
 
