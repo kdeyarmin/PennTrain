@@ -91,8 +91,20 @@ select is((select count(*)::integer from public.offline_sync_receipts where devi
 -- assignment's stream from 1, so a second course's first sync must not collide with the
 -- first course's receipt, and a lost conflict answer must replay as a conflict rather
 -- than be absorbed as 'duplicate' (20260810150000).
+--
+-- This used to assign the SAME course a second time, which is what the case needs an
+-- assignment id for but not what its own comment describes -- and 20260905060000 made it
+-- impossible, because one learner can only owe one course once at a time. A second course is
+-- both the honest fixture and the one the sequence scoping is actually about.
 reset role;
-insert into public.course_assignments(id,organization_id,facility_id,employee_id,course_id,course_version_id,status) values('44000000-0000-4000-8000-000000000304','44000000-0000-4000-8000-000000000001','44000000-0000-4000-8000-000000000011','44000000-0000-4000-8000-000000000201','44000000-0000-4000-8000-000000000301','44000000-0000-4000-8000-000000000302','assigned');
+select set_config('app.privileged_write','on',true);
+insert into public.courses(id,organization_id,title,status,created_by) values('44000000-0000-4000-8000-000000000311','44000000-0000-4000-8000-000000000001','Second Governed Course','draft','44000000-0000-4000-8000-000000000101');
+insert into public.course_versions(id,course_id,organization_id,version_number,title,status) values('44000000-0000-4000-8000-000000000312','44000000-0000-4000-8000-000000000311','44000000-0000-4000-8000-000000000001',1,'Second Governed Course v1','draft');
+insert into public.course_blocks(course_version_id,organization_id,block_type,sort_order,title,body) values('44000000-0000-4000-8000-000000000312','44000000-0000-4000-8000-000000000001','text',0,'Introduction','{"content":"Approved learner content"}');
+update public.course_versions set status='published',published_at=now() where id='44000000-0000-4000-8000-000000000312';
+update public.courses set current_version_id='44000000-0000-4000-8000-000000000312',status='published' where id='44000000-0000-4000-8000-000000000311';
+insert into public.course_assignments(id,organization_id,facility_id,employee_id,course_id,course_version_id,status) values('44000000-0000-4000-8000-000000000304','44000000-0000-4000-8000-000000000001','44000000-0000-4000-8000-000000000011','44000000-0000-4000-8000-000000000201','44000000-0000-4000-8000-000000000311','44000000-0000-4000-8000-000000000312','assigned');
+select set_config('app.privileged_write','off',true);
 select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000304','offline-action-0003',1,0,'progress',now(),'{"percentComplete":10}')->>'outcome','applied','a second assignment''s sequence 1 does not collide with the first''s');
 select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000304','offline-action-0004',2,999,'progress',now(),'{"percentComplete":20}')->>'outcome','conflict','a stale base version conflicts');

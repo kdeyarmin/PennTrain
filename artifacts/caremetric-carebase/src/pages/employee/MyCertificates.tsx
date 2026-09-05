@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
-import { useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
+import { useListCertificates, usePrepareCertificatePdf } from "@/hooks/useCertificates";
 import { useListCourses } from "@/hooks/useCourses";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +43,7 @@ export default function MyCertificates() {
     },
   );
   const { data: courses } = useListCourses();
-  const { mutateAsync: generatePdf } = useGenerateCertificatePdf();
+  const { mutateAsync: preparePdf } = usePrepareCertificatePdf();
   const passport = useMyTrainingPassport();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -63,10 +63,13 @@ export default function MyCertificates() {
     return (facilityDaysUntil(day) ?? 0) < 0;
   }
 
+  // "Retry PDF" retries, including the case where the queue has given up -- usePrepareCertificatePdf
+  // owns that recovery so both download surfaces get it. See its comment for why the old answer
+  // ("already being prepared, try again shortly") was exactly wrong in the state that matters.
   const handleDownload = async (certificateId: string) => {
     setDownloadingId(certificateId);
     try {
-      const { url } = await generatePdf(certificateId);
+      const { url } = await preparePdf(certificateId);
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
       toast({

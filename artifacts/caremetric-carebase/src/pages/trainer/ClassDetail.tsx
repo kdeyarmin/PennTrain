@@ -320,6 +320,20 @@ export default function ClassDetail() {
   const allAttendees = attendees ?? [];
   const attendanceSummary = useMemo(() => summarizeClassAttendance(allAttendees), [allAttendees]);
   const isDraft = cls?.status === "draft";
+  // "Still being run", which is NOT the same question as "not yet announced" (isDraft).
+  //
+  // Every control on this page used to key on isDraft, and "Open for enrollment" -- the only status
+  // control that exists, and a one-way trip -- moved the class to `scheduled`. So opening a class
+  // for enrolment removed the roster editor, the attendance checkboxes, the roster upload and
+  // Complete Class from the trainer who had just opened it, and left no way to finish the class at
+  // all: complete_training_class has no status check and would have worked, but nothing rendered
+  // the button. The session-approval alternative credits signed registrations only, never QR or
+  // kiosk seat time, so "Records pending" stayed at its count forever.
+  //
+  // The boundary is `completed`/`cancelled`, and it is the database's own: the
+  // lock_completed_training_attendee trigger refuses attendance writes exactly there, so anything
+  // this predicate admits is something the server will actually accept.
+  const isOpen = cls?.status === "draft" || cls?.status === "scheduled" || cls?.status === "in_progress";
   // The correction path mirrors `assert_completed_class_corrector`: platform admin, or an org_admin
   // in the owning organization. Showing it to anyone else would offer a button the server refuses.
   const canCorrectCompleted = cls?.status === "completed"
@@ -734,8 +748,13 @@ export default function ClassDetail() {
         </Suspense>
       )}
 
-      {isDraft && <QrCheckinCard classId={classId} />}
-      {isDraft && <MeetingNoticeCard classId={classId} />}
+      {/* Both of these mint a check-in token, and both used to render only while the class was a
+          DRAFT -- the one state in which generate_class_checkin_token refused. The QR card showed
+          an error where the code should be, rotated, and showed it again every 30 seconds for the
+          life of the class; opening the class for enrolment removed the card instead of making it
+          work. 20260905040000 gives all three check-in functions one rule, and this is it. */}
+      {isOpen && <QrCheckinCard classId={classId} />}
+      {isOpen && <MeetingNoticeCard classId={classId} />}
 
       {allAttendees.length > 0 && (
         <Card>
@@ -744,7 +763,7 @@ export default function ClassDetail() {
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5" /> Attendance Reconciliation
               </CardTitle>
-              {isDraft && attendanceSummary.checkedInNotMarkedPresent > 0 && (
+              {isOpen && attendanceSummary.checkedInNotMarkedPresent > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -834,7 +853,7 @@ export default function ClassDetail() {
               Attendees ({attendeesLoading || attendeesError ? "—" : allAttendees.length})
             </CardTitle>
             <div className="flex items-center gap-2">
-              {isDraft && (
+              {isOpen && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -862,7 +881,7 @@ export default function ClassDetail() {
               <p className="text-muted-foreground text-sm mb-3">
                 No attendees added yet.
               </p>
-              {isDraft && (
+              {isOpen && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -881,7 +900,7 @@ export default function ClassDetail() {
                     <th className="text-left p-3">Employee</th>
                     <th className="text-left p-3">Facility</th>
                     <th className="text-left p-3">
-                      {isDraft ? (
+                      {isOpen ? (
                         <label className="flex items-center gap-2 cursor-pointer select-none">
                           <Checkbox
                             checked={allAttendeesChecked ? true : someAttendeesChecked ? "indeterminate" : false}
@@ -912,7 +931,7 @@ export default function ClassDetail() {
                           {empFacilityName ?? "—"}
                         </td>
                         <td className="p-3">
-                          {isDraft ? (
+                          {isOpen ? (
                             <label className="flex items-center gap-2 cursor-pointer">
                               <Checkbox
                                 checked={a.attended}
@@ -966,7 +985,7 @@ export default function ClassDetail() {
         </CardContent>
       </Card>
 
-      {isDraft && allAttendees.length > 0 && (
+      {isOpen && allAttendees.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 justify-end">
           <label className="cursor-pointer">
             <input

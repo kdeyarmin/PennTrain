@@ -41081,6 +41081,10 @@ export type Database = {
           run_id: string
         }[]
       }
+      requeue_certificate_pdf: {
+        Args: { p_certificate_id: string }
+        Returns: Json
+      }
       require_identity_administrator: {
         Args: { p_operation?: string; p_organization_id: string }
         Returns: undefined

@@ -1,5 +1,5 @@
 begin;
-select plan(36);
+select plan(37);
 
 select has_table('public', 'org_announcements', 'organization announcements exist');
 select has_table('public', 'org_announcement_receipts', 'announcement read receipts exist');
@@ -31,15 +31,25 @@ select has_function('public', 'get_my_mfa_policy', array[]::text[], 'callers can
 select has_function('public', 'unpublish_course', array['uuid','text'], 'course unpublishing uses an audited command');
 select has_function('public', 'queue_manager_weekly_digests', array[]::text[], 'weekly manager digest queueing exists');
 select has_function('public', 'get_product_changelog', array['integer'], 'caller-scoped product changelog exists');
+-- These two used to grep each function for its own literal `status not in ('scheduled',
+-- 'in_progress')`, which is how the drift 20260905040000 fixes went unnoticed: they pinned the QR
+-- lane's copy of the rule and said nothing about the kiosk lane's, which required `draft` and only
+-- `draft` -- the opposite. Checking that all three call ONE predicate is the assertion that would
+-- have caught it. What that predicate admits is pinned in class_checkin_lifecycle.test.sql.
 select ok(
   pg_get_functiondef('public.generate_class_checkin_token(uuid,boolean)'::regprocedure)
-    like '%status not in (%scheduled%, %in_progress%)%',
-  'QR tokens follow the scheduled and in-progress class lifecycle'
+    like '%app_private.class_accepts_checkins(%',
+  'QR tokens defer to the shared class check-in lifecycle rule'
 );
 select ok(
   pg_get_functiondef('public.checkin_via_token(text)'::regprocedure)
-    like '%status not in (%scheduled%, %in_progress%)%',
-  'QR attendance follows the scheduled and in-progress class lifecycle'
+    like '%app_private.class_accepts_checkins(%',
+  'QR attendance defers to the same rule'
+);
+select ok(
+  pg_get_functiondef('public.checkin_via_kiosk_pin(uuid,uuid,text)'::regprocedure)
+    like '%app_private.class_accepts_checkins(%',
+  'and so does kiosk PIN attendance, which is the one that used to disagree'
 );
 
 select is((select count(*)::bigint from public.release_flags where feature_key in (

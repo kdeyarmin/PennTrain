@@ -614,6 +614,9 @@ export default function IncidentDetail() {
                         return;
                       }
                       setCreatingAction(true);
+                      // If this employee already has the course open, createCourseAssignment hands
+                      // back that row rather than creating a second one, and the corrective action
+                      // links to the assignment they will actually take. See its own comment.
                       let assignment;
                       try {
                         assignment = await createCourseAssignment({
@@ -630,7 +633,7 @@ export default function IncidentDetail() {
                       try {
                         await createCorrectiveActionAsync({
                           incident_id: incident.id, description: `Complete "${course.title}" retraining — ${employee.first_name} ${employee.last_name}`,
-                          due_date: newActionDueDate, course_assignment_id: assignment.id,
+                          due_date: newActionDueDate, course_assignment_id: assignment.assignment.id,
                           owner_profile_id: user?.id ?? null, organization_id: incident.organization_id, facility_id: incident.facility_id,
                         });
                         setRetrainEmployeeId(""); setRetrainCourseId(""); setNewActionDueDate(""); setAssignRetraining(false);

@@ -7,6 +7,13 @@ export type CourseAssignment = Tables<"course_assignments">;
 export type CourseAssignmentInsert = TablesInsert<"course_assignments">;
 export type CourseAssignmentUpdate = TablesUpdate<"course_assignments">;
 
+/**
+ * The statuses course_assignments_one_open_per_course_idx treats as open, in the same order the
+ * index's WHERE clause lists them. `completed` and `canceled` are outside it on purpose: annual
+ * retraining is "assign it again once the last one is done".
+ */
+export const OPEN_ASSIGNMENT_STATUSES = ["assigned", "in_progress", "overdue", "paused"] as const;
+
 export type CourseProgress = Tables<"course_progress">;
 export type CourseProgressInsert = TablesInsert<"course_progress">;
 export type CourseProgressUpdate = TablesUpdate<"course_progress">;
@@ -113,13 +120,49 @@ export function useGetCourseAssignment(id: string | undefined) {
   });
 }
 
+/** What an assignment insert did -- the row, and whether it was already there. */
+export interface CreateCourseAssignmentResult {
+  assignment: CourseAssignment;
+  /** The employee already had this course open; nothing new was created. */
+  alreadyAssigned: boolean;
+}
+
+/**
+ * Assigning a course somebody already has open is a no-op, not a failure (BACKLOG.md I12).
+ *
+ * 20260905060000 put one open assignment per (employee, course) into the table, because every
+ * caller here is a bulk fan-out with no such check: re-assigning the annual course to everyone --
+ * what an administrator does each year, and again after adding one late hire -- used to give every
+ * learner who already had it a second identical row, with its own due date, its own line in My
+ * Training, and its own overdue clock once they completed the other one.
+ *
+ * With the index in place that insert raises 23505. Throwing it would turn "they already have it"
+ * into a red error beside the people who really did fail, on all four bulk surfaces. So the
+ * duplicate is read back instead and reported as `alreadyAssigned`: the caller can say what
+ * actually happened, and the same annual re-assignment is now safe to run twice.
+ *
+ * Only the open states are unique, so assigning again after the last one is completed -- which is
+ * what annual retraining IS -- creates a new row exactly as before.
+ */
 export function useCreateCourseAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CourseAssignmentInsert) => {
+    mutationFn: async (payload: CourseAssignmentInsert): Promise<CreateCourseAssignmentResult> => {
       const { data, error } = await supabase.from("course_assignments").insert(payload).select().single();
-      if (error) throw error;
-      return data;
+      if (!error) return { assignment: data, alreadyAssigned: false };
+      if (error.code !== "23505") throw error;
+
+      const { data: existing, error: readError } = await supabase
+        .from("course_assignments")
+        .select("*")
+        .eq("employee_id", payload.employee_id)
+        .eq("course_id", payload.course_id)
+        .in("status", OPEN_ASSIGNMENT_STATUSES)
+        .maybeSingle();
+      // A 23505 from some other constraint, or a row RLS will not show us: the original error is
+      // the honest thing to report, not a second one about the lookup.
+      if (readError || !existing) throw error;
+      return { assignment: existing, alreadyAssigned: true };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_assignments"] }),
   });
