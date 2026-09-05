@@ -38695,12 +38695,7 @@ export type Database = {
           facilities: number
         }[]
       }
-      get_organization_export_catalog: {
-        Args: never
-        Returns: {
-          table_name: string
-        }[]
-      }
+      get_organization_export_catalog: { Args: never; Returns: string[] }
       get_organization_export_exclusions: {
         Args: never
         Returns: {
@@ -43282,7 +43277,6 @@ export type Database = {
           credential_number: string
           employee_name: string
           expires_at: string
-          final_exam_score: number
           is_valid: boolean
           issued_at: string
           organization_name: string
