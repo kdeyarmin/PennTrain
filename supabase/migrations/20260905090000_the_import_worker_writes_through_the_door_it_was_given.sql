@@ -289,7 +289,11 @@ declare
   v_org uuid := app_private.assert_import_manager(p_job_id);
 begin
   if not exists (
-    select 1 from public.data_import_jobs j where j.id = p_job_id and j.domain = 'resident_assessments'
+    -- 'assessments' is the value data_import_jobs_domain_check allows and process-data-import-jobs
+    -- dispatches. An earlier draft read 'resident_assessments', which is not in that vocabulary at
+    -- all, so this predicate matched no job and every assessment row failed 22023 before it was
+    -- written. Found in review; the assertion below now calls this with a real job.
+    select 1 from public.data_import_jobs j where j.id = p_job_id and j.domain = 'assessments'
   ) then
     raise exception 'import job does not accept resident assessments' using errcode = '22023';
   end if;

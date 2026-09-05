@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canAccessProductPath,
   entitlementFailureIsBlocking,
+  lastGoodModulesForOrganization,
   moduleHomePathForRole,
   parseBuildProductModules,
   productModuleForPath,
@@ -103,5 +104,31 @@ describe("entitlementFailureIsBlocking", () => {
   it("never blocks without an error", () => {
     expect(entitlementFailureIsBlocking({ isError: false, hasLastGoodModules: false })).toBe(false);
     expect(entitlementFailureIsBlocking({ isError: false, hasLastGoodModules: true })).toBe(false);
+  });
+});
+
+describe("lastGoodModulesForOrganization", () => {
+  const modules = new Set(["carebase"]) as ReadonlySet<never>;
+  const cached = { organizationId: "org-a", modules } as never;
+
+  it("serves the cached set back to the organization it was computed for", () => {
+    expect(lastGoodModulesForOrganization(cached, "org-a")).toBe(modules);
+  });
+
+  // The ref outlives what a sign-out clears. Without the key, the second tenant to sign in on one
+  // mounted SPA inherited the first tenant's modules the moment their own entitlement call failed --
+  // and because a last-good set "existed", entitlementFailureIsBlocking suppressed the error screen
+  // that would have stopped them. Routes and navigation for modules they do not own.
+  it("refuses it to a different organization", () => {
+    expect(lastGoodModulesForOrganization(cached, "org-b")).toBeNull();
+  });
+
+  it("refuses it when there is no organization in scope yet", () => {
+    expect(lastGoodModulesForOrganization(cached, null)).toBeNull();
+    expect(lastGoodModulesForOrganization(cached, undefined)).toBeNull();
+  });
+
+  it("has nothing to serve before a first success", () => {
+    expect(lastGoodModulesForOrganization(null, "org-a")).toBeNull();
   });
 });

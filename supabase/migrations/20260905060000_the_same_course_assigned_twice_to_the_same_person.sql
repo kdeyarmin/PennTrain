@@ -46,11 +46,17 @@ begin
       row_number() over (
         partition by employee_id, course_id
         order by
-          case status
+          -- Rank on the EFFECTIVE status. A leave transition moves untouched AND in-progress
+          -- assignments alike to 'paused', keeping the real one in lifecycle_previous_status --
+          -- so ranking the literal status put every paused row in one tie broken by assigned_at,
+          -- and a learner who had progressed a later duplicate had that progress cancelled while
+          -- an untouched earlier row survived. This cleanup does not restore what it cancels, so
+          -- it has to pick correctly the first time.
+          case coalesce(nullif(status, 'paused'), lifecycle_previous_status, 'paused')
             when 'in_progress' then 1
             when 'overdue' then 2
             when 'assigned' then 3
-            when 'paused' then 4
+            else 4
           end,
           assigned_at,
           id

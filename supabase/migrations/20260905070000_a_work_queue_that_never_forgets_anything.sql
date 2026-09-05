@@ -132,22 +132,33 @@ as $$
 declare
   v_closed integer := 0;
 begin
-  with closed as (
+  -- The prior state is read BEFORE the update, because UPDATE ... RETURNING yields the new row --
+  -- so the history entry used to record a literal 'open' and claimed a transition that had not
+  -- happened whenever the work had advanced to in_progress, blocked or pending_approval. The
+  -- audit trail is the reason this table exists; transition_work_item already writes the true
+  -- prior state and this is now consistent with it.
+  with targets as (
+    select w.id, w.organization_id, w.facility_id, w.state as prior_state
+    from public.work_items w
+    where w.organization_id = p_org
+      and w.deduplication_key = any(p_dedupe_keys)
+      and w.state not in ('closed', 'canceled')
+    for update
+  ), closed as (
     update public.work_items w
     set state = 'closed',
         closed_at = now(),
         closure_reason = left(p_reason, 1000),
         updated_at = now()
-    where w.organization_id = p_org
-      and w.deduplication_key = any(p_dedupe_keys)
-      and w.state not in ('closed', 'canceled')
-    returning w.organization_id, w.facility_id, w.id, w.state
+    from targets t
+    where w.id = t.id
+    returning t.organization_id, t.facility_id, t.id, t.prior_state
   ), logged as (
     insert into public.work_item_history (
       organization_id, facility_id, work_item_id, event_type, prior_state,
       resulting_state, actor_profile_id, reason
     )
-    select organization_id, facility_id, id, 'closed', 'open', 'closed', auth.uid(), left(p_reason, 1000)
+    select organization_id, facility_id, id, 'closed', prior_state, 'closed', auth.uid(), left(p_reason, 1000)
     from closed
     returning 1
   )
@@ -159,6 +170,60 @@ $$;
 comment on function app_private.close_work_items_for_source(uuid, text[], text) is
   'Closes the work items a resolved source record owns, with a history entry. One function so the four source triggers cannot drift apart.';
 
+-- The inverse. `route_operational_work` is AFTER INSERT only and the deduplication key forbids a
+-- second item for the same source, so once an item was closed there was no path back into the
+-- queue -- and 20260905120000 deliberately lets an organization administrator reopen a closed
+-- incident. Reopening the investigation while its operational work stayed closed and invisible is
+-- the failure this closes. Only `closed` items come back: `canceled` was somebody deciding the
+-- work should not happen, which reopening a source does not overturn.
+create or replace function app_private.reopen_work_items_for_source(
+  p_org uuid,
+  p_dedupe_keys text[],
+  p_reason text
+) returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_reopened integer := 0;
+begin
+  with targets as (
+    select w.id, w.organization_id, w.facility_id, w.state as prior_state
+    from public.work_items w
+    where w.organization_id = p_org
+      and w.deduplication_key = any(p_dedupe_keys)
+      and w.state = 'closed'
+    for update
+  ), reopened as (
+    update public.work_items w
+    set state = 'open',
+        closed_at = null,
+        closure_reason = null,
+        updated_at = now()
+    from targets t
+    where w.id = t.id
+    returning t.organization_id, t.facility_id, t.id, t.prior_state
+  ), logged as (
+    insert into public.work_item_history (
+      organization_id, facility_id, work_item_id, event_type, prior_state,
+      resulting_state, actor_profile_id, reason
+    )
+    select organization_id, facility_id, id, 'reopened', prior_state, 'open', auth.uid(), left(p_reason, 1000)
+    from reopened
+    returning 1
+  )
+  select count(*)::integer into v_reopened from logged;
+  return v_reopened;
+end;
+$$;
+
+revoke all on function app_private.reopen_work_items_for_source(uuid, text[], text)
+  from public, anon, authenticated, service_role;
+
+comment on function app_private.reopen_work_items_for_source(uuid, text[], text) is
+  'Returns a closed work item to the queue when its source stops being resolved, with a history entry carrying the real prior state.';
+
 -- The four triggers. Each names the settled states for ITS source and nothing else; deciding what
 -- "resolved" means is the only thing they do that differs.
 create or replace function app_private.close_work_on_source_resolution()
@@ -169,12 +234,16 @@ set search_path = ''
 as $$
 declare
   v_keys text[];
+  v_reopen_keys text[];
   v_reason text;
 begin
   if tg_table_name = 'incidents' then
     if new.status = 'closed' and old.status is distinct from 'closed' then
       v_keys := array['incident:' || new.id::text];
       v_reason := 'The incident was closed.';
+    elsif old.status = 'closed' and new.status is distinct from 'closed' then
+      v_reopen_keys := array['incident:' || new.id::text];
+      v_reason := 'The incident was reopened as ' || new.status || '.';
     end if;
 
   elsif tg_table_name = 'dhs_violations' then
@@ -210,6 +279,9 @@ begin
 
   if v_keys is not null then
     perform app_private.close_work_items_for_source(new.organization_id, v_keys, v_reason);
+  end if;
+  if v_reopen_keys is not null then
+    perform app_private.reopen_work_items_for_source(new.organization_id, v_reopen_keys, v_reason);
   end if;
   return new;
 end;

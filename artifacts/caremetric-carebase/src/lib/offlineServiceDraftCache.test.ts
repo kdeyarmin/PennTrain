@@ -475,9 +475,31 @@ describe("expiry policy: a draft the server has never seen does not age out", ()
     }), NOW)).toBe(true);
   });
 
-  it("leaves the needs-review ceiling alone -- a rejected draft has its own 7 days", () => {
+  // This assertion used to read `createdAt: ago(8 days) -> true`, and it was pinning a defect
+  // rather than a policy. The two protections above combine into a loss on the created-at clock: a
+  // draft held safely offline for eight days is never aged out while it is `draft`, then its fifth
+  // deterministic refusal moves it to `rejected` and the very next sweep deletes it -- at the exact
+  // moment it first becomes a human's to look at. The seven days are the REVIEWER's, so they run
+  // from the transition into review. Found by Codex reviewing PR #484.
+  it("gives the reviewer seven days from the rejection, not from when the note was written", () => {
     expect(isExpired(entry({ syncState: "rejected" }), NOW)).toBe(false);
-    expect(isExpired(entry({ syncState: "rejected", createdAt: ago(8 * 24 * 60 * 60 * 1000) }), NOW)).toBe(true);
+    expect(isExpired(entry({
+      syncState: "rejected", createdAt: ago(8 * 24 * 60 * 60 * 1000), updatedAt: ago(60 * 1000),
+    }), NOW)).toBe(false);
+    expect(isExpired(entry({
+      syncState: "rejected", createdAt: ago(30 * 24 * 60 * 60 * 1000),
+      updatedAt: ago(8 * 24 * 60 * 60 * 1000),
+    }), NOW)).toBe(true);
+  });
+
+  it("applies the same review clock to observation drafts", () => {
+    expect(isObservationExpired(observationEntry({
+      syncState: "rejected", createdAt: ago(8 * 24 * 60 * 60 * 1000), updatedAt: ago(60 * 1000),
+    }), NOW)).toBe(false);
+    expect(isObservationExpired(observationEntry({
+      syncState: "rejected", createdAt: ago(30 * 24 * 60 * 60 * 1000),
+      updatedAt: ago(8 * 24 * 60 * 60 * 1000),
+    }), NOW)).toBe(true);
   });
 
   it("applies both rules to observation drafts, which share the device and the policy", () => {

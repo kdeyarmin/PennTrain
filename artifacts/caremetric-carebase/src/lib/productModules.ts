@@ -261,3 +261,25 @@ export function entitlementFailureIsBlocking(state: {
 }): boolean {
   return state.isError && !state.hasLastGoodModules;
 }
+
+/**
+ * The last-good module set, but only if it belongs to the organization now signed in.
+ *
+ * The fallback above is held in a ref, and a ref survives what a sign-out clears: React Query is
+ * reset, the auth user is replaced, and the ref is still holding the previous tenant's modules. So
+ * when a second tenant signed in on the same mounted SPA and their FIRST entitlement request
+ * failed, they inherited the first tenant's module set -- and because a last-good set existed,
+ * `entitlementFailureIsBlocking` suppressed the error screen that would otherwise have stopped
+ * them. Routes and navigation for modules that organization does not own, with nothing on screen
+ * to say so.
+ *
+ * Keyed rather than cleared on sign-out because the key cannot be forgotten by a future caller:
+ * a set that does not name the organization it was computed for is not usable evidence about it.
+ */
+export function lastGoodModulesForOrganization(
+  cached: { organizationId: string; modules: ReadonlySet<ProductModuleId> } | null,
+  organizationId: string | null | undefined,
+): ReadonlySet<ProductModuleId> | null {
+  if (!cached || !organizationId) return null;
+  return cached.organizationId === organizationId ? cached.modules : null;
+}

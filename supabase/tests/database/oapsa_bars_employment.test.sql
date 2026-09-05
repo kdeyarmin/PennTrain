@@ -7,7 +7,7 @@
 -- would offer them the next shift. Run with: supabase test db.
 
 begin;
-select plan(26);
+select plan(28);
 
 ------------------------------------------------------------------------------------------------
 -- The window: unknown residency used to take the LONGER one
@@ -230,6 +230,63 @@ select is(
      and alert_type = 'oapsa_provisional_expiring'),
   'resolved',
   'and clearing the provisional period resolves the alert rather than leaving it open'
+);
+
+
+------------------------------------------------------------------------------------------------
+-- The bar follows the person, not their primary facility (Codex review of PR #484)
+--
+-- evaluate_duty_eligibility resolved the employee with
+-- `where profile_id = ... and facility_id = p_facility_id`, and employees.facility_id is the
+-- PRIMARY facility -- so a float aide working a shift at their second site matched no employee row
+-- and the OAPSA check was skipped entirely. A `not_suitable` determination stopped nothing there.
+-- This section existed nowhere before: the suite never called evaluate_duty_eligibility at all,
+-- which is how the defect got past it.
+------------------------------------------------------------------------------------------------
+insert into public.facilities(id, organization_id, name, facility_type) values
+  ('17000000-0000-4000-8000-000000000012', '17000000-0000-4000-8000-000000000001',
+   'OAPSA Second Site', 'PCH');
+
+insert into auth.users(id, instance_id, aud, role, email) values
+  ('17000000-0000-4000-8000-000000000041', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'float.aide@example.test');
+-- handle_new_user() writes the profile with no organization, and protect_privileged_fields
+-- silently reverts a direct organization_id write -- the same escape hatch the assignment RPCs use.
+select set_config('app.privileged_write', 'on', true);
+update public.profiles
+set organization_id = '17000000-0000-4000-8000-000000000001', role = 'employee', is_active = true
+where id = '17000000-0000-4000-8000-000000000041';
+select set_config('app.privileged_write', 'off', true);
+
+-- The unsuitable employee, whose PRIMARY facility stays the first one.
+update public.employees
+set profile_id = '17000000-0000-4000-8000-000000000041'
+where id = '17000000-0000-4000-8000-000000000032';
+
+insert into public.duty_eligibility_rules(
+  organization_id, duty_key, label, description, accepted_roles, enforcement, is_active
+) values (
+  '17000000-0000-4000-8000-000000000001', 'med_pass', 'Medication pass',
+  'Administers medications on a shift.', array['employee']::text[], 'block', true
+);
+
+select ok(
+  (public.evaluate_duty_eligibility(
+     '17000000-0000-4000-8000-000000000041',
+     'med_pass',
+     '17000000-0000-4000-8000-000000000011',
+     now()
+   )->'blocks') @> '["oapsa_not_suitable"]'::jsonb,
+  'a not_suitable determination blocks the duty at the primary facility'
+);
+select ok(
+  (public.evaluate_duty_eligibility(
+     '17000000-0000-4000-8000-000000000041',
+     'med_pass',
+     '17000000-0000-4000-8000-000000000012',
+     now()
+   )->'blocks') @> '["oapsa_not_suitable"]'::jsonb,
+  'and at the SECOND site too -- where it used to find no employee and wave the person through'
 );
 
 select * from finish();

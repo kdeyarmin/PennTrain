@@ -124,7 +124,16 @@ export default function MedicationIntegration() {
   const facilities = useListFacilities({ organizationId: scopeOrgId });
   const residentContext = useResidentNavigationContext();
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
-  const facilityId = selectedFacilityId || residentContext.facilityId || facilities.data?.[0]?.id || "";
+  // A selection made before the header's "Viewing as" organization changed is not a facility of the
+  // organization now in scope, and it took precedence over the refreshed list -- so the workspace
+  // and resident queries stayed on the previous tenant while the header, profiles and credentials
+  // all moved to the new one. Ignore any selection absent from the current list rather than
+  // trusting local state to have been reset; while the list is loading nothing is in scope, which
+  // gates the queries off instead of running them against a stale facility.
+  const scopedFacilities = facilities.data ?? [];
+  const selectionInScope = scopedFacilities.some((facility) => facility.id === selectedFacilityId);
+  const facilityId = (selectionInScope ? selectedFacilityId : "")
+    || residentContext.facilityId || scopedFacilities[0]?.id || "";
   const selectedFacilityOrgId = useMemo(
     () => (facilities.data ?? []).find((facility) => facility.id === facilityId)?.organization_id ?? null,
     [facilities.data, facilityId],

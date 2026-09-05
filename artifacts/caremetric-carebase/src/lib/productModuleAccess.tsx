@@ -8,6 +8,7 @@ import {
   PRODUCT_MODULES,
   canAccessProductPath,
   entitlementFailureIsBlocking,
+  lastGoodModulesForOrganization,
   moduleHomePathForRole,
   parseBuildProductModules,
   withModuleDependencies,
@@ -45,7 +46,9 @@ const ALLOW_LEGACY_MODULE_FAIL_OPEN = import.meta.env.VITE_CAREMETRIC_ALLOW_LEGA
 export function ProductModuleAccessProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const shouldLoadEntitlements = !!user?.organizationId && isAuthenticated && user.role !== "platform_admin";
-  const lastGoodModules = useRef<ReadonlySet<ProductModuleId> | null>(null);
+  // Keyed by organization -- see lastGoodModulesForOrganization for what an unkeyed ref did to
+  // the second tenant to sign in on one mounted SPA.
+  const lastGoodModules = useRef<{ organizationId: string; modules: ReadonlySet<ProductModuleId> } | null>(null);
   const entitlements = useQuery({
     queryKey: ["product-module-entitlements", user?.organizationId],
     queryFn: async () => {
@@ -66,7 +69,7 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
     // Transient RPC failure: keep last-good modules when we have them so paid
     // routes do not vanish; otherwise fail closed to core-only.
     if (shouldLoadEntitlements && entitlements.isError) {
-      return lastGoodModules.current ?? CORE_ONLY;
+      return lastGoodModulesForOrganization(lastGoodModules.current, user.organizationId) ?? CORE_ONLY;
     }
     if (!shouldLoadEntitlements || !entitlements.data) return CORE_ONLY;
 
@@ -84,7 +87,7 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
     const next = withModuleDependencies(
       commerciallyEnabled.filter((moduleId) => BUILD_MODULES.has(moduleId)),
     );
-    lastGoodModules.current = next;
+    if (user.organizationId) lastGoodModules.current = { organizationId: user.organizationId, modules: next };
     return next;
   }, [entitlements.data, entitlements.isError, isAuthenticated, shouldLoadEntitlements, user]);
 
@@ -98,7 +101,8 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
       shouldLoadEntitlements &&
       entitlementFailureIsBlocking({
         isError: entitlements.isError,
-        hasLastGoodModules: lastGoodModules.current !== null,
+        hasLastGoodModules:
+          lastGoodModulesForOrganization(lastGoodModules.current, user?.organizationId) !== null,
       }),
     refetch: () => {
       void entitlements.refetch();
@@ -106,7 +110,7 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
     canAccessModule: (moduleId) => enabledModules.has(moduleId),
     canAccessPath: (path) => canAccessProductPath(path, enabledModules),
     homePath: moduleHomePathForRole(user?.role, enabledModules),
-  }), [enabledModules, entitlements, shouldLoadEntitlements, user?.role]);
+  }), [enabledModules, entitlements, shouldLoadEntitlements, user?.organizationId, user?.role]);
 
   return (
     <ProductModuleAccessContext.Provider value={value}>

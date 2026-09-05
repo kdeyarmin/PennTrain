@@ -166,6 +166,15 @@ begin
   if new.item_type = 'fire_drill_program' then
     perform app_private.sync_sleeping_hours_drill_item(new.id);
     perform public.recalculate_inspection_item_compliance(new.id);
+  elsif tg_op = 'UPDATE' and old.item_type = 'fire_drill_program' then
+    -- The editor permits changing the type away from a program, and this trigger fires for that
+    -- update -- but handling only the new value left the derived sleeping-hours child active,
+    -- still deriving deadlines from a parent that is no longer a drill program and still counted
+    -- in alerts and compliance reports. Deactivated rather than deleted: it holds the schedule
+    -- history of drills that really happened.
+    update public.inspection_items
+    set is_active = false
+    where derived_from_inspection_item_id = new.id and is_active;
   end if;
   return null;
 end;

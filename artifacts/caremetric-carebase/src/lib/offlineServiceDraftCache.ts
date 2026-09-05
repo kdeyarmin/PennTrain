@@ -472,13 +472,19 @@ export function isUnsyncedDraftOverdue(entry: DraftListEntry, now: number = Date
  * silent loss of a care record.
  */
 export function isExpired(entry: DraftListEntry, now: number): boolean {
-  const ageMs = now - new Date(entry.createdAt).getTime();
   if ((UNRESOLVED_DRAFT_STATES as string[]).includes(entry.syncState)) {
     if (entry.syncState === "draft") return false;
     return now - new Date(entry.updatedAt).getTime() >= UNSYNCED_PURGE_AFTER_MS;
   }
-  // Needs-review states are a human's queue, not a retry's, so they keep the created-at clock.
-  if ((NEEDS_REVIEW_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= NEEDS_REVIEW_PURGE_AFTER_MS;
+  // The needs-review week runs from when the draft ENTERED review, not from when it was written.
+  // On the created-at clock the two protections above combined into a loss: a draft held safely
+  // offline for eight days -- never attempted, so never aged out -- reached `rejected` on its fifth
+  // deterministic refusal and was deleted by the very next sweep. It disappeared at the moment it
+  // first became a human's to look at, which is the one moment it has to survive. `updatedAt` is
+  // written by the transition into the review state and nothing else touches a draft afterwards.
+  if ((NEEDS_REVIEW_DRAFT_STATES as string[]).includes(entry.syncState)) {
+    return now - new Date(entry.updatedAt).getTime() >= NEEDS_REVIEW_PURGE_AFTER_MS;
+  }
   // applied/duplicate are removed immediately by the caller that observes that outcome, not by age.
   return false;
 }
@@ -640,12 +646,14 @@ export async function removeObservationDraft(draftId: string): Promise<void> {
  * ages from its last attempt. See isExpired.
  */
 export function isObservationExpired(entry: ObservationDraftListEntry, now: number): boolean {
-  const ageMs = now - new Date(entry.createdAt).getTime();
   if ((UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) {
     if (entry.syncState === "draft") return false;
     return now - new Date(entry.updatedAt).getTime() >= UNSYNCED_PURGE_AFTER_MS;
   }
-  if ((NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= NEEDS_REVIEW_PURGE_AFTER_MS;
+  // Same review clock as the service lane, for the same reason. See isExpired.
+  if ((NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) {
+    return now - new Date(entry.updatedAt).getTime() >= NEEDS_REVIEW_PURGE_AFTER_MS;
+  }
   return false;
 }
 

@@ -416,9 +416,15 @@ begin
   -- person, not to the rule. An employee record is looked up whenever the facility is known --
   -- previously that happened only when the rule listed qualifications, so a rule with none skipped
   -- the lookup entirely and there was nowhere for this to hang.
+  -- Deliberately NOT keyed on employees.facility_id. That column is the person's PRIMARY facility,
+  -- so a float employee performing a duty at a facility they hold through
+  -- employee_facility_assignments resolved to no employee row at all and skipped the bar outright --
+  -- an OAPSA `not_suitable` determination stopped nothing at their second site. profile_id is
+  -- UNIQUE on employees, so the person is identified without the facility, which is the right
+  -- shape: the bar attaches to the person, not to where they are standing.
   select e.id into v_oapsa_employee_id
   from public.employees e
-  where e.profile_id = p_profile_id and e.facility_id = p_facility_id
+  where e.profile_id = p_profile_id
   limit 1;
   if v_oapsa_employee_id is not null then
     v_oapsa := public.oapsa_duty_status(v_oapsa_employee_id, public.pa_day(p_at));

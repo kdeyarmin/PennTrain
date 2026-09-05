@@ -162,7 +162,7 @@ begin
     -- exclusion_source_state cannot end up disagreeing about what happened.
     perform public.fail_exclusion_source_refresh(
       v_run.id,
-      'No staging progress since ' || to_char(public.pa_local(v_run.last_progress), 'YYYY-MM-DD HH24:MI:SS UTC')
+      'No staging progress since ' || to_char(public.pa_local(v_run.last_progress), 'YYYY-MM-DD HH24:MI:SS "ET"')
         || '; the worker that opened this refresh never finished it. Closed by '
         || 'app_private.reconcile_stalled_exclusion_refresh_runs.'
     );

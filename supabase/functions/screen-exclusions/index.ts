@@ -821,7 +821,12 @@ Deno.serve(async (req: Request) => {
   }
 
   const priorSamResume = await getSamSweepResume(adminClient);
-  if (options.resumeOnly && !priorSamResume) {
+  // A continuation tick is idle only when there is nothing parked AT ALL. Asking about the SAM
+  // sweep alone answered "idle" while a LEIE load sat staged and unfinished, so the hourly resume
+  // this branch exists for never reached it and the staged refresh waited for the next monthly
+  // fire -- which is the month-long stall the parking was built to avoid in the first place.
+  const parkedLeie = options.resumeOnly ? await openLeieRefreshCorrelation(adminClient) : null;
+  if (options.resumeOnly && !priorSamResume && !parkedLeie) {
     // Nothing parked mid-roster: finish the tick as a cheap idle success. No samSweepState
     // on the result -- an idle run must not overwrite the state the reader returns.
     try {
@@ -866,7 +871,6 @@ Deno.serve(async (req: Request) => {
     // A continuation run continues whatever is parked. Before LEIE could park it only ever had a
     // SAM sweep to finish, so it skipped LEIE outright; a LEIE load that ran out of budget would
     // otherwise wait a month for the next monthly fire to pick it up.
-    const parkedLeie = options.resumeOnly ? await openLeieRefreshCorrelation(adminClient) : null;
     if (options.resumeOnly && !parkedLeie) {
       sources.oig_leie = { skipped: true, reason: "continuation run with no LEIE load in progress" };
     } else {
