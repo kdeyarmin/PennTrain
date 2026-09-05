@@ -31778,6 +31778,7 @@ export type Database = {
       signup_attempts: {
         Row: {
           baa_version: string | null
+          counts_toward_rate_limit: boolean
           created_at: string
           email_hash: string
           error_code: string | null
@@ -31789,6 +31790,7 @@ export type Database = {
         }
         Insert: {
           baa_version?: string | null
+          counts_toward_rate_limit?: boolean
           created_at?: string
           email_hash: string
           error_code?: string | null
@@ -31800,6 +31802,7 @@ export type Database = {
         }
         Update: {
           baa_version?: string | null
+          counts_toward_rate_limit?: boolean
           created_at?: string
           email_hash?: string
           error_code?: string | null

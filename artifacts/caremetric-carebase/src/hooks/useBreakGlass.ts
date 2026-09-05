@@ -1,14 +1,18 @@
 /**
- * Emergency elevated access, granted and ended (BACKLOG.md G15.9, G15.10).
+ * The two-person authorization record for emergency access (BACKLOG.md G15.9, G15.10, I22).
  *
  * `grant_identity_break_glass` takes a target, a requester, a written reason, a ticket reference
  * and a mandatory expiry -- every field somebody designed because break-glass is the access you
- * have to justify afterwards. `revoke_identity_break_glass` ends one early. Neither had a caller,
- * so the mechanism existed in full and emergency access could not be granted at all, which also
- * means it could not be ended.
+ * have to justify afterwards -- and writes one row. `revoke_identity_break_glass` closes it early.
  *
- * The half that matters most is the second one. An emergency grant that cannot be revoked early
- * runs until its expiry no matter what the investigation finds.
+ * It confers NOTHING. Nothing reads identity_break_glass_events for authorization: not
+ * has_effective_permission, not the role helpers, not one RLS policy. The access itself is granted
+ * separately (a role change, or support impersonation), each audited on its own. The names here
+ * are the RPCs' own; the surface says what actually happens.
+ *
+ * Neither RPC had a caller, so the mechanism existed in full and no authorization could be
+ * recorded at all -- which also means none could be closed. That second half is the one that
+ * matters when an investigation moves faster than the expiry somebody typed at 3am.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
