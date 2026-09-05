@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Json, Tables } from "@/lib/database.types";
+import { guestRpcId, guestRpcOk } from "@/lib/guestRpcResult";
 
 export type ResidentPortalGrant = Tables<"resident_portal_grants">;
 export type ResidentPortalMessage = Tables<"resident_portal_messages">;
@@ -204,7 +205,7 @@ export async function acceptResidentPortalTerms(token: string, termsVersion: str
     ...(fingerprint ? { p_request_fingerprint_sha256: fingerprint } : {}),
   });
   if (error) throw error;
-  return data;
+  return guestRpcOk(data);
 }
 
 export async function postResidentPortalMessage(token: string, body: string, fingerprint?: string) {
@@ -214,7 +215,7 @@ export async function postResidentPortalMessage(token: string, body: string, fin
     ...(fingerprint ? { p_request_fingerprint_sha256: fingerprint } : {}),
   });
   if (error) throw error;
-  return data;
+  return guestRpcOk(data);
 }
 
 export async function postResidentPortalRequest(token: string, requestType: string, subject: string, detail: string) {
@@ -222,7 +223,7 @@ export async function postResidentPortalRequest(token: string, requestType: stri
     p_token: token, p_request_type: requestType, p_subject: subject, p_detail: detail,
   } as never);
   if (error) throw error;
-  return data;
+  return guestRpcId(data);
 }
 
 export async function respondResidentPortalSchedule(token: string, eventId: string, response: string, note = "") {
@@ -230,7 +231,7 @@ export async function respondResidentPortalSchedule(token: string, eventId: stri
     p_token: token, p_calendar_event_id: eventId, p_response: response, p_note: note,
   } as never);
   if (error) throw error;
-  return data;
+  return guestRpcId(data);
 }
 
 export async function getResidentPortalDocumentDownload(token: string, sharedDocumentId: string) {

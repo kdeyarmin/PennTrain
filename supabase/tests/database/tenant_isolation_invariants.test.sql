@@ -180,24 +180,23 @@ select is(
    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.prosecdef
      and has_function_privilege('anon', p.oid, 'execute')),
-  21,
-  'the anon-reachable SECURITY DEFINER surface is exactly the 21 known guest/portal entry points (includes resolve_safety_report_facility and the gate in front of all of them)'
+  20,
+  'the anon-reachable SECURITY DEFINER surface is exactly the 20 known guest/portal entry points (includes resolve_safety_report_facility)'
 );
--- 20 -> 21 on 2026-09-05, deliberately, which is what this ratchet asks for. The addition is
--- public.assert_guest_request_allowed (20260905230000): not a new way in, but the throttle,
--- unknown-token recorder and suspension check that every one of the other guest entry points now
--- calls as its first statement. It is anon-executable because its callers are. It reads no tenant
--- data back to the caller -- it returns void, and its only answers are "carry on" or an exception
--- -- so it widens the surface by a function and narrows what that surface will do.
+-- 20 -> 21 on 2026-09-05 when assert_guest_request_allowed was added, then back to 20 the same day
+-- when 20260905360000 replaced it with public.guest_request_denial and DROPPED it. The replacement
+-- needs no anon grant at all: every caller is SECURITY DEFINER, so the gate runs as the owner
+-- whoever called it. Dropping rather than keeping a raising wrapper is deliberate -- a gate whose
+-- contract is "abort the transaction" cannot be used by anything PostgREST calls without throwing
+-- away the very counters it just wrote, which is the defect 20260905360000 exists to fix.
 select is(
   (select count(*)::integer from pg_catalog.pg_proc p
    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.prosecdef
      and has_function_privilege('anon', p.oid, 'execute')
      and p.proname not in (
-       'verify_certificate', 'verify_training_passport', 'list_regulatory_updates',
-       'assert_guest_request_allowed')
-     and p.prosrc not like '%assert_guest_request_allowed%'),
+       'verify_certificate', 'verify_training_passport', 'list_regulatory_updates')
+     and p.prosrc not like '%guest_request_denial%'),
   0,
   'and every token-bearing one of them passes through that gate before its own body runs'
 );

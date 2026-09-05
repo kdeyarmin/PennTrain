@@ -36100,11 +36100,11 @@ export type Database = {
       }
       accept_move_in_guest_terms: {
         Args: { p_fingerprint?: string; p_token: string }
-        Returns: boolean
+        Returns: Json
       }
       accept_resident_agreement_guest_terms: {
         Args: { p_device_evidence?: string; p_token: string }
-        Returns: boolean
+        Returns: Json
       }
       accept_resident_portal_terms: {
         Args: {
@@ -36112,7 +36112,7 @@ export type Database = {
           p_terms_version: string
           p_token: string
         }
-        Returns: boolean
+        Returns: Json
       }
       acknowledge_appointment_new_order: {
         Args: { p_appointment_id: string; p_note: string }
@@ -36665,10 +36665,6 @@ export type Database = {
       }
       assert_course_version_publish_ready: {
         Args: { p_version_id: string }
-        Returns: undefined
-      }
-      assert_guest_request_allowed: {
-        Args: { p_surface: string; p_token: string }
         Returns: undefined
       }
       assert_identity_assurance: {
@@ -39286,6 +39282,10 @@ export type Database = {
         }
         Returns: string
       }
+      guest_request_denial: {
+        Args: { p_surface: string; p_token: string }
+        Returns: string
+      }
       has_effective_entitlement: {
         Args: {
           p_as_of?: string
@@ -40198,7 +40198,7 @@ export type Database = {
           p_request_fingerprint_sha256?: string
           p_token: string
         }
-        Returns: boolean
+        Returns: Json
       }
       post_resident_portal_request: {
         Args: {
@@ -40208,7 +40208,7 @@ export type Database = {
           p_subject: string
           p_token: string
         }
-        Returns: string
+        Returns: Json
       }
       prepare_offline_course_bundle: {
         Args: {
@@ -41462,7 +41462,7 @@ export type Database = {
           p_response: string
           p_token: string
         }
-        Returns: string
+        Returns: Json
       }
       respond_to_resident_agreement_guest: {
         Args: {
@@ -41480,7 +41480,7 @@ export type Database = {
           p_witness_name: string
           p_witness_relationship: string
         }
-        Returns: string
+        Returns: Json
       }
       restore_demo_baseline: { Args: never; Returns: Json }
       resume_confidential_incident_intake: {
@@ -42536,7 +42536,7 @@ export type Database = {
           p_task_id: string
           p_token: string
         }
-        Returns: boolean
+        Returns: Json
       }
       simulate_workflow_automation_rule: {
         Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }

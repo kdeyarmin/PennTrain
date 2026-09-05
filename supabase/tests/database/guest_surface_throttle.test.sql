@@ -7,7 +7,7 @@
 -- been its success. Run with: supabase test db.
 
 begin;
-select plan(14);
+select plan(19);
 
 ------------------------------------------------------------------------------------------------
 -- 1-2. Every anonymous entry point goes through the gate, including the next one somebody adds
@@ -19,8 +19,8 @@ select is(
      and has_function_privilege('anon', p.oid, 'execute')
      and p.proname not in (
        'verify_certificate', 'verify_training_passport', 'list_regulatory_updates',
-       'assert_guest_request_allowed')
-     and p.prosrc not like '%assert_guest_request_allowed%'),
+       'guest_request_denial')
+     and p.prosrc not like '%guest_request_denial%'),
   0,
   'no token-bearing anonymous RPC reaches its own body without passing the gate'
 );
@@ -29,7 +29,7 @@ select is(
    join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.prosecdef
      and has_function_privilege('anon', p.oid, 'execute')
-     and p.prosrc like '%assert_guest_request_allowed%'),
+     and p.prosrc like '%guest_request_denial%'),
   17,
   'and there are seventeen of them, which is the number to change deliberately'
 );
@@ -72,8 +72,9 @@ select set_config('request.headers', '{"x-forwarded-for":"203.0.113.7, 10.0.0.1"
 ------------------------------------------------------------------------------------------------
 -- 3-6. A wrong guess is recorded, and the eleventh in a minute is refused
 ------------------------------------------------------------------------------------------------
-select lives_ok(
-  $$select public.assert_guest_request_allowed('resident_portal', 'no-such-token-0')$$,
+select is(
+  public.guest_request_denial('resident_portal', 'no-such-token-0'),
+  null,
   'a single unknown token is allowed through -- the calling function gives its own refusal, so the gate adds no oracle'
 );
 select is(
@@ -90,14 +91,13 @@ select is(
 );
 
 select lives_ok(
-  $$select public.assert_guest_request_allowed('resident_portal', 'no-such-token-' || i)
+  $$select public.guest_request_denial('resident_portal', 'no-such-token-' || i)
     from generate_series(1, 9) i$$,
   'nine more unknown tokens from the same caller still pass'
 );
-select throws_ok(
-  $$select public.assert_guest_request_allowed('resident_portal', 'no-such-token-11')$$,
-  'P0001',
-  null,
+select matches(
+  public.guest_request_denial('resident_portal', 'no-such-token-11'),
+  'Too many invalid access attempts',
   'the eleventh in the same minute is refused -- by then the caller has said what they are doing'
 );
 
@@ -106,8 +106,9 @@ select throws_ok(
 ------------------------------------------------------------------------------------------------
 -- A different caller, because the one above has spent its unknown-token budget.
 select set_config('request.headers', '{"x-forwarded-for":"203.0.113.8"}', true);
-select lives_ok(
-  $$select public.assert_guest_request_allowed('resident_portal', 'good-token-aaa')$$,
+select is(
+  public.guest_request_denial('resident_portal', 'good-token-aaa'),
+  null,
   'a live grant passes'
 );
 select is(
@@ -116,10 +117,9 @@ select is(
   0,
   'and records no failure'
 );
-select throws_ok(
-  $$select public.assert_guest_request_allowed('resident_portal', 'suspended-token-bbb')$$,
-  '42501',
-  null,
+select matches(
+  public.guest_request_denial('resident_portal', 'suspended-token-bbb'),
+  'account is not active',
   'a suspended organization''s outstanding links stop working, without touching the grant rows'
 );
 
@@ -127,8 +127,9 @@ select throws_ok(
 -- 10-11. The safety-report poster, including the legacy QR code
 ------------------------------------------------------------------------------------------------
 select set_config('request.headers', '{"x-forwarded-for":"203.0.113.9"}', true);
-select lives_ok(
-  $$select public.assert_guest_request_allowed('safety_report', 'f8000000-0000-4000-8000-000000000011')$$,
+select is(
+  public.guest_request_denial('safety_report', 'f8000000-0000-4000-8000-000000000011'),
+  null,
   'a legacy poster carrying the facility UUID still resolves'
 );
 select is(
@@ -150,6 +151,45 @@ select ok(
 select ok(
   not has_function_privilege('anon', 'public.get_guest_access_health(integer)', 'EXECUTE'),
   'the failure log is not readable from the surface it is watching'
+);
+
+
+------------------------------------------------------------------------------------------------
+-- 12-16. The denial leaves its evidence behind (Codex review of PR #484)
+--
+-- This is the assertion the original suite did not have, and its absence is the entire defect:
+-- every counter above was written and then thrown away, because the RPC raised and PostgREST runs
+-- the whole call in ONE transaction. The gate counted only the requests that SUCCEEDED. Nothing
+-- here inspects source -- a denied call is made, and the row it should have left is looked for.
+------------------------------------------------------------------------------------------------
+select set_config('request.headers', '{"x-forwarded-for":"203.0.113.10"}', true);
+
+select lives_ok(
+  $$select public.get_move_in_guest_workspace('a-token-that-does-not-exist')$$,
+  'a denied guest call RETURNS -- if it still raised, this transaction would be gone and so would the count'
+);
+select is(
+  (select public.get_move_in_guest_workspace('a-token-that-does-not-exist')->>'code'),
+  '42501',
+  'and answers in the shape of a PostgREST error, so supabase-js hands the caller the error it always had'
+);
+select is(
+  (select count(*)::integer from app_private.guest_token_failures
+   where caller_key = 'ip:203.0.113.10'),
+  2,
+  'and BOTH refusals are recorded -- this table held zero rows for every denial before'
+);
+select is(
+  (select unknown_token_count from app_private.guest_request_windows
+   where caller_key = 'ip:203.0.113.10'),
+  2,
+  'and the throttle counter carries them, so a scanner now spends the budget it used to ignore'
+);
+select is(
+  (select count(*)::integer from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'assert_guest_request_allowed'),
+  0,
+  'the raising gate is gone rather than left as a wrapper -- it cannot be used without reintroducing this'
 );
 
 select * from finish();

@@ -144,22 +144,25 @@ select is(
 --
 -- The classic failure for a token-plus-id endpoint: the token is valid, so the id is trusted. Here
 -- OTHER-TOKEN is a perfectly good accepted token -- for a different resident.
-select throws_ok(
-  $$select public.respond_resident_portal_schedule_event(
-      'OTHER-TOKEN', 'da000000-0000-4000-8000-000000000401', 'confirmed', null)$$,
+select is(
+  (public.respond_resident_portal_schedule_event(
+     'OTHER-TOKEN', 'da000000-0000-4000-8000-000000000401', 'confirmed', null))->>'code',
   '42501',
-  null,
   'a valid token cannot answer for an appointment belonging to another resident'
 );
 -- Writes ------------------------------------------------------------------------------------------
--- post_resident_portal_message answers false rather than raising. Returning false is a refusal only
--- if nothing was written, so the row counts are the assertion, not the return value.
-select ok(
-  not public.post_resident_portal_message('REVOKED-TOKEN', 'hello', null),
+-- post_resident_portal_message answers a falsy body rather than raising. Returning it is a refusal
+-- only if nothing was written, so the row counts below are the assertion, not the return value.
+-- The body is jsonb now (20260905360000) so that a GATE denial can carry a code the browser sees;
+-- this permission refusal keeps the shape it had, which `guestRpcOk` reads as false either way.
+select is(
+  public.post_resident_portal_message('REVOKED-TOKEN', 'hello', null)::text,
+  'false',
   'a revoked token cannot post a message'
 );
-select ok(
-  not public.post_resident_portal_message('EXPIRED-TOKEN', 'hello', null),
+select is(
+  public.post_resident_portal_message('EXPIRED-TOKEN', 'hello', null)::text,
+  'false',
   'an expired token cannot post a message'
 );
 

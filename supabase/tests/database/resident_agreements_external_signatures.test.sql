@@ -121,9 +121,11 @@ from (select public.issue_resident_agreement_guest_grant(
 select ok(length((select value from agreement_ids where key = 'guest')) = 64, 'external grant returns a one-time high-entropy token');
 
 select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'anon');
-select throws_ok($$
-  select public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest'))
-$$, '42501', null, 'agreement content is hidden until terms are accepted');
+select is(
+  (public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest')))->>'code',
+  '42501',
+  'agreement content is hidden until terms are accepted'
+);
 select lives_ok($$
   select public.accept_resident_agreement_guest_terms(
     (select value from agreement_ids where key = 'guest'), 'Mozilla/Agreement-Test'
@@ -131,48 +133,57 @@ select lives_ok($$
 $$, 'external signer accepts versioned terms');
 select is(jsonb_array_length(public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest'))->'agreements'), 1, 'external signer sees only explicitly scoped agreement versions');
 select is(public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest')) #>> '{agreements,0,versionLabel}', '2026.1', 'external portal identifies the exact agreement version');
-select throws_ok($$
-  select public.respond_to_resident_agreement_guest(
+select is(
+  (public.respond_to_resident_agreement_guest(
     (select value from agreement_ids where key = 'guest'),
     (select id from agreement_ids where key = 'version1'), 'signed', 'Taylor Representative',
     'power_of_attorney', 'Daughter', 'POA',
     'I reviewed and electronically sign the exact agreement version shown above.',
     null, null, null, 'Mozilla/Agreement-Test', null
-  )
-$$, '42501', null, 'bearer cannot choose a signer role different from the issued grant');
-select throws_ok($$
-  select public.respond_to_resident_agreement_guest(
+  ))->>'code',
+  '42501',
+  'bearer cannot choose a signer role different from the issued grant'
+);
+select is(
+  (public.respond_to_resident_agreement_guest(
     (select value from agreement_ids where key = 'guest'),
     (select id from agreement_ids where key = 'version1'), 'refused', 'Taylor Representative',
     'designated_person', 'Daughter', 'Designated person',
     'I reviewed the exact agreement version shown above.',
     'I do not agree to these terms', null, null, 'Mozilla/Agreement-Test', null
-  )
-$$, '42501', null, 'public bearer cannot record an agreement-wide refusal');
-select throws_ok($$
-  select public.respond_to_resident_agreement_guest(
+  ))->>'code',
+  '42501',
+  'public bearer cannot record an agreement-wide refusal'
+);
+select is(
+  (public.respond_to_resident_agreement_guest(
     (select value from agreement_ids where key = 'guest'),
     (select id from agreement_ids where key = 'version1'), 'unable_to_sign', 'Taylor Representative',
     'designated_person', 'Daughter', 'Designated person',
     'I reviewed the exact agreement version shown above.',
     'Signer is unable to sign', 'Morgan Witness', 'Staff witness', 'Mozilla/Agreement-Test', null
-  )
-$$, '42501', null, 'public bearer cannot record an agreement-wide unable-to-sign outcome');
-insert into agreement_ids(key, id) values ('designated_signature', public.respond_to_resident_agreement_guest(
+  ))->>'code',
+  '42501',
+  'public bearer cannot record an agreement-wide unable-to-sign outcome'
+);
+-- Returns jsonb since 20260905360000, so the new signature's id is unwrapped rather than taken raw.
+insert into agreement_ids(key, id) values ('designated_signature', ((public.respond_to_resident_agreement_guest(
   (select value from agreement_ids where key = 'guest'),
   (select id from agreement_ids where key = 'version1'), 'signed', 'Taylor Representative',
   'designated_person', 'Daughter', 'Designated person',
   'I reviewed and electronically sign the exact agreement version shown above.',
   null, null, null, 'Mozilla/Agreement-Test', null
-));
-select throws_ok($$
-  select public.respond_to_resident_agreement_guest(
+))->>'id')::uuid);
+select is(
+  (public.respond_to_resident_agreement_guest(
     (select value from agreement_ids where key = 'guest'),
     (select id from agreement_ids where key = 'version1'), 'signed', 'Taylor Representative',
     'designated_person', 'Daughter', 'Designated person', 'Duplicate response is not allowed.',
     null, null, null, 'Mozilla/Agreement-Test', null
-  )
-$$, '42501', null, 'one external grant cannot respond twice to the same version');
+  ))->>'code',
+  '42501',
+  'one external grant cannot respond twice to the same version'
+);
 
 select pg_temp.act_as('62000000-0000-4000-8000-000000000101');
 select is((select status from public.resident_agreements where id = (select id from agreement_ids where key = 'agreement')), 'executed', 'required resident and representative signatures execute the agreement');
@@ -233,9 +244,11 @@ select lives_ok($$
   )
 $$, 'manager revokes an external signing link with reason');
 select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'anon');
-select throws_ok($$
-  select public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest'))
-$$, '42501', null, 'revoked external link no longer exposes agreement content');
+select is(
+  (public.get_resident_agreement_guest_workspace((select value from agreement_ids where key = 'guest')))->>'code',
+  '42501',
+  'revoked external link no longer exposes agreement content'
+);
 
 select pg_temp.act_as('62000000-0000-4000-8000-000000000102');
 select is((select count(*)::integer from public.resident_agreements where resident_id = '62000000-0000-4000-8000-000000000201'), 2, 'auditor can inspect scoped agreement evidence');

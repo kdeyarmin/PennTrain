@@ -17,7 +17,7 @@ is what needs fixing:
 
 ```sql
 select p.proname,
-  case when p.prosrc like '%assert_guest_request_allowed%' then 'yes' else 'no' end as throttled,
+  case when p.prosrc like '%guest_request_denial%' then 'yes' else 'no' end as throttled,
   case when p.prosrc ~ 'expires_at' then 'yes' else 'no' end as expiry_checked,
   case when p.prosrc ~ 'revoked_at' then 'yes' else 'no' end as revocable,
   coalesce((select string_agg(distinct m[1], ', ' order by m[1])
@@ -39,7 +39,6 @@ the caller presents — so those two are maintained by hand.
 | `accept_move_in_guest_terms` | Move-in packet | move_in_guest_grants | yes | yes | yes | move_in_guest_access_events |
 | `accept_resident_agreement_guest_terms` | Resident agreement | resident_agreement_guest_grants | yes | yes | yes | resident_agreement_guest_access_events, resident_agreement_history |
 | `accept_resident_portal_terms` | Designated-person portal | resident_portal_grants | yes | no | no | resident_portal_access_events |
-| `assert_guest_request_allowed` | (the throttle itself) | — | no | yes | yes | guest_request_windows, guest_token_failures |
 | `authorize_evidence_guest_artifact` | Evidence room | evidence_guest_grants | yes | yes | yes | evidence_guest_access_events |
 | `authorize_resident_portal_document_download` | Designated-person portal | resident_portal_grants | yes | no | no | resident_portal_access_events |
 | `get_evidence_guest_room` | Evidence room | evidence_guest_grants | yes | yes | yes | evidence_guest_access_events |
@@ -76,8 +75,11 @@ already presented it, precisely so that knowing a facility's UUID (which appears
 the product) does not hand out the current one. What it does not have, and its four siblings do, is
 an expiry: rotation is the only revocation.
 
-**The rate limit.** `assert_guest_request_allowed` (20260905230000) is the first statement in every
-one of those seventeen. It keys on the first hop of `x-forwarded-for` when there is one and on a
+**The rate limit.** `public.guest_request_denial` (20260905230000, reshaped by 20260905360000) is
+the first statement in every one of those seventeen. It is NOT itself `anon`-executable and needs no
+grant: every caller is SECURITY DEFINER, so it runs as the owner whoever knocked. It replaced
+`assert_guest_request_allowed`, which was anon-executable and is now dropped -- so this list is 20
+rather than the 21 it briefly held. It keys on the first hop of `x-forwarded-for` when there is one and on a
 digest of the token otherwise, and refuses at 60 requests a minute per caller and 10 *unknown*
 tokens a minute — the second of which is what makes guessing a token pointless rather than merely
 slow. It also refuses while the owning organization is suspended, and records every unknown-token
@@ -93,11 +95,8 @@ first two are reads that their sibling snapshot functions already log, and the t
 `resident_portal_schedule_responses` row, but "a sibling logs it" is a weaker statement than "this
 logs it".
 
-**The four that carry no token**, and why each is sound:
+**The three that carry no token**, and why each is sound:
 
-- `assert_guest_request_allowed` — it *is* the throttle. It returns `void` and hands the caller no
-  data at all, which is why `check:migration-policies` carries a reviewed allowlist entry for its
-  `anon` grant rather than a fix.
 - `list_regulatory_updates` — Pennsylvania regulatory notices, filtered to `status = 'published'`,
   with the row limit clamped to `[1, 200]`. It is the content of a public marketing page; there is
   nothing here that is not already meant to be read by anyone.
@@ -111,6 +110,12 @@ logs it".
 ## When this list changes
 
 A new `anon`-executable definer is a decision, not an oversight to be tidied afterwards. Add its row
-here in the same change set, and if it takes a token, make `assert_guest_request_allowed` its first
+here in the same change set, and if it takes a token, make `public.guest_request_denial` its first
 statement — every one of the seventeen that predates that function had to be spliced afterwards, and
 the one that gets missed is the one that gets found by somebody else.
+
+Answer its verdict with `app_private.guest_denied(...)` and **do not raise**. PostgREST runs the
+whole call in one transaction, so a raise discards the counter and the failed-token row the gate
+just wrote — which is precisely how the first version of this throttle came to record nothing at
+all for eighteen days. `guest_surface_throttle.test.sql` asserts the rows survive a denied call, and
+`tenant_isolation_invariants.test.sql` holds the count at 20.
