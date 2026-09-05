@@ -17,7 +17,8 @@ router and restrictive Postgres RLS policies.
 ## Architecture
 
 pnpm workspace monorepo. Single frontend package (`artifacts/caremetric-carebase`) plus a design mockup sandbox; all
-backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, "CM CareBase").
+backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, named **"CM Train"** in the Supabase
+dashboard -- this document called it "CM CareBase" until 2026-09-05, which matches nothing you can search for).
 
 ### Packages
 
@@ -89,15 +90,51 @@ Public (no auth): `/verify/:slug` — certificate verification; `/signup` — se
 
 ## Storage Buckets
 
-All private: `course-documents`, `certificates` (no client write policy -- issuance is RPC/Edge-Function-only),
-`external-uploads`, `signin-sheets`, `competency-attachments`, `org-branding`, `binder-exports` (no client write
-policy -- generation is Edge-Function-only, downloaded via a short-lived signed URL returned by the function).
+**Every bucket is private. There is no public bucket.** 27 of them as of 2026-09-05; the authoritative list is
+`select id, public from storage.buckets`, and their policies live in the migrations that create them.
 
-One deliberate exception: `course-videos` is **public** -- it re-hosts AI-avatar-generated course videos after
-HeyGen's signed URLs expire (training content, not tenant-sensitive documents; rationale documented in
-`20260704155836_add_course_videos_public_bucket.sql`).
+Two shapes are worth knowing:
+
+- Buckets with **no client write policy** at all, because the object is produced rather than uploaded:
+  `certificates` (issuance is RPC/Edge-Function-only), `binder-exports`, `organization-exports`,
+  `survey-evidence-packets`, `fire-drill-tracker-exports`. Each is downloaded through a short-lived signed URL
+  the generating function returns.
+- Buckets whose read policy parses the object path: several (`violation-documents`, `resident-documents`,
+  `support-ticket-attachments`) read the organization from the first folder segment and the facility from the
+  second, so the **path convention is part of the authorization** and writers must follow it exactly.
+
+`course-videos` was public once. `20260704155836_add_course_videos_public_bucket.sql` argued that
+AI-avatar-generated course videos are training content rather than tenant documents, and
+`20260714233041_remediate_p2_security_findings.sql` made it private again, gating reads on
+`b.organization_id = current_org_id()`. The player has signed 15-minute URLs ever since
+(`useCourseVideoUrl`), and re-signs on the media error an expired signature produces. This section said "public"
+for seven weeks after that stopped being true (BACKLOG.md I25), which is the kind of drift that gets a reader to
+design against a boundary that is not there.
 
 ## Edge Functions
+
+**73 of them**, not the ten this section used to list (BACKLOG.md I25). A partial list read as a complete one,
+which is worse than no list: it implied that anything absent did not exist. The authoritative enumeration is
+`supabase/functions/*/`; `supabase/config.toml` records which ones the API gateway lets through unauthenticated
+(`verify_jwt = false`), and **`scripts/edge-function-auth.json` names the inbound gate each of those enforces
+itself** -- that file is the one to read before adding a function, and `check:edge-function-auth` fails a build
+that adds an unauthenticated function without one.
+
+They fall into four shapes:
+
+1. **Trusted provisioning and administration** — anything needing the service-role key, with the authorization
+   matrix implemented in the function: `create-user`, `admin-update-user`, `signup-organization`, the invitation
+   and impersonation paths.
+2. **Bulk import** — `bulk-import-*`, each running as the calling user's own JWT so RLS already scopes it.
+3. **Document and artifact rendering** — `generate-compliance-binder`, `generate-certificate-pdf`,
+   `generate-poc-document`, `generate-incident-report-pdf`, `generate-fire-drill-tracker-pdf` and the rest.
+   Each writes to a bucket with no client write policy and returns a short-lived signed URL.
+4. **Cron workers** — invoked by `pg_cron` through `net.http_post` with a shared secret, `verify_jwt = false`,
+   and no user session at all: the notification dispatcher, the export and analyzer queues, the exclusion
+   screening sweep, the FHIR drains, the watchdog. These claim a run in `app_private.system_job_runs` before
+   doing any work, which is what makes a worker that dies mid-sweep visible instead of silent.
+
+The ones worth reading first, because their authorization is the least obvious:
 
 - `create-user` — provisions a new auth user + profile; authorization matrix by caller role (platform_admin: any
   role/org; org_admin: any non-platform_admin role, own org; facility_manager: trainer/employee only, own org)
@@ -131,6 +168,13 @@ Demo login buttons are environment-configured with `VITE_DEMO_ACCOUNTS_JSON` and
 request flow when that value is absent or malformed. Only the five customer roles are accepted; `platform_admin`
 is rejected before rendering. These build-time credentials intentionally identify synthetic accounts in an
 `organizations.is_demo` tenant and must never identify users in a customer tenant.
+
+"Build-time" is the load-bearing word: Vite replaces `import.meta.env.VITE_DEMO_ACCOUNTS_JSON` with the literal
+string at build time, so setting that variable puts the demo passwords into a public chunk of the bundle whatever
+the code then does with them -- `parseDemoAccounts` returning `[]` hides the picker and cannot unship the string.
+Since BACKLOG.md I19 the **build refuses**: a production build with a non-blank `VITE_DEMO_ACCOUNTS_JSON` and no
+`VITE_ENABLE_PUBLIC_DEMO=true` throws in `vite.config.ts` rather than shipping. The dedicated demo host sets the
+flag and builds normally. Watch for Railway variables set at *project* scope, which reach every service.
 
 `app_private.seed_demo_organization()` maintains the cross-module Sunrise baseline,
 `public.restore_demo_baseline()` gives its demo org administrator a guarded restore control, and pg_cron performs a

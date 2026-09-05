@@ -131,7 +131,7 @@ exit code.
 | `process-credential-renewals` | — | 144 ticks in 24 h: 141 × 200, **3 × 401** at 07:10, 12:40, 14:10 UTC (I4) |
 | MFA factors / identity policies | 0 / 0 | 0 / 0 (H10) |
 | `notification_deliveries` (ever) | 0 | 0 (H11, B3) |
-| Storage | "only `course-videos` public" | **no public bucket**: `course-videos` was made private by `20260714233041` and the player signs URLs; the first pass and `ARCHITECTURE.md` are stale on this (I25) |
+| Storage | "only `course-videos` public" | **no public bucket**: `course-videos` was made private by `20260714233041` and the player signs URLs; the first pass and `ARCHITECTURE.md` were stale on this until I25 corrected them |
 | Postgres errors, 24 h | 1 probe | 5 × `permission denied for table course_assignments` (I1), nothing else |
 | Edge 4xx/5xx, 24 h | billing 503 × 24 | billing 503 × 24, credential-renewals 401 × 3 |
 | Site | up | `/health` 200 in 0.5 s, HSTS, `frame-ancestors 'none'`, `X-Frame-Options: DENY` |
@@ -225,9 +225,16 @@ on `audit_logs`. All in BACKLOG I23.
 ### 4.6 Hygiene
 
 **I24** — close the 28 stale deploy-failure issues and, after the next green nightly, #481/#482.
-**I25** — `ARCHITECTURE.md` and the first-pass plan still say `course-videos` is public; it has
-been private since `20260714233041` and the player signs URLs. `ARCHITECTURE.md` also lists 10 of
-73 edge functions and the wrong project name.
+**I25** — **done 2026-09-05.** `ARCHITECTURE.md` said `course-videos` was the one public bucket
+seven weeks after `20260714233041` made it private; it now says there is no public bucket, and
+describes the two bucket shapes that matter (no client write policy; read policies that parse the
+object path, so the path convention IS the authorization). Its ten-of-73 edge-function list read
+as a complete one, which implied that anything absent did not exist -- it now gives the count, the
+four shapes, and points at `scripts/edge-function-auth.json` as the file to read before adding
+one. The project is called "CM Train" in the Supabase dashboard, not "CM CareBase".
+`PHASE1_OPERATIONS.md` told an operator to "replay the durable PDF job through the control plane",
+which names a screen that does not exist; it now gives the two real paths (the Prepare PDF button,
+which requeues an exhausted job by itself, and `requeue_certificate_pdf` directly).
 
 ---
 

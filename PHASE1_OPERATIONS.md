@@ -169,8 +169,18 @@ When reconciliation reports a mismatch:
 
 1. Disable certificate PDF generation if the worker is amplifying failures.
 2. Compare the assignment, certificate, outbox, and PDF job by assignment ID.
-3. Retry or replay the durable PDF job through the control plane. Do not insert
-   a replacement certificate directly.
+3. Requeue the exhausted PDF job. There is no "replay from the control plane"
+   button and there never was -- that instruction named a screen that does not
+   exist (BACKLOG.md I25). Two real paths:
+   - The holder, an org admin in the certificate's organization, or a platform
+     admin taps **Prepare PDF** on My Certificates or Course Assignments. When
+     the server reports the job exhausted, the client calls
+     `requeue_certificate_pdf` and tries once more, by itself (I12).
+   - `select public.requeue_certificate_pdf('<certificate id>')` does the same
+     thing directly. It refuses any job that is not actually exhausted, and a
+     freshly requeued job must spend five more attempts before another requeue
+     is possible, so this cannot start a second attempt series in parallel.
+   Do not insert a replacement certificate directly.
 4. If the transactional command failed, repeat it with the original
    idempotency context; a replay must return the canonical certificate.
 5. Escalate any duplicate credential number or multiple certificates for one
