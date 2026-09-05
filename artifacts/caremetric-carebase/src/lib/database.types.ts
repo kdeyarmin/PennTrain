@@ -43413,6 +43413,7 @@ export type Database = {
         Args: { p_block_id: string; p_body: Json; p_video_url?: string }
         Returns: undefined
       }
+      write_is_through_a_trusted_path: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

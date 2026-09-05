@@ -110,6 +110,34 @@ Two things this action is not:
   window runs from the Auth session's own creation time and re-verifying a
   factor does not reset it. Sign out and sign back in.
 
+## Where multi-factor authentication is, and is not, enforced
+
+Written down because it was previously only true in one place, and that place was React
+(BACKLOG.md I14).
+
+**Enforced on the server.** Every privileged action goes through an Edge Function that calls
+`requireFreshAal2` -- creating or modifying a user, impersonation, session revocation, resetting
+someone's authenticator -- and the database's `identity_assurance_is_current` backs the privileged
+session window. Those cannot be reached with an AAL1 token whatever the client does.
+
+**Enforced only in the client.** The organization-wide requirement that a signed-in user carry a
+second factor at all is `MfaPolicyGate`, a React component. No RLS policy reads `aal`. So a user
+who has a valid AAL1 session and talks to PostgREST directly -- their own token, their own
+organization, their own facility -- reaches the ordinary data their role already allows, without
+the factor the policy asks for. RLS still constrains WHICH rows; the factor is not part of that
+test.
+
+**What that is and is not.** It is not a tenant-isolation hole: no row becomes visible that the
+role could not already see. It is a policy-strength gap -- "this organization requires two
+factors" is true of the product's screens and not of its API. For a pilot the vendor operates, on
+accounts the vendor enrolled, that is an acceptable posture; it should not survive to general
+availability, and turning it into a real boundary means adding an `aal` test to the RLS helpers,
+which touches every policy and needs its own change set.
+
+**Closed here:** `KioskLayout` mounted no gate at all, so the class-kiosk route -- a shared device
+in a room full of people -- was outside even the client-side requirement. It now wraps
+`MfaPolicyGate` like `MainLayout` does.
+
 ## Audit evidence recovery
 
 Use the Security Governance and Audit Log screens to review manifest coverage,

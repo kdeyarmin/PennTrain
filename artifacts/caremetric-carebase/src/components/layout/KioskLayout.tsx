@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { RouteErrorBoundary } from "@/components/ErrorBoundary";
-import { IdleSessionLock } from "./SessionSecurityGates";
+import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
 
 /**
  * IdleSessionLock is here, not only in MainLayout, or the kiosk idle timeout is dead code.
@@ -15,13 +15,20 @@ import { IdleSessionLock } from "./SessionSecurityGates";
  *
  * Safe for any unauthenticated kiosk-style page too: the lock's own `lock()` returns early without
  * a user, so it degrades to a passive wrapper.
+ *
+ * MfaPolicyGate is here for the same reason (BACKLOG.md I14). It wrapped MainLayout only, so the
+ * one route rendering this layout -- a trainer running a class kiosk on a shared device in a room
+ * full of people -- was the single signed-in surface an organization's MFA policy did not reach.
+ * The gate degrades the same way when no policy requires a factor.
  */
 export function KioskLayout({ children }: { children: ReactNode }) {
   return (
-    <IdleSessionLock>
-      <main id="main-content" className="min-h-screen bg-gradient-to-br from-background to-muted/40">
-        <RouteErrorBoundary>{children}</RouteErrorBoundary>
-      </main>
-    </IdleSessionLock>
+    <MfaPolicyGate>
+      <IdleSessionLock>
+        <main id="main-content" className="min-h-screen bg-gradient-to-br from-background to-muted/40">
+          <RouteErrorBoundary>{children}</RouteErrorBoundary>
+        </main>
+      </IdleSessionLock>
+    </MfaPolicyGate>
   );
 }
