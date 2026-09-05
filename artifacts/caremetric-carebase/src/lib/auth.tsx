@@ -255,6 +255,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // store immediately.
         void wipeOfflineServiceDrafts();
         lastOfflineServiceDraftIdentityRef.current = null;
+        // And clear everything else the session left behind (BACKLOG.md I8).
+        //
+        // useSignOut() and all four forced-sign-out paths call clearLocalSessionState(); this
+        // handler -- the ONLY thing that runs when the SERVER ends the session (a revocation from
+        // /account/security or the platform console, an expired refresh token, the admin signOut
+        // that ends an impersonation) -- did not. So exactly the sign-out the user did not choose
+        // was the one that left the impersonation record, with the origin platform_admin's
+        // access and refresh tokens, sitting in sessionStorage for whoever used the tab next,
+        // alongside the react-query cache and the Cache Storage entries holding fetched PHI.
+        //
+        // Safe for the impersonation exit paths that sign out locally on purpose: both read
+        // originSession into a local const BEFORE calling signOut, so clearing the record here
+        // cannot take the tokens they are about to restore from.
+        void clearLocalSessionState();
       } else if (isConfirmedPasswordSignIn) {
         clearRecoverySession(nextSession.user.id);
         setIsRecoverySession(false);

@@ -43,6 +43,8 @@ Deno.serve(async (req: Request) => {
   }
 
   let body: {
+    action?: string;
+    reason?: string;
     user_id?: string;
     role?: string;
     organization_id?: string;
@@ -58,8 +60,11 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
 
-  const { user_id, role, organization_id, is_active, email, first_name, last_name, password } = body;
+  const { action, reason, user_id, role, organization_id, is_active, email, first_name, last_name, password } = body;
   if (!user_id) return json(req, { error: "user_id is required" }, 400);
+  if (action !== undefined && action !== "reset_mfa") {
+    return json(req, { error: "action, when given, must be reset_mfa" }, 400);
+  }
   if (role !== undefined && !VALID_ROLES.includes(role)) {
     return json(req, { error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
   }
@@ -112,6 +117,106 @@ Deno.serve(async (req: Request) => {
 
   const assurance = await requireFreshAal2(callerClient, "identity_admin");
   if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
+
+  // Lost-device MFA recovery (BACKLOG.md I8).
+  //
+  // Nothing in the product could remove an enrolled factor. get_identity_control_plane READS
+  // auth.mfa_factors to count administrators without one, and that was the whole of it; GoTrue
+  // refuses self-unenrolment at AAL1, and MfaPolicyGate blocks every route but /account/security.
+  // So a manager who lost their phone was locked out of the product entirely, and the only way
+  // back was the Supabase dashboard -- which the people running a pilot facility do not have, and
+  // should not. An earlier pass recorded "a second platform admin removes the factor" as the
+  // recovery path; no such control existed.
+  //
+  // Platform admin only, deliberately. An org_admin resetting a peer org_admin's factor is a
+  // takeover of an equally-privileged account from inside the tenant, with no second party -- the
+  // exact move an attacker who phished ONE administrator would make next. The vendor operates the
+  // pilot, so the second party is real.
+  //
+  // Resetting also revokes the target's sessions, through the same audited, checksummed
+  // revoke_identity_sessions the console's own revocation uses -- called with the ADMIN's JWT, not
+  // the service role, so require_identity_administrator runs against a real identity and the
+  // evidence row names who did it. Leaving live sessions up would be the actual hazard here: if
+  // the device is in someone else's hands, a still-valid session on it now needs no second factor
+  // at all.
+  if (action === "reset_mfa") {
+    if (callerRole !== "platform_admin") {
+      return json(req, { error: "only a platform administrator can reset multi-factor enrolment" }, 403);
+    }
+    // Not on yourself: the reset revokes the target's sessions, so aiming it at your own account
+    // ends the request's own session mid-flight. Replacing your own device is an unenrol and
+    // re-enrol on /account/security, which needs no administrative authority at all.
+    if (user_id === callerUser.id) {
+      return json(req, {
+        error: "use account security to replace your own factor; this action is for recovering someone else's",
+      }, 400);
+    }
+    const trimmedReason = (reason ?? "").trim();
+    if (trimmedReason.length < 10) {
+      return json(req, {
+        error: "a reason of at least 10 characters is required (e.g. who reported the lost device, and how they were identified)",
+      }, 400);
+    }
+
+    const { data: factorList, error: listError } = await adminClient.auth.admin.mfa.listFactors({
+      userId: user_id,
+    });
+    if (listError) return json(req, { error: listError.message }, 400);
+    const factors = factorList?.factors ?? [];
+
+    const removed: string[] = [];
+    for (const factor of factors) {
+      const { error: deleteError } = await adminClient.auth.admin.mfa.deleteFactor({
+        id: factor.id,
+        userId: user_id,
+      });
+      // Report the partial result rather than a bare failure: some factors may already be gone,
+      // and an operator retrying needs to know the reset did not finish.
+      if (deleteError) {
+        return json(req, {
+          error: `removed ${removed.length} of ${factors.length} factor(s), then failed on ${factor.id}: ${deleteError.message}`,
+        }, 500);
+      }
+      removed.push(factor.id);
+    }
+
+    const { error: revokeError } = await callerClient.rpc("revoke_identity_sessions", {
+      p_profile_id: user_id,
+      p_reason: `MFA reset: ${trimmedReason}`,
+      p_source: "administrator",
+      p_external_request_id: null,
+      p_deactivate_profile: false,
+    });
+    if (revokeError) {
+      return json(req, {
+        error: `factors were removed but the target's sessions could not be revoked: ${revokeError.message}`,
+      }, 500);
+    }
+
+    const { error: auditError } = await adminClient.from("audit_logs").insert({
+      organization_id: targetProfile.organization_id,
+      actor_profile_id: callerUser.id,
+      entity_type: "identity",
+      entity_id: user_id,
+      action: "mfa_reset",
+      reason: trimmedReason,
+      new_values: { removed_factor_ids: removed, factor_count: removed.length },
+    });
+    // The factors are already gone; a missing audit row is a reportable failure, not a silent one.
+    if (auditError) {
+      return json(req, {
+        error: `multi-factor enrolment was reset but the audit entry failed to record: ${auditError.message}`,
+      }, 500);
+    }
+
+    return json(req, {
+      success: true,
+      removed_factor_ids: removed,
+      // The account is now single-factor. MfaPolicyGate will require re-enrolment on the target's
+      // next sign-in wherever the organization's policy demands a factor.
+      requires_reenrolment: removed.length > 0,
+    });
+  }
 
   // auth.users-level changes (email/password) via the Admin API. When changing the email,
   // capture the previous value first so a subsequent profile-RPC failure can be compensated --

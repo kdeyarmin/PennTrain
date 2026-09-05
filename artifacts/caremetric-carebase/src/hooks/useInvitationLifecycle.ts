@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { edgeFunctionError } from "@/lib/edgeFunctionErrors";
 import { containsFilterValue } from "@/lib/utils";
 import type { Tables } from "@/lib/database.types";
 import type { BulkInviteRow } from "@/lib/invitationLifecycle";
@@ -58,7 +59,11 @@ interface EdgeFunctionErrorShape {
 
 async function invokeEdgeFunction<TResponse>(functionName: string, body: object): Promise<TResponse> {
   const { data, error } = await supabase.functions.invoke<TResponse & EdgeFunctionErrorShape>(functionName, { body });
-  if (error) throw error;
+  // Unwrap before rethrowing: supabase-js's FunctionsHttpError says only "returned a non-2xx
+  // status code", discarding the body where these functions put their actual refusal. See
+  // lib/edgeFunctionErrors.ts -- one refusal in particular (an expired privileged window) needs
+  // to be told apart from every other 403.
+  if (error) throw (await edgeFunctionError(error)) ?? error;
   if (data && data.success === false) {
     throw new Error(data.error ?? data.message ?? `${functionName} failed`);
   }

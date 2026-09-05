@@ -1,6 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { impersonationActionAllowed } from "../_shared/impersonationLifecycle.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -191,8 +192,17 @@ Deno.serve(async (req: Request) => {
     if (contextError || !context
       || context.target_profile_id !== callerUser.id
       || context.context_secret_sha256 !== await sha256Hex(contextSecret)
-      || context.ended_at
-      || Date.parse(context.expires_at) <= Date.now()) {
+      || context.ended_at) {
+      return json(req, { error: "Impersonation context is invalid or already ended" }, 403);
+    }
+
+    // Expiry gates `bind`, never `end` -- see _shared/impersonationLifecycle.ts for why the two
+    // must not share a guard, which is how "Exit impersonation" came to answer 403 after 30
+    // minutes and strand the operator inside the target's account. Everything else the end path
+    // checks -- that the caller IS the impersonated user, holds the context secret, and is calling
+    // from the bound session -- is above and unchanged.
+    const expired = Date.parse(context.expires_at) <= Date.now();
+    if (!impersonationActionAllowed(action, { expiresAt: context.expires_at, endedAt: context.ended_at })) {
       return json(req, { error: "Impersonation context is invalid, expired, or already ended" }, 403);
     }
 
@@ -222,6 +232,10 @@ Deno.serve(async (req: Request) => {
         reason: context.reason,
         impersonation_session_id: context.id,
         target_session_id: currentSessionId,
+        // An end after the window closed is still an end, and the record says which it was rather
+        // than leaving a reviewer to compare timestamps.
+        ended_after_expiry: expired,
+        expires_at: context.expires_at,
       },
     });
     if (auditInsertError) {

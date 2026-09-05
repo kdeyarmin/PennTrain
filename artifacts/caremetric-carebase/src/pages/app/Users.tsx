@@ -2,6 +2,7 @@ import { useId, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import {
   useListProfiles, useUpdateProfile, useCreateUserViaAdmin, useInviteUser, useAdminUpdateUser,
+  useResetUserMfa,
   type Profile,
 } from "@/hooks/useProfiles";
 import { useListOrganizations } from "@/hooks/useOrganizations";
@@ -14,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { PRIVILEGED_SESSION_EXPIRED_MESSAGE, privilegedSessionExpired } from "@/lib/edgeFunctionErrors";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -21,9 +23,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Shield, RefreshCw, LogIn, Mail } from "lucide-react";
+import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Shield, ShieldOff, RefreshCw, LogIn, Mail } from "lucide-react";
 
-import { useAuth, type Role } from "@/lib/auth";
+import { useAuth, useSignOut, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { absoluteAppUrl } from "@/lib/appUrl";
 
@@ -87,6 +89,7 @@ type SortField = "name" | "role" | "status";
 export default function Users() {
   const __fieldIds = useId();
   const { user } = useAuth();
+  const signOut = useSignOut();
   const { toast } = useToast();
   const { viewingOrgId } = useViewingOrg();
   const [, navigate] = useLocation();
@@ -124,6 +127,12 @@ export default function Users() {
 
   const [impersonateProfile, setImpersonateProfile] = useState<Profile | null>(null);
   const [impersonateReason, setImpersonateReason] = useState("");
+  const [resetMfaProfile, setResetMfaProfile] = useState<Profile | null>(null);
+  const [resetMfaReason, setResetMfaReason] = useState("");
+  // Set when a privileged action is refused because the administrator SESSION has been open past
+  // the privileged window -- distinct from "you need a second factor", which MfaPolicyGate already
+  // handles, and not fixable by re-verifying. See lib/edgeFunctionErrors.ts.
+  const [sessionExpired, setSessionExpired] = useState(false);
   const { mutate: startImpersonation, isPending: startingImpersonation } = useStartImpersonation();
 
   // Pending confirmation for the two highest-blast-radius identity changes -- role changes between
@@ -145,6 +154,7 @@ export default function Users() {
   const { mutate: createUser, isPending: creating } = useCreateUserViaAdmin();
   const { mutate: inviteUser, isPending: inviting } = useInviteUser();
   const { mutate: adminUpdateUser, isPending: adminUpdating } = useAdminUpdateUser();
+  const { mutate: resetUserMfa, isPending: resettingMfa } = useResetUserMfa();
   const { mutate: updateProfile, isPending: updatingProfile } = useUpdateProfile();
 
   const allProfiles = profiles ?? [];
@@ -320,12 +330,24 @@ export default function Users() {
     );
   };
 
+  // Every privileged action on this page can hit the same refusal: the admin's session has been
+  // open longer than max_privileged_session_minutes, so identity_assurance_is_current says no even
+  // though the JWT really is aal2. Routing all of them through one handler is what stops the next
+  // action from showing a bare "403" again.
+  const reportPrivilegedFailure = (title: string, error: Error) => {
+    if (privilegedSessionExpired(error)) {
+      setSessionExpired(true);
+      return;
+    }
+    toast({ title, description: error.message, variant: "destructive" });
+  };
+
   const handleRoleChange = (p: Profile, role: string) => {
     adminUpdateUser(
       { userId: p.id, role },
       {
         onSuccess: () => toast({ title: `${p.first_name} ${p.last_name}'s role updated to ${ROLE_LABELS[role] ?? role}`, variant: "success" }),
-        onError: (e: Error) => toast({ title: "Failed to update role", description: e.message, variant: "destructive" }),
+        onError: (e: Error) => reportPrivilegedFailure("Failed to update role", e),
       },
     );
   };
@@ -348,7 +370,7 @@ export default function Users() {
       { userId: p.id, isActive },
       {
         onSuccess: () => toast({ title: isActive ? "User activated" : "User deactivated", variant: "success" }),
-        onError: (e: Error) => toast({ title: "Failed to update status", description: e.message, variant: "destructive" }),
+        onError: (e: Error) => reportPrivilegedFailure("Failed to update status", e),
       },
     );
   };
@@ -368,6 +390,43 @@ export default function Users() {
 
   const canImpersonate = (p: Profile) =>
     isPlatformAdmin && p.id !== user?.id && p.role !== "platform_admin" && p.is_active;
+
+  // Lost-device MFA recovery (BACKLOG.md I8). Platform admin only -- the Edge Function enforces
+  // that too, and this only decides whether to render a control the server would refuse.
+  //
+  // Never on yourself, and the function refuses it as well. The reset revokes the target's
+  // sessions, so aiming it at your own account signs you out in the middle of the request; an
+  // administrator replacing their OWN phone unenrols and re-enrols on /account/security, which is
+  // the path that exists for it and does not need this authority at all.
+  const canResetMfa = (p: Profile) => isPlatformAdmin && p.is_active && p.id !== user?.id;
+
+  const openResetMfa = (e: React.MouseEvent, p: Profile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResetMfaProfile(p);
+    setResetMfaReason("");
+  };
+
+  const handleConfirmResetMfa = () => {
+    if (!resetMfaProfile) return;
+    const target = resetMfaProfile;
+    resetUserMfa(
+      { userId: target.id, reason: resetMfaReason.trim() },
+      {
+        onSuccess: (result) => {
+          setResetMfaProfile(null);
+          toast({
+            title: result.removed_factor_ids?.length
+              ? `Removed ${result.removed_factor_ids.length} factor(s) for ${target.first_name} ${target.last_name}`
+              : `${target.first_name} ${target.last_name} had no enrolled factors`,
+            description: "Their sessions were signed out. They can enroll a new device on their next sign-in.",
+            variant: "success",
+          });
+        },
+        onError: (e: Error) => reportPrivilegedFailure("Could not reset multi-factor enrollment", e),
+      },
+    );
+  };
 
   const openImpersonate = (e: React.MouseEvent, p: Profile) => {
     e.preventDefault();
@@ -604,6 +663,11 @@ export default function Users() {
                         {canImpersonate(p) && (
                           <Button variant="outline" size="icon" className="h-9 w-9" onClick={e => openImpersonate(e, p)} aria-label={`Log in as ${p.first_name} ${p.last_name}`}>
                             <LogIn className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canResetMfa(p) && (
+                          <Button variant="outline" size="icon" className="h-9 w-9" onClick={e => openResetMfa(e, p)} aria-label={`Reset multi-factor enrollment for ${p.first_name} ${p.last_name}`}>
+                            <ShieldOff className="h-4 w-4" />
                           </Button>
                         )}
                         <Button variant="outline" size="icon" className="h-9 w-9" onClick={e => openEdit(e, p)} aria-label={`Edit ${p.first_name} ${p.last_name}`}>
@@ -857,6 +921,64 @@ export default function Users() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Lost-device recovery (BACKLOG.md I8). Deliberately a reason-carrying dialog rather than a
+          one-click icon: this removes somebody's second factor and signs out every session they
+          have, and the reason is what a later reviewer reads to decide whether it should have
+          happened. */}
+      <Dialog open={!!resetMfaProfile} onOpenChange={o => { if (!o) setResetMfaProfile(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset multi-factor for {resetMfaProfile?.first_name} {resetMfaProfile?.last_name}?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-[13px] text-muted-foreground">
+              Removes every enrolled factor on this account and signs out all of their sessions, so
+              a lost device cannot keep an already-verified session open. They enroll a new device
+              the next time they sign in. This is audit-logged.
+            </p>
+            <p className="text-[13px] text-muted-foreground">
+              Confirm who you are talking to before you do this: for the length of one sign-in,
+              their account is protected by a password alone.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${__fieldIds}-reset-mfa-reason`} className="text-[13px]">Reason *</Label>
+              <Textarea id={`${__fieldIds}-reset-mfa-reason`}
+                value={resetMfaReason}
+                onChange={e => setResetMfaReason(e.target.value)}
+                placeholder="e.g. Called from the facility's main line; identity confirmed by the administrator. Phone lost 2026-09-04."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetMfaProfile(null)}>Cancel</Button>
+            <Button
+              onClick={handleConfirmResetMfa}
+              disabled={resettingMfa || resetMfaReason.trim().length < 10}
+              className="shadow-sm"
+            >
+              {resettingMfa ? "Resetting..." : "Reset multi-factor"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* The refusal that used to be a bare 403 with nothing on screen. Its remedy is a NEW Auth
+          session, not a re-verified factor -- the privileged window runs from the session's own
+          created_at -- so the only action offered is the one that works. */}
+      <AlertDialog open={sessionExpired} onOpenChange={o => { if (!o) setSessionExpired(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign in again to continue</AlertDialogTitle>
+            <AlertDialogDescription>{PRIVILEGED_SESSION_EXPIRED_MESSAGE}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void signOut()}>Sign out</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!confirmRoleChange} onOpenChange={o => { if (!o) setConfirmRoleChange(null); }}>
         <AlertDialogContent>

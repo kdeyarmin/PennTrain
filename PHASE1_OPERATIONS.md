@@ -70,6 +70,46 @@ If a circuit breaker opens, leave it open until the provider is healthy and
 the ambiguous-outcome queue has been reconciled. Never blindly replay a
 network request whose provider acceptance is unknown.
 
+## Lost authenticator device
+
+A manager or administrator whose enrolled device is gone cannot get back in on
+their own: GoTrue refuses self-unenrolment below AAL2, and `MfaPolicyGate`
+blocks every route except `/account/security`. Recovery is a platform-admin
+action, and the platform admin's own session must itself be at AAL2 inside the
+privileged window.
+
+1. **Identify the caller out of band.** Call the facility's main line back, or
+   confirm with the organization's administrator. A reset leaves the account
+   protected by a password alone until the next enrolment, so this step is the
+   control, not the button.
+2. **Reset from `/app/users`.** The shield-with-slash icon on the person's row
+   opens the reset dialog. Write who you spoke to and how you identified them
+   in the reason: it is stored on the audit entry and is what a reviewer reads.
+   The dialog will not submit a reason shorter than ten characters.
+3. **What it does.** Removes every enrolled factor and revokes all of that
+   person's sessions -- a lost device must not keep an already-verified session
+   alive -- through the same audited, checksummed `revoke_identity_sessions`
+   path used by the console's session revocation, plus an `mfa_reset` entry in
+   `audit_logs`.
+4. **Tell them to enroll immediately.** Their next sign-in is single-factor.
+   `MfaPolicyGate` sends them to `/account/security` wherever the
+   organization's policy requires a factor; confirm with them that they
+   completed it rather than assuming.
+5. **Verify.** `get_identity_control_plane` reports the count of administrators
+   and managers without a verified factor per organization. It should return to
+   its previous value once they re-enroll.
+
+Two things this action is not:
+
+- **Not for your own device.** Both the page and the function refuse it. An
+  administrator replacing their own phone unenrols and re-enrols on
+  `/account/security` while still holding the old factor.
+- **Not the fix for "Recent multi-factor authentication is required".** That
+  refusal means the privileged session window (`max_privileged_session_minutes`,
+  8 hours by default) has closed on a session that genuinely holds AAL2. The
+  window runs from the Auth session's own creation time and re-verifying a
+  factor does not reset it. Sign out and sign back in.
+
 ## Audit evidence recovery
 
 Use the Security Governance and Audit Log screens to review manifest coverage,
