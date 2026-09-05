@@ -7,7 +7,7 @@
 -- daily job silently. This is that half. Run with: supabase test db.
 
 begin;
-select plan(11);
+select plan(13);
 
 ------------------------------------------------------------------------------------------------
 -- 1-4. Every SQL cron entry routes through the wrapper, except the one that must not
@@ -105,6 +105,34 @@ select ok(
 select ok(
   not has_function_privilege('anon', 'public.get_system_job_control_plane()', 'EXECUTE'),
   'and it stays platform-admin work'
+);
+
+------------------------------------------------------------------------------------------------
+-- 12-13. Nothing is judged by a sensor it does not write to
+------------------------------------------------------------------------------------------------
+-- A `net.http_post` succeeds the moment the request is enqueued, so for a definition whose cron
+-- command is one, pg_cron's exit status proves delivery and nothing else -- which is what
+-- `sql_cron` tells the watchdog and the control plane to read. Both of these were labelled that
+-- way while their functions answered 401 (I4) and neither surface said a word.
+select is(
+  (select count(*)::integer
+   from app_private.system_job_definitions d
+   join cron.job j on j.jobname = d.cron_job_name
+   where j.command like '%net.http_post%' and d.execution_kind = 'sql_cron'),
+  0,
+  'no definition whose cron entry posts to an Edge Function is still judged by pg_cron''s exit status'
+);
+-- The inverse, which is the trap 20260904090000 documented: a definition relabelled before its
+-- function claims a run reads its freshness off a ledger nothing writes to, so a null last-success
+-- is stale immediately rather than after the SLA, and it stays stale forever.
+select is(
+  (select count(*)::integer
+   from app_private.system_job_definitions d
+   where d.execution_kind <> 'sql_cron'
+     and d.job_key in ('process-credential-renewals', 'regulatory-update-polling')
+     and d.is_active),
+  2,
+  'and both of the relabelled ones are live, with their workers instrumented to claim and finish'
 );
 
 select * from finish();
