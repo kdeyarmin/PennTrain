@@ -38695,7 +38695,12 @@ export type Database = {
           facilities: number
         }[]
       }
-      get_organization_export_catalog: { Args: never; Returns: string[] }
+      get_organization_export_catalog: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       get_organization_export_exclusions: {
         Args: never
         Returns: {
