@@ -73,19 +73,29 @@ export function assertDraftLifecycleFields(
  *     listed, retried, and subject to the purge clock;
  *   - an unusable timestamp becomes the epoch, which reads as maximally overdue -- so it is flagged
  *     immediately and purged on schedule rather than sitting there forever.
+ *
+ * `updatedAt` is the last-attempt clock (BACKLOG.md I6). It is optional on input because records
+ * written before that column existed do not carry it, and it falls back to `createdAt` -- which is
+ * the clock the purge used for every state before this -- so an old record is treated exactly as it
+ * was. Its own unusable-value fallback is the same, and lands on the expirable side for the same
+ * reason the other two do.
  */
 export function coerceListedLifecycle<TState extends string>(
   syncState: unknown,
   createdAt: unknown,
   allowedStates: readonly TState[],
-): { syncState: TState; createdAt: string } {
+  updatedAt?: unknown,
+): { syncState: TState; createdAt: string; updatedAt: string } {
   const stateOk = typeof syncState === "string" && (allowedStates as readonly string[]).includes(syncState);
   const createdOk = typeof createdAt === "string" && !Number.isNaN(Date.parse(createdAt));
+  const created = createdOk ? (createdAt as string) : new Date(0).toISOString();
+  const updatedOk = typeof updatedAt === "string" && !Number.isNaN(Date.parse(updatedAt));
   // "error" is a member of both lanes' unions; the cast is what lets one helper serve both without
   // widening DraftListEntry.syncState to string, which would defeat the exhaustiveness the callers
   // rely on.
   return {
     syncState: (stateOk ? syncState : "error") as TState,
-    createdAt: createdOk ? (createdAt as string) : new Date(0).toISOString(),
+    createdAt: created,
+    updatedAt: updatedOk ? (updatedAt as string) : created,
   };
 }

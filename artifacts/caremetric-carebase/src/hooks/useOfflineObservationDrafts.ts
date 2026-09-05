@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import {
-  initializeOfflineFloorDevice, listObservationDraftEntries, purgeExpiredObservationDrafts,
+  initializeOfflineFloorDevice, listObservationDraftEntries,
   readAllObservationDrafts, removeObservationDraft, saveObservationDraft, saveOfflineFloorDeviceId,
   updateObservationDraft, wipeOfflineServiceDrafts,
   type ObservationDraftListEntry, type OfflineFloorIdentity,
@@ -63,15 +63,14 @@ export interface NewOfflineObservationDraftInput {
   note: string | null;
 }
 
+// Like the service lane, these reads no longer purge: the purge belongs after a sync run, not
+// before one. See the comment on useUnsyncedServiceDraftEntries.
 export function useUnsyncedObservationDraftEntries() {
   const { user } = useAuth();
   return useQuery({
     queryKey: [...QUERY_KEY, "entries", user?.id],
     enabled: Boolean(user?.id && user.role === "employee" && draftsSupported()),
-    queryFn: async (): Promise<ObservationDraftListEntry[]> => {
-      await purgeExpiredObservationDrafts();
-      return listObservationDraftEntries();
-    },
+    queryFn: (): Promise<ObservationDraftListEntry[]> => listObservationDraftEntries(),
   });
 }
 
@@ -82,7 +81,6 @@ export function useUnsyncedObservationDrafts() {
     enabled: Boolean(user?.id && user.organizationId && user.role === "employee" && draftsSupported()),
     queryFn: async (): Promise<OfflineObservationDraft[]> => {
       if (!user?.id || !user.organizationId) return [];
-      await purgeExpiredObservationDrafts();
       return readAllObservationDrafts(floorIdentity(user.id, user.organizationId));
     },
   });

@@ -153,8 +153,24 @@ describe("the two lanes keep separate vocabularies", () => {
 // the listing coerces them. Both fallbacks must fail toward visible-and-expirable.
 describe("coerceListedLifecycle (the plaintext copy the listings actually read)", () => {
   it("passes through values that are already valid", () => {
-    expect(coerceListedLifecycle("conflict", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES))
-      .toEqual({ syncState: "conflict", createdAt: "2026-08-02T12:00:00.000Z" });
+    expect(coerceListedLifecycle(
+      "conflict", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES, "2026-08-03T09:00:00.000Z",
+    )).toEqual({
+      syncState: "conflict",
+      createdAt: "2026-08-02T12:00:00.000Z",
+      updatedAt: "2026-08-03T09:00:00.000Z",
+    });
+  });
+
+  // BACKLOG.md I6 added the last-attempt clock. A record already sitting on a caregiver's device
+  // has no such column, and the fallback has to be the clock the purge used before it -- not the
+  // epoch (purged on the next tick) and not absent (immortal).
+  it("falls back to createdAt when the last-attempt column is missing or unusable", () => {
+    expect(coerceListedLifecycle("error", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES).updatedAt)
+      .toBe("2026-08-02T12:00:00.000Z");
+    expect(coerceListedLifecycle(
+      "error", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES, "not-a-date",
+    ).updatedAt).toBe("2026-08-02T12:00:00.000Z");
   });
 
   it("turns an unusable state into one the panel actually lists", () => {
@@ -165,9 +181,9 @@ describe("coerceListedLifecycle (the plaintext copy the listings actually read)"
   });
 
   it("turns an unusable timestamp into one that is already overdue rather than immortal", () => {
-    const { createdAt } = coerceListedLifecycle("draft", "not-a-date", OFFLINE_DRAFT_SYNC_STATES);
+    const { createdAt, updatedAt } = coerceListedLifecycle("draft", "not-a-date", OFFLINE_DRAFT_SYNC_STATES);
     expect(isUnsyncedDraftOverdue(
-      { draftId: "d", kind: "service_task", syncState: "draft", createdAt }, Date.now(),
+      { draftId: "d", kind: "service_task", syncState: "draft", createdAt, updatedAt }, Date.now(),
     )).toBe(true);
   });
 

@@ -2,6 +2,10 @@ import { useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { createRunLatch } from "@/lib/runLatch";
 import { publishCriticalReadings } from "@/lib/criticalReadingBus";
+import {
+  purgeExpiredObservationDrafts,
+  purgeExpiredServiceDrafts,
+} from "@/lib/offlineServiceDraftCache";
 import { SYNC_OUTCOME_MESSAGES, useSyncAllOfflineServiceDrafts } from "@/hooks/useOfflineServiceDrafts";
 import { useSyncAllOfflineObservationDrafts } from "@/hooks/useOfflineObservationDrafts";
 
@@ -79,6 +83,21 @@ export function useRunAllOfflineSyncs() {
         if (result.wipeRequired) wiped = true;
       } catch (error) {
         failure = error;
+      }
+    }
+
+    // Purge here, and only here. Both lanes used to purge inside the queries that list drafts,
+    // which the manager waits on before it will start a run -- so a draft that had never been
+    // offered to the server could reach its 72-hour ceiling and be deleted on the next app open,
+    // before any attempt was made. Doing it after a run inverts that: nothing is discarded until
+    // the device has actually tried. A purge failure must not fail the run or swallow the toasts
+    // below, so it is best-effort.
+    if (!wiped) {
+      try {
+        await purgeExpiredServiceDrafts();
+        await purgeExpiredObservationDrafts();
+      } catch (error) {
+        console.warn("offline draft purge skipped", error);
       }
     }
 

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  readAllServiceDrafts, readAllServiceDraftsWithFailures, readServiceDraft, saveServiceDraft,
+  isExpired, isObservationExpired, isUnsyncedDraftOverdue, listServiceDraftEntries,
+  purgeExpiredServiceDrafts, readAllServiceDrafts, readAllServiceDraftsWithFailures,
+  readServiceDraft, saveServiceDraft, UNSYNCED_PURGE_AFTER_MS,
 } from "./offlineServiceDraftCache";
+import type { DraftListEntry, ObservationDraftListEntry } from "./offlineServiceDraftCache";
 import type {
   OfflineChangeObservationDraft, OfflineServiceDraft, OfflineUnscheduledServiceDraft,
 } from "./offlineServiceDraftSafety";
@@ -95,6 +98,9 @@ function fakeIndexedDB() {
       // listServiceDraftEntries reads the whole store in one request; readAllServiceDrafts is
       // built on it, so the read-everything path needs this to be testable at all.
       getAll: () => fakeRequest(() => [...store.data.values()]),
+      // purgeExpiredServiceDrafts deletes inside one readwrite transaction and waits on its
+      // oncomplete, so the purge policy cannot be exercised end-to-end without this.
+      delete: (key: unknown) => fakeRequest(() => { store.data.delete(key); }),
       put: (value: unknown, explicitKey?: unknown) => fakeRequest(() => {
         const key = store.keyPath ? (value as Record<string, unknown>)[store.keyPath] : explicitKey;
         store.data.set(key, value);
@@ -398,5 +404,139 @@ describe("draft kinds share one store (BACKLOG.md E5 Tiers 2-3)", () => {
     expect(drafts.map((entry) => entry.draftId)).toEqual(["draft-1"]);
     expect(unreadableIds).toEqual(["unsched-1"]);
     warn.mockRestore();
+  });
+});
+
+/**
+ * BACKLOG.md I6. The purge deleted care documentation that had never been offered to the server.
+ *
+ * Both lanes used to call their purge from inside the query that lists drafts -- and the sync
+ * manager waits on that query before it will start a run. So on a device that had been offline
+ * since the note was written, the first thing the app did on open was age the note out, and the
+ * first sync attempt happened after. An aide documenting a refusal on Friday evening, off shift
+ * until Tuesday, lost the only copy of it without one attempt ever being made.
+ *
+ * The rule these tests pin is `draft` means no attempt has been made, so no clock is running --
+ * enforced in the policy itself rather than by call ordering, because ordering is a convention the
+ * next caller can break by accident.
+ */
+describe("expiry policy: a draft the server has never seen does not age out", () => {
+  const NOW = Date.parse("2026-08-10T12:00:00.000Z");
+  const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+  const ago = (ms: number) => new Date(NOW - ms).toISOString();
+
+  function entry(overrides: Partial<DraftListEntry> = {}): DraftListEntry {
+    return {
+      draftId: "entry-1",
+      taskId: "task-1",
+      kind: "service_task",
+      syncState: "draft",
+      createdAt: ago(FIVE_DAYS_MS),
+      updatedAt: ago(FIVE_DAYS_MS),
+      ...overrides,
+    };
+  }
+
+  function observationEntry(overrides: Partial<ObservationDraftListEntry> = {}): ObservationDraftListEntry {
+    return {
+      draftId: "obs-entry-1",
+      residentId: "resident-1",
+      syncState: "draft",
+      createdAt: ago(FIVE_DAYS_MS),
+      updatedAt: ago(FIVE_DAYS_MS),
+      ...overrides,
+    };
+  }
+
+  it("keeps a never-attempted service draft well past the 72-hour ceiling", () => {
+    expect(FIVE_DAYS_MS).toBeGreaterThan(UNSYNCED_PURGE_AFTER_MS);
+    expect(isExpired(entry(), NOW)).toBe(false);
+  });
+
+  // The clock is not removed, only started later: once a run has actually failed, the record has
+  // been offered and refused, and 72 hours of that is the ceiling it always had.
+  it("still expires a service draft whose sync attempt failed", () => {
+    expect(isExpired(entry({ syncState: "error" }), NOW)).toBe(true);
+  });
+
+  it("still expires a service draft left mid-attempt", () => {
+    expect(isExpired(entry({ syncState: "syncing" }), NOW)).toBe(true);
+  });
+
+  // The other half of I6: `error` is not only "the server said no". Both sync loops catch a thrown
+  // fetch and store `error`, so one flaky moment used to convert a protected draft into an ageing
+  // one and the same weekend-offline device lost it anyway.
+  it("runs the 72 hours from the last attempt, not from when the note was written", () => {
+    expect(isExpired(entry({
+      syncState: "error", createdAt: ago(FIVE_DAYS_MS), updatedAt: ago(2 * 60 * 60 * 1000),
+    }), NOW)).toBe(false);
+    expect(isExpired(entry({
+      syncState: "error", createdAt: ago(FIVE_DAYS_MS), updatedAt: ago(4 * 24 * 60 * 60 * 1000),
+    }), NOW)).toBe(true);
+  });
+
+  it("leaves the needs-review ceiling alone -- a rejected draft has its own 7 days", () => {
+    expect(isExpired(entry({ syncState: "rejected" }), NOW)).toBe(false);
+    expect(isExpired(entry({ syncState: "rejected", createdAt: ago(8 * 24 * 60 * 60 * 1000) }), NOW)).toBe(true);
+  });
+
+  it("applies both rules to observation drafts, which share the device and the policy", () => {
+    expect(isObservationExpired(observationEntry(), NOW)).toBe(false);
+    expect(isObservationExpired(observationEntry({ syncState: "error" }), NOW)).toBe(true);
+    expect(isObservationExpired(observationEntry({
+      syncState: "error", updatedAt: ago(2 * 60 * 60 * 1000),
+    }), NOW)).toBe(false);
+  });
+
+  // The cost of keeping an unsynced note indefinitely is that the caregiver has to be told. The
+  // 24-hour warning is what makes the trade acceptable, so it must not have moved with the ceiling.
+  it("still warns at 24 hours on a draft that is no longer purged", () => {
+    expect(isUnsyncedDraftOverdue(entry({ createdAt: ago(25 * 60 * 60 * 1000) }), NOW)).toBe(true);
+    expect(isUnsyncedDraftOverdue(entry({ createdAt: ago(23 * 60 * 60 * 1000) }), NOW)).toBe(false);
+  });
+
+  describe("through the purge itself", () => {
+    let fake: ReturnType<typeof fakeIndexedDB>;
+
+    beforeEach(async () => {
+      fake = fakeIndexedDB();
+      vi.stubGlobal("indexedDB", fake.stub);
+      await fake.seedDeviceKey();
+    });
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("deletes the failed draft and keeps the never-attempted one, at the same age", async () => {
+      await saveServiceDraft(draft({
+        draftId: "never-attempted", idempotencyKey: "idem-never",
+        createdAt: ago(FIVE_DAYS_MS), updatedAt: ago(FIVE_DAYS_MS), syncState: "draft",
+      }));
+      await saveServiceDraft(draft({
+        draftId: "attempted-and-failed", idempotencyKey: "idem-failed",
+        createdAt: ago(FIVE_DAYS_MS), updatedAt: ago(FIVE_DAYS_MS), syncState: "error",
+        lastSyncError: "Network request failed",
+      }));
+
+      await expect(purgeExpiredServiceDrafts(NOW)).resolves.toEqual(["attempted-and-failed"]);
+      expect(fake.draftStoreHas("never-attempted")).toBe(true);
+      expect(fake.draftStoreHas("attempted-and-failed")).toBe(false);
+    });
+
+    // Records already on a caregiver's device were written without the plaintext last-attempt
+    // column. They have to keep the clock they had rather than read as never-attempted (immortal)
+    // or as attempted-at-the-epoch (purged on the next tick).
+    it("falls back to createdAt on a record written before the last-attempt column existed", async () => {
+      await saveServiceDraft(draft({
+        draftId: "legacy-record", idempotencyKey: "idem-legacy",
+        createdAt: ago(FIVE_DAYS_MS), updatedAt: ago(FIVE_DAYS_MS), syncState: "error",
+      }));
+      const stored = { ...fake.readStoredRecord("legacy-record")! };
+      delete stored.updatedAt;
+      fake.writeStoredRecord("legacy-record", stored);
+
+      const [entry] = await listServiceDraftEntries();
+      expect(entry.updatedAt).toBe(entry.createdAt);
+      await expect(purgeExpiredServiceDrafts(NOW)).resolves.toEqual(["legacy-record"]);
+    });
   });
 });
