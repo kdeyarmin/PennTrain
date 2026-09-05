@@ -292,3 +292,60 @@ function bytesToHex(bytes: Uint8Array): string {
     "",
   );
 }
+
+/**
+ * Whether a channel has credentials at all, which is a different question from whether it works.
+ *
+ * Until the provider secrets are set, sendEmail and sendSms answer `provider_not_configured` as a
+ * non-retryable PROVIDER FAILURE, and the ledger finalizes the delivery `failed`/`failed`. Three
+ * things follow that should not: `enqueue_notification_fallback` fires on that exact pair and opens
+ * a delivery on the alternate channel stamped "after permanent failure" (nothing failed, and on a
+ * deployment with neither provider set the alternate is equally unconfigured, so it fails too); the
+ * rows are indistinguishable from real provider rejections in the operator surface; and they count
+ * toward the dispatch job's failure tally, which is what opens the circuit breaker -- so a
+ * deployment with no providers can open its own circuit before the secrets are ever set, and the
+ * first genuinely sendable message arrives to find it open.
+ *
+ * Asked BEFORE the attempt, this becomes the sixth reason a delivery is skipped rather than tried,
+ * beside the five begin_notification_delivery_attempt already has (inactive recipient, SMS consent,
+ * email preference off, no live push subscription, spend cap). It lives here rather than inline so
+ * the check the worker skips on and the guard inside each send function cannot disagree about what
+ * "configured" means.
+ *
+ * `env` is passed in rather than read from Deno.env so this is testable without mutating the
+ * process environment.
+ */
+export function channelProviderConfigured(
+  channel: string,
+  env: (key: string) => string | undefined,
+): boolean {
+  const set = (key: string) => {
+    const value = env(key);
+    return typeof value === "string" && value.trim().length > 0;
+  };
+  switch (channel) {
+    case "email":
+      return set("SENDGRID_API_KEY");
+    case "sms":
+      // Twilio needs the account pair AND somewhere to send from -- a messaging service or a
+      // number. Matching sendSms exactly: either one will do, neither will not.
+      return set("TWILIO_ACCOUNT_SID") && set("TWILIO_AUTH_TOKEN")
+        && (set("TWILIO_MESSAGING_SERVICE_SID") || set("TWILIO_FROM_NUMBER"));
+    case "web_push":
+      return set("WEB_PUSH_VAPID_PUBLIC_KEY") && set("WEB_PUSH_VAPID_PRIVATE_KEY");
+    default:
+      // An unknown channel is not something to skip past quietly: let the send path answer for it.
+      return true;
+  }
+}
+
+/** What the ledger records for the skip, so the worker and any future caller say the same thing. */
+export function providerNotConfiguredSkip(channel: string): {
+  reason: string;
+  errorCode: string;
+} {
+  return {
+    reason: `The ${channel} provider has no credentials in this deployment, so no attempt was made`,
+    errorCode: "provider_not_configured",
+  };
+}

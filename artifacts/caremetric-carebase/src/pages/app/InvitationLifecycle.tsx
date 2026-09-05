@@ -39,10 +39,12 @@ import {
 } from "@/hooks/useInvitationLifecycle";
 import {
   INVITATION_ROLES,
+  INVITATION_RECORD_EXPIRY_LABEL,
   INVITATION_STATUSES,
   bulkInviteTemplate,
   canResendInvitation,
   canRevokeInvitation,
+  invitationExpiryCaption,
   invitationRoleLabel,
   invitationStatusLabel,
   parseBulkInviteCsv,
@@ -214,6 +216,9 @@ export default function InvitationLifecycle() {
           <CardDescription>
             {total} invitation{total === 1 ? "" : "s"} match the current filters.
           </CardDescription>
+          {/* The date on each row is the RECORD's window, not the emailed link's -- see
+              invitationExpiryCaption for the difference and why it was worth saying out loud. */}
+          <CardDescription>{invitationExpiryCaption()}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {invitations.isLoading ? (
@@ -241,7 +246,8 @@ export default function InvitationLifecycle() {
                     <p className="text-sm text-muted-foreground">{invitation.email}</p>
                     <p className="text-xs text-muted-foreground">
                       Sent {new Date(invitation.sent_at).toLocaleString()} · last activity{" "}
-                      {new Date(invitation.last_sent_at).toLocaleString()} · expires{" "}
+                      {new Date(invitation.last_sent_at).toLocaleString()} ·{" "}
+                      {INVITATION_RECORD_EXPIRY_LABEL}{" "}
                       {new Date(invitation.expires_at).toLocaleString()} · send count {invitation.send_count}
                     </p>
                     {invitation.last_error && (

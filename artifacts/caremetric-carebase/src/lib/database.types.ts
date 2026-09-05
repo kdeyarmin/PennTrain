@@ -42339,6 +42339,14 @@ export type Database = {
         Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }
         Returns: Json
       }
+      skip_notification_delivery: {
+        Args: {
+          p_delivery_id: string
+          p_error_code: string
+          p_skip_reason: string
+        }
+        Returns: undefined
+      }
       spawn_due_policy_campaign_cycles: {
         Args: { p_now?: string }
         Returns: number

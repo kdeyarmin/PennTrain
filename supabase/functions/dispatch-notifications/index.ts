@@ -3,10 +3,12 @@ import webpush from "npm:web-push@3.6.7";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import { buildDisabledPushSubscriptionPatch } from "../_shared/webPush.ts";
 import {
+  channelProviderConfigured,
   classifyNotificationDispatchStatus,
   isRetryableProviderStatus,
   normalizeSmsRecipient,
   parseFromAddress,
+  providerNotConfiguredSkip,
   renderProviderMessage,
   renderVersionedNotificationTemplate,
   sanitizeProviderDetail,
@@ -493,6 +495,27 @@ Deno.serve(async (req: Request) => {
     const contentSha256 = await sha256Hex(
       `${row.channel}\n${rendered.subject}\n${outboundBody}`,
     );
+
+    // Skipped rather than attempted when the channel has no credentials at all -- the sixth reason
+    // beside the five begin_notification_delivery_attempt already has. See
+    // _shared/notificationDelivery.ts for why recording this as a provider FAILURE opened the
+    // circuit breaker on a deployment that had never sent anything.
+    if (!channelProviderConfigured(row.channel, (key) => Deno.env.get(key))) {
+      const skip = providerNotConfiguredSkip(row.channel);
+      const { error: skipError } = await adminClient.rpc("skip_notification_delivery", {
+        p_delivery_id: row.id,
+        p_skip_reason: skip.reason,
+        p_error_code: skip.errorCode,
+      });
+      if (skipError) {
+        console.error("notification skip persistence failed", { deliveryId: row.id });
+        persistenceErrors++;
+        continue;
+      }
+      notSent++;
+      processed++;
+      continue;
+    }
 
     const { data: attempts, error: attemptError } = await adminClient.rpc(
       "begin_notification_delivery_attempt",
