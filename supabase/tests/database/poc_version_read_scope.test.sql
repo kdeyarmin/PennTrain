@@ -53,11 +53,12 @@ insert into public.facility_assignments (profile_id, facility_id) values
   ('9b000000-0000-4000-8000-000000000105', '9b000000-0000-4000-8000-000000000012');
 
 insert into public.dhs_violations (
-  id, organization_id, facility_id, citation_ref, inspection_date, description, status
+  id, organization_id, facility_id, citation_ref, inspection_date, description, status, poc_due_date
 ) values (
   '9b000000-0000-4000-8000-000000000201', '9b000000-0000-4000-8000-000000000001',
   '9b000000-0000-4000-8000-000000000012', '2600.25(a)', public.pa_today() - 10,
-  'Citation detail that must stay inside the assigned facility', 'poc_submitted'
+  'Citation detail that must stay inside the assigned facility', 'poc_submitted',
+  public.pa_today() + 20
 );
 
 insert into public.plan_of_correction_versions (

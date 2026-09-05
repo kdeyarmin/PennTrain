@@ -278,7 +278,7 @@ export default function ViolationDetail() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="violation-poc-due">POC due date</Label>
+                  <Label htmlFor="violation-poc-due">POC due date *</Label>
                   <Input id="violation-poc-due" type="date" value={details.poc_due_date} onChange={(e) => setDetails((d) => ({ ...d, poc_due_date: e.target.value }))} />
                 </div>
                 <div className="space-y-1 sm:col-span-2">
@@ -293,13 +293,13 @@ export default function ViolationDetail() {
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  disabled={updateViolation.isPending || !details.description.trim()}
+                  disabled={updateViolation.isPending || !details.description.trim() || !details.poc_due_date}
                   onClick={() => updateViolation.mutate({
                     id: violation.id,
                     citation_ref: details.citation_ref.trim() || null,
                     description: details.description.trim(),
                     severity: details.severity,
-                    poc_due_date: details.poc_due_date || null,
+                    poc_due_date: details.poc_due_date,
                     surveyor_name: details.surveyor_name.trim() || null,
                     citation_topic_id: details.citation_topic_id || null,
                   }, {

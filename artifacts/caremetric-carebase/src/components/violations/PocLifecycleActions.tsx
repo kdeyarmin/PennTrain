@@ -19,6 +19,8 @@ import {
   useMarkPlanOfCorrectionCorrected,
   useVerifyPlanOfCorrection,
 } from "@/hooks/usePocLifecycle";
+import { useGeneratePocDocument } from "@/hooks/useViolations";
+import { supabase } from "@/lib/supabase";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 
 interface PocLifecycleActionsProps {
@@ -44,10 +46,37 @@ export function PocLifecycleActions({
   const markCorrected = useMarkPlanOfCorrectionCorrected();
   const verifyPoc = useVerifyPlanOfCorrection();
   const { data: versions } = useListPocVersions(violationId);
+  // Submitting freezes a version in the database; this is what renders it to a document and stamps
+  // the path and digest on the row. It runs after every submit rather than being left to the
+  // Generate button, because a version whose document nobody asked for is a version that does not
+  // exist as evidence.
+  const generateDocument = useGeneratePocDocument();
   const [amendmentReason, setAmendmentReason] = useState("");
   const [showVerify, setShowVerify] = useState(false);
   const [notes, setNotes] = useState("");
   const pending = submitPoc.isPending || markCorrected.isPending || verifyPoc.isPending;
+
+  const freezeVersionDocument = () => {
+    generateDocument.mutate(violationId, {
+      onError: (e: Error) =>
+        toast({
+          title: "Submitted, but the document could not be rendered",
+          description: `${e.message} — use Generate POC PDF to try again.`,
+          variant: "destructive",
+        }),
+    });
+  };
+
+  const openVersionDocument = async (path: string) => {
+    const { data, error } = await supabase.storage
+      .from("violation-documents")
+      .createSignedUrl(path, 600);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Could not open the document", description: error?.message, variant: "destructive" });
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
 
   if (!canManage) return null;
 
@@ -63,7 +92,10 @@ export function PocLifecycleActions({
               submitPoc.mutate(
                 { violationId },
                 {
-                  onSuccess: () => toast({ title: "Plan of Correction submitted (version frozen)" }),
+                  onSuccess: () => {
+                    toast({ title: "Plan of Correction submitted (version frozen)" });
+                    freezeVersionDocument();
+                  },
                   onError: (e: Error) =>
                     toast({ title: "Submit failed", description: e.message, variant: "destructive" }),
                 },
@@ -92,6 +124,7 @@ export function PocLifecycleActions({
                     onSuccess: () => {
                       setAmendmentReason("");
                       toast({ title: "POC version recorded" });
+                      freezeVersionDocument();
                     },
                     onError: (e: Error) =>
                       toast({ title: "Submit failed", description: e.message, variant: "destructive" }),
@@ -130,11 +163,33 @@ export function PocLifecycleActions({
           <ul className="space-y-1 text-sm">
             {versions.map((ver) => (
               <li key={ver.id} className="rounded border px-2 py-1">
-                Version {ver.version_number}
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {formatDateForDisplay(ver.submitted_at.slice(0, 10))}
-                  {ver.amendment_reason ? ` · ${ver.amendment_reason}` : ""}
-                </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    Version {ver.version_number}
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {formatDateForDisplay(ver.submitted_at.slice(0, 10))}
+                      {ver.amendment_reason ? ` · ${ver.amendment_reason}` : ""}
+                    </span>
+                  </span>
+                  {ver.pdf_storage_path ? (
+                    <Button size="sm" variant="ghost" onClick={() => void openVersionDocument(ver.pdf_storage_path!)}>
+                      Open document
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={generateDocument.isPending}
+                      onClick={freezeVersionDocument}
+                    >
+                      {generateDocument.isPending ? "Rendering…" : "Render document"}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground break-all">
+                  {ver.snapshot_sha256 ? `Record digest ${ver.snapshot_sha256.slice(0, 16)}…` : "Record digest unavailable"}
+                  {ver.pdf_sha256 ? " · document on file" : ver.pdf_last_error ? ` · last render failed: ${ver.pdf_last_error}` : " · document not rendered yet"}
+                </p>
               </li>
             ))}
           </ul>

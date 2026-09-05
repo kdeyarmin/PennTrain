@@ -6114,7 +6114,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
@@ -6138,7 +6138,7 @@ export type Database = {
           id?: string
           inspection_date: string
           organization_id: string
-          poc_due_date?: string | null
+          poc_due_date: string
           poc_due_soon_notified_at?: string | null
           poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
@@ -6162,7 +6162,7 @@ export type Database = {
           id?: string
           inspection_date?: string
           organization_id?: string
-          poc_due_date?: string | null
+          poc_due_date?: string
           poc_due_soon_notified_at?: string | null
           poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
@@ -15441,6 +15441,7 @@ export type Database = {
         Row: {
           citation_topic_id: string | null
           created_at: string
+          derived_from_inspection_item_id: string | null
           facility_id: string
           id: string
           inspection_interval_days: number
@@ -15466,6 +15467,7 @@ export type Database = {
         Insert: {
           citation_topic_id?: string | null
           created_at?: string
+          derived_from_inspection_item_id?: string | null
           facility_id: string
           id?: string
           inspection_interval_days: number
@@ -15491,6 +15493,7 @@ export type Database = {
         Update: {
           citation_topic_id?: string | null
           created_at?: string
+          derived_from_inspection_item_id?: string | null
           facility_id?: string
           id?: string
           inspection_interval_days?: number
@@ -15519,6 +15522,13 @@ export type Database = {
             columns: ["citation_topic_id"]
             isOneToOne: false
             referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_items_derived_from_inspection_item_id_fkey"
+            columns: ["derived_from_inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
             referencedColumns: ["id"]
           },
           {
@@ -20257,10 +20267,14 @@ export type Database = {
           facility_id: string
           id: string
           organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
           pdf_sha256: string | null
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           snapshot: Json
+          snapshot_sha256: string | null
           submitted_at: string
           submitted_by_profile_id: string | null
           version_number: number
@@ -20272,10 +20286,14 @@ export type Database = {
           facility_id: string
           id?: string
           organization_id: string
+          pdf_last_error?: string | null
+          pdf_last_error_at?: string | null
+          pdf_rendered_at?: string | null
           pdf_sha256?: string | null
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           snapshot?: Json
+          snapshot_sha256?: string | null
           submitted_at?: string
           submitted_by_profile_id?: string | null
           version_number: number
@@ -20287,10 +20305,14 @@ export type Database = {
           facility_id?: string
           id?: string
           organization_id?: string
+          pdf_last_error?: string | null
+          pdf_last_error_at?: string | null
+          pdf_rendered_at?: string | null
           pdf_sha256?: string | null
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           snapshot?: Json
+          snapshot_sha256?: string | null
           submitted_at?: string
           submitted_by_profile_id?: string | null
           version_number?: number
@@ -20369,6 +20391,8 @@ export type Database = {
           created_by: string | null
           due_date: string | null
           id: string
+          last_spawn_skipped_at: string | null
+          last_spawn_skipped_reason: string | null
           name: string
           next_occurrence_on: string | null
           organization_id: string
@@ -20388,6 +20412,8 @@ export type Database = {
           created_by?: string | null
           due_date?: string | null
           id?: string
+          last_spawn_skipped_at?: string | null
+          last_spawn_skipped_reason?: string | null
           name: string
           next_occurrence_on?: string | null
           organization_id: string
@@ -20407,6 +20433,8 @@ export type Database = {
           created_by?: string | null
           due_date?: string | null
           id?: string
+          last_spawn_skipped_at?: string | null
+          last_spawn_skipped_reason?: string | null
           name?: string
           next_occurrence_on?: string | null
           organization_id?: string
@@ -36610,7 +36638,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
@@ -39438,6 +39466,15 @@ export type Database = {
         }
         Returns: string
       }
+      inspection_item_next_due_date: {
+        Args: {
+          p_anchor: string
+          p_interval_days: number
+          p_item_type: string
+          p_last_date: string
+        }
+        Returns: string
+      }
       install_regulatory_rule_pack_template: {
         Args: { p_template_key: string }
         Returns: string
@@ -39644,10 +39681,14 @@ export type Database = {
           facility_id: string
           id: string
           organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
           pdf_sha256: string | null
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           snapshot: Json
+          snapshot_sha256: string | null
           submitted_at: string
           submitted_by_profile_id: string | null
           version_number: number
@@ -39897,7 +39938,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
@@ -40548,6 +40589,43 @@ export type Database = {
           p_trial_ends_at: string
         }
         Returns: string
+      }
+      record_plan_of_correction_version_pdf: {
+        Args: {
+          p_bucket: string
+          p_path: string
+          p_sha256: string
+          p_version_id: string
+        }
+        Returns: {
+          amendment_reason: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
+          pdf_sha256: string | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          snapshot: Json
+          snapshot_sha256: string | null
+          submitted_at: string
+          submitted_by_profile_id: string | null
+          version_number: number
+          violation_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "plan_of_correction_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      record_plan_of_correction_version_pdf_failure: {
+        Args: { p_error: string; p_version_id: string }
+        Returns: undefined
       }
       record_qapi_measurement: {
         Args: {
@@ -42546,10 +42624,14 @@ export type Database = {
           facility_id: string
           id: string
           organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
           pdf_sha256: string | null
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           snapshot: Json
+          snapshot_sha256: string | null
           submitted_at: string
           submitted_by_profile_id: string | null
           version_number: number
@@ -43316,7 +43398,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null

@@ -40,8 +40,15 @@ insert into public.inspection_items (
   ('9c000000-0000-4000-8000-000000000102', '9c000000-0000-4000-8000-000000000001',
    '9c000000-0000-4000-8000-000000000011', 'equipment', 'fire_extinguisher', 'Hall Extinguisher', 90),
   -- C: quarterly, drifting toward due -- exercises due_soon and the severity escalation.
+  -- This row is a procedural item on a plain interval, deliberately. It used to be a
+  -- fire_drill_program on a 90-day cadence, which 20260905160000 made meaningless: fire drills are
+  -- now computed on the calendar-month rule 55 Pa. Code 2600.132 actually states, so an interval
+  -- of 90 days no longer determines anything. What this file is testing is the interval ladder and
+  -- the alert escalation, which are unchanged; the drill calendar has its own coverage in
+  -- fire_drill_calendar.test.sql.
   ('9c000000-0000-4000-8000-000000000103', '9c000000-0000-4000-8000-000000000001',
-   '9c000000-0000-4000-8000-000000000011', 'procedural', 'fire_drill_program', 'Overnight Fire Drill', 90);
+   '9c000000-0000-4000-8000-000000000011', 'procedural', 'emergency_prep_plan_review',
+   'Emergency Preparedness Plan Review', 90);
 
 ------------------------------------------------------------------------------------------------
 -- The trigger path: an event insert updates the item at once

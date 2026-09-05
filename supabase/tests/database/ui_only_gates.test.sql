@@ -58,11 +58,12 @@ insert into public.incidents(
   now() - interval '2 days', 'investigating'
 );
 insert into public.dhs_violations(
-  id, organization_id, facility_id, citation_ref, description, severity, status, inspection_date
+  id, organization_id, facility_id, citation_ref, description, severity, status, inspection_date,
+  poc_due_date
 ) values (
   'd1000000-0000-4000-8000-000000000061', 'd1000000-0000-4000-8000-000000000001',
   'd1000000-0000-4000-8000-000000000011', '2600.56(a)', 'Staff training records incomplete.',
-  'moderate', 'open', current_date - 5
+  'moderate', 'open', current_date - 5, current_date + 25
 );
 insert into public.resident_documents(
   id, organization_id, facility_id, resident_id, document_label,

@@ -101,11 +101,11 @@ select is(
 -- A citation is settled by `corrected`/`verified`, not by filing a plan.
 -- ---------------------------------------------------------------------------------------
 insert into public.dhs_violations(
-  id, organization_id, facility_id, inspection_date, description, severity, status
+  id, organization_id, facility_id, inspection_date, description, severity, status, poc_due_date
 ) values (
   '7b000000-0000-4000-8000-000000000201', '7b000000-0000-4000-8000-000000000001',
   '7b000000-0000-4000-8000-000000000011', public.pa_today() - 3,
-  'Medication storage not secured.', 'high', 'open'
+  'Medication storage not secured.', 'high', 'open', public.pa_today() + 27
 );
 
 -- ---------------------------------------------------------------------------------------

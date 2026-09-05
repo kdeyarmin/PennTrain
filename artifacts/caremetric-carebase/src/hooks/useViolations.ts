@@ -115,6 +115,11 @@ export function useGeneratePocDocument() {
       }
       return { url: data.url, path: data.path, expiresIn: data.expiresIn };
     },
-    onSuccess: (_data, violationId) => queryClient.invalidateQueries({ queryKey: ["violation_documents", violationId] }),
+    onSuccess: (_data, violationId) => {
+      queryClient.invalidateQueries({ queryKey: ["violation_documents", violationId] });
+      // The same call also renders and stamps any frozen version that has no document yet, so the
+      // submitted-versions list has to be re-read.
+      queryClient.invalidateQueries({ queryKey: ["plan_of_correction_versions", violationId] });
+    },
   });
 }

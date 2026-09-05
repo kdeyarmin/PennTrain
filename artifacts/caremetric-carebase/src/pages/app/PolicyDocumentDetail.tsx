@@ -28,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
@@ -544,6 +544,15 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
                       Assign Employees
                     </Button>
                   </div>
+                  {c.last_spawn_skipped_reason && (
+                    <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
+                      {/* The recurrence worker declined to open the next cycle because it would
+                          have enrolled nobody. It leaves the date where it is and tries again
+                          daily, so fixing the roster or the targeting rule is all that is needed. */}
+                      <span>{c.last_spawn_skipped_reason}</span>
+                    </div>
+                  )}
                   {expandedId === c.id && (
                     <>
                       <CampaignQuestions campaignId={c.id} />
