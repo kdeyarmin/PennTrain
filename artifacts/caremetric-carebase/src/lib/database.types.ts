@@ -14861,6 +14861,45 @@ export type Database = {
           },
         ]
       }
+      incident_notification_rules: {
+        Row: {
+          citation: string
+          created_at: string
+          due_hours: number
+          id: string
+          incident_type: string
+          is_active: boolean
+          note: string | null
+          notification_type: string
+          source_confidence: string
+          updated_at: string
+        }
+        Insert: {
+          citation: string
+          created_at?: string
+          due_hours: number
+          id?: string
+          incident_type: string
+          is_active?: boolean
+          note?: string | null
+          notification_type: string
+          source_confidence?: string
+          updated_at?: string
+        }
+        Update: {
+          citation?: string
+          created_at?: string
+          due_hours?: number
+          id?: string
+          incident_type?: string
+          is_active?: boolean
+          note?: string | null
+          notification_type?: string
+          source_confidence?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       incident_notifications: {
         Row: {
           completed_at: string | null
@@ -39148,6 +39187,10 @@ export type Database = {
         Args: { p_operation: string }
         Returns: boolean
       }
+      import_apply_employee: {
+        Args: { p_employee_id: string; p_job_id: string; p_payload: Json }
+        Returns: string
+      }
       import_apply_employee_credential: {
         Args: {
           p_credential_id: string
@@ -39251,6 +39294,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      import_apply_resident: {
+        Args: { p_job_id: string; p_payload: Json; p_resident_id: string }
+        Returns: string
+      }
+      import_apply_resident_assessment: {
+        Args: { p_form_id: string; p_job_id: string; p_payload: Json }
+        Returns: string
+      }
       import_apply_resident_contact: {
         Args: {
           p_contact_id?: string
@@ -39344,6 +39395,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      import_mark_row: {
+        Args: {
+          p_errors: string[]
+          p_row_id: string
+          p_status: string
+          p_target_id: string
+          p_target_table: string
+        }
+        Returns: undefined
+      }
+      import_recount_job: {
+        Args: { p_finalize_applied?: boolean; p_job_id: string }
+        Returns: Json
       }
       ingest_xapi_statement: {
         Args: {

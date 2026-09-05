@@ -342,7 +342,17 @@ select ok(
         ('course_assignments', 'SELECT'),
         ('quiz_attempts', 'SELECT'),
         ('quizzes', 'SELECT'),
+        -- Approved 20260905090000: SELECT for the durable import worker, which checks whether a
+        -- job's creating manager is still assigned to a facility before letting a rescued row
+        -- reach it. Refusing the read makes that check fail closed on every row.
         ('facility_assignments', 'INSERT'),
+        ('facility_assignments', 'SELECT'),
+        -- Approved 20260905090000, one table and one privilege each, for a function that could
+        -- not do its job without it. See that migration for what each one broke.
+        ('employee_credential_documents', 'SELECT'),  -- process-credential-renewals reads the upload it OCRs
+        ('violation_documents', 'UPDATE'),            -- generate-poc-document rewrites an amended plan
+        ('employees', 'UPDATE'),                      -- invite-user detaches the employee when the email fails
+        ('packages', 'SELECT'),                       -- create-billing-session confirms the plan is still sold
         ('alerts', 'SELECT'),
         ('certificates', 'SELECT'),
         ('corrective_actions', 'SELECT'),

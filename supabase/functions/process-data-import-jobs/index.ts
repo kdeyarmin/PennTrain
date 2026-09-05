@@ -174,37 +174,40 @@ function isSupportedDurableDomain(domain: string): domain is typeof DURABLE_IMPO
   return DURABLE_IMPORT_DOMAINS.includes(domain as typeof DURABLE_IMPORT_DOMAINS[number]);
 }
 
+/**
+ * Every write this worker makes goes through an RPC (BACKLOG.md I5).
+ *
+ * The service role holds SELECT on `data_import_jobs` and `data_import_rows` and nothing more --
+ * carebase_activation_wave.test.sql pins that as the contract, in words: "mutations stay on
+ * SECURITY DEFINER RPCs". This function used to UPDATE the job row directly, so every apply for
+ * the employees, residents and assessments domains failed at the first ledger write, before
+ * touching a single record. Production has never run an import, so it had not failed yet.
+ *
+ * The counting moved into SQL with it: this used to fetch every row's status to produce four
+ * integers, which on a 5,000-row import is 5,000 rows over the wire per pass.
+ */
 async function recountAndPersistJobCounters(
   supabase: ReturnType<typeof createClient>,
   jobId: string,
   finalizedStatus?: "applied" | "failed",
 ) {
-  const { data: ledgerStatuses, error: countsErr } = await supabase
-    .from("data_import_rows")
-    .select("status")
-    .eq("job_id", jobId);
-  if (countsErr) throw countsErr;
-
-  const statuses = (ledgerStatuses ?? []) as Array<{ status: string }>;
-  const appliedRows = statuses.filter((row) => row.status === "applied").length;
-  const skippedRows = statuses.filter((row) => row.status === "skipped").length;
-  const validRows = statuses.filter((row) => row.status === "valid").length;
-  const errorRows = statuses.filter((row) => row.status === "failed" || row.status === "invalid").length;
-
-  const updatePayload: Record<string, unknown> = {
-    applied_rows: appliedRows,
-    skipped_rows: skippedRows,
-    error_rows: errorRows,
-    valid_rows: validRows,
+  const { data, error } = await supabase.rpc("import_recount_job", {
+    p_job_id: jobId,
+    p_finalize_applied: finalizedStatus === "applied",
+  });
+  if (error) throw error;
+  const counts = (data ?? {}) as {
+    appliedRows?: number;
+    skippedRows?: number;
+    errorRows?: number;
+    validRows?: number;
   };
-  if (finalizedStatus === "applied") {
-    updatePayload.applied_at = new Date().toISOString();
-  }
-
-  const { error: updateErr } = await supabase.from("data_import_jobs").update(updatePayload).eq("id", jobId);
-  if (updateErr) throw updateErr;
-
-  return { appliedRows, skippedRows, errorRows, validRows };
+  return {
+    appliedRows: counts.appliedRows ?? 0,
+    skippedRows: counts.skippedRows ?? 0,
+    errorRows: counts.errorRows ?? 0,
+    validRows: counts.validRows ?? 0,
+  };
 }
 
 async function markLedgerRowFailure(
@@ -221,15 +224,13 @@ async function markLedgerRowFailureForTable(
   targetTable: string,
   errorMessage: string,
 ) {
-  const { error } = await supabase
-    .from("data_import_rows")
-    .update({
-      status: "failed",
-      target_table: targetTable,
-      errors: [errorMessage],
-      applied_at: null,
-    })
-    .eq("id", row.id);
+  const { error } = await supabase.rpc("import_mark_row", {
+    p_row_id: row.id,
+    p_status: "failed",
+    p_target_table: targetTable,
+    p_target_id: null,
+    p_errors: [errorMessage],
+  });
   if (error) throw error;
 }
 
@@ -242,16 +243,13 @@ async function markLedgerRowStatus(
     targetId: string | null;
   },
 ) {
-  const { error } = await supabase
-    .from("data_import_rows")
-    .update({
-      status: options.status,
-      target_table: options.targetTable,
-      target_id: options.targetId,
-      errors: [],
-      applied_at: new Date().toISOString(),
-    })
-    .eq("id", row.id);
+  const { error } = await supabase.rpc("import_mark_row", {
+    p_row_id: row.id,
+    p_status: options.status,
+    p_target_table: options.targetTable,
+    p_target_id: options.targetId,
+    p_errors: [],
+  });
   if (error) throw error;
 }
 
@@ -392,17 +390,11 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
 
     const action = normalizeAction(row.proposed_action);
     if (action === "skip") {
-      const { error: skipErr } = await supabase
-        .from("data_import_rows")
-        .update({
-          status: "skipped",
-          target_table: "employees",
-          target_id: row.target_id,
-          errors: [],
-          applied_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
-      if (skipErr) throw skipErr;
+      await markLedgerRowStatus(supabase, row, {
+        status: "skipped",
+        targetTable: "employees",
+        targetId: row.target_id,
+      });
       continue;
     }
 
@@ -442,14 +434,17 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
           continue;
         }
       }
-      const { data: updatedEmployee, error: updateErr } = await supabase
-        .from("employees")
-        .update(updatePayload)
-        .eq("id", row.target_id)
-        .eq("organization_id", job.organization_id)
-        .select("id")
-        .maybeSingle();
-      if (updateErr || !updatedEmployee) {
+      // Through the RPC, not a direct UPDATE: the service role has SELECT and INSERT on
+      // `employees` and nothing else, so this write failed outright. import_apply_employee writes
+      // only the payload's keys -- the same "absent means untouched" rule the filter above builds
+      // -- and re-checks the job's organization in SQL, so the boundary does not rest on this
+      // caller getting the .eq() right.
+      const { data: updatedEmployeeId, error: updateErr } = await supabase.rpc("import_apply_employee", {
+        p_job_id: job.id,
+        p_employee_id: row.target_id,
+        p_payload: updatePayload,
+      });
+      if (updateErr || !updatedEmployeeId) {
         await markLedgerRowFailure(
           supabase,
           row,
@@ -457,40 +452,30 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
         );
         continue;
       }
-      const { error: ledgerUpdateErr } = await supabase
-        .from("data_import_rows")
-        .update({
-          status: "applied",
-          target_table: "employees",
-          target_id: updatedEmployee.id,
-          errors: [],
-          applied_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
-      if (ledgerUpdateErr) throw ledgerUpdateErr;
+      await markLedgerRowStatus(supabase, row, {
+        status: "applied",
+        targetTable: "employees",
+        targetId: String(updatedEmployeeId),
+      });
       continue;
     }
 
-    const { data: createdEmployee, error: createErr } = await supabase
-      .from("employees")
-      .insert(payload)
-      .select("id")
-      .single();
-    if (createErr) {
-      await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: ${createErr.message}`);
+    const { data: createdEmployeeId, error: createErr } = await supabase.rpc("import_apply_employee", {
+      p_job_id: job.id,
+      // No target: the RPC inserts, and stamps organization_id from the job rather than trusting
+      // the payload's copy of it.
+      p_employee_id: null,
+      p_payload: payload,
+    });
+    if (createErr || !createdEmployeeId) {
+      await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: ${createErr?.message ?? "employee could not be created"}`);
       continue;
     }
-    const { error: ledgerCreateErr } = await supabase
-      .from("data_import_rows")
-      .update({
-        status: "applied",
-        target_table: "employees",
-        target_id: createdEmployee.id,
-        errors: [],
-        applied_at: new Date().toISOString(),
-      })
-      .eq("id", row.id);
-    if (ledgerCreateErr) throw ledgerCreateErr;
+    await markLedgerRowStatus(supabase, row, {
+      status: "applied",
+      targetTable: "employees",
+      targetId: String(createdEmployeeId),
+    });
   }
 
   const counts = await recountAndPersistJobCounters(supabase, job.id);
@@ -605,11 +590,14 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
       for (const field of ["first_name", "last_name", "date_of_birth", "room", "preferred_name"]) {
         if (ledgerKeys.has(field)) residentUpdate[field] = payload[field as keyof typeof payload];
       }
-      const { error: updateErr } = await supabase
-        .from("residents")
-        .update(residentUpdate)
-        .eq("id", row.target_id)
-        .eq("organization_id", job.organization_id);
+      // Through the RPC: the service role holds SELECT on `residents` and nothing else, so this
+      // write failed outright. See import_apply_resident -- it writes only the payload's keys,
+      // which is the same rule the ledger-key filter above builds and for the same reason.
+      const { error: updateErr } = await supabase.rpc("import_apply_resident", {
+        p_job_id: job.id,
+        p_resident_id: row.target_id,
+        p_payload: residentUpdate,
+      });
       if (updateErr) {
         await markLedgerRowFailureForTable(supabase, row, RESIDENT_TARGET_TABLE, `Row ${row.row_number}: ${updateErr.message}`);
         continue;
@@ -622,20 +610,25 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
       continue;
     }
 
-    const { data: createdResident, error: createErr } = await supabase
-      .from("residents")
-      .insert(payload)
-      .select("id")
-      .single();
-    if (createErr) {
-      await markLedgerRowFailureForTable(supabase, row, RESIDENT_TARGET_TABLE, `Row ${row.row_number}: ${createErr.message}`);
+    const { data: createdResidentId, error: createErr } = await supabase.rpc("import_apply_resident", {
+      p_job_id: job.id,
+      p_resident_id: null,
+      p_payload: payload,
+    });
+    if (createErr || !createdResidentId) {
+      await markLedgerRowFailureForTable(
+        supabase,
+        row,
+        RESIDENT_TARGET_TABLE,
+        `Row ${row.row_number}: ${createErr?.message ?? "resident could not be created"}`,
+      );
       continue;
     }
 
     await markLedgerRowStatus(supabase, row, {
       status: "applied",
       targetTable: RESIDENT_TARGET_TABLE,
-      targetId: asStringOrNull(createdResident?.id),
+      targetId: asStringOrNull(createdResidentId),
     });
   }
 
@@ -863,11 +856,13 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
         );
         continue;
       }
-      const { error: updateErr } = await supabase
-        .from("resident_assessment_forms")
-        .update(payload)
-        .eq("id", row.target_id)
-        .eq("organization_id", job.organization_id);
+      // Through the RPC: the service role holds SELECT on `resident_assessment_forms` and
+      // nothing else. See import_apply_resident_assessment.
+      const { error: updateErr } = await supabase.rpc("import_apply_resident_assessment", {
+        p_job_id: job.id,
+        p_form_id: row.target_id,
+        p_payload: payload,
+      });
       if (updateErr) {
         await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: ${updateErr.message}`);
         continue;
@@ -880,20 +875,24 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
       continue;
     }
 
-    const { data: createdAssessment, error: createErr } = await supabase
-      .from("resident_assessment_forms")
-      .insert(payload)
-      .select("id")
-      .single();
-    if (createErr) {
-      await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: ${createErr.message}`);
+    const { data: createdAssessmentId, error: createErr } = await supabase.rpc(
+      "import_apply_resident_assessment",
+      { p_job_id: job.id, p_form_id: null, p_payload: payload },
+    );
+    if (createErr || !createdAssessmentId) {
+      await markLedgerRowFailureForTable(
+        supabase,
+        row,
+        ASSESSMENT_TARGET_TABLE,
+        `Row ${row.row_number}: ${createErr?.message ?? "assessment could not be created"}`,
+      );
       continue;
     }
 
     await markLedgerRowStatus(supabase, row, {
       status: "applied",
       targetTable: ASSESSMENT_TARGET_TABLE,
-      targetId: asStringOrNull(createdAssessment?.id),
+      targetId: asStringOrNull(createdAssessmentId),
     });
   }
 
