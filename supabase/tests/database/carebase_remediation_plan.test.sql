@@ -132,12 +132,12 @@ select isnt((select token_sha256 from public.resident_portal_grants where id=(se
 select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'anon');
 select is((public.get_resident_portal_snapshot((select value from remediation_ids where key='portal'),null)->>'accessStatus'),
   'terms_required', 'portal fails closed until current terms are accepted');
-select ok(public.accept_resident_portal_terms((select value from remediation_ids where key='portal'),'resident-portal-v1',null),
-  'valid token can accept the exact current terms');
+select is(public.accept_resident_portal_terms((select value from remediation_ids where key='portal'),'resident-portal-v1',null)->>'ok',
+  'true', 'valid token can accept the exact current terms');
 select is((public.get_resident_portal_snapshot((select value from remediation_ids where key='portal'),null)->>'accessStatus'),
   'active', 'accepted grant returns the narrow portal snapshot');
-select ok(public.post_resident_portal_message((select value from remediation_ids where key='portal'),'Routine question for the facility.',null),
-  'designated person can send a routine scoped message');
+select is(public.post_resident_portal_message((select value from remediation_ids where key='portal'),'Routine question for the facility.',null)->>'ok',
+  'true', 'designated person can send a routine scoped message');
 
 select pg_temp.act_as('88000000-0000-4000-8000-000000000101');
 select is((select count(*)::integer from public.notifications where notification_type='portal_message_received'),

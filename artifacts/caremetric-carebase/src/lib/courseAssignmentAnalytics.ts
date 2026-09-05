@@ -45,3 +45,49 @@ export function summarizeCourseAssignmentAnalytics(assignments: CourseAssignment
     oldestOverdueAssignmentId,
   };
 }
+
+/**
+ * What a bulk "Assign Training" actually did (BACKLOG.md I12).
+ *
+ * Re-assigning the annual course to everyone is a normal thing to do -- an administrator does it
+ * each year, and again after adding one late hire -- so most of the selected list will already
+ * have it. Before 20260905060000 those became second identical rows; now they cannot be created at
+ * all, which means the same click produces three outcomes, not two, and folding them into two gets
+ * one of them wrong in a way nobody would notice from the toast:
+ *
+ *   * counting an already-assigned employee as newly assigned overstates the work done, and hides
+ *     that the second click did nothing;
+ *   * counting one as a failure puts a red error beside the people who really did fail.
+ *
+ * Extracted and named so the arithmetic is testable rather than inline in the page's toast, which
+ * is where it was when it only had two cases to get right.
+ */
+export interface BulkAssignmentOutcome {
+  /** Rows that did not exist before this click. */
+  assigned: number;
+  /** Employees who already had this course open; nothing was created for them. */
+  alreadyAssigned: number;
+  /** Rejected for some other reason -- no published version, RLS, a lost connection. */
+  failed: number;
+  total: number;
+}
+
+export function summarizeBulkAssignment(
+  results: Array<{ status: "fulfilled" | "rejected"; alreadyAssigned?: boolean }>,
+): BulkAssignmentOutcome {
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const alreadyAssigned = fulfilled.filter((r) => r.alreadyAssigned === true).length;
+  return {
+    assigned: fulfilled.length - alreadyAssigned,
+    alreadyAssigned,
+    failed: results.length - fulfilled.length,
+    total: results.length,
+  };
+}
+
+/** The sentence the toast shows, so "N already had it open" cannot go missing from one branch. */
+export function describeBulkAssignment(outcome: BulkAssignmentOutcome): string {
+  return `${outcome.assigned} of ${outcome.total} employee${outcome.total === 1 ? "" : "s"} assigned successfully.`
+    + (outcome.alreadyAssigned > 0 ? ` ${outcome.alreadyAssigned} already had it open.` : "")
+    + (outcome.failed > 0 ? ` ${outcome.failed} failed.` : "");
+}

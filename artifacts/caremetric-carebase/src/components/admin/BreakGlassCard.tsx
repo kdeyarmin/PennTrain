@@ -24,12 +24,20 @@ function defaultExpiry(): string {
 }
 
 /**
- * Emergency elevated access (BACKLOG.md G15.9, G15.10).
+ * The two-person authorization RECORD for emergency access (BACKLOG.md G15.9, G15.10, I22).
  *
- * Both halves of this shipped complete and unreachable: `grant_identity_break_glass`, with its
- * requester, reason, ticket reference and mandatory expiry, and `revoke_identity_break_glass` to
- * end one early. So emergency access could not be granted -- and, more to the point, a grant could
- * never have been ended before its own expiry.
+ * It does not grant anything, and this card used to say it did. Nothing reads
+ * identity_break_glass_events for authorization -- not has_effective_permission, not the role
+ * helpers, not one RLS policy -- so an operator at 3am could fill this in, watch it succeed, and
+ * believe somebody could now do something they still could not. The access is granted separately:
+ * a role change, or support impersonation, each audited on its own.
+ *
+ * What this produces is worth having regardless, which is why it is relabelled rather than
+ * removed: who asked, who approved, why, against which ticket, and until when -- written down at
+ * the moment of the decision instead of reconstructed afterwards.
+ *
+ * Both halves shipped complete and unreachable: `grant_identity_break_glass` and
+ * `revoke_identity_break_glass`, the second being how a record is closed before its own expiry.
  *
  * The form asks for a ticket reference because break-glass is the access you justify afterwards,
  * and "there was an incident" is not a justification anyone can audit.
@@ -85,12 +93,17 @@ export function BreakGlassCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ShieldAlert className="h-5 w-5" />Break-glass access
+          <ShieldAlert className="h-5 w-5" />Break-glass authorization record
         </CardTitle>
         <CardDescription>
-          Time-boxed elevated access for an incident, with the reason and ticket recorded at the
-          moment it is granted — and revocable before its expiry, which is the half that matters
-          when an investigation moves faster than the clock.
+          Records a two-person authorization for emergency access — the requester, the approver,
+          the reason, the ticket and the expiry — at the moment the decision is made, and lets you
+          close it early when an investigation moves faster than the clock.{" "}
+          <span className="font-medium text-foreground">
+            It does not itself change anyone's permissions.
+          </span>{" "}
+          Grant the access separately (a role change, or support impersonation), then end it at or
+          before the expiry recorded here.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -98,14 +111,14 @@ export function BreakGlassCard() {
           <Button variant="outline" size="sm" onClick={() => {
             setOpening(true); setTargetProfileId(""); setRequestedBy(""); setReason(""); setTicket(""); setExpiresAt(defaultExpiry());
           }}>
-            Grant break-glass access
+            Record a break-glass authorization
           </Button>
         )}
 
         {opening && (
           <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
             <div className="space-y-1.5">
-              <Label htmlFor="bg-target">Profile receiving access</Label>
+              <Label htmlFor="bg-target">Profile the access is for</Label>
               <Input id="bg-target" value={targetProfileId} onChange={(e) => setTargetProfileId(e.target.value)} placeholder="Profile UUID" />
             </div>
             <div className="space-y-1.5">
@@ -155,7 +168,7 @@ export function BreakGlassCard() {
                   ticketReference: ticket.trim(),
                   expiresAt: facilityDateTimeLocalToUtcIso(expiresAt),
                 }, {
-                  onSuccess: () => { setOpening(false); toast({ title: "Break-glass access granted", description: "It ends at the expiry you set, or when you revoke it." }); },
+                  onSuccess: () => { setOpening(false); toast({ title: "Break-glass authorization recorded", description: "Now grant the access itself, and end it by the expiry you set." }); },
                   onError: (error) => toast({ title: "Grant blocked", description: errorText(error), variant: "destructive" }),
                 })}
               >
@@ -168,11 +181,11 @@ export function BreakGlassCard() {
 
         <div className="space-y-2">
           {events.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading break-glass access…</p>
+            <p className="text-sm text-muted-foreground">Loading break-glass authorizations…</p>
           ) : events.isError ? (
-            <QueryError what="break-glass access" error={events.error} onRetry={() => void events.refetch()} />
+            <QueryError what="break-glass authorizations" error={events.error} onRetry={() => void events.refetch()} />
           ) : (events.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">No break-glass access has been granted.</p>
+            <p className="text-sm text-muted-foreground">No break-glass authorization has been recorded.</p>
           ) : null}
           {!events.isLoading && !events.isError && (events.data ?? []).map((event) => {
             const active = isBreakGlassActive(event);
@@ -186,7 +199,7 @@ export function BreakGlassCard() {
                     </Badge>
                     {active && revoking !== event.id && (
                       <Button size="sm" variant="outline" onClick={() => { setRevoking(event.id); setRevokeReason(""); }}>
-                        Revoke now
+                        Close now
                       </Button>
                     )}
                   </div>
@@ -211,7 +224,7 @@ export function BreakGlassCard() {
                         size="sm" variant="destructive"
                         disabled={revoke.isPending || revokeReason.trim().length < MIN_REASON}
                         onClick={() => revoke.mutate({ eventId: event.id, reason: revokeReason.trim() }, {
-                          onSuccess: () => { setRevoking(null); toast({ title: "Break-glass access revoked" }); },
+                          onSuccess: () => { setRevoking(null); toast({ title: "Break-glass authorization closed" }); },
                           onError: (error) => toast({ title: "Revoke blocked", description: errorText(error), variant: "destructive" }),
                         })}
                       >

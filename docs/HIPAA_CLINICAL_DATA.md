@@ -75,7 +75,28 @@ Data model (delivered in M2 — FHIR medication lane):
   access is additionally gated by the restrictive `product_module_entitlement` (CareBase) policy.
 - **Write audit.** `public.audit_log_trigger()` on clinical tables → `public.audit_logs`.
 - **Read audit.** PHI reads route through RPCs that write `app_private.clinical_access_log` with a
-  `minimum_necessary_reason` and access kind (chart/domain/export/print).
+  `minimum_necessary_reason` and access kind (chart/domain/export/print). The readers are
+  `get_resident_clinical_chart` (`summary`), `get_resident_clinical_observations`
+  (`vitals_observations`), `get_resident_clinical_care` (`care_plans`, `assessments`,
+  `progress_notes`), `get_resident_clinical_fhir` (`medications`, `allergies`, `conditions`,
+  `orders`) and `get_resident_timeline` (`timeline`) — the composite readers write one row per
+  domain they disclose, so a query for a single domain finds every read of it. All of them gate on
+  `public.can_read_clinical_record(org, facility)`, which is `clinical_record_visible` **and** the
+  CareBase module entitlement — both halves of what the tables' own RLS says.
+
+  This sentence was aspirational until 2026-09-05 (`20260905260000`): four surfaces read the
+  clinical tables directly through PostgREST and logged nothing. `check:clinical-access-log` is
+  what keeps it true — it derives the clinical tables from the migrations (any table whose RLS names
+  `clinical_record_visible`) and fails any client-side read of one. Genuinely non-clinical reads —
+  a count, a date, an id — are adjudicated in `scripts/clinical-read-allowlist.json` with the
+  columns named.
+
+  **Known limit.** `authenticated` still holds `SELECT` on the clinical tables, so the logged RPCs
+  are the *product's* path, not the *database's* boundary; a hand-written PostgREST call is still
+  RLS-scoped but still unlogged. Revoking those grants would break `get_resident_timeline`'s
+  invoker rights (which is what keeps RLS governing all twenty of its branches) and the seven pgTAP
+  files that assert tenant isolation by reading these tables as `authenticated`. It is a
+  security-model change of its own, not a follow-on to this one.
 - **Consent does not gate documentation — decided 2026-08.** `clinical_data_consent`
   is surfaced wherever clinical data is charted and is deliberately *not* a write-block, including at
   `revoked`. A consent posture governs **disclosure** of PHI, not whether the facility may record the

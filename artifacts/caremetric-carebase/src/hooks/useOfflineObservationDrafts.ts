@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import {
-  initializeOfflineFloorDevice, listObservationDraftEntries, purgeExpiredObservationDrafts,
+  initializeOfflineFloorDevice, listObservationDraftEntries,
   readAllObservationDrafts, removeObservationDraft, saveObservationDraft, saveOfflineFloorDeviceId,
   updateObservationDraft, wipeOfflineServiceDrafts,
   type ObservationDraftListEntry, type OfflineFloorIdentity,
@@ -11,6 +11,7 @@ import {
   assertObservationDraftAllowed, UNRESOLVED_OBSERVATION_DRAFT_STATES,
   type OfflineObservationDraft, type OfflineObservationSyncOutcome, type OfflineObservationSyncResult,
 } from "@/lib/offlineObservationDraftSafety";
+import { nextStateAfterSyncFailure } from "@/lib/offlineDraftFieldGuards";
 import { isCriticalFlag, OBSERVATION_CONFIG } from "@/lib/clinicalObservations";
 import type { ObservationType } from "@/hooks/useClinicalObservations";
 
@@ -63,15 +64,14 @@ export interface NewOfflineObservationDraftInput {
   note: string | null;
 }
 
+// Like the service lane, these reads no longer purge: the purge belongs after a sync run, not
+// before one. See the comment on useUnsyncedServiceDraftEntries.
 export function useUnsyncedObservationDraftEntries() {
   const { user } = useAuth();
   return useQuery({
     queryKey: [...QUERY_KEY, "entries", user?.id],
     enabled: Boolean(user?.id && user.role === "employee" && draftsSupported()),
-    queryFn: async (): Promise<ObservationDraftListEntry[]> => {
-      await purgeExpiredObservationDrafts();
-      return listObservationDraftEntries();
-    },
+    queryFn: (): Promise<ObservationDraftListEntry[]> => listObservationDraftEntries(),
   });
 }
 
@@ -82,7 +82,6 @@ export function useUnsyncedObservationDrafts() {
     enabled: Boolean(user?.id && user.organizationId && user.role === "employee" && draftsSupported()),
     queryFn: async (): Promise<OfflineObservationDraft[]> => {
       if (!user?.id || !user.organizationId) return [];
-      await purgeExpiredObservationDrafts();
       return readAllObservationDrafts(floorIdentity(user.id, user.organizationId));
     },
   });
@@ -201,9 +200,15 @@ export function useSyncOfflineObservationDraft() {
       try {
         return await syncDraft(identity, draft);
       } catch (error) {
+        // Same rule as the service lane: a refusal the server will repeat moves the reading to
+        // `rejected` after MAX_SERVER_REFUSALS_BEFORE_REVIEW of them; a failure that never reached
+        // the server does not count against it. See nextStateAfterSyncFailure.
         await updateObservationDraft(
           draftId,
-          { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+          {
+            ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+            lastSyncError: error instanceof Error ? error.message : String(error),
+          },
           identity,
         );
         throw error;
@@ -260,7 +265,10 @@ export function useSyncAllOfflineObservationDrafts() {
           result.failed += 1;
           await updateObservationDraft(
             draft.draftId,
-            { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+            {
+              ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+              lastSyncError: error instanceof Error ? error.message : String(error),
+            },
             identity,
           ).catch(() => undefined);
         }

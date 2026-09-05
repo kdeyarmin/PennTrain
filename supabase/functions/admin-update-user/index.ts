@@ -12,7 +12,46 @@ function json(req: Request, body: unknown, status = 200) {
 
 const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
+/**
+ * SQLSTATEs this codebase raises deliberately, whose message is written for a person.
+ *
+ * BACKLOG.md I23: every failure path below returned the raw error text straight to the browser --
+ * Postgres internals, Auth internals, constraint names, and in one case both the old and new login
+ * email addresses in a single string that a toast then displayed and client error reporting then
+ * captured. Blanket-replacing all of them would have been worse than the leak, because the useful
+ * ones are our own raises ("org_admin cannot grant platform_admin"), and losing those leaves an
+ * administrator with "something went wrong" and no idea what.
+ *
+ * So the line is drawn where the codebase already draws it: a SQLSTATE we chose carries a message
+ * we wrote, and passes through. Anything else is an internal detail the caller cannot act on, and
+ * is logged with a correlation id instead.
+ */
+const DELIBERATE_SQLSTATES = new Set([
+  "P0001", // raise_exception -- our own `raise exception ... ` with no explicit errcode
+  "42501", // insufficient_privilege -- an authorization refusal we wrote
+  "22023", // invalid_parameter_value
+  "02000", // no_data_found -- admin_update_profile's "profile % not found"
+  "23505", // unique_violation -- an email already in use, which the admin can fix
+]);
+
+/**
+ * What to show the caller, and what to log. Returns the public message; the raw detail goes to the
+ * function log under `correlationId`, which is also returned so a support request can name it.
+ */
+function publicError(
+  context: string,
+  correlationId: string,
+  raw: { message?: string; code?: string } | null | undefined,
+  fallback: string,
+): string {
+  const message = raw?.message ?? "unknown error";
+  console.error(`admin-update-user: ${context}`, { correlationId, code: raw?.code, message });
+  if (raw?.code && DELIBERATE_SQLSTATES.has(raw.code)) return message;
+  return `${fallback} (reference ${correlationId})`;
+}
+
 Deno.serve(async (req: Request) => {
+  const correlationId = crypto.randomUUID();
   if (req.method === "OPTIONS") return corsPreflightResponse(req);
   if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
@@ -43,6 +82,8 @@ Deno.serve(async (req: Request) => {
   }
 
   let body: {
+    action?: string;
+    reason?: string;
     user_id?: string;
     role?: string;
     organization_id?: string;
@@ -58,8 +99,11 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
 
-  const { user_id, role, organization_id, is_active, email, first_name, last_name, password } = body;
+  const { action, reason, user_id, role, organization_id, is_active, email, first_name, last_name, password } = body;
   if (!user_id) return json(req, { error: "user_id is required" }, 400);
+  if (action !== undefined && action !== "reset_mfa") {
+    return json(req, { error: "action, when given, must be reset_mfa" }, 400);
+  }
   if (role !== undefined && !VALID_ROLES.includes(role)) {
     return json(req, { error: `role must be one of ${VALID_ROLES.join(", ")}` }, 400);
   }
@@ -113,6 +157,118 @@ Deno.serve(async (req: Request) => {
   const assurance = await requireFreshAal2(callerClient, "identity_admin");
   if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
 
+  // Lost-device MFA recovery (BACKLOG.md I8).
+  //
+  // Nothing in the product could remove an enrolled factor. get_identity_control_plane READS
+  // auth.mfa_factors to count administrators without one, and that was the whole of it; GoTrue
+  // refuses self-unenrolment at AAL1, and MfaPolicyGate blocks every route but /account/security.
+  // So a manager who lost their phone was locked out of the product entirely, and the only way
+  // back was the Supabase dashboard -- which the people running a pilot facility do not have, and
+  // should not. An earlier pass recorded "a second platform admin removes the factor" as the
+  // recovery path; no such control existed.
+  //
+  // Platform admin only, deliberately. An org_admin resetting a peer org_admin's factor is a
+  // takeover of an equally-privileged account from inside the tenant, with no second party -- the
+  // exact move an attacker who phished ONE administrator would make next. The vendor operates the
+  // pilot, so the second party is real.
+  //
+  // Resetting also revokes the target's sessions, through the same audited, checksummed
+  // revoke_identity_sessions the console's own revocation uses -- called with the ADMIN's JWT, not
+  // the service role, so require_identity_administrator runs against a real identity and the
+  // evidence row names who did it. Leaving live sessions up would be the actual hazard here: if
+  // the device is in someone else's hands, a still-valid session on it now needs no second factor
+  // at all.
+  if (action === "reset_mfa") {
+    if (callerRole !== "platform_admin") {
+      return json(req, { error: "only a platform administrator can reset multi-factor enrolment" }, 403);
+    }
+    // Not on yourself: the reset revokes the target's sessions, so aiming it at your own account
+    // ends the request's own session mid-flight. Replacing your own device is an unenrol and
+    // re-enrol on /account/security, which needs no administrative authority at all.
+    if (user_id === callerUser.id) {
+      return json(req, {
+        error: "use account security to replace your own factor; this action is for recovering someone else's",
+      }, 400);
+    }
+    const trimmedReason = (reason ?? "").trim();
+    if (trimmedReason.length < 10) {
+      return json(req, {
+        error: "a reason of at least 10 characters is required (e.g. who reported the lost device, and how they were identified)",
+      }, 400);
+    }
+
+    const { data: factorList, error: listError } = await adminClient.auth.admin.mfa.listFactors({
+      userId: user_id,
+    });
+    if (listError) {
+      return json(req, {
+        error: publicError("listing factors failed", correlationId, listError,
+          "Could not read this user's multi-factor enrolment"),
+        correlationId,
+      }, 400);
+    }
+    const factors = factorList?.factors ?? [];
+
+    const removed: string[] = [];
+    for (const factor of factors) {
+      const { error: deleteError } = await adminClient.auth.admin.mfa.deleteFactor({
+        id: factor.id,
+        userId: user_id,
+      });
+      // Report the partial result rather than a bare failure: some factors may already be gone,
+      // and an operator retrying needs to know the reset did not finish.
+      if (deleteError) {
+        return json(req, {
+          error: publicError("factor removal failed part-way", correlationId, deleteError,
+            `Removed ${removed.length} of ${factors.length} factor(s), then could not remove the rest`),
+          correlationId,
+        }, 500);
+      }
+      removed.push(factor.id);
+    }
+
+    const { error: revokeError } = await callerClient.rpc("revoke_identity_sessions", {
+      p_profile_id: user_id,
+      p_reason: `MFA reset: ${trimmedReason}`,
+      p_source: "administrator",
+      p_external_request_id: null,
+      p_deactivate_profile: false,
+    });
+    if (revokeError) {
+      return json(req, {
+        error: publicError("session revocation failed after factor reset", correlationId, revokeError,
+          "The factors were removed but this user's existing sessions could not be signed out"),
+        correlationId,
+      }, 500);
+    }
+
+    const { error: auditError } = await adminClient.from("audit_logs").insert({
+      organization_id: targetProfile.organization_id,
+      actor_profile_id: callerUser.id,
+      entity_type: "identity",
+      entity_id: user_id,
+      action: "mfa_reset",
+      reason: trimmedReason,
+      new_values: { removed_factor_ids: removed, factor_count: removed.length },
+    });
+    // The factors are already gone; a missing audit row is a reportable failure, not a silent one.
+    if (auditError) {
+      return json(req, {
+        error: publicError("audit entry failed after factor reset", correlationId, auditError,
+          "Multi-factor enrolment was reset but the audit entry did not record"),
+        correlationId,
+      }, 500);
+    }
+
+    return json(req, {
+      success: true,
+      removed_factor_ids: removed,
+      // The account is now single-factor. MfaPolicyGate will require re-enrolment on the target's
+      // next sign-in wherever the organization's policy demands a factor.
+      requires_reenrolment: removed.length > 0,
+    });
+  }
+
   // auth.users-level changes (email/password) via the Admin API. When changing the email,
   // capture the previous value first so a subsequent profile-RPC failure can be compensated --
   // otherwise Auth would hold the new login email while profiles kept the old one, splitting
@@ -121,7 +277,11 @@ Deno.serve(async (req: Request) => {
   if (email !== undefined) {
     const { data: targetAuthUser, error: targetAuthError } = await adminClient.auth.admin.getUserById(user_id);
     if (targetAuthError || !targetAuthUser?.user) {
-      return json(req, { error: targetAuthError?.message ?? "target auth user not found" }, 400);
+      return json(req, {
+        error: publicError("target auth user lookup failed", correlationId, targetAuthError,
+          "Could not read this user's login record"),
+        correlationId,
+      }, 400);
     }
     previousEmail = targetAuthUser.user.email ?? null;
   }
@@ -130,7 +290,13 @@ Deno.serve(async (req: Request) => {
       ...(email !== undefined ? { email, email_confirm: true } : {}),
       ...(password !== undefined ? { password } : {}),
     });
-    if (authUpdateError) return json(req, { error: authUpdateError.message }, 400);
+    if (authUpdateError) {
+      return json(req, {
+        error: publicError("auth update failed", correlationId, authUpdateError,
+          "Could not update the login email or password"),
+        correlationId,
+      }, 400);
+    }
   }
 
   // profiles-level changes (role/organization_id/is_active/email sync/names) via the trusted RPC --
@@ -154,12 +320,25 @@ Deno.serve(async (req: Request) => {
         email_confirm: true,
       });
       if (revertError) {
+        // Both addresses used to be in this string, which a toast displayed and client error
+        // reporting captured. The administrator is looking at the user's record and can read both
+        // there; what they need from here is that the two are now out of step, and a reference.
+        console.error("admin-update-user: login email revert failed, identity is split", {
+          correlationId, userId: user_id, rpcCode: rpcError.code, revertCode: revertError.code,
+        });
         return json(req, {
-          error: `${rpcError.message} (additionally, reverting the login email failed: ${revertError.message} -- the login email is now ${email} while the profile still shows ${previousEmail})`,
+          error: "The profile update failed and the login email could not be put back, so the "
+            + "login email and the profile email are now different. Set the email again to bring "
+            + `them back into step. (reference ${correlationId})`,
+          correlationId,
         }, 500);
       }
     }
-    return json(req, { error: rpcError.message }, 400);
+    return json(req, {
+      error: publicError("admin_update_profile failed", correlationId, rpcError,
+        "Could not update this user's profile"),
+      correlationId,
+    }, 400);
   }
 
   return json(req, { success: true, profile: updatedProfile });

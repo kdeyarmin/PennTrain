@@ -11,7 +11,15 @@ if (urls.length < 30) throw new Error(`Expected at least 30 official PA source l
 
 const ageDays = Math.floor((Date.now() - new Date(`${verified}T00:00:00Z`).getTime()) / 86_400_000);
 const failures = [];
-if (ageDays > maxAgeDays) failures.push(`Human source review is stale: ${ageDays} days since ${verified} (limit ${maxAgeDays}).`);
+if (ageDays > maxAgeDays) {
+  failures.push(
+    `Human source review is stale: ${ageDays} days since ${verified} (limit ${maxAgeDays}). `
+    + "Run `node scripts/snapshot-dhs-sources.mjs` first -- it names which form documents actually "
+    + "changed since the last digest, so the review is scoped to those rather than all of them. "
+    + "Re-stamp DHS_FORMS_LAST_VERIFIED only after a person has read them; an unchanged digest is "
+    + "not an attestation.",
+  );
+}
 
 // Regulatory citation library (55 Pa. Code chapter TOC pages on pacodeandbulletin.gov). Resolve
 // every `sourceUrl` a citation entry actually uses -- rather than hardcoding the two known

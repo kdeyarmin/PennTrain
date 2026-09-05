@@ -134,6 +134,41 @@ describe("shouldWipeOfflineServiceDraftData", () => {
   it("wipes when the account is no longer active", () => {
     expect(shouldWipeOfflineServiceDraftData(identity, { ...active, active: false })).toBe(true);
   });
+
+  // BACKLOG.md I23. A transfer inside the same organization moves employees.facility_id and leaves
+  // profile id, organization id and role exactly where they were, so every assertion above passes
+  // and nothing wiped -- the device went on holding drafts naming residents, rooms and care given
+  // at a facility this caregiver no longer works at.
+  it("wipes on a facility transfer inside the same organization", () => {
+    expect(shouldWipeOfflineServiceDraftData(
+      { ...identity, facilityId: "f1" }, { ...active, facilityId: "f2" },
+    )).toBe(true);
+  });
+
+  it("wipes when the employee row is gone, which is a resolved value and not an unknown one", () => {
+    expect(shouldWipeOfflineServiceDraftData(
+      { ...identity, facilityId: "f1" }, { ...active, facilityId: null },
+    )).toBe(true);
+  });
+
+  it("does not wipe while the facility query has not settled, on either side", () => {
+    // `undefined` appears in the ordinary lifecycle every time the facility query is in flight.
+    // Treating it as a change would destroy a caregiver's pending documentation on an ordinary
+    // sign-in -- the exact loss this whole store exists to prevent. Same rule, same reasoning, as
+    // signedInIdentityChanged in sessionIdentity.ts.
+    expect(shouldWipeOfflineServiceDraftData(
+      { ...identity, facilityId: undefined }, { ...active, facilityId: "f1" },
+    )).toBe(false);
+    expect(shouldWipeOfflineServiceDraftData(
+      { ...identity, facilityId: "f1" }, { ...active, facilityId: undefined },
+    )).toBe(false);
+  });
+
+  it("does not wipe when the facility is unchanged", () => {
+    expect(shouldWipeOfflineServiceDraftData(
+      { ...identity, facilityId: "f1" }, { ...active, facilityId: "f1" },
+    )).toBe(false);
+  });
 });
 
 describe("isOfflineServiceDraftIdentityPending", () => {

@@ -224,7 +224,8 @@ export function UnsyncedDraftsPanel() {
 
         {observationsPending.map((draft) => {
           const overdue = isUnsyncedObservationDraftOverdue({
-            draftId: draft.draftId, residentId: draft.residentId, syncState: draft.syncState, createdAt: draft.createdAt,
+            draftId: draft.draftId, residentId: draft.residentId, syncState: draft.syncState,
+            createdAt: draft.createdAt, updatedAt: draft.updatedAt,
           });
           return (
             <div key={draft.draftId} className="flex items-start justify-between gap-2 rounded-lg border p-3">
@@ -305,7 +306,10 @@ export function UnsyncedDraftsPanel() {
         ))}
 
         {pending.map((draft) => {
-          const overdue = isUnsyncedDraftOverdue({ draftId: draft.draftId, kind: draftKindOf(draft), syncState: draft.syncState, createdAt: draft.createdAt });
+          const overdue = isUnsyncedDraftOverdue({
+            draftId: draft.draftId, kind: draftKindOf(draft), syncState: draft.syncState,
+            createdAt: draft.createdAt, updatedAt: draft.updatedAt,
+          });
           return (
             <div key={draft.draftId} className="flex items-start justify-between gap-2 rounded-lg border p-3">
               <div className="min-w-0">

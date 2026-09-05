@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, FileArchive, FileSpreadsheet, History, Loader2 } from "lucide-react";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const FACILITY_ALL = "all";
 
@@ -94,7 +95,7 @@ export default function ComplianceBinder() {
     fetchDownload(jobId, {
       onSuccess: (result) => {
         if (mode === "pdf") {
-          if (result.url) window.open(result.url, "_blank", "noopener,noreferrer");
+          if (result.url) openDocumentUrl(result.url);
           return;
         }
         const sections = result.appendix?.sections ?? [];

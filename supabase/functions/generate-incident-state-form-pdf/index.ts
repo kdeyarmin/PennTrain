@@ -160,11 +160,20 @@ Deno.serve(async (req: Request) => {
       .select("involvement_type, employees(first_name, last_name, job_title)")
       .eq("incident_id", incidentId)
       .order("created_at", { ascending: true }),
+    // The department notification, whichever name it was filed under (BACKLOG.md I10).
+    //
+    // This asked only for `licensing_agency`, and create_incident_notification_presets only ever
+    // writes `state_hotline` -- so on every incident whose notifications came from the presets,
+    // which is every reportable one, the form's "date/time incident reported" fields came out
+    // blank on the official DHS document and nothing said why. Both names are the same fact: the
+    // facility told the department. `licensing_agency` is kept because notifications added by hand
+    // still use it.
     callerClient
       .from("incident_notifications")
       .select("notification_type, completed_at")
       .eq("incident_id", incidentId)
-      .eq("notification_type", "licensing_agency"),
+      .in("notification_type", ["state_hotline", "licensing_agency"])
+      .order("completed_at", { ascending: true, nullsFirst: false }),
     callerClient
       .from("corrective_actions")
       .select("description, status, owner_name")
@@ -248,6 +257,9 @@ Deno.serve(async (req: Request) => {
     fillText([["time", "of", "incident"]], timePart(incident.occurred_at));
     fillText([["regulation", "type"]], humanize(incident.incident_type));
 
+    // The EARLIEST completed one, which the order above puts first: if a facility recorded both a
+    // hotline call and a licensing-agency filing, the form should say when they first told the
+    // department, not whichever row happens to come back first.
     const departmentNotification = (notifications ?? []).find((n: any) => n.completed_at);
     if (departmentNotification) {
       fillText([["date", "incident", "reported"]], datePart(departmentNotification.completed_at));

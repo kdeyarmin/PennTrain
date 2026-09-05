@@ -61,6 +61,9 @@ const ELIGIBILITY_LABELS: Record<string, string> = {
   lifecycle_inactive: "Inactive employment",
   facility_not_assigned: "Not assigned to this facility",
   confirmed_exclusion: "Confirmed exclusion",
+  oapsa_not_suitable: "OAPSA: determined not suitable for employment",
+  oapsa_provisional_expired: "OAPSA: provisional period ended without clearances",
+  oapsa_provisional_expiring: "OAPSA: provisional period ends within 14 days",
   schedule_conflict: "Overlapping shift",
   insufficient_rest: "Insufficient rest between shifts",
   weekly_hours_limit: "Weekly-hour limit exceeded",
@@ -82,7 +85,18 @@ function eligibilityBadge(candidate: EligibilityCandidate) {
   return { label: "Eligible", className: "border-emerald-300 bg-emerald-50 text-emerald-800" };
 }
 
-const NON_OVERRIDABLE_BLOCKS = new Set(["lifecycle_inactive", "confirmed_exclusion", "facility_not_assigned", "schedule_conflict"]);
+// oapsa_not_suitable is here rather than in the overridable set deliberately: it is a determination
+// somebody in this organization recorded, so the way to undo it is to change the determination on
+// the background-check profile, with the attestation trail that carries. The server agrees --
+// evaluate_schedule_eligibility never offers an override for it -- and this list only decides
+// whether the button is drawn.
+const NON_OVERRIDABLE_BLOCKS = new Set([
+  "lifecycle_inactive",
+  "confirmed_exclusion",
+  "facility_not_assigned",
+  "schedule_conflict",
+  "oapsa_not_suitable",
+]);
 
 // Per-employee "can this person currently pass meds" signal for the shift grid -- only rendered for
 // employees flagged as administering medications (see callers below); everyone else has nothing to

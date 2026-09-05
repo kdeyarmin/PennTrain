@@ -18,6 +18,7 @@ import { useListResidents } from "@/hooks/useResidents";
 import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import {
   type FhirException,
+  type FhirIntegrationWorkspace,
   type FhirSource,
   useFhirIntegration,
   useMapFhirPatient,
@@ -51,7 +52,16 @@ export default function FhirIntegration() {
   const facilities = useListFacilities({ organizationId: scopeOrgId });
   const residentContext = useResidentNavigationContext();
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
-  const facilityId = selectedFacilityId || residentContext.facilityId || facilities.data?.[0]?.id || "";
+  // A selection made before the header's "Viewing as" organization changed is not a facility of the
+  // organization now in scope, and it took precedence over the refreshed list -- so the workspace
+  // and resident queries stayed on the previous tenant while the header, profiles and credentials
+  // all moved to the new one. Ignore any selection absent from the current list rather than
+  // trusting local state to have been reset; while the list is loading nothing is in scope, which
+  // gates the queries off instead of running them against a stale facility.
+  const scopedFacilities = facilities.data ?? [];
+  const selectionInScope = scopedFacilities.some((facility) => facility.id === selectedFacilityId);
+  const facilityId = (selectionInScope ? selectedFacilityId : "")
+    || residentContext.facilityId || scopedFacilities[0]?.id || "";
   // Credentials belong to whichever organization owns the facility being configured, which for a
   // platform admin is not necessarily the viewing org.
   const selectedFacilityOrgId = useMemo(
@@ -97,7 +107,19 @@ export default function FhirIntegration() {
   const resolveException = useResolveFhirIntegrationException();
   const { toast } = useToast();
 
-  const data = workspace.data ?? { sources: [], mappings: [], requests: [], administrations: [], exceptions: [] };
+  const data: FhirIntegrationWorkspace = workspace.data ?? {
+    sources: [],
+    mappings: [],
+    activity: {
+      requestTotal: 0,
+      requestActiveTotal: 0,
+      administrationTotal: 0,
+      lastRequestAt: null,
+      lastAdministrationAt: null,
+      residents: [],
+    },
+    exceptions: [],
+  };
   const openExceptions = data.exceptions.filter((item) => !["resolved", "dismissed"].includes(item.status));
 
   const submitSource = async () => {
@@ -195,7 +217,7 @@ export default function FhirIntegration() {
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <Card><CardHeader className="pb-2"><CardDescription>Open sync exceptions</CardDescription><CardTitle className="text-3xl">{openExceptions.length}</CardTitle></CardHeader></Card>
-            <Card><CardHeader className="pb-2"><CardDescription>Active medication requests</CardDescription><CardTitle className="text-3xl">{data.requests.filter((item) => item.request_status === "active").length}</CardTitle></CardHeader></Card>
+            <Card><CardHeader className="pb-2"><CardDescription>Active medication requests</CardDescription><CardTitle className="text-3xl">{data.activity.requestActiveTotal}</CardTitle></CardHeader></Card>
             <Card><CardHeader className="pb-2"><CardDescription>Mapped patients</CardDescription><CardTitle className="text-3xl">{data.mappings.filter((item) => item.status === "active").length}</CardTitle></CardHeader></Card>
           </div>
 
@@ -228,8 +250,7 @@ export default function FhirIntegration() {
           <Tabs defaultValue="exceptions">
             <TabsList>
               <TabsTrigger value="exceptions">Exceptions ({openExceptions.length})</TabsTrigger>
-              <TabsTrigger value="requests">Medication requests</TabsTrigger>
-              <TabsTrigger value="administrations">Administrations</TabsTrigger>
+              <TabsTrigger value="activity">Ingestion activity</TabsTrigger>
             </TabsList>
             <TabsContent value="exceptions" className="space-y-3">
               {data.exceptions.length === 0 ? (
@@ -251,31 +272,52 @@ export default function FhirIntegration() {
                 </CardContent></Card>
               ))}
             </TabsContent>
-            <TabsContent value="requests" className="space-y-3">
-              {data.requests.map((request) => (
-                <Card key={request.id}><CardContent className="p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{request.medication_display}</p>
-                      <p className="text-sm text-muted-foreground">{residentNames.get(request.resident_id) ?? "Scoped resident"}</p>
-                      {request.dosage_text && <p className="mt-2 text-sm">{request.dosage_text}</p>}
-                      {request.rxnorm_code && <p className="text-xs text-muted-foreground">RxNorm {request.rxnorm_code}</p>}
-                    </div>
-                    <Badge variant="outline">{human(request.request_status)}</Badge>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">Source updated {new Date(request.source_updated_at).toLocaleString()}</p>
+            <TabsContent value="activity" className="space-y-3">
+              <Alert>
+                <DatabaseZap className="h-4 w-4" />
+                <AlertTitle>What arrived, not what it says</AlertTitle>
+                <AlertDescription>
+                  This page answers whether the feed is working. Medication names, dosages and codes
+                  are clinical record content: open a resident&rsquo;s chart to read them, where the
+                  access is recorded against your name.
+                </AlertDescription>
+              </Alert>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Card><CardHeader className="pb-2">
+                  <CardDescription>Medication requests ingested</CardDescription>
+                  <CardTitle className="text-2xl">{data.activity.requestTotal}</CardTitle>
+                </CardHeader><CardContent className="pt-0 text-sm text-muted-foreground">
+                  {data.activity.lastRequestAt ? `Most recent ${new Date(data.activity.lastRequestAt).toLocaleString()}` : "Nothing received yet"}
                 </CardContent></Card>
-              ))}
-            </TabsContent>
-            <TabsContent value="administrations" className="space-y-3">
-              {data.administrations.map((event) => (
-                <Card key={event.id}><CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
+                <Card><CardHeader className="pb-2">
+                  <CardDescription>Administrations ingested</CardDescription>
+                  <CardTitle className="text-2xl">{data.activity.administrationTotal}</CardTitle>
+                </CardHeader><CardContent className="pt-0 text-sm text-muted-foreground">
+                  {data.activity.lastAdministrationAt ? `Most recent ${new Date(data.activity.lastAdministrationAt).toLocaleString()}` : "Nothing received yet"}
+                </CardContent></Card>
+              </div>
+              {data.activity.residents.length === 0 ? (
+                <Card><CardContent className="py-10 text-center">
+                  <DatabaseZap className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
+                  <p className="font-medium">No records ingested for this facility</p>
+                  <p className="text-sm text-muted-foreground">Map at least one patient, then check the source&rsquo;s last sync above.</p>
+                </CardContent></Card>
+              ) : data.activity.residents.map((row) => (
+                <Card key={row.resident_id}><CardContent className="flex flex-wrap items-start justify-between gap-4 p-4">
                   <div>
-                    <p className="font-medium">{residentNames.get(event.resident_id) ?? "Scoped resident"}</p>
-                    <p className="flex items-center gap-1 text-sm text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />{new Date(event.effective_at).toLocaleString()}</p>
-                    {event.medication_display && <p className="mt-1 text-sm">{event.medication_display}</p>}
+                    <p className="font-medium">{residentNames.get(row.resident_id) ?? "Scoped resident"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {row.request_count} medication {row.request_count === 1 ? "request" : "requests"} · {row.active_request_count} active · {row.administration_count} {row.administration_count === 1 ? "administration" : "administrations"}
+                    </p>
+                    {row.last_activity_at && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock3 className="h-3.5 w-3.5" />Last record {new Date(row.last_activity_at).toLocaleString()}
+                      </p>
+                    )}
                   </div>
-                  <Badge variant={event.administration_status === "completed" ? "outline" : "destructive"}>{human(event.administration_status)}</Badge>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/app/residents/${row.resident_id}/chart`}>Open chart</Link>
+                  </Button>
                 </CardContent></Card>
               ))}
             </TabsContent>

@@ -508,7 +508,6 @@ function SupportTab({ base }: { base: string }) {
     createTicket(
       {
         organizationId: user.organizationId,
-        createdBy: user.id,
         subject: subject.trim(),
         category,
         priority,

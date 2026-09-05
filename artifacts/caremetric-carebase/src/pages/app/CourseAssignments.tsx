@@ -14,8 +14,10 @@ import {
   isCourseVersionLearnerReady,
 } from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListCertificates, useGenerateCertificatePdf } from "@/hooks/useCertificates";
-import { summarizeCourseAssignmentAnalytics } from "@/lib/courseAssignmentAnalytics";
+import { useListCertificates, usePrepareCertificatePdf } from "@/hooks/useCertificates";
+import {
+  describeBulkAssignment, summarizeBulkAssignment, summarizeCourseAssignmentAnalytics,
+} from "@/lib/courseAssignmentAnalytics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +30,7 @@ import { QueryError } from "@/components/QueryState";
 import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2, Download, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const PAGE_SIZE = 15;
 
@@ -155,7 +158,7 @@ export default function CourseAssignments() {
   // page's own assignments query is implicitly scoped to. Mirrors the "fetch full set, look up
   // client-side" approach already used for facilities/employees/courses on this page.
   const { data: certificates } = useListCertificates();
-  const { mutateAsync: generateCertPdf } = useGenerateCertificatePdf();
+  const { mutateAsync: prepareCertPdf } = usePrepareCertificatePdf();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
   const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
@@ -395,17 +398,27 @@ export default function CourseAssignments() {
     );
     setAssigning(false);
 
-    const succeeded = results.filter(r => r.status === "fulfilled").length;
-    const failed = results.length - succeeded;
+    // Three outcomes, not two: re-assigning the annual course to everyone is a normal thing to do,
+    // and most of the list will already have it. See summarizeBulkAssignment for why folding those
+    // into either of the other two counts gets the toast wrong.
+    const outcome = summarizeBulkAssignment(
+      results.map(r => ({
+        status: r.status,
+        alreadyAssigned: r.status === "fulfilled" ? r.value.alreadyAssigned : undefined,
+      })),
+    );
+    const fulfilledCount = outcome.assigned + outcome.alreadyAssigned;
     toast({
-      title: failed === 0 ? "Training assigned" : succeeded === 0 ? "Failed to assign training" : "Training partially assigned",
-      description:
-        `${succeeded} of ${results.length} employee${results.length === 1 ? "" : "s"} assigned successfully.`
-        + (failed > 0 ? ` ${failed} failed.` : ""),
-      variant: failed === 0 ? "success" : succeeded === 0 ? "destructive" : undefined,
+      title: outcome.failed === 0
+        ? (outcome.assigned === 0 && outcome.alreadyAssigned > 0
+          ? "Everyone already had this training"
+          : "Training assigned")
+        : fulfilledCount === 0 ? "Failed to assign training" : "Training partially assigned",
+      description: describeBulkAssignment(outcome),
+      variant: outcome.failed === 0 ? "success" : fulfilledCount === 0 ? "destructive" : undefined,
     });
 
-    if (succeeded > 0) {
+    if (fulfilledCount > 0) {
       setShowAssignForm(false);
       setAssignForm(EMPTY_ASSIGN_FORM);
       setSelectedEmployeeIds(new Set());
@@ -461,8 +474,8 @@ export default function CourseAssignments() {
   const handleDownloadCertificate = async (certificateId: string) => {
     setDownloadingCertId(certificateId);
     try {
-      const { url } = await generateCertPdf(certificateId);
-      window.open(url, "_blank", "noopener,noreferrer");
+      const { url } = await prepareCertPdf(certificateId);
+      openDocumentUrl(url);
     } catch (err) {
       toast({
         title: "Could not generate certificate PDF",

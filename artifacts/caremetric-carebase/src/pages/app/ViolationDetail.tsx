@@ -38,6 +38,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
@@ -162,7 +163,7 @@ export default function ViolationDetail() {
   const handleDownload = async (doc: NonNullable<typeof documents>[number]) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
@@ -278,7 +279,7 @@ export default function ViolationDetail() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="violation-poc-due">POC due date</Label>
+                  <Label htmlFor="violation-poc-due">POC due date *</Label>
                   <Input id="violation-poc-due" type="date" value={details.poc_due_date} onChange={(e) => setDetails((d) => ({ ...d, poc_due_date: e.target.value }))} />
                 </div>
                 <div className="space-y-1 sm:col-span-2">
@@ -293,13 +294,13 @@ export default function ViolationDetail() {
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  disabled={updateViolation.isPending || !details.description.trim()}
+                  disabled={updateViolation.isPending || !details.description.trim() || !details.poc_due_date}
                   onClick={() => updateViolation.mutate({
                     id: violation.id,
                     citation_ref: details.citation_ref.trim() || null,
                     description: details.description.trim(),
                     severity: details.severity,
-                    poc_due_date: details.poc_due_date || null,
+                    poc_due_date: details.poc_due_date,
                     surveyor_name: details.surveyor_name.trim() || null,
                     citation_topic_id: details.citation_topic_id || null,
                   }, {
@@ -525,7 +526,7 @@ export default function ViolationDetail() {
               disabled={generatePocDocument.isPending}
               onClick={() => {
                 generatePocDocument.mutate(violation.id, {
-                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onSuccess: (result) => openDocumentUrl(result.url),
                   onError: (e: Error) => toast({ title: "Failed to generate Plan of Correction", description: e.message, variant: "destructive" }),
                 });
               }}

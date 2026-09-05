@@ -355,6 +355,17 @@ export default function SystemJobs() {
                           Disabled: {recovery.kill_switch_reason ?? "kill switch enabled"}
                         </p>
                       )}
+                      {/* The switch is read in exactly one place, and SQL reaches that place only
+                          through execute_registered_sql_job -- so for a job whose cron entry posts
+                          to an Edge Function, or (deliberately) for the watchdog, flipping it stops
+                          nothing. Said before the click rather than discovered after it. */}
+                      {job.kill_switch_can_stop === false && (
+                        <p className="mt-1 max-w-xs text-xs text-amber-700">
+                          {job.kill_switch_enabled
+                            ? "Disable does not stop this job — its schedule does not route through the SQL wrapper. Stop it at its own console."
+                            : "Disable will not stop this job — its schedule does not route through the SQL wrapper."}
+                        </p>
+                      )}
                       {recovery?.circuit_state !== "closed" && recovery && (
                         <p className="mt-1 text-xs text-amber-700">
                           Circuit {recovery.circuit_state}
@@ -417,6 +428,9 @@ export default function SystemJobs() {
                           size="sm"
                           variant={recovery.kill_switch_enabled ? "default" : "ghost"}
                           disabled={actionsPending || isActive}
+                          title={job.kill_switch_can_stop === false
+                            ? "This job's schedule does not route through the SQL wrapper, so the switch records intent without stopping it."
+                            : undefined}
                           onClick={() => void handleKillSwitch(job, !recovery.kill_switch_enabled)}
                         >
                           {recovery.kill_switch_enabled ? "Enable" : "Disable"}

@@ -23,6 +23,7 @@ import {
 import { QueryError } from "@/components/QueryState";
 import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { absoluteAppUrl } from "@/lib/appUrl";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 /**
  * Lazy Survey Day section: packet selection, zip package, and surveyor guest grant.
@@ -318,7 +319,7 @@ export default function SurveyDayPacketSection({
                     title: "Survey packet packaged",
                     description: `${result.itemCount} item(s) · ${(result.byteSize / 1024).toFixed(0)} KB`,
                   });
-                  if (result.downloadUrl) window.open(result.downloadUrl, "_blank", "noopener");
+                  if (result.downloadUrl) openDocumentUrl(result.downloadUrl);
                 })
                 .catch((e: unknown) => {
                   toast({ title: "Package failed", description: errorText(e), variant: "destructive" });

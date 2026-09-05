@@ -46,7 +46,7 @@ function noteBadgeVariant(status: string): "outline" | "secondary" | "destructiv
 
 export function ResidentCareDocumentation({ residentId, canChart }: { residentId: string; canChart: boolean }) {
   const __fieldIds = useId();
-  const care = useResidentClinicalCare(residentId);
+  const care = useResidentClinicalCare(residentId, "Resident care documentation");
   const { toast } = useToast();
 
   const [noteType, setNoteType] = useState<ProgressNoteType>("nursing");

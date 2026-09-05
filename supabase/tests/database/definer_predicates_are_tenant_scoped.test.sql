@@ -129,6 +129,11 @@ reset role;
 -- the body. The allowlist is every survivor that was checked by hand and found sound; adding to it
 -- should mean someone traced the delegation chain the way get_resident_administrative_packet's was
 -- traced (_before_calendar -> _before_dietary -> _base, which checks admission_row_visible).
+--
+-- can_read_clinical_record joined the helper pattern in 20260905260000: it is
+-- clinical_record_visible AND the CareBase module entitlement, which is what every clinical table's
+-- RLS actually says. The clinical readers now call it instead, and this ratchet noticed the moment
+-- they stopped naming the old helper -- which is the behaviour wanted from it.
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '(none)')
    from pg_catalog.pg_proc p
@@ -137,7 +142,7 @@ select is(
      and p.prosecdef
      and has_function_privilege('authenticated', p.oid, 'execute')
      and 'uuid'::regtype = any(p.proargtypes::oid[])
-     and p.prosrc !~* '(assert_|_in_caller_scope|current_org_id|current_role\(|is_platform_admin|is_assigned_to_facility|can_read_employee_peer_data|owns_employee|admission_row_visible|clinical_record_visible|current_session_unlocked|auth\.uid|auth\.jwt|current_profile_active|org_feature_enabled|require_|_visible\(|can_manage|can_view|is_member|_guest|p_token|preview_employee_lifecycle_transition)'
+     and p.prosrc !~* '(assert_|_in_caller_scope|current_org_id|current_role\(|is_platform_admin|is_assigned_to_facility|can_read_employee_peer_data|owns_employee|admission_row_visible|clinical_record_visible|can_read_clinical_record|current_session_unlocked|auth\.uid|auth\.jwt|current_profile_active|org_feature_enabled|require_|_visible\(|can_manage|can_view|is_member|_guest|p_token|preview_employee_lifecycle_transition)'
      and p.proname not in (
        -- Authorization proven to live one or two calls down, or no tenant data to disclose:
        'get_resident_administrative_packet',   -- _base checks admission_row_visible and raises 42501

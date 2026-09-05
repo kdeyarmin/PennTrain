@@ -8,7 +8,7 @@ import { isPublicPath } from "./publicPaths";
 import { loginPathWithNext } from "./loginRedirect";
 import { useToast } from "@/hooks/use-toast";
 import { AuthProfileError } from "@/components/AuthProfileError";
-import { isDefinitiveProfileAbsence } from "@/lib/authProfileErrors";
+import { isDefinitiveProfileAbsence, shouldShowProfileError } from "@/lib/authProfileErrors";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
 import { signedInIdentityChanged, type SessionIdentity } from "@/lib/sessionIdentity";
@@ -255,6 +255,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // store immediately.
         void wipeOfflineServiceDrafts();
         lastOfflineServiceDraftIdentityRef.current = null;
+        // And clear everything else the session left behind (BACKLOG.md I8).
+        //
+        // useSignOut() and all four forced-sign-out paths call clearLocalSessionState(); this
+        // handler -- the ONLY thing that runs when the SERVER ends the session (a revocation from
+        // /account/security or the platform console, an expired refresh token, the admin signOut
+        // that ends an impersonation) -- did not. So exactly the sign-out the user did not choose
+        // was the one that left the impersonation record, with the origin platform_admin's
+        // access and refresh tokens, sitting in sessionStorage for whoever used the tab next,
+        // alongside the react-query cache and the Cache Storage entries holding fetched PHI.
+        //
+        // Safe for the impersonation exit paths that sign out locally on purpose: both read
+        // originSession into a local const BEFORE calling signOut, so clearing the record here
+        // cannot take the tokens they are about to restore from.
+        void clearLocalSessionState();
       } else if (isConfirmedPasswordSignIn) {
         clearRecoverySession(nextSession.user.id);
         setIsRecoverySession(false);
@@ -359,7 +373,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isOfflineServiceDraftIdentityPending(!!session, !!user)) return;
     const current = user
-      ? { profileId: user.id, organizationId: user.organizationId ?? "", role: user.role, active: user.isActive }
+      ? {
+          profileId: user.id, organizationId: user.organizationId ?? "", role: user.role,
+          active: user.isActive, facilityId: user.facilityId,
+        }
       : null;
     if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
       void wipeOfflineServiceDrafts();
@@ -386,7 +403,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       : null;
     lastCacheIdentityRef.current = currentCacheIdentity;
     lastOfflineServiceDraftIdentityRef.current = current
-      ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
+      ? {
+          profileId: current.profileId, organizationId: current.organizationId, role: current.role,
+          facilityId: current.facilityId,
+        }
       : null;
     if (signedInIdentityChanged(previousIdentity, currentCacheIdentity)) {
       queryClient.clear();
@@ -439,7 +459,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [profile, queryClient, toast, setLocation]);
 
-  if (session && !profileLoading && isError) {
+  // The rule and the reason live in shouldShowProfileError: blank the app only when there is no
+  // profile to run on, never merely because the last refetch failed.
+  if (shouldShowProfileError({ hasSession: !!session, isError, hasProfile: !!profile })) {
     return (
       <AuthProfileError
         error={profileError}

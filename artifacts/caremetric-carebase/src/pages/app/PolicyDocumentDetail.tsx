@@ -28,10 +28,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function fmtDate(iso: string | null | undefined): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -99,7 +100,7 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
   const handleView = async (version: PolicyDocumentVersion) => {
     try {
       const url = await getSignedUrl.mutateAsync(version);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (err) {
       toast({ variant: "destructive", title: "Couldn't open document", description: err instanceof Error ? err.message : String(err) });
     }
@@ -544,6 +545,15 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
                       Assign Employees
                     </Button>
                   </div>
+                  {c.last_spawn_skipped_reason && (
+                    <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
+                      {/* The recurrence worker declined to open the next cycle because it would
+                          have enrolled nobody. It leaves the date where it is and tries again
+                          daily, so fixing the roster or the targeting rule is all that is needed. */}
+                      <span>{c.last_spawn_skipped_reason}</span>
+                    </div>
+                  )}
                   {expandedId === c.id && (
                     <>
                       <CampaignQuestions campaignId={c.id} />

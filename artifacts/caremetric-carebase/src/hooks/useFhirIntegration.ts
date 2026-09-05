@@ -4,12 +4,19 @@ import type { Tables } from "@/lib/database.types";
 
 export type FhirSource = Tables<"fhir_integration_sources">;
 export type FhirPatientMapping = Tables<"fhir_patient_mappings">;
-export type FhirMedicationRequest = Tables<"fhir_medication_requests">;
-export type FhirMedicationAdministration = Tables<"fhir_medication_administrations">;
 export type FhirException = Tables<"fhir_integration_exceptions">;
-export type FhirAllergy = Tables<"fhir_allergy_intolerances">;
-export type FhirCondition = Tables<"fhir_conditions">;
-export type FhirServiceRequest = Tables<"fhir_service_requests">;
+
+/**
+ * The chart renders none of the raw inbound FHIR payload, and get_resident_clinical_fhir does not
+ * return it. `raw_resource` is the whole resource as the EHR sent it -- select("*") was shipping it
+ * to the browser for every row of every domain.
+ */
+type WithoutRawPayload<T> = Omit<T, "raw_resource" | "raw_record_sha256">;
+
+export type FhirMedicationRequest = WithoutRawPayload<Tables<"fhir_medication_requests">>;
+export type FhirAllergy = WithoutRawPayload<Tables<"fhir_allergy_intolerances">>;
+export type FhirCondition = WithoutRawPayload<Tables<"fhir_conditions">>;
+export type FhirServiceRequest = WithoutRawPayload<Tables<"fhir_service_requests">>;
 
 export interface ResidentFhirClinical {
   medications: FhirMedicationRequest[];
@@ -18,60 +25,95 @@ export interface ResidentFhirClinical {
   orders: FhirServiceRequest[];
 }
 
-/** Read a single resident's FHIR-ingested clinical data (RLS-scoped via clinical_record_visible). */
-export function useResidentFhirClinical(residentId?: string) {
+/**
+ * A single resident's FHIR-ingested clinical data, through the logged RPC.
+ *
+ * These were four direct selects. RLS scoped them correctly, but nothing wrote to
+ * app_private.clinical_access_log, so the medication list, allergy list and problem list on the
+ * clinical chart could be read without leaving a record. get_resident_clinical_fhir writes one
+ * access row per domain it returns. See useResidentClinicalCare for why `reason` is in the key.
+ */
+export function useResidentFhirClinical(residentId?: string, reason?: string) {
   return useQuery({
-    queryKey: ["resident-fhir-clinical", residentId],
+    queryKey: ["resident-fhir-clinical", residentId, reason ?? null],
     enabled: Boolean(residentId),
     queryFn: async (): Promise<ResidentFhirClinical> => {
-      const [medications, allergies, conditions, orders] = await Promise.all([
-        supabase.from("fhir_medication_requests").select("*").eq("resident_id", residentId!).order("source_updated_at", { ascending: false }).limit(100),
-        supabase.from("fhir_allergy_intolerances").select("*").eq("resident_id", residentId!).limit(100),
-        supabase.from("fhir_conditions").select("*").eq("resident_id", residentId!).order("source_updated_at", { ascending: false }).limit(100),
-        supabase.from("fhir_service_requests").select("*").eq("resident_id", residentId!).order("source_updated_at", { ascending: false }).limit(100),
-      ]);
-      const failed = [medications, allergies, conditions, orders].find((result) => result.error);
-      if (failed?.error) throw failed.error;
-      return {
-        medications: medications.data ?? [],
-        allergies: allergies.data ?? [],
-        conditions: conditions.data ?? [],
-        orders: orders.data ?? [],
-      };
+      const { data, error } = await supabase.rpc("get_resident_clinical_fhir", {
+        p_resident_id: residentId!,
+        ...(reason ? { p_minimum_necessary_reason: reason } : {}),
+      });
+      if (error) throw error;
+      return data as unknown as ResidentFhirClinical;
     },
     staleTime: 30_000,
   });
 }
 
+/** Per-resident ingestion counts and recency. No medication name, dosage, code or raw payload. */
+export interface FhirResidentActivity {
+  resident_id: string;
+  request_count: number;
+  active_request_count: number;
+  administration_count: number;
+  last_activity_at: string | null;
+}
+
+export interface FhirIngestionActivity {
+  requestTotal: number;
+  requestActiveTotal: number;
+  administrationTotal: number;
+  lastRequestAt: string | null;
+  lastAdministrationAt: string | null;
+  residents: FhirResidentActivity[];
+}
+
 export interface FhirIntegrationWorkspace {
   sources: FhirSource[];
   mappings: FhirPatientMapping[];
-  requests: FhirMedicationRequest[];
-  administrations: FhirMedicationAdministration[];
+  activity: FhirIngestionActivity;
   exceptions: FhirException[];
 }
 
 const FHIR_INTEGRATION_KEY = "fhir-integration";
 
+const EMPTY_ACTIVITY: FhirIngestionActivity = {
+  requestTotal: 0,
+  requestActiveTotal: 0,
+  administrationTotal: 0,
+  lastRequestAt: null,
+  lastAdministrationAt: null,
+  residents: [],
+};
+
+/**
+ * The integration console.
+ *
+ * It used to pull every medication request and administration in the facility with select("*") --
+ * drug names, dosages, RxNorm codes and the whole raw FHIR payload for every resident in the
+ * building, rendered on a page whose question is "is the feed working". That is a facility-wide
+ * clinical disclosure with no clinical purpose and no access-log row, and there is no honest way to
+ * log it: it is not a chart read of any one resident.
+ *
+ * So the console now asks what it actually needs -- counts, statuses and recency, per resident --
+ * and the content stays one click away on the resident's chart, where reading it is logged.
+ */
 export function useFhirIntegration(facilityId?: string) {
   return useQuery({
     queryKey: [FHIR_INTEGRATION_KEY, facilityId],
     enabled: Boolean(facilityId),
     queryFn: async (): Promise<FhirIntegrationWorkspace> => {
-      const [sources, mappings, requests, administrations, exceptions] = await Promise.all([
+      const [sources, mappings, activity, exceptions] = await Promise.all([
         supabase.from("fhir_integration_sources").select("*").eq("facility_id", facilityId!).order("created_at"),
         supabase.from("fhir_patient_mappings").select("*").eq("facility_id", facilityId!).order("mapped_at", { ascending: false }).limit(200),
-        supabase.from("fhir_medication_requests").select("*").eq("facility_id", facilityId!).order("source_updated_at", { ascending: false }).limit(100),
-        supabase.from("fhir_medication_administrations").select("*").eq("facility_id", facilityId!).order("effective_at", { ascending: false }).limit(100),
+        supabase.rpc("get_facility_fhir_ingestion_activity", { p_facility_id: facilityId! }),
         supabase.from("fhir_integration_exceptions").select("*").eq("facility_id", facilityId!).order("last_seen_at", { ascending: false }).limit(100),
       ]);
-      const failed = [sources, mappings, requests, administrations, exceptions].find((result) => result.error);
+      const failed = [sources, mappings, activity, exceptions].find((result) => result.error);
       if (failed?.error) throw failed.error;
       return {
         sources: sources.data ?? [],
         mappings: mappings.data ?? [],
-        requests: requests.data ?? [],
-        administrations: administrations.data ?? [],
+        activity: (activity.data as unknown as FhirIngestionActivity | null) ?? EMPTY_ACTIVITY,
         exceptions: exceptions.data ?? [],
       };
     },

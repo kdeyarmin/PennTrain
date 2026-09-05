@@ -47,6 +47,7 @@ import {
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
 import { SurveyPrepChecklist } from "@/components/checklists/SurveyPrepChecklist";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 // Mirrors the server-side assert_survey_day_manager gate (app_private.assert_phase5_manager):
 // only these roles may activate/refresh/close a session or record a disposition. Auditors reach the
@@ -462,7 +463,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
               <Button
                 variant="outline" size="sm" className="mt-3" disabled={download.isPending}
                 onClick={() => download.mutate(pinned.id, {
-                  onSuccess: (result) => { if (result?.url) window.open(result.url, "_blank", "noopener"); },
+                  onSuccess: (result) => { if (result?.url) openDocumentUrl(result.url); },
                   onError: (e: Error) => toast({ title: "Download failed", description: e.message, variant: "destructive" }),
                 })}
               ><Download className="mr-2 h-4 w-4" />Download binder</Button>

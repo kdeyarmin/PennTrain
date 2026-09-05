@@ -2,18 +2,6 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { extname } from "node:path";
 
-const git = process.platform === "win32" ? "git.exe" : "git";
-const listed = spawnSync(git, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
-  encoding: "buffer",
-  maxBuffer: 50 * 1024 * 1024,
-});
-
-if (listed.error || listed.status !== 0 || !Buffer.isBuffer(listed.stdout)) {
-  process.stderr.write(listed.stderr?.toString() || listed.error?.message || "Unable to list source files.\n");
-  process.exit(1);
-}
-
-const paths = listed.stdout.toString("utf8").split("\0").filter(Boolean);
 const conflictMarker = /^(<{7}|={7}|>{7})(?:\s|$)/;
 const productionSourcePrefixes = [
   "artifacts/caremetric-carebase/src/",
@@ -30,6 +18,19 @@ const mockupSandboxReference = /(?:artifacts\/mockup-sandbox|@workspace\/mockup-
 const detachedSupabaseMethod = /=\s*supabase\.(rpc|from|functions|storage)\b(?!\s*\.bind\b)(?!\()/;
 const detachedSupabaseMethodAllowlist = new Set(["scripts/check-source-integrity.mjs"]);
 
+// Safari on iOS, and popup blockers generally, only honour window.open while the browser still
+// considers itself inside the user gesture -- and an `await` ends that. Every one of this app's
+// thirty-four document opens sits after an await for a signed URL, so on the device an aide is most
+// likely holding, the certificate, the class notice, the POC document and the binder export did
+// nothing at all: no tab, no error, no download. lib/openDocumentUrl.ts navigates the current tab
+// when the open is refused, which is the difference between the document arriving and the button
+// appearing broken. This keeps the next one from going back.
+const rawWindowOpen = /\bwindow\.open\s*\(/;
+const rawWindowOpenAllowlist = new Set([
+  "scripts/check-source-integrity.mjs",
+  "artifacts/caremetric-carebase/src/lib/openDocumentUrl.ts",
+]);
+
 // Extensions whose contents are legitimately binary. A NUL byte in anything else is a defect
 // rather than a reason to stop looking -- see the skip logic below.
 const BINARY_ASSET_EXTENSIONS = new Set([
@@ -38,6 +39,65 @@ const BINARY_ASSET_EXTENSIONS = new Set([
   ".woff", ".woff2", ".ttf", ".otf", ".eot",
   ".zip", ".gz", ".br", ".wasm",
 ]);
+
+// Comment lines are skipped: ComplianceBinder.tsx explains, in prose, the very bug the window.open
+// rule exists for, and a rule that cannot tell an explanation from an occurrence teaches people to
+// stop writing the explanations.
+//
+// The distinction has to be made on where the comment ENDS, not where the line begins. A `//` runs
+// to the end of its line, so nothing after it is code. A block comment does not: `/* why */
+// window.open(url)` and a continuation line ` */ window.open(url)` both put a live call after the
+// comment closes, and a predicate that skipped the whole line because of its first two characters
+// walked straight past them. So a block-comment line is prose only when nothing but whitespace
+// follows its last `*/`. A gate with a hole in it is worse than no gate, because it is believed.
+function isCommentOnlyLine(line) {
+  const trimmed = line.trimStart();
+  if (trimmed.startsWith("//")) return true;
+  if (!trimmed.startsWith("*") && !trimmed.startsWith("/*")) return false;
+  const close = line.lastIndexOf("*/");
+  return close === -1 || line.slice(close + 2).trim() === "";
+}
+
+if (process.argv.includes("--self-test")) {
+  const selfTestFailures = [];
+  for (const line of [
+    "  // this used to call window.open() once per file",
+    "   * every browser blocks all but the first window.open(",
+    "  /* window.open() is refused once an await has ended the gesture */",
+    "   */",
+    "  /* an unterminated block opens here",
+  ]) {
+    if (!isCommentOnlyLine(line)) selfTestFailures.push(`prose read as code: ${line.trim()}`);
+  }
+  for (const line of [
+    "  window.open(url);",
+    "  /* why */ window.open(url);",
+    "   */ window.open(url);",
+    "  /* a */ /* b */ window.open(url);",
+  ]) {
+    if (isCommentOnlyLine(line)) selfTestFailures.push(`code read as prose: ${line.trim()}`);
+    if (!rawWindowOpen.test(line)) selfTestFailures.push(`call not matched: ${line.trim()}`);
+  }
+  if (selfTestFailures.length > 0) {
+    console.error(`Source integrity self-test failed:\n  ${selfTestFailures.join("\n  ")}`);
+    process.exit(1);
+  }
+  console.log("Source integrity self-test passed.");
+  process.exit(0);
+}
+
+const git = process.platform === "win32" ? "git.exe" : "git";
+const listed = spawnSync(git, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+  encoding: "buffer",
+  maxBuffer: 50 * 1024 * 1024,
+});
+
+if (listed.error || listed.status !== 0 || !Buffer.isBuffer(listed.stdout)) {
+  process.stderr.write(listed.stderr?.toString() || listed.error?.message || "Unable to list source files.\n");
+  process.exit(1);
+}
+
+const paths = listed.stdout.toString("utf8").split("\0").filter(Boolean);
 
 const failures = [];
 let scanned = 0;
@@ -83,6 +143,17 @@ for (const path of paths) {
       mockupSandboxReference.test(line)
     ) {
       failures.push(`${path}:${index + 1}: production source must not reference artifacts/mockup-sandbox`);
+    }
+    if (
+      isProductionSource &&
+      !isCommentOnlyLine(line) &&
+      !rawWindowOpenAllowlist.has(path) &&
+      rawWindowOpen.test(line)
+    ) {
+      failures.push(
+        `${path}:${index + 1}: window.open() after an await is blocked on iOS Safari and the `
+        + `document silently never arrives. Use openDocumentUrl() from @/lib/openDocumentUrl.`,
+      );
     }
     if (
       isProductionSource &&

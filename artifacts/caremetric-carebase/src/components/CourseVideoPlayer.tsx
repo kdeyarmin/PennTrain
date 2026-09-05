@@ -9,6 +9,9 @@ const WATCHED_FRACTION = 0.95;
 const SEEK_TOLERANCE_SECONDS = 2;
 // How often to report state while playing (parent persists on its own debounce).
 const REPORT_INTERVAL_MS = 10_000;
+// Re-signs allowed per load. An expired signature recovers on the first; a deleted object or a
+// revoked storage policy fails the same way every time, and telling the learner beats a loop.
+const MAX_RESIGN_ATTEMPTS = 2;
 
 function formatSeconds(total: number): string {
   const safe = Math.max(0, Math.round(total));
@@ -44,6 +47,14 @@ export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPl
   const restoredRef = useRef(false);
   const [completed, setCompleted] = useState(!!state?.completedAt);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  // A signed course-video URL lasts 15 minutes and a lesson can be longer, so a learner watching
+  // straight through -- or coming back from a pause -- hits an expired signature partway. The
+  // browser reports that as a media error and nothing was listening: the video simply stopped,
+  // with no message and no way forward but a reload, which lost the place. One silent re-sign per
+  // error, capped so a genuinely missing object does not spin.
+  const resignAttemptsRef = useRef(0);
+  const [resigning, setResigning] = useState(false);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   // Remount-per-src is handled by the parent keying this component on the block id, so
   // refs here always describe exactly one video.
@@ -51,10 +62,18 @@ export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPl
     stateRef.current = { ...(state ?? EMPTY_VIDEO_STATE) };
     setCompleted(!!state?.completedAt);
     restoredRef.current = false;
+    resignAttemptsRef.current = 0;
+    setPlaybackError(null);
     // Intentionally only on src change: `state` also updates as we report our own
     // changes upward, and re-syncing from those echoes would fight the playhead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
+
+  // A re-signed URL is the same video at the same place. Clearing the one-shot restore guard is
+  // what lets loadedmetadata put the playhead back instead of starting the lesson over.
+  useEffect(() => {
+    restoredRef.current = false;
+  }, [resolved.url]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -116,11 +135,39 @@ export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPl
       report();
     };
 
+    const handleError = () => {
+      // The playhead is the thing worth saving: `position` is where the restore above resumes
+      // from, and video.currentTime is still readable on the errored element.
+      if (Number.isFinite(video.currentTime) && video.currentTime > stateRef.current.position) {
+        stateRef.current.position = video.currentTime;
+      }
+      report();
+      if (resignAttemptsRef.current >= MAX_RESIGN_ATTEMPTS) {
+        setResigning(false);
+        setPlaybackError("This video stopped loading. Reload the page to try again.");
+        return;
+      }
+      resignAttemptsRef.current += 1;
+      setResigning(true);
+      setPlaybackError(null);
+      resolved.refresh();
+    };
+
+    const handleLoadedData = () => {
+      // A frame decoded means the new signature works; the counter resets so a later expiry in
+      // the same sitting gets its own attempts.
+      resignAttemptsRef.current = 0;
+      setResigning(false);
+      setPlaybackError(null);
+    };
+
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("seeking", handleSeeking);
     video.addEventListener("pause", handlePause);
     video.addEventListener("ended", handleEnded);
+    video.addEventListener("error", handleError);
+    video.addEventListener("loadeddata", handleLoadedData);
     const interval = window.setInterval(() => {
       if (!video.paused && !video.ended) report();
     }, REPORT_INTERVAL_MS);
@@ -131,14 +178,20 @@ export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPl
       video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handleEnded);
+      video.removeEventListener("error", handleError);
+      video.removeEventListener("loadeddata", handleLoadedData);
       window.clearInterval(interval);
     };
-  }, [gated, onChange, resolved.url, src]);
+    // resolved.refresh is useCallback-stable over the query's refetch; taking the whole `resolved`
+    // object here would re-attach every listener on every render.
+  }, [gated, onChange, resolved.url, resolved.refresh, src]);
 
   return (
     <div className="space-y-2">
       {resolved.isLoading && <div className="aspect-video w-full animate-pulse rounded-lg bg-muted" />}
       {resolved.error && <p className="text-sm text-destructive">Video unavailable: {resolved.error}</p>}
+      {resigning && <p className="text-xs text-muted-foreground">Refreshing the video link -- your place is saved.</p>}
+      {playbackError && <p className="text-sm text-destructive">{playbackError}</p>}
       {resolved.url && <video ref={videoRef} controls className="w-full rounded-lg border" src={resolved.url}>
         Your browser does not support embedded video.
       </video>}

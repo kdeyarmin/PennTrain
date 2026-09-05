@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assertDraftLifecycleFields, assertKnownSyncState, assertParseableTimestamp,
-  coerceListedLifecycle,
+  coerceListedLifecycle, isDeterministicServerRefusal, MAX_SERVER_REFUSALS_BEFORE_REVIEW,
+  nextStateAfterSyncFailure,
 } from "./offlineDraftFieldGuards";
 import {
   assertServiceDraftAllowed, OFFLINE_DRAFT_SYNC_STATES, NEEDS_REVIEW_DRAFT_STATES,
@@ -153,8 +154,24 @@ describe("the two lanes keep separate vocabularies", () => {
 // the listing coerces them. Both fallbacks must fail toward visible-and-expirable.
 describe("coerceListedLifecycle (the plaintext copy the listings actually read)", () => {
   it("passes through values that are already valid", () => {
-    expect(coerceListedLifecycle("conflict", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES))
-      .toEqual({ syncState: "conflict", createdAt: "2026-08-02T12:00:00.000Z" });
+    expect(coerceListedLifecycle(
+      "conflict", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES, "2026-08-03T09:00:00.000Z",
+    )).toEqual({
+      syncState: "conflict",
+      createdAt: "2026-08-02T12:00:00.000Z",
+      updatedAt: "2026-08-03T09:00:00.000Z",
+    });
+  });
+
+  // BACKLOG.md I6 added the last-attempt clock. A record already sitting on a caregiver's device
+  // has no such column, and the fallback has to be the clock the purge used before it -- not the
+  // epoch (purged on the next tick) and not absent (immortal).
+  it("falls back to createdAt when the last-attempt column is missing or unusable", () => {
+    expect(coerceListedLifecycle("error", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES).updatedAt)
+      .toBe("2026-08-02T12:00:00.000Z");
+    expect(coerceListedLifecycle(
+      "error", "2026-08-02T12:00:00.000Z", OFFLINE_DRAFT_SYNC_STATES, "not-a-date",
+    ).updatedAt).toBe("2026-08-02T12:00:00.000Z");
   });
 
   it("turns an unusable state into one the panel actually lists", () => {
@@ -165,9 +182,9 @@ describe("coerceListedLifecycle (the plaintext copy the listings actually read)"
   });
 
   it("turns an unusable timestamp into one that is already overdue rather than immortal", () => {
-    const { createdAt } = coerceListedLifecycle("draft", "not-a-date", OFFLINE_DRAFT_SYNC_STATES);
+    const { createdAt, updatedAt } = coerceListedLifecycle("draft", "not-a-date", OFFLINE_DRAFT_SYNC_STATES);
     expect(isUnsyncedDraftOverdue(
-      { draftId: "d", kind: "service_task", syncState: "draft", createdAt }, Date.now(),
+      { draftId: "d", kind: "service_task", syncState: "draft", createdAt, updatedAt }, Date.now(),
     )).toBe(true);
   });
 
@@ -178,5 +195,87 @@ describe("coerceListedLifecycle (the plaintext copy the listings actually read)"
       .toBe("conflict");
     expect(coerceListedLifecycle("conflict", "2026-08-02T12:00:00.000Z", OFFLINE_OBSERVATION_SYNC_STATES).syncState)
       .toBe("error");
+  });
+});
+
+describe("a refusal the server will make again (I6 residual)", () => {
+  // Both sync loops caught every throw and stored `syncState: "error"`, an UNRESOLVED state, so the
+  // runner picked the draft up again five minutes later, forever. For a draft the server executed
+  // and refused, that is a request every five minutes for as long as the device stays signed in,
+  // and nobody is ever told the note did not land.
+  const refusal = (code: string) => ({ code, message: "refused", details: null, hint: null });
+
+  it("counts a refusal Postgres actually made", () => {
+    expect(isDeterministicServerRefusal(refusal("P0002"))).toBe(true);   // resident gone
+    expect(isDeterministicServerRefusal(refusal("42501"))).toBe(true);   // profile deactivated
+    expect(isDeterministicServerRefusal(refusal("23503"))).toBe(true);   // receipt FK unresolved
+  });
+
+  it("does not count a failure that never reached the server", () => {
+    // postgrest-js sets code to "" in its own client-side catch, before any HTTP response exists.
+    expect(isDeterministicServerRefusal(refusal(""))).toBe(false);
+    expect(isDeterministicServerRefusal(new TypeError("Failed to fetch"))).toBe(false);
+    expect(isDeterministicServerRefusal(undefined)).toBe(false);
+  });
+
+  it("does not count the server answering 'not now'", () => {
+    // A twenty-minute database incident must not reject a shift's worth of care documentation.
+    expect(isDeterministicServerRefusal(refusal("57014"))).toBe(false);  // statement timeout
+    expect(isDeterministicServerRefusal(refusal("40001"))).toBe(false);  // serialization failure
+    expect(isDeterministicServerRefusal(refusal("53300"))).toBe(false);  // too many connections
+    expect(isDeterministicServerRefusal(refusal("08006"))).toBe(false);  // connection failure
+    expect(isDeterministicServerRefusal(refusal("XX000"))).toBe(false);  // internal error
+  });
+
+  it("does not count a gateway or proxy failure carrying a non-SQLSTATE code", () => {
+    expect(isDeterministicServerRefusal(refusal("502"))).toBe(false);
+    expect(isDeterministicServerRefusal(refusal("PGRST301"))).toBe(false);
+  });
+
+  it("holds the draft in error until the refusals add up, then asks for a human", () => {
+    let failures = 0;
+    for (let attempt = 1; attempt < MAX_SERVER_REFUSALS_BEFORE_REVIEW; attempt += 1) {
+      const next = nextStateAfterSyncFailure(refusal("P0002"), failures, "rejected", "error");
+      expect(next.syncState).toBe("error");
+      failures = next.failedAttempts;
+      expect(failures).toBe(attempt);
+    }
+    const final = nextStateAfterSyncFailure(refusal("P0002"), failures, "rejected", "error");
+    expect(final.syncState).toBe("rejected");
+    expect(final.failedAttempts).toBe(MAX_SERVER_REFUSALS_BEFORE_REVIEW);
+  });
+
+  it("never advances the count for an offline device, however long it stays offline", () => {
+    let failures: number | undefined;
+    for (let attempt = 0; attempt < MAX_SERVER_REFUSALS_BEFORE_REVIEW * 3; attempt += 1) {
+      const next = nextStateAfterSyncFailure(refusal(""), failures, "rejected", "error");
+      expect(next.syncState).toBe("error");
+      failures = next.failedAttempts;
+    }
+    // The whole point of I6: a draft that never reached the server is not the server's answer.
+    expect(failures).toBe(0);
+  });
+
+  it("treats a record written before the counter existed as having no refusals", () => {
+    expect(nextStateAfterSyncFailure(refusal("P0002"), undefined, "rejected", "error"))
+      .toEqual({ syncState: "error", failedAttempts: 1 });
+  });
+
+  it("carries the count forward across a network failure between refusals", () => {
+    // Going offline mid-sequence must not reset the tally, or a device that drops out every few
+    // minutes -- the device most likely to be holding a doomed draft -- never reaches review.
+    const first = nextStateAfterSyncFailure(refusal("42501"), 0, "rejected", "error");
+    const offline = nextStateAfterSyncFailure(refusal(""), first.failedAttempts, "rejected", "error");
+    expect(offline.failedAttempts).toBe(1);
+    const second = nextStateAfterSyncFailure(refusal("42501"), offline.failedAttempts, "rejected", "error");
+    expect(second.failedAttempts).toBe(2);
+  });
+
+  it("uses each lane's own name for the reviewed state", () => {
+    // The service lane's needs-review set is conflict/stale/rejected; the observation lane's is
+    // rejected alone. Both are passed in rather than hardcoded, as everything else here is.
+    const atLimit = MAX_SERVER_REFUSALS_BEFORE_REVIEW - 1;
+    expect(nextStateAfterSyncFailure(refusal("P0002"), atLimit, "rejected", "error").syncState)
+      .toBe("rejected");
   });
 });

@@ -238,9 +238,20 @@ export function sanitizeProviderDetail(
 }
 
 export function isRetryableProviderStatus(status: number): boolean {
-  // A 429 is an explicit provider rejection and is therefore safe to retry.
-  // Transport errors are ambiguous and are quarantined instead of replayed.
-  return status === 429;
+  // An explicit HTTP response is an unambiguous answer from the provider: the request arrived, was
+  // understood, and was refused. That is what makes it safe to retry -- unlike a transport error,
+  // which is ambiguous about whether the message went out and is quarantined as `unknown` instead
+  // of replayed.
+  //
+  // 429 was the only retryable status, so a 5xx was recorded as a PERMANENT failure. A minute of
+  // SendGrid 500s therefore burned every delivery in the batch: each was finalized `failed`, the
+  // alternate-channel fallback trigger pushed each to SMS (cost, and a duplicate message), and
+  // three such runs opened the dispatch circuit. Nothing about a 502 says the notification can
+  // never be delivered; it says try again.
+  //
+  // 4xx other than 429 stays permanent on purpose -- a malformed payload or a rejected sender does
+  // not become valid by repeating it, and retrying those is how a provider reputation is spent.
+  return status === 429 || status >= 500;
 }
 
 export function isUuid(value: unknown): value is string {
@@ -281,3 +292,87 @@ function bytesToHex(bytes: Uint8Array): string {
     "",
   );
 }
+
+/**
+ * Whether a channel has credentials at all, which is a different question from whether it works.
+ *
+ * Until the provider secrets are set, sendEmail and sendSms answer `provider_not_configured` as a
+ * non-retryable PROVIDER FAILURE, and the ledger finalizes the delivery `failed`/`failed`. Three
+ * things follow that should not: `enqueue_notification_fallback` fires on that exact pair and opens
+ * a delivery on the alternate channel stamped "after permanent failure" (nothing failed, and on a
+ * deployment with neither provider set the alternate is equally unconfigured, so it fails too); the
+ * rows are indistinguishable from real provider rejections in the operator surface; and they count
+ * toward the dispatch job's failure tally, which is what opens the circuit breaker -- so a
+ * deployment with no providers can open its own circuit before the secrets are ever set, and the
+ * first genuinely sendable message arrives to find it open.
+ *
+ * Asked BEFORE the attempt, this becomes the sixth reason a delivery is skipped rather than tried,
+ * beside the five begin_notification_delivery_attempt already has (inactive recipient, SMS consent,
+ * email preference off, no live push subscription, spend cap). It lives here rather than inline so
+ * the check the worker skips on and the guard inside each send function cannot disagree about what
+ * "configured" means.
+ *
+ * `env` is passed in rather than read from Deno.env so this is testable without mutating the
+ * process environment.
+ */
+export function channelProviderConfigured(
+  channel: string,
+  env: (key: string) => string | undefined,
+): boolean {
+  const set = (key: string) => {
+    const value = env(key);
+    return typeof value === "string" && value.trim().length > 0;
+  };
+  switch (channel) {
+    case "email":
+      return set("SENDGRID_API_KEY");
+    case "sms":
+      // Twilio needs the account pair AND somewhere to send from -- a messaging service or a
+      // number. Matching sendSms exactly: either one will do, neither will not.
+      return set("TWILIO_ACCOUNT_SID") && set("TWILIO_AUTH_TOKEN")
+        && (set("TWILIO_MESSAGING_SERVICE_SID") || set("TWILIO_FROM_NUMBER"));
+    case "web_push":
+      return set("WEB_PUSH_VAPID_PUBLIC_KEY") && set("WEB_PUSH_VAPID_PRIVATE_KEY");
+    default:
+      // An unknown channel is not something to skip past quietly: let the send path answer for it.
+      return true;
+  }
+}
+
+/** What the ledger records for the skip, so the worker and any future caller say the same thing. */
+export function providerNotConfiguredSkip(channel: string): {
+  reason: string;
+  errorCode: string;
+} {
+  return {
+    reason: `The ${channel} provider has no credentials in this deployment, so no attempt was made`,
+    errorCode: "provider_not_configured",
+  };
+}
+
+const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+
+/**
+ * The absolute destination a templated notification's call to action points at.
+ *
+ * BACKLOG.md I23: this was the literal "/". Every templated email and SMS said "review it" and
+ * linked to the marketing homepage -- the recipient then had to find the thing themselves, on a
+ * phone, having been told it was urgent. `notifications.link` is the in-app path the in-app
+ * notification already uses; this is the same destination made absolute so it survives leaving the
+ * app.
+ *
+ * Only same-origin app paths are accepted. `link` is written by database triggers today, but an
+ * action URL is the one part of a notification a recipient is invited to click, and "it is only
+ * ever written by us" is exactly the assumption that makes an open redirect later. A path that does
+ * not start with a single "/" falls back to the app root, which is where this used to send
+ * everyone anyway.
+ */
+export function actionUrlFor(
+  link: string | null,
+  baseUrl = Deno.env.get("PUBLIC_APP_URL") ?? DEFAULT_APP_ORIGIN,
+): string {
+  const root = baseUrl.replace(/\/+$/, "");
+  if (!link || !link.startsWith("/") || link.startsWith("//")) return `${root}/`;
+  return `${root}${link}`;
+}
+

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { guestRpcId, guestRpcOk } from "@/lib/guestRpcResult";
 
 export type ResidentAgreement = Tables<"resident_agreements">;
 export type ResidentAgreementVersion = Tables<"resident_agreement_versions">;
@@ -218,7 +219,7 @@ export function useAcceptResidentAgreementGuestTerms() {
         p_device_evidence: navigator.userAgent,
       });
       if (error) throw error;
-      return data;
+      return guestRpcOk(data);
     },
     onSuccess: () => client.invalidateQueries({ queryKey: ["resident-agreement-guest"] }),
   });
@@ -256,7 +257,7 @@ export function useRespondToResidentAgreementGuest() {
         p_ip_evidence: undefined,
       });
       if (error) throw error;
-      return data;
+      return guestRpcId(data);
     },
     onSuccess: () => client.invalidateQueries({ queryKey: ["resident-agreement-guest"] }),
   });

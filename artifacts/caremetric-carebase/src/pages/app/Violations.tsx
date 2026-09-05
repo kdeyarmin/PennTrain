@@ -176,6 +176,14 @@ export default function Violations() {
       toast({ title: "Facility, inspection date, and description are required", variant: "destructive" });
       return;
     }
+    // The deadline is on the licensing inspection summary being transcribed, and every escalation,
+    // digest and queue predicate over it reads `poc_due_date is not null` -- so a violation saved
+    // without one is a DHS deadline nothing warns about. dhs_violations.poc_due_date is NOT NULL
+    // since 20260905170000; this is the same rule, said before the round trip.
+    if (!form.pocDueDate) {
+      toast({ title: "The plan-of-correction due date is required", description: "It is stated on the DHS licensing inspection summary.", variant: "destructive" });
+      return;
+    }
     const facility = facilityById.get(form.facilityId);
     if (!facility) return;
 
@@ -188,7 +196,7 @@ export default function Violations() {
       surveyor_name: form.surveyorName.trim() || null,
       description: form.description.trim(),
       severity: form.severity,
-      poc_due_date: form.pocDueDate || null,
+      poc_due_date: form.pocDueDate,
       source_inspection_event_id: sourceInspectionEventId,
     };
 
@@ -377,7 +385,7 @@ export default function Violations() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor={`${__fieldIds}-plan-of-correction-due-date`} className="text-[13px]">Plan of Correction Due Date</Label>
+                <Label htmlFor={`${__fieldIds}-plan-of-correction-due-date`} className="text-[13px]">Plan of Correction Due Date *</Label>
                 <Input id={`${__fieldIds}-plan-of-correction-due-date`} type="date" value={form.pocDueDate} onChange={(e) => setForm((f) => ({ ...f, pocDueDate: e.target.value }))} className="h-9" />
               </div>
               <div className="col-span-full space-y-1.5">

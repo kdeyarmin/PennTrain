@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { edgeFunctionError } from "@/lib/edgeFunctionErrors";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
 
 export type Profile = Tables<"profiles"> & {
@@ -108,7 +109,11 @@ interface EdgeFunctionErrorShape {
 
 async function invokeEdgeFunction<TResponse>(functionName: string, body: object): Promise<TResponse> {
   const { data, error } = await supabase.functions.invoke<TResponse & EdgeFunctionErrorShape>(functionName, { body });
-  if (error) throw error;
+  // Unwrap before rethrowing: supabase-js's FunctionsHttpError says only "returned a non-2xx
+  // status code", discarding the body where these functions put their actual refusal. See
+  // lib/edgeFunctionErrors.ts -- one refusal in particular (an expired privileged window) needs
+  // to be told apart from every other 403.
+  if (error) throw (await edgeFunctionError(error)) ?? error;
   if (data && data.success === false) {
     throw new Error(data.message ?? `${functionName} failed`);
   }
@@ -259,6 +264,37 @@ export function useAdminUpdateUser() {
         ...(organizationId !== undefined ? { organization_id: organizationId } : {}),
         ...(isActive !== undefined ? { is_active: isActive } : {}),
         ...(email !== undefined ? { email } : {}),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
+  });
+}
+
+export interface ResetUserMfaResponse {
+  success?: boolean;
+  removed_factor_ids?: string[];
+  requires_reenrolment?: boolean;
+}
+
+/**
+ * Lost-device recovery: removes a user's enrolled factors so they can enrol again (BACKLOG.md I8).
+ *
+ * Until this existed, nothing in the product could remove a factor. A manager who lost their phone
+ * could not self-unenrol (GoTrue refuses that at AAL1) and could not reach any route but
+ * /account/security (MfaPolicyGate), so they were locked out of the product with no path back
+ * except the Supabase dashboard -- which a facility running a pilot does not have.
+ *
+ * The reset also revokes the target's sessions, so a device in the wrong hands does not keep a
+ * live, already-second-factored session. That is the function's decision, not this hook's; so is
+ * the platform_admin-only rule and the required reason. This is only the call.
+ */
+export function useResetUserMfa() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
+      invokeEdgeFunction<ResetUserMfaResponse>("admin-update-user", {
+        action: "reset_mfa",
+        user_id: userId,
+        reason,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profiles"] }),
   });

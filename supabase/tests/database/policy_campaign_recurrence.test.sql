@@ -201,13 +201,16 @@ select is(
 ------------------------------------------------------------------------------------------------
 -- Rows that must stay out of scope
 ------------------------------------------------------------------------------------------------
+-- Targeted rather than left empty: since 20260905170000 a cycle that would enrol nobody is not
+-- opened at all, so a series with no roster can no longer demonstrate the lead window. The
+-- targeting pattern matches the aide above, which is what makes the spawn below a real one.
 insert into public.policy_attestation_campaigns (
   id, organization_id, policy_document_id, policy_document_version_id, name,
-  recurrence_months, next_occurrence_on
+  recurrence_months, next_occurrence_on, targeting_mode, target_job_title_pattern
 ) values (
   'e1000000-0000-4000-8000-000000000402', 'e1000000-0000-4000-8000-000000000001',
   'e1000000-0000-4000-8000-000000000301', 'e1000000-0000-4000-8000-000000000311',
-  'Far-off series', 12, public.pa_today() + 200
+  'Far-off series', 12, public.pa_today() + 200, 'declarative', '%Direct Care Aide%'
 );
 
 insert into public.policy_attestation_campaigns (

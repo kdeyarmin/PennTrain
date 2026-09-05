@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -30,6 +31,13 @@ export function useCourseVideoUrl(value: string): {
   url: string | null;
   isLoading: boolean;
   error: string | null;
+  /**
+   * Mint a fresh signed URL. The TTL is 15 minutes and plenty of courses have a longer video than
+   * that, so a learner who pauses, or simply watches to the end of a 40-minute lesson, hits a
+   * signature that has expired mid-playback -- which the browser reports as a media error and
+   * nothing was listening for. The caller re-signs on that error and puts the playhead back.
+   */
+  refresh: () => void;
 } {
   const { user } = useAuth();
   const path = courseVideoStoragePath(value);
@@ -42,15 +50,32 @@ export function useCourseVideoUrl(value: string): {
       return data.signedUrl;
     },
     enabled: Boolean(path),
+    // A signed URL is short-lived state, not cacheable data: two mounts a minute apart should each
+    // hold a full window rather than share one already half spent. But it must NOT re-sign on
+    // window focus -- that swaps the <video> src mid-lesson every time the learner tabs away and
+    // back, which stalls playback for no reason. Re-signing is explicit, on the media error that
+    // an expired signature actually produces.
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+  const refetch = signed.refetch;
+  const refresh = useCallback(() => { void refetch(); }, [refetch]);
+
+  // A blank locator is "no video on this block", not a broken one. Saying so lets a caller mount
+  // this hook unconditionally instead of branching around a hook call.
+  if (!value.trim()) {
+    return { url: null, isLoading: false, error: null, refresh };
+  }
 
   if (!path) {
     try {
       const url = new URL(value);
       if (url.protocol !== "https:") throw new Error("Video URL must use HTTPS");
-      return { url: value, isLoading: false, error: null };
+      return { url: value, isLoading: false, error: null, refresh };
     } catch (error) {
-      return { url: null, isLoading: false, error: error instanceof Error ? error.message : "Invalid video URL" };
+      return { url: null, isLoading: false, error: error instanceof Error ? error.message : "Invalid video URL", refresh };
     }
   }
 
@@ -58,5 +83,6 @@ export function useCourseVideoUrl(value: string): {
     url: signed.data ?? null,
     isLoading: signed.isLoading,
     error: signed.error ? (signed.error instanceof Error ? signed.error.message : String(signed.error)) : null,
+    refresh,
   };
 }

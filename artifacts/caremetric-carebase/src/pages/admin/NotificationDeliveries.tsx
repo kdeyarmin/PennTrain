@@ -16,6 +16,7 @@ import {
   useNotificationDeliveryHealth,
   usePreviewSavedNotificationTemplate,
 } from "@/hooks/useAdminNotificationDeliveries";
+import { useNotificationReach } from "@/hooks/useNotificationReach";
 import { useAuth } from "@/lib/auth";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,6 +120,7 @@ export default function NotificationDeliveries() {
   const { hasRole } = useAuth();
   const isPlatformAdmin = hasRole("platform_admin");
   const health = useNotificationDeliveryHealth(isPlatformAdmin);
+  const reach = useNotificationReach();
   const {
     mutateAsync: previewSavedTemplate,
     data: savedTemplatePreview,
@@ -343,6 +345,38 @@ export default function NotificationDeliveries() {
         <h1 className="text-2xl font-bold">Notification Deliveries</h1>
         <p className="text-muted-foreground">Provider outcomes, fallback documentation, templates, retries, and estimated spend.</p>
       </div>
+
+      {(reach.data ?? []).some((row) => row.unreachable_employees > 0) && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="pt-5 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div>
+                <p className="font-medium">Employees with no login</p>
+                {/* Every delivery path resolves its recipient through profiles, so an employee with
+                    no linked login receives nothing and produces no delivery row to notice. An
+                    imported roster that was never invited looks identical to a quiet week. */}
+                <p className="text-sm text-muted-foreground">
+                  These employees receive no reminders, digests or alerts on any channel, and no
+                  failed delivery is recorded for them. The fix is an invitation.
+                </p>
+              </div>
+            </div>
+            <ul className="space-y-1 text-sm">
+              {(reach.data ?? [])
+                .filter((row) => row.unreachable_employees > 0)
+                .map((row) => (
+                  <li key={row.organization_id} className="flex justify-between gap-3 rounded border bg-card px-3 py-1.5">
+                    <span className="truncate">{row.organization_name}</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {row.unreachable_employees} of {row.active_employees} unreachable
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>

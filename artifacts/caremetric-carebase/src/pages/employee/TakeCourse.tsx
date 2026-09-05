@@ -3,6 +3,7 @@ import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/li
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { StandardsRuntimePlayer } from "@/components/learning/StandardsRuntimePlayer";
+import { useAssignmentPackageCompleted } from "@/hooks/useLearningRuntime";
 import type { Json } from "@/lib/database.types";
 import { Link, useLocation, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -67,6 +68,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Copy, Download, FileText, Lightbulb, ListChecks, RotateCcw, ShieldCheck, Trash2, Video, BookOpen, Star, Target,
   type LucideIcon,
 } from "lucide-react";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const { data: document, isLoading } = useGetDocument(documentId ?? undefined);
@@ -86,7 +88,7 @@ function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const handleOpen = async () => {
     try {
       const url = await getSignedUrl.mutateAsync(document);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (e) {
       toast({ title: "Failed to open document", description: (e as Error).message, variant: "destructive" });
     }
@@ -178,6 +180,7 @@ export default function TakeCourse() {
     refetch: refetchProgress,
   } = useGetCourseProgress(assignmentId);
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
+  const packageCompleted = useAssignmentPackageCompleted(assignmentId);
   const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
   const completionEvidenceLocked = assignment?.status === "completed";
   const canMutateEvidence = canMutateCourseEvidence(
@@ -508,6 +511,10 @@ useEffect(() => {
   const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
   const videoGateBlocksAdvance =
     isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
+  // A package step is finished when its runtime has reported completion for this assignment.
+  // complete_course_assignment() refuses the course on the same predicate (20260905200000); before
+  // it, the package's own completion silently completed the whole assignment from here.
+  const packageRequired = currentBlock?.block_type === "scorm" && assignment?.status !== "completed";
   const canAdvance = canAdvanceCourseStep({
     completionEvidenceLocked,
     isQuizBlock,
@@ -517,6 +524,8 @@ useEffect(() => {
     appliedResponseComplete,
     attestationRequired,
     attestationSigned,
+    packageRequired,
+    packageCompleted: packageCompleted.data === true,
   });
 
   const handleLessonNoteChange = (value: string) => {
@@ -1201,11 +1210,13 @@ useEffect(() => {
             <p className="text-xs text-muted-foreground text-right">
               {videoGateBlocksAdvance
                 ? "Watch the video above to continue."
-                : appliedResponseRequired && !appliedResponseComplete
-                  ? `Enter an applied response of at least ${MIN_APPLIED_RESPONSE_CHARACTERS} characters to continue.`
-                  : attestationRequired && !attestationSigned
-                    ? "Read and sign the attestation above to finish this training."
-                    : "Pass the quiz above to continue."}
+                : packageRequired && packageCompleted.data !== true
+                  ? "Work through the training package above until it reports completion to continue."
+                  : appliedResponseRequired && !appliedResponseComplete
+                    ? `Enter an applied response of at least ${MIN_APPLIED_RESPONSE_CHARACTERS} characters to continue.`
+                    : attestationRequired && !attestationSigned
+                      ? "Read and sign the attestation above to finish this training."
+                      : "Pass the quiz above to continue."}
             </p>
           )}
           <p className="text-xs text-muted-foreground text-center">

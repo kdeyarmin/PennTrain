@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function MessageAttachment({ message }: { message: SupportTicketMessage }) {
   const { toast } = useToast();
@@ -23,7 +24,7 @@ function MessageAttachment({ message }: { message: SupportTicketMessage }) {
 
   const handleOpen = () => {
     getSignedUrl(message, {
-      onSuccess: (url) => window.open(url, "_blank", "noopener,noreferrer"),
+      onSuccess: (url) => openDocumentUrl(url),
       onError: (e: Error) => toast({ title: "Failed to open attachment", description: e.message, variant: "destructive" }),
     });
   };

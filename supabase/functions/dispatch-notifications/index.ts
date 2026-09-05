@@ -3,10 +3,13 @@ import webpush from "npm:web-push@3.6.7";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import { buildDisabledPushSubscriptionPatch } from "../_shared/webPush.ts";
 import {
+  channelProviderConfigured,
   classifyNotificationDispatchStatus,
+  actionUrlFor,
   isRetryableProviderStatus,
   normalizeSmsRecipient,
   parseFromAddress,
+  providerNotConfiguredSkip,
   renderProviderMessage,
   renderVersionedNotificationTemplate,
   sanitizeProviderDetail,
@@ -42,6 +45,8 @@ interface PendingDelivery {
     notification_type: string;
     title: string;
     body: string | null;
+    /** The in-app destination this notification is about. See actionUrlFor. */
+    link: string | null;
   } | null;
   notification_templates: {
     subject_template: string;
@@ -418,7 +423,7 @@ Deno.serve(async (req: Request) => {
   const { data: rows, error: fetchError } = await adminClient
     .from("notification_deliveries")
     .select(
-      "id, channel, recipient, profile_id, notification_id, notifications(notification_type, title, body), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
+      "id, channel, recipient, profile_id, notification_id, notifications(notification_type, title, body, link), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
     )
     .in("id", claimed.map((row: { id: string }) => row.id));
   if (fetchError) {
@@ -476,7 +481,7 @@ Deno.serve(async (req: Request) => {
             title: safeFallback.subject,
             body: safeFallback.body,
             organization_name: row.organizations?.name ?? "Your organization",
-            action_url: "/",
+            action_url: actionUrlFor(row.notifications?.link ?? null),
           },
         );
       } catch (_error) {
@@ -493,6 +498,35 @@ Deno.serve(async (req: Request) => {
     const contentSha256 = await sha256Hex(
       `${row.channel}\n${rendered.subject}\n${outboundBody}`,
     );
+
+    // Skipped rather than attempted when the channel has no credentials at all -- the sixth reason
+    // beside the five begin_notification_delivery_attempt already has. See
+    // _shared/notificationDelivery.ts for why recording this as a provider FAILURE opened the
+    // circuit breaker on a deployment that had never sent anything.
+    if (!channelProviderConfigured(row.channel, (key) => Deno.env.get(key))) {
+      const skip = providerNotConfiguredSkip(row.channel);
+      const { error: skipError } = await adminClient.rpc("skip_notification_delivery", {
+        p_delivery_id: row.id,
+        p_skip_reason: skip.reason,
+        p_error_code: skip.errorCode,
+      });
+      if (skipError) {
+        // The delivery stays `processing` when this write fails, so the log line is the only
+        // account of why it is stuck. Carrying the SQLSTATE and message turns "some deliveries
+        // never finalized" into a permission, deploy-skew or validation error somebody can act
+        // on. Sanitized because this pipeline's neighbouring data is recipient addresses.
+        console.error("notification skip persistence failed", {
+          deliveryId: row.id,
+          code: skipError.code,
+          error: sanitizeProviderDetail(skipError.message),
+        });
+        persistenceErrors++;
+        continue;
+      }
+      notSent++;
+      processed++;
+      continue;
+    }
 
     const { data: attempts, error: attemptError } = await adminClient.rpc(
       "begin_notification_delivery_attempt",

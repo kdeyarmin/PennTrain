@@ -28,6 +28,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Upload, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const PAGE_SIZE = 15;
 
@@ -129,7 +130,7 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
   const handleDownload = async (doc: NonNullable<typeof documents>[number]) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }

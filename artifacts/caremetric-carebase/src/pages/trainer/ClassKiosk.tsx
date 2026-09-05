@@ -1,19 +1,64 @@
 import { useMemo, useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useGetTrainingClass, useListClassAttendees, useCheckinViaKioskPin } from "@/hooks/useTrainingClasses";
 import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, CheckCircle2, XCircle, Delete } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Delete, Loader2 } from "lucide-react";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { markExplicitPasswordSignIn, useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 const PIN_PAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"];
 
 export default function ClassKiosk() {
   const [, params] = useRoute("/trainer/classes/:id/kiosk");
   const classId = params?.id;
+  const [, navigate] = useLocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  // BACKLOG.md I23. This page runs on a device left on a table for a queue of aides to type their
+  // PINs into, in the TRAINER's signed-in session. "Exit Kiosk Mode" was a plain link, so the
+  // shortest path from that queue into the trainer's whole account -- roster, records, everything
+  // that session can reach -- was one tap. The idle lock already asks for a password when the
+  // kiosk times out (SessionSecurityGates, lock_reason 'kiosk_timeout'); leaving deliberately now
+  // asks for the same thing, using the same idiom.
+  const [exitOpen, setExitOpen] = useState(false);
+  const [exitPassword, setExitPassword] = useState("");
+  const [exiting, setExiting] = useState(false);
+
+  const confirmExit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user?.email || !exitPassword) return;
+    setExiting(true);
+    try {
+      markExplicitPasswordSignIn();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: exitPassword,
+      });
+      if (signInError) throw signInError;
+      setExitOpen(false);
+      setExitPassword("");
+      navigate(`/trainer/classes/${classId}`);
+    } catch (signInError) {
+      toast({
+        title: "That password did not match",
+        description: "Kiosk mode stays on until the signed-in trainer confirms.",
+        variant: "destructive",
+      });
+    } finally {
+      setExiting(false);
+    }
+  };
 
   const { data: cls, isLoading: classLoading, isError: classError, error, refetch } = useGetTrainingClass(classId);
   const { data: attendees } = useListClassAttendees(classId);
@@ -104,10 +149,49 @@ export default function ClassKiosk() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 py-6">
+      <Dialog open={exitOpen} onOpenChange={(open) => { if (!open) { setExitOpen(false); setExitPassword(""); } }}>
+        <DialogContent>
+          <form onSubmit={(event) => void confirmExit(event)}>
+            <DialogHeader>
+              <DialogTitle>Leave kiosk mode</DialogTitle>
+              <DialogDescription>
+                This device is signed in as {user?.email ?? "the trainer"}. Confirm that password to
+                leave the check-in screen.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-4">
+              <Label htmlFor="kiosk-exit-password">Password</Label>
+              <Input
+                id="kiosk-exit-password"
+                type="password"
+                autoComplete="current-password"
+                value={exitPassword}
+                onChange={(event) => setExitPassword(event.target.value)}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setExitOpen(false); setExitPassword(""); }}>
+                Stay in kiosk mode
+              </Button>
+              <Button type="submit" disabled={exiting || exitPassword.length === 0}>
+                {exiting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Leave kiosk mode
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <div className="w-full max-w-xl flex items-center justify-between">
-        <Link href={`/trainer/classes/${classId}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => { setExitPassword(""); setExitOpen(true); }}
+        >
           <ArrowLeft className="h-4 w-4" /> Exit Kiosk Mode
-        </Link>
+        </Button>
       </div>
 
       <Card className="w-full max-w-xl shadow-xl">

@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useResidentDocuments";
 import { CompleteWithStateFormDialog } from "./CompleteWithStateFormDialog";
 import { useCompleteResidentComplianceItem } from "@/hooks/useResidentComplianceItems";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 interface StateFormWorkflowStepperProps {
   item: WorkflowItem;
@@ -64,7 +65,7 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
     if (!doc) return;
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
@@ -106,7 +107,7 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
                   ? "Resident details were filled onto the official DHS form."
                   : "The official DHS form is attached — fill it out from the resident record.",
               });
-              if (data.url) window.open(data.url, "_blank", "noopener,noreferrer");
+              if (data.url) openDocumentUrl(data.url);
             },
             onError: (e: Error) => toast({ title: "Failed to generate prefilled form", description: e.message, variant: "destructive" }),
           },
@@ -118,7 +119,7 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
         void openDocument(action.documentId!);
         break;
       case "download_official_blank":
-        window.open(action.url!, "_blank", "noopener,noreferrer");
+        openDocumentUrl(action.url!);
         break;
       case "upload_signed_form":
         setShowCompleteDialog(true);

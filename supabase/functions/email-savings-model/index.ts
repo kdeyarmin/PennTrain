@@ -3,6 +3,7 @@ import { parseFromAddress } from "../_shared/notificationDelivery.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { scrubEmails } from "../_shared/aiRedaction.ts";
 
 // Public, unauthenticated "email me my savings model" intake for the /savings marketing
 // calculator (requires verify_jwt:false for [functions.email-savings-model] in
@@ -369,7 +370,17 @@ Deno.serve(async (req: Request) => {
     const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
     const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
     if (!isHttpError || status >= 500 || internalDetail) {
-      console.error(isHttpError ? "email-savings-model HttpError:" : "Unexpected email-savings-model error:", error, internalDetail ?? "");
+      // BACKLOG.md I23. `error` used to go into the log as a whole object. Both of these functions
+      // handle a visitor's email address, and an unexpected throw from validation, the database or
+      // SendGrid can carry the submitted payload on it -- so the address landed in a function log
+      // with a different audience and a different retention from the row it belongs to. Log the
+      // shape instead: name, scrubbed message, and the internalDetail the throw site chose to say.
+      console.error(isHttpError ? "email-savings-model HttpError" : "Unexpected email-savings-model error", {
+        name: error instanceof Error ? error.name : typeof error,
+        message: scrubEmails(error instanceof Error ? error.message : String(error)).slice(0, 500),
+        internalDetail: internalDetail ? scrubEmails(internalDetail).slice(0, 500) : undefined,
+        status,
+      });
     }
     return json(req, { ok: false, error: message }, status);
   }

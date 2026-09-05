@@ -24,6 +24,7 @@ import { DataTable } from "@/components/DataTable";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const PAGE_SIZE = 15;
 
@@ -43,8 +44,17 @@ const ITEM_TYPE_OPTIONS: Array<{ value: InspectionItem["item_type"]; label: stri
   { value: "other_procedural", label: "Other Procedural Requirement", kind: "procedural" },
 ];
 
+// Derived schedules are not in ITEM_TYPE_OPTIONS because nobody creates one by hand: the database
+// opens a sleeping-hours schedule alongside every fire drill program and rolls it forward from the
+// program's own drills (55 Pa. Code 2600.132/2800.132 require one at least every six months).
+const DERIVED_ITEM_TYPE_LABELS: Record<string, string> = {
+  sleeping_hours_fire_drill: "Sleeping-Hours Fire Drill",
+};
+
 function itemTypeLabel(type: string): string {
-  return ITEM_TYPE_OPTIONS.find((o) => o.value === type)?.label ?? type.replace(/_/g, " ");
+  return ITEM_TYPE_OPTIONS.find((o) => o.value === type)?.label
+    ?? DERIVED_ITEM_TYPE_LABELS[type]
+    ?? type.replace(/_/g, " ");
 }
 
 interface ItemFormData {
@@ -66,8 +76,10 @@ const EMPTY_FORM: ItemFormData = {
   inspectionIntervalDays: "30", notes: "",
 };
 
-// Fire drills are monthly (55 Pa. Code 2600.132); everything else defaults to an annual cadence
-// when an administrator switches the type selector, saving a manual edit for the common case.
+// Everything but a fire drill defaults to an annual cadence when an administrator switches the type
+// selector, saving a manual edit for the common case. A fire drill program's stored interval is
+// cosmetic since 20260905160000 -- 55 Pa. Code 2600.132 states a calendar-month rule, and the
+// database computes it as one -- but the column is NOT NULL, so the row still carries a number.
 const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>> = {
   fire_drill_program: 30,
   emergency_prep_plan_review: 365,
@@ -188,7 +200,7 @@ export default function InspectionItems() {
       { facilityId: trackerFacilityId, month: trackerMonth },
       {
         onSuccess: (result) => {
-          window.open(result.url, "_blank", "noopener,noreferrer");
+          openDocumentUrl(result.url);
           toast({
             title: "Fire drill tracker generated",
             description: result.drillCount > 0
@@ -262,8 +274,12 @@ export default function InspectionItems() {
   };
 
   const selectedItems = items.filter((i) => selectedIds.includes(i.id));
-  // Fire drills need shift/route fields — send operators to the detail page instead of bulk-logging them.
-  const bulkEligible = selectedItems.filter((i) => i.item_type !== "fire_drill_program");
+  // Fire drills need shift/route fields — send operators to the detail page instead of bulk-logging
+  // them. A derived sleeping-hours schedule takes no events at all: the drill is logged on the
+  // program with the sleeping-hours box ticked, and the database refuses anything else.
+  const bulkEligible = selectedItems.filter(
+    (i) => i.item_type !== "fire_drill_program" && !i.derived_from_inspection_item_id,
+  );
 
   const handleBulkLog = async () => {
     if (!user || !bulkEligible.length) return;
@@ -419,7 +435,9 @@ export default function InspectionItems() {
                 id: "actions",
                 header: "",
                 className: "w-24",
-                cell: (item) => (canManage || canDelete) ? (
+                // A derived schedule has no editable settings of its own and comes back on the
+                // nightly sweep if it is deleted, so it offers neither action.
+                cell: (item) => ((canManage || canDelete) && !item.derived_from_inspection_item_id) ? (
                   <div className="flex items-center gap-1">
                     {canManage && (
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} aria-label={`Edit ${item.label}`}>
@@ -490,7 +508,13 @@ export default function InspectionItems() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-inspection-interval-days`} className="text-[13px]">Inspection Interval (days) *</Label>
-              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" />
+              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" disabled={form.itemType === "fire_drill_program"} />
+              {form.itemType === "fire_drill_program" && (
+                <p className="text-xs text-muted-foreground">
+                  Fire drills run on the calendar, not on an interval: one in every month, plus one
+                  during sleeping hours every six months. Both schedules are kept for you.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-manufacturer`} className="text-[13px]">Manufacturer</Label>

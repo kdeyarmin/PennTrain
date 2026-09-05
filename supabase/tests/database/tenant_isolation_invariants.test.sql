@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(11);
 
 -- Tenant isolation invariants, pinned.
 --
@@ -60,6 +60,7 @@ select is(
        -- checked individually rather than waved through:
        'dhs_citation_topics',                -- PA regulation taxonomy
        'feature_definitions',                -- feature catalogue
+       'incident_notification_rules',        -- PA reporting windows + citations; no tenant column
        'incident_pathways',                  -- pathway question templates
        'integration_api_scope_definitions',  -- API scope catalogue
        'package_entitlements',               -- packaging catalogue
@@ -181,6 +182,23 @@ select is(
      and has_function_privilege('anon', p.oid, 'execute')),
   20,
   'the anon-reachable SECURITY DEFINER surface is exactly the 20 known guest/portal entry points (includes resolve_safety_report_facility)'
+);
+-- 20 -> 21 on 2026-09-05 when assert_guest_request_allowed was added, then back to 20 the same day
+-- when 20260905360000 replaced it with public.guest_request_denial and DROPPED it. The replacement
+-- needs no anon grant at all: every caller is SECURITY DEFINER, so the gate runs as the owner
+-- whoever called it. Dropping rather than keeping a raising wrapper is deliberate -- a gate whose
+-- contract is "abort the transaction" cannot be used by anything PostgREST calls without throwing
+-- away the very counters it just wrote, which is the defect 20260905360000 exists to fix.
+select is(
+  (select count(*)::integer from pg_catalog.pg_proc p
+   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prosecdef
+     and has_function_privilege('anon', p.oid, 'execute')
+     and p.proname not in (
+       'verify_certificate', 'verify_training_passport', 'list_regulatory_updates')
+     and p.prosrc not like '%guest_request_denial%'),
+  0,
+  'and every token-bearing one of them passes through that gate before its own body runs'
 );
 
 -- A SECURITY DEFINER function without a pinned search_path resolves unqualified names against the

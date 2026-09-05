@@ -12,5 +12,19 @@ export const queryClient = new QueryClient({
       staleTime: 60_000,
       refetchOnWindowFocus: false,
     },
+    // react-query's default mutation networkMode is "online", which does not fail a write while
+    // `navigator.onLine` is false -- it PAUSES it. The mutation never settles, so the button keeps
+    // its spinner, no `onError` runs, no toast appears, and a reload discards the write silently:
+    // nothing here persists or resumes paused mutations (`isPaused` is read nowhere, and there is
+    // no MutationCache handler). A caregiver on facility wifi therefore had no way to learn that a
+    // save had not happened.
+    //
+    // "always" makes the request run and fail fast, which reaches the `onError` handlers the write
+    // hooks already have. This does not weaken offline documentation: that lane never depended on
+    // paused mutations -- it writes to the encrypted IndexedDB store first and syncs from
+    // OfflineSyncManager -- and a network-level failure there is already a keep-and-retry.
+    mutations: {
+      networkMode: "always",
+    },
   },
 });

@@ -53,7 +53,7 @@ export default function ResidentClinicalChart() {
   // afterwards, which is what this shows: the observation, struck through, with the reason.
   const [showRetracted, setShowRetracted] = useState(false);
   const observations = useResidentClinicalObservations(id, undefined, showRetracted);
-  const fhir = useResidentFhirClinical(id);
+  const fhir = useResidentFhirClinical(id, "Resident clinical chart view");
   const summary = useResidentClinicalChartSummary(id, "Resident clinical chart view");
 
   const activeAllergies = (fhir.data?.allergies ?? []).filter(

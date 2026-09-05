@@ -19,28 +19,31 @@ export interface ResidentClinicalCare {
 
 const CARE_KEY = "resident-clinical-care";
 
-export function useResidentClinicalCare(residentId?: string) {
+/**
+ * Care plans, goals, assessments and progress notes for one resident, through the logged RPC.
+ *
+ * This used to be four direct PostgREST selects. They were correctly RLS-scoped, but
+ * app_private.clinical_access_log records who read a resident's record, and a table read writes
+ * nothing to it -- so opening this tab, one of the busiest doors into a chart, left no trace at all.
+ * get_resident_clinical_care runs the same reads server-side and writes one access row per clinical
+ * domain it returns (care_plans, assessments, progress_notes) before returning them.
+ *
+ * `reason` is the HIPAA minimum-necessary annotation on those rows, and it is in the query key for
+ * the same reason it is in useResidentClinicalChartSummary's: the log entry exists only when the
+ * query actually runs, so two surfaces sharing one cache entry would leave the second one's access
+ * recorded under the first one's reason -- or not recorded at all.
+ */
+export function useResidentClinicalCare(residentId?: string, reason?: string) {
   return useQuery({
-    queryKey: [CARE_KEY, residentId],
+    queryKey: [CARE_KEY, residentId, reason ?? null],
     enabled: Boolean(residentId),
     queryFn: async (): Promise<ResidentClinicalCare> => {
-      const [carePlans, assessments, notes] = await Promise.all([
-        supabase.from("clinical_care_plans").select("*").eq("resident_id", residentId!).order("created_at", { ascending: false }),
-        supabase.from("clinical_assessments").select("*").eq("resident_id", residentId!).order("assessed_at", { ascending: false }).limit(100),
-        supabase.from("clinical_progress_notes").select("*").eq("resident_id", residentId!).order("authored_at", { ascending: false }).limit(100),
-      ]);
-      const planIds = (carePlans.data ?? []).map((plan) => plan.id);
-      const goals = planIds.length
-        ? await supabase.from("clinical_care_plan_goals").select("*").in("care_plan_id", planIds)
-        : { data: [], error: null };
-      const failed = [carePlans, assessments, notes, goals].find((result) => result.error);
-      if (failed?.error) throw failed.error;
-      return {
-        carePlans: carePlans.data ?? [],
-        goals: goals.data ?? [],
-        assessments: assessments.data ?? [],
-        notes: notes.data ?? [],
-      };
+      const { data, error } = await supabase.rpc("get_resident_clinical_care", {
+        p_resident_id: residentId!,
+        ...(reason ? { p_minimum_necessary_reason: reason } : {}),
+      });
+      if (error) throw error;
+      return data as unknown as ResidentClinicalCare;
     },
     staleTime: 30_000,
   });

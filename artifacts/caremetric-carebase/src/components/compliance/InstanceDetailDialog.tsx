@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, Paperclip, Trash2, Upload } from "lucide-react";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -147,7 +148,7 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
 
   async function openDoc(doc: ComplianceDocument) {
     const url = await getComplianceEvidenceUrl(doc);
-    if (url) window.open(url, "_blank", "noopener");
+    if (url) openDocumentUrl(url);
     else toast({ title: "Could not open file", variant: "destructive" });
   }
 

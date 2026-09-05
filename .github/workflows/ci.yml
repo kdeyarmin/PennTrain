@@ -124,8 +124,8 @@ jobs:
           # application → check:all (typecheck, unit tests, edge-function checks, builds)
           #
           # `supabase/migrations/**` belongs here as well as in DB_PATTERNS: check:all runs
-          # check:migration-policies, check:raise-arity and check:date-only-parsing, which read the
-          # migration files directly. Without it a migrations-only PR would skip exactly the static
+          # check:migration-policies, check:raise-arity, check:date-only-parsing and
+          # check:clinical-access-log, which read the migration files directly. Without it a migrations-only PR would skip exactly the static
           # checks written to guard migrations. (check:migration-drift is NOT one of them: check:all
           # runs only its --self-test, and the real drift check belongs to deploy-migrations.yml,
           # which needs remote credentials.)

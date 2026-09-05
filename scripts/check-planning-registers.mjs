@@ -131,6 +131,7 @@ const REGISTERS = [
   { path: "SURVEY_DAY_MODE_SPEC.md", role: "reference" },
   { path: "PA_DHS_ANNUAL_TRAINING_MATRIX.md", role: "reference" },
   { path: "docs/ops/GO_LIVE_READINESS_REVIEW_PLAN.md", role: "reference" },
+  { path: "docs/ops/PILOT_READINESS_PLAN.md", role: "reference" },
 ];
 
 // Root-level markdown whose name reads like a planning register. Anything matching this

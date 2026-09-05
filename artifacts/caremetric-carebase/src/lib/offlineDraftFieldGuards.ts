@@ -73,19 +73,98 @@ export function assertDraftLifecycleFields(
  *     listed, retried, and subject to the purge clock;
  *   - an unusable timestamp becomes the epoch, which reads as maximally overdue -- so it is flagged
  *     immediately and purged on schedule rather than sitting there forever.
+ *
+ * `updatedAt` is the last-attempt clock (BACKLOG.md I6). It is optional on input because records
+ * written before that column existed do not carry it, and it falls back to `createdAt` -- which is
+ * the clock the purge used for every state before this -- so an old record is treated exactly as it
+ * was. Its own unusable-value fallback is the same, and lands on the expirable side for the same
+ * reason the other two do.
  */
 export function coerceListedLifecycle<TState extends string>(
   syncState: unknown,
   createdAt: unknown,
   allowedStates: readonly TState[],
-): { syncState: TState; createdAt: string } {
+  updatedAt?: unknown,
+): { syncState: TState; createdAt: string; updatedAt: string } {
   const stateOk = typeof syncState === "string" && (allowedStates as readonly string[]).includes(syncState);
   const createdOk = typeof createdAt === "string" && !Number.isNaN(Date.parse(createdAt));
+  const created = createdOk ? (createdAt as string) : new Date(0).toISOString();
+  const updatedOk = typeof updatedAt === "string" && !Number.isNaN(Date.parse(updatedAt));
   // "error" is a member of both lanes' unions; the cast is what lets one helper serve both without
   // widening DraftListEntry.syncState to string, which would defeat the exhaustiveness the callers
   // rely on.
   return {
     syncState: (stateOk ? syncState : "error") as TState,
-    createdAt: createdOk ? (createdAt as string) : new Date(0).toISOString(),
+    createdAt: created,
+    updatedAt: updatedOk ? (updatedAt as string) : created,
+  };
+}
+
+/**
+ * A refusal the server made, and will make again (BACKLOG.md I6 residual).
+ *
+ * Both sync loops catch every throw and store `syncState: "error"`, which is an UNRESOLVED state --
+ * so the runner picks the draft up again on its next pass, five minutes later, forever. That is
+ * right for a draft that never reached the server. It is wrong for one the server executed and
+ * refused: a resident deleted since the draft was written (P0002), an employee deactivated while
+ * it sat on the device (42501), a receipt row whose foreign key no longer resolves (23503). Those
+ * answers do not change with time, so retrying produces a request every five minutes for as long
+ * as the device is signed in, and the aide is never told the note did not land.
+ *
+ * `rejected` already exists in both lanes, is already rendered as needs-review with the server's
+ * message, and is already dismissible by a human. Nothing reached it.
+ *
+ * The classification has to be conservative in one direction and only one: sending a draft to
+ * needs-review that WOULD have succeeded costs a person a look at a queue; leaving a doomed draft
+ * retrying costs nobody anything visible, which is exactly why it went unnoticed. So a failure
+ * counts against the draft only when the server plainly executed and refused.
+ *
+ *   - A client-side network failure carries `code: ""` -- @supabase/postgrest-js populates neither
+ *     code nor hint before an HTTP response exists (see isNetworkLevelSupabaseError, which states
+ *     the same fact for the same reason). Never counted: it says nothing about the answer.
+ *   - Anything without a five-character SQLSTATE is not Postgres answering. A gateway 502, a
+ *     proxy timeout, an auth-layer refusal: not counted.
+ *   - And these SQLSTATE classes ARE Postgres answering, but answering "not now": connection
+ *     exception (08), transaction rollback including serialization failure (40), insufficient
+ *     resources (53), operator intervention including statement timeout (57), system error (58),
+ *     and internal error (XX). A twenty-minute database incident must not reject a shift's worth
+ *     of care documentation.
+ */
+const TRANSIENT_SQLSTATE_CLASSES = ["08", "40", "53", "57", "58", "XX"];
+
+export function isDeterministicServerRefusal(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== "string" || !/^[0-9A-Z]{5}$/u.test(code)) return false;
+  return !TRANSIENT_SQLSTATE_CLASSES.includes(code.slice(0, 2));
+}
+
+/**
+ * Five, because the runner retries every five minutes: about twenty minutes of the same refusal
+ * before a human is asked to look. Long enough that a deploy or a migration finishing mid-shift
+ * resolves itself; short enough that the aide hears about it on the same shift they documented.
+ */
+export const MAX_SERVER_REFUSALS_BEFORE_REVIEW = 5;
+
+/**
+ * What a failed sync attempt should write.
+ *
+ * Returns the patch, so the two lanes share the decision and differ only in which store they hand
+ * it to. `failedAttempts` counts refusals, not attempts: a draft that fails ten times offline and
+ * once on the server has a count of one, which is the honest number.
+ */
+export function nextStateAfterSyncFailure<TState extends string>(
+  error: unknown,
+  previousFailures: number | undefined,
+  rejectedState: TState,
+  errorState: TState,
+): { syncState: TState; failedAttempts: number } {
+  if (!isDeterministicServerRefusal(error)) {
+    return { syncState: errorState, failedAttempts: previousFailures ?? 0 };
+  }
+  const failedAttempts = (previousFailures ?? 0) + 1;
+  return {
+    syncState: failedAttempts >= MAX_SERVER_REFUSALS_BEFORE_REVIEW ? rejectedState : errorState,
+    failedAttempts,
   };
 }

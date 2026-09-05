@@ -89,6 +89,11 @@ export const CORE_PATHS = [
   "/app/users",
   "/app/settings",
   "/app/help",
+  // Billing is core on purpose: the day a trial lapses, get_effective_entitlements returns
+  // is_entitled=false for every module and ProtectedRoute redirects any non-core path to the home
+  // path. If this page is not core, the "trial ended -- choose a plan" screen, the checkout button
+  // and the T-7/T-1 notice links all become unreachable at exactly the moment they exist for.
+  "/app/billing",
   "/trainer/facilities",
   "/trainer/employees",
   "/me/help",
@@ -239,4 +244,42 @@ export function parseBuildProductModules(value: string | undefined): ReadonlySet
 
 export function moduleDefinition(id: PurchasableProductModuleId) {
   return PRODUCT_MODULES.find((module) => module.id === id)!;
+}
+
+/**
+ * Whether an entitlement-RPC failure should take the app down to a full-page retry.
+ *
+ * Only when there is nothing to serve. The access provider already falls back to the last-good
+ * module set on a transient failure, so reporting every failure as blocking made that fallback
+ * unreachable: the screen it existed to prevent was rendered instead, on any blip, for every
+ * signed-in user at once. A failure on the FIRST load has no last-good behind it, and there the
+ * error screen is the honest answer rather than silently degrading a paying tenant to core-only.
+ */
+export function entitlementFailureIsBlocking(state: {
+  isError: boolean;
+  hasLastGoodModules: boolean;
+}): boolean {
+  return state.isError && !state.hasLastGoodModules;
+}
+
+/**
+ * The last-good module set, but only if it belongs to the organization now signed in.
+ *
+ * The fallback above is held in a ref, and a ref survives what a sign-out clears: React Query is
+ * reset, the auth user is replaced, and the ref is still holding the previous tenant's modules. So
+ * when a second tenant signed in on the same mounted SPA and their FIRST entitlement request
+ * failed, they inherited the first tenant's module set -- and because a last-good set existed,
+ * `entitlementFailureIsBlocking` suppressed the error screen that would otherwise have stopped
+ * them. Routes and navigation for modules that organization does not own, with nothing on screen
+ * to say so.
+ *
+ * Keyed rather than cleared on sign-out because the key cannot be forgotten by a future caller:
+ * a set that does not name the organization it was computed for is not usable evidence about it.
+ */
+export function lastGoodModulesForOrganization(
+  cached: { organizationId: string; modules: ReadonlySet<ProductModuleId> } | null,
+  organizationId: string | null | undefined,
+): ReadonlySet<ProductModuleId> | null {
+  if (!cached || !organizationId) return null;
+  return cached.organizationId === organizationId ? cached.modules : null;
 }

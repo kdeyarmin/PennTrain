@@ -1,4 +1,6 @@
 import {
+  actionUrlFor,
+  channelProviderConfigured,
   classifyNotificationDispatchStatus,
   hmacSha256Hex,
   isRetryableProviderStatus,
@@ -8,6 +10,7 @@ import {
   normalizeSmsRecipient,
   normalizeTwilioConsentAction,
   parseFromAddress,
+  providerNotConfiguredSkip,
   renderProviderMessage,
   renderVersionedNotificationTemplate,
   sanitizeProviderDetail,
@@ -200,8 +203,16 @@ Deno.test("redacts provider details before persistence", () => {
 
 Deno.test("classifies transient provider responses", () => {
   assertEquals(isRetryableProviderStatus(429), true);
-  assertEquals(isRetryableProviderStatus(503), false);
+  // 5xx is the provider saying "not now", not "never". Recording it as permanent burned the whole
+  // claimed batch on a minute of SendGrid 500s, fired the alternate-channel fallback for each, and
+  // opened the dispatch circuit after three such runs.
+  assertEquals(isRetryableProviderStatus(500), true);
+  assertEquals(isRetryableProviderStatus(502), true);
+  assertEquals(isRetryableProviderStatus(503), true);
+  // A 4xx that is not 429 does not become valid by repeating it.
   assertEquals(isRetryableProviderStatus(400), false);
+  assertEquals(isRetryableProviderStatus(401), false);
+  assertEquals(isRetryableProviderStatus(422), false);
 });
 
 Deno.test("parses display-name sender addresses", () => {
@@ -242,3 +253,94 @@ Deno.test("produces stable SHA-256 and HMAC fingerprints", async () => {
     await hmacSha256Hex("key", "value"),
   );
 });
+
+// BACKLOG.md I13, the half deferred to block 2. Until the provider secrets are set, an unconfigured
+// channel answered `provider_not_configured` as a non-retryable PROVIDER FAILURE -- which fired the
+// alternate-channel fallback stamped "after permanent failure", produced ledger rows
+// indistinguishable from real rejections, and counted toward the tally that opens the circuit
+// breaker. A deployment with no providers could open its own circuit before ever sending anything.
+Deno.test("channelProviderConfigured needs the whole credential set, not part of it", () => {
+  const env = (values: Record<string, string>) => (key: string) => values[key];
+
+  assertEquals(channelProviderConfigured("email", env({ SENDGRID_API_KEY: "SG.x" })), true);
+  assertEquals(channelProviderConfigured("email", env({})), false);
+  // A key present but blank is not configured. This is the shape a half-finished console step
+  // leaves behind, and it is the one most likely to be read as "set".
+  assertEquals(channelProviderConfigured("email", env({ SENDGRID_API_KEY: "   " })), false);
+
+  // Twilio needs the account pair AND somewhere to send from; either sender will do.
+  const twilioBase = { TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "tok" };
+  assertEquals(channelProviderConfigured("sms", env(twilioBase)), false);
+  assertEquals(
+    channelProviderConfigured("sms", env({ ...twilioBase, TWILIO_FROM_NUMBER: "+15550100" })),
+    true,
+  );
+  assertEquals(
+    channelProviderConfigured("sms", env({ ...twilioBase, TWILIO_MESSAGING_SERVICE_SID: "MG1" })),
+    true,
+  );
+  assertEquals(
+    channelProviderConfigured("sms", env({ TWILIO_ACCOUNT_SID: "AC1", TWILIO_FROM_NUMBER: "+1" })),
+    false,
+  );
+
+  assertEquals(
+    channelProviderConfigured("web_push", env({
+      WEB_PUSH_VAPID_PUBLIC_KEY: "pub",
+      WEB_PUSH_VAPID_PRIVATE_KEY: "priv",
+    })),
+    true,
+  );
+  assertEquals(channelProviderConfigured("web_push", env({ WEB_PUSH_VAPID_PUBLIC_KEY: "pub" })), false);
+});
+
+Deno.test("an unknown channel is not skipped past quietly", () => {
+  // Skipping would silently drop a delivery on a channel added later; letting the send path answer
+  // for it means the failure names the real problem.
+  assertEquals(channelProviderConfigured("carrier_pigeon", () => undefined), true);
+});
+
+Deno.test("the skip the ledger records names the channel and keeps the error code", () => {
+  const skip = providerNotConfiguredSkip("email");
+  assertEquals(skip.errorCode, "provider_not_configured");
+  // The reason is what an operator reads in the deliveries table, so it has to say which channel
+  // and that nothing was tried -- not merely that something went wrong.
+  assertEquals(skip.reason.includes("email"), true);
+  assertEquals(skip.reason.includes("no attempt was made"), true);
+});
+
+// BACKLOG.md I23. dispatch-notifications rendered every templated notification's call to action
+// with `action_url: "/"`, so an email that said "review it" linked to the marketing homepage and
+// the recipient -- told it was urgent, often on a phone -- had to go and find the thing themselves.
+Deno.test("actionUrlFor sends a notification to the thing it is about", () => {
+  assertEquals(
+    actionUrlFor("/app/incidents/abc-123", "https://cmcarebase.com"),
+    "https://cmcarebase.com/app/incidents/abc-123",
+  );
+});
+
+Deno.test("actionUrlFor falls back to the app root when there is no destination", () => {
+  // Which is where every one of them used to go.
+  assertEquals(actionUrlFor(null, "https://cmcarebase.com"), "https://cmcarebase.com/");
+  assertEquals(actionUrlFor("", "https://cmcarebase.com"), "https://cmcarebase.com/");
+});
+
+Deno.test("actionUrlFor refuses anything that is not a same-origin app path", () => {
+  // `link` is written by database triggers today. An action URL is the one part of a notification a
+  // recipient is invited to click, and "it is only ever written by us" is exactly the assumption
+  // that becomes an open redirect later.
+  assertEquals(actionUrlFor("//evil.example", "https://cmcarebase.com"), "https://cmcarebase.com/");
+  assertEquals(
+    actionUrlFor("https://evil.example/steal", "https://cmcarebase.com"),
+    "https://cmcarebase.com/",
+  );
+  assertEquals(actionUrlFor("app/incidents/1", "https://cmcarebase.com"), "https://cmcarebase.com/");
+});
+
+Deno.test("actionUrlFor does not double the slash when the base carries one", () => {
+  assertEquals(
+    actionUrlFor("/app/work", "https://cmcarebase.com/"),
+    "https://cmcarebase.com/app/work",
+  );
+});
+

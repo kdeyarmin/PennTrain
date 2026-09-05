@@ -245,10 +245,20 @@ export default function InspectionReadiness() {
       case "inspections": {
         const blocked = sourceState(inspectionItemsQuery);
         if (blocked) return { level: blocked, detail: inspectionItemsQuery.isError ? "inspection data unavailable" : "loading inspections" };
-        const rows = inspectionItems ?? [];
+        // entrance_conference_items.item_types names which schedules this prompt is asking about.
+        // Without it every 'inspections' row showed the same whole-table verdict, so an overdue
+        // generator made the fire-drill row and the emergency-plan row read "Attention Needed" too
+        // and an administrator prepping for a survey chased the wrong deficiency.
+        const scope = item.item_types ?? [];
+        const rows = scope.length > 0
+          ? (inspectionItems ?? []).filter((i) => scope.includes(i.item_type))
+          : (inspectionItems ?? []);
+        // Nothing on file is not readiness. A facility with no fire drill program at all had zero
+        // outstanding items and read "Ready" -- the one state a surveyor is guaranteed to cite.
+        if (rows.length === 0) return { level: "attention", detail: "nothing on file to check" };
         const outstanding = rows.filter((i) => i.status === "expired" || i.status === "due_soon" || i.status === "missing");
         return outstanding.length === 0
-          ? { level: "ready" }
+          ? { level: "ready", detail: `${rows.length} on schedule` }
           : { level: "attention", detail: `${outstanding.length} outstanding` };
       }
       case "incidents": {

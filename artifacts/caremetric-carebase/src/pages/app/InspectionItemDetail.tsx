@@ -151,6 +151,15 @@ export default function InspectionItemDetail() {
 
   const facilityName = facilities?.find((f) => f.id === item?.facility_id)?.name;
   const isFireDrill = item?.item_type === "fire_drill_program";
+  // The sleeping-hours schedule the database derives from a fire drill program. It has no events of
+  // its own -- it reads the program's, filtered to the drills marked as sleeping-hours -- so there
+  // is nothing to log here and the database refuses an event against it outright.
+  const derivedFromId = item?.derived_from_inspection_item_id ?? null;
+  const cadenceLabel = item?.item_type === "fire_drill_program"
+    ? "Every calendar month"
+    : item?.item_type === "sleeping_hours_fire_drill"
+      ? "Every 6 months"
+      : `Every ${item?.inspection_interval_days} days`;
 
   // Recomputed from current field values on every render (cheap -- a handful of string checks)
   // rather than tracked as its own state, so an error can never go stale relative to what's
@@ -266,10 +275,27 @@ export default function InspectionItemDetail() {
               <Printer className="mr-2 h-4 w-4" /> Print Fire Drill Record
             </Button>
           )}
-          {canManage && <Button asChild variant="outline"><Link href={`/app/maintenance?action=add&assetId=${item.id}`}><Wrench className="mr-2 h-4 w-4" /> New Work Order</Link></Button>}
-          {canManage && <Button onClick={() => { resetEventForm(); setShowEventForm(true); }}><Plus className="mr-2 h-4 w-4" /> Log Inspection</Button>}
+          {canManage && !derivedFromId && <Button asChild variant="outline"><Link href={`/app/maintenance?action=add&assetId=${item.id}`}><Wrench className="mr-2 h-4 w-4" /> New Work Order</Link></Button>}
+          {canManage && !derivedFromId && <Button onClick={() => { resetEventForm(); setShowEventForm(true); }}><Plus className="mr-2 h-4 w-4" /> Log Inspection</Button>}
+          {derivedFromId && (
+            <Button asChild variant="outline">
+              <Link href={`/app/inspections/${derivedFromId}`}>Open the fire drill program</Link>
+            </Button>
+          )}
         </div>
       </div>
+
+      {derivedFromId && (
+        <div className="print:hidden flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+          <AlertTriangle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <p>
+            This schedule is derived from the fire drill program: 55 Pa. Code 2600.132/2800.132
+            require a drill held during sleeping hours at least every six months. Log the drill on
+            the program itself and tick “This is the sleeping-hours drill” — it will roll this date
+            forward.
+          </p>
+        </div>
+      )}
 
       {isFireDrill && (repeatsLastShift || repeatsLastExit) && (
         <div className="print:hidden flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
@@ -284,7 +310,7 @@ export default function InspectionItemDetail() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Interval</p><p className="font-semibold">Every {item.inspection_interval_days} days</p></CardContent></Card>
+        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Interval</p><p className="font-semibold">{cadenceLabel}</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Last Inspected</p><p className="font-semibold">{item.last_inspected_date ?? "Never"}</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Next Due</p><p className="font-semibold">{item.next_due_date ?? "—"}</p></CardContent></Card>
       </div>

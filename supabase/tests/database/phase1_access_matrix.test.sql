@@ -180,6 +180,11 @@ select ok(
       ('course_versions', 'INSERT'),
       ('course_blocks', 'SELECT'),
       ('course_blocks', 'INSERT'),
+      -- generate-certificate-pdf prints the version the learner took and their best final-exam
+      -- score; granted by 20260904110000 after every production render failed without them.
+      ('course_assignments', 'SELECT'),
+      ('quiz_attempts', 'SELECT'),
+      ('quizzes', 'SELECT'),
       ('facility_assignments', 'INSERT'),
       ('alerts', 'SELECT'),
       ('certificates', 'SELECT'),
@@ -332,7 +337,22 @@ select ok(
         ('course_versions', 'INSERT'),
         ('course_blocks', 'SELECT'),
         ('course_blocks', 'INSERT'),
+        -- Approved 20260904110000: SELECT only, for the certificate PDF worker. A write on any
+        -- of the three still fails this assertion.
+        ('course_assignments', 'SELECT'),
+        ('quiz_attempts', 'SELECT'),
+        ('quizzes', 'SELECT'),
+        -- Approved 20260905090000: SELECT for the durable import worker, which checks whether a
+        -- job's creating manager is still assigned to a facility before letting a rescued row
+        -- reach it. Refusing the read makes that check fail closed on every row.
         ('facility_assignments', 'INSERT'),
+        ('facility_assignments', 'SELECT'),
+        -- Approved 20260905090000, one table and one privilege each, for a function that could
+        -- not do its job without it. See that migration for what each one broke.
+        ('employee_credential_documents', 'SELECT'),  -- process-credential-renewals reads the upload it OCRs
+        ('violation_documents', 'UPDATE'),            -- generate-poc-document rewrites an amended plan
+        ('employees', 'UPDATE'),                      -- invite-user detaches the employee when the email fails
+        ('packages', 'SELECT'),                       -- create-billing-session confirms the plan is still sold
         ('alerts', 'SELECT'),
         ('certificates', 'SELECT'),
         ('corrective_actions', 'SELECT'),

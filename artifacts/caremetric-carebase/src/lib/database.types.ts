@@ -1044,6 +1044,7 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          is_provider_placeholder: boolean
           organization_id: string
           package_id: string | null
           provider_event_created_at: string
@@ -1066,6 +1067,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          is_provider_placeholder?: boolean
           organization_id: string
           package_id?: string | null
           provider_event_created_at: string
@@ -1088,6 +1090,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          is_provider_placeholder?: boolean
           organization_id?: string
           package_id?: string | null
           provider_event_created_at?: string
@@ -6114,7 +6117,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
@@ -6138,7 +6141,7 @@ export type Database = {
           id?: string
           inspection_date: string
           organization_id: string
-          poc_due_date?: string | null
+          poc_due_date: string
           poc_due_soon_notified_at?: string | null
           poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
@@ -6162,7 +6165,7 @@ export type Database = {
           id?: string
           inspection_date?: string
           organization_id?: string
-          poc_due_date?: string | null
+          poc_due_date?: string
           poc_due_soon_notified_at?: string | null
           poc_overdue_notified_at?: string | null
           poc_submitted_at?: string | null
@@ -10590,8 +10593,10 @@ export type Database = {
           error: string | null
           expected_record_count: number | null
           id: string
+          last_progress_at: string | null
           snapshot_id: string
           source: string
+          stage_cursor: Json | null
           staged_record_count: number
           started_at: string
           status: string
@@ -10604,8 +10609,10 @@ export type Database = {
           error?: string | null
           expected_record_count?: number | null
           id: string
+          last_progress_at?: string | null
           snapshot_id: string
           source: string
+          stage_cursor?: Json | null
           staged_record_count?: number
           started_at?: string
           status?: string
@@ -10618,8 +10625,10 @@ export type Database = {
           error?: string | null
           expected_record_count?: number | null
           id?: string
+          last_progress_at?: string | null
           snapshot_id?: string
           source?: string
+          stage_cursor?: Json | null
           staged_record_count?: number
           started_at?: string
           status?: string
@@ -14861,6 +14870,45 @@ export type Database = {
           },
         ]
       }
+      incident_notification_rules: {
+        Row: {
+          citation: string
+          created_at: string
+          due_hours: number
+          id: string
+          incident_type: string
+          is_active: boolean
+          note: string | null
+          notification_type: string
+          source_confidence: string
+          updated_at: string
+        }
+        Insert: {
+          citation: string
+          created_at?: string
+          due_hours: number
+          id?: string
+          incident_type: string
+          is_active?: boolean
+          note?: string | null
+          notification_type: string
+          source_confidence?: string
+          updated_at?: string
+        }
+        Update: {
+          citation?: string
+          created_at?: string
+          due_hours?: number
+          id?: string
+          incident_type?: string
+          is_active?: boolean
+          note?: string | null
+          notification_type?: string
+          source_confidence?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       incident_notifications: {
         Row: {
           completed_at: string | null
@@ -15396,6 +15444,7 @@ export type Database = {
         Row: {
           citation_topic_id: string | null
           created_at: string
+          derived_from_inspection_item_id: string | null
           facility_id: string
           id: string
           inspection_interval_days: number
@@ -15421,6 +15470,7 @@ export type Database = {
         Insert: {
           citation_topic_id?: string | null
           created_at?: string
+          derived_from_inspection_item_id?: string | null
           facility_id: string
           id?: string
           inspection_interval_days: number
@@ -15446,6 +15496,7 @@ export type Database = {
         Update: {
           citation_topic_id?: string | null
           created_at?: string
+          derived_from_inspection_item_id?: string | null
           facility_id?: string
           id?: string
           inspection_interval_days?: number
@@ -15474,6 +15525,13 @@ export type Database = {
             columns: ["citation_topic_id"]
             isOneToOne: false
             referencedRelation: "dhs_citation_topics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_items_derived_from_inspection_item_id_fkey"
+            columns: ["derived_from_inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
             referencedColumns: ["id"]
           },
           {
@@ -20212,10 +20270,14 @@ export type Database = {
           facility_id: string
           id: string
           organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
           pdf_sha256: string | null
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           snapshot: Json
+          snapshot_sha256: string | null
           submitted_at: string
           submitted_by_profile_id: string | null
           version_number: number
@@ -20227,10 +20289,14 @@ export type Database = {
           facility_id: string
           id?: string
           organization_id: string
+          pdf_last_error?: string | null
+          pdf_last_error_at?: string | null
+          pdf_rendered_at?: string | null
           pdf_sha256?: string | null
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           snapshot?: Json
+          snapshot_sha256?: string | null
           submitted_at?: string
           submitted_by_profile_id?: string | null
           version_number: number
@@ -20242,10 +20308,14 @@ export type Database = {
           facility_id?: string
           id?: string
           organization_id?: string
+          pdf_last_error?: string | null
+          pdf_last_error_at?: string | null
+          pdf_rendered_at?: string | null
           pdf_sha256?: string | null
           pdf_storage_bucket?: string | null
           pdf_storage_path?: string | null
           snapshot?: Json
+          snapshot_sha256?: string | null
           submitted_at?: string
           submitted_by_profile_id?: string | null
           version_number?: number
@@ -20324,6 +20394,8 @@ export type Database = {
           created_by: string | null
           due_date: string | null
           id: string
+          last_spawn_skipped_at: string | null
+          last_spawn_skipped_reason: string | null
           name: string
           next_occurrence_on: string | null
           organization_id: string
@@ -20343,6 +20415,8 @@ export type Database = {
           created_by?: string | null
           due_date?: string | null
           id?: string
+          last_spawn_skipped_at?: string | null
+          last_spawn_skipped_reason?: string | null
           name: string
           next_occurrence_on?: string | null
           organization_id: string
@@ -20362,6 +20436,8 @@ export type Database = {
           created_by?: string | null
           due_date?: string | null
           id?: string
+          last_spawn_skipped_at?: string | null
+          last_spawn_skipped_reason?: string | null
           name?: string
           next_occurrence_on?: string | null
           organization_id?: string
@@ -31702,6 +31778,7 @@ export type Database = {
       signup_attempts: {
         Row: {
           baa_version: string | null
+          counts_toward_rate_limit: boolean
           created_at: string
           email_hash: string
           error_code: string | null
@@ -31713,6 +31790,7 @@ export type Database = {
         }
         Insert: {
           baa_version?: string | null
+          counts_toward_rate_limit?: boolean
           created_at?: string
           email_hash: string
           error_code?: string | null
@@ -31724,6 +31802,7 @@ export type Database = {
         }
         Update: {
           baa_version?: string | null
+          counts_toward_rate_limit?: boolean
           created_at?: string
           email_hash?: string
           error_code?: string | null
@@ -36021,11 +36100,11 @@ export type Database = {
       }
       accept_move_in_guest_terms: {
         Args: { p_fingerprint?: string; p_token: string }
-        Returns: boolean
+        Returns: Json
       }
       accept_resident_agreement_guest_terms: {
         Args: { p_device_evidence?: string; p_token: string }
-        Returns: boolean
+        Returns: Json
       }
       accept_resident_portal_terms: {
         Args: {
@@ -36033,7 +36112,7 @@ export type Database = {
           p_terms_version: string
           p_token: string
         }
-        Returns: boolean
+        Returns: Json
       }
       acknowledge_appointment_new_order: {
         Args: { p_appointment_id: string; p_note: string }
@@ -36565,7 +36644,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
@@ -36748,6 +36827,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      attach_file_to_support_ticket_message: {
+        Args: {
+          p_bucket: string
+          p_name: string
+          p_path: string
+          p_size: number
+          p_ticket_id: string
+          p_type: string
+        }
+        Returns: undefined
+      }
       authenticate_integration_api_credential: {
         Args: {
           p_correlation_id?: string
@@ -36826,10 +36916,6 @@ export type Database = {
         }
         Returns: string
       }
-      bridge_learning_runtime_completion: {
-        Args: { p_runtime_session_id: string }
-        Returns: string
-      }
       bulk_update_alert_status: {
         Args: {
           p_alert_ids: string[]
@@ -36838,6 +36924,10 @@ export type Database = {
           p_status: string
         }
         Returns: Json
+      }
+      can_read_clinical_record: {
+        Args: { p_fac: string; p_org: string }
+        Returns: boolean
       }
       can_read_employee_peer_data: {
         Args: { p_facility_id: string; p_organization_id: string }
@@ -37805,6 +37895,34 @@ export type Database = {
         }
         Returns: string
       }
+      create_support_ticket_with_message: {
+        Args: {
+          p_body: string
+          p_category: string
+          p_priority: string
+          p_subject: string
+        }
+        Returns: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          created_by: string
+          id: string
+          last_message_at: string
+          organization_id: string
+          priority: string
+          resolved_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "support_tickets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_survey_rehearsal: {
         Args: {
           p_facility_id: string
@@ -38156,6 +38274,16 @@ export type Database = {
           p_unit_id: string
         }
         Returns: Json
+      }
+      exclusion_name_key: { Args: { p_name: string }; Returns: string }
+      exclusion_name_match_score: {
+        Args: {
+          p_employee_first: string
+          p_employee_last: string
+          p_entry_first: string
+          p_entry_last: string
+        }
+        Returns: number
       }
       exclusion_source_record_key: {
         Args: {
@@ -38561,6 +38689,14 @@ export type Database = {
         Args: { p_facility_id: string }
         Returns: Json
       }
+      get_facility_fhir_ingestion_activity: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
+      get_facility_medication_ingestion_activity: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_facility_occupancy_board: {
         Args: { p_facility_id: string }
         Returns: Json
@@ -38579,6 +38715,16 @@ export type Database = {
         }[]
       }
       get_governed_learning_control_plane: { Args: never; Returns: Json }
+      get_guest_access_health: {
+        Args: { p_hours?: number }
+        Returns: {
+          distinct_callers: number
+          failed_lookups: number
+          last_failure_at: string
+          surface: string
+          worst_caller_failures: number
+        }[]
+      }
       get_guided_org_setup_status: {
         Args: { p_organization_id?: string }
         Returns: Json
@@ -38631,6 +38777,16 @@ export type Database = {
       get_notification_delivery_operations: {
         Args: { p_hours?: number; p_organization_id?: string }
         Returns: Json
+      }
+      get_notification_reach: {
+        Args: never
+        Returns: {
+          active_employees: number
+          organization_id: string
+          organization_name: string
+          reachable_employees: number
+          unreachable_employees: number
+        }[]
       }
       get_notification_template_library: {
         Args: { p_organization_id?: string }
@@ -38807,7 +38963,15 @@ export type Database = {
         Args: { p_resident_id: string }
         Returns: Json
       }
+      get_resident_clinical_care: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
+      }
       get_resident_clinical_chart: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
+      }
+      get_resident_clinical_fhir: {
         Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
         Returns: Json
       }
@@ -38848,6 +39012,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_resident_external_medications: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
       }
       get_resident_list_summary: {
         Args: {
@@ -38990,6 +39158,8 @@ export type Database = {
           is_critical: boolean
           is_stale: boolean
           job_key: string
+          kill_switch_can_stop: boolean
+          kill_switch_enabled: boolean
           last_attempt_at: string
           last_duration_ms: number
           last_status: string
@@ -39112,6 +39282,10 @@ export type Database = {
         }
         Returns: string
       }
+      guest_request_denial: {
+        Args: { p_surface: string; p_token: string }
+        Returns: string
+      }
       has_effective_entitlement: {
         Args: {
           p_as_of?: string
@@ -39147,6 +39321,10 @@ export type Database = {
       identity_operation_requires_aal2: {
         Args: { p_operation: string }
         Returns: boolean
+      }
+      import_apply_employee: {
+        Args: { p_employee_id: string; p_job_id: string; p_payload: Json }
+        Returns: string
       }
       import_apply_employee_credential: {
         Args: {
@@ -39251,6 +39429,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      import_apply_resident: {
+        Args: { p_job_id: string; p_payload: Json; p_resident_id: string }
+        Returns: string
+      }
+      import_apply_resident_assessment: {
+        Args: { p_form_id: string; p_job_id: string; p_payload: Json }
+        Returns: string
+      }
       import_apply_resident_contact: {
         Args: {
           p_contact_id?: string
@@ -39345,6 +39531,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      import_mark_row: {
+        Args: {
+          p_errors: string[]
+          p_row_id: string
+          p_status: string
+          p_target_id: string
+          p_target_table: string
+        }
+        Returns: undefined
+      }
+      import_recount_job: {
+        Args: { p_finalize_applied?: boolean; p_job_id: string }
+        Returns: Json
+      }
       ingest_xapi_statement: {
         Args: {
           p_actor_employee_id: string
@@ -39364,6 +39564,15 @@ export type Database = {
           p_owner_profile_id: string
           p_source_systems?: Json
           p_target_go_live_date: string
+        }
+        Returns: string
+      }
+      inspection_item_next_due_date: {
+        Args: {
+          p_anchor: string
+          p_interval_days: number
+          p_item_type: string
+          p_last_date: string
         }
         Returns: string
       }
@@ -39573,10 +39782,14 @@ export type Database = {
           facility_id: string
           id: string
           organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
           pdf_sha256: string | null
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           snapshot: Json
+          snapshot_sha256: string | null
           submitted_at: string
           submitted_by_profile_id: string | null
           version_number: number
@@ -39826,7 +40039,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
@@ -39866,6 +40079,10 @@ export type Database = {
         Args: { p_form_id: string }
         Returns: number
       }
+      notification_bypasses_quiet_hours: {
+        Args: { p_delivery_type: string; p_notification_id: string }
+        Returns: boolean
+      }
       notification_next_permitted_at: {
         Args: { p_requested_at: string; p_timezone: string }
         Returns: string
@@ -39873,6 +40090,14 @@ export type Database = {
       notification_phone_key: { Args: { p_phone: string }; Returns: string }
       notify_platform_admins_of_demo_request: {
         Args: { p_demo_request_id: string }
+        Returns: number
+      }
+      oapsa_duty_status: {
+        Args: { p_as_of?: string; p_employee_id: string }
+        Returns: Json
+      }
+      oapsa_provisional_window_days: {
+        Args: { p_organization_id: string; p_pa_resident_two_years: boolean }
         Returns: number
       }
       open_confidential_intake_details: {
@@ -39913,6 +40138,7 @@ export type Database = {
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       pa_clock: { Args: { p_at: string }; Returns: string }
       pa_day: { Args: { p_at: string }; Returns: string }
+      pa_local: { Args: { p_at: string }; Returns: string }
       pa_midnight: { Args: { p_day: string }; Returns: string }
       pa_now: { Args: never; Returns: string }
       pa_today: { Args: never; Returns: string }
@@ -39972,7 +40198,7 @@ export type Database = {
           p_request_fingerprint_sha256?: string
           p_token: string
         }
-        Returns: boolean
+        Returns: Json
       }
       post_resident_portal_request: {
         Args: {
@@ -39982,7 +40208,7 @@ export type Database = {
           p_subject: string
           p_token: string
         }
-        Returns: string
+        Returns: Json
       }
       prepare_offline_course_bundle: {
         Args: {
@@ -40366,6 +40592,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_exclusion_stage_progress: {
+        Args: { p_cursor: Json; p_run_id: string }
+        Returns: Json
+      }
       record_food_safety_log: {
         Args: {
           p_checklist: Json
@@ -40473,6 +40703,43 @@ export type Database = {
           p_trial_ends_at: string
         }
         Returns: string
+      }
+      record_plan_of_correction_version_pdf: {
+        Args: {
+          p_bucket: string
+          p_path: string
+          p_sha256: string
+          p_version_id: string
+        }
+        Returns: {
+          amendment_reason: string | null
+          created_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
+          pdf_sha256: string | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          snapshot: Json
+          snapshot_sha256: string | null
+          submitted_at: string
+          submitted_by_profile_id: string | null
+          version_number: number
+          violation_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "plan_of_correction_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      record_plan_of_correction_version_pdf_failure: {
+        Args: { p_error: string; p_version_id: string }
+        Returns: undefined
       }
       record_qapi_measurement: {
         Args: {
@@ -41081,6 +41348,10 @@ export type Database = {
           run_id: string
         }[]
       }
+      requeue_certificate_pdf: {
+        Args: { p_certificate_id: string }
+        Returns: Json
+      }
       require_identity_administrator: {
         Args: { p_operation?: string; p_organization_id: string }
         Returns: undefined
@@ -41191,7 +41462,7 @@ export type Database = {
           p_response: string
           p_token: string
         }
-        Returns: string
+        Returns: Json
       }
       respond_to_resident_agreement_guest: {
         Args: {
@@ -41209,7 +41480,7 @@ export type Database = {
           p_witness_name: string
           p_witness_relationship: string
         }
-        Returns: string
+        Returns: Json
       }
       restore_demo_baseline: { Args: never; Returns: Json }
       resume_confidential_incident_intake: {
@@ -41461,6 +41732,7 @@ export type Database = {
         Args: { p_now?: string }
         Returns: number
       }
+      run_oapsa_provisional_maintenance: { Args: never; Returns: undefined }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
       run_plan_of_correction_escalations: {
         Args: { p_now?: string }
@@ -42264,11 +42536,19 @@ export type Database = {
           p_task_id: string
           p_token: string
         }
-        Returns: boolean
+        Returns: Json
       }
       simulate_workflow_automation_rule: {
         Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }
         Returns: Json
+      }
+      skip_notification_delivery: {
+        Args: {
+          p_delivery_id: string
+          p_error_code: string
+          p_skip_reason: string
+        }
+        Returns: undefined
       }
       spawn_due_policy_campaign_cycles: {
         Args: { p_now?: string }
@@ -42459,10 +42739,14 @@ export type Database = {
           facility_id: string
           id: string
           organization_id: string
+          pdf_last_error: string | null
+          pdf_last_error_at: string | null
+          pdf_rendered_at: string | null
           pdf_sha256: string | null
           pdf_storage_bucket: string | null
           pdf_storage_path: string | null
           snapshot: Json
+          snapshot_sha256: string | null
           submitted_at: string
           submitted_by_profile_id: string | null
           version_number: number
@@ -43195,7 +43479,6 @@ export type Database = {
           credential_number: string
           employee_name: string
           expires_at: string
-          final_exam_score: number
           is_valid: boolean
           issued_at: string
           organization_name: string
@@ -43230,7 +43513,7 @@ export type Database = {
           id: string
           inspection_date: string
           organization_id: string
-          poc_due_date: string | null
+          poc_due_date: string
           poc_due_soon_notified_at: string | null
           poc_overdue_notified_at: string | null
           poc_submitted_at: string | null
@@ -43326,6 +43609,7 @@ export type Database = {
         Args: { p_block_id: string; p_body: Json; p_video_url?: string }
         Returns: undefined
       }
+      write_is_through_a_trusted_path: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

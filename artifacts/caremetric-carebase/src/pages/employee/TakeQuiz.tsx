@@ -281,7 +281,16 @@ export default function TakeQuiz() {
     showRetake: boolean;
     exhausted: boolean;
   }) {
-    const { data: reviewAnswers } = useListQuizAttemptAnswers(attemptId);
+    // Per-question right/wrong is the elimination attack, and it is enough on its own: told which
+    // eight of thirty they missed, a learner changes only those and converges in a few retakes
+    // without ever seeing the answer key. It is gated on the same condition as the key --
+    // 20260905120000 enforces the same rule in RLS, so this only keeps the page from rendering an
+    // empty review it would otherwise have to explain.
+    const canSeeWhichWereWrong = !!passed || exhausted ||
+      activeQuiz.reveals_answers_after_attempt === true;
+    const { data: reviewAnswers } = useListQuizAttemptAnswers(
+      canSeeWhichWereWrong ? attemptId : undefined,
+    );
     // Which content areas to go back to. Counts only -- no question text, no answer key -- so it
     // is safe to show after a failed attempt on an examination the learner may retake immediately.
     const { data: topicReview } = useGetQuizAttemptTopicReview(passed === false ? attemptId : undefined);

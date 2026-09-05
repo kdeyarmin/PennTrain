@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Json, Tables } from "@/lib/database.types";
+import { guestRpcOk } from "@/lib/guestRpcResult";
 
 export type ReferralSource = Tables<"referral_sources">;
 export type AdmissionProspect = Tables<"admission_prospects">;
@@ -631,7 +632,7 @@ export function useAcceptMoveInGuestTerms() {
         p_fingerprint: null,
       } as never);
       if (error) throw error;
-      return data;
+      return guestRpcOk(data);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["move-in-guest"] }),
   });
@@ -655,7 +656,7 @@ export function useSignMoveInGuestTask() {
         p_attestation: input.attestation,
       } as never);
       if (error) throw error;
-      return data;
+      return guestRpcOk(data);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["move-in-guest"] }),
   });

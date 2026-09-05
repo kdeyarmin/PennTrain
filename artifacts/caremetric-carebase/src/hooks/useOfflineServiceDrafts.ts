@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import {
   getOfflineFloorDeviceMetadata,
   initializeOfflineFloorDevice, isUnsyncedDraftOverdue, listServiceDraftEntries,
-  purgeExpiredServiceDrafts, readAllServiceDrafts, readAllServiceDraftsWithFailures,
+  readAllServiceDrafts, readAllServiceDraftsWithFailures,
   removeServiceDraft, saveOfflineFloorDeviceId,
   saveServiceDraft, updateServiceDraft, wipeOfflineServiceDrafts,
   type DraftListEntry, type OfflineFloorIdentity,
@@ -16,6 +16,7 @@ import {
   type OfflineChangeObservationDraft, type OfflineDraftKind, type OfflineDraftSyncOutcome,
   type OfflineFloorDraft, type OfflineServiceDraft, type OfflineUnscheduledServiceDraft,
 } from "@/lib/offlineServiceDraftSafety";
+import { nextStateAfterSyncFailure } from "@/lib/offlineDraftFieldGuards";
 import { followUpFieldsFor } from "@/lib/serviceExceptionFollowUp";
 import type { CompletionResponse } from "@/lib/serviceDeliveryContract";
 import type { Json } from "@/lib/database.types";
@@ -159,18 +160,22 @@ export interface NewOfflineUnscheduledDraftInput {
 
 /**
  * Plaintext-only listing (draftId/taskId/syncState/createdAt) for the panel's counts -- cheap, no
- * decryption. Expired drafts are purged as part of the same read, since this is the surface every
- * mount of Floor re-queries anyway.
+ * decryption.
+ *
+ * This deliberately does NOT purge. It used to, "since this is the surface every mount of Floor
+ * re-queries anyway" -- and that is exactly what made it delete care documentation that had never
+ * had a chance to sync. OfflineSyncManager will not start a run until these entry queries settle,
+ * so the purge ran FIRST on every app open and on every window focus. An aide who documented a
+ * refusal offline on Friday evening and next opened the app on Tuesday lost the only copy of it
+ * before the sync loop was allowed to try even once. Purging is now the sync runner's job, after a
+ * run has actually happened (useOfflineSyncRunner).
  */
 export function useUnsyncedServiceDraftEntries() {
   const { user } = useAuth();
   return useQuery({
     queryKey: [...QUERY_KEY, "entries", user?.id],
     enabled: Boolean(user?.id && user.role === "employee" && draftsSupported()),
-    queryFn: async (): Promise<DraftListEntry[]> => {
-      await purgeExpiredServiceDrafts();
-      return listServiceDraftEntries();
-    },
+    queryFn: (): Promise<DraftListEntry[]> => listServiceDraftEntries(),
   });
 }
 
@@ -184,7 +189,6 @@ export function useUnsyncedServiceDrafts() {
     // counting it in the header and omitting it from the list -- see readDraftsIndependently.
     queryFn: async (): Promise<{ drafts: OfflineFloorDraft[]; unreadableIds: string[] }> => {
       if (!user?.id || !user.organizationId) return { drafts: [], unreadableIds: [] };
-      await purgeExpiredServiceDrafts();
       return readAllServiceDraftsWithFailures(floorIdentity(user.id, user.organizationId));
     },
   });
@@ -449,9 +453,16 @@ export function useSyncOfflineServiceDraft() {
         if (outcome === "applied") invalidateDomainFor(queryClient, [draft]);
         return outcome;
       } catch (error) {
+        // A server refusal that will be a server refusal again moves the draft to `rejected` after
+        // MAX_SERVER_REFUSALS_BEFORE_REVIEW of them, rather than being retried every five minutes
+        // for as long as the device stays signed in. A failure that never reached the server does
+        // not count. See nextStateAfterSyncFailure.
         await updateServiceDraft(
           draftId,
-          { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+          {
+            ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+            lastSyncError: error instanceof Error ? error.message : String(error),
+          },
           identity,
         );
         throw error;
@@ -494,7 +505,10 @@ export function useSyncAllOfflineServiceDrafts() {
           result.failed += 1;
           await updateServiceDraft(
             draft.draftId,
-            { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+            {
+            ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+            lastSyncError: error instanceof Error ? error.message : String(error),
+          },
             identity,
           ).catch(() => undefined);
         }

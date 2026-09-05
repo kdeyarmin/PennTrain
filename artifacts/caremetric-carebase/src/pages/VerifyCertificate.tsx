@@ -115,10 +115,12 @@ export default function VerifyCertificate() {
 
                 {/* The regulatory detail a surveyor scanning the QR code on a printed certificate
                     is actually checking. Each field is omitted when the course does not record
-                    it, so a certificate with no examination or no named provider reads cleanly. */}
+                    it, so a certificate with no named provider reads cleanly. The final exam SCORE
+                    is deliberately absent: this slug is a bearer token that travels in emails and
+                    printed PDFs, and a verifier needs to know the credential is real, not what the
+                    learner scored (BACKLOG.md I16). */}
                 {(result.course_code
                   || result.course_version
-                  || result.final_exam_score != null
                   || result.training_provider
                   || result.credential_number) && (
                   <dl className="border-t pt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-center">
@@ -132,12 +134,6 @@ export default function VerifyCertificate() {
                       <div>
                         <dt className="text-xs text-muted-foreground">Course version</dt>
                         <dd className="text-sm font-medium text-foreground mt-0.5">{result.course_version}</dd>
-                      </div>
-                    )}
-                    {result.final_exam_score != null && (
-                      <div>
-                        <dt className="text-xs text-muted-foreground">Final examination score</dt>
-                        <dd className="text-sm font-medium text-foreground mt-0.5">{result.final_exam_score}%</dd>
                       </div>
                     )}
                     {result.credential_number && (

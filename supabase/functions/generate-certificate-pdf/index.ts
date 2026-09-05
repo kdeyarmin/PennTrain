@@ -9,6 +9,7 @@ import {
 import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { toWinAnsi } from "../_shared/pdfText.ts";
+import { errorMessage } from "../_shared/errorMessage.ts";
 
 /**
  * This function serves BOTH the browser and the cron worker, so its CORS headers have to be
@@ -89,7 +90,7 @@ async function verificationQrPng(url: string): Promise<Uint8Array | null> {
     return bytes;
   } catch (error) {
     console.error("Certificate QR encoding failed; falling back to the printed URL", {
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMessage(error),
     });
     return null;
   }
@@ -474,7 +475,7 @@ async function finishFailedJob(
   claim: CertificatePdfClaim,
   error: unknown,
 ) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   const { error: finishError } = await adminClient.rpc(
     "finish_certificate_pdf_job",
     {
@@ -770,7 +771,7 @@ Deno.serve(async (req: Request) => {
         // user replaying a finished job) gets the correlation id to quote instead.
         console.error(
           "certificate replay: signing failed",
-          error instanceof Error ? error.message : String(error),
+          errorMessage(error),
         );
         return json({
           error: "Unable to issue the certificate download link",
@@ -825,7 +826,7 @@ Deno.serve(async (req: Request) => {
         expiresIn: SIGNED_URL_TTL_SECONDS,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       try {
         await finishSystemRun(
           adminClient,
@@ -898,7 +899,7 @@ Deno.serve(async (req: Request) => {
         failed++;
         errors.push({
           certificateId: claim.certificate_id,
-          message: (error instanceof Error ? error.message : String(error))
+          message: (errorMessage(error))
             .slice(0, 500),
         });
       }
@@ -960,9 +961,26 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      // Claiming nothing has two very different causes, and answering both with "already being
+      // prepared, try again shortly" was wrong for the one that matters. A job whose attempts are
+      // spent is invisible to claim_certificate_pdf_jobs forever: nothing is preparing it, nothing
+      // will, and trying again shortly does nothing at all. Ask which case this is before
+      // describing it -- on the only copy of a certificate an employee may have to show an
+      // inspector, a misdescribed dead end is worse than an error.
+      const { data: jobRow } = await adminClient
+        .from("certificate_pdf_jobs")
+        .select("id, status, attempt_count, max_attempts, last_error_message")
+        .eq("certificate_id", body.certificateId!)
+        .order("requested_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const exhausted = jobRow !== null &&
+        (jobRow.attempt_count as number) >= (jobRow.max_attempts as number);
+
       const result = {
         mode: "manual",
         deferred: true,
+        exhausted,
         claimed: 0,
         succeeded: 0,
         failed: 0,
@@ -977,16 +995,20 @@ Deno.serve(async (req: Request) => {
         0,
         0,
         result,
-        "pdf_job_busy",
-        "Certificate PDF is already being prepared",
+        exhausted ? "pdf_job_exhausted" : "pdf_job_busy",
+        exhausted
+          ? "Certificate PDF gave up after every attempt"
+          : "Certificate PDF is already being prepared",
       );
       systemFinished = true;
       return json({
-        error:
-          "Certificate PDF is already being prepared. Please try again shortly.",
+        error: exhausted
+          ? "This certificate PDF could not be prepared after several attempts, so it has stopped trying. Use Requeue to start it again."
+          : "Certificate PDF is already being prepared. Please try again shortly.",
+        exhausted,
         runId: systemRunId,
         correlationId,
-      }, 409);
+      }, exhausted ? 422 : 409);
     }
 
     let signedUrl: string | null = null;
@@ -998,7 +1020,7 @@ Deno.serve(async (req: Request) => {
           succeeded[0].path,
         );
       } catch (error) {
-        deliveryError = (error instanceof Error ? error.message : String(error))
+        deliveryError = (errorMessage(error))
           .slice(0, 500);
       }
     }
@@ -1070,7 +1092,7 @@ Deno.serve(async (req: Request) => {
       expiresIn: SIGNED_URL_TTL_SECONDS,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     if (!systemFinished) {
       try {
         await finishSystemRun(

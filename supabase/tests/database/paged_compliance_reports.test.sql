@@ -155,10 +155,10 @@ insert into public.alerts(
 
 insert into public.dhs_violations(
   id, organization_id, facility_id, citation_topic_id, inspection_date,
-  description, severity, status
+  description, severity, status, poc_due_date
 ) values
-  ('27000000-0000-4000-8000-000000000701', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000051', public.pa_today(), 'Visible fixture', 'moderate', 'open'),
-  ('27000000-0000-4000-8000-000000000702', '27000000-0000-4000-8000-000000000002', '27000000-0000-4000-8000-000000000021', '27000000-0000-4000-8000-000000000051', public.pa_today(), 'Other tenant fixture', 'moderate', 'open');
+  ('27000000-0000-4000-8000-000000000701', '27000000-0000-4000-8000-000000000001', '27000000-0000-4000-8000-000000000011', '27000000-0000-4000-8000-000000000051', public.pa_today(), 'Visible fixture', 'moderate', 'open', public.pa_today() + 30),
+  ('27000000-0000-4000-8000-000000000702', '27000000-0000-4000-8000-000000000002', '27000000-0000-4000-8000-000000000021', '27000000-0000-4000-8000-000000000051', public.pa_today(), 'Other tenant fixture', 'moderate', 'open', public.pa_today() + 30);
 
 create or replace function pg_temp.act_as(p_id uuid) returns void
 language plpgsql as $$

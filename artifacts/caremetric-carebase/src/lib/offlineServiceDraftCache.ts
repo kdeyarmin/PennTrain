@@ -72,6 +72,13 @@ interface StoredDraftRecord {
   kind?: OfflineDraftKind;
   syncState: OfflineDraftSyncState;
   createdAt: string;
+  /**
+   * The draft's `updatedAt`, mirrored out of the envelope so the purge can read it without
+   * decrypting. Every sync attempt writes the outcome through updateServiceDraft, which bumps it,
+   * so for an attempted draft this is the time of the last attempt. Absent on records written
+   * before this column existed; those fall back to createdAt. See isExpired.
+   */
+  updatedAt?: string;
   envelope: StoredDraftEnvelope;
 }
 
@@ -82,6 +89,8 @@ export interface DraftListEntry {
   kind: OfflineDraftKind;
   syncState: OfflineDraftSyncState;
   createdAt: string;
+  /** Last attempt, or createdAt on a record that predates the column. */
+  updatedAt: string;
 }
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
@@ -224,8 +233,29 @@ async function getDeviceKey(db: IDBDatabase): Promise<CryptoKey> {
 // Device identity
 // ---------------------------------------------------------------------------
 
+/**
+ * Ask the browser to treat this origin's storage as persistent.
+ *
+ * Without it the store is "best-effort": a browser may evict it under storage pressure, and Safari
+ * discards script-writable storage after seven days without interaction on a site that has not
+ * been installed. Either takes unsynced care documentation with it, silently and with no receipt.
+ * The request is granted on its own heuristics (installed PWA, engagement) and cannot be forced,
+ * so this is an improvement in the odds rather than a guarantee -- which is why it is a
+ * best-effort call whose failure never blocks device setup.
+ */
+async function requestPersistentStorage(): Promise<void> {
+  try {
+    if (typeof navigator === "undefined" || !navigator.storage?.persist) return;
+    if (await navigator.storage.persisted?.()) return;
+    await navigator.storage.persist();
+  } catch {
+    // Storage-policy APIs throw in some privacy modes; offline drafts still work without them.
+  }
+}
+
 export async function initializeOfflineFloorDevice(identity: OfflineFloorIdentity): Promise<{ metadata: OfflineFloorDeviceMetadata; isNew: boolean }> {
   if (identity.role !== "employee") throw new Error("Offline service documentation is available only to active employee accounts.");
+  await requestPersistentStorage();
   const db = await openDatabase();
   const existing = await request(db.transaction(META_STORE).objectStore(META_STORE).get("device")) as OfflineFloorDeviceMetadata | undefined;
   if (existing && (existing.profileId !== identity.profileId || existing.organizationId !== identity.organizationId || existing.role !== identity.role)) {
@@ -289,7 +319,7 @@ export async function saveServiceDraft<T extends OfflineFloorDraft>(draft: T): P
     taskId: isUnscheduledServiceDraft(draft) || isChangeObservationDraft(draft) ? undefined : draft.taskId,
     scopeId: draftSubjectOf(draft),
     kind: draftKindOf(draft),
-    syncState: draft.syncState, createdAt: draft.createdAt, envelope,
+    syncState: draft.syncState, createdAt: draft.createdAt, updatedAt: draft.updatedAt, envelope,
   };
   const transaction = db.transaction(DRAFT_STORE, "readwrite");
   transaction.objectStore(DRAFT_STORE).put(record);
@@ -305,9 +335,9 @@ export async function saveServiceDraft<T extends OfflineFloorDraft>(draft: T): P
 export async function listServiceDraftEntries(): Promise<DraftListEntry[]> {
   const db = await openDatabase();
   const records = await request(db.transaction(DRAFT_STORE).objectStore(DRAFT_STORE).getAll()) as StoredDraftRecord[];
-  return records.map(({ draftId, taskId, kind, syncState, createdAt }) => ({
+  return records.map(({ draftId, taskId, kind, syncState, createdAt, updatedAt }) => ({
     draftId, taskId, kind: kind ?? "service_task",
-    ...coerceListedLifecycle(syncState, createdAt, OFFLINE_DRAFT_SYNC_STATES),
+    ...coerceListedLifecycle(syncState, createdAt, OFFLINE_DRAFT_SYNC_STATES, updatedAt),
   }));
 }
 
@@ -384,7 +414,7 @@ export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Prom
 
 export async function updateServiceDraft(
   draftId: string,
-  patch: Partial<Pick<OfflineFloorDraft, "syncState" | "lastSyncOutcome" | "lastSyncError">>,
+  patch: Partial<Pick<OfflineFloorDraft, "syncState" | "lastSyncOutcome" | "lastSyncError" | "failedAttempts">>,
   identity: OfflineFloorIdentity,
 ): Promise<OfflineFloorDraft | undefined> {
   const draft = await readServiceDraft(draftId, identity);
@@ -417,10 +447,44 @@ export function isUnsyncedDraftOverdue(entry: DraftListEntry, now: number = Date
     && now - new Date(entry.createdAt).getTime() >= UNSYNCED_WARN_AFTER_MS;
 }
 
-function isExpired(entry: DraftListEntry, now: number): boolean {
-  const ageMs = now - new Date(entry.createdAt).getTime();
-  if ((UNRESOLVED_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= UNSYNCED_PURGE_AFTER_MS;
-  if ((NEEDS_REVIEW_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= NEEDS_REVIEW_PURGE_AFTER_MS;
+/**
+ * A draft that has never been offered to the server is never expired, however old it is.
+ *
+ * `draft` is the state a record is created in, and the sync path leaves it only by succeeding (to
+ * an outcome) or failing (to `error`) -- so `draft` means "no attempt has been made", and the
+ * clock that matters has not started. Ageing those out deleted care documentation from a device
+ * that had simply not been online since it was written: an aide documenting a refusal on Friday
+ * evening, off until Tuesday, lost the only copy before the app was ever allowed to sync.
+ *
+ * This is deliberately stronger than moving the purge call after the sync run (which
+ * useOfflineSyncRunner now also does). Call ordering is a convention any future caller can break
+ * by accident; this is the policy refusing to discard something the server has never seen.
+ *
+ * And once a record HAS been attempted, its 72 hours run from the last attempt, not from when it
+ * was written. `error` is not only a server saying no -- both sync loops catch a thrown fetch and
+ * store `error`, so one flaky moment turns a protected `draft` into an ageing one, and the same
+ * Friday-to-Tuesday device then loses it anyway. The ceiling exists to bound storage on a device
+ * that has stopped trying, and "stopped trying" is what time-since-last-attempt measures. A device
+ * still retrying (every five minutes, whenever the app is open) keeps bumping it.
+ *
+ * The cost, stated: a device that never comes back keeps its unsynced notes indefinitely. That is
+ * the right trade -- the panel warns from 24 hours ("copy your note"), and the alternative is
+ * silent loss of a care record.
+ */
+export function isExpired(entry: DraftListEntry, now: number): boolean {
+  if ((UNRESOLVED_DRAFT_STATES as string[]).includes(entry.syncState)) {
+    if (entry.syncState === "draft") return false;
+    return now - new Date(entry.updatedAt).getTime() >= UNSYNCED_PURGE_AFTER_MS;
+  }
+  // The needs-review week runs from when the draft ENTERED review, not from when it was written.
+  // On the created-at clock the two protections above combined into a loss: a draft held safely
+  // offline for eight days -- never attempted, so never aged out -- reached `rejected` on its fifth
+  // deterministic refusal and was deleted by the very next sweep. It disappeared at the moment it
+  // first became a human's to look at, which is the one moment it has to survive. `updatedAt` is
+  // written by the transition into the review state and nothing else touches a draft afterwards.
+  if ((NEEDS_REVIEW_DRAFT_STATES as string[]).includes(entry.syncState)) {
+    return now - new Date(entry.updatedAt).getTime() >= NEEDS_REVIEW_PURGE_AFTER_MS;
+  }
   // applied/duplicate are removed immediately by the caller that observes that outcome, not by age.
   return false;
 }
@@ -457,6 +521,8 @@ interface StoredObservationRecord {
   residentId: string;
   syncState: OfflineObservationSyncState;
   createdAt: string;
+  /** The last-attempt clock. See StoredDraftRecord.updatedAt. */
+  updatedAt?: string;
   envelope: StoredDraftEnvelope;
 }
 
@@ -465,6 +531,8 @@ export interface ObservationDraftListEntry {
   residentId: string;
   syncState: OfflineObservationSyncState;
   createdAt: string;
+  /** Last attempt, or createdAt on a record that predates the column. */
+  updatedAt: string;
 }
 
 /** org:profile:residentId:draftId -- decrypting under a different identity or resident fails. */
@@ -507,7 +575,8 @@ export async function saveObservationDraft(draft: OfflineObservationDraft): Prom
   const key = await getDeviceKey(db);
   const envelope = await encryptObservation(key, draft);
   const record: StoredObservationRecord = {
-    draftId: draft.draftId, residentId: draft.residentId, syncState: draft.syncState, createdAt: draft.createdAt, envelope,
+    draftId: draft.draftId, residentId: draft.residentId, syncState: draft.syncState,
+    createdAt: draft.createdAt, updatedAt: draft.updatedAt, envelope,
   };
   const transaction = db.transaction(OBSERVATION_DRAFT_STORE, "readwrite");
   transaction.objectStore(OBSERVATION_DRAFT_STORE).put(record);
@@ -522,9 +591,9 @@ export async function saveObservationDraft(draft: OfflineObservationDraft): Prom
 export async function listObservationDraftEntries(): Promise<ObservationDraftListEntry[]> {
   const db = await openDatabase();
   const records = await request(db.transaction(OBSERVATION_DRAFT_STORE).objectStore(OBSERVATION_DRAFT_STORE).getAll()) as StoredObservationRecord[];
-  return records.map(({ draftId, residentId, syncState, createdAt }) => ({
+  return records.map(({ draftId, residentId, syncState, createdAt, updatedAt }) => ({
     draftId, residentId,
-    ...coerceListedLifecycle(syncState, createdAt, OFFLINE_OBSERVATION_SYNC_STATES),
+    ...coerceListedLifecycle(syncState, createdAt, OFFLINE_OBSERVATION_SYNC_STATES, updatedAt),
   }));
 }
 
@@ -557,7 +626,7 @@ export async function readAllObservationDrafts(identity: OfflineFloorIdentity): 
 
 export async function updateObservationDraft(
   draftId: string,
-  patch: Partial<Pick<OfflineObservationDraft, "syncState" | "lastSyncOutcome" | "lastSyncError">>,
+  patch: Partial<Pick<OfflineObservationDraft, "syncState" | "lastSyncOutcome" | "lastSyncError" | "failedAttempts">>,
   identity: OfflineFloorIdentity,
 ): Promise<OfflineObservationDraft | undefined> {
   const draft = await readObservationDraft(draftId, identity);
@@ -571,11 +640,20 @@ export async function removeObservationDraft(draftId: string): Promise<void> {
   await request(db.transaction(OBSERVATION_DRAFT_STORE, "readwrite").objectStore(OBSERVATION_DRAFT_STORE).delete(draftId));
 }
 
-/** Same ceilings as service drafts -- one device, one retention policy, whatever the draft holds. */
-function isObservationExpired(entry: ObservationDraftListEntry, now: number): boolean {
-  const ageMs = now - new Date(entry.createdAt).getTime();
-  if ((UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= UNSYNCED_PURGE_AFTER_MS;
-  if ((NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) return ageMs >= NEEDS_REVIEW_PURGE_AFTER_MS;
+/**
+ * Same ceilings as service drafts -- one device, one retention policy, whatever the draft holds --
+ * including the rule that a never-attempted `draft` is never aged out, and that an attempted one
+ * ages from its last attempt. See isExpired.
+ */
+export function isObservationExpired(entry: ObservationDraftListEntry, now: number): boolean {
+  if ((UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) {
+    if (entry.syncState === "draft") return false;
+    return now - new Date(entry.updatedAt).getTime() >= UNSYNCED_PURGE_AFTER_MS;
+  }
+  // Same review clock as the service lane, for the same reason. See isExpired.
+  if ((NEEDS_REVIEW_OBSERVATION_DRAFT_STATES as string[]).includes(entry.syncState)) {
+    return now - new Date(entry.updatedAt).getTime() >= NEEDS_REVIEW_PURGE_AFTER_MS;
+  }
   return false;
 }
 

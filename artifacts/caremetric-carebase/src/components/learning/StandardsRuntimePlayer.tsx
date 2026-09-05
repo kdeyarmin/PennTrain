@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   createPackageContentSignedUrl,
   useAcceptedLearningPackages,
+  useAssignmentPackageCompleted,
   useCommitLearningRuntimeState,
   useIngestXapiStatement,
   useStartLearningRuntimeSession,
@@ -56,10 +57,17 @@ export function StandardsRuntimePlayer({
   const commitState = useCommitLearningRuntimeState();
   const ingestXapi = useIngestXapiStatement();
 
+  // Whether this package has EVER reported completion for this assignment, from the commit
+  // ledger. Without it the step forgot itself on reload: `completed` is component state, and
+  // relaunching a finished package resets learning_runtime_sessions.state to 'active', so a
+  // learner who came back to the course was told to do it again.
+  const priorCompletion = useAssignmentPackageCompleted(assignmentId);
+
   const [launch, setLaunch] = useState<LaunchSession | null>(null);
   const [contentUrl, setContentUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [completed, setCompleted] = useState(false);
+  const [completedInSession, setCompletedInSession] = useState(false);
+  const completed = completedInSession || priorCompletion.data === true;
   const [status, setStatus] = useState<string>("Ready to launch");
   const sequenceRef = useRef(1);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -128,7 +136,7 @@ export function StandardsRuntimePlayer({
       sequenceRef.current = seq + 1;
       if (normalized.progress != null) setProgress(Math.round(normalized.progress * 100));
       if (isCompletedCommit(normalized)) {
-        setCompleted(true);
+        setCompletedInSession(true);
         setStatus("Completed — progress saved");
         await pushXapi(session, normalized.successStatus === "failed" ? XAPI_VERBS.failed : XAPI_VERBS.completed, {
           score: normalized.scoreRaw,
@@ -173,7 +181,7 @@ export function StandardsRuntimePlayer({
       // the existing session and its commits, and the commit RPC rejects anything other than
       // max(sequence_number) + 1, so restarting at 1 broke every save after the first launch.
       sequenceRef.current = next.nextSequenceNumber;
-      setCompleted(false);
+      setCompletedInSession(false);
       setProgress(0);
       clearHandshakeTimer();
       setHandshakeState("idle");
@@ -390,6 +398,11 @@ export function StandardsRuntimePlayer({
           <p className="text-xs text-muted-foreground">
             Progress is committed server-side through the governed runtime. Packages that post SCORM/xAPI
             messages are recorded automatically; otherwise use the buttons above.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {completed
+              ? "This package is recorded as complete. Continue through the rest of the course and mark the course complete at the end -- that is what issues your certificate."
+              : "Completing this package finishes this step only. The course is completed at the end, which is what issues your certificate."}
           </p>
         </>
       )}

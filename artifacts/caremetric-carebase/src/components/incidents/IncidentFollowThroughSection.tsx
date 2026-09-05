@@ -20,6 +20,7 @@ import {
   useSetIncidentQapiConsideration,
 } from "@/hooks/useIncidentFollowThrough";
 import { useListQapiProjects } from "@/hooks/useQapi";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
 import {
   buildIncidentFollowThrough, INCIDENT_STAGE_STATUS_LABELS, REPORTABILITY_STATUS_LABELS,
   ROOT_CAUSE_METHODS,
@@ -394,6 +395,8 @@ export default function IncidentFollowThroughSection({
 }) {
   const { toast } = useToast();
   const { data, isLoading, isError, error, refetch } = useIncidentFollowThrough(incidentId);
+  // Called before the early returns below, as every hook must be.
+  const now = useMinuteClock();
   const approve = useApproveIncidentInvestigation(incidentId);
   const [pathwayOpen, setPathwayOpen] = useState(false);
   const [reportabilityOpen, setReportabilityOpen] = useState(false);
@@ -409,12 +412,16 @@ export default function IncidentFollowThroughSection({
   if (!data?.incident) return null;
 
   const incident = data.incident;
+  // `now` is passed rather than left to buildIncidentFollowThrough's own `new Date()` default: the
+  // shortest deadline on this page is the two-hour reportable-incident notification, and without a
+  // clock the stage kept reading as in-time until something else happened to re-render.
   const state = buildIncidentFollowThrough({
     incident,
     notifications: data.notifications ?? [],
     correctiveActions: data.corrective_actions ?? [],
     assessmentReviewFinalized: data.assessment_review_finalized,
     supportPlanRevisedAfterIncident: data.support_plan_revised_after_incident,
+    now,
   });
 
   const pathway = incident.pathway_key ? getIncidentPathway(incident.pathway_key) : undefined;
