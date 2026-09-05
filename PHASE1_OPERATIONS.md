@@ -226,6 +226,30 @@ permanently failed outcomes.
 If webhook verification is unavailable, leave callbacks fail-closed, alert the
 on-call owner, and reconcile provider outcomes after verification is restored.
 
+### Who the product can actually reach, and who it cannot
+
+Every notification path resolves its recipient through a login. The enqueue
+functions read `profiles.email` and `profiles.phone`; the reminder jobs join
+`employees.profile_id is not null`. The employee record's own `phone` column --
+the one a roster import fills in -- is read by nothing that sends anything.
+
+So an employee who is on the roster but has never been invited receives no
+reminders, no digests and no alerts, on any channel, and **no failed delivery
+row is written for them**. There is nothing on the deliveries dashboard to
+find: a facility that imported forty aides and invited none of them looks
+exactly like a quiet week.
+
+- The count is on `/admin/notifications` (every organization) and on an
+  organization's own Settings page (its own number), from
+  `get_notification_reach()`.
+- Onboarding is not complete while that number is above zero. Invite **every**
+  deskless worker who is expected to receive a reminder, not only the
+  administrators -- the training due-date reminders, the policy attestation
+  reminders and the shift handoff escalations all go to the worker.
+- If a pilot facility genuinely will not give aides logins, say so before the
+  pilot starts and plan the reminders around a manager. Do not leave the number
+  above zero and assume the messages are going out.
+
 ## Backups, and the part they do not cover
 
 Verified against the production project on 2026-09-05. Everything here is a

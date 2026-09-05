@@ -1,5 +1,6 @@
 import { useId, useEffect, useRef, useState } from "react";
-import { Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw, Database, FlaskConical, LockKeyhole, PanelLeftClose, Download, Sparkles } from "lucide-react";
+import { Link } from "wouter";
+import { AlertTriangle, Settings as SettingsIcon, Palette, Bell, Clock, Upload, Building2, Send, RefreshCw, Database, FlaskConical, LockKeyhole, PanelLeftClose, Download, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } from "@/hooks/useProductExperience";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetOrganization, useUpdateOrganization } from "@/hooks/useOrganizations";
+import { useNotificationReach } from "@/hooks/useNotificationReach";
 
 const DEFAULT_WARNING_DAYS = 90;
 const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
@@ -66,6 +68,9 @@ function parseDefaultWarningDays(json: unknown): number {
 export default function Settings() {
   const __fieldIds = useId();
   const { user } = useAuth();
+  // Scoped by the RPC itself: an organization administrator sees only their own row.
+  const notificationReach = useNotificationReach();
+  const orgReach = (notificationReach.data ?? []).find((row) => row.organization_id === user?.organizationId);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
@@ -287,6 +292,28 @@ export default function Settings() {
               <CardDescription>Choose how compliance alerts and reminders are delivered.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Every delivery path resolves its recipient through a login. An employee imported
+                  onto the roster but never invited receives nothing on any channel below, and no
+                  failed delivery is recorded to say so -- the switches read "on" and the messages
+                  simply do not exist. See BACKLOG.md I21. */}
+              {orgReach && orgReach.unreachable_employees > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3.5 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  <div>
+                    <p className="font-medium">
+                      {orgReach.unreachable_employees} of {orgReach.active_employees} active staff have no login
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      None of the settings below reach them: reminders, digests and alerts are all
+                      sent to a person's account, and nothing records a failure for someone who has
+                      no account to send to. Invite them from Employees.
+                    </p>
+                    <Link href="/app/employees" className="mt-1 inline-block text-xs font-medium text-primary hover:underline">
+                      Open Employees
+                    </Link>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between rounded-lg border border-border/60 p-3.5">
                 <div>
                   <p className="text-sm font-medium">Email Notifications</p>

@@ -1044,6 +1044,7 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          is_provider_placeholder: boolean
           organization_id: string
           package_id: string | null
           provider_event_created_at: string
@@ -1066,6 +1067,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          is_provider_placeholder?: boolean
           organization_id: string
           package_id?: string | null
           provider_event_created_at: string
@@ -1088,6 +1090,7 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          is_provider_placeholder?: boolean
           organization_id?: string
           package_id?: string | null
           provider_event_created_at?: string
@@ -38739,6 +38742,16 @@ export type Database = {
       get_notification_delivery_operations: {
         Args: { p_hours?: number; p_organization_id?: string }
         Returns: Json
+      }
+      get_notification_reach: {
+        Args: never
+        Returns: {
+          active_employees: number
+          organization_id: string
+          organization_name: string
+          reachable_employees: number
+          unreachable_employees: number
+        }[]
       }
       get_notification_template_library: {
         Args: { p_organization_id?: string }

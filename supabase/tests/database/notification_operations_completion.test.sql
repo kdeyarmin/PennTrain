@@ -665,13 +665,18 @@ reset role;
 
 update public.profiles set sms_consent_at = '2025-01-01 00:00:00+00'
 where id = '11000000-0000-0000-0000-000000000012';
-select pg_temp.act_as('11000000-0000-0000-0000-000000000011');
+-- Acted BY THE RECIPIENT since 20260905210000. This case used to be driven by the org admin,
+-- which is what made the hole visible: an administrator moving somebody's number to a new phone
+-- re-stamped sms_consent_at as though the new number's owner had agreed to be texted. Consent to
+-- a number is consent from the person holding it; the rule the assertion is really about -- a
+-- changed number needs a fresh consent, it does not inherit the old one -- is unchanged.
+select pg_temp.act_as('11000000-0000-0000-0000-000000000012');
 select lives_ok(
   $$ select * from public.update_profile_contact_preferences(
        '11000000-0000-0000-0000-000000000012', 'Notification', 'Worker',
        '+12155550200', true, 'sms'
      ) $$,
-  'changing an opted-in phone number requires a new consent attestation'
+  'the recipient moving their own number to a new phone attests consent afresh'
 );
 reset role;
 select results_eq(
