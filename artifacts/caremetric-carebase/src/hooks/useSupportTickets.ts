@@ -83,8 +83,8 @@ export function useGetSupportTicket(id: string | undefined) {
 }
 
 export interface CreateSupportTicketInput {
+  /** Only for the attachment path: the bucket policy reads the org from the first folder segment. */
   organizationId: string;
-  createdBy: string;
   subject: string;
   category: string;
   priority: string;
@@ -110,41 +110,55 @@ async function uploadTicketAttachment(organizationId: string, ticketId: string, 
   };
 }
 
-// Ticket + first message are still two inserts (each with its own RLS). If the message path fails
-// after the ticket exists, delete the ticket so the UI's failure does not leave an empty shell
-// that a retry then duplicates.
+// The ticket and its first message go in together, through one SECURITY DEFINER RPC.
+//
+// They used to be two inserts wrapped in a try/catch whose catch deleted the ticket -- and
+// `support_tickets` has no DELETE policy and no DELETE grant, so that compensating delete never
+// removed anything. A failed first message left a subject-only ticket in the platform support
+// queue, the UI said the submission failed, and the retry made a second one. See BACKLOG.md I19
+// and 20260905190000.
+//
+// The attachment is still a second step and has to be: the storage write policy for
+// support-ticket-attachments reverse-joins to support_tickets on the ticket id in the path, so the
+// ticket must exist before the file can be uploaded. What changed is the cost of a failure there.
+// The ticket and its message are already saved by then, so a failed upload loses the file and
+// nothing else -- reported to the person filing, with the ticket they can reply to still intact.
 export function useCreateSupportTicket() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ organizationId, createdBy, subject, category, priority, message, file }: CreateSupportTicketInput) => {
-      const { data: ticket, error: ticketError } = await supabase
-        .from("support_tickets")
-        .insert({ organization_id: organizationId, created_by: createdBy, subject, category, priority })
-        .select()
-        .single();
+    mutationFn: async ({ organizationId, subject, category, priority, message, file }: CreateSupportTicketInput) => {
+      const { data: ticket, error: ticketError } = await supabase.rpc("create_support_ticket_with_message", {
+        p_subject: subject,
+        p_category: category,
+        p_priority: priority,
+        p_body: message,
+      });
       if (ticketError) throw ticketError;
+      if (!ticket) throw new Error("Support ticket was not created");
 
-      try {
-        const attachment = file ? await uploadTicketAttachment(organizationId, ticket.id, file) : {};
-
-        const { error: messageError } = await supabase
-          .from("support_ticket_messages")
-          .insert({ ticket_id: ticket.id, organization_id: ticket.organization_id, sender_id: createdBy, body: message, ...attachment });
-        if (messageError) {
-          if ("attachment_path" in attachment && typeof attachment.attachment_path === "string") {
-            const { error: cleanupError } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
-            if (cleanupError) {
-              throw new Error(`${messageError.message} (also failed to remove uploaded file: ${cleanupError.message})`);
-            }
-          }
-          throw messageError;
+      if (file) {
+        const attachment = await uploadTicketAttachment(organizationId, ticket.id, file);
+        const { error: attachError } = await supabase.rpc("attach_file_to_support_ticket_message", {
+          p_ticket_id: ticket.id,
+          p_bucket: attachment.attachment_bucket,
+          p_path: attachment.attachment_path,
+          p_name: attachment.attachment_name,
+          p_type: attachment.attachment_type,
+          p_size: attachment.attachment_size,
+        });
+        if (attachError) {
+          // The object is orphaned unless it is removed here: nothing references it, and the
+          // bucket has no sweeper. A failure to remove it is reported alongside, not swallowed.
+          const { error: cleanupError } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+          throw new Error(
+            cleanupError
+              ? `Ticket created, but the file could not be attached: ${attachError.message} (and the uploaded file could not be removed: ${cleanupError.message})`
+              : `Ticket created, but the file could not be attached: ${attachError.message}`,
+          );
         }
-
-        return ticket;
-      } catch (error) {
-        await supabase.from("support_tickets").delete().eq("id", ticket.id);
-        throw error;
       }
+
+      return ticket;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["support_tickets"] }),
   });

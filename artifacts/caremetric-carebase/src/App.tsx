@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect, useParams } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, Link, useParams } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -190,7 +190,7 @@ import { usePlatformStatus } from "@/hooks/usePlatformSettings";
 import { shouldBlockForMaintenance } from "@/lib/maintenanceMode";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { helpBasePathForRole } from "@/lib/appDomains";
-import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
+import { PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeLabel, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Loader2 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -221,6 +221,37 @@ function MaintenanceGatedRoute({ component: Component }: { component: ComponentT
     return <MaintenanceGate showSignOut={false} />;
   }
   return <Component />;
+}
+
+// The end of the facility-type gate, for the case where there is nowhere left to send someone.
+// Every regulatory page this gate protects (resident RASP/ASP tracking, medication-admin
+// practicums, fire-drill logging, Survey Day) only has content for a Personal Care Home or an
+// Assisted Living Facility, and an organization can be licensed for a module whose every page is
+// gated that way. Saying so beats a redirect: the sidebar stays, so the pages they CAN open are
+// one click away.
+function FacilityTypeUnavailable({ requiredTypes }: { requiredTypes: readonly string[] }) {
+  return (
+    <div className="mx-auto max-w-xl py-16 text-center">
+      <h1 className="text-xl font-semibold">Not available for your facility types</h1>
+      <p className="mt-3 text-sm text-muted-foreground">
+        This page covers requirements that apply only to{" "}
+        {requiredTypes.map((type) => facilityTypeLabel(type)).join(" and ")} sites, and your
+        organization does not have one.
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Add a facility of one of those types under Facilities, or use the navigation to open the
+        pages available for the facilities you do have.
+      </p>
+      <div className="mt-6 flex justify-center gap-3">
+        <Link href="/app/facilities" className="rounded-md border px-4 py-2 text-sm font-medium">
+          Facilities
+        </Link>
+        <Link href="/app/help" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+          Help &amp; support
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 function ProtectedRoute({
@@ -312,7 +343,19 @@ function ProtectedRoute({
       if (user.role === "trainer") return <Redirect to="/trainer" />;
       if (user.role === "employee") return <Redirect to="/me" />;
       if (user.role === "platform_admin") return <Redirect to="/admin" />;
-      return <Redirect to="/app" />;
+      // Deliberately NOT "/app". Bare /app belongs to the CareBase module, so an organization
+      // licensed for Compliance or Billing alone cannot reach it: the module gate above bounces it
+      // to moduleAccess.homePath, which for those tiers is /app/inspection-readiness or
+      // /app/resident-finance -- both PCH/ALF-only, both landing right back here. A tenant with no
+      // Personal Care Home or Assisted Living Facility site got an infinite redirect instead of a
+      // page. Going to the module home instead terminates after at most one hop, because the
+      // second visit arrives with currentPath === homePath and falls through to the explanation.
+      const moduleHome = moduleAccess.homePath;
+      if (moduleHome && moduleHome !== currentPath) return <Redirect to={moduleHome} />;
+      const unavailable = <FacilityTypeUnavailable requiredTypes={requireFacilityTypes} />;
+      return chrome === "kiosk"
+        ? <KioskLayout>{unavailable}</KioskLayout>
+        : <MainLayout>{unavailable}</MainLayout>;
     }
   }
 

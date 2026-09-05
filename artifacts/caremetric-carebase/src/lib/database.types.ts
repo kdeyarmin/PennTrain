@@ -36821,6 +36821,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      attach_file_to_support_ticket_message: {
+        Args: {
+          p_bucket: string
+          p_name: string
+          p_path: string
+          p_size: number
+          p_ticket_id: string
+          p_type: string
+        }
+        Returns: undefined
+      }
       authenticate_integration_api_credential: {
         Args: {
           p_correlation_id?: string
@@ -37877,6 +37888,34 @@ export type Database = {
           p_resident_id: string
         }
         Returns: string
+      }
+      create_support_ticket_with_message: {
+        Args: {
+          p_body: string
+          p_category: string
+          p_priority: string
+          p_subject: string
+        }
+        Returns: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          created_by: string
+          id: string
+          last_message_at: string
+          organization_id: string
+          priority: string
+          resolved_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "support_tickets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_survey_rehearsal: {
         Args: {

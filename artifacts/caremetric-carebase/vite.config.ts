@@ -83,6 +83,30 @@ export default defineConfig(({ command, mode }) => {
       );
     }
 
+    // VITE_DEMO_ACCOUNTS_JSON is inlined by the READ, not by whether anything uses the result.
+    // Demo.tsx does `parseDemoAccounts(import.meta.env.VITE_DEMO_ACCOUNTS_JSON)`, and Vite replaces
+    // that expression with the literal string at build time -- so the demo passwords are in a
+    // public chunk of every production bundle built with the variable set, even though
+    // parseDemoAccounts returns [] and the picker renders empty. The runtime guard hides the UI;
+    // it cannot unship the string. Railway variables can be set at PROJECT scope, where they reach
+    // every service, so this is one checkbox away from a customer bundle on any deploy, and the
+    // only thing that reported it was a post-deploy admin page nobody has to open.
+    //
+    // Throwing here rather than stripping the value: a build that silently drops a variable
+    // someone deliberately set is the same class of surprise. The dedicated demo host sets
+    // VITE_ENABLE_PUBLIC_DEMO=true and builds normally.
+    const demoAccountsJson = env.VITE_DEMO_ACCOUNTS_JSON ?? "";
+    if (mode !== "development" && demoAccountsJson.trim() !== "" && env.VITE_ENABLE_PUBLIC_DEMO !== "true") {
+      throw new Error(
+        "VITE_DEMO_ACCOUNTS_JSON is set for a production build without VITE_ENABLE_PUBLIC_DEMO=true. " +
+          "Vite inlines that value into the client bundle at build time, so the demo passwords " +
+          "would ship in a public chunk -- parseDemoAccounts() hides the login picker but cannot " +
+          "remove the string from the JavaScript. Either unset VITE_DEMO_ACCOUNTS_JSON for this " +
+          "service (check for a project-scoped Railway variable, which reaches every service), or " +
+          "set VITE_ENABLE_PUBLIC_DEMO=true if this really is the public demo deployment.",
+      );
+    }
+
     // A Railway variable whose value is a `${{...}}` reference to something the builder cannot
     // resolve -- RAILWAY_GIT_COMMIT_SHA is only populated for git-connected deploys -- expands to
     // an empty string rather than failing. That is indistinguishable from the variable being
