@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Download, FileArchive, Loader2, RotateCcw } from "lucide-react";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 interface BinderExportButtonProps {
   /** Only honored for platform_admin -- every other role always exports their own organization. */
@@ -67,7 +68,7 @@ export function BinderExportButton({ organizationId, facilityIds, label = "Expor
     fetchDownload(jobId, {
       onSuccess: (result) => {
         if (result.url) {
-          window.open(result.url, "_blank", "noopener,noreferrer");
+          openDocumentUrl(result.url);
         } else {
           toast({ title: "The binder isn't ready yet", description: "Try again in a moment." });
         }

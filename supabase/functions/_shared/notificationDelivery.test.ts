@@ -1,4 +1,5 @@
 import {
+  actionUrlFor,
   channelProviderConfigured,
   classifyNotificationDispatchStatus,
   hmacSha256Hex,
@@ -307,3 +308,39 @@ Deno.test("the skip the ledger records names the channel and keeps the error cod
   assertEquals(skip.reason.includes("email"), true);
   assertEquals(skip.reason.includes("no attempt was made"), true);
 });
+
+// BACKLOG.md I23. dispatch-notifications rendered every templated notification's call to action
+// with `action_url: "/"`, so an email that said "review it" linked to the marketing homepage and
+// the recipient -- told it was urgent, often on a phone -- had to go and find the thing themselves.
+Deno.test("actionUrlFor sends a notification to the thing it is about", () => {
+  assertEquals(
+    actionUrlFor("/app/incidents/abc-123", "https://cmcarebase.com"),
+    "https://cmcarebase.com/app/incidents/abc-123",
+  );
+});
+
+Deno.test("actionUrlFor falls back to the app root when there is no destination", () => {
+  // Which is where every one of them used to go.
+  assertEquals(actionUrlFor(null, "https://cmcarebase.com"), "https://cmcarebase.com/");
+  assertEquals(actionUrlFor("", "https://cmcarebase.com"), "https://cmcarebase.com/");
+});
+
+Deno.test("actionUrlFor refuses anything that is not a same-origin app path", () => {
+  // `link` is written by database triggers today. An action URL is the one part of a notification a
+  // recipient is invited to click, and "it is only ever written by us" is exactly the assumption
+  // that becomes an open redirect later.
+  assertEquals(actionUrlFor("//evil.example", "https://cmcarebase.com"), "https://cmcarebase.com/");
+  assertEquals(
+    actionUrlFor("https://evil.example/steal", "https://cmcarebase.com"),
+    "https://cmcarebase.com/",
+  );
+  assertEquals(actionUrlFor("app/incidents/1", "https://cmcarebase.com"), "https://cmcarebase.com/");
+});
+
+Deno.test("actionUrlFor does not double the slash when the base carries one", () => {
+  assertEquals(
+    actionUrlFor("/app/work", "https://cmcarebase.com/"),
+    "https://cmcarebase.com/app/work",
+  );
+});
+

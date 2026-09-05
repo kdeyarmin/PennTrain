@@ -32,6 +32,7 @@ import { AlertTriangle, ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, 
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function fmtDate(iso: string | null | undefined): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -99,7 +100,7 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
   const handleView = async (version: PolicyDocumentVersion) => {
     try {
       const url = await getSignedUrl.mutateAsync(version);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (err) {
       toast({ variant: "destructive", title: "Couldn't open document", description: err instanceof Error ? err.message : String(err) });
     }

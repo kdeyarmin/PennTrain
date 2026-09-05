@@ -23,6 +23,7 @@ import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { supabase } from "@/lib/supabase";
 import { QueryError } from "@/components/QueryState";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const CE_SOURCE_OPTIONS = ["In-Service", "Conference", "Webinar", "Online Course", "Other"];
 const ROLLING_WINDOW_HOURS_REQUIRED = 24;
@@ -64,7 +65,7 @@ function DocumentUploadRow({
     if (!path) return;
     try {
       const url = await getSignedUrl.mutateAsync(path);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (err) {
       toast({ variant: "destructive", title: "Couldn't open document", description: err instanceof Error ? err.message : String(err) });
     }

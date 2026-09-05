@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/QueryState";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const DOCUMENT_TYPES = [
   "problem_photo", "before_photo", "after_photo", "part_invoice", "vendor_report", "warranty", "service_contract", "other",
@@ -186,7 +187,7 @@ export default function WorkOrderDetail() {
 
   const viewDocument = (doc: MaintenanceDocument) => {
     openDocument.mutate(doc, {
-      onSuccess: (url) => window.open(url, "_blank", "noopener,noreferrer"),
+      onSuccess: (url) => openDocumentUrl(url),
       onError: (error: Error) => toast({ title: "Could not open document", description: error.message, variant: "destructive" }),
     });
   };

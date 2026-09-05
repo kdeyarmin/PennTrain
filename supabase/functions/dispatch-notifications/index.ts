@@ -5,6 +5,7 @@ import { buildDisabledPushSubscriptionPatch } from "../_shared/webPush.ts";
 import {
   channelProviderConfigured,
   classifyNotificationDispatchStatus,
+  actionUrlFor,
   isRetryableProviderStatus,
   normalizeSmsRecipient,
   parseFromAddress,
@@ -44,6 +45,8 @@ interface PendingDelivery {
     notification_type: string;
     title: string;
     body: string | null;
+    /** The in-app destination this notification is about. See actionUrlFor. */
+    link: string | null;
   } | null;
   notification_templates: {
     subject_template: string;
@@ -420,7 +423,7 @@ Deno.serve(async (req: Request) => {
   const { data: rows, error: fetchError } = await adminClient
     .from("notification_deliveries")
     .select(
-      "id, channel, recipient, profile_id, notification_id, notifications(notification_type, title, body), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
+      "id, channel, recipient, profile_id, notification_id, notifications(notification_type, title, body, link), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
     )
     .in("id", claimed.map((row: { id: string }) => row.id));
   if (fetchError) {
@@ -478,7 +481,7 @@ Deno.serve(async (req: Request) => {
             title: safeFallback.subject,
             body: safeFallback.body,
             organization_name: row.organizations?.name ?? "Your organization",
-            action_url: "/",
+            action_url: actionUrlFor(row.notifications?.link ?? null),
           },
         );
       } catch (_error) {

@@ -77,6 +77,7 @@ import { summarizeClassAttendance } from "@/lib/classAttendance";
 import { errorText } from "@/lib/errorText";
 import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 import { absoluteAppUrl } from "@/lib/appUrl";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -100,7 +101,7 @@ function RosterDocumentCard({ documentId }: { documentId: string }) {
     if (!document) return;
     try {
       const url = await getSignedUrl.mutateAsync(document);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (e) {
       toast({ title: "Failed to open roster", description: (e as Error).message, variant: "destructive" });
     }
@@ -247,7 +248,7 @@ function MeetingNoticeCard({ classId }: { classId: string }) {
   const handlePrint = async () => {
     try {
       const result = await generateNotice.mutateAsync(classId);
-      window.open(result.url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(result.url);
     } catch (e) {
       toast({ title: "Failed to generate meeting notice", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }

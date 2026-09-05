@@ -13,6 +13,7 @@ import { Link } from "wouter";
 import { facilityDaysUntil, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { useMyTrainingPassport } from "@/hooks/useProductExperience";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 // Certificate PDFs render on a background job queue; while one is still pending/processing,
 // poll the list so the action button flips to "Download" without a manual refresh.
@@ -70,7 +71,7 @@ export default function MyCertificates() {
     setDownloadingId(certificateId);
     try {
       const { url } = await preparePdf(certificateId);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (err) {
       toast({
         title: "Could not generate certificate PDF",

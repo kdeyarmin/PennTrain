@@ -30,6 +30,7 @@ import { QueryError } from "@/components/QueryState";
 import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2, Download, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const PAGE_SIZE = 15;
 
@@ -474,7 +475,7 @@ export default function CourseAssignments() {
     setDownloadingCertId(certificateId);
     try {
       const { url } = await prepareCertPdf(certificateId);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (err) {
       toast({
         title: "Could not generate certificate PDF",

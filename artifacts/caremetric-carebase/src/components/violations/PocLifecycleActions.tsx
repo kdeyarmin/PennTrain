@@ -22,6 +22,7 @@ import {
 import { useGeneratePocDocument } from "@/hooks/useViolations";
 import { supabase } from "@/lib/supabase";
 import { formatDateForDisplay } from "@/lib/dateUtils";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 interface PocLifecycleActionsProps {
   violationId: string;
@@ -75,7 +76,7 @@ export function PocLifecycleActions({
       toast({ title: "Could not open the document", description: error?.message, variant: "destructive" });
       return;
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    openDocumentUrl(data.signedUrl);
   };
 
   if (!canManage) return null;

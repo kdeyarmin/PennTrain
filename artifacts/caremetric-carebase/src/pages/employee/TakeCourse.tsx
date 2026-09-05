@@ -68,6 +68,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Copy, Download, FileText, Lightbulb, ListChecks, RotateCcw, ShieldCheck, Trash2, Video, BookOpen, Star, Target,
   type LucideIcon,
 } from "lucide-react";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const { data: document, isLoading } = useGetDocument(documentId ?? undefined);
@@ -87,7 +88,7 @@ function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const handleOpen = async () => {
     try {
       const url = await getSignedUrl.mutateAsync(document);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (e) {
       toast({ title: "Failed to open document", description: (e as Error).message, variant: "destructive" });
     }

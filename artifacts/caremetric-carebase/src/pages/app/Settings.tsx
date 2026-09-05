@@ -18,6 +18,7 @@ import { useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } fro
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetOrganization, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useNotificationReach } from "@/hooks/useNotificationReach";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const DEFAULT_WARNING_DAYS = 90;
 const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
@@ -629,7 +630,7 @@ export default function Settings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button disabled={exports.request.isPending || exports.data?.some((job) => ["pending", "processing"].includes(job.status))} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
-                <div className="space-y-2">{exports.data?.map((job) => <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">Requested {new Date(job.requested_at).toLocaleString()}</p><p className="text-xs text-muted-foreground">{job.status === "succeeded" ? `${job.table_count} tables · ${job.row_count} rows · expires ${new Date(job.expires_at!).toLocaleString()}` : job.last_error_message ?? "The background worker is preparing the archive."}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "failed" ? "destructive" : "outline"}>{job.status}</Badge>{job.status === "succeeded" && <Button size="sm" variant="outline" disabled={exports.download.isPending} onClick={() => exports.download.mutate(job, { onSuccess: (url) => window.open(url, "_blank", "noopener,noreferrer"), onError: (error: Error) => toast({ title: "Download failed", description: error.message, variant: "destructive" }) })}><Download className="mr-2 h-4 w-4" />Download</Button>}</div></div>)}</div>
+                <div className="space-y-2">{exports.data?.map((job) => <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">Requested {new Date(job.requested_at).toLocaleString()}</p><p className="text-xs text-muted-foreground">{job.status === "succeeded" ? `${job.table_count} tables · ${job.row_count} rows · expires ${new Date(job.expires_at!).toLocaleString()}` : job.last_error_message ?? "The background worker is preparing the archive."}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "failed" ? "destructive" : "outline"}>{job.status}</Badge>{job.status === "succeeded" && <Button size="sm" variant="outline" disabled={exports.download.isPending} onClick={() => exports.download.mutate(job, { onSuccess: (url) => openDocumentUrl(url), onError: (error: Error) => toast({ title: "Download failed", description: error.message, variant: "destructive" }) })}><Download className="mr-2 h-4 w-4" />Download</Button>}</div></div>)}</div>
               </CardContent>
             </Card>
           )}

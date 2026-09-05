@@ -349,3 +349,30 @@ export function providerNotConfiguredSkip(channel: string): {
     errorCode: "provider_not_configured",
   };
 }
+
+const DEFAULT_APP_ORIGIN = "https://cmcarebase.com";
+
+/**
+ * The absolute destination a templated notification's call to action points at.
+ *
+ * BACKLOG.md I23: this was the literal "/". Every templated email and SMS said "review it" and
+ * linked to the marketing homepage -- the recipient then had to find the thing themselves, on a
+ * phone, having been told it was urgent. `notifications.link` is the in-app path the in-app
+ * notification already uses; this is the same destination made absolute so it survives leaving the
+ * app.
+ *
+ * Only same-origin app paths are accepted. `link` is written by database triggers today, but an
+ * action URL is the one part of a notification a recipient is invited to click, and "it is only
+ * ever written by us" is exactly the assumption that makes an open redirect later. A path that does
+ * not start with a single "/" falls back to the app root, which is where this used to send
+ * everyone anyway.
+ */
+export function actionUrlFor(
+  link: string | null,
+  baseUrl = Deno.env.get("PUBLIC_APP_URL") ?? DEFAULT_APP_ORIGIN,
+): string {
+  const root = baseUrl.replace(/\/+$/, "");
+  if (!link || !link.startsWith("/") || link.startsWith("//")) return `${root}/`;
+  return `${root}${link}`;
+}
+

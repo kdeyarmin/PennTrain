@@ -24,6 +24,7 @@ import { DataTable } from "@/components/DataTable";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const PAGE_SIZE = 15;
 
@@ -199,7 +200,7 @@ export default function InspectionItems() {
       { facilityId: trackerFacilityId, month: trackerMonth },
       {
         onSuccess: (result) => {
-          window.open(result.url, "_blank", "noopener,noreferrer");
+          openDocumentUrl(result.url);
           toast({
             title: "Fire drill tracker generated",
             description: result.drillCount > 0

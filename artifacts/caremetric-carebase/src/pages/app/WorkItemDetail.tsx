@@ -57,6 +57,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function formatTimestamp(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "—";
@@ -305,7 +306,7 @@ export default function WorkItemDetail() {
                           size="sm"
                           variant="outline"
                           onClick={() => evidenceUrl.mutate(evidence, {
-                            onSuccess: url => window.open(url, "_blank", "noopener,noreferrer"),
+                            onSuccess: url => openDocumentUrl(url),
                             onError: notifyError("Couldn't open documentation"),
                           })}
                         >

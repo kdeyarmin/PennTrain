@@ -30,6 +30,19 @@ const mockupSandboxReference = /(?:artifacts\/mockup-sandbox|@workspace\/mockup-
 const detachedSupabaseMethod = /=\s*supabase\.(rpc|from|functions|storage)\b(?!\s*\.bind\b)(?!\()/;
 const detachedSupabaseMethodAllowlist = new Set(["scripts/check-source-integrity.mjs"]);
 
+// Safari on iOS, and popup blockers generally, only honour window.open while the browser still
+// considers itself inside the user gesture -- and an `await` ends that. Every one of this app's
+// thirty-four document opens sits after an await for a signed URL, so on the device an aide is most
+// likely holding, the certificate, the class notice, the POC document and the binder export did
+// nothing at all: no tab, no error, no download. lib/openDocumentUrl.ts navigates the current tab
+// when the open is refused, which is the difference between the document arriving and the button
+// appearing broken. This keeps the next one from going back.
+const rawWindowOpen = /\bwindow\.open\s*\(/;
+const rawWindowOpenAllowlist = new Set([
+  "scripts/check-source-integrity.mjs",
+  "artifacts/caremetric-carebase/src/lib/openDocumentUrl.ts",
+]);
+
 // Extensions whose contents are legitimately binary. A NUL byte in anything else is a defect
 // rather than a reason to stop looking -- see the skip logic below.
 const BINARY_ASSET_EXTENSIONS = new Set([
@@ -83,6 +96,21 @@ for (const path of paths) {
       mockupSandboxReference.test(line)
     ) {
       failures.push(`${path}:${index + 1}: production source must not reference artifacts/mockup-sandbox`);
+    }
+    // Comment lines are skipped: ComplianceBinder.tsx explains, in prose, the very bug this rule
+    // exists for, and a rule that cannot tell an explanation from an occurrence teaches people to
+    // stop writing the explanations.
+    const isCommentLine = /^\s*(\/\/|\*|\/\*)/.test(line);
+    if (
+      isProductionSource &&
+      !isCommentLine &&
+      !rawWindowOpenAllowlist.has(path) &&
+      rawWindowOpen.test(line)
+    ) {
+      failures.push(
+        `${path}:${index + 1}: window.open() after an await is blocked on iOS Safari and the `
+        + `document silently never arrives. Use openDocumentUrl() from @/lib/openDocumentUrl.`,
+      );
     }
     if (
       isProductionSource &&

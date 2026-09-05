@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Download, FolderLock, Loader2, ShieldCheck, ShieldX } from "lucide-react";
 import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const SESSION_TOKEN_KEY = "carebase-evidence-room-token";
 
@@ -151,7 +152,7 @@ export default function EvidenceGuestRoom() {
       { token: token!, artifactId: artifact.id },
       {
         onSuccess: ({ url }) => {
-          window.open(url, "_blank", "noopener,noreferrer");
+          openDocumentUrl(url);
         },
         onError: (err) =>
           toast({

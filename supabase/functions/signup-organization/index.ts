@@ -291,7 +291,42 @@ Deno.serve(async (req: Request) => {
       data: { first_name: firstName, last_name: lastName },
       redirectTo,
     });
-    if (inviteError) throw new HttpError(400, "invite_failed", "We could not send an invitation to that email address. If you already have an account, sign in or reset your password instead.", inviteError.message);
+    if (inviteError) {
+      // BACKLOG.md I23. This used to be one message for every cause: "We could not send an
+      // invitation to THAT EMAIL ADDRESS. If you already have an account, sign in or reset your
+      // password instead." So a prospective customer whose signup failed because our mail hook was
+      // down, or SendGrid was unreachable, was told their address was the problem and sent to reset
+      // a password they had never set. Three causes, three answers.
+      const inviteStatus = (inviteError as { status?: number }).status ?? 0;
+      const inviteCode = (inviteError as { code?: string }).code ?? "";
+      if (
+        inviteCode === "email_exists" || inviteCode === "user_already_exists"
+        || /already (been )?registered|already exists/i.test(inviteError.message)
+      ) {
+        throw new HttpError(
+          400,
+          "invite_email_in_use",
+          "There is already an account for that email address. Sign in, or reset your password.",
+          inviteError.message,
+        );
+      }
+      if (inviteStatus === 429 || inviteCode === "over_email_send_rate_limit") {
+        throw new HttpError(
+          429,
+          "invite_rate_limited",
+          "We are sending more invitations than usual right now. Wait a minute and try again -- "
+            + "nothing you entered was lost.",
+          inviteError.message,
+        );
+      }
+      throw new HttpError(
+        502,
+        "invite_failed",
+        "We could not send your invitation email. That is a problem on our side rather than with "
+          + "your address -- please try again in a few minutes.",
+        inviteError.message,
+      );
+    }
     invitedUserId = invited.user.id;
 
     const { error: metadataError } = await adminClient.auth.admin.updateUserById(invited.user.id, {

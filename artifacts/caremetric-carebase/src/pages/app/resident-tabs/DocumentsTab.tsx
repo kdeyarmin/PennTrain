@@ -18,6 +18,7 @@ import { AdministrativePacketCard } from "@/components/residents/AdministrativeP
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import type { ResidentTabProps } from "./types";
 import { QueryError } from "@/components/QueryState";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 export default function DocumentsTab({ resident, facility, canManage, canDelete }: ResidentTabProps) {
   const { toast } = useToast();
@@ -48,7 +49,7 @@ export default function DocumentsTab({ resident, facility, canManage, canDelete 
   const handleDownload = async (doc: ResidentDocument) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }

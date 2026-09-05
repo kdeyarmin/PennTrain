@@ -18,6 +18,7 @@ import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
 import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-react";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 // Matches the training_documents_delete RLS policy (org_admin/facility_manager, or
 // platform_admin via is_platform_admin()) — trainer and employee can never delete a
@@ -247,7 +248,7 @@ export default function Documents() {
   const handleDownload = async (doc: TrainingDocument) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }

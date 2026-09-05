@@ -51,6 +51,7 @@ import { IncidentQapiEscalation } from "@/components/IncidentQapiEscalation";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 // Lazy: the follow-through section carries the pathway question set and three dialogs, and this page
 // is already one of the larger routes. Loading it on demand keeps it out of the main bundle.
@@ -220,7 +221,7 @@ export default function IncidentDetail() {
   const handleDownload = async (doc: NonNullable<typeof documents>[number]) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
@@ -746,7 +747,7 @@ export default function IncidentDetail() {
               disabled={generateReportPdf.isPending}
               onClick={() => {
                 generateReportPdf.mutate(incident.id, {
-                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onSuccess: (result) => openDocumentUrl(result.url),
                   onError: (e: Error) => toast({ title: "Failed to generate report", description: e.message, variant: "destructive" }),
                 });
               }}
@@ -759,7 +760,7 @@ export default function IncidentDetail() {
               disabled={generateStateFormPdf.isPending}
               onClick={() => {
                 generateStateFormPdf.mutate(incident.id, {
-                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onSuccess: (result) => openDocumentUrl(result.url),
                   onError: (e: Error) => toast({ title: "Failed to generate DHS form", description: e.message, variant: "destructive" }),
                 });
               }}

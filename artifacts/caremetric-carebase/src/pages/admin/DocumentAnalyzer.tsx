@@ -54,6 +54,7 @@ import {
 } from "@/lib/documentAnalyzer";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { downloadBlob } from "@/lib/browserDownload";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function statusLabel(status: string) {
   switch (status) {
@@ -365,7 +366,7 @@ export default function DocumentAnalyzer() {
       const batches = approvedExportBatches(jobs);
       if (batches.length <= 1) {
         const result = await exportPacket.mutateAsync(undefined);
-        window.open(result.url!, "_blank", "noopener,noreferrer");
+        openDocumentUrl(result.url!);
         toast({
           title: kind === "print" ? "Packet ready to print" : "Packet exported",
           description: `${result.jobCount} approved form${result.jobCount === 1 ? "" : "s"} included. ${kind === "print" ? "Use the browser PDF viewer to print." : "The download link is valid for 10 minutes."}`,

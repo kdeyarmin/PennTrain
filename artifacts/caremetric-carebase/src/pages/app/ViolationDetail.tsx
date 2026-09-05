@@ -38,6 +38,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function SeverityBadge({ severity }: { severity: string }) {
   const className =
@@ -162,7 +163,7 @@ export default function ViolationDetail() {
   const handleDownload = async (doc: NonNullable<typeof documents>[number]) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
@@ -525,7 +526,7 @@ export default function ViolationDetail() {
               disabled={generatePocDocument.isPending}
               onClick={() => {
                 generatePocDocument.mutate(violation.id, {
-                  onSuccess: (result) => window.open(result.url, "_blank", "noopener,noreferrer"),
+                  onSuccess: (result) => openDocumentUrl(result.url),
                   onError: (e: Error) => toast({ title: "Failed to generate Plan of Correction", description: e.message, variant: "destructive" }),
                 });
               }}

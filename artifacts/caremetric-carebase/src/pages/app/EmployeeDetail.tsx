@@ -63,6 +63,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 function EmptyState({ icon: Icon, text }: { icon: typeof BookOpen; text: string }) {
   return (
@@ -195,7 +196,7 @@ export default function EmployeeDetail() {
   const handleDownloadDocument = async (doc: TrainingDocument) => {
     try {
       const signedUrl = await getSignedUrl.mutateAsync(doc);
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      openDocumentUrl(signedUrl);
     } catch (err) {
       toast({ title: "Download failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }

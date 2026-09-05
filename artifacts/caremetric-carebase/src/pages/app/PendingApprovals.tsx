@@ -22,6 +22,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { todayISO, addDaysISO, computeDueDate, computeStatus } from "@/lib/complianceDates";
 import { ClipboardCheck, FileText, ExternalLink, Check, X, Inbox } from "lucide-react";
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 // The three document_type values that can carry an external training credential. 'roster',
 // 'practicum_form' and 'competency_attachment' are documentation for other workflows entirely and
@@ -474,7 +475,7 @@ export default function PendingApprovals() {
   const handleView = async (doc: TrainingDocument) => {
     try {
       const url = await getSignedUrl.mutateAsync(doc);
-      window.open(url, "_blank", "noopener,noreferrer");
+      openDocumentUrl(url);
     } catch (err) {
       toast({ title: "Could not open document", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
