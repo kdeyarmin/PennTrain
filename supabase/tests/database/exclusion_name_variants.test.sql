@@ -8,7 +8,7 @@
 -- it could not bill for. Run with: supabase test db.
 
 begin;
-select plan(21);
+select plan(24);
 
 select has_function(
   'public', 'exclusion_name_key', array['text'],
@@ -162,6 +162,73 @@ select is(
      and alert_type = 'exclusion_match_found' and severity = 'critical'),
   3,
   'each raises the critical alert an administrator acts on'
+);
+
+
+------------------------------------------------------------------------------------------------
+-- The candidate prefilter must never exclude a pair the score admits
+--
+-- 20260905270000 originally applied exclusion_name_match_score to every (employee x entry) pair.
+-- That is 19 active employees against 157,192 production entries -- ~3M calls at ~40us -- which
+-- saturated the database and timed the production deploy out TWICE before anyone had measured it.
+-- The fix is an index-answerable prefilter ahead of the score, and the only thing that makes it
+-- safe is that it is strictly WIDER than the score's surname gate: if it were ever narrower it
+-- would silently restore the false negatives this migration exists to remove, on the screen that
+-- decides whether a facility may bill Medicare and Medicaid for a person's work.
+--
+-- So this asserts the property directly rather than trusting the two to stay aligned by reading.
+------------------------------------------------------------------------------------------------
+set local pg_trgm.similarity_threshold = 0.30;
+set local pg_trgm.word_similarity_threshold = 0.60;
+
+select is(
+  (with names(n) as (values
+     ('SMITH'),('SMYTHE'),('SMITH-JONES'),('JONES'),('O''BRIEN'),('OBRIEN'),('O BRIEN'),
+     ('MCDONALD'),('MACDONALD'),('ANDERSON-LEE-WASHINGTON'),('LEE'),('WASHINGTON'),
+     ('DE LA CRUZ'),('DELACRUZ'),('CRUZ'),('NGUYEN'),('NGUYEN-TRAN'),('TRAN'),
+     ('VAN DER BERG'),('VANDERBERG'),('BERG'),('MARTINEZ'),('MARTINES'),('MARTIN'),
+     ('SCHMIDT'),('SCHMITT'),('LI'),('LIU'),('WU')
+   ), firsts(f) as (values ('JOHN'),('J'),('JON'),('MARY'),('M'),('ROBERT'),('R'),('ANA'),('ANNA'))
+   select count(*)::int from (
+     select
+       public.exclusion_name_match_score(ef.f, e.n, xf.f, x.n) as score,
+       (
+         public.exclusion_name_key(x.n) = public.exclusion_name_key(e.n)
+         or pg_catalog.upper(x.n) operator(extensions.%) pg_catalog.upper(e.n)
+         or pg_catalog.upper(x.n) operator(extensions.<%) pg_catalog.upper(e.n)
+         or pg_catalog.upper(e.n) operator(extensions.<%) pg_catalog.upper(x.n)
+         or public.exclusion_name_key(x.n) operator(extensions.%) public.exclusion_name_key(e.n)
+       ) as prefilter
+     from names e cross join names x cross join firsts ef cross join firsts xf
+   ) t
+   where t.score is not null and not t.prefilter),
+  0,
+  'no name pair the score admits is dropped by the prefilter -- checked over every combination, including O''''BRIEN/OBRIEN, DE LA CRUZ/DELACRUZ and LEE inside ANDERSON-LEE-WASHINGTON'
+);
+
+-- And the indexes that make the prefilter answerable rather than merely correct. Without these
+-- the planner falls back to the scan that caused the outage.
+select is(
+  (select count(*)::int from pg_indexes
+   where tablename = 'exclusion_list_entries'
+     and indexname in ('exclusion_list_entries_last_name_key_idx',
+                       'exclusion_list_entries_last_name_trgm_idx',
+                       'exclusion_list_entries_last_name_key_trgm_idx')),
+  3,
+  'the surname equality btree and both trigram indexes the prefilter needs are present'
+);
+
+-- The thresholds are pinned ON THE FUNCTIONS so a session GUC cannot narrow the prefilter
+-- underneath a screen that is running.
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where (n.nspname, p.proname) in
+         (('public','match_exclusion_list_against_roster_core'),
+          ('app_private','screen_employee_against_active_exclusions'))
+     and p.proconfig @> array['pg_trgm.similarity_threshold=0.30']
+     and p.proconfig @> array['pg_trgm.word_similarity_threshold=0.60']),
+  2,
+  'both screens pin the trigram thresholds, so the prefilter cannot be narrowed from outside'
 );
 
 select * from finish();
