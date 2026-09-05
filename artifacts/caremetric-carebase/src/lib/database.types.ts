@@ -40134,6 +40134,7 @@ export type Database = {
       owns_employee: { Args: { p_employee_id: string }; Returns: boolean }
       pa_clock: { Args: { p_at: string }; Returns: string }
       pa_day: { Args: { p_at: string }; Returns: string }
+      pa_local: { Args: { p_at: string }; Returns: string }
       pa_midnight: { Args: { p_day: string }; Returns: string }
       pa_now: { Args: never; Returns: string }
       pa_today: { Args: never; Returns: string }
