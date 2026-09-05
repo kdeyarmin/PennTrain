@@ -60,6 +60,7 @@ select is(
        -- checked individually rather than waved through:
        'dhs_citation_topics',                -- PA regulation taxonomy
        'feature_definitions',                -- feature catalogue
+       'incident_notification_rules',        -- PA reporting windows + citations; no tenant column
        'incident_pathways',                  -- pathway question templates
        'integration_api_scope_definitions',  -- API scope catalogue
        'package_entitlements',               -- packaging catalogue
