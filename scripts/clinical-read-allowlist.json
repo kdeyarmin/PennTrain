@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Client reads of a clinical table that carry no clinical content, and so need no access-log",
+    "row. Each entry is a judgement that the columns selected are metadata -- an id, a date, a",
+    "count -- rather than the record itself. Add one in the same change set that makes it true,",
+    "and state which columns and why. 'It only reads a couple of fields' is not a reason; naming",
+    "them is.",
+    "",
+    "This is not a licence to widen the select later: an entry covers the read as it stands, and",
+    "the reviewer of the next change to that file is the one who has to agree it still holds."
+  ],
+  "allowed": {
+    "src/hooks/useCareLevelReview.ts": {
+      "tables": ["clinical_assessments"],
+      "reason": "Selects resident_id and assessed_at only, filtered to finalized assessments, to answer whether a resident's billed level of care has been reassessed. A date and an id: it says an assessment happened, never what it found. Widening this select past those two columns makes it a chart read and it must move to a logged RPC."
+    }
+  }
+}

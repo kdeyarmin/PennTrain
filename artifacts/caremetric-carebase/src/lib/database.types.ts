@@ -36929,6 +36929,10 @@ export type Database = {
         }
         Returns: Json
       }
+      can_read_clinical_record: {
+        Args: { p_fac: string; p_org: string }
+        Returns: boolean
+      }
       can_read_employee_peer_data: {
         Args: { p_facility_id: string; p_organization_id: string }
         Returns: boolean
@@ -38679,6 +38683,10 @@ export type Database = {
         Args: { p_facility_id: string }
         Returns: Json
       }
+      get_facility_fhir_ingestion_activity: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_facility_occupancy_board: {
         Args: { p_facility_id: string }
         Returns: Json
@@ -38945,7 +38953,15 @@ export type Database = {
         Args: { p_resident_id: string }
         Returns: Json
       }
+      get_resident_clinical_care: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
+      }
       get_resident_clinical_chart: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
+      }
+      get_resident_clinical_fhir: {
         Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
         Returns: Json
       }
