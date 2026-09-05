@@ -69,11 +69,48 @@ export function useStartLearningRuntimeSession() {
       return launch;
     },
     // No invalidation: the launch's return value IS the session, and StandardsRuntimePlayer opens
-    // it directly. Nothing queries runtime sessions, so there is nothing to refresh.
+    // it directly. Launching does not change whether the package has ever reported completion --
+    // that lives in the commit ledger, which useAssignmentPackageCompleted reads.
+  });
+}
+
+/**
+ * Has this assignment's package ever reported completion?
+ *
+ * Read from learning_runtime_commits rather than learning_runtime_sessions.state, because a
+ * session is one row per package+assignment and start_learning_runtime_session reactivates it on
+ * every launch -- so `state` flips back to 'active' the moment a learner reopens a package they
+ * already finished. Commits are append-only.
+ *
+ * complete_course_assignment() enforces exactly this predicate server-side (20260905200000); this
+ * is what lets the course player say so before the learner reaches the Complete button.
+ */
+export function useAssignmentPackageCompleted(assignmentId: string | undefined) {
+  return useQuery({
+    queryKey: ["learning_runtime_sessions", "package-completed", assignmentId],
+    enabled: Boolean(assignmentId),
+    queryFn: async () => {
+      const { data: sessions, error } = await supabase
+        .from("learning_runtime_sessions")
+        .select("id")
+        .eq("assignment_id", assignmentId!);
+      if (error) throw error;
+      const sessionIds = (sessions ?? []).map((session) => session.id);
+      if (sessionIds.length === 0) return false;
+      const { data: commits, error: commitsError } = await supabase
+        .from("learning_runtime_commits")
+        .select("id")
+        .in("runtime_session_id", sessionIds)
+        .eq("completion_status", "completed")
+        .limit(1);
+      if (commitsError) throw commitsError;
+      return (commits ?? []).length > 0;
+    },
   });
 }
 
 export function useCommitLearningRuntimeState() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       sessionId,
@@ -98,6 +135,9 @@ export function useCommitLearningRuntimeState() {
       if (error) throw new Error(error.message);
       return { commitId: data as string, state: normalized };
     },
+    // A completing commit is what unlocks the package step and the course's Complete button, so
+    // the predicate that reads the commit ledger has to be re-read after every commit.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["learning_runtime_sessions"] }),
   });
 }
 

@@ -115,9 +115,15 @@ select pg_temp.act_as('44000000-0000-4000-8000-000000000103');
 select is(public.sync_offline_learning_action('44000000-0000-4000-8000-000000000701','44000000-0000-4000-8000-000000000303','offline-action-0002',2,0,'progress',now(),'{"percentComplete":50}')->>'outcome','wipe_required','revoked device receives a wipe-required outcome');
 select ok(not has_table_privilege('authenticated','public.offline_sync_receipts','INSERT'),'offline clients cannot forge sync receipts directly');
 
--- Completion bridge (20260801160000 + 20260810120000): the commit path marks the session
--- completed before the commit row inserts, so the AFTER INSERT bridge sees the final state,
--- flips the assignment, and records the mapped training type.
+-- Completing commit (20260801160000 + 20260810120000 + 20260905200000): the commit path marks the
+-- session completed before the commit row inserts, and there it stops.
+--
+-- The AFTER INSERT bridge that used to flip the assignment and write a training record from here
+-- is gone. It produced a completed assignment with NO CERTIFICATE (issuance lives in
+-- complete_course_assignment), it ended the course from whatever block the package sat on, and on
+-- a comprehensive version its UPDATE tripped require_comprehensive_self_completion and aborted the
+-- learner's commit outright. A package reports on a package; the learner completes the course.
+-- See BACKLOG.md I20 and package_step_defers_completion.test.sql.
 reset role;
 select set_config('app.privileged_write','on',true);
 insert into public.training_types(id,organization_id,code,name,category) values('44000000-0000-4000-8000-000000000801','44000000-0000-4000-8000-000000000001','P4-RUNTIME','Phase 4 Runtime Annual','annual');
@@ -131,8 +137,11 @@ select is(
   'a lost-response retry of the completing commit returns the existing id'
 );
 select is((select state from public.learning_runtime_sessions where id='44000000-0000-4000-8000-000000000502'),'completed','completed commit closes the runtime session');
-select is((select status from public.course_assignments where id='44000000-0000-4000-8000-000000000303'),'completed','completion bridge flips the assignment to completed');
-select is((select count(*)::integer from public.employee_training_records where employee_id='44000000-0000-4000-8000-000000000201' and training_type_id='44000000-0000-4000-8000-000000000801'),1,'completion bridge upserts the mapped training record');
+select is((select status from public.course_assignments where id='44000000-0000-4000-8000-000000000303'),'assigned','a completed package does NOT complete the assignment -- that path issues no certificate');
+-- The requirement row itself is created by the compliance machinery when the course gains a
+-- training type, so the assertion is about COMPLETION: nothing here may claim the training was
+-- done. complete_course_assignment writes that, beside the certificate that evidences it.
+select is((select count(*)::integer from public.employee_training_records where employee_id='44000000-0000-4000-8000-000000000201' and training_type_id='44000000-0000-4000-8000-000000000801' and completion_date is not null),0,'and records no completed training: a package result is not a completed course');
 reset role;
 select set_config('app.privileged_write','off',true);
 

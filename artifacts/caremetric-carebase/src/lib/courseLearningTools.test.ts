@@ -114,6 +114,28 @@ describe("course learning tools", () => {
     expect(canAdvanceCourseStep({ ...attestation, attestationRequired: false })).toBe(true);
   });
 
+  it("blocks a package step until its runtime reports completion", () => {
+    // Nothing gated this step before. The SCORM bridge completed the whole assignment the moment
+    // the package reported done, so a package could not be "not finished yet" -- it either ended
+    // the course from the middle or, on a comprehensive version, aborted the learner's commit.
+    const packageStep = {
+      completionEvidenceLocked: false,
+      isQuizBlock: false,
+      currentQuizPassed: false,
+      videoGateBlocksAdvance: false,
+      appliedResponseRequired: false,
+      appliedResponseComplete: true,
+      packageRequired: true,
+      packageCompleted: false,
+    };
+    expect(canAdvanceCourseStep(packageStep)).toBe(false);
+    expect(canAdvanceCourseStep({ ...packageStep, packageCompleted: true })).toBe(true);
+    // Reviewing a finished course still moves freely, the same as every other gate here.
+    expect(canAdvanceCourseStep({ ...packageStep, completionEvidenceLocked: true })).toBe(true);
+    // Every step that is not a package step is unaffected.
+    expect(canAdvanceCourseStep({ ...packageStep, packageRequired: false })).toBe(true);
+  });
+
   it("labels and sizes an attestation step", () => {
     expect(getBlockLabel("attestation")).toBe("Attestation");
     expect(getLearningStepLabel(block({

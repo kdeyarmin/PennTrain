@@ -36910,10 +36910,6 @@ export type Database = {
         }
         Returns: string
       }
-      bridge_learning_runtime_completion: {
-        Args: { p_runtime_session_id: string }
-        Returns: string
-      }
       bulk_update_alert_status: {
         Args: {
           p_alert_ids: string[]

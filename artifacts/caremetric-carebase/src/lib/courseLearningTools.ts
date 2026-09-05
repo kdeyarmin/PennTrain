@@ -126,6 +126,15 @@ export interface CourseStepGateState {
   /** True on an attestation step the learner has not signed yet. */
   attestationRequired?: boolean;
   attestationSigned?: boolean;
+  /**
+   * True on a package (SCORM/xAPI) step whose runtime has not reported completion for this
+   * assignment. Nothing gated this step before: the package's own completion silently completed
+   * the whole assignment from the middle of the course, so the step never needed to be passed --
+   * it ended the course instead. complete_course_assignment() now enforces the same rule, so this
+   * only keeps the button honest.
+   */
+  packageRequired?: boolean;
+  packageCompleted?: boolean;
 }
 
 export function canAdvanceCourseStep(gates: CourseStepGateState) {
@@ -136,7 +145,8 @@ export function canAdvanceCourseStep(gates: CourseStepGateState) {
     // An unsigned attestation blocks the same way an unpassed quiz does. The database enforces
     // the same rule in complete_course_assignment(), so this only keeps the button honest --
     // it is not the boundary.
-    && (!gates.attestationRequired || gates.attestationSigned === true);
+    && (!gates.attestationRequired || gates.attestationSigned === true)
+    && (!gates.packageRequired || gates.packageCompleted === true);
 }
 
 export interface CourseShortcutState {
