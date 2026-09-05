@@ -245,3 +245,19 @@ export function parseBuildProductModules(value: string | undefined): ReadonlySet
 export function moduleDefinition(id: PurchasableProductModuleId) {
   return PRODUCT_MODULES.find((module) => module.id === id)!;
 }
+
+/**
+ * Whether an entitlement-RPC failure should take the app down to a full-page retry.
+ *
+ * Only when there is nothing to serve. The access provider already falls back to the last-good
+ * module set on a transient failure, so reporting every failure as blocking made that fallback
+ * unreachable: the screen it existed to prevent was rendered instead, on any blip, for every
+ * signed-in user at once. A failure on the FIRST load has no last-good behind it, and there the
+ * error screen is the honest answer rather than silently degrading a paying tenant to core-only.
+ */
+export function entitlementFailureIsBlocking(state: {
+  isError: boolean;
+  hasLastGoodModules: boolean;
+}): boolean {
+  return state.isError && !state.hasLastGoodModules;
+}

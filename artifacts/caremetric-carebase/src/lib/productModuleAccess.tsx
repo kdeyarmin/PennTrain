@@ -7,6 +7,7 @@ import {
   ALL_PURCHASABLE_PRODUCT_MODULE_IDS,
   PRODUCT_MODULES,
   canAccessProductPath,
+  entitlementFailureIsBlocking,
   moduleHomePathForRole,
   parseBuildProductModules,
   withModuleDependencies,
@@ -90,7 +91,15 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
   const value = useMemo<ProductModuleAccessContextValue>(() => ({
     enabledModules,
     isLoading: shouldLoadEntitlements && entitlements.isLoading,
-    isError: shouldLoadEntitlements && entitlements.isError,
+    // Only an error we cannot serve THROUGH -- the rule and its reason live in
+    // entitlementFailureIsBlocking. The memo above already falls back to the last-good module set,
+    // and App.tsx renders a full-page error whenever this flag is true.
+    isError:
+      shouldLoadEntitlements &&
+      entitlementFailureIsBlocking({
+        isError: entitlements.isError,
+        hasLastGoodModules: lastGoodModules.current !== null,
+      }),
     refetch: () => {
       void entitlements.refetch();
     },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canAccessProductPath,
+  entitlementFailureIsBlocking,
   moduleHomePathForRole,
   parseBuildProductModules,
   productModuleForPath,
@@ -84,5 +85,23 @@ describe("product module routing", () => {
     expect(moduleHomePathForRole("facility_manager", allModules)).toBe("/app/today");
     expect(moduleHomePathForRole("auditor", allModules)).toBe("/app/today");
     expect(moduleHomePathForRole("employee", allModules)).toBe("/me");
+  });
+});
+
+describe("entitlementFailureIsBlocking", () => {
+  // The access provider keeps a last-good module set precisely so a transient entitlement RPC
+  // failure does not strip a paying tenant back to core-only. Reporting every failure as blocking
+  // rendered a full-page retry instead, which made that fallback unreachable.
+  it("serves the last-good modules through a transient failure", () => {
+    expect(entitlementFailureIsBlocking({ isError: true, hasLastGoodModules: true })).toBe(false);
+  });
+
+  it("blocks when the first load failed and there is nothing to serve", () => {
+    expect(entitlementFailureIsBlocking({ isError: true, hasLastGoodModules: false })).toBe(true);
+  });
+
+  it("never blocks without an error", () => {
+    expect(entitlementFailureIsBlocking({ isError: false, hasLastGoodModules: false })).toBe(false);
+    expect(entitlementFailureIsBlocking({ isError: false, hasLastGoodModules: true })).toBe(false);
   });
 });

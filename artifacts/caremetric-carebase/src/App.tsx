@@ -249,8 +249,10 @@ function ProtectedRoute({
     return <FullPageLoading />;
   }
 
-  // Entitlement RPC failed: keep last-good modules when available, but surface a
-  // retry so operators are not silently locked to core-only after a blip.
+  // Entitlement RPC failed with nothing to fall back on. `isError` is deliberately narrow (see
+  // productModuleAccess.tsx): a failure that still has a last-good module set serves it and never
+  // reaches here, because taking the whole app down to show a retry button is worse than running
+  // one refresh cycle on the modules we last confirmed.
   if (moduleAccess.isError && isAuthenticated) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">

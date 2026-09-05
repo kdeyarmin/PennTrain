@@ -238,9 +238,20 @@ export function sanitizeProviderDetail(
 }
 
 export function isRetryableProviderStatus(status: number): boolean {
-  // A 429 is an explicit provider rejection and is therefore safe to retry.
-  // Transport errors are ambiguous and are quarantined instead of replayed.
-  return status === 429;
+  // An explicit HTTP response is an unambiguous answer from the provider: the request arrived, was
+  // understood, and was refused. That is what makes it safe to retry -- unlike a transport error,
+  // which is ambiguous about whether the message went out and is quarantined as `unknown` instead
+  // of replayed.
+  //
+  // 429 was the only retryable status, so a 5xx was recorded as a PERMANENT failure. A minute of
+  // SendGrid 500s therefore burned every delivery in the batch: each was finalized `failed`, the
+  // alternate-channel fallback trigger pushed each to SMS (cost, and a duplicate message), and
+  // three such runs opened the dispatch circuit. Nothing about a 502 says the notification can
+  // never be delivered; it says try again.
+  //
+  // 4xx other than 429 stays permanent on purpose -- a malformed payload or a rejected sender does
+  // not become valid by repeating it, and retrying those is how a provider reputation is spent.
+  return status === 429 || status >= 500;
 }
 
 export function isUuid(value: unknown): value is string {

@@ -8,7 +8,7 @@ import { isPublicPath } from "./publicPaths";
 import { loginPathWithNext } from "./loginRedirect";
 import { useToast } from "@/hooks/use-toast";
 import { AuthProfileError } from "@/components/AuthProfileError";
-import { isDefinitiveProfileAbsence } from "@/lib/authProfileErrors";
+import { isDefinitiveProfileAbsence, shouldShowProfileError } from "@/lib/authProfileErrors";
 import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
 import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
 import { signedInIdentityChanged, type SessionIdentity } from "@/lib/sessionIdentity";
@@ -439,7 +439,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [profile, queryClient, toast, setLocation]);
 
-  if (session && !profileLoading && isError) {
+  // The rule and the reason live in shouldShowProfileError: blank the app only when there is no
+  // profile to run on, never merely because the last refetch failed.
+  if (shouldShowProfileError({ hasSession: !!session, isError, hasProfile: !!profile })) {
     return (
       <AuthProfileError
         error={profileError}

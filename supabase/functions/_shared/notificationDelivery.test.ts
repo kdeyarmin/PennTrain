@@ -200,8 +200,16 @@ Deno.test("redacts provider details before persistence", () => {
 
 Deno.test("classifies transient provider responses", () => {
   assertEquals(isRetryableProviderStatus(429), true);
-  assertEquals(isRetryableProviderStatus(503), false);
+  // 5xx is the provider saying "not now", not "never". Recording it as permanent burned the whole
+  // claimed batch on a minute of SendGrid 500s, fired the alternate-channel fallback for each, and
+  // opened the dispatch circuit after three such runs.
+  assertEquals(isRetryableProviderStatus(500), true);
+  assertEquals(isRetryableProviderStatus(502), true);
+  assertEquals(isRetryableProviderStatus(503), true);
+  // A 4xx that is not 429 does not become valid by repeating it.
   assertEquals(isRetryableProviderStatus(400), false);
+  assertEquals(isRetryableProviderStatus(401), false);
+  assertEquals(isRetryableProviderStatus(422), false);
 });
 
 Deno.test("parses display-name sender addresses", () => {
