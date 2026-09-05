@@ -65,6 +65,15 @@ grant execute on function public.exclusion_name_key(text) to service_role;
 create index if not exists exclusion_list_entries_last_name_key_idx
   on public.exclusion_list_entries (public.exclusion_name_key(last_name));
 
+-- And the trigram halves. Without these the candidate prefilter in the two screens below cannot
+-- be answered by an index and the score runs on every (employee x entry) pair: on production that
+-- is 19 active employees against 157,192 entries, ~3M calls at ~40us each, which saturated the
+-- database and timed the deploy out twice before this was measured. See the prefilter comment.
+create index if not exists exclusion_list_entries_last_name_trgm_idx
+  on public.exclusion_list_entries using gin (pg_catalog.upper(last_name) extensions.gin_trgm_ops);
+create index if not exists exclusion_list_entries_last_name_key_trgm_idx
+  on public.exclusion_list_entries using gin (public.exclusion_name_key(last_name) extensions.gin_trgm_ops);
+
 ------------------------------------------------------------------------------------------------
 -- One predicate and one score
 ------------------------------------------------------------------------------------------------
@@ -162,6 +171,8 @@ CREATE OR REPLACE FUNCTION public.match_exclusion_list_against_roster_core(p_sou
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO ''
+ SET pg_trgm.similarity_threshold TO '0.30'
+ SET pg_trgm.word_similarity_threshold TO '0.60'
 AS $function$
 begin
   insert into public.exclusion_screening_matches (
@@ -178,6 +189,24 @@ begin
   join public.exclusion_list_entries l
     on l.snapshot_id = s.active_snapshot_id
     and l.source = p_source
+    -- A candidate prefilter the planner can answer from an index, ahead of the score. It must be
+    -- strictly WIDER than the surname gate inside exclusion_name_match_score, or it silently
+    -- reintroduces the false negatives that gate exists to remove -- so it mirrors that gate's
+    -- four surviving routes exactly, at looser thresholds:
+    --   score admits: keys equal | similarity > 0.6 | word_similarity > 0.85 either way
+    --   filter keeps: keys equal | % (>= 0.30)     | <% (>= 0.60)        either way
+    -- Both directions of <% are here because word_similarity is not symmetric, and a surname like
+    -- LEE inside ANDERSON-LEE-WASHINGTON scores ~0.15 on similarity while word_similarity is 1.0 --
+    -- exactly the containment case the score was widened to catch. The thresholds are pinned on
+    -- the function (set pg_trgm.*) so a session GUC cannot narrow them underneath the screen.
+    and (
+      public.exclusion_name_key(l.last_name) = public.exclusion_name_key(e.last_name)
+      or pg_catalog.upper(l.last_name) operator(extensions.%) pg_catalog.upper(e.last_name)
+      or pg_catalog.upper(l.last_name) operator(extensions.<%) pg_catalog.upper(e.last_name)
+      or pg_catalog.upper(e.last_name) operator(extensions.<%) pg_catalog.upper(l.last_name)
+      or public.exclusion_name_key(l.last_name) operator(extensions.%)
+         public.exclusion_name_key(e.last_name)
+    )
     -- One predicate, one score, one function: the two copies of this join had drifted apart in
     -- their FROM clause already, and a screening rule that lives in two places is a screening rule
     -- that will differ in two places. See public.exclusion_name_match_score.
@@ -212,6 +241,8 @@ CREATE OR REPLACE FUNCTION app_private.screen_employee_against_active_exclusions
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'pg_catalog'
+ SET pg_trgm.similarity_threshold TO '0.30'
+ SET pg_trgm.word_similarity_threshold TO '0.60'
 AS $function$
 begin
   insert into public.exclusion_screening_matches (
@@ -228,6 +259,24 @@ begin
   join public.exclusion_list_entries l
     on l.snapshot_id = s.active_snapshot_id
     and l.source = s.source
+    -- A candidate prefilter the planner can answer from an index, ahead of the score. It must be
+    -- strictly WIDER than the surname gate inside exclusion_name_match_score, or it silently
+    -- reintroduces the false negatives that gate exists to remove -- so it mirrors that gate's
+    -- four surviving routes exactly, at looser thresholds:
+    --   score admits: keys equal | similarity > 0.6 | word_similarity > 0.85 either way
+    --   filter keeps: keys equal | % (>= 0.30)     | <% (>= 0.60)        either way
+    -- Both directions of <% are here because word_similarity is not symmetric, and a surname like
+    -- LEE inside ANDERSON-LEE-WASHINGTON scores ~0.15 on similarity while word_similarity is 1.0 --
+    -- exactly the containment case the score was widened to catch. The thresholds are pinned on
+    -- the function (set pg_trgm.*) so a session GUC cannot narrow them underneath the screen.
+    and (
+      public.exclusion_name_key(l.last_name) = public.exclusion_name_key(e.last_name)
+      or pg_catalog.upper(l.last_name) operator(extensions.%) pg_catalog.upper(e.last_name)
+      or pg_catalog.upper(l.last_name) operator(extensions.<%) pg_catalog.upper(e.last_name)
+      or pg_catalog.upper(e.last_name) operator(extensions.<%) pg_catalog.upper(l.last_name)
+      or public.exclusion_name_key(l.last_name) operator(extensions.%)
+         public.exclusion_name_key(e.last_name)
+    )
     -- One predicate, one score, one function: the two copies of this join had drifted apart in
     -- their FROM clause already, and a screening rule that lives in two places is a screening rule
     -- that will differ in two places. See public.exclusion_name_match_score.
