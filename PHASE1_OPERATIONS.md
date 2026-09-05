@@ -191,6 +191,85 @@ permanently failed outcomes.
 If webhook verification is unavailable, leave callbacks fail-closed, alert the
 on-call owner, and reconcile provider outcomes after verification is restored.
 
+## Pre-pilot console work, and how to tell it is done
+
+The six items in block 2 of `docs/ops/PILOT_READINESS_PLAN.md` happen in the
+Supabase, SendGrid, Twilio and Stripe consoles, not in this repository. What
+follows is what each one still needs and, more usefully, the command in this
+repository that will tell you it worked -- so "done" is something observed
+rather than remembered.
+
+State below was verified on 2026-09-05 unless noted.
+
+**H10 — MFA on the privileged identities.** `auth.mfa_factors` held zero
+verified factors across all eight accounts. Enrol TOTP on both `platform_admin`
+accounts, then rehearse the lost-device path in the section above against a
+third, disposable account: the reset must work from `/app/users` without anyone
+opening the Supabase dashboard. Keep the `audit_logs` row for the reset.
+
+**H11 — Auth hardening.** Narrowed by the production security advisor:
+
+- Leaked-password protection is still **off** — it is the only auth finding the
+  advisor reports, so it is the one toggle that definitely remains.
+- `otp_expiry` is **already at or under one hour**: the advisor's
+  `auth_otp_long_expiry` lint fires above that and does not appear. Nothing to
+  set. Do not lengthen it to make invitation links live longer — the product now
+  states the link's short life and offers Resend, which is the correct answer.
+- Still unrecorded and not advisor-visible: plain email signup off, Site URL and
+  redirect URLs, the Send Email hook secret, and the Turnstile hostname (the live
+  widget returned `110200`).
+
+Confirm with: `pnpm run check:database` — its advisor step should report zero
+auth findings when the leaked-password toggle is on.
+
+**B3 — Providers.** Set the SendGrid and Twilio secrets, complete domain
+authentication (SPF/DKIM/DMARC), register both provider webhooks, then send one
+real email and one real SMS to yourself and follow each row in
+`/admin/notifications` to `delivered`.
+
+Before the secrets exist, deliveries on an unconfigured channel now record as
+**`skipped`** with `provider_not_configured`, not as failures — so the ledger you
+read after setting them contains only real attempts. If you see `failed` rows
+predating the secrets, they are from before that change and can be ignored; rows
+after it are real.
+
+One thing to check on the first SMS: `twilio-notification-webhook` validates the
+signature against the raw request URL, so if the runtime URL differs from the
+public one every status callback and every STOP is silently rejected. Send one
+signed test callback before you rely on delivery receipts.
+
+**H12 — DHS source re-attestation.** Overdue by more than the 45-day limit. All
+35 form links and both citation links resolve; what lapsed is a person reading
+the forms. Scope the work first:
+
+```
+node scripts/snapshot-dhs-sources.mjs
+```
+
+It names which **form documents** changed since the last digest, so the review is
+those rather than all thirty-five. Index and table-of-contents pages are reported
+separately and routinely change; a change there is not evidence a form moved.
+Read the documents it names, then re-stamp `DHS_FORMS_LAST_VERIFIED` in
+`dhsFormsLibrary.ts` and re-run the digest with `--write`.
+
+An unchanged digest is not an attestation. The current baseline was taken
+2026-09-05 and says nothing about the window before it.
+
+**H13 — The one non-demo organization.** `subscription_status = 'trial'`,
+`trial_ends_at` null, no BAA stamp, created the day the project was. Decide
+whether it is the internal tenant or the first customer, then either name it
+internal and use it as the live-Price target, or stamp a trial end and take it
+through the W1 walkthrough. Nothing else in block 2 depends on the answer, but
+H7's guard protects only the *next* organization until it is settled.
+
+**H14 — AI posture.** Production has the document analyzer, wellness summaries,
+course generation and video generation **on** and the compliance copilot **off**;
+`DEPLOYMENT.md` says the switches "still default false except voice". Neither
+organization carries a BAA stamp, so tenant AI is dark regardless and nothing is
+leaking today — but the written posture and the live one disagree, and one of
+them is wrong. Decide which, then change the other to match. Whichever way it
+goes, the decision belongs in `DEPLOYMENT.md` beside the switches.
+
 ## Fourteen-day pilot and promotion
 
 Start with staff/demo accounts, then two or three named tenant cohorts. Record
