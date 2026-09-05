@@ -511,7 +511,15 @@ Deno.serve(async (req: Request) => {
         p_error_code: skip.errorCode,
       });
       if (skipError) {
-        console.error("notification skip persistence failed", { deliveryId: row.id });
+        // The delivery stays `processing` when this write fails, so the log line is the only
+        // account of why it is stuck. Carrying the SQLSTATE and message turns "some deliveries
+        // never finalized" into a permission, deploy-skew or validation error somebody can act
+        // on. Sanitized because this pipeline's neighbouring data is recipient addresses.
+        console.error("notification skip persistence failed", {
+          deliveryId: row.id,
+          code: skipError.code,
+          error: sanitizeProviderDetail(skipError.message),
+        });
         persistenceErrors++;
         continue;
       }
