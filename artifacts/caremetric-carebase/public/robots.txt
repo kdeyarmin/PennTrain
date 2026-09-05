@@ -11,5 +11,13 @@ Disallow: /checkin/
 Disallow: /evidence-access/
 Disallow: /move-in-access/
 Disallow: /resident-agreement-access/
+Disallow: /survey-packet-access/
+Disallow: /resident-portal
+# /verify/ and /passport/ carry a named person's certificate and training history. They exist to be
+# opened by somebody holding the link -- a surveyor checking a certificate, a nurse aide showing
+# their record -- not to be findable by searching that person's name. The slug is what authorizes
+# the read; this only keeps the result out of an index.
+Disallow: /verify/
+Disallow: /passport/
 
 Sitemap: https://cmcarebase.com/sitemap.xml

@@ -40079,6 +40079,10 @@ export type Database = {
         Args: { p_form_id: string }
         Returns: number
       }
+      notification_bypasses_quiet_hours: {
+        Args: { p_delivery_type: string; p_notification_id: string }
+        Returns: boolean
+      }
       notification_next_permitted_at: {
         Args: { p_requested_at: string; p_timezone: string }
         Returns: string

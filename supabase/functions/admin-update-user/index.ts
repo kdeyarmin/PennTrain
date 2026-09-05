@@ -12,7 +12,46 @@ function json(req: Request, body: unknown, status = 200) {
 
 const VALID_ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer", "employee", "auditor"];
 
+/**
+ * SQLSTATEs this codebase raises deliberately, whose message is written for a person.
+ *
+ * BACKLOG.md I23: every failure path below returned the raw error text straight to the browser --
+ * Postgres internals, Auth internals, constraint names, and in one case both the old and new login
+ * email addresses in a single string that a toast then displayed and client error reporting then
+ * captured. Blanket-replacing all of them would have been worse than the leak, because the useful
+ * ones are our own raises ("org_admin cannot grant platform_admin"), and losing those leaves an
+ * administrator with "something went wrong" and no idea what.
+ *
+ * So the line is drawn where the codebase already draws it: a SQLSTATE we chose carries a message
+ * we wrote, and passes through. Anything else is an internal detail the caller cannot act on, and
+ * is logged with a correlation id instead.
+ */
+const DELIBERATE_SQLSTATES = new Set([
+  "P0001", // raise_exception -- our own `raise exception ... ` with no explicit errcode
+  "42501", // insufficient_privilege -- an authorization refusal we wrote
+  "22023", // invalid_parameter_value
+  "02000", // no_data_found -- admin_update_profile's "profile % not found"
+  "23505", // unique_violation -- an email already in use, which the admin can fix
+]);
+
+/**
+ * What to show the caller, and what to log. Returns the public message; the raw detail goes to the
+ * function log under `correlationId`, which is also returned so a support request can name it.
+ */
+function publicError(
+  context: string,
+  correlationId: string,
+  raw: { message?: string; code?: string } | null | undefined,
+  fallback: string,
+): string {
+  const message = raw?.message ?? "unknown error";
+  console.error(`admin-update-user: ${context}`, { correlationId, code: raw?.code, message });
+  if (raw?.code && DELIBERATE_SQLSTATES.has(raw.code)) return message;
+  return `${fallback} (reference ${correlationId})`;
+}
+
 Deno.serve(async (req: Request) => {
+  const correlationId = crypto.randomUUID();
   if (req.method === "OPTIONS") return corsPreflightResponse(req);
   if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
@@ -161,7 +200,13 @@ Deno.serve(async (req: Request) => {
     const { data: factorList, error: listError } = await adminClient.auth.admin.mfa.listFactors({
       userId: user_id,
     });
-    if (listError) return json(req, { error: listError.message }, 400);
+    if (listError) {
+      return json(req, {
+        error: publicError("listing factors failed", correlationId, listError,
+          "Could not read this user's multi-factor enrolment"),
+        correlationId,
+      }, 400);
+    }
     const factors = factorList?.factors ?? [];
 
     const removed: string[] = [];
@@ -174,7 +219,9 @@ Deno.serve(async (req: Request) => {
       // and an operator retrying needs to know the reset did not finish.
       if (deleteError) {
         return json(req, {
-          error: `removed ${removed.length} of ${factors.length} factor(s), then failed on ${factor.id}: ${deleteError.message}`,
+          error: publicError("factor removal failed part-way", correlationId, deleteError,
+            `Removed ${removed.length} of ${factors.length} factor(s), then could not remove the rest`),
+          correlationId,
         }, 500);
       }
       removed.push(factor.id);
@@ -189,7 +236,9 @@ Deno.serve(async (req: Request) => {
     });
     if (revokeError) {
       return json(req, {
-        error: `factors were removed but the target's sessions could not be revoked: ${revokeError.message}`,
+        error: publicError("session revocation failed after factor reset", correlationId, revokeError,
+          "The factors were removed but this user's existing sessions could not be signed out"),
+        correlationId,
       }, 500);
     }
 
@@ -205,7 +254,9 @@ Deno.serve(async (req: Request) => {
     // The factors are already gone; a missing audit row is a reportable failure, not a silent one.
     if (auditError) {
       return json(req, {
-        error: `multi-factor enrolment was reset but the audit entry failed to record: ${auditError.message}`,
+        error: publicError("audit entry failed after factor reset", correlationId, auditError,
+          "Multi-factor enrolment was reset but the audit entry did not record"),
+        correlationId,
       }, 500);
     }
 
@@ -226,7 +277,11 @@ Deno.serve(async (req: Request) => {
   if (email !== undefined) {
     const { data: targetAuthUser, error: targetAuthError } = await adminClient.auth.admin.getUserById(user_id);
     if (targetAuthError || !targetAuthUser?.user) {
-      return json(req, { error: targetAuthError?.message ?? "target auth user not found" }, 400);
+      return json(req, {
+        error: publicError("target auth user lookup failed", correlationId, targetAuthError,
+          "Could not read this user's login record"),
+        correlationId,
+      }, 400);
     }
     previousEmail = targetAuthUser.user.email ?? null;
   }
@@ -235,7 +290,13 @@ Deno.serve(async (req: Request) => {
       ...(email !== undefined ? { email, email_confirm: true } : {}),
       ...(password !== undefined ? { password } : {}),
     });
-    if (authUpdateError) return json(req, { error: authUpdateError.message }, 400);
+    if (authUpdateError) {
+      return json(req, {
+        error: publicError("auth update failed", correlationId, authUpdateError,
+          "Could not update the login email or password"),
+        correlationId,
+      }, 400);
+    }
   }
 
   // profiles-level changes (role/organization_id/is_active/email sync/names) via the trusted RPC --
@@ -259,12 +320,25 @@ Deno.serve(async (req: Request) => {
         email_confirm: true,
       });
       if (revertError) {
+        // Both addresses used to be in this string, which a toast displayed and client error
+        // reporting captured. The administrator is looking at the user's record and can read both
+        // there; what they need from here is that the two are now out of step, and a reference.
+        console.error("admin-update-user: login email revert failed, identity is split", {
+          correlationId, userId: user_id, rpcCode: rpcError.code, revertCode: revertError.code,
+        });
         return json(req, {
-          error: `${rpcError.message} (additionally, reverting the login email failed: ${revertError.message} -- the login email is now ${email} while the profile still shows ${previousEmail})`,
+          error: "The profile update failed and the login email could not be put back, so the "
+            + "login email and the profile email are now different. Set the email again to bring "
+            + `them back into step. (reference ${correlationId})`,
+          correlationId,
         }, 500);
       }
     }
-    return json(req, { error: rpcError.message }, 400);
+    return json(req, {
+      error: publicError("admin_update_profile failed", correlationId, rpcError,
+        "Could not update this user's profile"),
+      correlationId,
+    }, 400);
   }
 
   return json(req, { success: true, profile: updatedProfile });
