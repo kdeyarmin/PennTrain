@@ -97,6 +97,12 @@ export interface OfflineServiceDraft {
   syncState: OfflineDraftSyncState;
   lastSyncOutcome: OfflineDraftSyncOutcome | null;
   lastSyncError: string | null;
+  /**
+   * How many times the SERVER has executed this draft and refused it. Absent on records written
+   * before the column existed, which read as zero. See nextStateAfterSyncFailure: a failure that
+   * never reached the server does not count, so this is not an attempt count.
+   */
+  failedAttempts?: number;
 }
 
 /**
@@ -128,6 +134,12 @@ export interface OfflineUnscheduledServiceDraft {
   syncState: OfflineDraftSyncState;
   lastSyncOutcome: OfflineDraftSyncOutcome | null;
   lastSyncError: string | null;
+  /**
+   * How many times the SERVER has executed this draft and refused it. Absent on records written
+   * before the column existed, which read as zero. See nextStateAfterSyncFailure: a failure that
+   * never reached the server does not count, so this is not an attempt count.
+   */
+  failedAttempts?: number;
 }
 
 /**
@@ -159,6 +171,12 @@ export interface OfflineChangeObservationDraft {
   syncState: OfflineDraftSyncState;
   lastSyncOutcome: OfflineDraftSyncOutcome | null;
   lastSyncError: string | null;
+  /**
+   * How many times the SERVER has executed this draft and refused it. Absent on records written
+   * before the column existed, which read as zero. See nextStateAfterSyncFailure: a failure that
+   * never reached the server does not count, so this is not an attempt count.
+   */
+  failedAttempts?: number;
 }
 
 export type OfflineFloorDraft =

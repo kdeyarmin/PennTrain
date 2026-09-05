@@ -85,6 +85,8 @@ export interface OfflineObservationDraft {
   syncState: OfflineObservationSyncState;
   lastSyncOutcome: OfflineObservationSyncOutcome | null;
   lastSyncError: string | null;
+  /** Server refusals, not attempts. See OfflineServiceDraft.failedAttempts. */
+  failedAttempts?: number;
 }
 
 const MAX_TEXT_LENGTH = 4000;

@@ -11,6 +11,7 @@ import {
   assertObservationDraftAllowed, UNRESOLVED_OBSERVATION_DRAFT_STATES,
   type OfflineObservationDraft, type OfflineObservationSyncOutcome, type OfflineObservationSyncResult,
 } from "@/lib/offlineObservationDraftSafety";
+import { nextStateAfterSyncFailure } from "@/lib/offlineDraftFieldGuards";
 import { isCriticalFlag, OBSERVATION_CONFIG } from "@/lib/clinicalObservations";
 import type { ObservationType } from "@/hooks/useClinicalObservations";
 
@@ -199,9 +200,15 @@ export function useSyncOfflineObservationDraft() {
       try {
         return await syncDraft(identity, draft);
       } catch (error) {
+        // Same rule as the service lane: a refusal the server will repeat moves the reading to
+        // `rejected` after MAX_SERVER_REFUSALS_BEFORE_REVIEW of them; a failure that never reached
+        // the server does not count against it. See nextStateAfterSyncFailure.
         await updateObservationDraft(
           draftId,
-          { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+          {
+            ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+            lastSyncError: error instanceof Error ? error.message : String(error),
+          },
           identity,
         );
         throw error;
@@ -258,7 +265,10 @@ export function useSyncAllOfflineObservationDrafts() {
           result.failed += 1;
           await updateObservationDraft(
             draft.draftId,
-            { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+            {
+              ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+              lastSyncError: error instanceof Error ? error.message : String(error),
+            },
             identity,
           ).catch(() => undefined);
         }

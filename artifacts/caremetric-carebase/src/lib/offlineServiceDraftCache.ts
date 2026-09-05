@@ -414,7 +414,7 @@ export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Prom
 
 export async function updateServiceDraft(
   draftId: string,
-  patch: Partial<Pick<OfflineFloorDraft, "syncState" | "lastSyncOutcome" | "lastSyncError">>,
+  patch: Partial<Pick<OfflineFloorDraft, "syncState" | "lastSyncOutcome" | "lastSyncError" | "failedAttempts">>,
   identity: OfflineFloorIdentity,
 ): Promise<OfflineFloorDraft | undefined> {
   const draft = await readServiceDraft(draftId, identity);
@@ -620,7 +620,7 @@ export async function readAllObservationDrafts(identity: OfflineFloorIdentity): 
 
 export async function updateObservationDraft(
   draftId: string,
-  patch: Partial<Pick<OfflineObservationDraft, "syncState" | "lastSyncOutcome" | "lastSyncError">>,
+  patch: Partial<Pick<OfflineObservationDraft, "syncState" | "lastSyncOutcome" | "lastSyncError" | "failedAttempts">>,
   identity: OfflineFloorIdentity,
 ): Promise<OfflineObservationDraft | undefined> {
   const draft = await readObservationDraft(draftId, identity);

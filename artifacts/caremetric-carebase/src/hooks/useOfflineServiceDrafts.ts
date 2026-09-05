@@ -16,6 +16,7 @@ import {
   type OfflineChangeObservationDraft, type OfflineDraftKind, type OfflineDraftSyncOutcome,
   type OfflineFloorDraft, type OfflineServiceDraft, type OfflineUnscheduledServiceDraft,
 } from "@/lib/offlineServiceDraftSafety";
+import { nextStateAfterSyncFailure } from "@/lib/offlineDraftFieldGuards";
 import { followUpFieldsFor } from "@/lib/serviceExceptionFollowUp";
 import type { CompletionResponse } from "@/lib/serviceDeliveryContract";
 import type { Json } from "@/lib/database.types";
@@ -452,9 +453,16 @@ export function useSyncOfflineServiceDraft() {
         if (outcome === "applied") invalidateDomainFor(queryClient, [draft]);
         return outcome;
       } catch (error) {
+        // A server refusal that will be a server refusal again moves the draft to `rejected` after
+        // MAX_SERVER_REFUSALS_BEFORE_REVIEW of them, rather than being retried every five minutes
+        // for as long as the device stays signed in. A failure that never reached the server does
+        // not count. See nextStateAfterSyncFailure.
         await updateServiceDraft(
           draftId,
-          { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+          {
+            ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+            lastSyncError: error instanceof Error ? error.message : String(error),
+          },
           identity,
         );
         throw error;
@@ -497,7 +505,10 @@ export function useSyncAllOfflineServiceDrafts() {
           result.failed += 1;
           await updateServiceDraft(
             draft.draftId,
-            { syncState: "error", lastSyncError: error instanceof Error ? error.message : String(error) },
+            {
+            ...nextStateAfterSyncFailure(error, draft.failedAttempts, "rejected", "error"),
+            lastSyncError: error instanceof Error ? error.message : String(error),
+          },
             identity,
           ).catch(() => undefined);
         }
