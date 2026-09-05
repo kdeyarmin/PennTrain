@@ -28,5 +28,11 @@
     "rule": "anon-public-grant",
     "match": "public.verify_certificate",
     "rationale": "Re-grant of the pre-existing public certificate-verification path, NARROWED rather than widened. verify_certificate had to be dropped and recreated to remove final_exam_score from its RETURNS TABLE (BACKLOG.md I16: the slug is a bearer token that travels in emails and printed PDFs, and a verifier needs to know the credential is real, not what the learner scored), and a drop takes the grant with it. Still SECURITY DEFINER with search_path pinned empty, still keyed on a single opaque slug, and it returns strictly less than before; the certificates table has no anon grant."
+  },
+  {
+    "file": "20260905230000_a_guest_surface_nobody_was_counting.sql",
+    "rule": "anon-public-grant",
+    "match": "public.assert_guest_request_allowed",
+    "rationale": "The gate in front of the seventeen anonymous guest and resident-portal RPCs, which are themselves anon-executable by design (tokenised link, no account). It has to be callable by the same role they are, because each one calls it as its first statement. It is the narrowest anon grant in the schema: RETURNS VOID, so it hands the caller no data at all -- its only outcomes are to return, or to raise. What it does is count the caller's requests per minute, record a token that resolved to nothing (hashed, in app_private, unreadable from this surface), and refuse a suspended organization's outstanding links. SECURITY DEFINER with search_path pinned empty because it writes app_private counters that anon cannot reach, and it deliberately allows a first unknown token through so it adds no oracle about which tokens exist. BACKLOG.md I16."
   }
 ]

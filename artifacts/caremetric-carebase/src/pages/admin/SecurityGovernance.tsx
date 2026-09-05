@@ -9,6 +9,7 @@ import {
 import type { Tables } from "@/lib/database.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BreakGlassCard } from "@/components/admin/BreakGlassCard";
+import { GuestAccessHealthCard } from "@/components/admin/GuestAccessHealthCard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -224,6 +225,10 @@ export default function SecurityGovernance() {
           activity below it. Both halves were unreachable: access could not be granted, and so
           could never have been ended early either. */}
       <BreakGlassCard />
+
+      {/* Until 20260905230000 a wrong guess at a guest token left no trace anywhere, so a scan and
+          a family member with a stale link looked identical. See BACKLOG.md I16. */}
+      <GuestAccessHealthCard />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">

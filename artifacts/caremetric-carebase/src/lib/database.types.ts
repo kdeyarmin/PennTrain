@@ -36667,6 +36667,10 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: undefined
       }
+      assert_guest_request_allowed: {
+        Args: { p_surface: string; p_token: string }
+        Returns: undefined
+      }
       assert_identity_assurance: {
         Args: { p_operation: string }
         Returns: undefined
@@ -38693,6 +38697,16 @@ export type Database = {
         }[]
       }
       get_governed_learning_control_plane: { Args: never; Returns: Json }
+      get_guest_access_health: {
+        Args: { p_hours?: number }
+        Returns: {
+          distinct_callers: number
+          failed_lookups: number
+          last_failure_at: string
+          surface: string
+          worst_caller_failures: number
+        }[]
+      }
       get_guided_org_setup_status: {
         Args: { p_organization_id?: string }
         Returns: Json

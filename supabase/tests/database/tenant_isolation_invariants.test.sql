@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(11);
 
 -- Tenant isolation invariants, pinned.
 --
@@ -180,8 +180,26 @@ select is(
    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.prosecdef
      and has_function_privilege('anon', p.oid, 'execute')),
-  20,
-  'the anon-reachable SECURITY DEFINER surface is exactly the 20 known guest/portal entry points (includes resolve_safety_report_facility)'
+  21,
+  'the anon-reachable SECURITY DEFINER surface is exactly the 21 known guest/portal entry points (includes resolve_safety_report_facility and the gate in front of all of them)'
+);
+-- 20 -> 21 on 2026-09-05, deliberately, which is what this ratchet asks for. The addition is
+-- public.assert_guest_request_allowed (20260905230000): not a new way in, but the throttle,
+-- unknown-token recorder and suspension check that every one of the other guest entry points now
+-- calls as its first statement. It is anon-executable because its callers are. It reads no tenant
+-- data back to the caller -- it returns void, and its only answers are "carry on" or an exception
+-- -- so it widens the surface by a function and narrows what that surface will do.
+select is(
+  (select count(*)::integer from pg_catalog.pg_proc p
+   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.prosecdef
+     and has_function_privilege('anon', p.oid, 'execute')
+     and p.proname not in (
+       'verify_certificate', 'verify_training_passport', 'list_regulatory_updates',
+       'assert_guest_request_allowed')
+     and p.prosrc not like '%assert_guest_request_allowed%'),
+  0,
+  'and every token-bearing one of them passes through that gate before its own body runs'
 );
 
 -- A SECURITY DEFINER function without a pinned search_path resolves unqualified names against the
