@@ -38279,6 +38279,16 @@ export type Database = {
         }
         Returns: Json
       }
+      exclusion_name_key: { Args: { p_name: string }; Returns: string }
+      exclusion_name_match_score: {
+        Args: {
+          p_employee_first: string
+          p_employee_last: string
+          p_entry_first: string
+          p_entry_last: string
+        }
+        Returns: number
+      }
       exclusion_source_record_key: {
         Args: {
           p_business_name: string
@@ -40070,6 +40080,14 @@ export type Database = {
         Args: { p_demo_request_id: string }
         Returns: number
       }
+      oapsa_duty_status: {
+        Args: { p_as_of?: string; p_employee_id: string }
+        Returns: Json
+      }
+      oapsa_provisional_window_days: {
+        Args: { p_organization_id: string; p_pa_resident_two_years: boolean }
+        Returns: number
+      }
       open_confidential_intake_details: {
         Args: { p_intake_id: string; p_purpose: string }
         Returns: {
@@ -41701,6 +41719,7 @@ export type Database = {
         Args: { p_now?: string }
         Returns: number
       }
+      run_oapsa_provisional_maintenance: { Args: never; Returns: undefined }
       run_phase1_synthetic_checks: { Args: never; Returns: Json }
       run_plan_of_correction_escalations: {
         Args: { p_now?: string }

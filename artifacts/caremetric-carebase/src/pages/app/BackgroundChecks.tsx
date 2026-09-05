@@ -161,11 +161,6 @@ export default function BackgroundChecks() {
     ).at;
 
     const paResident = form.paResidentTwoYears === "yes" ? true : form.paResidentTwoYears === "no" ? false : null;
-    const provisionalMaxDays = form.provisionalStartDate
-      ? (paResident === true
-          ? orgSettings?.oapsa_provisional_days_resident ?? 30
-          : orgSettings?.oapsa_provisional_days_nonresident ?? 90)
-      : null;
 
     try {
       await upsertProfile({
@@ -174,7 +169,12 @@ export default function BackgroundChecks() {
         employee_id: employee.id,
         pa_resident_two_years: paResident,
         provisional_start_date: form.provisionalStartDate || null,
-        provisional_max_days: provisionalMaxDays,
+        // provisional_max_days is NOT sent. The length of an OAPSA provisional window is a
+        // statutory question, and this form was answering it: `paResident === true ? 30 : 90` gave
+        // the 90-day non-resident window to every profile whose residency is merely UNKNOWN, which
+        // is the default state of a profile nobody has completed. `derive_oapsa_provisional_window`
+        // computes it on write now, and unknown residency takes the shorter window until somebody
+        // records which one applies.
         non_disqualification_statement_signed: form.nonDisqStatementSigned,
         non_disqualification_statement_signed_at: nonDisqSignedAt,
         supervision_attestation_confirmed: form.supervisionConfirmed,
@@ -279,8 +279,10 @@ export default function BackgroundChecks() {
                 <Label htmlFor={`${__fieldIds}-provisional-employment-start-date`} className="text-[13px]">Provisional employment start date</Label>
                 <Input id={`${__fieldIds}-provisional-employment-start-date`} type="date" value={form.provisionalStartDate} onChange={(e) => field("provisionalStartDate", e.target.value)} className="h-9" />
                 <p className="text-xs text-muted-foreground">
-                  Countdown defaults to {orgSettings?.oapsa_provisional_days_resident ?? 30} days (PA resident) / {orgSettings?.oapsa_provisional_days_nonresident ?? 90} days
-                  (non-resident), based on OAPSA (6 Pa Code Sec 15.146) and the parallel PA Code provisions for personal care homes -- confirm the applicable figure with your own regulatory counsel.
+                  The window is {orgSettings?.oapsa_provisional_days_resident ?? 30} days (PA resident for the two preceding years) or {orgSettings?.oapsa_provisional_days_nonresident ?? 90} days
+                  (established non-resident awaiting the federal check), based on OAPSA (6 Pa Code Sec 15.146) and the parallel PA Code provisions for personal care homes -- confirm the applicable figure with your own regulatory counsel.
+                  While residency is left unknown the shorter window applies, because the longer one is an entitlement that has to be established.
+                  Once the window ends without the clearances on file, this employee is blocked from scheduling and from duty assignment.
                 </p>
               </div>
               <label className="flex items-start gap-2 text-sm">
