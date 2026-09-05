@@ -39128,6 +39128,8 @@ export type Database = {
           is_critical: boolean
           is_stale: boolean
           job_key: string
+          kill_switch_can_stop: boolean
+          kill_switch_enabled: boolean
           last_attempt_at: string
           last_duration_ms: number
           last_status: string

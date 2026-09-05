@@ -20,6 +20,15 @@ export interface SystemJobStatus {
   failed_count: number | null;
   error_message: string | null;
   is_stale: boolean;
+  /** The switch's stored position. Also on SystemJobRecoveryState; this is the same value. */
+  kill_switch_enabled: boolean;
+  /**
+   * Whether flipping that switch would actually stop the job. `kill_switch_enabled` is read in
+   * exactly one place -- claim_system_job_execution -- which SQL reaches only through
+   * execute_registered_sql_job, so for a definition whose cron entry posts to an Edge Function the
+   * control is decorative, and for the watchdog it is deliberately so. See BACKLOG.md I17.
+   */
+  kill_switch_can_stop: boolean;
 }
 
 export interface SystemJobRecoveryState {

@@ -51,6 +51,36 @@ const EDGE_JOBS: Record<
     functionName: "run-data-lifecycle",
     body: {},
   },
+  // The five that were missing (BACKLOG.md I17 residual). Each has a cron entry that posts to an
+  // Edge Function, so "Run now" for them fell through to execute_registered_sql_job, whose case
+  // list has no arm for any of them: it raised 22023 and its own handler recorded a durable FAILED
+  // run against a job that had not been asked to do anything. For the two CRITICAL ones
+  // (binder-export-generation, document-analyzer-extraction) that is the trap described above --
+  // three clicks reach failure_alert_threshold, the circuit opens for fifteen minutes, and
+  // claim_system_job_execution then refuses the SCHEDULED sweep. An operator trying to recover the
+  // job was the thing stopping it.
+  "binder-export-generation": {
+    functionName: "generate-compliance-binder",
+    body: {},
+  },
+  "document-analyzer-extraction": {
+    functionName: "analyze-state-form",
+    body: {},
+  },
+  "process-credential-renewals": {
+    functionName: "process-credential-renewals",
+    body: {},
+  },
+  "regulatory-update-polling": {
+    functionName: "poll-regulatory-updates",
+    body: {},
+  },
+  "sam-sweep-continuation": {
+    // Same body as its cron entry, including the runtime budget: a resume that runs without one
+    // is a different job from the one the schedule performs.
+    functionName: "screen-exclusions",
+    body: { resumeOnly: true, maxRuntimeMs: 100000 },
+  },
 };
 
 function json(req: Request, body: unknown, status = 200) {
