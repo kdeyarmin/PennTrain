@@ -293,7 +293,12 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/dietary-operations", label: "Dietary & food-safety operations", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["diet", "nutrition", "allergy", "texture", "hydration", "meal intake", "weight", "menu", "temperature", "sanitation", "kitchen", "food service"] },
   { path: "/app/resident-services-calendar", label: "Resident services calendar", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["appointment", "medical", "dental", "behavioral health", "laboratory", "therapy", "transportation", "driver", "vehicle", "family visit", "community service", "activity", "return instructions"] },
   { path: "/app/resident-finance", label: "Resident financial operations", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["resident contract", "rate agreement", "charge", "payment", "statement", "balance", "delinquency", "accounting export", "personal funds", "deposit", "withdrawal", "receipt", "reconciliation"] },
-  { path: "/app/medication-integration", label: "Medication integration", domain: "residents", roles: REPORTING_ROLES, keywords: ["emar", "medication", "administration", "refusal", "held", "missed", "sync", "external source"] },
+  // WORK_QUEUE_ROLES, not REPORTING_ROLES: the route grants platform_admin (RESIDENT_FINANCE_ROLES,
+  // matching /app/resident-finance) and every one of the nine other items beside this one in the
+  // platform-admin Oversight section uses WORK_QUEUE_ROLES. Withholding it here meant the sidebar
+  // entry Sidebar.tsx writes for this page was filtered out by canViewPath and never rendered,
+  // while the URL itself worked -- a nav item that existed in the code and not on the screen.
+  { path: "/app/medication-integration", label: "Medication integration", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["emar", "medication", "administration", "refusal", "held", "missed", "sync", "external source"] },
   { path: "/app/qapi", label: "QAPI & quality management", domain: "compliance", roles: WORK_QUEUE_ROLES, keywords: ["quality", "performance improvement", "five whys", "fishbone", "measurements", "audit sample", "sustainment"] },
   { path: "/app/emergency", label: "Emergency operations", domain: "compliance", roles: EMERGENCY_ROLES, keywords: ["evacuation", "accountability", "outage", "emergency plan", "relocation", "generator fuel", "mass notification", "after action"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },

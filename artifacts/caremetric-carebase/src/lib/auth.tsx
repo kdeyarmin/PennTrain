@@ -373,7 +373,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isOfflineServiceDraftIdentityPending(!!session, !!user)) return;
     const current = user
-      ? { profileId: user.id, organizationId: user.organizationId ?? "", role: user.role, active: user.isActive }
+      ? {
+          profileId: user.id, organizationId: user.organizationId ?? "", role: user.role,
+          active: user.isActive, facilityId: user.facilityId,
+        }
       : null;
     if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
       void wipeOfflineServiceDrafts();
@@ -400,7 +403,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       : null;
     lastCacheIdentityRef.current = currentCacheIdentity;
     lastOfflineServiceDraftIdentityRef.current = current
-      ? { profileId: current.profileId, organizationId: current.organizationId, role: current.role }
+      ? {
+          profileId: current.profileId, organizationId: current.organizationId, role: current.role,
+          facilityId: current.facilityId,
+        }
       : null;
     if (signedInIdentityChanged(previousIdentity, currentCacheIdentity)) {
       queryClient.clear();

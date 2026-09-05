@@ -4,35 +4,107 @@ import type { Tables } from "@/lib/database.types";
 
 export type MedicationSource = Tables<"medication_integration_sources">;
 export type MedicationException = Tables<"medication_integration_exceptions">;
-export type ExternalMedicationOrder = Tables<"external_medication_orders">;
-export type ExternalMedicationAdministration = Tables<"external_medication_administration_events">;
+/** The eMAR rows minus their source digest, which nothing renders. */
+type WithoutSourceDigest<T> = Omit<T, "raw_record_sha256">;
+
+export type ExternalMedicationOrder = WithoutSourceDigest<Tables<"external_medication_orders">>;
+export type ExternalMedicationAdministration =
+  WithoutSourceDigest<Tables<"external_medication_administration_events">>;
+
+/** Per-resident ingestion counts and recency. No medication name, directions or schedule. */
+export interface MedicationResidentActivity {
+  resident_id: string;
+  order_count: number;
+  active_order_count: number;
+  administration_count: number;
+  non_routine_count: number;
+  last_activity_at: string | null;
+}
+
+export interface MedicationIngestionActivity {
+  orderTotal: number;
+  orderActiveTotal: number;
+  administrationTotal: number;
+  nonRoutineTotal: number;
+  lastOrderAt: string | null;
+  lastAdministrationAt: string | null;
+  residents: MedicationResidentActivity[];
+}
 
 export interface MedicationIntegrationWorkspace {
   sources: MedicationSource[];
   exceptions: MedicationException[];
-  orders: ExternalMedicationOrder[];
-  administrations: ExternalMedicationAdministration[];
+  activity: MedicationIngestionActivity;
 }
 
+const EMPTY_ACTIVITY: MedicationIngestionActivity = {
+  orderTotal: 0,
+  orderActiveTotal: 0,
+  administrationTotal: 0,
+  nonRoutineTotal: 0,
+  lastOrderAt: null,
+  lastAdministrationAt: null,
+  residents: [],
+};
+
+/**
+ * The eMAR integration console.
+ *
+ * It used to pull every external order and administration event in the facility with select("*"),
+ * and the page rendered medication names, directions and schedules across every resident in the
+ * building -- the same facility-wide clinical disclosure, with no access-log row, that
+ * useFhirIntegration was fixed for three routes away. This returns what the console is for: counts,
+ * statuses and recency, per resident.
+ *
+ * The content is not gone, it moved to where it can be logged. See useResidentExternalMedications.
+ */
 export function useMedicationIntegration(facilityId?: string) {
   return useQuery({
     queryKey: ["medication-integration", facilityId],
     enabled: Boolean(facilityId),
     queryFn: async (): Promise<MedicationIntegrationWorkspace> => {
-      const [sources, exceptions, orders, administrations] = await Promise.all([
+      const [sources, exceptions, activity] = await Promise.all([
         supabase.from("medication_integration_sources").select("*").eq("facility_id", facilityId!).order("created_at"),
         supabase.from("medication_integration_exceptions").select("*").eq("facility_id", facilityId!).order("last_seen_at", { ascending: false }).limit(100),
-        supabase.from("external_medication_orders").select("*").eq("facility_id", facilityId!).order("source_updated_at", { ascending: false }).limit(100),
-        supabase.from("external_medication_administration_events").select("*").eq("facility_id", facilityId!).order("occurred_at", { ascending: false }).limit(100),
+        supabase.rpc("get_facility_medication_ingestion_activity", { p_facility_id: facilityId! }),
       ]);
-      const failed = [sources, exceptions, orders, administrations].find((result) => result.error);
+      const failed = [sources, exceptions, activity].find((result) => result.error);
       if (failed?.error) throw failed.error;
       return {
         sources: sources.data ?? [],
         exceptions: exceptions.data ?? [],
-        orders: orders.data ?? [],
-        administrations: administrations.data ?? [],
+        activity: (activity.data as unknown as MedicationIngestionActivity | null) ?? EMPTY_ACTIVITY,
       };
+    },
+    staleTime: 30_000,
+  });
+}
+
+export interface ResidentExternalMedications {
+  orders: ExternalMedicationOrder[];
+  administrations: ExternalMedicationAdministration[];
+}
+
+/**
+ * One resident's external eMAR record, through the logged RPC.
+ *
+ * The console narrows to a single resident whenever the resident context is set, and that is a
+ * chart read: drug names, directions and what was given or refused. It belongs in
+ * app_private.clinical_access_log, and the facility-wide table read it used to come from wrote
+ * nothing there. `reason` is in the key for the same cache reason as every other logged reader --
+ * see useResidentClinicalCare.
+ */
+export function useResidentExternalMedications(residentId?: string, reason?: string) {
+  return useQuery({
+    queryKey: ["resident-external-medications", residentId, reason ?? null],
+    enabled: Boolean(residentId),
+    queryFn: async (): Promise<ResidentExternalMedications> => {
+      const { data, error } = await supabase.rpc("get_resident_external_medications", {
+        p_resident_id: residentId!,
+        ...(reason ? { p_minimum_necessary_reason: reason } : {}),
+      });
+      if (error) throw error;
+      return data as unknown as ResidentExternalMedications;
     },
     staleTime: 30_000,
   });

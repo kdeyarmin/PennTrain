@@ -315,7 +315,16 @@ export function assertFloorDraftAllowed(draft: OfflineFloorDraft): void {
   else assertServiceDraftAllowed(draft);
 }
 
-export interface OfflineServiceDraftIdentitySnapshot { profileId: string; organizationId: string; role: string }
+export interface OfflineServiceDraftIdentitySnapshot {
+  profileId: string;
+  organizationId: string;
+  role: string;
+  /**
+   * Three-valued, exactly as in SessionIdentity: `undefined` is "not resolved yet", `null` is
+   * "resolved, and this person has no employee row", a string is a real facility.
+   */
+  facilityId?: string | null;
+}
 
 /**
  * Mirrors offlineLearning.ts's shouldWipeOfflineData -- same signature, same logic (role must stay
@@ -329,10 +338,24 @@ export function shouldWipeOfflineServiceDraftData(
   current: (OfflineServiceDraftIdentitySnapshot & { active: boolean }) | null,
 ): boolean {
   if (!previous || !current) return previous !== null;
-  return !current.active || current.role !== "employee"
+  if (!current.active || current.role !== "employee"
     || previous.profileId !== current.profileId
     || previous.organizationId !== current.organizationId
-    || previous.role !== current.role;
+    || previous.role !== current.role) return true;
+
+  // BACKLOG.md I23. A transfer inside the same organization moves employees.facility_id and leaves
+  // profile id, organization id and role exactly where they were -- so nothing above fired, nothing
+  // wiped, and the device went on holding drafts that name residents, room numbers and care given
+  // at a facility this employee no longer works at. signedInIdentityChanged already learned this
+  // for the query cache; the encrypted draft store, which outlives the cache by design, did not.
+  //
+  // Compared only when BOTH sides are resolved, for the reason set out at length in
+  // sessionIdentity.ts: `undefined` appears in the ordinary lifecycle every time the facility query
+  // has not settled, and treating it as a change would wipe a caregiver's pending documentation on
+  // an ordinary sign-in. `null` is not `undefined` -- a resolved no-employee-row is a real value,
+  // and losing the employee row IS a reason to wipe.
+  return previous.facilityId !== undefined && current.facilityId !== undefined
+    && previous.facilityId !== current.facilityId;
 }
 
 /**

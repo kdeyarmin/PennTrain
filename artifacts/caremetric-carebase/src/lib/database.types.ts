@@ -38697,6 +38697,10 @@ export type Database = {
         Args: { p_facility_id: string }
         Returns: Json
       }
+      get_facility_medication_ingestion_activity: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_facility_occupancy_board: {
         Args: { p_facility_id: string }
         Returns: Json
@@ -39012,6 +39016,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_resident_external_medications: {
+        Args: { p_minimum_necessary_reason?: string; p_resident_id: string }
+        Returns: Json
       }
       get_resident_list_summary: {
         Args: {

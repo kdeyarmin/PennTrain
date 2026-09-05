@@ -24,6 +24,14 @@
  * RLS is written in terms of app_private.clinical_record_visible, which is the schema's own
  * definition of "this is a resident's clinical record". A table added tomorrow is covered tomorrow.
  * A parser that suddenly finds implausibly few tables fails loudly rather than passing vacuously.
+ *
+ * The derivation is the automatic floor, not the whole list. It missed
+ * external_medication_orders and external_medication_administration_events on its first run: both
+ * hold drug names and dosing directions, and both are gated on a PERMISSION
+ * (`medications.integration.read`) rather than on clinical_record_visible, so the derivation walked
+ * straight past them and the eMAR console kept rendering a facility-wide drug list. SUPPLEMENTARY
+ * below is for that case -- a clinical table the schema's own definition does not reach. Add to it
+ * when you find one; do not weaken the derivation to catch it.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -39,6 +47,16 @@ const ALLOWLIST = resolve(HERE, "clinical-read-allowlist.json");
 // If the policy parser breaks, this floor turns a vacuous pass into a loud failure. It is the count
 // at adoption (ten) minus a little slack for a table legitimately retired.
 const MINIMUM_EXPECTED_TABLES = 8;
+
+/** Clinical tables the RLS derivation cannot see. Each entry says why it is clinical. */
+const SUPPLEMENTARY = {
+  external_medication_orders:
+    "medication_display, directions and schedule_display -- an eMAR order is a chart record; "
+    + "RLS gates it on the medications.integration.read permission, not clinical_record_visible",
+  external_medication_administration_events:
+    "what was given or refused and when, per resident; same permission-based RLS as its orders "
+    + "table, so the derivation does not reach it either",
+};
 
 /** Tables whose row-level security is written in terms of clinical_record_visible. */
 export function clinicalTablesFromSql(sql) {
@@ -123,9 +141,12 @@ for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith(".sql"
   }
 }
 
-if (tables.size < MINIMUM_EXPECTED_TABLES) {
+const derivedCount = tables.size;
+for (const table of Object.keys(SUPPLEMENTARY)) tables.add(table);
+
+if (derivedCount < MINIMUM_EXPECTED_TABLES) {
   console.error(
-    `Clinical-access-log check aborted: derived only ${tables.size} clinical table(s) from `
+    `Clinical-access-log check aborted: derived only ${derivedCount} clinical table(s) from `
     + `supabase/migrations, below the ${MINIMUM_EXPECTED_TABLES} expected. The policy parser has `
     + `probably stopped matching. Fix it rather than lowering the floor -- passing on an empty `
     + `table list would make this check silently vacuous.`,
@@ -162,6 +183,7 @@ if (problems.length > 0) {
 
 const allowed = [...allowlist.values()].reduce((n, set) => n + set.size, 0);
 console.log(
-  `Clinical-access-log check passed (${tables.size} clinical tables derived from migrations, `
+  `Clinical-access-log check passed (${derivedCount} clinical tables derived from migrations, `
+  + `${Object.keys(SUPPLEMENTARY).length} supplementary, `
   + `${allowed} adjudicated non-clinical read(s) allowlisted).`,
 );

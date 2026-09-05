@@ -16,9 +16,12 @@ import { useListResidents } from "@/hooks/useResidents";
 import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import {
   type MedicationException,
+  type MedicationIngestionActivity,
+  type MedicationIntegrationWorkspace,
   type MedicationSource,
   useAssignMedicationIntegrationException,
   useMedicationIntegration,
+  useResidentExternalMedications,
   useResolveMedicationIntegrationException,
   useSaveMedicationIntegrationSource,
   useMapMedicationResident,
@@ -31,6 +34,7 @@ import {
 } from "@/hooks/useIntegrationCredentials";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso, addFacilityCalendarDays, facilityToday} from "@/lib/dateUtils";
 import { Link } from "wouter";
 
@@ -44,15 +48,93 @@ function sourceFreshness(source: MedicationSource) {
   return { label: `${Math.max(0, Math.floor(ageMinutes))} minutes ago`, stale: ageMinutes > source.freshness_threshold_minutes };
 }
 
+/**
+ * The facility-wide view of an integration console: what arrived, for whom, and how recently.
+ *
+ * This page used to render medication names, directions and schedules for every resident in the
+ * building here. That is chart content on a page whose question is whether the feed is working,
+ * and there is no honest way to log it -- it is not a read of any one resident's record. Choosing a
+ * resident above shows their orders and administrations through a reader that does log the access.
+ */
+function MedicationActivityView(
+  { activity, residentNames }: { activity: MedicationIngestionActivity; residentNames: Map<string, string> },
+) {
+  return (
+    <div className="space-y-3">
+      <Alert>
+        <DatabaseZap className="h-4 w-4" />
+        <AlertTitle>What arrived, not what it says</AlertTitle>
+        <AlertDescription>
+          Medication names, directions and schedules are clinical record content. Pick a resident to
+          read theirs; the access is recorded against your name.
+        </AlertDescription>
+      </Alert>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card><CardHeader className="pb-2">
+          <CardDescription>External orders ingested</CardDescription>
+          <CardTitle className="text-2xl">{activity.orderTotal}</CardTitle>
+        </CardHeader><CardContent className="pt-0 text-sm text-muted-foreground">
+          {activity.lastOrderAt ? `Most recent ${new Date(activity.lastOrderAt).toLocaleString()}` : "Nothing received yet"}
+        </CardContent></Card>
+        <Card><CardHeader className="pb-2">
+          <CardDescription>Administrations ingested</CardDescription>
+          <CardTitle className="text-2xl">{activity.administrationTotal}</CardTitle>
+        </CardHeader><CardContent className="pt-0 text-sm text-muted-foreground">
+          {activity.lastAdministrationAt ? `Most recent ${new Date(activity.lastAdministrationAt).toLocaleString()}` : "Nothing received yet"}
+        </CardContent></Card>
+      </div>
+      {activity.residents.length === 0 ? (
+        <Card><CardContent className="py-10 text-center">
+          <DatabaseZap className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
+          <p className="font-medium">No records ingested for this facility</p>
+          <p className="text-sm text-muted-foreground">Match at least one resident, then check the source&rsquo;s last sync above.</p>
+        </CardContent></Card>
+      ) : activity.residents.map((row) => (
+        <Card key={row.resident_id}><CardContent className="flex flex-wrap items-start justify-between gap-4 p-4">
+          <div>
+            <p className="font-medium">{residentNames.get(row.resident_id) ?? "Scoped resident"}</p>
+            <p className="text-sm text-muted-foreground">
+              {row.order_count} {row.order_count === 1 ? "order" : "orders"} · {row.active_order_count} active · {row.administration_count} {row.administration_count === 1 ? "administration" : "administrations"}
+              {row.non_routine_count > 0 ? ` · ${row.non_routine_count} non-routine` : ""}
+            </p>
+            {row.last_activity_at && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock3 className="h-3.5 w-3.5" />Last record {new Date(row.last_activity_at).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/app/residents/${row.resident_id}/chart`}>Open chart</Link>
+          </Button>
+        </CardContent></Card>
+      ))}
+    </div>
+  );
+}
+
 export default function MedicationIntegration() {
   const __fieldIds = useId();
   const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
-  const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  // A platform admin has no organizationId of their own, so keying off it alone left the facility
+  // list, the profile list and the credential list permanently empty -- the same defect
+  // FhirIntegration.tsx carries a note about, uncorrected here until now.
+  const scopeOrgId = viewingOrgId ?? user?.organizationId ?? undefined;
+  const facilities = useListFacilities({ organizationId: scopeOrgId });
   const residentContext = useResidentNavigationContext();
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
   const facilityId = selectedFacilityId || residentContext.facilityId || facilities.data?.[0]?.id || "";
+  const selectedFacilityOrgId = useMemo(
+    () => (facilities.data ?? []).find((facility) => facility.id === facilityId)?.organization_id ?? null,
+    [facilities.data, facilityId],
+  );
   const workspace = useMedicationIntegration(facilityId || undefined);
+  // Content only when a resident is chosen, and then through the reader that logs the access.
+  const residentMedications = useResidentExternalMedications(
+    residentContext.residentId || undefined,
+    "eMAR integration review",
+  );
   // Gated on the facility being known. `useListResidents` applies its facility filter only `if`
   // truthy, so before the picker resolves an ungated read pulls every resident name and room
   // number in the organization into the browser to build a lookup map that is then thrown away.
@@ -75,8 +157,10 @@ export default function MedicationIntegration() {
   const mapResident = useMapMedicationResident();
   const [mappingResidentId, setMappingResidentId] = useState("");
   const assignException = useAssignMedicationIntegrationException();
-  const profiles = useListProfiles({ organizationId: user?.organizationId ?? undefined });
-  const credentials = useOrganizationIntegrationCredentials(user?.organizationId ?? undefined);
+  const profiles = useListProfiles({ organizationId: selectedFacilityOrgId ?? scopeOrgId });
+  // Credentials belong to whichever organization owns the facility being configured, which for a
+  // platform admin is not necessarily the viewing org.
+  const credentials = useOrganizationIntegrationCredentials(selectedFacilityOrgId ?? scopeOrgId);
   const medicationCredentials = useMemo(
     () => (credentials.data ?? []).filter((credential) => credentialSupportsMedicationWrite(credential) && !credentialIsExpired(credential)),
     [credentials.data],
@@ -87,15 +171,23 @@ export default function MedicationIntegration() {
 
   const unboundCredentialValue = "__unbound__";
 
-  const data = workspace.data ?? { sources: [], exceptions: [], orders: [], administrations: [] };
-  const displayedOrders = residentContext.residentId
-    ? data.orders.filter((item) => item.resident_id === residentContext.residentId)
-    : data.orders;
-  const displayedAdministrations = residentContext.residentId
-    ? data.administrations.filter((item) => item.resident_id === residentContext.residentId)
-    : data.administrations;
+  const data: MedicationIntegrationWorkspace = workspace.data ?? {
+    sources: [],
+    exceptions: [],
+    activity: {
+      orderTotal: 0, orderActiveTotal: 0, administrationTotal: 0, nonRoutineTotal: 0,
+      lastOrderAt: null, lastAdministrationAt: null, residents: [],
+    },
+  };
+  const displayedOrders = residentMedications.data?.orders ?? [];
+  const displayedAdministrations = residentMedications.data?.administrations ?? [];
   const openExceptions = data.exceptions.filter((item) => !["resolved", "dismissed"].includes(item.status));
-  const nonRoutineAdministrations = displayedAdministrations.filter((item) => item.administration_status !== "administered");
+  const activeOrderCount = residentContext.residentId
+    ? displayedOrders.filter((item) => item.order_status === "active").length
+    : data.activity.orderActiveTotal;
+  const nonRoutineCount = residentContext.residentId
+    ? displayedAdministrations.filter((item) => item.administration_status !== "administered").length
+    : data.activity.nonRoutineTotal;
 
   const submitSource = async () => {
     if (!facilityId) return;
@@ -152,14 +244,34 @@ export default function MedicationIntegration() {
 
       {workspace.isError ? <QueryError what="medication integration" error={workspace.error} onRetry={() => workspace.refetch()} /> : workspace.isLoading ? <QueryLoading what="medication integration" /> : (
         <>
-          <div className="grid gap-4 md:grid-cols-3"><Card><CardHeader className="pb-2"><CardDescription>Open sync exceptions</CardDescription><CardTitle className="text-3xl">{openExceptions.length}</CardTitle></CardHeader></Card><Card><CardHeader className="pb-2"><CardDescription>Active external orders</CardDescription><CardTitle className="text-3xl">{displayedOrders.filter((item) => item.order_status === "active").length}</CardTitle></CardHeader></Card><Card><CardHeader className="pb-2"><CardDescription>Non-routine administrations</CardDescription><CardTitle className="text-3xl">{nonRoutineAdministrations.length}</CardTitle></CardHeader></Card></div>
+          <div className="grid gap-4 md:grid-cols-3"><Card><CardHeader className="pb-2"><CardDescription>Open sync exceptions</CardDescription><CardTitle className="text-3xl">{openExceptions.length}</CardTitle></CardHeader></Card><Card><CardHeader className="pb-2"><CardDescription>Active external orders</CardDescription><CardTitle className="text-3xl">{activeOrderCount}</CardTitle></CardHeader></Card><Card><CardHeader className="pb-2"><CardDescription>Non-routine administrations</CardDescription><CardTitle className="text-3xl">{nonRoutineCount}</CardTitle></CardHeader></Card></div>
 
           <div className="grid gap-4 lg:grid-cols-2">{data.sources.length === 0 ? <Card className="lg:col-span-2"><CardContent className="py-10 text-center"><DatabaseZap className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="font-medium">No eMAR source configured</p><p className="text-sm text-muted-foreground">{canManage ? "Create a source, then bind it to an integration credential carrying the medications:write scope." : "A facility administrator must configure an eMAR source."}</p></CardContent></Card> : data.sources.map((source) => { const freshness = sourceFreshness(source); return <Card key={source.id} className={freshness.stale || source.status === "error" ? "border-destructive/60" : ""}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle>{source.name}</CardTitle><CardDescription>{source.vendor_name} · External facility {source.external_facility_id}</CardDescription></div><Badge variant={source.status === "active" ? "outline" : source.status === "error" ? "destructive" : "secondary"}>{human(source.status)}</Badge></div></CardHeader><CardContent className="space-y-2 text-sm"><p className="flex items-center gap-2">{freshness.stale ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}Last complete sync: {freshness.label}</p><p className="text-muted-foreground">Freshness target: {source.freshness_threshold_minutes} minutes</p>{source.last_error_message && <p className="text-destructive">{source.last_error_message}</p>}{!source.credential_id && <p className="text-amber-700">Setup required: bind a medications:write integration credential.</p>}</CardContent></Card>; })}</div>
 
           <Tabs defaultValue="exceptions"><TabsList><TabsTrigger value="exceptions">Exceptions ({openExceptions.length})</TabsTrigger><TabsTrigger value="orders">External orders</TabsTrigger><TabsTrigger value="administrations">Administration documentation</TabsTrigger></TabsList>
             <TabsContent value="exceptions" className="space-y-3">{data.exceptions.length === 0 ? <Card><CardContent className="py-10 text-center"><CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-emerald-600" /><p>No integration exceptions recorded.</p></CardContent></Card> : data.exceptions.map((item) => <Card key={item.id}><CardContent className="flex flex-wrap items-start justify-between gap-4 p-4"><div><div className="mb-1 flex flex-wrap gap-2"><Badge variant={item.severity === "urgent" ? "destructive" : "outline"}>{human(item.severity)}</Badge><Badge variant="secondary">{human(item.status)}</Badge></div><p className="font-medium">{human(item.exception_type)}</p><p className="text-sm text-muted-foreground">{item.summary}</p>{item.external_resident_id && <p className="mt-1 text-xs text-muted-foreground">External resident ID: {item.external_resident_id}</p>}</div>{canManage && !["resolved", "dismissed"].includes(item.status) && <Button size="sm" variant="outline" onClick={() => { setSelectedException(item); setResolutionStatus("acknowledged"); setResolutionNote(""); setMappingResidentId(""); setExceptionOwnerId(""); setExceptionDueAt(`${addFacilityCalendarDays(facilityToday(), 1)}T09:00`); }}>Review</Button>}</CardContent></Card>)}</TabsContent>
-            <TabsContent value="orders" className="space-y-3">{displayedOrders.map((order) => <Card key={order.id}><CardContent className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">{order.medication_display}</p><p className="text-sm text-muted-foreground">{residentNames.get(order.resident_id) ?? "Scoped resident"}</p>{order.directions && <p className="mt-2 text-sm">{order.directions}</p>}{order.schedule_display && <p className="text-sm text-muted-foreground">{order.schedule_display}</p>}</div><Badge variant="outline">{human(order.order_status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">Source updated {new Date(order.source_updated_at).toLocaleString()}</p></CardContent></Card>)}</TabsContent>
-            <TabsContent value="administrations" className="space-y-3">{displayedAdministrations.map((event) => <Card key={event.id}><CardContent className="flex flex-wrap items-start justify-between gap-3 p-4"><div><p className="font-medium">{residentNames.get(event.resident_id) ?? "Scoped resident"}</p><p className="flex items-center gap-1 text-sm text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />{new Date(event.occurred_at).toLocaleString()}</p>{event.source_note && <p className="mt-2 text-sm">{event.source_note}</p>}</div><Badge variant={event.administration_status === "administered" ? "outline" : "destructive"}>{human(event.administration_status)}</Badge></CardContent></Card>)}</TabsContent>
+            <TabsContent value="orders" className="space-y-3">
+              {!residentContext.residentId ? (
+                <MedicationActivityView activity={data.activity} residentNames={residentNames} />
+              ) : residentMedications.isLoading ? (
+                <QueryLoading what="external orders" />
+              ) : residentMedications.isError ? (
+                <QueryError what="external orders" error={residentMedications.error} onRetry={() => void residentMedications.refetch()} />
+              ) : displayedOrders.length === 0 ? (
+                <Card><CardContent className="py-10 text-center"><p className="text-sm text-muted-foreground">No external orders on file for this resident.</p></CardContent></Card>
+              ) : displayedOrders.map((order) => <Card key={order.id}><CardContent className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">{order.medication_display}</p><p className="text-sm text-muted-foreground">{residentNames.get(order.resident_id) ?? "Scoped resident"}</p>{order.directions && <p className="mt-2 text-sm">{order.directions}</p>}{order.schedule_display && <p className="text-sm text-muted-foreground">{order.schedule_display}</p>}</div><Badge variant="outline">{human(order.order_status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">Source updated {new Date(order.source_updated_at).toLocaleString()}</p></CardContent></Card>)}
+            </TabsContent>
+            <TabsContent value="administrations" className="space-y-3">
+              {!residentContext.residentId ? (
+                <MedicationActivityView activity={data.activity} residentNames={residentNames} />
+              ) : residentMedications.isLoading ? (
+                <QueryLoading what="administration documentation" />
+              ) : residentMedications.isError ? (
+                <QueryError what="administration documentation" error={residentMedications.error} onRetry={() => void residentMedications.refetch()} />
+              ) : displayedAdministrations.length === 0 ? (
+                <Card><CardContent className="py-10 text-center"><p className="text-sm text-muted-foreground">No administration documentation on file for this resident.</p></CardContent></Card>
+              ) : displayedAdministrations.map((event) => <Card key={event.id}><CardContent className="flex flex-wrap items-start justify-between gap-3 p-4"><div><p className="font-medium">{residentNames.get(event.resident_id) ?? "Scoped resident"}</p><p className="flex items-center gap-1 text-sm text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />{new Date(event.occurred_at).toLocaleString()}</p>{event.source_note && <p className="mt-2 text-sm">{event.source_note}</p>}</div><Badge variant={event.administration_status === "administered" ? "outline" : "destructive"}>{human(event.administration_status)}</Badge></CardContent></Card>)}
+            </TabsContent>
           </Tabs>
         </>
       )}
