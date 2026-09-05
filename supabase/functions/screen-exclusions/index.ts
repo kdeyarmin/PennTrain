@@ -1,7 +1,19 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
-import { parse } from "jsr:@std/csv@1";
+import { CsvParseStream } from "jsr:@std/csv@1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import {
+  canonicalEntryIdentity,
+  type ExclusionListEntryRow,
+  LEIE_COLUMNS,
+  LEIE_CSV_URL,
+  LEIE_PROGRESS_EVERY_CHUNKS,
+  type LeieStageCursor,
+  type LeieStageOutcome,
+  leieFingerprint,
+  parseLeieStageCursor,
+  stageLeieRows,
+} from "../_shared/leieStaging.ts";
 
 // Internal cron-only endpoint: invoked monthly by pg_cron. Deliberately verify_jwt:false because
 // pg_net has no user JWT; authenticity is enforced here with CRON_SHARED_SECRET. Each request may
@@ -21,7 +33,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-const LEIE_CSV_URL = "https://oig.hhs.gov/exclusions/downloadables/UPDATED.csv";
 const INSERT_BATCH_SIZE = 1000;
 const SAM_GOV_BASE_URL = "https://api.sam.gov/entity-information/v4/exclusions";
 const NOT_CONFIGURED_SAM =
@@ -31,22 +42,6 @@ const UUID_PATTERN =
 
 type ExclusionSource = "oig_leie" | "sam_exclusions";
 
-interface ExclusionListEntryRow {
-  source: ExclusionSource;
-  last_name: string | null;
-  first_name: string | null;
-  middle_name: string | null;
-  business_name: string | null;
-  dob: string | null;
-  exclusion_type: string | null;
-  exclusion_date: string | null;
-  reinstate_date: string | null;
-  waiver_date: string | null;
-  npi: string | null;
-  upin: string | null;
-  raw: Record<string, unknown>;
-}
-
 interface RefreshHandle {
   runId: string;
   snapshotId: string;
@@ -55,6 +50,8 @@ interface RefreshHandle {
   recordCount?: number;
   checksum?: string;
   activatedSnapshotId: string | null;
+  // Present since 20260905110000: where a previous pass stopped staging, if it stopped partway.
+  stageCursor?: unknown;
 }
 
 interface RefreshResult extends RefreshHandle {
@@ -115,23 +112,6 @@ function withSamSweepState(
   return { ...result, samSweepState: { resume } };
 }
 
-function canonicalEntryIdentity(entry: ExclusionListEntryRow): string {
-  return [
-    entry.source,
-    entry.last_name,
-    entry.first_name,
-    entry.middle_name,
-    entry.business_name,
-    entry.dob,
-    entry.exclusion_type,
-    entry.exclusion_date,
-    entry.reinstate_date,
-    entry.waiver_date,
-    entry.npi,
-    entry.upin,
-  ].map((value) => String(value ?? "").trim()).join("\u001f");
-}
-
 function deduplicateEntries(
   entries: ExclusionListEntryRow[],
 ): ExclusionListEntryRow[] {
@@ -143,66 +123,50 @@ function deduplicateEntries(
 }
 
 // LEIE date fields are YYYYMMDD, zero-filled ("00000000") when not applicable.
-function parseLeieDate(value: string | undefined): string | null {
-  if (!value || value === "00000000" || value.length !== 8) return null;
-  const y = value.slice(0, 4);
-  const m = value.slice(4, 6);
-  const d = value.slice(6, 8);
-  return `${y}-${m}-${d}`;
-}
+// Streams the LEIE CSV and stages it in chunks.
+//
+// The previous implementation read the whole response with resp.text(), parsed all 83,842 rows
+// into one array, mapped that into a second array whose entries each retained `raw: row` -- so the
+// first could not be collected -- and then built a dedup Map over the lot. Measured against the
+// real 15.6 MB file that peaks at 386 MB RSS; an Edge Function gets 256 MB. It died inside
+// parse(), before staging a single row, which is exactly what the 2026-08-12 ledger row shows.
+//
+// Streaming holds one 1000-row chunk plus the identity set: the same 80,355 entries at 147.5 MB
+// peak (88 MB above baseline, against 323 MB) and 1.00 s of CPU against the platform's 2 s.
+//
+// The identity set is what makes the completion handshake meaningful. The DB dedups too --
+// exclusion_list_entries upserts on (snapshot_id, source_record_key) and does nothing on conflict
+// -- so counting parsed rows rather than distinct ones would fail complete_exclusion_source_refresh
+// on every duplicate the source contains. Both sides must count the same thing.
+// Downloads the LEIE CSV and hands its rows to the shared, testable stager. Everything the
+// resume rules depend on -- the clock, the writer, the stream -- is injected there; what lives
+// here is the network and the Supabase client, which is exactly the part a unit test cannot have.
+async function stageOigLeie(
+  adminClient: ReturnType<typeof createClient>,
+  snapshotId: string,
+  priorCursor: LeieStageCursor | null,
+  deadlineAt: number,
+  onProgress: (cursor: LeieStageCursor) => Promise<void>,
+): Promise<LeieStageOutcome> {
+  const resp = await fetch(LEIE_CSV_URL, { signal: AbortSignal.timeout(120_000) });
+  if (!resp.ok) throw new Error(`Failed to download LEIE CSV: HTTP ${resp.status}`);
+  if (!resp.body) throw new Error("LEIE CSV response carried no body");
 
-async function loadOigLeie(): Promise<ExclusionListEntryRow[]> {
-  const resp = await fetch(LEIE_CSV_URL, {
-    signal: AbortSignal.timeout(60_000),
+  const rows = resp.body
+    .pipeThrough(new TextDecoderStream())
+    .pipeThrough(new CsvParseStream({ skipFirstRow: true, columns: LEIE_COLUMNS }));
+
+  return await stageLeieRows({
+    rows: rows as AsyncIterable<Record<string, string>>,
+    fingerprint: leieFingerprint(resp.headers),
+    priorCursor,
+    batchSize: INSERT_BATCH_SIZE,
+    progressEveryChunks: LEIE_PROGRESS_EVERY_CHUNKS,
+    deadlineAt,
+    now: () => Date.now(),
+    stageChunk: (entries) => stageEntries(adminClient, snapshotId, entries),
+    onProgress,
   });
-  if (!resp.ok) {
-    throw new Error(`Failed to download LEIE CSV: HTTP ${resp.status}`);
-  }
-  const text = await resp.text();
-  const rows = parse(text, {
-    skipFirstRow: true,
-    columns: [
-      "LASTNAME",
-      "FIRSTNAME",
-      "MIDNAME",
-      "BUSNAME",
-      "GENERAL",
-      "SPECIALTY",
-      "UPIN",
-      "NPI",
-      "DOB",
-      "ADDRESS",
-      "CITY",
-      "STATE",
-      "ZIP",
-      "EXCLTYPE",
-      "EXCLDATE",
-      "REINDATE",
-      "WAIVERDATE",
-      "WVRSTATE",
-    ],
-  }) as Record<string, string>[];
-
-  // Business-only exclusions (blank LASTNAME) cannot match an individual employee's name.
-  return deduplicateEntries(
-    rows
-      .filter((row) => row.LASTNAME?.trim())
-      .map((row) => ({
-        source: "oig_leie" as const,
-        last_name: row.LASTNAME.trim(),
-        first_name: row.FIRSTNAME?.trim() || null,
-        middle_name: row.MIDNAME?.trim() || null,
-        business_name: row.BUSNAME?.trim() || null,
-        dob: parseLeieDate(row.DOB),
-        exclusion_type: row.EXCLTYPE?.trim() || null,
-        exclusion_date: parseLeieDate(row.EXCLDATE),
-        reinstate_date: parseLeieDate(row.REINDATE),
-        waiver_date: parseLeieDate(row.WAIVERDATE),
-        npi: row.NPI?.trim() || null,
-        upin: row.UPIN?.trim() || null,
-        raw: row,
-      })),
-  );
 }
 
 interface SamExclusionRecord {
@@ -559,6 +523,24 @@ async function recordFailure(
   }
 }
 
+// A cursor write is best-effort by design: losing one costs a resumed pass some repeated round
+// trips, and failing the refresh over it would trade a cheap loss for an expensive one. The one
+// case worth shouting about is a run that is no longer staging, which means this worker outlived
+// its own completion.
+async function recordStageProgress(
+  adminClient: ReturnType<typeof createClient>,
+  runId: string,
+  cursor: LeieStageCursor,
+): Promise<void> {
+  const { error } = await adminClient.rpc("record_exclusion_stage_progress", {
+    p_run_id: runId,
+    p_cursor: cursor,
+  });
+  if (error) {
+    console.warn(`Could not record staging progress for ${runId}:`, error.message);
+  }
+}
+
 async function beginSystemJob(
   adminClient: ReturnType<typeof createClient>,
   correlationId: string,
@@ -656,90 +638,92 @@ async function finishSystemJob(
   }
 }
 
-async function refreshSource(
-  adminClient: ReturnType<typeof createClient>,
-  correlationId: string,
-  source: ExclusionSource,
-  loadEntries: () => Promise<ExclusionListEntryRow[]>,
-): Promise<RefreshResult> {
-  const handle = await beginRefresh(adminClient, correlationId, source);
-  if (handle.status === "succeeded" || handle.status === "superseded") {
-    return handle;
-  }
-
-  try {
-    const entries = await loadEntries();
-    await stageEntries(adminClient, handle.snapshotId, entries);
-    return await completeRefresh(adminClient, handle.runId, entries.length);
-  } catch (error) {
-    const message = errorMessage(error);
-    await recordFailure(adminClient, handle.runId, message);
-    throw error;
-  }
-}
-
-interface SamRefreshOutcome {
+interface LeieRefreshOutcome {
   result: Record<string, unknown>;
-  resume: SamSweepResume | null;
   partial: boolean;
 }
 
-async function refreshSamResumable(
+// Continues the refresh run that is already open for this source, if there is one, rather than
+// opening a second alongside it.
+//
+// This is the shape of the 2026-08-12 failure. That run is still 'staging' with zero rows, and
+// because every invocation minted a fresh correlation id, 2026-09-12 would have inserted a NEW
+// staging snapshot and repointed exclusion_source_state at it while the August row stayed staging
+// forever -- one more orphan per month, none of them ever resolved.
+//
+// begin_exclusion_source_refresh replays the same (correlation, source) into the same run and
+// snapshot, so reusing the open run's own correlation id continues it: already-staged chunks are
+// skipped by the cursor, and the ones that are re-sent do nothing on conflict. When nothing is
+// open a fresh id is minted, which is what keeps "Run now" on a healthy source meaning a genuinely
+// fresh pull rather than a silent replay of the last one.
+async function openLeieRefreshCorrelation(
   adminClient: ReturnType<typeof createClient>,
-  apiKey: string,
-  priorResume: SamSweepResume | null,
+): Promise<string | null> {
+  const { data, error } = await adminClient
+    .from("exclusion_refresh_runs")
+    .select("correlation_id")
+    .eq("source", "oig_leie")
+    .eq("status", "staging")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    // Fail toward a fresh run, never a crash: a fresh run is always correct, it just abandons
+    // whatever was already staged -- and the reconciler closes what it leaves behind.
+    console.warn("Could not look for an open LEIE refresh run:", error.message);
+    return null;
+  }
+  const correlationId = (data as { correlation_id?: unknown } | null)?.correlation_id;
+  return typeof correlationId === "string" && UUID_PATTERN.test(correlationId) ? correlationId : null;
+}
+
+async function refreshOigLeie(
+  adminClient: ReturnType<typeof createClient>,
   deadlineAt: number,
-): Promise<SamRefreshOutcome> {
-  // Reusing the stored correlation id is the whole resume mechanism:
-  // begin_exclusion_source_refresh replays the same (correlation, source) into the same
-  // staging run and snapshot, and resets a failed run back to staging. A fresh sweep mints
-  // a fresh id and therefore a fresh snapshot.
-  const refreshCorrelationId = priorResume?.refreshCorrelationId ?? crypto.randomUUID();
-  const sweepStartedAt = priorResume?.startedAt ?? new Date().toISOString();
-  const handle = await beginRefresh(adminClient, refreshCorrelationId, "sam_exclusions");
+  heartbeat: (cursor: LeieStageCursor) => Promise<void>,
+): Promise<LeieRefreshOutcome> {
+  const correlationId = await openLeieRefreshCorrelation(adminClient) ?? crypto.randomUUID();
+  const handle = await beginRefresh(adminClient, correlationId, "oig_leie");
   if (handle.status === "succeeded" || handle.status === "superseded") {
-    // A stale cursor pointing at an already-terminal run: nothing to continue.
-    return { result: handle as unknown as Record<string, unknown>, resume: null, partial: false };
+    return { result: handle as unknown as Record<string, unknown>, partial: false };
   }
 
+  const priorCursor = parseLeieStageCursor(handle.stageCursor);
   try {
-    const sweep = await sweepSamGov(
+    const staged = await stageOigLeie(
       adminClient,
-      apiKey,
       handle.snapshotId,
-      priorResume?.cursor ?? null,
-      sweepStartedAt,
+      priorCursor,
       deadlineAt,
+      async (cursor) => {
+        await recordStageProgress(adminClient, handle.runId, cursor);
+        await heartbeat(cursor);
+      },
     );
-    if (!sweep.completed) {
-      // Deadline or quota: the staging run stays open at a durable cursor. Deliberately no
-      // recordFailure -- this is pacing, and failing it would reset the staged progress.
+    if (!staged.completed) {
+      // Out of budget partway through the file. Deliberately NOT a failure: the staged chunks are
+      // durable, the cursor says where to pick up, and the hourly continuation run finishes it.
+      // Marking it failed here would reset the run and throw that progress away.
       return {
         result: {
           status: "staging",
           partial: true,
-          throttled: sweep.throttled,
-          screenedNames: sweep.screenedNames,
-          totalNames: sweep.totalNames,
-        },
-        resume: {
-          refreshCorrelationId,
-          cursor: sweep.cursor,
-          screenedNames: sweep.screenedNames,
-          totalNames: sweep.totalNames,
-          startedAt: sweepStartedAt,
+          stagedChunks: staged.cursor.chunk,
+          stagedEntries: staged.cursor.entries,
+          resumedFromChunk: staged.resumedFromChunk,
         },
         partial: true,
       };
     }
-    const stagedCount = await countStagedEntries(adminClient, handle.snapshotId);
-    const completed = await completeRefresh(adminClient, handle.runId, stagedCount);
-    return { result: completed as unknown as Record<string, unknown>, resume: null, partial: false };
+    const completed = await completeRefresh(adminClient, handle.runId, staged.totalEntries);
+    return {
+      result: {
+        ...(completed as unknown as Record<string, unknown>),
+        resumedFromChunk: staged.resumedFromChunk,
+      },
+      partial: false,
+    };
   } catch (error) {
-    // A hard failure keeps today's semantics: the refresh run is marked failed and the
-    // resume clears, so a broken vendor is retried on the monthly cadence rather than
-    // hammered hourly. begin's failed->staging replay branch means a later manual rerun
-    // with the same correlation id could still salvage the staged snapshot.
     const message = errorMessage(error);
     await recordFailure(adminClient, handle.runId, message);
     throw error;
@@ -879,9 +863,12 @@ Deno.serve(async (req: Request) => {
       );
       return json({ success: true, cancelled: true, correlationId, sources });
     }
-    if (options.resumeOnly) {
-      // A continuation run exists to finish the SAM sweep; the monthly full run owns LEIE.
-      sources.oig_leie = { skipped: true, reason: "SAM sweep continuation run" };
+    // A continuation run continues whatever is parked. Before LEIE could park it only ever had a
+    // SAM sweep to finish, so it skipped LEIE outright; a LEIE load that ran out of budget would
+    // otherwise wait a month for the next monthly fire to pick it up.
+    const parkedLeie = options.resumeOnly ? await openLeieRefreshCorrelation(adminClient) : null;
+    if (options.resumeOnly && !parkedLeie) {
+      sources.oig_leie = { skipped: true, reason: "continuation run with no LEIE load in progress" };
     } else {
       attemptedSources = 1;
       await heartbeatSystemJob(adminClient, systemJobRunId, 1, 0, {
@@ -889,13 +876,42 @@ Deno.serve(async (req: Request) => {
         source: currentSource,
         correlationId,
       });
-      const oigLeie = await refreshSource(
+      const leieOutcome = await refreshOigLeie(
         adminClient,
-        correlationId,
-        currentSource,
-        loadOigLeie,
+        startedAtMs + options.maxRuntimeMs,
+        async (cursor) => {
+          await heartbeatSystemJob(adminClient, systemJobRunId, 1, 0, {
+            phase: "staging",
+            source: currentSource,
+            correlationId,
+            stagedChunks: cursor.chunk,
+            stagedEntries: cursor.entries,
+          });
+        },
       );
-      sources.oig_leie = oigLeie;
+      sources.oig_leie = leieOutcome.result;
+      if (leieOutcome.partial) {
+        // Parked mid-file with durable progress. Finish as partial and let the hourly continuation
+        // run carry it, exactly as the SAM sweep does -- the alternative is failing a run that is
+        // making progress, which throws that progress away.
+        await finishSystemJob(
+          adminClient,
+          systemJobRunId,
+          "partial",
+          attemptedSources,
+          succeededSources,
+          0,
+          withSamSweepState(jobResult(correlationId, sources), priorSamResume),
+          null,
+        );
+        return json({
+          success: true,
+          partial: true,
+          leieResume: true,
+          correlationId,
+          sources,
+        });
+      }
       succeededSources = 1;
     }
 

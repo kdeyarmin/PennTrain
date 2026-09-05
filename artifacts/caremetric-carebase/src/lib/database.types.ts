@@ -10590,8 +10590,10 @@ export type Database = {
           error: string | null
           expected_record_count: number | null
           id: string
+          last_progress_at: string | null
           snapshot_id: string
           source: string
+          stage_cursor: Json | null
           staged_record_count: number
           started_at: string
           status: string
@@ -10604,8 +10606,10 @@ export type Database = {
           error?: string | null
           expected_record_count?: number | null
           id: string
+          last_progress_at?: string | null
           snapshot_id: string
           source: string
+          stage_cursor?: Json | null
           staged_record_count?: number
           started_at?: string
           status?: string
@@ -10618,8 +10622,10 @@ export type Database = {
           error?: string | null
           expected_record_count?: number | null
           id?: string
+          last_progress_at?: string | null
           snapshot_id?: string
           source?: string
+          stage_cursor?: Json | null
           staged_record_count?: number
           started_at?: string
           status?: string
@@ -40430,6 +40436,10 @@ export type Database = {
           p_subject_type: string
         }
         Returns: boolean
+      }
+      record_exclusion_stage_progress: {
+        Args: { p_cursor: Json; p_run_id: string }
+        Returns: Json
       }
       record_food_safety_log: {
         Args: {

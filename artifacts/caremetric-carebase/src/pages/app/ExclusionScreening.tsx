@@ -15,8 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Database, ShieldAlert, RefreshCw } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
+import { exclusionSourceLabel, summarizeExclusionCoverage } from "@/lib/exclusionScreeningCoverage";
 
-const SOURCE_LABELS: Record<string, string> = { oig_leie: "OIG LEIE", sam_exclusions: "SAM.gov" };
 
 function statusBadgeClass(status: string): string {
   switch (status) {
@@ -42,6 +42,11 @@ function healthLabel(status: ExclusionSourceHealth["health_status"]): string {
     case "stale": return "Stale";
     default: return "Not loaded";
   }
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "unknown date" : date.toLocaleDateString();
 }
 
 function formatTimestamp(value: string | null): string {
@@ -80,6 +85,13 @@ export default function ExclusionScreening() {
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
 
+  // What this queue actually covers. Until the health query returns, the page says nothing about
+  // coverage rather than guessing at it -- an unqualified all-clear is the thing being fixed here.
+  const coverage = useMemo(
+    () => summarizeExclusionCoverage(sourceHealth ?? null, formatDate),
+    [sourceHealth],
+  );
+
   const sorted = (matches ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   const handleRescan = async () => {
@@ -115,7 +127,7 @@ export default function ExclusionScreening() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Exclusion Screening</h1>
           <p className="text-muted-foreground">
-            OIG LEIE / SAM.gov exclusion-list matches against your roster. Fuzzy name matching can produce false positives — review each match before acting on it.
+            Exclusion-list matches against your roster. Fuzzy name matching can produce false positives — review each match before acting on it.
           </p>
         </div>
         <Button variant="outline" onClick={handleRescan} disabled={rescanning}>
@@ -142,7 +154,7 @@ export default function ExclusionScreening() {
               {(sourceHealth ?? []).map((health) => (
                 <div key={health.source} className="rounded-lg border p-4 space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{SOURCE_LABELS[health.source] ?? health.source}</p>
+                    <p className="font-medium">{exclusionSourceLabel(health.source)}</p>
                     <Badge className={healthBadgeClass(health.health_status)}>{healthLabel(health.health_status)}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1">
@@ -179,6 +191,11 @@ export default function ExclusionScreening() {
               </SelectContent>
             </Select>
           </div>
+          {healthLoading ? null : (
+            <p className={`text-sm ${coverage.hasGap ? "text-warning-foreground" : "text-muted-foreground"}`}>
+              {coverage.sentence}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {isError ? (
@@ -186,7 +203,10 @@ export default function ExclusionScreening() {
           ) : isLoading ? (
             <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}</div>
           ) : !sorted.length ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No matches in this queue. The roster is re-scanned monthly by an automated job.</p>
+            <div className="text-sm text-muted-foreground text-center py-8 space-y-1">
+              <p>No matches in this queue. The roster is re-scanned monthly by an automated job.</p>
+              {healthLoading ? null : <p className="text-xs">{coverage.sentence}</p>}
+            </div>
           ) : (
             <div className="space-y-2">
               {sorted.map((m) => {
@@ -196,7 +216,7 @@ export default function ExclusionScreening() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm">{employee ? `${employee.first_name} ${employee.last_name}` : m.matched_name}</p>
-                        <Badge variant="outline" className="text-xs">{SOURCE_LABELS[m.source] ?? m.source}</Badge>
+                        <Badge variant="outline" className="text-xs">{exclusionSourceLabel(m.source)}</Badge>
                         <Badge className={statusBadgeClass(m.status)}>{m.status.replace(/_/g, " ")}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
