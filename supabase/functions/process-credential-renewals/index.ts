@@ -153,29 +153,71 @@ Deno.serve(async (req: Request) => {
       if (docError || !doc) throw new Error(docError?.message ?? "Credential document not found");
 
       let { fields: extractedFields, confidence } = emptyExtraction(
-        "OCR worker recorded a clean scan. Human review must confirm issuer and expiration.",
+        "No malware scan was performed. Human review must confirm issuer and expiration.",
       );
       let extractionProvider = "none";
       let extractionModel = "none";
       let extractionAttemptError: string | null = null;
 
+      // BACKLOG.md I23. This worker used to record `scan_status: "clean"` unconditionally, with
+      // evidence naming a `mime_size_gate` that did not exist outside the extraction branch -- so a
+      // deployment with no extraction provider recorded every submitted file as malware-clean
+      // having opened none of them, and the review UI gated on exactly that label. There is no
+      // malware scanner here and this does not pretend to be one. What it can honestly do is refuse
+      // a file that is empty, oversized, or not one of the three types this product accepts, and
+      // then say plainly that nothing scanned the rest.
+      const ACCEPTED_MEDIA_TYPES = ["application/pdf", "image/png", "image/jpeg"] as const;
+      const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+      const declaredType = (doc.file_type || "application/pdf").toLowerCase();
+      const mediaType: (typeof ACCEPTED_MEDIA_TYPES)[number] = declaredType.includes("png")
+        ? "image/png"
+        : declaredType.includes("jpeg") || declaredType.includes("jpg")
+          ? "image/jpeg"
+          : "application/pdf";
+
+      if (!doc.storage_path) throw new Error("Credential document has no stored file");
+      const { data: fileBlob, error: dlError } = await admin.storage
+        .from(doc.storage_bucket || "credential-documents")
+        .download(doc.storage_path);
+      if (dlError || !fileBlob) throw new Error(dlError?.message ?? "Document download failed");
+      const bytes = new Uint8Array(await fileBlob.arrayBuffer());
+      const gateFailure = bytes.byteLength === 0
+        ? "The uploaded file is empty."
+        : bytes.byteLength > MAX_DOCUMENT_BYTES
+          ? `The uploaded file is ${Math.round(bytes.byteLength / 1024 / 1024)}MB; the limit is 10MB.`
+          : !ACCEPTED_MEDIA_TYPES.some((accepted) => declaredType.includes(accepted.split("/")[1]))
+            ? `The uploaded file is declared as ${declaredType}; only PDF, PNG and JPEG are accepted.`
+            : null;
+      const scanEvidence = {
+        scanned_at: new Date().toISOString(),
+        method: "mime_size_gate",
+        malware_scanner: "none configured",
+        byte_length: bytes.byteLength,
+        declared_type: declaredType,
+        gate_failure: gateFailure,
+      };
+      if (gateFailure) {
+        // A file this gate refuses is not a scanning failure, it is a bad upload, and the employee
+        // needs to hear which. `failed` is the terminal state the reviewer sees.
+        const { error: gateError } = await admin.rpc("record_credential_renewal_extraction", {
+          p_submission_id: sub.id,
+          p_scan_status: "failed",
+          p_scan_provider: "carebase-renewal-worker",
+          p_scan_evidence: scanEvidence,
+          p_extraction_provider: "none",
+          p_extraction_model: "none",
+          p_extracted_fields: { notes: gateFailure },
+          p_confidence: { overall: 0, source: "gate", reason: gateFailure },
+        });
+        if (gateError) throw new Error(gateError.message);
+        failed += 1;
+        continue;
+      }
+
       const baa = Deno.env.get("ANTHROPIC_BAA_CONFIRMED") === "true";
       const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-      if (baa && apiKey && doc.storage_path) {
+      if (baa && apiKey) {
         try {
-          const { data: fileBlob, error: dlError } = await admin.storage
-            .from(doc.storage_bucket || "credential-documents")
-            .download(doc.storage_path);
-          if (dlError || !fileBlob) throw new Error(dlError?.message ?? "Document download failed");
-          const bytes = new Uint8Array(await fileBlob.arrayBuffer());
-          if (bytes.byteLength === 0) throw new Error("Document is empty");
-          if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("Document exceeds 10MB OCR limit");
-
-          const mediaType = (doc.file_type || "application/pdf").includes("png")
-            ? "image/png"
-            : (doc.file_type || "").includes("jpeg") || (doc.file_type || "").includes("jpg")
-              ? "image/jpeg"
-              : "application/pdf";
           let binary = "";
           const chunk = 0x8000;
           for (let i = 0; i < bytes.length; i += chunk) {
@@ -291,7 +333,7 @@ Deno.serve(async (req: Request) => {
           confidence = {
             overall: 0,
             source: "scan_only",
-            reason: "Extraction failed; scan marked clean for human review",
+            reason: "Extraction failed; the file passed the type and size gate and was not scanned",
             extractionError: extractionAttemptError,
           };
         }
@@ -303,13 +345,11 @@ Deno.serve(async (req: Request) => {
 
       const { error: recError } = await admin.rpc("record_credential_renewal_extraction", {
         p_submission_id: sub.id,
-        p_scan_status: "clean",
+        // `not_scanned`, not `clean`: nothing here inspects the file for malware, and saying
+        // otherwise put a claim in the record that the product cannot stand behind.
+        p_scan_status: "not_scanned",
         p_scan_provider: "carebase-renewal-worker",
-        p_scan_evidence: {
-          scanned_at: new Date().toISOString(),
-          method: "mime_size_gate",
-          extraction_error: extractionAttemptError,
-        },
+        p_scan_evidence: { ...scanEvidence, extraction_error: extractionAttemptError },
         p_extraction_provider: extractionProvider,
         p_extraction_model: extractionModel,
         p_extracted_fields: extractedFields,

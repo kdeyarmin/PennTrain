@@ -212,7 +212,15 @@ export function CredentialRenewalInbox({
           ) : (
             submissions.data?.rows.map((row) => {
               const isSelf = Boolean(user?.id && row.submitted_by && user.id === row.submitted_by);
-              const canReview = row.status === "needs_review" && row.scan_status === "clean" && !isSelf;
+              // BACKLOG.md I23. This used to require scan_status === "clean", and the worker used
+              // to write "clean" on every submission it touched -- including ones it never opened,
+              // because the type-and-size gate lived inside an extraction branch that only runs
+              // where an OCR provider is configured. Now the worker says `not_scanned` when nothing
+              // scanned the file, which is the truth, and this admits it: a file that passed the
+              // gate and that no scanner has looked at is exactly what a human review is for.
+              // `malicious` and `failed` still cannot be reviewed -- they quarantine.
+              const reviewableScan = row.scan_status === "clean" || row.scan_status === "not_scanned";
+              const canReview = row.status === "needs_review" && reviewableScan && !isSelf;
               const sla = renewalSlaLabel(row.created_at);
               return (
                 <div key={row.id} className="rounded-lg border p-4">
@@ -228,7 +236,14 @@ export function CredentialRenewalInbox({
                           {sla.label}
                         </Badge>
                         <Badge variant="outline">{row.credential_type.replaceAll("_", " ")}</Badge>
-                        <Badge variant="outline">scan {row.scan_status}</Badge>
+                        <Badge
+                          variant={row.scan_status === "not_scanned" ? "secondary" : "outline"}
+                          title={row.scan_status === "not_scanned"
+                            ? "The file passed a type and size check. No malware scanner is configured, so nothing has inspected its contents -- open it with the same care you would any attachment."
+                            : undefined}
+                        >
+                          {row.scan_status === "not_scanned" ? "not scanned" : `scan ${row.scan_status}`}
+                        </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Submitted {new Date(row.created_at).toLocaleString()}
