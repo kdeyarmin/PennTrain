@@ -63,7 +63,7 @@ catalogs:
 
 overrides:
   fast-uri@>=3.0.0 <=3.1.6: 3.1.7
-  browserslist@<=4.28.6: 4.28.8
+  browserslist@<=4.28.8: 4.28.9
   postcss@<=8.5.17: 8.5.22
   brace-expansion@<=5.0.8: 5.0.9
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0

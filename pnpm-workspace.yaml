@@ -79,13 +79,13 @@ overrides:
   # evicts, so distinct queries grow it without limit until the process OOMs) and
   # GHSA-73wf-gq98-2v4g (normalizeStats writes through attacker-controlled keys from a
   # browserslist-stats.json, giving an uncaught crash or a prototype write). Both reach <=4.28.6
-  # and both are fixed in 4.28.7; pinned to 4.28.8, the latest mature 4.28.x patch, for the reason
-  # the fast-uri entry above learned the hard way.
+  # and both are fixed in 4.28.7. A follow-up advisory includes 4.28.8, so pin the latest 4.28.x
+  # patch, 4.28.9, rather than repeating the previous target.
   #
   # Build-time only -- browserslist resolves target browsers during the Vite/Babel build and ships
   # nothing to a browser -- so neither advisory describes a risk to a served page. It is bumped
   # because the gate is a gate: a high advisory on main is fixed, not adjudicated.
-  'browserslist@<=4.28.6': 4.28.8
+  'browserslist@<=4.28.8': 4.28.9
   # Patch a transitive postcss (via tailwindcss/vite) off the range flagged by
   # GHSA-r28c-9q8g-f849 (path traversal in sourceMappingURL auto-loading -> arbitrary
   # .map disclosure); fixed in 8.5.18, pinned to the latest mature 8.5.x patch.
