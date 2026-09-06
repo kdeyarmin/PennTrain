@@ -1,154 +1,191 @@
 {
-  "takenAt": "2026-09-05",
-  "note": "Content digests for the PA DHS form and citation sources. Taken by scripts/snapshot-dhs-sources.mjs so a human re-attestation can be scoped to what actually changed. NOT an attestation: see dhsFormsLibrary.ts DHS_FORMS_LAST_VERIFIED and paRegulatoryCitations.ts PA_CITATIONS_LAST_VERIFIED for that, and BACKLOG.md H12.",
+  "takenAt": "2026-09-06",
+  "note": "Content digests and origin write times for the PA DHS form and citation sources. Taken by scripts/snapshot-dhs-sources.mjs so a human re-attestation can be scoped to what actually changed. lastModified is the origin's Last-Modified, null where the origin sends none -- null means unknown, never unchanged. NOT an attestation: see dhsFormsLibrary.ts DHS_FORMS_LAST_VERIFIED and paRegulatoryCitations.ts PA_CITATIONS_LAST_VERIFIED for that, and BACKLOG.md H12.",
   "sources": {
     "https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/app-for-license": {
-      "sha256": "c1cbf237848df3220fa801364d61c07a8bc7adbce7740715e04946809dc353a7",
-      "bytes": 612905
+      "sha256": "daa5a731a2654c9cb57d918378bdb48abaf2b261687fc29a943f3ae9a19dfdf1",
+      "bytes": 612905,
+      "lastModified": "2026-09-05T15:18:40.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/about/fraud-and-abuse/documents/Act-70-Form.pdf": {
       "sha256": "d3de81e732be0def704c1638d2d0b9cf1b32b72c4e64c6c9335c789e80c84c93",
-      "bytes": 318492
+      "bytes": 318492,
+      "lastModified": "2024-01-25T16:04:41.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-04-11-alr-resident-rights-poster.pdf": {
       "sha256": "0cda0fd76b4649742a0ba77d10f55099c7a204ccb206fce6be8d5f932346af90",
-      "bytes": 208154
+      "bytes": 208154,
+      "lastModified": "2025-04-11T17:11:10.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-04-11-pch-resident-rights-poster.pdf": {
       "sha256": "225a00fa9a871b89f810600f34338dfb506398b99836ef9b7bea96518af87ed0",
-      "bytes": 209203
+      "bytes": 209203,
+      "lastModified": "2025-04-11T17:11:03.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-24-assisted-living-residences-dme.pdf": {
       "sha256": "bfdb1d4c827a7cd1eda07fa46af51e3634f8a163bdbd80d3ef650ff8ab9cbdf7",
-      "bytes": 606068
+      "bytes": 606068,
+      "lastModified": "2025-07-24T17:45:31.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-25-personal-care-homes-dme-reupload.pdf": {
       "sha256": "16148f910e455044cc56b7a689d2cd1c27a12170dad4cd53b5b5c1de9706f93f",
-      "bytes": 604170
+      "bytes": 604170,
+      "lastModified": "2025-07-25T16:22:08.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-11-07-pch-residence-rights-poster-spanish.pdf": {
       "sha256": "408eb416ab85c97ead6bd3c69b857ff9291f96fa5da9e7d8f1d419f781c863e3",
-      "bytes": 153323
+      "bytes": 153323,
+      "lastModified": "2025-11-07T20:41:42.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-11-7-alr-residence-rights-poster-spanish.pdf": {
       "sha256": "f771897c06dfe59efc273e6ef2e9fe04cc72c9de490702d7e944ee1de070c0d9",
-      "bytes": 157973
+      "bytes": 157973,
+      "lastModified": "2025-11-07T20:41:42.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Addendum_C_To_Resident_Home_Contract-Rent-Rebates.pdf": {
       "sha256": "eee1942f66df576c8249841598a3564903de8a75b8db7d299788d2c853e90bac",
-      "bytes": 10742
+      "bytes": 10742,
+      "lastModified": "2024-01-25T16:04:47.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Adult_Residential_Licensing-Cash_Distribution_Record.pdf": {
       "sha256": "4c0d995747adeb4cbe63b2a233bd1d6c6e65cc5c5cf8103c10906439ca8fd9ad",
-      "bytes": 26939
+      "bytes": 26939,
+      "lastModified": "2024-04-19T04:11:11.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Adult_Residential_Licensing-Fire_Drill_Record.pdf": {
       "sha256": "eb184b04fede95e1f39c1dce57d16020d84b549d3697613dcb468e925487f6f4",
-      "bytes": 15001
+      "bytes": 15001,
+      "lastModified": "2024-04-19T04:11:11.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Adult_Residential_Licensing-Quarterly_Financial_Summary.pdf": {
       "sha256": "347a9cfd163b188e0d25d1ea10a7e6ed542ac36d17f88180f95b027e17b78934",
-      "bytes": 283632
+      "bytes": 283632,
+      "lastModified": "2024-04-19T04:11:11.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Adult_Residential_Licensing-Record_of_Financial_Transactions.pdf": {
       "sha256": "1c5a7da90b1383096fbec4a0742447e6a98c1d4d749dd6d36446574e69c0ae70",
-      "bytes": 213303
+      "bytes": 213303,
+      "lastModified": "2024-04-19T04:11:11.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Adult_Residential_Licensing-Record_of_Training.pdf": {
       "sha256": "16de616b42835744e624e470c6e7b7224001e82a1108b1687de11947e1bcce9a",
-      "bytes": 183155
+      "bytes": 183155,
+      "lastModified": "2024-01-25T16:04:57.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Adult_Residential_Licensing-Resident_Home_Agreement.pdf": {
       "sha256": "075c497b6cd717e45b403f7af87767640f0f6204543f62cb2396fffe67d95137",
-      "bytes": 284808
+      "bytes": 284808,
+      "lastModified": "2024-04-19T04:11:11.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Adult_Residential_Licensing-Staff_Training_Plan.pdf": {
       "sha256": "419fa1412e210d2b0644c050b6933b1a75f1989400e49f77139c733d245d79e7",
-      "bytes": 250703
+      "bytes": 250703,
+      "lastModified": "2024-04-19T04:11:11.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Assessment_Support_Plan_Form.pdf": {
       "sha256": "0f6b30d4844506156168c4ecad26865f4915db8aad25f55b910ab3cb83a5e257",
-      "bytes": 384476
+      "bytes": 384476,
+      "lastModified": "2024-04-19T04:11:12.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Entrance_Conference_Guide.pdf": {
       "sha256": "8a097e30fa1669d69ec5a72eea7ca3c057c0a677cbea1defcf99ece048893084",
-      "bytes": 187662
+      "bytes": 187662,
+      "lastModified": "2024-01-25T16:05:31.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Preadmission_Screening_Form.pdf": {
       "sha256": "94f4a0f611fe0793d3806a784ea827fa356cec988cca3e2b0b27b84c01a49788",
-      "bytes": 327997
+      "bytes": 327997,
+      "lastModified": "2024-04-19T04:11:12.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Request_for-Waiver-of-Regulation-Form.pdf": {
       "sha256": "00c757513ce199bc501d7d875308984cce1771ab798c130b5f51b62a30073a7a",
-      "bytes": 19873
+      "bytes": 19873,
+      "lastModified": "2024-04-19T04:11:12.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Request_to_Admit_a_Resident_with_an_Excludable_Condition_Form.pdf": {
       "sha256": "afb82d59d771471cf5ab62200cf9cdf4be73b6afddc09ca675a1c107067239e8",
-      "bytes": 206195
+      "bytes": 206195,
+      "lastModified": "2024-04-19T04:11:12.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assited_Living-Reportable_Incident_Form_Effective_October_1_2016.pdf": {
       "sha256": "62d13d10934fbe773c0a430ce837670d3f4d1101e174408080a8f2c919d0b05f",
-      "bytes": 62531
+      "bytes": 62531,
+      "lastModified": "2024-04-19T04:11:12.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Frequently_Asked_Questions-About_Unlicensed_Personal_Care_Homes.pdf": {
       "sha256": "d3230dae964a0d0c75839817d012200ee824a63197fd851b884de90a88b33379",
-      "bytes": 308769
+      "bytes": 308769,
+      "lastModified": "2024-04-19T04:11:13.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Influenza_Awareness_Act.pdf": {
       "sha256": "689445d150b8fcfacac4a84e82e40bdd727f6635e6a38982f47abace41ac2335",
-      "bytes": 95825
+      "bytes": 95825,
+      "lastModified": "2024-04-19T04:11:13.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Medication_Administration_Record.pdf": {
       "sha256": "7b42e3b7911a35221f35c70873aa829608f4ed72e26def94505a4f753f5d16c7",
-      "bytes": 361091
+      "bytes": 361091,
+      "lastModified": "2024-04-19T04:11:13.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Model_Evacuation_Time_Designation_Document.pdf": {
       "sha256": "6b55953db3e4a615a8245342943d55d3446e930a03ba35e7e39b4d00554a9a6a",
-      "bytes": 45095
+      "bytes": 45095,
+      "lastModified": "2024-04-19T04:11:13.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Model_Fire_Safety_Inspection_and_Supervised_Drill_Document.pdf": {
       "sha256": "ade135e828ebf57d20cbbf0cb6e14f507acdfcd3e48e9f10b1be2c322e467ed2",
-      "bytes": 25652
+      "bytes": 25652,
+      "lastModified": "2024-04-19T04:11:13.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Entrance_Conference_Guide.pdf": {
       "sha256": "795cf509c6442b5c366288c345212132849f1112ca96cd104e2c09dc8e2ca251",
-      "bytes": 187288
+      "bytes": 187288,
+      "lastModified": "2024-01-25T16:19:18.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Preadmission-Screening.pdf": {
       "sha256": "4471ba9bf99a3c6beee08c9beba54dc345a79e9bf285fd08057f16ffeabf80cd",
-      "bytes": 339233
+      "bytes": 339233,
+      "lastModified": "2024-04-19T04:11:10.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Resident_Assessment_Support_Plan_RASP.pdf": {
       "sha256": "1a88a55bf8de038a20a9f2928ae6201907a13940b010641daff2fd90ce25827f",
-      "bytes": 1403200
+      "bytes": 1403200,
+      "lastModified": "2024-04-19T04:11:10.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Homes-Reportable_Incident_Form-Effective-October-1-2016.pdf": {
       "sha256": "62d13d10934fbe773c0a430ce837670d3f4d1101e174408080a8f2c919d0b05f",
-      "bytes": 62531
+      "bytes": 62531,
+      "lastModified": "2024-04-19T04:11:10.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Homes-Request_For_Waiver_Of_Regulation.pdf": {
       "sha256": "00c757513ce199bc501d7d875308984cce1771ab798c130b5f51b62a30073a7a",
-      "bytes": 19873
+      "bytes": 19873,
+      "lastModified": "2024-04-19T04:11:10.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Procedures_for_Self-Inspection_to_Increase_Maximum_Capacity.pdf": {
       "sha256": "8d0e5d5f0221b56d7829a1db67a30289c4a396d323ab15f96dd49fcbb5e49e29",
-      "bytes": 113359
+      "bytes": 113359,
+      "lastModified": "2024-04-19T04:11:10.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Self-Inspection_for_Capacity_Increase_Tool.pdf": {
       "sha256": "0b32903856a23c2be7767d694c16d610873eb3355ea58e4d68c6427a0355331f",
-      "bytes": 301821
+      "bytes": 301821,
+      "lastModified": "2024-04-19T04:11:10.000Z"
     },
     "https://www.pa.gov/content/dam/copapwp-pagov/en/health/documents/topics/documents/diseases-and-conditions/flu/Flu%20poster_for%20law.pdf": {
       "sha256": "68e4566a7a6b3b53e559e50cde2f94f00c2f92fdd5693b3f8e4ee7383f18f384",
-      "bytes": 473419
+      "bytes": 473419,
+      "lastModified": "2025-12-04T15:31:27.000Z"
     },
     "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/055/chapter2600/chap2600toc.html": {
       "sha256": "79b95f748715dfc1e92d8e137fa74fadd32f8e198158794f33bc257a76d7cc60",
-      "bytes": 275482
+      "bytes": 275482,
+      "lastModified": null
     },
     "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/055/chapter2800/chap2800toc.html": {
       "sha256": "e096454e66bbd038712a32e2cb72a5c4a3d85a00e388ecbac27898bc304c2297",
-      "bytes": 373187
+      "bytes": 373187,
+      "lastModified": null
     }
   }
 }

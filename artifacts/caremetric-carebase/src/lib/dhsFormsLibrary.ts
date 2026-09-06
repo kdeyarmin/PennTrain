@@ -1,7 +1,7 @@
 /**
  * Static catalog of the official PA DHS/BHSL PCH & ALR compliance forms, mirrored from
  * https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-compliance-forms
- * (verified 2026-07-13). Every url below is the live pa.gov-hosted PDF -- this app never rehosts
+ * (verified 2026-09-06). Every url below is the live pa.gov-hosted PDF -- this app never rehosts
  * a copy, since DHS revises these forms periodically (several filenames carry their own revision
  * dates) and a mirrored copy would silently go stale. Category grouping mirrors the source page's
  * own PCH / ALR / Model Forms / Additional Resources structure rather than re-deriving facility-type
@@ -382,7 +382,7 @@ export const DHS_FORMS: DhsForm[] = [
 
 export const DHS_FORMS_SOURCE_URL =
   "https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-compliance-forms";
-export const DHS_FORMS_LAST_VERIFIED = "2026-07-13";
+export const DHS_FORMS_LAST_VERIFIED = "2026-09-06";
 export const DHS_FORMS_WORD_FORMAT_EMAIL = "ra-pwarlheadquarters@pa.gov";
 
 export function getFormsByCategory(category: DhsFormCategory): DhsForm[] {
