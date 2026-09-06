@@ -63,3 +63,10 @@ paths = [
   '''^artifacts/caremetric-carebase/src/lib/incidentPathways\.ts$''',
   '''^artifacts/caremetric-carebase/src/lib/incidentPathways\.test\.ts$''',
 ]
+
+[[rules.allowlists]]
+description = "Ignore the non-secret I33 feature keys used in the retired-feature database test"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^sg9\.(other_live|retired_probe)$''']
+paths = ['''^supabase/tests/database/retired_feature_cannot_be_sold\.test\.sql$''']
