@@ -444,8 +444,10 @@ node scripts/snapshot-dhs-sources.mjs
 ```
 
 It names which **form documents** changed since the last digest, so the review is
-those rather than all thirty-five. Index and table-of-contents pages are reported
-separately and routinely change; a change there is not evidence a form moved.
+those rather than all thirty-five. Table-of-contents pages are reported separately
+and routinely change; a change there is not evidence a form moved. A form served
+as a web page is reported as `FORM PAGE` — never as navigation — because nothing
+here can tell its site chrome moving from the form moving.
 Read the documents it names, then re-stamp `DHS_FORMS_LAST_VERIFIED` in
 `dhsFormsLibrary.ts` and re-run the digest with `--write`.
 
@@ -458,10 +460,13 @@ newest write across those PDFs being 2025-12-04, so the reading was confirming
 they were static rather than opening each one.
 
 The 34 is the PDFs alone. The forms library holds 35 pa.gov sources — those 34
-plus the licensing landing page, which is a page rather than a document and whose
-write time tracks the site, so it is reported separately and excluded from the
-count. The two `pacodeandbulletin.gov` citation sources are pages as well, and on
-their own stamp.
+plus **Application for Licensure**, which DHS serves as a web page rather than a
+PDF. That one is still a form, so the report names it under `FORM PAGE` and the
+review opens it by hand; its bytes and write time track the site rather than the
+form, so a diff on it is evidence neither way and it is excluded from the count
+rather than folded into it. Do not read "0 of 34 static" as covering it. The two
+`pacodeandbulletin.gov` citation sources are table-of-contents pages — navigation,
+not forms — and sit on their own stamp.
 
 Neither signal is the attestation, and the gate ignores both by design:
 
