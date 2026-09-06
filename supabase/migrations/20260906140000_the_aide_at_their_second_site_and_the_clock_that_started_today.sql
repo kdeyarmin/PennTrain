@@ -249,22 +249,34 @@ begin
   -- Only items still OPEN and still on their first cycle move. A completed item records what
   -- happened and is never re-dated; a renewal inserted by complete_resident_compliance_item is
   -- anchored on its own completion, not on admission.
+  --
+  -- ONE rule per item_type, chosen the way instantiate_resident_compliance_items chooses it:
+  -- `distinct on (item_type) ... order by item_type, organization_id nulls last`, so a tenant's
+  -- own pack beats the platform-wide one. Joining the rule table straight into the UPDATE matched
+  -- BOTH rows wherever an override existed, and an UPDATE ... FROM whose source matches a target
+  -- row twice takes one of them arbitrarily -- undefined, not "the first". Re-dating an admission
+  -- could therefore rederive the deadline from the global offset the tenant had deliberately
+  -- replaced, and the same resident could land on a different date each time.
   update public.resident_compliance_items i
   set due_date = case
         when rp.offset_basis = 'before_admission' then new.admission_date - rp.offset_days
         else new.admission_date + rp.offset_days
       end
-  from public.resident_compliance_rule_packs rp
+  from (
+    select distinct on (p.item_type) p.item_type, p.offset_basis, p.offset_days
+    from public.resident_compliance_rule_packs p
+    where p.facility_type = v_facility_type
+      and p.admission_track = v_track
+      and p.state = 'PA'
+      and p.is_active
+      and p.instantiate_at_admission
+      and (p.organization_id = new.organization_id or p.organization_id is null)
+    order by p.item_type, p.organization_id nulls last
+  ) rp
   where i.resident_id = new.id
     and i.completed_date is null
     and i.triggered_by_item_id is null
     and rp.item_type = i.item_type
-    and rp.facility_type = v_facility_type
-    and rp.admission_track = v_track
-    and rp.state = 'PA'
-    and rp.is_active
-    and rp.instantiate_at_admission
-    and (rp.organization_id = new.organization_id or rp.organization_id is null)
     and i.due_date is distinct from case
       when rp.offset_basis = 'before_admission' then new.admission_date - rp.offset_days
       else new.admission_date + rp.offset_days
@@ -518,3 +530,58 @@ revoke all on function public.close_resident_personal_fund_account(uuid, text, t
   from public, anon;
 grant execute on function public.close_resident_personal_fund_account(uuid, text, text, timestamptz, uuid)
   to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- J37 (continued) -- a settled account is closed to every writer, not just to close()
+-- ---------------------------------------------------------------------------
+--
+-- close_resident_personal_fund_account refuses a second settlement by looking for a closure row.
+-- post_resident_personal_fund_transaction -- the door every deposit, withdrawal and adjustment
+-- comes through -- reads only the account row, and settlement does not change that row, so it
+-- went on seeing an open account. A finance manager could append to the ledger after the final
+-- disbursement and leave a "closed" append-only account carrying a new nonzero balance: the one
+-- thing 2600.20 / 2800.20 evidence must never say. The closure is a fact about the LEDGER, so the
+-- check belongs to the writer, not only to the operation that records it.
+--
+-- The other three functions that touch this ledger were read and are already sound:
+-- close_...() must write the terminal disbursement (it inserts directly, not through this RPC, and
+-- writes the closure row after it); open_...() refuses outright when the resident already has an
+-- account, and settlement leaves that row in place, so a closed account cannot be reopened;
+-- reconcile_resident_personal_funds writes reconciliations and financial history, never a ledger
+-- entry, and attesting to a settled balance stays legitimate.
+do $do$
+declare
+  v_def text;
+  v_old text;
+  v_new text;
+begin
+  select pg_get_functiondef(p.oid) into v_def
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'post_resident_personal_fund_transaction';
+  if v_def is null then
+    raise exception 'public.post_resident_personal_fund_transaction is missing';
+  end if;
+
+  v_old := $patch$  if not found then raise exception 'Personal funds account is not open' using errcode = 'P0002'; end if;$patch$;
+  v_new := $patch$  if not found then raise exception 'Personal funds account is not open' using errcode = 'P0002'; end if;
+  if exists (
+    select 1 from public.resident_personal_fund_account_closures c
+    where c.personal_fund_account_id = v_account.id
+  ) then
+    raise exception 'This personal funds account was settled and closed; no further entries can be posted to it'
+      using errcode = '55000';
+  end if;$patch$;
+
+  if position(v_old in v_def) = 0 then
+    if position('resident_personal_fund_account_closures' in v_def) > 0 then
+      raise notice 'post_resident_personal_fund_transaction already refuses a settled account';
+      return;
+    end if;
+    raise exception
+      'post_resident_personal_fund_transaction no longer contains the account guard this migration patches';
+  end if;
+
+  execute replace(v_def, v_old, v_new);
+end;
+$do$;

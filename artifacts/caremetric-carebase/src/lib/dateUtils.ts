@@ -42,6 +42,26 @@ export function facilityToday(now = new Date()): string {
 }
 
 /**
+ * The facility calendar date an INSTANT falls on, as `YYYY-MM-DD`.
+ *
+ * For anything that arrives as a `timestamptz`. PostgREST serialises those in UTC, so the leading
+ * ten characters of the string are the UTC date, not the Pennsylvania one -- and after 20:00 ET
+ * those differ. Slicing worked most of the day and was wrong in the evening, which is the worst
+ * shape a date bug can take: `2026-01-02T01:00:00Z` is still January 1 in Pennsylvania, so a course
+ * credited that evening landed in the following training year and vanished from the one it belonged
+ * to (BACKLOG.md J83). Anything compared against a facility window, `pa_today()` or a
+ * `YYYY-MM-DD` column goes through here.
+ *
+ * Returns null for a missing or unparseable value rather than a wrong date.
+ */
+export function facilityDateOf(instant: string | Date | null | undefined): string | null {
+  if (!instant) return null;
+  const date = instant instanceof Date ? instant : new Date(instant);
+  if (Number.isNaN(date.getTime())) return null;
+  return FACILITY_DAY_FORMAT.format(date);
+}
+
+/**
  * Add (or subtract) whole calendar days to a facility `YYYY-MM-DD` without touching wall-clock
  * timezone. Use for defaults like "due in 15 days" / "metrics from 30 days ago" that must agree
  * with `pa_today()` arithmetic rather than `Date.now() + N * 864e5` in the browser zone.

@@ -136,9 +136,10 @@ export function SessionRosterCard({
    * Defaulting both ends to `new Date()` -- which is what this card did -- produced a check-in and
    * a check-out at the same instant on every entry, and `record_training_attendance` derives
    * `seat_minutes` from exactly that difference. Every attendance recorded through this screen was
-   * therefore zero seat minutes, and approval credited each of them the class's full scheduled
-   * hours anyway. Seeding from the class's own window means the common case is one click and the
-   * evidence matches the class; an early departure is an edit, not a re-derivation.
+   * therefore zero seat minutes -- credited as the class's full scheduled hours at the time, and
+   * refused outright by approval since 20260906220000. Seeding from the class's own window means
+   * the common case is one click and the evidence matches the class; an early departure is an
+   * edit, not a re-derivation.
    */
   const defaultWindow = useMemo(() => {
     const start = startsAt
@@ -175,7 +176,7 @@ export function SessionRosterCard({
       toast({
         title: "Check-out must be after check-in",
         description:
-          "An attendance with no time between check-in and check-out records zero seat minutes, and approval would still credit the full scheduled hours for it.",
+          "An attendance with no time between check-in and check-out records zero seat minutes, and approval refuses the whole session until it is corrected.",
         variant: "destructive",
       });
       return;
@@ -427,17 +428,28 @@ export function SessionRosterCard({
 
         {rows.length > 0 && (
           <div className="space-y-2 border-t pt-3">
-            {/* What approval is about to write, before it writes it. approve_training_session_completion
-                sets hours = training_classes.duration_hours on every attended registration's
-                training record and never looks at the seat time it insisted on recording, so the
-                only place this can be caught is here. */}
+            {/* What approval is about to write, before it writes it. Since 20260906220000
+                approve_training_session_completion credits each attendee their own recorded seat
+                time, capped by training_classes.duration_hours -- so this preview is per-attendee
+                arithmetic, not one figure times a head count. */}
             <div className="rounded border bg-muted/30 p-2 text-xs">
               <p className="font-medium text-foreground">
-                Approval will credit {credit.hoursPerAttendee} h to each of {credit.attendedCount}{" "}
-                attendee{credit.attendedCount === 1 ? "" : "s"} — {credit.totalCreditedHours} h in total.
+                {credit.hoursPerAttendee !== null ? (
+                  <>
+                    Approval will credit {credit.hoursPerAttendee} h to each of {credit.attendedCount}{" "}
+                    attendee{credit.attendedCount === 1 ? "" : "s"} — {credit.totalCreditedHours} h in total.
+                  </>
+                ) : (
+                  <>
+                    Approval will credit {credit.totalCreditedHours} h in total across{" "}
+                    {credit.attendedCount} attendee{credit.attendedCount === 1 ? "" : "s"}, each from
+                    their own recorded seat time.
+                  </>
+                )}
               </p>
               <p className="mt-0.5 text-muted-foreground">
-                The credited figure is the class's scheduled duration, not the recorded seat time.
+                Each attendee is credited the seat time recorded for them, capped at the class's
+                scheduled {credit.scheduledHours} h.
               </p>
             </div>
             {evidenceQuery.isError && (
@@ -452,7 +464,7 @@ export function SessionRosterCard({
                 <div className="space-y-1">
                   <p className="font-medium">
                     {credit.flagged.length} attendance
-                    {credit.flagged.length === 1 ? "" : "s"} do not support the hours being credited.
+                    {credit.flagged.length === 1 ? " needs" : "s need"} a look before approval.
                   </p>
                   <ul className="space-y-0.5">
                     {credit.flagged.map((row) => {
@@ -466,14 +478,18 @@ export function SessionRosterCard({
                             : row.issue === "zero_length"
                               ? "checked out at or before check-in (no seat time)"
                               : `${formatSeatMinutes(row.seatMinutes)} of seat time`}
-                          {" · would still be credited "}{credit.hoursPerAttendee} h
+                          {row.issue === "short"
+                            ? ` · credited ${row.creditedHours} h of the scheduled ${credit.scheduledHours} h`
+                            : " · approval will refuse until this is corrected"}
                         </li>
                       );
                     })}
                   </ul>
                   <p>
-                    Correct the attendance before approving, or approve deliberately and say so in
-                    the reason — these hours count toward the annual training totals a surveyor reads.
+                    A short attendance is credited what it records, so approving one is a decision
+                    about the person's hours, not about the class's. An unrecorded or zero-length
+                    one has to be corrected: approval refuses the whole session over it. These
+                    hours count toward the annual training totals a surveyor reads.
                   </p>
                 </div>
               </div>

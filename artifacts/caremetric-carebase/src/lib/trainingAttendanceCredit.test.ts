@@ -36,12 +36,29 @@ describe("seatMinutesBetween", () => {
 });
 
 describe("creditForAttendance", () => {
-  it("credits the class's full scheduled hours, not the seat time", () => {
-    // This is the defect being previewed, not a proposal: approve_training_session_completion
-    // writes duration_hours regardless of what the evidence says.
+  it("credits the recorded seat time, not the class's scheduled hours", () => {
+    // The rule approve_training_session_completion has followed since 20260906220000. This test
+    // asserted the opposite until then, because the function did: it wrote duration_hours whatever
+    // the evidence said, and this module previewed that. Both moved together, and they have to --
+    // a preview that promises 2 h while approval writes 0.5 h is worse than no preview.
     const credit = creditForAttendance(evidence({ check_out_at: "2026-09-01T13:30:00.000Z" }), 2);
-    expect(credit.creditedHours).toBe(2);
+    expect(credit.creditedHours).toBe(0.5);
     expect(credit.seatMinutes).toBe(30);
+  });
+
+  it("caps the credit at the scheduled duration when somebody stays late", () => {
+    // `least(..., duration_hours)`: the schedule is the ceiling, so an over-long check-out cannot
+    // inflate an attendee's annual hours past what the class was worth.
+    const credit = creditForAttendance(evidence({ check_out_at: "2026-09-01T17:00:00.000Z" }), 2);
+    expect(credit.seatMinutes).toBe(240);
+    expect(credit.creditedHours).toBe(2);
+  });
+
+  it("rounds to two places before capping, the way the server does", () => {
+    // `least(round(max(seat_minutes) / 60.0, 2), duration_hours)` -- round first, then cap. 50
+    // minutes is 0.8333h, and the stored numeric(6,2) holds 0.83.
+    const credit = creditForAttendance(evidence({ check_out_at: "2026-09-01T13:50:00.000Z" }), 2);
+    expect(credit.creditedHours).toBe(0.83);
   });
 
   it("flags check-in == check-out as zero length", () => {
@@ -114,6 +131,22 @@ describe("summarizeSessionCredit", () => {
     expect(summary.flagged).toHaveLength(1);
     expect(summary.flagged[0].issue).toBe("unrecorded");
     expect(summary.totalCreditedHours).toBe(1.5);
+  });
+
+  it("has no single per-attendee figure when the attendees sat different lengths", () => {
+    // The summary used to be one number times a head count, which was right only while everybody
+    // was credited the schedule. With seat-time credit, a session somebody left early from has no
+    // per-attendee figure that is true for everyone -- so it reports none, and the card says the
+    // total instead of printing a number that is wrong for one of them.
+    const rows = new Map<string, AttendanceEvidenceLike>([
+      ["r1", evidence({ registration_id: "r1" })],
+      ["r2", evidence({ registration_id: "r2", check_out_at: "2026-09-01T14:00:00.000Z" })],
+    ]);
+    const summary = summarizeSessionCredit(["r1", "r2"], rows, 2);
+    expect(summary.hoursPerAttendee).toBeNull();
+    expect(summary.totalCreditedHours).toBe(3);
+    expect(summary.scheduledHours).toBe(2);
+    expect(summary.flagged.map((f) => f.issue)).toEqual(["short"]);
   });
 
   it("rounds a fractional total instead of carrying float noise into the display", () => {

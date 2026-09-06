@@ -1,4 +1,4 @@
-import { addFacilityCalendarYears } from "./dateUtils";
+import { addFacilityCalendarYears, facilityDateOf } from "./dateUtils";
 
 /**
  * Annual training hours on the employee's own training year, rather than the calendar year the
@@ -140,11 +140,14 @@ export function bucketHoursInWindow({
   for (const credit of courseCredits) {
     const bucket = bucketByTypeId.get(credit.training_type_id);
     if (!bucket || !credit.credited_at) continue;
-    // `credited_at` is a timestamptz; its facility calendar date is what the window is expressed
-    // in, and the leading YYYY-MM-DD of the stored value is that date for the America/New_York
-    // rows this table holds.
-    const creditedOn = credit.credited_at.slice(0, 10);
-    if (creditedOn < window.start || creditedOn >= window.end) continue;
+    // `credited_at` is a timestamptz and the window is a pair of facility calendar dates, so the
+    // instant has to be converted to one before it can be compared. Slicing the leading ten
+    // characters -- which this did, on a comment claiming they were the same thing -- takes the
+    // UTC date instead: `2026-01-02T01:00:00Z` is still January 1 in Pennsylvania, so a course
+    // credited on a Pennsylvania evening at the edge of an employee's training year was counted
+    // against the following one and missing from the year it was earned in.
+    const creditedOn = facilityDateOf(credit.credited_at);
+    if (!creditedOn || creditedOn < window.start || creditedOn >= window.end) continue;
     const hours = Number(credit.credit_hours ?? 0);
     if (!Number.isFinite(hours) || hours <= 0) continue;
     add(nonOjt, bucket, hours);

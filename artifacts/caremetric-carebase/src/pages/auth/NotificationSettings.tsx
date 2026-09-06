@@ -103,10 +103,13 @@ export default function NotificationSettings() {
       toast({ title: "SMS can be preferred only after phone consent is enabled", variant: "destructive" });
       return;
     }
-    if (form.preferredNotificationChannel === "email" && form.emailOptOut) {
-      toast({ title: "Turn email back on, or choose another channel, before saving", variant: "destructive" });
-      return;
-    }
+    // NO guard on "email preferred while opted out". update_profile_contact_preferences permits
+    // that pairing on purpose -- it means in-app only, which is a coherent thing to want -- and
+    // this page used to refuse it. Combined with the checkbox below flipping the channel to
+    // web_push, a user with no SMS consent and no push subscription (the default a new account
+    // starts in) could not save the opt-out at all: web_push was refused for want of a
+    // subscription, and switching back to email was refused by this guard. The only honest reading
+    // of "stop emailing me" is to stop emailing them, so the page says what that leaves instead.
     if (
       form.preferredNotificationChannel === "web_push"
       && !pushActive
@@ -261,13 +264,10 @@ export default function NotificationSettings() {
                   type="checkbox"
                   id="email-opt-in"
                   checked={!form.emailOptOut}
-                  onChange={e => setForm(f => ({
-                    ...f,
-                    emailOptOut: !e.target.checked,
-                    preferredNotificationChannel: e.target.checked
-                      ? f.preferredNotificationChannel
-                      : (f.preferredNotificationChannel === "email" ? "web_push" : f.preferredNotificationChannel),
-                  }))}
+                  // Turning email off changes ONE thing: whether email is sent. It used to also
+                  // move the preferred channel to web_push, which is a channel most people have
+                  // not enabled and cannot be saved without -- see handleSave.
+                  onChange={e => setForm(f => ({ ...f, emailOptOut: !e.target.checked }))}
                   className="h-4 w-4 mt-0.5"
                 />
                 <label htmlFor="email-opt-in" className="text-[13px] cursor-pointer">
@@ -326,6 +326,12 @@ export default function NotificationSettings() {
                 <p className="text-[11px] text-muted-foreground">
                   SMS requires a mobile number and consent. Web push requires permission on this browser.
                 </p>
+                {form.preferredNotificationChannel === "email" && form.emailOptOut && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Email is turned off above, so nothing is sent to your inbox. Reminders wait for you
+                    in the app instead.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

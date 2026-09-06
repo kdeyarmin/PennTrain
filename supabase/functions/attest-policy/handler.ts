@@ -72,8 +72,8 @@ export function createAttestPolicyHandler({
     const { data: attestation, error: attestationError } = await callerClient
       .from("policy_attestations")
       .select(
-        "id, status, employee_id, campaign_id, policy_document_version_id, employees(profile_id), " +
-          "policy_document_versions(content_hash)",
+        "id, status, superseded_at, employee_id, campaign_id, policy_document_version_id, " +
+          "employees(profile_id), policy_document_versions(content_hash)",
       )
       .eq("id", attestationId)
       .maybeSingle();
@@ -86,6 +86,7 @@ export function createAttestPolicyHandler({
     const typedAttestation = attestation as unknown as {
       id: string;
       status: string;
+      superseded_at: string | null;
       employee_id: string;
       campaign_id: string;
       policy_document_version_id: string;
@@ -99,6 +100,22 @@ export function createAttestPolicyHandler({
     }
     if (typedAttestation.status !== "pending") {
       return json(req, { error: "This policy has already been attested" }, 409);
+    }
+    // Publishing a new version stamps `superseded_at` on every pending attestation against an
+    // older one (20260906100000, BACKLOG J7) and closes their campaign, because a signature on
+    // replaced text is not evidence that anyone read the policy in force. The stamp left `status`
+    // as `pending` -- deliberately, so the row still reads as unfinished rather than as withdrawn
+    // -- and this function only ever asked about `status`. An employee holding the old assignment
+    // link could therefore still sign the superseded document and manufacture exactly the stale
+    // evidence that migration exists to refuse.
+    if (typedAttestation.superseded_at) {
+      return json(req, {
+        error:
+          "This policy has been replaced by a newer version, so signing this copy would not record "
+          + "that you read the policy now in force. The new version will appear in your assignments; "
+          + "attest to that one instead.",
+        superseded: true,
+      }, 409);
     }
 
     // An attestation IS the claim "I read this exact document", and `document_version_hash` is the
@@ -169,13 +186,22 @@ export function createAttestPolicyHandler({
       })
       .eq("id", attestationId)
       .eq("status", "pending")
+      // Also in the WHERE, not only in the check above: publish_policy_document_version can land
+      // between the read and this write, and this is a service-role update that RLS does not see.
+      .is("superseded_at", null)
       .select("id, status, attested_at")
       .maybeSingle();
     if (updateError) {
       console.error("attest-policy: attestation update failed", updateError.message);
       return json(req, { error: "Unable to record this attestation" }, 500);
     }
-    if (!updated) return json(req, { error: "This policy has already been attested" }, 409);
+    if (!updated) {
+      return json(req, {
+        error:
+          "This policy was attested or replaced by a newer version while you were signing it. "
+          + "Reload your assignments to see where it stands.",
+      }, 409);
+    }
 
     return json(req, { success: true, attestation: updated });
   };

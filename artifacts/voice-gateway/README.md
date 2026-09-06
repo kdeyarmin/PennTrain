@@ -67,7 +67,7 @@ Security posture (inherited from PennFit's ADR):
 | `OPENAI_REALTIME_MODEL` | no | Model override (default `gpt-realtime-2`). |
 | `VOICE_DEFAULT_VOICE` | no | Realtime voice (default `cedar`). |
 | `VOICE_PUBLIC_WS_ORIGIN` | no | e.g. `wss://voice-gateway.up.railway.app`; derived from forwarded headers when unset. |
-| `VOICE_MAX_SESSION_SECONDS` | no | Hard cap per session (default 600; boot validation clamps anything above 3600 and warns). |
+| `VOICE_MAX_SESSION_SECONDS` | no | Hard cap per session (default 600; boot validation clamps anything above 3510 and warns). The ceiling is the access-token hour minus the pending-ticket TTL and handoff slack, because `POST /sessions` refuses a token that cannot cover the whole session plus that handoff — a larger cap would be configurable but never startable. |
 | `VOICE_IDLE_TIMEOUT_SECONDS` | no | End after silence (default 90; must outlast `VOICE_TOOL_TIMEOUT_MS` — boot validation clamps it up past the tool timeout and warns otherwise). |
 | `VOICE_MAX_CONCURRENT_SESSIONS` | no | Global cap, both channels (default 5). |
 | `VOICE_MAX_SESSIONS_PER_USER` | no | Per-user cap (default 1). |

@@ -101,7 +101,12 @@ export function hrisSourceSystemIssues(input: {
   displayName: string;
 }): string[] {
   const issues: string[] = [];
-  if (!input.organizationId) issues.push("Select an organization before registering a source.");
+  // Names the control that fixes it. A platform admin -- the only role that reaches this screen
+  // -- has no organization of their own, so "select an organization" was true and useless
+  // until it said where.
+  if (!input.organizationId) {
+    issues.push("Choose the organization in the header's \"Viewing as\" picker before registering a source.");
+  }
   if (!HRIS_SOURCE_KEY_PATTERN.test(input.sourceKey.trim().toLowerCase())) {
     issues.push("The source key must start with a letter and use 2-100 lowercase letters, digits, dot, dash or underscore.");
   }

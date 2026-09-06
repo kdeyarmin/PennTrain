@@ -12,6 +12,7 @@ import { HrisRowDecisions } from "@/components/admin/HrisRowDecisions";
 import { HrisSourceSystems } from "@/components/admin/HrisSourceSystems";
 import { importRunIssues, importRunStatusLabel, suggestedRequestId } from "@/lib/hrisImportRuns";
 import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
 import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
@@ -182,12 +183,20 @@ function HrisCommands() {
   const [runId, setRunId] = useState("");
   const runs = useHrisImportRuns();
   const { user } = useAuth();
+  // This page is platform_admin only, and a platform admin's profile deliberately carries no
+  // organization_id -- they do not belong to a customer. Passing `user.organizationId` therefore
+  // passed null every single time: the card reported "Select an organization", disabled the
+  // button, and offered nothing to select, on the only screen in the product where an HRIS source
+  // can be registered at all. The header's "Viewing as" picker is how a platform admin says which
+  // tenant they are acting for everywhere else; it is the answer here too.
+  const { viewingOrgId } = useViewingOrg();
+  const sourceOrgId = viewingOrgId ?? user?.organizationId ?? null;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {/* Before "Start an import run", because a run cannot exist without a source and nothing in
           the product could register one -- so this tab opened on an empty picker and a disabled
           button for every tenant (RELEASE_READINESS_PLAN 4.3, imports D2). */}
-      <HrisSourceSystems organizationId={user?.organizationId ?? null} />
+      <HrisSourceSystems organizationId={sourceOrgId} />
       <StartImportRunCard onStarted={setRunId} />
       <div className="space-y-2 lg:col-span-2">
         <Label htmlFor="phase3-run">Import run</Label>

@@ -109,6 +109,20 @@ begin
     raise exception 'Course assignment not found' using errcode = 'P0002';
   end if;
   perform app_private.assert_content_permission(v_assignment.organization_id, 'training.sessions.manage');
+  -- ...and the FACILITY the assignment belongs to. assert_content_permission is organization-wide,
+  -- and both facility_manager and trainer hold training.sessions.manage across the organization.
+  -- This function is SECURITY DEFINER, so `course_assignments_update` -- which additionally
+  -- requires `is_assigned_to_facility(facility_id)` for exactly those two roles -- never runs.
+  -- Without this line either of them could pass any assignment id in their organization and change
+  -- a learner at a site they have no part in, through an RPC, past the policy written to stop it.
+  -- is_assigned_to_facility is already true for org_admin and platform_admin, so this restates the
+  -- policy rather than narrowing it.
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and not public.is_platform_admin()
+     and not public.is_assigned_to_facility(v_assignment.facility_id) then
+    raise exception 'This course assignment belongs to a facility outside your scope'
+      using errcode = '42501';
+  end if;
   if v_reason is null or length(v_reason) < 10 then
     raise exception 'Say why another attempt is being granted -- at least a sentence'
       using errcode = '22023';
@@ -174,6 +188,20 @@ begin
     raise exception 'Course assignment not found' using errcode = 'P0002';
   end if;
   perform app_private.assert_content_permission(v_assignment.organization_id, 'training.sessions.manage');
+  -- ...and the FACILITY the assignment belongs to. assert_content_permission is organization-wide,
+  -- and both facility_manager and trainer hold training.sessions.manage across the organization.
+  -- This function is SECURITY DEFINER, so `course_assignments_update` -- which additionally
+  -- requires `is_assigned_to_facility(facility_id)` for exactly those two roles -- never runs.
+  -- Without this line either of them could pass any assignment id in their organization and change
+  -- a learner at a site they have no part in, through an RPC, past the policy written to stop it.
+  -- is_assigned_to_facility is already true for org_admin and platform_admin, so this restates the
+  -- policy rather than narrowing it.
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and not public.is_platform_admin()
+     and not public.is_assigned_to_facility(v_assignment.facility_id) then
+    raise exception 'This course assignment belongs to a facility outside your scope'
+      using errcode = '42501';
+  end if;
   if v_reason is null or length(v_reason) < 10 then
     raise exception 'Say why this assignment is being cancelled -- at least a sentence'
       using errcode = '22023';

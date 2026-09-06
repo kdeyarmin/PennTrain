@@ -2,17 +2,24 @@
  * What an in-person session's attendance actually credits, and where the recorded seat time
  * disagrees with it (BACKLOG.md J25).
  *
- * `approve_training_session_completion` (20260711213100) writes
- * `hours = v_class.duration_hours` onto every attended registration's
- * employee_training_records row. It never looks at the attendance evidence it just insisted on:
- * `record_training_attendance` stores `seat_minutes` derived from check_in_at/check_out_at, and
- * approval ignores it. So a registration recorded with check-in == check-out -- zero seat minutes --
- * is credited the class's full scheduled hours, and those hours roll straight into the annual
- * hour buckets that a DHS surveyor reads.
+ * `approve_training_session_completion` used to write `hours = v_class.duration_hours` onto every
+ * attended registration's employee_training_records row, ignoring the attendance evidence it had
+ * just insisted on: `record_training_attendance` stores `seat_minutes` derived from
+ * check_in_at/check_out_at, and approval never read it. A registration recorded with check-in ==
+ * check-out -- zero seat minutes -- was credited the class's full scheduled hours, and those hours
+ * rolled straight into the annual hour buckets a DHS surveyor reads.
  *
- * The arithmetic lives here rather than in the roster card so the "what will this credit" figure
- * shown before approval is the same one the shortfall warning is computed from, and so both can be
- * tested without rendering.
+ * Migration 20260906220000 fixed that at the source. Approval now credits each attendee
+ * `least(round(max(seat_minutes) / 60, 2), duration_hours)` -- their own recorded time, with the
+ * class's scheduled length as the ceiling, never the floor -- and refuses the whole approval if any
+ * attended registration carries evidence with no seat time at all.
+ *
+ * This module mirrors that rule so the "what will this credit" figure shown before approval is the
+ * number the server will write. Mirroring it is the point: while these two disagreed, the roster
+ * card promised every attendee the scheduled duration and approval quietly wrote less.
+ *
+ * The arithmetic lives here rather than in the roster card so the previewed figure and the
+ * shortfall warning come from one place, and so both can be tested without rendering.
  */
 
 /** Recorded attendance evidence, in the shape the roster card reads it from the database. */
@@ -24,9 +31,9 @@ export interface AttendanceEvidenceLike {
 }
 
 export type AttendanceIssue =
-  /** check_out_at is at or before check_in_at: the session credits hours nobody sat through. */
+  /** check_out_at is at or before check_in_at. Approval refuses the whole session over this. */
   | "zero_length"
-  /** Seat time is recorded but materially below the scheduled duration. */
+  /** Seat time is recorded but materially below the scheduled duration, so the credit is short. */
   | "short"
   /** `attended`/`partial` with no usable check-in/check-out pair at all. */
   | "unrecorded";
@@ -89,10 +96,14 @@ export function creditForAttendance(
   return {
     registrationId: evidence.registration_id,
     seatMinutes,
-    // Deliberately the scheduled figure, not a seat-time-derived one: this is a preview of what the
-    // server WILL write, not a proposal for what it should. Pro-rating here would show a number the
-    // database never stores.
-    creditedHours: scheduledHours,
+    // `least(round(max(seat_minutes) / 60, 2), duration_hours)`, in that order -- round first, then
+    // cap -- because that is what approve_training_session_completion does (20260906220000). With
+    // no usable seat time the server's own coalesce falls back to the scheduled figure, so this
+    // does too; the evidence guard refuses that approval before the fallback can ever be written,
+    // and showing anything else here would misdescribe a row that is about to be rejected anyway.
+    creditedHours: seatMinutes !== null && seatMinutes > 0
+      ? Math.min(Math.round((seatMinutes / 60) * 100) / 100, scheduledHours)
+      : scheduledHours,
     issue,
   };
 }
@@ -100,11 +111,17 @@ export function creditForAttendance(
 export interface SessionCreditSummary {
   /** Registrations approval will turn into training records. */
   attendedCount: number;
-  /** Hours approval writes to each attendee's training record. */
-  hoursPerAttendee: number;
-  /** attendedCount x hoursPerAttendee -- the total this approval adds to annual hour buckets. */
+  /**
+   * Hours approval writes to each attendee -- but only when they all get the same figure. Credit
+   * comes from each attendee's own seat time now, so a session where one person left early has no
+   * single per-attendee number, and this is null rather than a figure that is wrong for somebody.
+   */
+  hoursPerAttendee: number | null;
+  /** The sum of every attendee's credit -- what this approval adds to annual hour buckets. */
   totalCreditedHours: number;
-  /** Attended registrations whose recorded seat time does not support the credit. */
+  /** The class's scheduled length: the ceiling on any one attendee's credit, never the floor. */
+  scheduledHours: number;
+  /** Attended registrations whose recorded seat time is missing, zero, or materially short. */
   flagged: AttendanceCredit[];
 }
 
@@ -120,19 +137,26 @@ export function summarizeSessionCredit(
   scheduledHours: number,
 ): SessionCreditSummary {
   const flagged: AttendanceCredit[] = [];
+  const perAttendee: number[] = [];
   for (const registrationId of attendedRegistrationIds) {
     const evidence = evidenceByRegistration.get(registrationId)
       // No evidence row at all is still an attended registration approval will refuse; treat it as
       // unrecorded rather than dropping it, so the count and the warning agree.
       ?? { registration_id: registrationId, attendance_status: "attended", check_in_at: null, check_out_at: null };
     const credit = creditForAttendance(evidence, scheduledHours);
+    perAttendee.push(credit.creditedHours);
     if (credit.issue) flagged.push(credit);
   }
   const attendedCount = attendedRegistrationIds.length;
+  const first = perAttendee[0];
+  const uniform = perAttendee.length > 0 && perAttendee.every((hours) => hours === first);
   return {
     attendedCount,
-    hoursPerAttendee: scheduledHours,
-    totalCreditedHours: Math.round(attendedCount * scheduledHours * 100) / 100,
+    hoursPerAttendee: uniform ? first : null,
+    // Summed, not multiplied. Multiplying one figure by the head count was right only while every
+    // attendee was credited the schedule; it now overstates any session somebody left early from.
+    totalCreditedHours: Math.round(perAttendee.reduce((sum, hours) => sum + hours, 0) * 100) / 100,
+    scheduledHours,
     flagged,
   };
 }

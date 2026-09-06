@@ -163,6 +163,39 @@ describe("bucketHoursInWindow", () => {
     });
     expect(hours.get("general_annual")?.completedHours).toBe(1.5);
   });
+
+  it("dates a course credit by the Pennsylvania day, not the UTC day", () => {
+    // The window is a pair of facility calendar dates, and `credited_at` is a timestamptz that
+    // PostgREST serialises in UTC. 2026-03-15T02:00:00Z is 2026-03-14 at 22:00 in Pennsylvania --
+    // the evening BEFORE this window opens -- so the credit belongs to the previous training year.
+    // Slicing the leading ten characters read "2026-03-15" and counted it here, which is how an
+    // employee's hours moved between years depending on what time of day they finished a course.
+    const hours = bucketHoursInWindow({
+      window,
+      records: [],
+      courseCredits: [
+        { training_type_id: "tt-general", credit_hours: 2, credited_at: "2026-03-15T02:00:00.000Z" },
+      ],
+      trainingTypes,
+      facilityType: "ALR",
+    });
+    expect(hours.get("general_annual")).toBeUndefined();
+  });
+
+  it("counts a credit earned on the Pennsylvania evening the window closes", () => {
+    // The mirror image, and the reason a clamp is not enough: 2027-03-15T02:00:00Z is still
+    // 2027-03-14 in Pennsylvania, the last day this window covers.
+    const hours = bucketHoursInWindow({
+      window,
+      records: [],
+      courseCredits: [
+        { training_type_id: "tt-general", credit_hours: 2, credited_at: "2027-03-15T02:00:00.000Z" },
+      ],
+      trainingTypes,
+      facilityType: "ALR",
+    });
+    expect(hours.get("general_annual")?.completedHours).toBe(2);
+  });
 });
 
 describe("ojtCapForBucket", () => {
