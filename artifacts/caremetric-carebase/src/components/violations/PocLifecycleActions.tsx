@@ -21,7 +21,7 @@ import {
 } from "@/hooks/usePocLifecycle";
 import { useGeneratePocDocument } from "@/hooks/useViolations";
 import { supabase } from "@/lib/supabase";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityDateOf, formatDateForDisplay } from "@/lib/dateUtils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 interface PocLifecycleActionsProps {
@@ -168,7 +168,7 @@ export function PocLifecycleActions({
                   <span>
                     Version {ver.version_number}
                     <span className="ml-2 text-xs text-muted-foreground">
-                      {formatDateForDisplay(ver.submitted_at.slice(0, 10))}
+                      {formatDateForDisplay(facilityDateOf(ver.submitted_at))}
                       {ver.amendment_reason ? ` · ${ver.amendment_reason}` : ""}
                     </span>
                   </span>

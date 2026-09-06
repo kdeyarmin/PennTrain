@@ -238,6 +238,17 @@ describe("facilityDateOf", () => {
     expect(facilityDateOf(new Date("2026-01-02T01:00:00.000Z"))).toBe("2026-01-01");
   });
 
+  it("returns a bare date unchanged instead of walking it back a day", () => {
+    // The property the mixed call sites depend on. A `date` column is already the facility's
+    // answer; converting one would mean new Date("2026-03-01") -- UTC midnight, 28 February in
+    // Pennsylvania -- so a helper that treated every input as an instant would corrupt exactly the
+    // fields it was added to protect. Callers fed by a union of a date column and a timestamptz
+    // (a resident's `since`, a conflicting record's `at`) cannot tell the two apart; this can.
+    expect(facilityDateOf("2026-03-01")).toBe("2026-03-01");
+    expect(facilityDateOf("2026-01-01")).toBe("2026-01-01");
+    expect(facilityDateOf(" 2026-07-04 ")).toBe("2026-07-04");
+  });
+
   it("returns null rather than a wrong date for missing or unparseable input", () => {
     expect(facilityDateOf(null)).toBeNull();
     expect(facilityDateOf(undefined)).toBeNull();

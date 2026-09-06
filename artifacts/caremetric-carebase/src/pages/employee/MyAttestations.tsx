@@ -17,7 +17,7 @@ import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileCheck2, ExternalLink, Loader2 } from "lucide-react";
-import { facilityToday, formatDateForDisplay, formatDueDistance, facilityDaysUntil } from "@/lib/dateUtils";
+import { facilityDateOf, facilityDaysUntil, facilityToday, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 
 function fmtDate(iso: string | null): string {
   return formatDateForDisplay(iso, { dateStyle: "medium" });
@@ -161,7 +161,7 @@ export default function MyAttestations() {
                     <p className="font-medium text-sm truncate">{titleFor(a)}</p>
                     <p className={`text-xs ${dueTone || "text-muted-foreground"}`}>
                       {a.status === "attested"
-                        ? `Attested ${fmtDate(a.attested_at?.slice(0, 10) ?? null)}`
+                        ? `Attested ${fmtDate(facilityDateOf(a.attested_at))}`
                         : `Due ${fmtDate(a.due_date)}${dueDistance ? ` · ${dueDistance}` : ""}`}
                     </p>
                   </div>

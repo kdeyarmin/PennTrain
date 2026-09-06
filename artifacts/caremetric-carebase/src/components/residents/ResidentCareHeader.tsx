@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { facilityDateOf } from "@/lib/dateUtils";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { AlertTriangle, BedDouble, Building2, CalendarDays, Pencil, ShieldAlert } from "lucide-react";
@@ -181,7 +182,7 @@ export function ResidentCareHeaderPanel({
           <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-500">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             {data.care.asOf
-              ? `Care header last reviewed ${formatDateOnly(data.care.asOf.slice(0, 10))} — confirm it still matches the resident.`
+              ? `Care header last reviewed ${formatDateOnly(facilityDateOf(data.care.asOf))} — confirm it still matches the resident.`
               : "Care header has never been reviewed — the values above are defaults, not assessed findings."}
           </p>
         )}
