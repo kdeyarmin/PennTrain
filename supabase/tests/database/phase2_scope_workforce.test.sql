@@ -1,5 +1,5 @@
 begin;
-select plan(77);
+select plan(79);
 
 select has_table('public', 'enterprise_portfolios', 'enterprise portfolios exist');
 select has_table('public', 'enterprise_regions', 'enterprise regions exist');
@@ -502,6 +502,15 @@ select ok(
   and public.has_effective_permission('workforce.lifecycle.manage', 'facility', '22000000-0000-4000-8000-000000000012'),
   'transfer removes old-facility access and grants target-facility access atomically'
 );
+-- Read as the organization administrator, not as the transferred manager.
+--
+-- 20260906070000 (BACKLOG J65) added realign_employee_facility_scope: transferring an employee now
+-- deletes their employee_facility_assignments row at the SOURCE facility, which is what stopped
+-- them still being schedulable and auto-fillable where they no longer work. schedules_select's
+-- employee branch reads that table, so the transferred manager can no longer see the source
+-- facility's schedule -- which is the point -- and therefore no longer sees the shift on it. What
+-- the shift was set to is still exactly as asserted; the org_admin is who can see it.
+select pg_temp.act_as('22000000-0000-4000-8000-000000000102');
 select results_eq(
   $$ select
        (select status from public.shift_assignments where id = '22000000-0000-4000-8000-000000000503'),
@@ -514,6 +523,22 @@ select results_eq(
      ) $$,
   'transfer calls off source shifts, carries active courses, and removes source-facility rosters'
 );
+reset role;
+select is(
+  (select count(*)::bigint from public.employee_facility_assignments
+   where employee_id = '22000000-0000-4000-8000-000000000201'
+     and facility_id = '22000000-0000-4000-8000-000000000011'),
+  0::bigint,
+  'transfer removes the source-facility scheduling assignment, so auto-fill stops offering them there (BACKLOG J65)'
+);
+select is(
+  (select count(*)::bigint from public.employee_credentials
+   where employee_id = '22000000-0000-4000-8000-000000000201'
+     and facility_id = '22000000-0000-4000-8000-000000000011'),
+  0::bigint,
+  'and re-stamps their credentials onto the destination, which is what the upload gate compares (BACKLOG J69)'
+);
+select pg_temp.act_as('22000000-0000-4000-8000-000000000103');
 reset role;
 select is(
   (select count(*)::integer from public.employment_episodes

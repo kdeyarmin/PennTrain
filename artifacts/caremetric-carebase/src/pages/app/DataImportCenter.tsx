@@ -8,6 +8,8 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  SkipForward,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,20 +49,56 @@ import {
   suggestColumnMapping,
   type ColumnMapping,
 } from "@/lib/importColumnMapping";
-import { useDataImportJobs, useImportJobAction, useImportJobRows, useRunDomainImport } from "@/hooks/useDataImportCenter";
+import {
+  useCancelImportJob,
+  useDataImportJobs,
+  useImportJobAction,
+  useImportJobRows,
+  useRunDomainImport,
+  useSkipImportRows,
+} from "@/hooks/useDataImportCenter";
 import { useToast } from "@/hooks/use-toast";
 
+const CONFIRM_TITLES = {
+  finalize: "Import finalized",
+  rollback: "Safe rollback complete",
+  skip: "Invalid rows skipped",
+  cancel: "Import canceled",
+} as const;
+const CONFIRM_FAILURE_TITLES = {
+  finalize: "Finalize blocked",
+  rollback: "Rollback blocked",
+  skip: "Rows could not be skipped",
+  cancel: "Cancel blocked",
+} as const;
+
 const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+type DuplicateStrategy = "create" | "skip" | "update";
+
+const DUPLICATE_STRATEGIES: { value: DuplicateStrategy; label: string }[] = [
+  { value: "create", label: "Create (reject duplicates)" },
+  { value: "skip", label: "Skip duplicates" },
+  { value: "update", label: "Update duplicates" },
+];
+
+const strategyLabel = (value: DuplicateStrategy) =>
+  DUPLICATE_STRATEGIES.find((option) => option.value === value)?.label ?? value;
 const PAGE_SIZE = 25;
+// data_import_jobs_status_check, verbatim. The previous list offered "pending" and "validating",
+// which the column has never allowed (so those filters matched nothing), and omitted the four that
+// it does -- including `canceled`, which cancel_data_import_job now writes.
 const JOB_STATUSES = [
-  "pending",
-  "validating",
+  "uploaded",
+  "mapping",
+  "validated",
   "ready",
   "applying",
   "applied",
   "finalized",
   "failed",
   "rolled_back",
+  "canceled",
 ] as const;
 
 export default function DataImportCenter() {
@@ -78,15 +116,20 @@ export default function DataImportCenter() {
   const rows = useImportJobRows(selected);
   const finalize = useImportJobAction("finalize");
   const rollback = useImportJobAction("rollback");
+  const skipRows = useSkipImportRows();
+  const cancelJob = useCancelImportJob();
   const runImport = useRunDomainImport();
   const { toast } = useToast();
   const [uploadDomain, setUploadDomain] = useState<ImportDomain>("employees");
   const [file, setFile] = useState<File | null>(null);
   const [parsedUpload, setParsedUpload] = useState<ParsedCsv | null>(null);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
-  const [strategy, setStrategy] = useState<"create" | "skip" | "update">("create");
+  const [strategy, setStrategy] = useState<DuplicateStrategy>("create");
+  const [switchingStrategy, setSwitchingStrategy] = useState(false);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof runImport.mutateAsync>> | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ type: "finalize" | "rollback"; jobId: string; summary: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    { type: "finalize" | "rollback" | "skip" | "cancel"; jobId: string; domain: string; summary: string } | null
+  >(null);
 
   const total = jobs.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -138,11 +181,11 @@ export default function DataImportCenter() {
     setPreview(null);
   };
 
-  const execute = async (mode: "validate" | "apply") => {
-    if (!file || !parsedUpload) return;
+  const execute = async (mode: "validate" | "apply", overrideStrategy?: DuplicateStrategy) => {
+    if (!file || !parsedUpload) return null;
     if (!canUploadImportDomain(uploadDomain)) {
       toast({ title: "Domain is template-only", description: "No active processor for this domain.", variant: "destructive" });
-      return;
+      return null;
     }
     const csv = needsMapping && columnMapping
       ? applyColumnMapping(uploadDomain, parsedUpload.rows, columnMapping)
@@ -152,7 +195,7 @@ export default function DataImportCenter() {
         domain: uploadDomain,
         csv,
         fileName: file.name,
-        strategy,
+        strategy: overrideStrategy ?? strategy,
         mode,
         jobId: mode === "apply" ? preview?.job_id : undefined,
       });
@@ -162,28 +205,96 @@ export default function DataImportCenter() {
         title: mode === "validate" ? "Dry run complete" : "Import applied",
         description: `${result.succeeded} succeeded · ${result.failed} failed`,
       });
+      return result;
     } catch (error) {
       toast({
         title: "Import could not continue",
         description: error instanceof Error ? error.message : "Unknown import error",
         variant: "destructive",
       });
+      return null;
+    }
+  };
+
+  // The duplicate strategy a dry run's receipt is pinned to, and whether the picker has since
+  // moved off it (BACKLOG.md J38).
+  const pinnedStrategy = preview?.pinnedDuplicateStrategy ?? null;
+  const strategyDiverged = pinnedStrategy !== null && pinnedStrategy !== strategy;
+
+  /**
+   * Move this file onto the strategy currently selected, by closing the old receipt and opening a
+   * new one.
+   *
+   * `start_data_import_job` reuses an unfinished job for the same file checksum and keeps its
+   * original `duplicate_strategy`, and the processor refuses an apply whose requested strategy
+   * disagrees with the receipt. Re-uploading the same file does not help -- same bytes, same
+   * checksum, same job -- so before this the user's only remaining move was to abandon the import.
+   *
+   * The way out uses only what the control plane already exposes. The re-run first, because
+   * `finalize_data_import_job` refuses a receipt that still has error rows and "Create (reject
+   * duplicates)" is what put those rows there: re-scoring them under the new strategy is a dry
+   * run, writes nothing to customer tables, and is what clears them. Then finalize closes the old
+   * receipt -- `ready` is a status finalize explicitly accepts, and `finalized` is not one
+   * start_data_import_job will reuse -- and the fresh dry run creates a receipt pinned to the
+   * strategy the user asked for.
+   */
+  const switchStrategy = async () => {
+    if (!preview || !strategyDiverged) return;
+    const staleJobId = preview.job_id;
+    setSwitchingStrategy(true);
+    try {
+      let stale = preview;
+      if (stale.failed > 0) {
+        const rescored = await execute("validate", strategy);
+        if (!rescored) return;
+        stale = rescored;
+      }
+      if (stale.failed > 0) {
+        toast({
+          title: "The earlier dry run still has errors",
+          description: `${stale.failed} row${stale.failed === 1 ? "" : "s"} are invalid under ${strategyLabel(strategy)} as well, so the previous receipt cannot be closed. Fix those rows and upload the corrected file.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      await finalize.mutateAsync(staleJobId);
+      setPreview(null);
+      const fresh = await execute("validate", strategy);
+      if (fresh) {
+        toast({
+          title: `Now running under ${strategyLabel(strategy)}`,
+          description: `Receipt ${fresh.job_id.slice(0, 8)} replaces the previous one, which was closed without applying anything.`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Could not switch duplicate strategy",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSwitchingStrategy(false);
     }
   };
 
   const runConfirmedAction = async () => {
     if (!confirmAction) return;
     try {
+      let description = confirmAction.summary;
       if (confirmAction.type === "finalize") await finalize.mutateAsync(confirmAction.jobId);
-      else await rollback.mutateAsync(confirmAction.jobId);
-      toast({
-        title: confirmAction.type === "finalize" ? "Import finalized" : "Safe rollback complete",
-        description: confirmAction.summary,
-      });
+      else if (confirmAction.type === "rollback") await rollback.mutateAsync(confirmAction.jobId);
+      else if (confirmAction.type === "cancel") {
+        await cancelJob.mutateAsync({ jobId: confirmAction.jobId, reason: "Canceled from the Data Import Center" });
+      } else {
+        const result = await skipRows.mutateAsync({ jobId: confirmAction.jobId });
+        description = `${result.skippedRows} row${result.skippedRows === 1 ? "" : "s"} skipped · ${result.errorRows} still failing.`;
+        if (preview?.job_id === confirmAction.jobId) await execute("validate");
+      }
+      toast({ title: CONFIRM_TITLES[confirmAction.type], description });
       setConfirmAction(null);
     } catch (error) {
       toast({
-        title: confirmAction.type === "finalize" ? "Finalize blocked" : "Rollback blocked",
+        title: CONFIRM_FAILURE_TITLES[confirmAction.type],
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
@@ -278,22 +389,28 @@ export default function DataImportCenter() {
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${__fieldIds}-duplicate-strategy`}>Duplicate strategy</Label>
+              {/* Changing this used to discard the preview outright, which read as "start again"
+                  and was not: the receipt behind the preview survives on the server, pinned to the
+                  old strategy, and the next apply is refused because of it. The preview is kept so
+                  the divergence can be stated and acted on (BACKLOG.md J38). */}
               <Select
                 value={strategy}
-                onValueChange={(value) => {
-                  setStrategy(value as typeof strategy);
-                  setPreview(null);
-                }}
+                onValueChange={(value) => setStrategy(value as DuplicateStrategy)}
+                disabled={switchingStrategy || runImport.isPending}
               >
                 <SelectTrigger id={`${__fieldIds}-duplicate-strategy`}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="create">Create (reject duplicates)</SelectItem>
-                  <SelectItem value="skip">Skip duplicates</SelectItem>
-                  <SelectItem value="update">Update duplicates</SelectItem>
+                  {DUPLICATE_STRATEGIES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button disabled={!readyToRun || runImport.isPending} variant="outline" onClick={() => execute("validate")}>
+            <Button
+              disabled={!readyToRun || runImport.isPending || switchingStrategy}
+              variant="outline"
+              onClick={() => void execute("validate")}
+            >
               {runImport.isPending ? "Checking…" : "Run dry preview"}
             </Button>
           </div>
@@ -314,12 +431,67 @@ export default function DataImportCenter() {
                   <p className="text-sm text-muted-foreground">
                     {preview.totalRows} rows · {preview.succeeded} valid · {preview.failed} errors. Review row diagnostics
                     below before applying. Apply will only write rows that passed this dry run.
+                    {pinnedStrategy ? ` Pinned to ${strategyLabel(pinnedStrategy)}.` : ""}
                   </p>
                 </div>
-                <Button disabled={preview.failed > 0 || runImport.isPending} onClick={() => execute("apply")}>
-                  Apply validated rows
-                </Button>
+                {!strategyDiverged && (
+                  <div className="flex flex-wrap gap-2">
+                    {preview.failed > 0 && (
+                      <Button
+                        variant="outline"
+                        disabled={runImport.isPending || skipRows.isPending}
+                        onClick={() =>
+                          setConfirmAction({
+                            type: "skip",
+                            jobId: preview.job_id,
+                            domain: uploadDomain,
+                            summary: `Skip ${preview.failed} invalid row${preview.failed === 1 ? "" : "s"} on receipt ${preview.job_id.slice(0, 8)}`,
+                          })
+                        }
+                      >
+                        <SkipForward className="mr-2 h-4 w-4" />
+                        Skip {preview.failed} invalid row{preview.failed === 1 ? "" : "s"}
+                      </Button>
+                    )}
+                    <Button disabled={preview.failed > 0 || runImport.isPending} onClick={() => void execute("apply")}>
+                      Apply validated rows
+                    </Button>
+                  </div>
+                )}
               </div>
+              {strategyDiverged && pinnedStrategy && (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-medium">
+                    This receipt is pinned to {strategyLabel(pinnedStrategy)}, and you have chosen{" "}
+                    {strategyLabel(strategy)}.
+                  </p>
+                  <p className="mt-1">
+                    An import receipt carries its duplicate behaviour for life, so applying under a
+                    different one is refused. Either go back to the strategy this receipt was
+                    validated under, or close it and start a new one — closing writes nothing, and
+                    nothing has been applied yet.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={switchingStrategy || runImport.isPending}
+                      onClick={() => setStrategy(pinnedStrategy)}
+                    >
+                      Go back to {strategyLabel(pinnedStrategy)}
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={switchingStrategy || runImport.isPending || finalize.isPending}
+                      onClick={() => void switchStrategy()}
+                    >
+                      {switchingStrategy
+                        ? "Starting a new receipt…"
+                        : `Start a new receipt under ${strategyLabel(strategy)}`}
+                    </Button>
+                  </div>
+                </div>
+              )}
               {preview.results.filter((row) => !row.success).slice(0, 5).map((row) => (
                 <p key={row.row} className="mt-2 text-sm text-destructive">Row {row.row}: {row.error}</p>
               ))}
@@ -393,6 +565,13 @@ export default function DataImportCenter() {
               const processed = job.applied_rows + job.error_rows + job.skipped_rows;
               const canFinalize = job.status === "applied" || job.status === "ready";
               const canRollback = canRollbackImportDomain(job.domain) && job.status === "applied" && !job.finalized_at;
+              // The two exits a stranded receipt never had. `skip_data_import_rows` is what
+              // finalize's own message ("Resolve or explicitly skip invalid rows") asks for;
+              // `cancel_data_import_job` releases a receipt nothing was applied from, which is also
+              // what releases the file checksum start_data_import_job keeps reusing.
+              const isOpen = !["finalized", "rolled_back", "canceled"].includes(job.status);
+              const canSkipRows = isOpen && job.error_rows > 0;
+              const canCancel = isOpen && job.applied_rows === 0;
               return (
                 <div key={job.id} className={`rounded-lg border p-4 ${selected === job.id ? "border-primary" : ""}`}>
                   <button className="w-full text-left" onClick={() => setSelected(selected === job.id ? null : job.id)}>
@@ -439,6 +618,7 @@ export default function DataImportCenter() {
                             setConfirmAction({
                               type: "finalize",
                               jobId: job.id,
+                              domain: job.domain,
                               summary: `${label(job.domain)} · ${job.original_file_name} · ${job.applied_rows} applied rows`,
                             })
                           }
@@ -453,11 +633,42 @@ export default function DataImportCenter() {
                             setConfirmAction({
                               type: "rollback",
                               jobId: job.id,
-                              summary: `Rollback eligible creates for ${label(job.domain)} · ${job.original_file_name}`,
+                              domain: job.domain,
+                              summary: `Rollback eligible ${label(job.domain).toLowerCase()} creates for ${job.original_file_name}`,
                             })
                           }
                         >
                           <RotateCcw className="mr-2 h-4 w-4" /> Safe rollback
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!canSkipRows || skipRows.isPending}
+                          onClick={() =>
+                            setConfirmAction({
+                              type: "skip",
+                              jobId: job.id,
+                              domain: job.domain,
+                              summary: `Skip ${job.error_rows} failed row${job.error_rows === 1 ? "" : "s"} on ${job.original_file_name}`,
+                            })
+                          }
+                        >
+                          <SkipForward className="mr-2 h-4 w-4" /> Skip {job.error_rows} failed
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!canCancel || cancelJob.isPending}
+                          onClick={() =>
+                            setConfirmAction({
+                              type: "cancel",
+                              jobId: job.id,
+                              domain: job.domain,
+                              summary: `Cancel ${label(job.domain)} · ${job.original_file_name}`,
+                            })
+                          }
+                        >
+                          <XCircle className="mr-2 h-4 w-4" /> Cancel import
                         </Button>
                         {job.finalized_at && (
                           <span className="flex items-center text-xs text-muted-foreground">
@@ -501,17 +712,37 @@ export default function DataImportCenter() {
       <AlertDialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
+            {/* The rollback title used to say "employee creates" for every domain, including
+                residents, rooms, credentials and incidents (RELEASE_READINESS_PLAN 4.3, D8). The
+                confirmation now names the domain the receipt is actually for. */}
             <AlertDialogTitle>
-              {confirmAction?.type === "finalize" ? "Finalize import job?" : "Roll back eligible employee creates?"}
+              {confirmAction?.type === "finalize"
+                ? "Finalize import job?"
+                : confirmAction?.type === "rollback"
+                  ? `Roll back eligible ${label(confirmAction.domain).toLowerCase()} creates?`
+                  : confirmAction?.type === "skip"
+                    ? "Skip the rows that could not be imported?"
+                    : "Cancel this import receipt?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction?.summary}. This action is recorded in the import event ledger and cannot be silently undone.
+              {confirmAction?.type === "skip"
+                ? " Skipped rows are never written; the rest of the file can then be applied and the receipt finalized."
+                : confirmAction?.type === "cancel"
+                  ? " Nothing has been applied from this receipt, so nothing is undone — canceling closes it and releases the file so a corrected upload starts a fresh receipt."
+                  : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Keep it open</AlertDialogCancel>
             <AlertDialogAction onClick={() => void runConfirmedAction()}>
-              {confirmAction?.type === "finalize" ? "Finalize" : "Confirm rollback"}
+              {confirmAction?.type === "finalize"
+                ? "Finalize"
+                : confirmAction?.type === "rollback"
+                  ? "Confirm rollback"
+                  : confirmAction?.type === "skip"
+                    ? "Skip those rows"
+                    : "Cancel the import"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

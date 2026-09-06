@@ -37,15 +37,30 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
   return useQuery({
     queryKey: ["course_assignments", filters],
     queryFn: async () => {
-      let query = supabase.from("course_assignments").select("*").order("assigned_at");
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.courseId) query = query.eq("course_id", filters.courseId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.trainingPlanId) query = query.eq("training_plan_id", filters.trainingPlanId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // PostgREST caps a single response. Page until exhausted so an org-wide assignment list does
+      // not stop at the cap and under-report outstanding training. A bulk assignment stamps one
+      // `assigned_at` across a whole roster, so the `id` tie-break is what makes the order total --
+      // without it rows repeat on one page and are dropped from another.
+      const pageSize = 1000;
+      const rows: CourseAssignment[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("course_assignments")
+          .select("*")
+          .order("assigned_at")
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.courseId) query = query.eq("course_id", filters.courseId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.trainingPlanId) query = query.eq("training_plan_id", filters.trainingPlanId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });
@@ -224,6 +239,10 @@ export function useCompleteCourseAssignment() {
       queryClient.invalidateQueries({ queryKey: ["training_records"] });
       queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      // "Overall compliance" on the Dashboard is get_org_dashboard_summary, which is exactly the
+      // number a completion moves -- and it carries a 60-second staleTime, so the tile disagreed
+      // with the matrix the same completion had just refreshed (BACKLOG J74, P3 tail).
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
     },
   });
 }
@@ -261,6 +280,71 @@ export function useUpsertCourseProgress() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["course_progress", data.assignment_id] });
+    },
+  });
+}
+
+/**
+ * A learner who fails the final assessment on their last allowed attempt is stuck, and so is the
+ * annual requirement behind them (BACKLOG.md J2).
+ *
+ * `enforce_quiz_attempt_cap` (20260706181240) caps quiz_attempts inserts at `quizzes.max_attempts`
+ * server-side, the published quiz version is immutable, Mark Complete is hidden for a
+ * `comprehensive` version and refused by `complete_course_assignment`, and
+ * `protect_course_assignment_fields` (20260704073252) reverts any plain client status write. So
+ * nothing in the product could either give the learner another try or retire the dead assignment --
+ * and `course_assignments_one_open_per_course_idx` (20260905060000) refuses a replacement while
+ * the dead one is still open, which is what also froze the annual retraining cycle.
+ *
+ * These two are the way out, and both are manager actions with a required reason so the grant or
+ * the cancellation is auditable rather than silent.
+ */
+export function useGrantAdditionalQuizAttempt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("grant_additional_quiz_attempt", {
+        p_assignment_id: assignmentId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      // TakeQuiz decides "attempts exhausted" from the attempt rows it has loaded against
+      // quizzes.max_attempts, so both have to be refetched before the learner's Retake button
+      // comes back -- invalidating only the assignment leaves the dead end on screen.
+      queryClient.invalidateQueries({ queryKey: ["quiz_attempts"] });
+      queryClient.invalidateQueries({ queryKey: ["quizzes"] });
+    },
+  });
+}
+
+/**
+ * Cancelling frees `course_assignments_one_open_per_course_idx` so a replacement assignment can be
+ * created for the same (employee, course) -- the index treats `canceled` as closed, exactly as it
+ * treats `completed`. The reason is not optional: the table's check constraint requires
+ * `canceled_at` and `cancellation_reason` together, and the RPC supplies both.
+ */
+export function useCancelCourseAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("cancel_course_assignment", {
+        p_assignment_id: assignmentId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["course_progress"] });
+      // A cancelled assignment stops counting as outstanding training, which moves the same
+      // compliance surfaces complete_course_assignment refreshes.
+      queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
     },
   });
 }

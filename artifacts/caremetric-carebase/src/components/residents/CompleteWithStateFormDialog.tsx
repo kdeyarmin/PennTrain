@@ -2,6 +2,9 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { ITEM_TYPE_LABELS, getRequiredStateFormInfo } from "@/lib/residentCompliance";
@@ -31,6 +34,12 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   const completeItem = useCompleteResidentComplianceItem();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  // BACKLOG J5. The date on the form, not the day the scan was uploaded. Before this the RPC
+  // stamped pa_today(), so a facility uploading a signed RASP/ASP a fortnight after the assessor
+  // signed it recorded the assessment as completed on the upload day -- an ALF initial assessment
+  // due 30 days before admission read late when it was on time -- and every successor the RPC
+  // inserts was anchored on that day, pushing the annual reassessment past 2600.225 / 2800.225.
+  const [completedOn, setCompletedOn] = useState(facilityToday());
 
   const stateForm = item ? getRequiredStateFormInfo(item.item_type, facilityType) : null;
 
@@ -41,6 +50,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   // resident documents) has no way to undo themselves.
   const close = () => {
     setFile(null);
+    setCompletedOn(facilityToday());
     if (fileInputRef.current) fileInputRef.current.value = "";
     onClose();
   };
@@ -58,7 +68,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
         stateFormSourceLabel: stateForm?.sourceLabel,
         stateFormSourceUrl: stateForm?.url,
       });
-      await completeItem.mutateAsync({ item, documentId: uploadedDocument.id });
+      await completeItem.mutateAsync({ item, documentId: uploadedDocument.id, completedOn });
       toast({ title: "Marked complete" });
       close();
     } catch (err) {
@@ -98,10 +108,24 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
             <Upload className="mr-2 h-3.5 w-3.5" /> Choose File
           </Button>
           {file && <p className="text-xs text-muted-foreground">{file.name}</p>}
+          <div className="space-y-1.5 pt-1">
+            <Label htmlFor="compliance-completed-on">Date on the form</Label>
+            <Input
+              id="compliance-completed-on"
+              type="date"
+              value={completedOn}
+              max={facilityToday()}
+              onChange={(e) => setCompletedOn(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              The day the assessor signed it, which is what the next cycle is measured from -- not the day
+              you are uploading the scan.
+            </p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button onClick={handleMarkComplete} disabled={!file || uploadDocument.isPending || completeItem.isPending}>
+          <Button onClick={handleMarkComplete} disabled={!file || !completedOn || uploadDocument.isPending || completeItem.isPending}>
             {uploadDocument.isPending || completeItem.isPending ? "Saving..." : "Upload & Mark Complete"}
           </Button>
         </DialogFooter>

@@ -8,6 +8,8 @@ import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { EMPTY_INCIDENT_LIST_SUMMARY, useIncidentListSummary } from "@/hooks/useDomainListSummaries";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useListResidents } from "@/hooks/useResidents";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
@@ -32,7 +34,11 @@ const INCIDENT_TYPE_OPTIONS = [
 ] as const;
 
 const NOTIFICATION_TYPE_OPTIONS = [
-  "state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "other",
+  "state_hotline", "family_guardian", "law_enforcement", "licensing_agency",
+  // The 48-hour written report that follows the department call. The presets create one for every
+  // reportable type (BACKLOG.md I10 residual / J74); offered here so a report filed for an event
+  // the presets did not cover can be dated at the same time it is reported.
+  "written_report", "other",
 ] as const;
 
 function humanize(value: string): string {
@@ -115,6 +121,9 @@ export default function Incidents() {
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities({ organizationId });
+  // incidents_insert requires is_assigned_to_facility(facility_id); the report dialog therefore
+  // offers a facility_manager only their assigned facilities. The page filter stays org-wide.
+  const assignableFacilities = useAssignableFacilities(facilities);
   const { data: employees } = useListEmployees({ status: "active", organizationId });
   // Scoped to whichever facility is currently selected in the create form (not the page's own
   // facility filter above) -- powers the Resident picker on that form only.
@@ -292,7 +301,7 @@ export default function Incidents() {
       },
       {
         onSuccess: () => { toast({ title: "Incident reported" }); setShowForm(false); },
-        onError: (e: Error) => toast({ title: "Failed to report incident", description: e.message, variant: "destructive" }),
+        onError: (e: Error) => toast({ title: "Failed to report incident", description: facilityScopedErrorText(e), variant: "destructive" }),
       },
     );
   };
@@ -459,7 +468,7 @@ export default function Incidents() {
                 >
                   <SelectTrigger id="incident-facility" className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
-                    {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                    {assignableFacilities.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

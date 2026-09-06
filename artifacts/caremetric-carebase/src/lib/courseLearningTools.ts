@@ -105,6 +105,21 @@ export function isAppliedResponseComplete(
   return !requiresAppliedResponse(block) || (response?.trim().length ?? 0) >= MIN_APPLIED_RESPONSE_CHARACTERS;
 }
 
+/**
+ * A cancelled assignment is closed work, exactly as a completed one is (BACKLOG.md J74, Train).
+ * `cancel_course_assignment` (20260906130000) writes `status = 'canceled'` with `canceled_at` and a
+ * reason, and `course_assignment_cancellation_check` requires those three to move together -- so a
+ * learner who kept the player open, or reopened the link, could still record video watch evidence
+ * and notes against it and then meet a raw "violates check constraint
+ * course_assignment_cancellation_check" on Mark Complete. The manager cancelled it; the page has to
+ * say so instead of taking more evidence for a record that can never be written.
+ */
+export const CLOSED_COURSE_ASSIGNMENT_STATUSES = ["completed", "canceled"] as const;
+
+export function isClosedCourseAssignmentStatus(status: string | null | undefined) {
+  return (CLOSED_COURSE_ASSIGNMENT_STATUSES as readonly string[]).includes(status ?? "");
+}
+
 export function canMutateCourseEvidence(
   assignmentEmployeeId: string | null | undefined,
   currentEmployeeId: string | null | undefined,
@@ -113,7 +128,7 @@ export function canMutateCourseEvidence(
   return !!assignmentEmployeeId
     && !!currentEmployeeId
     && assignmentEmployeeId === currentEmployeeId
-    && assignmentStatus !== "completed";
+    && !isClosedCourseAssignmentStatus(assignmentStatus);
 }
 
 export interface CourseStepGateState {

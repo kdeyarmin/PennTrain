@@ -59,7 +59,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
     items: [
       "Today — one daily command center for due work",
       "Compliance tracking & automatic alerts",
-      "Built-in course builder with graded quizzes",
+      "Maintained course catalog with graded quizzes",
       "Competency checklists & templates",
       "Role-based training plans",
       "Custom requirement catalog",
@@ -75,7 +75,7 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
     anchorAliases: ["live-classes", "compliance-copilot"],
     title: "AI, copilot & live training",
     items: [
-      "AI curriculum generation from your documents",
+      "AI curriculum generation from your documents, run by our team",
       "AI avatar video lessons",
       "Targeted block-level regeneration",
       "Grounded compliance copilot — cited, read-only answers",
@@ -180,9 +180,9 @@ const USER_ROLES = [
   },
   {
     title: "Trainer",
-    sees: "class rosters, retraining queues, and course drafts.",
+    sees: "class rosters, retraining queues, and the course catalog we maintain for you.",
     does:
-      "runs classes with QR check-in, drafts AI-assisted courses, manages practicum documentation.",
+      "runs classes with QR check-in, assigns courses from the catalog, manages practicum documentation.",
   },
   {
     title: "Employee",

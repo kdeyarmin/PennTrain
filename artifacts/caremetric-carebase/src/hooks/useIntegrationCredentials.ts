@@ -28,8 +28,22 @@ export function useOrganizationIntegrationCredentials(organizationId: string | u
   });
 }
 
+/**
+ * The scope `save_medication_integration_source` will actually accept.
+ *
+ * This used to admit `commands:write` as well, on the reasoning that the command inbox treats it
+ * as a superset of `medications:write` (`20260724230000_per_command_integration_contracts.sql`
+ * accepts either for `medication.snapshot.import`). The SAVE RPC does not: `20260714210309`
+ * line 278 looks the credential up with `'medications:write' = any(c.scopes)` and raises 42501
+ * ("Credential is not authorized for this organization and medication scope") for anything else.
+ * So the picker offered keys the save then refused, and the refusal named a scope the operator
+ * had just chosen from a list. Offer only what the RPC binds; the inbox's wider tolerance is not
+ * this dialog's contract.
+ */
+export const MEDICATION_SOURCE_REQUIRED_SCOPE = "medications:write";
+
 export function credentialSupportsMedicationWrite(credential: IntegrationCredentialOption): boolean {
-  return credential.scopes.includes("medications:write") || credential.scopes.includes("commands:write");
+  return credential.scopes.includes(MEDICATION_SOURCE_REQUIRED_SCOPE);
 }
 
 export function credentialIsExpired(credential: IntegrationCredentialOption, now = new Date()): boolean {

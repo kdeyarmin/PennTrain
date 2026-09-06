@@ -40,6 +40,8 @@ const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "audit
 // this fired first, a slow-but-successful copilot answer would be thrown
 // away as a generic failure.
 const COPILOT_TIMEOUT_MS = 65_000;
+const VOICE_AUDIT_FAILURE_MESSAGE =
+  "That lookup could not be recorded in the audit log, so it cannot be read out. Apologize and suggest using the app directly.";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -51,6 +53,49 @@ function json(req: Request, body: unknown, status = 200) {
 /** Voiceable domain failure — 200 on purpose (see header comment). */
 function toolError(req: Request, error: string, message: string) {
   return json(req, { ok: false, error, message });
+}
+
+/**
+ * One audit row per answered voice tool call.
+ *
+ * `ask_compliance_question` had a durable receipt because the copilot writes one for every run;
+ * `get_facility_readiness` and `get_upcoming_deadlines` read a facility's compliance state and
+ * spoke it down a phone line leaving nothing behind at all -- no record that the call happened,
+ * who made it, or which facility was read. Written with the service role because audit_logs is
+ * insert-only to clients, and BEFORE the answer is returned: if the read cannot be recorded the
+ * caller gets a voiceable failure rather than unlogged compliance data read aloud. Only the shape
+ * of the answer is stored, never its text -- summarizeDeadlines output names credential types and
+ * counts, and an audit row is not the place to accumulate a second copy of it.
+ */
+/** The service-role client's inferred type: `createClient` bare defaults to a narrower one. */
+function serviceRoleClient(url: string, key: string) {
+  return createClient(url, key);
+}
+type ServiceRoleClient = ReturnType<typeof serviceRoleClient>;
+
+async function recordVoiceToolAudit(
+  admin: ServiceRoleClient,
+  input: {
+    organizationId: string;
+    facilityId: string;
+    profileId: string;
+    tool: string;
+    sessionId: string;
+    detail: Record<string, unknown>;
+  },
+): Promise<boolean> {
+  const { error } = await admin.from("audit_logs").insert({
+    organization_id: input.organizationId,
+    facility_id: input.facilityId,
+    actor_profile_id: input.profileId,
+    entity_type: "voice_assistant_tool_call",
+    entity_id: input.sessionId || "unknown-session",
+    action: input.tool,
+    source: "edge_function",
+    new_values: { tool: input.tool, sessionId: input.sessionId, ...input.detail },
+  });
+  if (error) console.error("voice-tools audit insert failed", { tool: input.tool, message: error.message });
+  return !error;
 }
 
 function addDays(date: string, days: number) {
@@ -87,9 +132,9 @@ Deno.serve(async (req: Request) => {
   // gateway's Realtime channel itself is not reached by this switch; see
   // the voice-gateway README for env-level shutdown.
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const adminClient = serviceRoleKey ? serviceRoleClient(supabaseUrl, serviceRoleKey) : null;
   let assistantEnabled = false;
-  if (serviceRoleKey) {
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  if (adminClient) {
     const { data: setting, error: settingError } = await adminClient
       .from("platform_settings").select("value").eq("key", "voice_assistant_enabled").maybeSingle();
     assistantEnabled = !settingError && setting?.value === true;
@@ -110,7 +155,7 @@ Deno.serve(async (req: Request) => {
   }
   const parsed = parseVoiceToolRequest(rawBody);
   if (!parsed.ok) return json(req, { error: parsed.error }, 400);
-  const { tool, args, facilityId } = parsed.request;
+  const { tool, args, facilityId, sessionId } = parsed.request;
 
   // Facility re-validated THROUGH the caller's client: RLS proves the user
   // can see this facility, independent of what the gateway claims.
@@ -196,6 +241,14 @@ Deno.serve(async (req: Request) => {
         if (!compressed) {
           return toolError(req, "copilot_unavailable", "The compliance copilot returned an unusable answer.");
         }
+        // The copilot files its own compliance_copilot_runs receipt; this row is what records that
+        // the question arrived over the phone channel, which that receipt does not say.
+        if (!await recordVoiceToolAudit(adminClient!, {
+          organizationId: facility.organization_id, facilityId, profileId: user.id, tool, sessionId,
+          detail: { topic: args.topic },
+        })) {
+          return toolError(req, "audit_unavailable", VOICE_AUDIT_FAILURE_MESSAGE);
+        }
         return json(req, { ok: true, result: compressed });
       }
 
@@ -203,6 +256,12 @@ Deno.serve(async (req: Request) => {
         const { data, error } = await callerClient
           .rpc("get_facility_readiness_breakdown", { p_facility_id: facilityId });
         if (error) throw new Error(`readiness breakdown: ${error.message}`);
+        if (!await recordVoiceToolAudit(adminClient!, {
+          organizationId: facility.organization_id, facilityId, profileId: user.id, tool, sessionId,
+          detail: { rowCount: (data ?? []).length },
+        })) {
+          return toolError(req, "audit_unavailable", VOICE_AUDIT_FAILURE_MESSAGE);
+        }
         return json(req, { ok: true, result: summarizeReadiness((data ?? []) as ReadinessRow[]) });
       }
 
@@ -244,6 +303,17 @@ Deno.serve(async (req: Request) => {
         ]);
         for (const result of [training, credentials, residentItems, trainingCount, credentialsCount, residentItemsCount]) {
           if (result.error) throw new Error(`deadline query: ${result.error.message}`);
+        }
+        if (!await recordVoiceToolAudit(adminClient!, {
+          organizationId: facility.organization_id, facilityId, profileId: user.id, tool, sessionId,
+          detail: {
+            days,
+            trainingDue: trainingCount.count,
+            credentialsExpiring: credentialsCount.count,
+            residentItemsDue: residentItemsCount.count,
+          },
+        })) {
+          return toolError(req, "audit_unavailable", VOICE_AUDIT_FAILURE_MESSAGE);
         }
         return json(req, {
           ok: true,

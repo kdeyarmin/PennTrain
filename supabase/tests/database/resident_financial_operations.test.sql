@@ -1,5 +1,5 @@
 begin;
-select plan(83);
+select plan(86);
 
 select has_table('public','resident_financial_accounts','resident receivables use dedicated accounts');
 select has_table('public','resident_rate_agreements','resident rate agreements are versioned financial terms');
@@ -333,6 +333,39 @@ select throws_ok($$select count(*) from public.resident_financial_accounts$$,'42
 select throws_ok($$
   select public.generate_resident_financial_statement('75000000-0000-4000-8000-000000000201',public.pa_today(),public.pa_today(),public.pa_today()+1)
 $$,'42501',null,'anonymous role cannot execute resident finance commands');
+
+------------------------------------------------------------------------------------------------
+-- A settled personal-funds account is closed to every writer, not only to close() -- BACKLOG J84
+------------------------------------------------------------------------------------------------
+-- close_resident_personal_fund_account refused a second settlement by looking for a closure row.
+-- post_resident_personal_fund_transaction -- the door every deposit, withdrawal and adjustment
+-- comes through -- read only the account row, and settlement does not change that row, so it went
+-- on seeing an open account. The ledger a facility hands a surveyor could gain entries after the
+-- money was already returned.
+--
+-- Last in the file on purpose: discharging the fixture resident is a state change every assertion
+-- above it was written against an active resident.
+-- As the owner: `residents` has no UPDATE grant for service_role either, and the discharge here
+-- is fixture setup rather than the behaviour under test.
+reset role;
+select set_config('app.privileged_write','on',true);
+update public.residents set status='discharged' where id='75000000-0000-4000-8000-000000000201';
+select set_config('app.privileged_write','off',true);
+select pg_temp.act_as('75000000-0000-4000-8000-000000000101');
+
+select lives_ok($$
+  select public.close_resident_personal_fund_account(
+    '75000000-0000-4000-8000-000000000201','Settlement on discharge','Daughter, in person',now(),null)
+$$,'a discharged resident''s account can be settled and closed');
+select throws_ok($$
+  select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
+    'transactionKind','deposit','direction','in','amount',10,'purpose','Deposit after the money was returned',
+    'transactionAt',now(),'residentAcknowledged',true))
+$$,'55000',null,'no ledger entry can be posted to a settled account');
+select throws_ok($$
+  select public.close_resident_personal_fund_account(
+    '75000000-0000-4000-8000-000000000201','Second settlement','Somebody else',now(),null)
+$$,'55000',null,'a settled account cannot be settled a second time');
 
 select * from finish();
 rollback;

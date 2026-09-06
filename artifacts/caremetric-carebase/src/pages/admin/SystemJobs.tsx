@@ -14,6 +14,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { deploymentReadinessChecks } from "@/lib/deploymentReadiness";
+import {
+  killSwitchBadgeLabel,
+  killSwitchButtonTitle,
+  killSwitchDeadNotice,
+  manualRunUnavailableReason,
+} from "@/lib/systemJobKillSwitch";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/StatCard";
@@ -177,8 +183,18 @@ export default function SystemJobs() {
   const setKillSwitch = useSetSystemJobKillSwitch();
   const { toast } = useToast();
   const recoveryByJob = new Map(recoveryRows.map((row) => [row.job_key, row]));
+  // `partial` is not `failed`, and this page was the only place that said it was
+  // (RELEASE_READINESS_PLAN 4.3, platform L9). The pager disagrees: run_system_job_watchdog reads
+  // freshness off the last run with `status = 'succeeded'` and pages only when nothing has
+  // succeeded inside the definition's freshness_sla -- so a job whose newest run is `partial` and
+  // whose last success is still inside the SLA is fresh to the watchdog, while this console counted
+  // it with outright failures and, through deploymentReadinessChecks, turned the whole
+  // "System job freshness" check red for it. A partial run means some units failed and is worth an
+  // operator's eye; it is not the outage that blocks a deploy. It gets its own tile, and only true
+  // failures and staleness -- the two things the watchdog acts on -- feed the readiness check.
   const stale = jobs.filter((job) => job.is_stale).length;
-  const failed = jobs.filter((job) => ["failed", "partial"].includes(job.last_status)).length;
+  const failed = jobs.filter((job) => job.last_status === "failed").length;
+  const degraded = jobs.filter((job) => job.last_status === "partial").length;
   const healthy = jobs.filter((job) => !job.is_stale && job.last_status === "succeeded").length;
   const active = jobs.filter((job) => ["queued", "running"].includes(job.last_status)).length;
   const readinessChecks = deploymentReadinessChecks({
@@ -285,10 +301,17 @@ export default function SystemJobs() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Healthy" value={isError || isLoading ? "—" : healthy} icon={CheckCircle2} tone="success" />
         <StatCard label="Stale" value={isError || isLoading ? "—" : stale} icon={Clock3} tone="danger" />
-        <StatCard label="Failed or partial" value={isError || isLoading ? "—" : failed} icon={AlertTriangle} tone="warning" />
+        <StatCard label="Failed" value={isError || isLoading ? "—" : failed} icon={AlertTriangle} tone="danger" />
+        <StatCard
+          label="Partial"
+          value={isError || isLoading ? "—" : degraded}
+          hint="Some units failed. The watchdog treats these as fresh while a full success stays inside the freshness window."
+          icon={AlertTriangle}
+          tone="warning"
+        />
         <StatCard label="Running" value={isError || isLoading ? "—" : active} icon={Activity} tone="info" />
       </div>
 
@@ -346,7 +369,20 @@ export default function SystemJobs() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={job.is_stale ? "stale" : job.last_status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge status={job.is_stale ? "stale" : job.last_status} />
+                        {/* Badge and warning both read the same predicate, so they cannot say
+                            different things. The switch is read inside claim_system_job_execution;
+                            kill_switch_can_stop is now the recorded answer to "does this job's
+                            worker claim" (20260906170000) rather than a guess from the cron command
+                            string, which is why this card used to call the switch dead on the
+                            fourteen Edge jobs it does stop (BACKLOG.md J78). */}
+                        {killSwitchBadgeLabel(job) && (
+                          <Badge variant="outline" className="border-amber-500 text-amber-700">
+                            {killSwitchBadgeLabel(job)}
+                          </Badge>
+                        )}
+                      </div>
                       {job.error_message && (
                         <p className="mt-1 max-w-xs text-xs text-destructive">{job.error_message}</p>
                       )}
@@ -355,15 +391,9 @@ export default function SystemJobs() {
                           Disabled: {recovery.kill_switch_reason ?? "kill switch enabled"}
                         </p>
                       )}
-                      {/* The switch is read in exactly one place, and SQL reaches that place only
-                          through execute_registered_sql_job -- so for a job whose cron entry posts
-                          to an Edge Function, or (deliberately) for the watchdog, flipping it stops
-                          nothing. Said before the click rather than discovered after it. */}
-                      {job.kill_switch_can_stop === false && (
+                      {killSwitchDeadNotice(job) && (
                         <p className="mt-1 max-w-xs text-xs text-amber-700">
-                          {job.kill_switch_enabled
-                            ? "Disable does not stop this job — its schedule does not route through the SQL wrapper. Stop it at its own console."
-                            : "Disable will not stop this job — its schedule does not route through the SQL wrapper."}
+                          {killSwitchDeadNotice(job)}
                         </p>
                       )}
                       {recovery?.circuit_state !== "closed" && recovery && (
@@ -412,7 +442,16 @@ export default function SystemJobs() {
                         >
                           <Play className="mr-1.5 h-3.5 w-3.5" />Run now
                         </Button>
-                      ) : null}
+                      ) : (
+                        // Absent, not disabled: request_system_job_rerun refuses retry_mode 'none'
+                        // outright. The cell used to be silent here whenever the job had a recovery
+                        // row, so the System job watchdog -- registered 'none' by 20260906170000
+                        // after "Run now" on it wrote a durable failed run on every click -- read
+                        // as a job whose controls had simply gone missing (BACKLOG.md J82).
+                        <span className="max-w-[16rem] text-xs text-muted-foreground">
+                          {manualRunUnavailableReason(job)}
+                        </span>
+                      )}
                       {(recovery?.dead_letter_count ?? 0) > 0 && recovery?.latest_dead_letter_run_id && (
                         <Button
                           size="sm"
@@ -428,9 +467,7 @@ export default function SystemJobs() {
                           size="sm"
                           variant={recovery.kill_switch_enabled ? "default" : "ghost"}
                           disabled={actionsPending || isActive}
-                          title={job.kill_switch_can_stop === false
-                            ? "This job's schedule does not route through the SQL wrapper, so the switch records intent without stopping it."
-                            : undefined}
+                          title={killSwitchButtonTitle(job)}
                           onClick={() => void handleKillSwitch(job, !recovery.kill_switch_enabled)}
                         >
                           {recovery.kill_switch_enabled ? "Enable" : "Disable"}

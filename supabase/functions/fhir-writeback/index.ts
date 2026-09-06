@@ -10,6 +10,18 @@
 // Cron-only: authenticated with the shared cron secret (no user JWT). Enable delivery by
 // scheduling this function; with no write-back-enabled sources the claim returns nothing and the
 // call is a cheap no-op.
+//
+// OUTBOUND AUTHENTICATION DOES NOT EXIST YET, AND THIS FUNCTION REFUSES TO SEND WITHOUT IT.
+// `fhir_integration_sources.credential_id` is an INBOUND key: `save_fhir_integration_source`
+// binds it by `'commands:write' = any(c.scopes)` and `integration-api` verifies it on requests
+// coming INTO CareBase. It is a salted hash in `integration_api_credentials` -- there is no
+// plaintext to present to anyone, and no per-source client secret, bearer token or OAuth client
+// is stored anywhere (`docs/HIPAA_CLINICAL_DATA.md` promises Vault-held endpoint secrets that
+// nothing writes). So the POST below carried no Authorization header at all: against a real EHR
+// it is a 401 classified terminal, and against a permissive endpoint it is PHI leaving the BAA'd
+// boundary with nobody authenticated on either end. The second outcome is worse than the first,
+// so the drain stops before the send instead of after it. Delete OUTBOUND_AUTH_AVAILABLE and
+// attach the credential where it is read below once a per-source outbound secret is stored.
 
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
@@ -23,6 +35,11 @@ const CORS_HEADERS = withCronCorsHeader({
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, x-correlation-id, x-request-id",
 });
+
+// Flip this the moment a per-source outbound credential exists (and attach it to the request
+// below). It is a constant rather than an env var on purpose: an env var would let a deployment
+// turn unauthenticated PHI egress back on without anyone reviewing the credential model.
+const OUTBOUND_AUTH_AVAILABLE = false;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -120,6 +137,37 @@ Deno.serve(async (req: Request) => {
     });
     if (error) console.error("fhir-writeback: finish_system_job failed", error.message);
   };
+
+  if (!OUTBOUND_AUTH_AVAILABLE) {
+    // Checked BEFORE the claim so nothing is marked in_flight and no attempts counter moves: the
+    // rows stay exactly as queued for whenever delivery becomes possible. Reported as a real run
+    // outcome rather than a silent success, but only noisy when there is actually something
+    // waiting -- a scheduled tick with an empty queue is not an incident.
+    const { count, error: pendingError } = await admin
+      .from("fhir_writeback_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+    if (pendingError) {
+      await finishRun("failed", 0, 0, 0, { correlationId }, "pending write-back count failed");
+      return json({ error: "pending_count_failed", correlationId }, 500);
+    }
+    const pending = count ?? 0;
+    const message =
+      "FHIR write-back has no outbound credential for the connected source, so no PHI was sent. " +
+      "The queued rows are untouched.";
+    await finishRun(
+      pending > 0 ? "failed" : "succeeded",
+      0,
+      0,
+      0,
+      { correlationId, pending, skipped: "outbound_auth_not_configured" },
+      pending > 0 ? message : null,
+    );
+    return json(
+      { success: pending === 0, skipped: "outbound_auth_not_configured", pending, message, correlationId },
+      pending > 0 ? 503 : 200,
+    );
+  }
 
   const { data: claimRows, error: claimError } = await admin.rpc("claim_fhir_writeback_batch", {
     p_limit: limit,

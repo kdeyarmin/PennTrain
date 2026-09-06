@@ -16,6 +16,15 @@ export const SITE_URL = "https://cmcarebase.com";
 export type RouteMeta = {
   title: string;
   description: string;
+  /**
+   * Emit `<meta name="robots" content="noindex, nofollow">` for this route, client-side via
+   * usePageMeta and in the build-time prerendered head. Set on the routes a visitor only reaches
+   * by holding a credential in the URL (a facility poster token, a guest link, a password-reset
+   * link): they have nothing to rank for and should never surface in a result page. Every
+   * noindex route must also be listed in SITEMAP_EXCLUDED_ROUTES (src/lib/sitemap.ts) so the
+   * sitemap can't advertise a page whose own head says not to index it.
+   */
+  noindex?: boolean;
 };
 
 export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
@@ -98,5 +107,89 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     title: "Sign Up — Start Your Free Trial — CareMetric CareBase",
     description:
       "Create your organization and start a free trial of CareMetric CareBase for Pennsylvania personal care homes and assisted living facilities.",
+  },
+  "/legal/facility-signup": {
+    title:
+      "Facility Administrator Platform Agreement & HIPAA BAA — CareMetric CareBase",
+    description:
+      "The full Facility Administrator Platform Agreement and HIPAA Business Associate Agreement with CareMetric AI LLC that an authorized administrator accepts when creating a CareMetric CareBase organization.",
+  },
+  // Credential-bearing routes below: reached only by holding a token or link, never worth ranking.
+  // noindex here, and excluded from the sitemap in src/lib/sitemap.ts.
+  "/report-safety": {
+    title: "Report a Safety Concern — CareMetric CareBase",
+    description:
+      "Submit a safety or quality concern about a Pennsylvania personal care home or assisted living facility using the code from your facility's poster.",
+    noindex: true,
+  },
+  "/resident-portal": {
+    title: "Resident & Designated Person Portal — CareMetric CareBase",
+    description:
+      "Time-limited guest access for residents and their designated people to review the records a facility shared with them.",
+    noindex: true,
+  },
+  "/forgot-password": {
+    title: "Reset Your Password — CareMetric CareBase",
+    description:
+      "Request a password reset link for your CareMetric CareBase account.",
+    noindex: true,
+  },
+  "/reset-password": {
+    title: "Choose a New Password — CareMetric CareBase",
+    description:
+      "Set a new password for your CareMetric CareBase account using the link sent to your work email.",
+    noindex: true,
+  },
+  // BACKLOG J74 (P3, guest). The seven routes below are the rest of the credential-bearing public
+  // surface, and until now none of them had an entry here at all -- so every one of them served
+  // the HOMEPAGE title, description and `<link rel="canonical" href="https://cmcarebase.com/">`
+  // to anything that does not run JS, with `robots: index, follow` attached. robots.txt already
+  // disallows each path, but robots.txt is a request and a `noindex` head is the instruction that
+  // actually keeps a URL out of an index once something has fetched it.
+  //
+  // Each is keyed on the STEM of a tokenized route (/checkin/:token, /passport/:slug, ...).
+  // server/index.mjs walks up a request path to find the nearest prerendered ancestor, so
+  // /passport/abc123 gets this head rather than the homepage's.
+  "/checkin": {
+    title: "Class Check-In — CareMetric CareBase",
+    description:
+      "Check in to a training class using the code on your instructor's screen or the QR code in the room.",
+    noindex: true,
+  },
+  "/evidence-access": {
+    title: "Documentation Room — CareMetric CareBase",
+    description:
+      "Time-limited guest access to the documentation a facility shared with you for review.",
+    noindex: true,
+  },
+  "/move-in-access": {
+    title: "Move-In Package — CareMetric CareBase",
+    description:
+      "Time-limited guest access to complete and sign the move-in package a facility shared with you.",
+    noindex: true,
+  },
+  "/resident-agreement-access": {
+    title: "Resident Agreement — CareMetric CareBase",
+    description:
+      "Time-limited guest access to review and sign the resident agreement a facility shared with you.",
+    noindex: true,
+  },
+  "/survey-packet-access": {
+    title: "Survey Packet Download — CareMetric CareBase",
+    description:
+      "Time-limited guest access to download the survey evidence packet a facility shared with you.",
+    noindex: true,
+  },
+  "/passport": {
+    title: "Training Passport — CareMetric CareBase",
+    description:
+      "A shared, link-authorized view of one person's completed training and credentials.",
+    noindex: true,
+  },
+  "/verify": {
+    title: "Verify a Certificate — CareMetric CareBase",
+    description:
+      "A shared, link-authorized view confirming a single training certificate and the person it was issued to.",
+    noindex: true,
   },
 };

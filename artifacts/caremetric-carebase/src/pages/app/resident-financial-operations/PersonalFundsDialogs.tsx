@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
+  useCloseResidentPersonalFundAccount,
   useOpenResidentPersonalFundAccount,
   usePostResidentPersonalFundTransaction,
   useReconcileResidentPersonalFunds,
   useUpsertResidentPersonalFundPayeeProfile,
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
+import { currentFundBalance, fundSettlementBlocker } from "@/lib/personalFundsStatement";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import {
@@ -686,6 +688,134 @@ export function ReconcileDialog({
             }
           >
             Record reconciliation
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Settle and close a personal-funds account when the residency has ended (BACKLOG.md J37).
+ *
+ * The ledger had no terminal transaction kind, so a discharged or deceased resident's money sat in
+ * it with nothing in the product that could give it back -- which is the moment 55 Pa. Code
+ * 2600.20 / 2800.20 are about. `close_resident_personal_fund_account` posts the whole remaining
+ * balance out as a `final_disbursement` and stamps the account closed.
+ *
+ * Every one of the RPC's refusals is stated here, before the call: a residency that has not ended,
+ * an account already settled, a purpose or recipient too short, a date more than a day ahead. The
+ * operator finds out from the form, not from a 55000 after they pressed the button on something
+ * irreversible.
+ */
+export function FundSettlementDialog({
+  open,
+  onClose,
+  residentId,
+  residentStatus,
+  data,
+}: {
+  open: boolean;
+  onClose: () => void;
+  residentId: string;
+  residentStatus: string | null | undefined;
+  data: FinancialWorkspace;
+}) {
+  const mutation = useCloseResidentPersonalFundAccount();
+  const report = useReport(onClose);
+  const emptyForm = () => ({
+    purpose: "Return of personal funds at end of residency",
+    recipient: "",
+    at: toFacilityDateTimeLocal(),
+  });
+  const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+    if (open) setForm(emptyForm());
+  }, [open]);
+
+  const balance = currentFundBalance(
+    data.fundTransactions,
+    data.fundAccount?.beginning_balance,
+  );
+  const transactionAt = form.at && !Number.isNaN(new Date(form.at).getTime())
+    ? facilityDateTimeLocalToUtcIso(form.at)
+    : "";
+  const blocker = fundSettlementBlocker({
+    residentStatus,
+    accountClosedOn: data.fundClosure?.closed_on ?? null,
+    purpose: form.purpose,
+    recipient: form.recipient,
+    transactionAt: transactionAt || "invalid",
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Settle and close personal funds</DialogTitle>
+          <DialogDescription>
+            Posts the entire remaining balance out as a final disbursement and closes the account.
+            The ledger stays intact and readable afterwards; the account simply stops accepting
+            entries.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+          <p className="font-medium">
+            {balance > 0
+              ? `${money(balance)} will be disbursed and the account closed.`
+              : "This account holds no funds; it will be closed without posting a transaction."}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {data.fundAccount?.account_number ?? "No account number"}
+            {residentStatus ? ` · Resident status: ${residentStatus.replace(/_/g, " ")}` : ""}
+          </p>
+        </div>
+        <div className="grid gap-3">
+          <Field label="What the settlement is">
+            <Input
+              value={form.purpose}
+              onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+              placeholder="Return of personal funds at end of residency"
+            />
+          </Field>
+          <Field label="Who received the funds">
+            <Input
+              value={form.recipient}
+              onChange={(e) => setForm({ ...form, recipient: e.target.value })}
+              placeholder="Name and relationship, or the estate / responsible party"
+            />
+          </Field>
+          <Field label="Settlement date and time">
+            <Input
+              type="datetime-local"
+              value={form.at}
+              onChange={(e) => setForm({ ...form, at: e.target.value })}
+            />
+          </Field>
+        </div>
+        {blocker && (
+          <p className="text-sm text-destructive" role="status">{blocker}</p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={mutation.isPending || !!blocker}
+            onClick={() =>
+              mutation.mutate(
+                {
+                  residentId,
+                  purpose: form.purpose.trim(),
+                  recipient: form.recipient.trim(),
+                  transactionAt,
+                },
+                report,
+              )
+            }
+          >
+            Settle and close
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
-import { useListResidents } from "@/hooks/useResidents";
+import { useListResidentNames } from "@/hooks/useResidents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,7 +25,10 @@ export default function ResidentComplianceReport() {
   const [itemType, setItemType] = useState<string>("all");
 
   const facilitiesQuery = useListFacilities();
-  const residentsQuery = useListResidents();
+  // Names only, and paged: this report renders one row per regulatory deadline across every
+  // resident, and an unpaginated resident read was silently truncated at PostgREST's 1000-row
+  // default -- past which the rows below rendered "—" for the resident with no error.
+  const residentsQuery = useListResidentNames();
   const { data: facilities } = facilitiesQuery;
   const { data: residents } = residentsQuery;
   const { data: items, isLoading, ...itemsQuery } = useListAllResidentComplianceItems({

@@ -312,8 +312,14 @@ export default function InvitationLifecycle() {
           <DialogHeader>
             <DialogTitle>Revoke invitation</DialogTitle>
             <DialogDescription>
+              {/* BACKLOG J74 / J75 (row I29 item 4). "Revoke" does three things, and this said one
+                  of them. It also deactivates the invitee's account and detaches them from their
+                  employee record -- which is why inviting them again is a real repair (invite-user
+                  reactivates the profile and re-links the employee on a re-invite) rather than the
+                  no-op it looked like from here. Say all three, so a manager knows what they are
+                  undoing and how. */}
               {revokeTarget
-                ? `Revoke the pending invite for ${revokeTarget.email}. The durable receipt remains for audit.`
+                ? `Revoke the pending invite for ${revokeTarget.email}. This also deactivates their account and detaches them from their employee record; the durable receipt remains for audit. Inviting them again restores the account and the link.`
                 : null}
             </DialogDescription>
           </DialogHeader>

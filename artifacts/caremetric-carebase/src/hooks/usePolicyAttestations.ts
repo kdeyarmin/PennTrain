@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { edgeFunctionError } from "@/lib/edgeFunctionErrors";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert } from "@/lib/database.types";
 
@@ -325,7 +326,13 @@ export function useAttestPolicy() {
       const { data, error } = await supabase.functions.invoke<AttestPolicyResponse>("attest-policy", {
         body: { attestationId },
       });
-      if (error) throw error;
+      // Unwrap before rethrowing. supabase-js's FunctionsHttpError says only "returned a non-2xx
+      // status code" and discards the body -- which is where this function puts every refusal it
+      // has taken trouble over: the document fingerprint it could not read, the knowledge check
+      // that has not been passed, and now a version that has been superseded and must not be
+      // signed. Each of those is a sentence telling the employee what to do next, and every one of
+      // them was being replaced by a status code.
+      if (error) throw (await edgeFunctionError(error)) ?? error;
       if (!data || data.success === false || !data.attestation) {
         throw new Error(data?.error ?? "Failed to record attestation");
       }

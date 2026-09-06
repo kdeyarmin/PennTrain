@@ -10,7 +10,6 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
-  BarChart3,
   BedDouble,
   Bot,
   Cable,
@@ -65,6 +64,7 @@ import {
   isCustomerValueBaselineValid,
   type CustomerValueBaselineForm,
 } from "@/lib/customerValueBaseline";
+import { annualizeObservedValue, reconcileAnnualValue } from "@/lib/savingsModel";
 import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import {
   implementationTaskNeedsAttention,
@@ -309,6 +309,17 @@ export default function ValueCenter() {
   const value = useCustomerValueDashboard(organizationId);
   const staffing = useStaffingOptimization(facilityId || undefined, today, through);
   const admissions = useAdmissionsIntelligence(facilityId || undefined);
+
+  // get_customer_value_dashboard reports a 30-day window; annualise it the way the shared model
+  // does (365/window) rather than the x12 that treated a year as 360 days, then net the
+  // subscription (RELEASE_READINESS_PLAN 4.3, platform L4).
+  const valuePeriodDays = value.data?.periodDays ?? 30;
+  const annualLaborValue = annualizeObservedValue(value.data?.estimatedLaborValue ?? 0, valuePeriodDays);
+  const annualRetiredSoftware = (value.data?.retiredSoftwareMonthlyCost ?? 0) * 12;
+  const reconciledValue = reconcileAnnualValue(annualLaborValue + annualRetiredSoftware);
+  const recordedOutcomes = value.data
+    ? Object.values(value.data.activity).reduce((sum, item) => sum + Number(item), 0)
+    : 0;
 
   const [automationName, setAutomationName] = useState("Critical compliance follow-up");
   const [automationDescription, setAutomationDescription] = useState(
@@ -970,14 +981,32 @@ export default function ValueCenter() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Metric label="Hours returned / 30 days" value={number(value.data?.estimatedHoursSaved)} icon={CalendarClock} />
-              <Metric label="Annual labor value" value={money((value.data?.estimatedLaborValue ?? 0) * 12)} icon={CircleDollarSign} />
-              <Metric label="Retired software / year" value={money((value.data?.retiredSoftwareMonthlyCost ?? 0) * 12)} icon={CloudOff} />
+              <Metric label="Annual labor value" value={money(annualLaborValue)} icon={CircleDollarSign} />
+              <Metric label="Retired software / year" value={money(annualRetiredSoftware)} icon={CloudOff} />
+              {/*
+                The estimate stopped at gross: it annualised labour value and retired software and
+                never subtracted what the tenant pays for CareBase, while the public worksheet and
+                the emailed model both show a net figure. Three models, none reconciled
+                (RELEASE_READINESS_PLAN 4.3, platform L4). All three now net the same annual list
+                price through lib/savingsModel.ts.
+              */}
               <Metric
-                label="Recorded outcomes"
-                value={number(value.data ? Object.values(value.data.activity).reduce((sum, item) => sum + Number(item), 0) : 0)}
-                icon={BarChart3}
+                label="Net of CareBase / year"
+                value={money(reconciledValue.netAnnualOpportunity ?? 0)}
+                icon={CircleDollarSign}
               />
             </div>
+          )}
+          {!value.isLoading && !value.isError && (
+            <p className="text-xs text-muted-foreground">
+              {money(reconciledValue.grossAnnualOpportunity)} gross a year, less the{" "}
+              {money(reconciledValue.annualCareBasePrice)} CareBase annual list price.
+              {reconciledValue.modeledPaybackMonths !== null
+                ? ` Modeled payback ${Math.round(reconciledValue.modeledPaybackMonths * 10) / 10} months.`
+                : ""}
+              {" "}Annualized from the last {value.data?.periodDays ?? 30} days of recorded outcomes
+              ({number(recordedOutcomes)} in that window) against this organization&rsquo;s saved baseline.
+            </p>
           )}
           <div className="grid gap-5 xl:grid-cols-2">
             <Card>

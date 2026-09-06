@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Archive, Download, Loader2, ShieldX } from "lucide-react";
 import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const SESSION_TOKEN_KEY = "carebase-survey-packet-token";
 
@@ -40,6 +42,10 @@ function Shell({ children }: { children: ReactNode }) {
 }
 
 export default function SurveyPacketGuestDownload() {
+  // BACKLOG J74 (P3, guest). Without this the tab, the canonical and the robots tag stayed
+  // whatever the last route left in index.html -- the homepage's, on a page reached only by
+  // holding a credential. The prerendered head says the same thing for a crawler.
+  usePageMeta({ ...MARKETING_ROUTE_META["/survey-packet-access"], path: "/survey-packet-access" });
   const { token: routeToken } = useParams<{ token?: string }>();
   const [token] = useState(() => consumePublicAccessToken(
     routeToken,

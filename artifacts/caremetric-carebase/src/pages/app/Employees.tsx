@@ -2,10 +2,13 @@ import { useId, useEffect, useRef, useState } from "react";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useListEmployeesPaginated, useCreateEmployee, useUpdateEmployee, useDeleteEmployee,
+  useListEmployeesPaginated, useCreateEmployee, useUpdateEmployee,
   type Employee, type EmployeeSortField,
 } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { defaultLifecycleTransition } from "@/lib/employeeLifecycleCases";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useInviteUser } from "@/hooks/useProfiles";
 import { useUrlState } from "@/hooks/useUrlState";
 import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
@@ -14,17 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
-} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { QueryError } from "@/components/QueryState";
-import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, Trash2, Upload } from "lucide-react";
+import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, ArrowLeftRight, Upload } from "lucide-react";
 import { Link, useLocation, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -91,7 +90,6 @@ export default function Employees() {
   const [debouncedSearch, setDebouncedSearch] = useState(urlState.search);
   const [showForm, setShowForm] = useState(false);
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
-  const [deleteEmp, setDeleteEmp] = useState<Employee | null>(null);
   const [form, setForm] = useState<EmpFormData>(EMPTY_EMPLOYEE_FORM);
   const [sendPortalInvite, setSendPortalInvite] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
@@ -115,7 +113,6 @@ export default function Employees() {
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
-  const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   // Debounce the free-text box before it drives a server request, so typing doesn't fire a query
   // per keystroke; the page-reset on change below still happens immediately. The box's raw value
@@ -142,10 +139,13 @@ export default function Employees() {
     pageSize: PAGE_SIZE,
   });
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
+  // The filter above may span the organization; the create/edit dialog may not. employees_insert
+  // requires is_assigned_to_facility(facility_id), so a facility_manager offered a facility they
+  // hold no assignment for could only ever get an RLS error after filling in the whole form.
+  const assignableFacilities = useAssignableFacilities(facilities);
 
   const { mutate: createEmployee, isPending: creating } = useCreateEmployee();
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
-  const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
   const { mutate: inviteUser, isPending: inviting } = useInviteUser();
 
   const rows = employeesPage?.rows ?? [];
@@ -252,7 +252,7 @@ export default function Employees() {
         { id: editEmp.id, ...payload, facility_id: form.facilityId !== "none" ? form.facilityId : editEmp.facility_id },
         {
           onSuccess: () => { toast({ title: "Employee updated" }); setShowForm(false); setEditEmp(null); },
-          onError: (e: Error) => toast({ title: "Failed to update employee", description: e.message, variant: "destructive" }),
+          onError: (e: Error) => toast({ title: "Failed to update employee", description: facilityScopedErrorText(e), variant: "destructive" }),
         },
       );
     } else {
@@ -308,7 +308,7 @@ export default function Employees() {
               },
             );
           },
-          onError: (e: Error) => toast({ title: "Failed to create employee", description: e.message, variant: "destructive" }),
+          onError: (e: Error) => toast({ title: "Failed to create employee", description: facilityScopedErrorText(e), variant: "destructive" }),
         },
       );
     }
@@ -575,15 +575,26 @@ export default function Employees() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {canDelete && (
+                          {/* This was a Delete button. `supabase.from("employees").delete()` can never
+                              succeed: shadow_new_employee_lifecycle writes workforce_employee_links and
+                              employment_lifecycle_events rows on every insert, both referencing the
+                              employee `on delete restrict`, so the request is refused by a foreign key
+                              for every employee -- behind a dialog that promised to remove "all
+                              associated training data". Ending employment is a lifecycle transition. */}
+                          {canManage && (
                             <Button
+                              asChild
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              onClick={e => { e.preventDefault(); e.stopPropagation(); setDeleteEmp(emp); }}
-                              aria-label={`Delete ${emp.first_name} ${emp.last_name}`}
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              aria-label={`Start a lifecycle case for ${emp.first_name} ${emp.last_name}`}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Link
+                                href={`/app/employee-lifecycle?employee=${emp.id}&transition=${defaultLifecycleTransition(emp.status)}`}
+                                onClick={e => e.stopPropagation()}
+                              >
+                                <ArrowLeftRight className="h-3.5 w-3.5" />
+                              </Link>
                             </Button>
                           )}
                           <Link href={`${basePath}/${emp.id}`}>
@@ -627,7 +638,7 @@ export default function Employees() {
           <EmployeeFormFields
             form={form}
             onChange={field}
-            facilities={facilities}
+            facilities={assignableFacilities}
             facilityFieldMode={editEmp ? "edit-keep-current" : "create"}
           />
           {!editEmp && (
@@ -743,32 +754,6 @@ export default function Employees() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteEmp} onOpenChange={o => { if (!o) setDeleteEmp(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {deleteEmp?.first_name} {deleteEmp?.last_name}? This will permanently remove their record and all associated training data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!deleteEmp) return;
-                deleteEmployee(deleteEmp.id, {
-                  onSuccess: () => { toast({ title: "Employee deleted" }); setDeleteEmp(null); },
-                  onError: (e: Error) => toast({ title: "Failed to delete employee", description: e.message, variant: "destructive" }),
-                });
-              }}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

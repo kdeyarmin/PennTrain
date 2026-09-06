@@ -38,7 +38,7 @@ const ORG_ADMINS: Role[] = ["org_admin"];
 const ORG_ROLES: Role[] = ["org_admin", "facility_manager", "trainer", "auditor"];
 const ORG_HOME_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const ORG_MANAGERS: Role[] = ["org_admin", "facility_manager"];
-const INVITATION_VIEW_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
+const INVITATION_VIEW_ROLES: Role[] = ["platform_admin", "org_admin", "facility_manager", "auditor"];
 
 const REPORTING_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];
 const CREDENTIAL_ROLES: Role[] = ["org_admin", "facility_manager", "auditor"];

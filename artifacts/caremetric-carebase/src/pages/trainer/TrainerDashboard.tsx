@@ -54,6 +54,9 @@ export default function TrainerDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* `todays` is the sessions that are open for enrollment or in progress today -- the ones
+              a kiosk is for. It used to be today's DRAFTS, so a class the trainer had opened for
+              enrollment vanished from this button on the morning it ran (BACKLOG.md J74, Train). */}
           {todaysClasses.length > 0 && (
             <Link href={`/trainer/classes/${todaysClasses[0].id}/kiosk`}>
               <Button>
@@ -98,7 +101,7 @@ export default function TrainerDashboard() {
             </div>
             {!isLoading && draftClasses > 0 && (
               <p className="text-xs text-yellow-600 mt-2">
-                {draftClasses} draft{draftClasses > 1 ? "s" : ""} pending
+                {draftClasses} not yet open for enrollment
               </p>
             )}
           </CardContent>

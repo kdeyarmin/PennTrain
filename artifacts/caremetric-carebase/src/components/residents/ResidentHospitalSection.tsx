@@ -19,7 +19,7 @@ import { useResidentSupportPlans } from "@/hooks/useResidentCareDelivery";
 import {
   buildReconciliationState, episodeStateLabel, recordedChanges, type HospitalEpisodeLike,
 } from "@/lib/hospitalReconciliation";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityDateOf, formatDateForDisplay } from "@/lib/dateUtils";
 import RecordHospitalReturnDialog from "@/components/residents/RecordHospitalReturnDialog";
 
 function useHospitalEpisodes(residentId: string) {
@@ -128,10 +128,21 @@ export default function ResidentHospitalSection({
 
   const returnReviewFinal = (reviews ?? []).some((review) =>
     review.hospital_episode_id === episode.id && review.status === "final");
+  // `effective_date` is a DATE and `return_time` a timestamptz, so the return has to be reduced to
+  // a facility calendar day before the two can be compared. Slicing the leading ten characters --
+  // which this did -- takes the UTC day, so a resident who came back on a Pennsylvania evening had
+  // a plan written that same evening judged as predating their return, and the conflict this guard
+  // exists to suppress fired anyway.
+  //
+  // Null when the stamp will not parse, and that must NOT collapse into a comparison that passes:
+  // suppressing a care-conflict warning is the dangerous direction, so an unreadable return time
+  // leaves the warning standing rather than silently clearing it.
+  const returnedOn = episode.return_time !== null ? facilityDateOf(episode.return_time) : null;
   const planRevised = (plans ?? []).some((plan) =>
     ["draft", "awaiting_clinical_review", "awaiting_participation", "awaiting_signature", "approved"].includes(plan.state)
-    || (plan.state === "active" && episode.return_time !== null
-      && plan.effective_date !== null && plan.effective_date >= episode.return_time.slice(0, 10)));
+    || (plan.state === "active" && returnedOn !== null
+      && plan.effective_date !== null
+      && plan.effective_date >= returnedOn));
 
   const state = buildReconciliationState({
     episode,
@@ -166,8 +177,8 @@ export default function ResidentHospitalSection({
                 <Hospital className="h-5 w-5" /> Hospital {episodeStateLabel(episode).toLowerCase()}
               </CardTitle>
               <CardDescription>
-                {episode.destination ?? "Hospital"} · left {formatDateForDisplay(episode.transfer_time.slice(0, 10))}
-                {episode.return_time ? ` · returned ${formatDateForDisplay(episode.return_time.slice(0, 10))}` : ""}
+                {episode.destination ?? "Hospital"} · left {formatDateForDisplay(facilityDateOf(episode.transfer_time))}
+                {episode.return_time ? ` · returned ${formatDateForDisplay(facilityDateOf(episode.return_time))}` : ""}
               </CardDescription>
             </div>
             {state.applicable && (

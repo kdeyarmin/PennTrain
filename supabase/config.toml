@@ -150,6 +150,63 @@ verify_jwt = true
 [functions.send-auth-email]
 verify_jwt = false
 
+# BACKLOG J74 (P3, identity). This file had no [auth] block at all, only its [auth.mfa] and
+# [auth.hook] subtables -- so `supabase start`, local and CI alike, ran GoTrue on the CLI's own
+# defaults: plain email signup ON, site URL http://127.0.0.1:3000, redirects allowed only to
+# https://127.0.0.1:3000. Every one of those contradicts the posture DEPLOYMENT.md records for
+# production, which means the one environment where that posture could have been rehearsed before
+# release was the one environment that did not have it -- and nothing in the repository stated the
+# posture at all, so it survived only as a dashboard checklist ("Limitations / manual steps
+# remaining").
+#
+# The values below ARE that documented posture. No secret appears here; anything that would be one
+# (the send-email hook secret below, SMTP credentials) stays behind the CLI's env() interpolation.
+[auth]
+enabled = true
+# Local, deliberately, and NOT the production Site URL. This file configures `supabase start` --
+# local and CI -- and nothing else; production Auth is configured in the hosted dashboard, which is
+# where DEPLOYMENT.md's https://cmcarebase.com belongs and already lives. Writing the production
+# origin here would not rehearse anything, because no local run reads it as a policy; it would only
+# point local confirmation and recovery links at production, so a developer's password reset would
+# leave their machine. What IS worth mirroring from the documented posture is behaviour -- signup
+# off, password floor, OTP lifetime, MFA -- and that is what the rest of this block does.
+site_url = "http://127.0.0.1:5173"
+# DEPLOYMENT.md: "Redirect URL https://cmcarebase.com/reset-password, plus the verified production
+# root URL for enterprise SSO." ForgotPassword.tsx sends redirectTo=<origin><base>/reset-password,
+# and Auth silently falls back to the bare Site URL -- no error anywhere -- when redirect_to is not
+# an exact allow-list match, which strands the user on the login page instead of the password form.
+additional_redirect_urls = [
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5173/reset-password",
+]
+# Plain POST /auth/v1/signup stays off: ARCHITECTURE.md and DEPLOYMENT.md both record that the
+# self-service path is the hardened signup-organization function (Turnstile, hashed rate limits,
+# platform signup gate, invite-email verification) and that the 2026-07 privilege-escalation fix
+# depends on nobody being able to self-register. The admin API is unaffected, so create-user,
+# invite-user, provision-demo-tenant and seed.sql all keep working.
+enable_signup = false
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+# ResetPassword.tsx refuses anything under 8 characters; GoTrue defaults to 6, so without this the
+# API accepted passwords the only page that sets one rejects.
+minimum_password_length = 8
+
+[auth.email]
+# NOT `enable_signup = false` here, however much this table looks like the place for it. The CLI
+# maps auth.email.enable_signup onto GOTRUE_EXTERNAL_EMAIL_ENABLED -- the switch for the email
+# PROVIDER, not for registration -- so setting it false turns off password sign-in as well, and
+# every account in this product signs in with an email and a password. CI found it the direct way:
+# six browser journeys failed with "Email logins are disabled". Self-service registration is off
+# via auth.enable_signup above, which is GOTRUE_DISABLE_SIGNUP and blocks POST /auth/v1/signup
+# while leaving the password grant working. Leaving the key out here resolves to the CLI's default
+# of true -- which is what this project ran on before an [auth.email] table existed at all.
+# Set deliberately rather than inherited (PILOT_READINESS_PLAN I7). One hour is what this
+# deployment already runs -- src/lib/invitationLifecycle.ts records that the security advisor's
+# auth_otp_long_expiry lint fires above 3600s and does not fire here -- and it is the lifetime the
+# invitation page's copy now names. The ledger's seven days is how long a row stays resendable, not
+# how long the emailed link lives; the two are different clocks on purpose.
+otp_expiry = 3600
+
 # D7 makes TOTP a required control for privileged tenant roles. Keep the local
 # and CI Auth service aligned with hosted configuration so enrollment and AAL2
 # browser journeys exercise the real factor lifecycle.

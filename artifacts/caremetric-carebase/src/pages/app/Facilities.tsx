@@ -1,5 +1,5 @@
 import { useId, useEffect, useMemo, useRef, useState } from "react";
-import { useListFacilities, useCreateFacility, useUpdateFacility, useDeleteFacility, type Facility } from "@/hooks/useFacilities";
+import { useListFacilities, useCreateFacility, useUpdateFacility, type Facility } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
 import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
@@ -8,11 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
-} from "@/components/ui/alert-dialog";
-import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Search } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -53,12 +49,10 @@ export default function Facilities() {
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState<FacilityFormData>(EMPTY_FORM);
 
   const { mutate: createFacility, isPending: creating } = useCreateFacility();
   const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
-  const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility();
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
@@ -217,21 +211,16 @@ export default function Facilities() {
                     <Building2 className="h-5 w-5 text-primary/70" />
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {/* Delete was removed here. `delete from facilities` is refused by
+                        employment_episodes.facility_id (`on delete restrict`) for any facility that
+                        has ever employed anybody, so the control's only possible outcome was a
+                        foreign-key error under a dialog promising to "remove all associated data".
+                        Retiring a facility is Edit -> Status -> Inactive, which the same dialog
+                        already offers. */}
                     {canManage && !facility.is_sandbox && (
-                      <>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" onClick={(e) => openEdit(e, facility)} aria-label={`Edit ${facility.name}`}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteId(facility.id); }}
-                          aria-label={`Delete ${facility.name}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-7 sm:w-7 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-muted-foreground hover:text-foreground" onClick={(e) => openEdit(e, facility)} aria-label={`Edit ${facility.name}`}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                     )}
                     <ChevronRight className="hidden h-4 w-4 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground/60 sm:block" />
                   </div>
@@ -367,32 +356,6 @@ export default function Facilities() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={o => { if (!o) setDeleteId(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Facility</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this facility? This action cannot be undone and will remove all associated data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!deleteId) return;
-                deleteFacility(deleteId, {
-                  onSuccess: () => { toast({ title: "Facility deleted" }); setDeleteId(null); },
-                  onError: (e: Error) => toast({ title: "Failed to delete facility", description: e.message, variant: "destructive" }),
-                });
-              }}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

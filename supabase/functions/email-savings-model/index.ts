@@ -21,10 +21,19 @@ import { scrubEmails } from "../_shared/aiRedaction.ts";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Flat CareBase list price shown on /savings and Landing. Kept in sync with
+// Flat CareBase list prices shown on /savings and Landing. Kept in sync with
 // artifacts/caremetric-carebase/src/components/marketing/marketingPricing.ts so the emailed
-// numbers match exactly what the visitor saw. Flat monthly — no per-resident overage.
+// numbers match exactly what the visitor saw. Flat — no per-resident overage.
+//
+// The annual figure is the ANNUAL LIST PRICE, not monthly x 12. This worksheet used to charge a
+// year at 499 x 12 = $5,988 while the catalog sells the annual plan at $4,990, so every emailed
+// "net savings" and "payback" was computed against $998 a year the company does not bill
+// (RELEASE_READINESS_PLAN 4.3, platform L2). Mirrors CAREBASE_ANNUAL_LIST_PRICE in
+// artifacts/caremetric-carebase/src/lib/savingsModel.ts, which is what /savings now computes with;
+// the Deno runtime and the Vite app are separate deploy targets, so this stays a cross-referenced
+// copy rather than a shared import (the _shared/facilityTypes.ts convention).
 const CAREBASE_BASE_MONTHLY = 499;
+const CAREBASE_ANNUAL_LIST_PRICE = 4990;
 
 const SITE_URL = Deno.env.get("PUBLIC_SITE_URL") ?? "https://cmcarebase.com";
 
@@ -125,9 +134,9 @@ function computeModel(raw: { hours?: unknown; rate?: unknown; tools?: unknown; c
   const laborPerYear = hours * 52 * rate;
   const toolSpendPerYear = tools * 12;
   const grossPerYear = (laborPerYear * cut) / 100 + toolSpendPerYear;
-  // Flat monthly CareBase list price — resident count is worksheet context only.
+  // Flat CareBase list price — resident count is worksheet context only.
   const monthlyPrice = CAREBASE_BASE_MONTHLY;
-  const carebasePerYear = monthlyPrice * 12;
+  const carebasePerYear = CAREBASE_ANNUAL_LIST_PRICE;
   const netPerYear = grossPerYear - carebasePerYear;
   const paybackMonths = grossPerYear > 0 ? Math.round((carebasePerYear / (grossPerYear / 12)) * 10) / 10 : null;
 
@@ -163,7 +172,7 @@ function buildEmail(model: SavingsModel): { subject: string; text: string; html:
   const results = [
     ["Current coordination labor", `${money(model.laborPerYear)} / yr`],
     ["Replaceable tool spend", `${money(model.toolSpendPerYear)} / yr`],
-    [`CareBase plan (${money(model.monthlyPrice)}/mo flat)`, `${money(model.carebasePerYear)} / yr`],
+    [`CareBase plan (annual, or ${money(model.monthlyPrice)}/mo)`, `${money(model.carebasePerYear)} / yr`],
     ["Gross opportunity before CareBase", `${money(model.grossPerYear)} / yr`],
     ["Net after CareBase", netLine],
     ["Modeled payback", payback],
@@ -206,7 +215,7 @@ function buildEmail(model: SavingsModel): { subject: string; text: string; html:
       <table style="width:100%;border-collapse:collapse;">
         ${row("Current coordination labor", `${money(model.laborPerYear)} / yr`)}
         ${row("Replaceable tool spend", `${money(model.toolSpendPerYear)} / yr`)}
-        ${row(`CareBase at your size (${money(model.monthlyPrice)}/mo)`, `${money(model.carebasePerYear)} / yr`)}
+        ${row(`CareBase (annual, or ${money(model.monthlyPrice)}/mo)`, `${money(model.carebasePerYear)} / yr`)}
         <tr><td colspan="2" style="border-top:1px solid #eef2f6;padding-top:8px;"></td></tr>
         ${row("Gross opportunity before CareBase", `${money(model.grossPerYear)} / yr`, true)}
         ${row("Net after CareBase", netLine, true)}

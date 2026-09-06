@@ -2,6 +2,17 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+// 20260906120000 (BACKLOG J61) patched resolve_survey_packet_guest_token to run the guest gate
+// first, and that gate keys its per-caller throttle on the FIRST x-forwarded-for hop PostgREST
+// sees -- the half of that list a caller writes. Forward the trusted hop instead. See
+// _shared/guestCallerKey.ts.
+//
+// The parenthetical that used to stand here -- that the spliced statement called the dropped
+// `assert_guest_request_allowed` and so raised 42883 before reaching the gate -- was written
+// against a draft. The migration that landed calls `public.guest_request_denial`, and so does the
+// deployed function body; the throttle, the suspension check and the failed-attempt row in
+// app_private.guest_token_failures are all live on this surface. BACKLOG J74 (P3, guest).
+import { guestCallerForwardHeaders } from "../_shared/guestCallerKey.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -27,7 +38,9 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const admin = createClient(supabaseUrl, serviceKey);
+  const admin = createClient(supabaseUrl, serviceKey, {
+    global: { headers: guestCallerForwardHeaders(req) },
+  });
 
   let token = "";
   try {
@@ -39,7 +52,14 @@ Deno.serve(async (req: Request) => {
     if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
     return json(req, { error: "Invalid JSON body" }, 400);
   }
-  if (token.length < 32) return json(req, { error: "token is required" }, 400);
+  // Anything non-empty goes to the gate. A `token.length < 32` refusal used to be answered here,
+  // which quietly undid the reason the gate is called before the RPC's own length test: "a caller
+  // guessing tokens is counted whatever shape the guess has". Every guess under 32 characters was
+  // turned away by this line, so it reached neither the throttle counters nor
+  // app_private.guest_token_failures, and Guest access health reported a scan that never happened.
+  // The RPC still answers `invalid_token` for a short token, and this function still answers 403.
+  // BACKLOG J74 (P3, guest).
+  if (token.length === 0) return json(req, { error: "token is required" }, 400);
 
   const { data, error } = await admin.rpc("resolve_survey_packet_guest_token", { p_token: token });
   // The RPC's own message is logged, not returned. This caller is unauthenticated and holds only

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrgDashboardSummary } from "@/hooks/useDashboardSummary";
+import { complianceBand, complianceBandTextClass } from "@/lib/complianceScore";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { RoleQuickStart } from "@/components/RoleQuickStart";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
@@ -219,9 +220,14 @@ export default function OrgDashboard() {
   const firstCriticalTitle = recentAlerts.find(a => a.severity === "critical")?.title
     ?? "Open the alerts page to review the details.";
   const compliancePct = summary.compliancePercentage;
-  const complianceColor = compliancePct == null
-    ? "text-muted-foreground"
-    : compliancePct >= 90 ? "text-emerald-600" : compliancePct >= 75 ? "text-amber-600" : "text-red-600";
+  // Colour and caption read one banding, from the same place the facility record reads it. Two
+  // inline threshold ladders sitting next to each other is how the ring and the words beside it
+  // end up describing the same number differently (BACKLOG.md J80). The percentage itself arrives
+  // already deduped to the current record per employee and training type -- get_org_dashboard_summary
+  // does that in SQL, and generate_paged_compliance_report was taught to match by 20260906170000,
+  // so this figure and the Reports "Compliance Summary" are now the same measurement.
+  const complianceColor = complianceBandTextClass(compliancePct);
+  const complianceLabel = complianceBand(compliancePct).label;
 
   const totalTracked = summary.totalTrackedCount;
   const dueSoonPct = totalTracked > 0 ? Math.round((summary.dueSoon30Count / totalTracked) * 100) : 0;
@@ -711,9 +717,7 @@ export default function OrgDashboard() {
               )}
               <div className="flex-1">
                 <p className={`text-lg font-semibold ${complianceColor}`}>
-                  {summaryLoading || compliancePct == null
-                    ? "—"
-                    : compliancePct >= 90 ? "Excellent" : compliancePct >= 75 ? "Needs Improvement" : "At Risk"}
+                  {summaryLoading ? "—" : complianceLabel}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">of tracked training and practicum requirements compliant</p>
               </div>

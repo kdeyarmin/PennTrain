@@ -1,8 +1,14 @@
+import { useMemo, useState } from "react";
+import { Printer } from "lucide-react";
 import type { FinancialWorkspace } from "@/hooks/useResidentFinancialOperations";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { addFacilityCalendarDays, formatDateForDisplay } from "@/lib/dateUtils";
+import { buildPersonalFundStatement } from "@/lib/personalFundsStatement";
 import { human, money, today } from "./helpers";
-import { Empty, Status } from "./primitives";
+import { Empty, Field, Status } from "./primitives";
 
 export function PersonalFunds({ data }: { data: FinancialWorkspace }) {
   if (!data.fundAccount)
@@ -14,6 +20,7 @@ export function PersonalFunds({ data }: { data: FinancialWorkspace }) {
   return (
     <div className="space-y-4">
       <PayeeOverview data={data} />
+      <FundStatement data={data} />
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader>
@@ -21,6 +28,9 @@ export function PersonalFunds({ data }: { data: FinancialWorkspace }) {
             <CardDescription>
               {data.fundAccount.account_number} · Beginning balance{" "}
               {money(data.fundAccount.beginning_balance)}
+              {data.fundClosure
+                ? ` · Settled and closed ${formatDateForDisplay(data.fundClosure.closed_on)}`
+                : ""}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -274,4 +284,153 @@ function buildPayeeActionItems(
       severity: "medium",
     });
   return items;
+}
+
+/**
+ * The per-resident personal-funds statement (BACKLOG.md J37).
+ *
+ * The ledger card below lists movements newest-first, which is the right shape for "what happened
+ * lately" and the wrong one for the artifact 55 Pa. Code 2600.20 / 2800.20 ask for: an itemised
+ * statement a resident or designated person is handed, opening on a balance and closing on one,
+ * with every movement in between in the order it happened. It prints through the same stylesheet
+ * the compliance reports use, so it can be signed and filed.
+ *
+ * The running balance column is the ledger's own `balance_after`, not a re-sum: those figures are
+ * what the non-negative constraint was checked against when each entry was written. The statement
+ * cross-checks them against its own arithmetic and says so when they disagree, rather than printing
+ * a closing balance nobody can reproduce.
+ */
+function FundStatement({ data }: { data: FinancialWorkspace }) {
+  const [periodStart, setPeriodStart] = useState(() => addFacilityCalendarDays(today(), -90));
+  const [periodEnd, setPeriodEnd] = useState(() => today());
+  const statement = useMemo(
+    () =>
+      buildPersonalFundStatement({
+        transactions: data.fundTransactions,
+        beginningBalance: data.fundAccount?.beginning_balance,
+        periodStart,
+        periodEnd,
+      }),
+    [data.fundTransactions, data.fundAccount?.beginning_balance, periodStart, periodEnd],
+  );
+
+  return (
+    <Card className="print-report">
+      <CardHeader className="no-print">
+        <CardTitle>Personal funds statement</CardTitle>
+        <CardDescription>
+          Itemised statement for the resident or their designated person: opening balance, every
+          movement in the period, and the closing balance.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 no-print sm:grid-cols-3">
+          <Field label="Period start">
+            <Input
+              type="date"
+              value={periodStart}
+              onChange={(event) => setPeriodStart(event.target.value)}
+            />
+          </Field>
+          <Field label="Period end">
+            <Input
+              type="date"
+              value={periodEnd}
+              onChange={(event) => setPeriodEnd(event.target.value)}
+            />
+          </Field>
+          <div className="flex items-end">
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />
+              Print statement
+            </Button>
+          </div>
+        </div>
+
+        <div className="print-scope text-xs text-muted-foreground">
+          {data.fundAccount?.account_number ?? "No account number"} ·{" "}
+          {formatDateForDisplay(periodStart)} to {formatDateForDisplay(periodEnd)}
+          {data.fundClosure
+            ? ` · Settled ${formatDateForDisplay(data.fundClosure.closed_on)}: ${money(data.fundClosure.amount_returned)} returned to ${data.fundClosure.recipient}`
+            : ""}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 print-summary md:grid-cols-4">
+          <StatementFigure label="Opening balance" value={money(statement.openingBalance)} />
+          <StatementFigure label="Received" value={money(statement.totalIn)} />
+          <StatementFigure label="Disbursed" value={money(statement.totalOut)} />
+          <StatementFigure label="Closing balance" value={money(statement.closingBalance)} />
+        </div>
+
+        {!statement.reconciles && (
+          <p className="text-sm text-destructive">
+            These entries do not add up to the closing balance the ledger carries. Reconcile the
+            account before issuing this statement.
+          </p>
+        )}
+
+        {statement.rows.length === 0 ? (
+          <Empty>No personal-funds movements in this period.</Empty>
+        ) : (
+          <div className="rounded-lg border print-table-container">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm print-table">
+                <thead className="bg-muted/60">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statement.rows.map((row) => (
+                    <tr key={row.entry.id} className="border-t">
+                      <td className="whitespace-nowrap px-3 py-2 align-top">
+                        {formatDateForDisplay(row.facilityDate)}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <p>{human(row.entry.transaction_kind)} · {row.entry.purpose}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {row.entry.staff
+                            ? `Staff: ${row.entry.staff.first_name} ${row.entry.staff.last_name}`
+                            : "No staff recorded"}
+                          {row.entry.resident_acknowledged
+                            ? " · Resident acknowledged"
+                            : row.entry.resident_acknowledgement_note
+                              ? ` · ${row.entry.resident_acknowledgement_note}`
+                              : ""}
+                        </p>
+                      </td>
+                      <td
+                        className={
+                          "whitespace-nowrap px-3 py-2 text-right align-top " +
+                          (row.signedAmount > 0 ? "text-emerald-700" : "")
+                        }
+                      >
+                        {row.signedAmount > 0 ? "+" : "−"}
+                        {money(Math.abs(row.signedAmount))}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right align-top font-medium">
+                        {money(row.balanceAfter)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatementFigure({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 px-3 py-2">
+      <p className="text-lg font-semibold">{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
 }

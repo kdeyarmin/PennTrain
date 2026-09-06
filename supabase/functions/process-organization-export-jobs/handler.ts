@@ -414,13 +414,40 @@ async function embedOrganizationDocuments(input: {
   return { entries, embeddedCount, skippedCount: entries.length - embeddedCount, partial };
 }
 
-async function buildExclusionsFile(admin: SupabaseClient): Promise<string> {
+/** One table's row-level consent withholding, from export_organization_consent_withholding. */
+type ConsentWithholding = {
+  table_name: string;
+  rows_in_archive: number;
+  rows_withheld: number;
+};
+
+async function buildExclusionsFile(
+  admin: SupabaseClient,
+  organizationId: string,
+): Promise<string> {
   const { data, error } = await admin.rpc("get_organization_export_exclusions");
   if (error) throw new Error(`export exclusions: ${error.message}`);
   const nonOrganizationTables = ((data ?? []) as Array<{ table_name?: unknown }>)
     .map((entry) => entry.table_name)
     .filter((table): table is string => typeof table === "string");
   const exclusions = computeExportExclusions({ nonOrganizationTables });
+
+  // BACKLOG J74. export_organization_table filters clinical and FHIR rows by the resident's
+  // disclosure consent, and until now nothing in the archive said so: a reader could not tell a
+  // resident with no clinical record from one whose record was withheld, while README.txt claimed
+  // every CSV held "the rows owned by this organization". Counts only -- which resident withheld
+  // consent is itself the sensitive fact, and it is not in this archive.
+  const { data: withheldData, error: withheldError } = await admin
+    .rpc("export_organization_consent_withholding", { p_organization_id: organizationId });
+  if (withheldError) throw new Error(`export consent withholding: ${withheldError.message}`);
+  const rowLevelExclusions = ((withheldData ?? []) as ConsentWithholding[])
+    .map((entry) => ({
+      table: entry.table_name,
+      rowsInArchive: Number(entry.rows_in_archive),
+      rowsWithheld: Number(entry.rows_withheld),
+    }))
+    .filter((entry) => entry.rowsWithheld > 0);
+
   return JSON.stringify({
     generatedAt: new Date().toISOString(),
     method: "Run-time information_schema scan for public tables without an organization_id column " +
@@ -432,6 +459,16 @@ async function buildExclusionsFile(admin: SupabaseClient): Promise<string> {
       "configuration, regulatory reference mirrors, lifecycle bookkeeping); exportedSeparately tables " +
       "are included in the archive through a dedicated path.",
     ...exclusions,
+    rowLevelExclusions: {
+      rule: "Clinical and FHIR rows are exported only for residents whose clinical_data_consent is " +
+        "'granted'. Rows for residents recorded as not_recorded, restricted or revoked are withheld " +
+        "from this archive.",
+      note: rowLevelExclusions.length === 0
+        ? "No rows were withheld from this archive on consent grounds."
+        : "Counts only. Which resident withheld disclosure is itself protected and is not recorded " +
+          "here; rowsInArchive plus rowsWithheld is what the organization holds in that table.",
+      tables: rowLevelExclusions,
+    },
   }, null, 2);
 }
 
@@ -497,7 +534,7 @@ async function buildExport(
       refs,
     });
 
-    await zip.addFile("exclusions.json", strToU8(await buildExclusionsFile(admin)));
+    await zip.addFile("exclusions.json", strToU8(await buildExclusionsFile(admin, claim.organization_id)));
     await zip.addFile("documents-manifest.json", strToU8(JSON.stringify({
       generatedAt: new Date().toISOString(),
       note: "Embedded document copies live under files/<bucket>/<path> in this archive; each sha256 " +
@@ -514,10 +551,14 @@ async function buildExport(
     }, null, 2)));
     await zip.addFile("README.txt", strToU8(
       "CareMetric CareBase organization export\r\n\r\n" +
-        "Each tables/*.csv file contains the rows owned by this organization. " +
-        "Binary documents are embedded under files/<bucket>/<path> and indexed by " +
+        "Each tables/*.csv file contains the rows owned by this organization, EXCEPT where a " +
+        "resident's disclosure consent withholds them: clinical and FHIR rows are exported only " +
+        "for residents whose clinical_data_consent is 'granted'. That is not a gap in the export, " +
+        "it is the consent being honoured -- and exclusions.json counts it, per table, under " +
+        "rowLevelExclusions, so a row that is missing here can be told apart from a row that never " +
+        "existed. Binary documents are embedded under files/<bucket>/<path> and indexed by " +
         "documents-manifest.json (per-file sha256, embedded flag, and skip reason " +
-        "for anything left out). exclusions.json declares the shared/global tables " +
+        "for anything left out). exclusions.json also declares the shared/global tables " +
         "this archive intentionally does not contain.\r\n",
     ));
 

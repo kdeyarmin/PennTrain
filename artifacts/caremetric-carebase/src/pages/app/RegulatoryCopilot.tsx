@@ -7,6 +7,8 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListViolations } from "@/hooks/useViolations";
+import { useActiveRegulatoryRules } from "@/hooks/useRegulatoryRules";
+import { activeRulePacksForJurisdiction } from "@/lib/regulatoryCrosswalk";
 import {
   useAskComplianceCopilot,
   useComplianceCopilotHistory,
@@ -185,6 +187,25 @@ export default function RegulatoryCopilot() {
   const contextQueries = [facilitiesQuery, myAssignmentsQuery, employeesQuery, violationsQuery];
   const contextFailure = contextQueries.find((query) => query.isError);
 
+  // What PA coverage this tenant actually has, rather than a sentence asserting it has none. The
+  // PA PCH and PA ALF personnel templates are installable from the rule-pack console, so the
+  // hard-coded "Pennsylvania has no installed PA rule pack yet" went on being displayed after an
+  // operator installed and activated one -- telling a manager their governed rules do not exist
+  // while the copilot was answering from them.
+  const governedRules = useActiveRegulatoryRules();
+  const paRulePacks = useMemo(
+    () => activeRulePacksForJurisdiction(governedRules.data, "PA"),
+    [governedRules.data],
+  );
+  const paPackNames = useMemo(
+    () => [...new Set(paRulePacks.map((rule) => rule.regulatory_rule_packs?.name ?? rule.citation))],
+    [paRulePacks],
+  );
+  // Fail toward the cautious sentence: while the read is in flight or has failed, say nothing
+  // about coverage this page cannot currently see.
+  const paCoverageKnown = !governedRules.isLoading && !governedRules.isError;
+  const hasPaRulePack = paCoverageKnown && paRulePacks.length > 0;
+
   return (
     <div className="space-y-6">
       {contextFailure && (
@@ -196,13 +217,26 @@ export default function RegulatoryCopilot() {
       )}
       <div>
         <div className="flex items-center gap-2"><Bot className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Citation-Backed Regulatory Copilot</h1></div>
-        <p className="text-muted-foreground">Drafting aid over facility-scoped CareBase documentation and any active governed rule versions. Pennsylvania has no installed PA rule pack yet — answers are not compliance determinations. Every answer carries its source, gaps, and authority label.</p>
+        <p className="text-muted-foreground">
+          Drafting aid over facility-scoped CareBase documentation and any active governed rule versions.
+          {hasPaRulePack
+            ? ` ${paRulePacks.length} active PA rule version${paRulePacks.length === 1 ? "" : "s"} ground PA answers — they are still not compliance determinations.`
+            : " Answers are not compliance determinations."}
+          {" "}Every answer carries its source, gaps, and authority label.
+        </p>
       </div>
 
       <Alert>
         <LockKeyhole className="h-4 w-4" />
         <AlertTitle>Drafting aid only — human confirmation remains mandatory</AlertTitle>
-        <AlertDescription>No active PA governed rule pack is installed. PA personnel templates are counsel-cleared and installable. Install and activate a PA PCH or PA ALF pack to enable governed PA rule coverage. The Ohio template demonstrates mechanism only and does not cover Pennsylvania. The copilot cannot close findings, approve plans, change resident records, decide incident reportability, invent citations, use superseded rules as current, or alter staffing eligibility.</AlertDescription>
+        <AlertDescription>
+          {!paCoverageKnown
+            ? "PA governed rule coverage could not be read, so treat every answer as ungoverned until it loads."
+            : hasPaRulePack
+              ? `Active PA governed rule coverage: ${paPackNames.join(", ")}. Answers outside these versions remain ungoverned drafting aid.`
+              : "No active PA governed rule pack is installed. PA personnel templates are counsel-cleared and installable. Install and activate a PA PCH or PA ALF pack to enable governed PA rule coverage. The Ohio template demonstrates mechanism only and does not cover Pennsylvania."}
+          {" "}The copilot cannot close findings, approve plans, change resident records, decide incident reportability, invent citations, use superseded rules as current, or alter staffing eligibility.
+        </AlertDescription>
       </Alert>
 
       <Tabs defaultValue="ask">

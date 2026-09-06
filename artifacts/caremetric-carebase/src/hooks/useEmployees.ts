@@ -11,6 +11,14 @@ export type EmployeeUpdate = TablesUpdate<"employees">;
 export interface ListEmployeesFilters {
   facilityId?: string;
   status?: string;
+  /**
+   * Several statuses at once, for callers whose set of acceptable statuses depends on what the
+   * server will accept -- the lifecycle wizard's picker, whose eligible statuses differ per
+   * transition (rehire wants `terminated`, return wants `on_leave`, transfer takes either of
+   * `active`/`on_leave`). Applied with `.in`, and ignored when empty so it can never silently
+   * widen to "every status"; `status` still applies on top when both are given.
+   */
+  statuses?: readonly string[];
   organizationId?: string;
   /** When set, restrict to staff who do / do not administer medications. */
   administersMedications?: boolean;
@@ -41,6 +49,7 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
       let query = supabase.from("employees").select("*").order("last_name");
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
+      if (filters.statuses?.length) query = query.in("status", [...filters.statuses]);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.administersMedications !== undefined) {
         query = query.eq("administers_medications", filters.administersMedications);
@@ -107,6 +116,7 @@ export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters
       let query = supabase.from("employees").select("*", { count: "exact" });
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
+      if (filters.statuses?.length) query = query.in("status", [...filters.statuses]);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.administersMedications !== undefined) {
         query = query.eq("administers_medications", filters.administersMedications);
@@ -179,9 +189,17 @@ export function useCreateEmployee() {
     // The training matrix is keyed by employee as well as by record, so hiring, editing
     // (job title, facility, meds/trainer flags), or removing someone changes which rows and
     // columns it returns.
+    //
+    // So do two more surfaces the first version of this list missed (BACKLOG J74, P3 tail): every
+    // shift row embeds `employees(first_name,last_name)` and is filtered by facility, so a rename
+    // or a facility change leaves the schedule grid showing the old value; and
+    // get_org_dashboard_summary counts the active roster behind a 60-second staleTime, so the
+    // headline employee count disagreed with the roster the manager had just edited.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
     },
   });
 }
@@ -197,26 +215,29 @@ export function useUpdateEmployee() {
     // The training matrix is keyed by employee as well as by record, so hiring, editing
     // (job title, facility, meds/trainer flags), or removing someone changes which rows and
     // columns it returns.
+    //
+    // So do two more surfaces the first version of this list missed (BACKLOG J74, P3 tail): every
+    // shift row embeds `employees(first_name,last_name)` and is filtered by facility, so a rename
+    // or a facility change leaves the schedule grid showing the old value; and
+    // get_org_dashboard_summary counts the active roster behind a 60-second staleTime, so the
+    // headline employee count disagreed with the roster the manager had just edited.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
     },
   });
 }
 
-export function useDeleteEmployee() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("employees").delete().eq("id", id);
-      if (error) throw error;
-    },
-    // The training matrix is keyed by employee as well as by record, so hiring, editing
-    // (job title, facility, meds/trainer flags), or removing someone changes which rows and
-    // columns it returns.
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
-      queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
-    },
-  });
-}
+// There is deliberately no useDeleteEmployee.
+//
+// `delete from employees` cannot succeed for any employee this product created. Every insert fires
+// app_private.shadow_new_employee_lifecycle, which writes a workforce_employee_links row and an
+// employment_lifecycle_events row, both referencing the employee `on delete restrict`; employment
+// episodes are refused as retained evidence too. So the request was answered with a foreign-key
+// error every time, behind a dialog promising to remove "all associated training data".
+//
+// The supported way to end someone's employment is the lifecycle wizard's `terminate` transition
+// (/app/employee-lifecycle), which closes the employment episode and records the event rather than
+// destroying the evidence of it.

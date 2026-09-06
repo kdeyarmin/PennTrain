@@ -15,6 +15,7 @@ import {
   formatFacilityTimeForDisplay,
   toFacilityDateTimeLocal,
   toLocalIsoDate,
+  facilityDateOf,
 } from "./dateUtils";
 
 describe("toLocalIsoDate", () => {
@@ -216,5 +217,42 @@ describe("formatDateForDisplay", () => {
   it("handles missing and invalid values", () => {
     expect(formatDateForDisplay(null)).toBe("—");
     expect(formatDateForDisplay("not-a-date")).toBe("—");
+  });
+});
+
+describe("facilityDateOf", () => {
+  it("returns the Pennsylvania date of an instant, not the UTC one", () => {
+    // The whole reason this exists: PostgREST serialises timestamptz in UTC, and after 20:00 ET
+    // the UTC date has already rolled over. Slicing the string gives the wrong day for four hours
+    // out of every twenty-four -- reliably enough to pass a spot check and still be wrong.
+    expect(facilityDateOf("2026-01-02T01:00:00.000Z")).toBe("2026-01-01");
+    expect(facilityDateOf("2026-01-02T14:00:00.000Z")).toBe("2026-01-02");
+  });
+
+  it("handles the summer offset too", () => {
+    // EDT is UTC-4, so the rollover is an hour earlier in wall-clock terms.
+    expect(facilityDateOf("2026-07-02T03:30:00.000Z")).toBe("2026-07-01");
+  });
+
+  it("accepts a Date as well as a string", () => {
+    expect(facilityDateOf(new Date("2026-01-02T01:00:00.000Z"))).toBe("2026-01-01");
+  });
+
+  it("returns a bare date unchanged instead of walking it back a day", () => {
+    // The property the mixed call sites depend on. A `date` column is already the facility's
+    // answer; converting one would mean new Date("2026-03-01") -- UTC midnight, 28 February in
+    // Pennsylvania -- so a helper that treated every input as an instant would corrupt exactly the
+    // fields it was added to protect. Callers fed by a union of a date column and a timestamptz
+    // (a resident's `since`, a conflicting record's `at`) cannot tell the two apart; this can.
+    expect(facilityDateOf("2026-03-01")).toBe("2026-03-01");
+    expect(facilityDateOf("2026-01-01")).toBe("2026-01-01");
+    expect(facilityDateOf(" 2026-07-04 ")).toBe("2026-07-04");
+  });
+
+  it("returns null rather than a wrong date for missing or unparseable input", () => {
+    expect(facilityDateOf(null)).toBeNull();
+    expect(facilityDateOf(undefined)).toBeNull();
+    expect(facilityDateOf("")).toBeNull();
+    expect(facilityDateOf("not a date")).toBeNull();
   });
 });

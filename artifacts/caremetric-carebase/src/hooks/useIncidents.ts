@@ -184,6 +184,37 @@ export function useListIncidentNotifications(incidentId: string | undefined) {
   });
 }
 
+/**
+ * The open work-queue item this incident opened, and the deadline it is being escalated against.
+ *
+ * `app_private.route_operational_work` opens an `incident.followup` work item on every incident
+ * insert, due in an hour for a critical event and tomorrow for everything else, and
+ * `escalate_overdue_work_items` raises its priority when that passes. None of that was visible on
+ * the incident itself: the queue said "Investigate death -- due tomorrow" while the incident page
+ * showed no due date anywhere, so the person doing the work and the queue chasing them were
+ * looking at two different records. Reading it here rather than adding a second deadline keeps one
+ * clock (BACKLOG.md J74).
+ *
+ * `work_items` RLS is org/facility scoped like everything else on this page; a role that cannot
+ * read the queue simply gets no rows and the section does not render.
+ */
+export function useIncidentWorkItem(incidentId: string | undefined) {
+  return useQuery({
+    queryKey: ["work-items", "incident", incidentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("work_items")
+        .select("id, title, state, priority, due_at, escalated_at, owner_profile_id")
+        .eq("source_type", "incident")
+        .eq("source_id", incidentId!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!incidentId,
+  });
+}
+
 export function useAddIncidentNotification() {
   const queryClient = useQueryClient();
   return useMutation({

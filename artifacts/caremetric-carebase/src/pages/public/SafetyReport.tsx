@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ShieldCheck } from "lucide-react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 type SubmissionResult = {
   intakeNumber?: unknown;
@@ -34,7 +37,45 @@ function looksLikeUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
 }
 
+/**
+ * Is this a COMPLETE facility code, worth spending a lookup on?
+ *
+ * `resolve_safety_report_facility` runs `public.guest_request_denial('safety_report', ...)` before
+ * anything else, and every token that resolves to nothing is one of ten "unknown token" strikes a
+ * minute for the caller's whole address (20260905230000 / 20260905360000). The poster token is
+ * `replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '')` -- exactly 64 hex
+ * characters (20260731120000:62) -- and the legacy QR form is a facility UUID. A debounced lookup
+ * on every keystroke therefore burned a strike on each of the value's incomplete prefixes: after
+ * the tenth pause a reporter typing their own valid code by hand was throttled out of the page and
+ * logged in `guest_token_failures` as a scanner. Nothing shorter can ever match, so nothing
+ * shorter is sent.
+ */
+function isCompleteFacilityCode(value: string): boolean {
+  const trimmed = value.trim();
+  return /^[0-9a-f]{64}$/i.test(trimmed) || looksLikeUuid(trimmed);
+}
+
+/**
+ * The submit-confidential-intake function puts its real reason in the JSON body of a non-2xx
+ * response ("Too many reports have been submitted from this network..."), which supabase-js hands
+ * back as a bare FunctionsHttpError whose message is "Edge Function returned a non-2xx status
+ * code". A confidential reporter met that string and had no idea they had been rate-limited by
+ * their colleagues, let alone what to do next. Same unwrapping as useRequestDemo.
+ */
+async function intakeErrorMessage(error: unknown): Promise<string | null> {
+  if (!(error instanceof FunctionsHttpError)) return null;
+  try {
+    const body = (await error.context.json()) as { message?: unknown; error?: unknown } | null;
+    if (typeof body?.message === "string" && body.message.trim()) return body.message;
+    if (typeof body?.error === "string" && body.error.trim()) return body.error;
+  } catch {
+    // Response body wasn't JSON -- fall back to the generic message.
+  }
+  return null;
+}
+
 export default function SafetyReport() {
+  usePageMeta({ ...MARKETING_ROUTE_META["/report-safety"], path: "/report-safety" });
   const { toast } = useToast();
   const prefilledToken = useMemo(() => tokenFromLocation(), []);
   const [facilityToken, setFacilityToken] = useState(prefilledToken);
@@ -113,7 +154,9 @@ export default function SafetyReport() {
 
   useEffect(() => {
     const value = facilityToken.trim();
-    if (value.length < 8) {
+    // Only a complete code is looked up: see isCompleteFacilityCode -- every partial value was an
+    // unknown-token strike against the reporter's whole building.
+    if (!isCompleteFacilityCode(value)) {
       setResolved(null);
       setResolveError(null);
       // A resolve already in flight has its cleanup set canceled, so its `finally` will not
@@ -193,14 +236,16 @@ export default function SafetyReport() {
       if (error) throw error;
       const payload = (data?.data ?? data ?? null) as SubmissionResult | null;
       if (!payload || (!payload.intakeNumber && !payload.confirmationToken)) {
-        throw new Error(typeof data?.error === "string" ? data.error : "The report could not be accepted. Check the facility code and try again.");
+        throw new Error(typeof data?.message === "string" ? data.message : typeof data?.error === "string" ? data.error : "The report could not be accepted. Check the facility code and try again.");
       }
       setResult(payload);
     } catch (err) {
       setToken("");
       setTurnstileError(null);
       if (widget.current && window.turnstile) window.turnstile.reset(widget.current);
-      const message = err instanceof Error ? err.message : "Please try again.";
+      // The function's own wording first; "Edge Function returned a non-2xx status code" is not a
+      // thing to show a person who has just tried to report a safety incident.
+      const message = (await intakeErrorMessage(err)) ?? (err instanceof Error ? err.message : "Please try again.");
       toast({
         variant: "destructive",
         title: "Submission failed",
@@ -304,6 +349,12 @@ export default function SafetyReport() {
                     <p className="text-xs text-muted-foreground">
                       Use the QR code or link posted at your facility. Do not guess this value — reports without a valid facility code cannot be routed.
                     </p>
+                    {facilityToken.trim().length > 0 && !isCompleteFacilityCode(facilityToken) && (
+                      <p className="text-xs text-muted-foreground">
+                        Enter the whole code (64 characters from the poster, or a facility link). It is
+                        checked once it is complete.
+                      </p>
+                    )}
                   </>
                 )}
                 {resolving && <p className="text-xs text-muted-foreground">Checking facility code…</p>}

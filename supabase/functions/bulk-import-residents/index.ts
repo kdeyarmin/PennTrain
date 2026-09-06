@@ -123,14 +123,36 @@ Deno.serve(async (req: Request) => {
 
   const results: ImportRowResult[] = [];
   const ledgerRows: any[] = [];
-  const { data: existingLedgers } = await callerClient.from("data_import_rows")
+  // A failed receipt load is not an empty ledger. Reading only `data` left ledgerMap empty, and
+  // the loop below skips rows by that map -- so a resume after a transient failure re-applied
+  // every row it had already applied, which is the duplication the per-row receipts exist to
+  // prevent. bulk-import-credentials, -employees and -training-records already refuse here.
+  const { data: existingLedgers, error: ledgerLoadError } = await callerClient.from("data_import_rows")
     .select("row_number, status, target_id, proposed_action").eq("job_id", jobId)
     .gte("row_number", offset + 2).lte("row_number", endIndex + 1);
+  if (ledgerLoadError) return json(req, { error: `Failed to load existing import receipts: ${ledgerLoadError.message}`, job_id: jobId }, 500);
   const ledgerMap = new Map((existingLedgers ?? []).map((r: any) => [r.row_number, r]));
   // The FACILITY day: this becomes admission_date for a row that does not carry one, and after
   // 20:00 ET the UTC day is already tomorrow -- a resident admitted this evening would be
   // recorded as admitted tomorrow, on a date the regulatory timeline is computed from.
   const today = paToday();
+
+  // A lookup that failed leaves this run unable to finish honestly, and returning on the spot
+  // would strand the rows the chunk has already processed: they live in `ledgerRows` until the
+  // receipt at the end, so a bare return would let a resume apply them a second time. Receipt what
+  // is there, THEN refuse. `failed` is a status apply mode is allowed to resume from, it carries
+  // the reason into the job's `last_error` where the imports page shows it, and it releases this
+  // run's claim so the resume is not blocked by the lease of the run that gave up.
+  async function abortRun(message: string) {
+    const { error: receiptError } = await callerClient.rpc("record_data_import_chunk", {
+      p_job_id: jobId,
+      p_rows: ledgerRows,
+      p_job_status: "failed",
+      p_last_error: message.slice(0, 2000),
+    });
+    const alsoFailed = receiptError ? ` The receipt for this chunk also failed: ${receiptError.message}` : "";
+    return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
+  }
 
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
@@ -158,17 +180,38 @@ Deno.serve(async (req: Request) => {
     let existing: any = null;
     if (!rowErrors.length && facilityId) {
       if (externalId) {
-        const { data } = await callerClient.from("residents").select("*")
+        // BACKLOG J39. `residents.external_id` (20260906130000) is where the source system's
+        // identifier lives now, with a unique index on (organization_id, facility_id, external_id).
+        // A lookup that FAILED is not a resident that is absent, and every branch here decides
+        // create-vs-update: reading only `data` turned an RLS denial or a dropped connection into
+        // a second copy of a resident who is already on the census. Stop the run instead --
+        // abortRun receipts what this chunk has already done before refusing, so re-posting this
+        // job_id resumes rather than repeats.
+        const { data, error: lookupError } = await callerClient.from("residents").select("*")
           .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
-          .eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
+          .eq("external_id", externalId).limit(1).maybeSingle();
+        if (lookupError) return await abortRun(`Row ${rowNumber}: resident lookup failed: ${lookupError.message}`);
         existing = data;
+        if (!existing) {
+          // Documented fallback, for rows imported before external_id existed: this importer used
+          // to stash the identifier in `preferred_name` as `import:{id}`. Matching on it keeps a
+          // re-import of an older tenant's file finding the residents it created, and the update
+          // below moves the identifier into external_id so the next run does not need this branch.
+          // New rows never write this shape -- preferred_name is a name.
+          const legacy = await callerClient.from("residents").select("*")
+            .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
+            .eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
+          if (legacy.error) return await abortRun(`Row ${rowNumber}: resident lookup failed: ${legacy.error.message}`);
+          existing = legacy.data;
+        }
       }
       if (!existing) {
         let q = callerClient.from("residents").select("*")
           .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
           .ilike("first_name", escapedIlike(first!)).ilike("last_name", escapedIlike(last!));
         if (dob) q = q.eq("date_of_birth", dob);
-        const { data } = await q.limit(1).maybeSingle();
+        const { data, error: nameMatchError } = await q.limit(1).maybeSingle();
+        if (nameMatchError) return await abortRun(`Row ${rowNumber}: resident lookup failed: ${nameMatchError.message}`);
         existing = data;
       }
     }
@@ -181,7 +224,12 @@ Deno.serve(async (req: Request) => {
       else warnings.push("Existing resident will be updated.");
     }
 
-    // preferred_name stores import external key for contact linking: import:{external_id}
+    // The source system's identifier goes in its own column. It used to be written into
+    // `preferred_name` as `import:{external_id}` (BACKLOG J39) -- a field printed on the face
+    // sheet, freely editable by anyone who can edit a resident, and resolved organization-wide, so
+    // renaming a resident's preferred name silently broke re-import matching and two facilities'
+    // identifiers collided. `residents.external_id` is scoped per facility by a unique index and is
+    // never shown as a name.
     const payload: any = {
       organization_id: effectiveOrgId,
       facility_id: facilityId,
@@ -190,7 +238,7 @@ Deno.serve(async (req: Request) => {
       date_of_birth: dob,
       room: room,
       admission_date: today,
-      preferred_name: externalId ? `import:${externalId}` : null,
+      external_id: externalId,
       status: "active",
     };
     // Only columns this CSV actually carries: `dob`/`room` default to null when their
@@ -202,7 +250,12 @@ Deno.serve(async (req: Request) => {
         facility_id: facilityId,
         first_name: first,
         last_name: last,
-        preferred_name: externalId ? `import:${externalId}` : existing.preferred_name,
+        // Set only when the CSV carries one, so a file without the column never clears an
+        // identifier a previous import established. A row matched through the legacy
+        // `preferred_name` fallback above is migrated onto the column by this write; the stale
+        // `import:` value in preferred_name is left alone rather than guessed at, because by then
+        // it may be a name somebody has since typed.
+        ...(externalId ? { external_id: externalId } : {}),
       }
       : null;
     if (updatePayload) {

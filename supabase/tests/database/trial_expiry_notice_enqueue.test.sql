@@ -148,9 +148,17 @@ select is(
 );
 
 -- The T-7 org reaches its final day: the T-1 threshold fires exactly once.
+--
+-- Through the privileged-write hatch: 20260906060000 made trial_ends_at one of the columns
+-- protect_organization_subscription_fields reverts for anybody who is not a platform admin, because
+-- organizations_update admits an org_admin for their own row and one UPDATE to 2099 made every
+-- module resolve entitled for ever. The superuser running this fixture is not a platform admin
+-- either, so without this the write is silently reverted and the trial never reaches its final day.
+select set_config('app.privileged_write', 'on', true);
 update public.organizations
 set trial_ends_at = now() + interval '12 hours'
 where id = '34000000-0000-4000-8000-000000000021';
+select set_config('app.privileged_write', 'off', true);
 select is(
   app_private.enqueue_trial_expiry_notices(),
   1,

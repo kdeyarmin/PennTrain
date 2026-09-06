@@ -95,9 +95,13 @@ create temporary table phase2_rotated (
 create temporary table phase2_endpoint (
   endpoint_id uuid, plaintext_signing_secret text, secret_version integer
 ) on commit drop;
+-- RETARGETED by 20260906260000: claim_integration_webhook_deliveries now also returns
+-- previous_signing_secret (null outside a rotation window), so this mirror of its row type gains
+-- the column or the `insert ... select *` below fails on arity.
 create temporary table phase2_claimed (
   delivery_id uuid, organization_id uuid, endpoint_id uuid, destination_url text, event_id uuid,
-  request_body jsonb, plaintext_signing_secret text, attempt_number integer,
+  request_body jsonb, plaintext_signing_secret text, previous_signing_secret text,
+  attempt_number integer,
   max_attempts integer, timeout_ms integer, correlation_id text,
   event_schema_version text
 ) on commit drop;
@@ -352,10 +356,14 @@ select is(
   1,
   'the replacement credential authenticates in its tenant and scope'
 );
+-- RETARGETED by 20260906260000: these five assertions are about receipts, idempotency and event
+-- envelopes, and used `workforce.lifecycle.sync` only as a stand-in command. That type is now
+-- refused, because nothing ever drained it. `fhir.bundle.import` at its registered version is a
+-- command the inbox actually consumes; nothing else about the block changes.
 create temporary table phase2_command_first on commit drop as
 select * from public.accept_integration_command(
   (select credential_id from phase2_rotated), 'phase2-command-0001', repeat('d', 64),
-  'workforce.lifecycle.sync', '2026-07-11', '{"externalId":"employee-1"}'::jsonb,
+  'fhir.bundle.import', '2026-07-25', '{"externalId":"employee-1"}'::jsonb,
   'phase2-command-correlation'
 );
 select results_eq(
@@ -367,7 +375,7 @@ select results_eq(
   $$ select command_id = (select command_id from phase2_command_first), was_duplicate
      from public.accept_integration_command(
        (select credential_id from phase2_rotated), 'phase2-command-0001', repeat('d', 64),
-       'workforce.lifecycle.sync', '2026-07-11', '{"externalId":"employee-1"}'::jsonb,
+       'fhir.bundle.import', '2026-07-25', '{"externalId":"employee-1"}'::jsonb,
        'phase2-command-correlation-retry') $$,
   $$ values (true, true) $$,
   'a repeated command returns the canonical receipt instead of racing a duplicate insert'
@@ -382,7 +390,7 @@ select is(
 select throws_ok(
   $$ select * from public.accept_integration_command(
        (select credential_id from phase2_rotated), 'phase2-command-0001', repeat('e', 64),
-       'workforce.lifecycle.sync', '2026-07-11', '{"externalId":"employee-2"}'::jsonb,
+       'fhir.bundle.import', '2026-07-25', '{"externalId":"employee-2"}'::jsonb,
        'phase2-command-conflict') $$,
   '23505', null, 'an idempotency key cannot be reused for different content'
 );

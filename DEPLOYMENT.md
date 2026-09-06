@@ -539,9 +539,18 @@ policy at all, so it was never exploitable there, but the trigger was extended f
   clinical/functional-assessment content. Provider paths remain **double-gated**:
   1. Edge secret `ANTHROPIC_BAA_CONFIRMED=true` (set in Supabase after the Anthropic BAA was filed —
      required by `analyze-state-form` before any PDF is sent).
-  2. Platform kill-switches (`ai_wellness_summary_generation_enabled`, `ai_document_analyzer_enabled`,
-     `ai_compliance_copilot_enabled`, `voice_assistant_enabled`) — still default **false** except
-     voice which is product-enabled; flip deliberately per feature when ready to process production data.
+  2. Platform kill-switches in `public.platform_settings`. There are six, and they do not all seed the
+     same way, which this list used to imply:
+     - Seeded **false**, and off in production today: `ai_wellness_summary_generation_enabled`
+       (`20260707020200`), `ai_document_analyzer_enabled` (`20260713233707`),
+       `ai_compliance_copilot_enabled` (`20260714010000`). These three are the ones to flip
+       deliberately, per feature, when ready to process production data.
+     - Seeded **true** by `20260706043635`: `ai_course_generation_enabled`,
+       `ai_video_generation_enabled`. Their being on in production is the code default rather than a
+       dashboard change somebody made. Both are training-content-only and touch no resident data.
+     - Seeded **true** by `20260724220000`: `voice_assistant_enabled`, which is product-enabled.
+     So a fresh project comes up with three of the six on. If that is not the posture you want for an
+     environment, turn them off explicitly -- do not assume the seed left them off.
   3. Per-org `org_ai_allowed` (BAA stamp + `ai_features_enabled`).
   Document analyzer uploads still land in the Supabase-covered `state-form-analyzer` bucket and wait
   in queue until the platform switch is on. Course drafting remains training-content-only.

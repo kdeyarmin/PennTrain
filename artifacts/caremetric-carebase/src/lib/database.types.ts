@@ -4162,6 +4162,7 @@ export type Database = {
       }
       confidential_intake_attempts: {
         Row: {
+          counts_toward_rate_limit: boolean
           created_at: string
           error_code: string | null
           facility_id: string | null
@@ -4170,6 +4171,7 @@ export type Database = {
           success: boolean
         }
         Insert: {
+          counts_toward_rate_limit?: boolean
           created_at?: string
           error_code?: string | null
           facility_id?: string | null
@@ -4178,6 +4180,7 @@ export type Database = {
           success: boolean
         }
         Update: {
+          counts_toward_rate_limit?: boolean
           created_at?: string
           error_code?: string | null
           facility_id?: string | null
@@ -4347,6 +4350,8 @@ export type Database = {
           status: string
           updated_at: string
           verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
           violation_id: string | null
           work_item_id: string | null
         }
@@ -4366,6 +4371,8 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           violation_id?: string | null
           work_item_id?: string | null
         }
@@ -4385,6 +4392,8 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           violation_id?: string | null
           work_item_id?: string | null
         }
@@ -4434,6 +4443,13 @@ export type Database = {
           {
             foreignKeyName: "corrective_actions_owner_profile_id_fkey"
             columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_verified_by_fkey"
+            columns: ["verified_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -4560,6 +4576,7 @@ export type Database = {
       }
       course_assignments: {
         Row: {
+          additional_attempts_granted: number
           assigned_at: string
           assigned_by: string | null
           canceled_at: string | null
@@ -4582,6 +4599,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          additional_attempts_granted?: number
           assigned_at?: string
           assigned_by?: string | null
           canceled_at?: string | null
@@ -4604,6 +4622,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          additional_attempts_granted?: number
           assigned_at?: string
           assigned_by?: string | null
           canceled_at?: string | null
@@ -19342,6 +19361,7 @@ export type Database = {
           revoked_at: string | null
           revoked_by: string | null
           updated_at: string
+          verification_challenge: string | null
           verification_challenge_sha256: string
           verification_status: string
           verified_at: string | null
@@ -19357,6 +19377,7 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           updated_at?: string
+          verification_challenge?: string | null
           verification_challenge_sha256: string
           verification_status?: string
           verified_at?: string | null
@@ -19372,6 +19393,7 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           updated_at?: string
+          verification_challenge?: string | null
           verification_challenge_sha256?: string
           verification_status?: string
           verified_at?: string | null
@@ -20064,6 +20086,8 @@ export type Database = {
       }
       policy_attestation_campaigns: {
         Row: {
+          closed_at: string | null
+          closed_reason: string | null
           created_at: string
           created_by: string | null
           due_date: string | null
@@ -20085,6 +20109,8 @@ export type Database = {
           targets_last_materialized_at: string | null
         }
         Insert: {
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           due_date?: string | null
@@ -20106,6 +20132,8 @@ export type Database = {
           targets_last_materialized_at?: string | null
         }
         Update: {
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           due_date?: string | null
@@ -20191,6 +20219,7 @@ export type Database = {
           policy_document_version_id: string
           reminder_sent_at: string | null
           status: string
+          superseded_at: string | null
           updated_at: string
           user_agent: string | null
         }
@@ -20209,6 +20238,7 @@ export type Database = {
           policy_document_version_id: string
           reminder_sent_at?: string | null
           status?: string
+          superseded_at?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -20227,6 +20257,7 @@ export type Database = {
           policy_document_version_id?: string
           reminder_sent_at?: string | null
           status?: string
+          superseded_at?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -27057,6 +27088,101 @@ export type Database = {
           },
         ]
       }
+      resident_personal_fund_account_closures: {
+        Row: {
+          amount_returned: number
+          closed_by: string | null
+          closed_on: string
+          created_at: string
+          facility_id: string
+          final_transaction_id: string | null
+          id: string
+          organization_id: string
+          personal_fund_account_id: string
+          purpose: string
+          recipient: string
+          resident_id: string
+        }
+        Insert: {
+          amount_returned: number
+          closed_by?: string | null
+          closed_on: string
+          created_at?: string
+          facility_id: string
+          final_transaction_id?: string | null
+          id?: string
+          organization_id: string
+          personal_fund_account_id: string
+          purpose: string
+          recipient: string
+          resident_id: string
+        }
+        Update: {
+          amount_returned?: number
+          closed_by?: string | null
+          closed_on?: string
+          created_at?: string
+          facility_id?: string
+          final_transaction_id?: string | null
+          id?: string
+          organization_id?: string
+          personal_fund_account_id?: string
+          purpose?: string
+          recipient?: string
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_personal_fund_account_cl_personal_fund_account_id_fkey"
+            columns: ["personal_fund_account_id"]
+            isOneToOne: true
+            referencedRelation: "resident_personal_fund_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closur_final_transaction_id_fkey"
+            columns: ["final_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "resident_personal_fund_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_personal_fund_accounts: {
         Row: {
           account_number: string
@@ -29421,6 +29547,7 @@ export type Database = {
           dietary_requirements: string | null
           discharge_date: string | null
           elopement_risk: string
+          external_id: string | null
           facility_id: string
           fall_risk: string
           first_name: string
@@ -29487,6 +29614,7 @@ export type Database = {
           dietary_requirements?: string | null
           discharge_date?: string | null
           elopement_risk?: string
+          external_id?: string | null
           facility_id: string
           fall_risk?: string
           first_name: string
@@ -29553,6 +29681,7 @@ export type Database = {
           dietary_requirements?: string | null
           discharge_date?: string | null
           elopement_risk?: string
+          external_id?: string | null
           facility_id?: string
           fall_risk?: string
           first_name?: string
@@ -36557,6 +36686,42 @@ export type Database = {
         Args: { p_facility_id: string; p_organization_id: string }
         Returns: boolean
       }
+      cancel_course_assignment: {
+        Args: { p_assignment_id: string; p_reason: string }
+        Returns: {
+          additional_attempts_granted: number
+          assigned_at: string
+          assigned_by: string | null
+          canceled_at: string | null
+          cancellation_reason: string | null
+          completed_at: string | null
+          completion_recorded_at: string | null
+          course_id: string
+          course_version_id: string
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          lifecycle_disposition: string | null
+          lifecycle_event_id: string | null
+          lifecycle_previous_status: string | null
+          organization_id: string
+          status: string
+          training_plan_id: string | null
+          training_plan_item_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "course_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_data_import_job: {
+        Args: { p_job_id: string; p_reason?: string }
+        Returns: Json
+      }
       cancel_employee_lifecycle_case: {
         Args: { p_case_id: string; p_reason: string }
         Returns: boolean
@@ -36755,6 +36920,7 @@ export type Database = {
           max_attempts: number
           organization_id: string
           plaintext_signing_secret: string
+          previous_signing_secret: string
           request_body: Json
           timeout_ms: number
         }[]
@@ -36842,6 +37008,43 @@ export type Database = {
       close_resident_change_event: {
         Args: { p_event_id: string; p_final_review_summary: string }
         Returns: boolean
+      }
+      close_resident_personal_fund_account: {
+        Args: {
+          p_purpose: string
+          p_receipt_document_id?: string
+          p_recipient: string
+          p_resident_id: string
+          p_transaction_at?: string
+        }
+        Returns: {
+          adjustment_reason: string | null
+          adjusts_transaction_id: string | null
+          amount: number
+          balance_after: number
+          direction: string
+          facility_id: string
+          id: string
+          organization_id: string
+          personal_fund_account_id: string
+          posted_at: string
+          posted_by: string | null
+          purpose: string
+          receipt_document_id: string | null
+          resident_acknowledged: boolean
+          resident_acknowledged_at: string | null
+          resident_acknowledgement_note: string | null
+          resident_id: string
+          staff_employee_id: string | null
+          transaction_at: string
+          transaction_kind: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_personal_fund_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       close_survey_day: {
         Args: { p_reason: string; p_session_id: string }
@@ -36962,7 +37165,11 @@ export type Database = {
         Returns: undefined
       }
       complete_resident_compliance_item: {
-        Args: { p_document_id: string; p_item_id: string }
+        Args: {
+          p_completed_on?: string
+          p_document_id: string
+          p_item_id: string
+        }
         Returns: {
           citation_topic_id: string | null
           completed_date: string | null
@@ -37579,6 +37786,8 @@ export type Database = {
           status: string
           updated_at: string
           verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
           violation_id: string | null
           work_item_id: string | null
         }
@@ -37722,6 +37931,10 @@ export type Database = {
           p_employee_id: string
           p_qualification_key: string
         }
+        Returns: boolean
+      }
+      employee_serves_facility: {
+        Args: { p_employee_id: string; p_facility_id: string }
         Returns: boolean
       }
       enable_my_training_passport: {
@@ -37907,6 +38120,14 @@ export type Database = {
       explain_employee_compliance_profile: {
         Args: { p_employee_id: string; p_on?: string }
         Returns: Json
+      }
+      export_organization_consent_withholding: {
+        Args: { p_organization_id: string }
+        Returns: {
+          rows_in_archive: number
+          rows_withheld: number
+          table_name: string
+        }[]
       }
       export_organization_table: {
         Args: {
@@ -38350,6 +38571,19 @@ export type Database = {
         Args: { p_facility_id: string; p_from: string; p_to: string }
         Returns: Json
       }
+      get_integration_command_receipt: {
+        Args: { p_command_id: string; p_credential_id: string }
+        Returns: {
+          command_id: string
+          command_status: string
+          command_type: string
+          correlation_id: string
+          result: Json
+          schema_version: string
+          submitted_at: string
+          updated_at: string
+        }[]
+      }
       get_integration_control_plane: {
         Args: { p_organization_id?: string }
         Returns: Json
@@ -38404,6 +38638,19 @@ export type Database = {
         Args: never
         Returns: {
           table_name: string
+        }[]
+      }
+      get_organization_identity_domains: {
+        Args: { p_organization_id: string }
+        Returns: {
+          created_at: string
+          domain: string
+          id: string
+          revocation_reason: string
+          revoked_at: string
+          verification_challenge: string
+          verification_status: string
+          verified_at: string
         }[]
       }
       get_paid_training_payroll_export: {
@@ -38838,6 +39085,38 @@ export type Database = {
         Returns: Json
       }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
+      grant_additional_quiz_attempt: {
+        Args: { p_assignment_id: string; p_reason: string }
+        Returns: {
+          additional_attempts_granted: number
+          assigned_at: string
+          assigned_by: string | null
+          canceled_at: string | null
+          cancellation_reason: string | null
+          completed_at: string | null
+          completion_recorded_at: string | null
+          course_id: string
+          course_version_id: string
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          lifecycle_disposition: string | null
+          lifecycle_event_id: string | null
+          lifecycle_previous_status: string | null
+          organization_id: string
+          status: string
+          training_plan_id: string | null
+          training_plan_item_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "course_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       grant_duty_eligibility_override: {
         Args: {
           p_duty_key: string
@@ -39154,6 +39433,10 @@ export type Database = {
           p_target_go_live_date: string
         }
         Returns: string
+      }
+      inspection_item_due_soon_lead_days: {
+        Args: { p_interval_days: number; p_item_type: string }
+        Returns: number
       }
       inspection_item_next_due_date: {
         Args: {
@@ -39978,6 +40261,10 @@ export type Database = {
         Returns: Json
       }
       queue_manager_weekly_digests: { Args: never; Returns: number }
+      reactivate_integration_webhook_endpoint: {
+        Args: { p_endpoint_id: string }
+        Returns: undefined
+      }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
         Args: { p_organization_id?: string }
@@ -40703,9 +40990,9 @@ export type Database = {
         Args: {
           p_domain: string
           p_organization_id: string
-          p_verification_challenge_sha256: string
+          p_verification_challenge_sha256?: string
         }
-        Returns: string
+        Returns: Json
       }
       register_learning_package: {
         Args: {
@@ -41262,6 +41549,10 @@ export type Database = {
       rotate_facility_safety_report_token: {
         Args: { p_facility_id: string }
         Returns: string
+      }
+      rotate_identity_domain_challenge: {
+        Args: { p_domain_id: string }
+        Returns: Json
       }
       rotate_integration_api_credential: {
         Args: { p_credential_id: string; p_expires_at?: string }
@@ -41982,6 +42273,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_integration_webhook_subscription: {
+        Args: {
+          p_endpoint_id: string
+          p_event_type: string
+          p_is_active: boolean
+        }
+        Returns: undefined
+      }
       set_notification_channel_policy: {
         Args: {
           p_fallback_delay_minutes: number
@@ -42018,6 +42317,45 @@ export type Database = {
           p_reason: string
         }
         Returns: string
+      }
+      set_organization_suspension: {
+        Args: {
+          p_organization_id: string
+          p_reason?: string
+          p_suspended: boolean
+        }
+        Returns: {
+          address: string | null
+          ai_features_enabled: boolean
+          baa_accepted_at: string | null
+          baa_version: string | null
+          city: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          demo_reset_at: string | null
+          demo_seed_version: number | null
+          id: string
+          is_demo: boolean
+          max_facilities: number | null
+          max_users: number | null
+          name: string
+          package_id: string | null
+          plan_name: string | null
+          slug: string
+          state: string | null
+          subscription_status: string
+          trial_ends_at: string | null
+          updated_at: string
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organizations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_package_entitlement: {
         Args: {
@@ -42116,6 +42454,10 @@ export type Database = {
       }
       simulate_workflow_automation_rule: {
         Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }
+        Returns: Json
+      }
+      skip_data_import_rows: {
+        Args: { p_job_id: string; p_row_numbers?: number[] }
         Returns: Json
       }
       skip_notification_delivery: {
@@ -42763,6 +43105,7 @@ export type Database = {
       }
       update_profile_contact_preferences: {
         Args: {
+          p_email_opt_out?: boolean
           p_first_name: string
           p_last_name: string
           p_phone: string
@@ -43061,6 +43404,40 @@ export type Database = {
           provider_credential: string
           training_provider: string
         }[]
+      }
+      verify_corrective_action: {
+        Args: {
+          p_action_id: string
+          p_completed_on?: string
+          p_verification_notes: string
+        }
+        Returns: {
+          completed_date: string | null
+          course_assignment_id: string | null
+          created_at: string
+          description: string
+          due_date: string
+          facility_id: string
+          id: string
+          incident_id: string | null
+          inspection_event_id: string | null
+          organization_id: string
+          owner_name: string | null
+          owner_profile_id: string | null
+          status: string
+          updated_at: string
+          verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
+          violation_id: string | null
+          work_item_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "corrective_actions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       verify_food_safety_log: {
         Args: {

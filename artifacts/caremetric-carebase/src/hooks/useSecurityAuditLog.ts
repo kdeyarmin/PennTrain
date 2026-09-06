@@ -2,9 +2,17 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 
-export type SecurityAuditEntityType = "impersonation" | "organizations" | "platform_settings";
+// BACKLOG J74 (P3, identity). `identity` was missing, so every row admin-update-user writes for
+// an administrator MFA reset (entity_type "identity", action "mfa_reset" -- the I8 control) was
+// filtered out of the only page that claims to show sensitive activity.
+export type SecurityAuditEntityType = "impersonation" | "identity" | "organizations" | "platform_settings";
 
-const SECURITY_ENTITY_TYPES: SecurityAuditEntityType[] = ["impersonation", "organizations", "platform_settings"];
+const SECURITY_ENTITY_TYPES: SecurityAuditEntityType[] = [
+  "impersonation",
+  "identity",
+  "organizations",
+  "platform_settings",
+];
 
 export interface ListSecurityAuditLogFilters {
   entityType?: SecurityAuditEntityType;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { formatDateForDisplay, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateOf, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -177,7 +177,10 @@ function UnlinkedDocumentRow({
   const { toast } = useToast();
   const [manualEmployeeId, setManualEmployeeId] = useState("");
   const [trainingTypeId, setTrainingTypeId] = useState("");
-  const [completionDate, setCompletionDate] = useState(doc.created_at.slice(0, 10));
+  // The facility day the document was uploaded on, not the UTC one: this seeds the completion
+  // date a training record is written with, and after 20:00 ET the UTC slice is already tomorrow --
+  // a date several of these RPCs refuse outright as being in the future.
+  const [completionDate, setCompletionDate] = useState(facilityDateOf(doc.created_at) ?? facilityToday());
   const [comment, setComment] = useState("");
 
   const employeeId = doc.employee_id ?? manualEmployeeId;

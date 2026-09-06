@@ -5,6 +5,9 @@ import {
   useCreateCourseAssignment,
   useCompleteCourseAssignment,
   useGetCourseProgress,
+  useGrantAdditionalQuizAttempt,
+  useCancelCourseAssignment,
+  OPEN_ASSIGNMENT_STATUSES,
   type CourseAssignment,
 } from "@/hooks/useCourseAssignments";
 import { useListEmployees, type Employee } from "@/hooks/useEmployees";
@@ -22,19 +25,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { QueryError } from "@/components/QueryState";
-import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2, Download, Loader2 } from "lucide-react";
+import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle2, Download, Loader2, RotateCcw, Ban } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const PAGE_SIZE = 15;
 
-const STATUS_OPTIONS = ["assigned", "in_progress", "completed", "overdue"] as const;
+// `canceled` is here because this page can now produce one (see the cancel action below). Without
+// it a cancelled assignment is unreachable from the filter bar -- it is excluded from every other
+// status, so the manager who just cancelled it has no way to find it again.
+const STATUS_OPTIONS = ["assigned", "in_progress", "completed", "overdue", "canceled"] as const;
+
+/**
+ * Both RPCs refuse a reason under 10 characters ("Say why ... -- at least a sentence",
+ * 20260906130000). Enforcing the same floor here means the dialog says so before the round trip
+ * instead of turning it into a red toast.
+ */
+const MIN_REASON = 10;
 
 function humanize(status: string): string {
   return status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
@@ -48,7 +62,9 @@ function StatusPill({ status }: { status: string }) {
         ? "bg-destructive text-destructive-foreground hover:bg-destructive/80"
         : status === "in_progress"
           ? "bg-info text-info-foreground hover:bg-info/80"
-          : "bg-secondary text-secondary-foreground hover:bg-secondary/80";
+          : status === "canceled"
+            ? "bg-muted text-muted-foreground hover:bg-muted/80"
+            : "bg-secondary text-secondary-foreground hover:bg-secondary/80";
   return (
     <Badge className={className} variant="outline">
       {humanize(status)}
@@ -135,11 +151,21 @@ export default function CourseAssignments() {
   const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
   const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<Set<string>>(new Set());
   const [bulkCompleting, setBulkCompleting] = useState(false);
+  // The unblock dialog (BACKLOG.md J2): one dialog, two intents, one required reason.
+  const [unblock, setUnblock] = useState<{ mode: "grant" | "cancel"; assignment: CourseAssignment } | null>(null);
+  const [unblockReason, setUnblockReason] = useState("");
 
   // RLS also lets an employee complete their own assignment, but that
   // self-service path lives on the employee training page -- this admin view
   // only exposes "Mark Complete" to non-employee managing roles.
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
+  // The two unblock actions below are security-definer RPCs, so they do NOT go through
+  // course_assignments_update's `is_assigned_to_facility(facility_id)`. Both call
+  // `assert_content_permission(organization_id, 'training.sessions.manage')` (20260906130000),
+  // which is satisfied at ORGANIZATION scope -- and the role templates grant that key to
+  // org_admin, facility_manager and trainer (20260711213000). So the same role predicate the rest
+  // of this page uses is exactly the server's own rule here; narrowing further by facility
+  // assignment would hide a control the database would have accepted.
 
   const { data: facilities } = useListFacilities();
   const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees({ status: "active" });
@@ -153,6 +179,8 @@ export default function CourseAssignments() {
 
   const { mutateAsync: createAssignmentAsync } = useCreateCourseAssignment();
   const { mutate: completeAssignment, mutateAsync: completeAssignmentAsync, isPending: completing } = useCompleteCourseAssignment();
+  const { mutateAsync: grantAttemptAsync, isPending: grantingAttempt } = useGrantAdditionalQuizAttempt();
+  const { mutateAsync: cancelAssignmentAsync, isPending: cancelingAssignment } = useCancelCourseAssignment();
   // Unfiltered on purpose -- RLS (certificates_select) already scopes this to certificates the
   // current caller is allowed to see (their own, or org/facility staff), the same population this
   // page's own assignments query is implicitly scoped to. Mirrors the "fetch full set, look up
@@ -471,6 +499,52 @@ export default function CourseAssignments() {
     if (succeeded > 0) setSelectedAssignmentIds(new Set());
   };
 
+  const openUnblock = (mode: "grant" | "cancel", assignment: CourseAssignment) => {
+    setUnblock({ mode, assignment });
+    setUnblockReason("");
+  };
+
+  // Both halves of the way out of an exhausted final assessment (BACKLOG.md J2). Grant is the
+  // narrow repair -- one more attempt on the same assignment. Cancel is the broad one: it releases
+  // course_assignments_one_open_per_course_idx so the same course can be assigned again, which is
+  // the only way to restart a learner who is past repairing on the existing row.
+  const submitUnblock = async () => {
+    if (!unblock) return;
+    const reason = unblockReason.trim();
+    if (reason.length < MIN_REASON) return;
+    const { mode, assignment } = unblock;
+    try {
+      if (mode === "grant") {
+        await grantAttemptAsync({ assignmentId: assignment.id, reason });
+        toast({
+          title: "Additional attempt granted",
+          description: "The learner can retake the assessment from My Training.",
+          variant: "success",
+        });
+      } else {
+        await cancelAssignmentAsync({ assignmentId: assignment.id, reason });
+        toast({
+          title: "Assignment canceled",
+          description: "This course can now be assigned to this employee again.",
+          variant: "success",
+        });
+        setSelectedAssignmentIds(prev => {
+          const next = new Set(prev);
+          next.delete(assignment.id);
+          return next;
+        });
+      }
+      setUnblock(null);
+      setUnblockReason("");
+    } catch (error) {
+      toast({
+        title: mode === "grant" ? "Could not grant another attempt" : "Could not cancel assignment",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDownloadCertificate = async (certificateId: string) => {
     setDownloadingCertId(certificateId);
     try {
@@ -631,7 +705,7 @@ export default function CourseAssignments() {
                     <th>Status</th>
                     <th>Due Date</th>
                     <th>Completed</th>
-                    <th className="w-44" />
+                    <th className="w-72" />
                   </tr>
                 </thead>
                 <tbody>
@@ -644,6 +718,11 @@ export default function CourseAssignments() {
                     const requiresLearnerEvidence = assignmentVersion?.content_standard === "comprehensive";
                     const cert = certificateByAssignmentId.get(a.id);
                     const eligible = isEligibleForComplete(a);
+                    // Only an assignment the index still counts as open can be granted an extra
+                    // attempt or cancelled: a completed one needs neither, and a cancelled one is
+                    // already released.
+                    const isOpen = (OPEN_ASSIGNMENT_STATUSES as readonly string[]).includes(a.status);
+                    const canUnblock = isOpen && canManage;
                     return (
                       <tr key={a.id}>
                         {canManage && (
@@ -675,7 +754,7 @@ export default function CourseAssignments() {
                           {a.completed_at ? new Date(a.completed_at).toLocaleDateString() : "—"}
                         </td>
                         <td>
-                          <div className="flex items-center gap-1.5 justify-end">
+                          <div className="flex flex-wrap items-center gap-1.5 justify-end">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -716,6 +795,28 @@ export default function CourseAssignments() {
                                 {completing && completingId === a.id ? "Completing..." : "Mark Complete"}
                               </Button>
                               )}
+                            {canUnblock && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={() => openUnblock("grant", a)}
+                                >
+                                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                  Grant another attempt
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-xs text-muted-foreground hover:text-destructive"
+                                  onClick={() => openUnblock("cancel", a)}
+                                >
+                                  <Ban className="mr-1 h-3.5 w-3.5" />
+                                  Cancel assignment
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -852,6 +953,65 @@ export default function CourseAssignments() {
                 : selectedEmployeeIds.size > 0
                   ? `Assign to ${selectedEmployeeIds.size} Employee${selectedEmployeeIds.size === 1 ? "" : "s"}`
                   : "Assign Training"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!unblock}
+        onOpenChange={open => { if (!open) { setUnblock(null); setUnblockReason(""); } }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {unblock?.mode === "grant" ? "Grant another attempt" : "Cancel assignment"}
+            </DialogTitle>
+            <DialogDescription>
+              {unblock?.mode === "grant"
+                ? "Adds one more attempt at this assignment's final assessment. The learner retakes it from My Training; nothing already recorded is discarded."
+                : "Closes this assignment without a completion. The same course can then be assigned to this employee again — use this when a fresh start is the right answer rather than another attempt."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {unblock && (
+              <p className="text-sm text-muted-foreground">
+                {(() => {
+                  const emp = employeeById.get(unblock.assignment.employee_id);
+                  const course = courseById.get(unblock.assignment.course_id);
+                  return `${emp ? `${emp.last_name}, ${emp.first_name}` : `Employee #${unblock.assignment.employee_id.slice(0, 8)}`} · ${course?.title ?? `Course #${unblock.assignment.course_id.slice(0, 8)}`}`;
+                })()}
+              </p>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor={`${__fieldIds}-unblock-reason`} className="text-[13px]">
+                {unblock?.mode === "grant" ? "Why another attempt is warranted *" : "Cancellation reason *"}
+              </Label>
+              <Textarea
+                id={`${__fieldIds}-unblock-reason`}
+                value={unblockReason}
+                onChange={e => setUnblockReason(e.target.value)}
+                placeholder={unblock?.mode === "grant"
+                  ? "Assessment was interrupted by a call-out; retake approved by the DON."
+                  : "Employee moved to a role this course does not apply to."}
+              />
+              <p className="text-xs text-muted-foreground">
+                Stored on the assignment record and visible in the audit trail.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setUnblock(null); setUnblockReason(""); }}>
+              Keep as is
+            </Button>
+            <Button
+              variant={unblock?.mode === "cancel" ? "destructive" : "default"}
+              disabled={unblockReason.trim().length < MIN_REASON || grantingAttempt || cancelingAssignment}
+              onClick={() => void submitUnblock()}
+            >
+              {unblock?.mode === "grant"
+                ? (grantingAttempt ? "Granting…" : "Grant attempt")
+                : (cancelingAssignment ? "Canceling…" : "Cancel assignment")}
             </Button>
           </DialogFooter>
         </DialogContent>

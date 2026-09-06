@@ -95,10 +95,15 @@ export function useCompleteResidentComplianceItem() {
   return useMutation({
     // item is structurally Pick<...>, not the full row, so the State Forms Center (whose org-wide
     // query selects a column subset) can call this with the same rows it renders.
-    mutationFn: async ({ item, documentId }: { item: Pick<ResidentComplianceItem, "id">; documentId: string }) => {
+    // completedOn is the date printed on the form -- when the assessor signed it. Everything
+    // downstream is anchored on it: the checklist's completed date, the care header's
+    // lastAssessment, and every successor item the RPC inserts. Omitting it falls back to today,
+    // which is what the RPC used to do unconditionally. BACKLOG J5.
+    mutationFn: async ({ item, documentId, completedOn }: { item: Pick<ResidentComplianceItem, "id">; documentId: string; completedOn?: string }) => {
       const { data, error } = await supabase.rpc("complete_resident_compliance_item", {
         p_item_id: item.id,
         p_document_id: documentId,
+        p_completed_on: completedOn,
       });
       if (error) throw error;
       return data;

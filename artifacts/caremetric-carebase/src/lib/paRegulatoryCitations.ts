@@ -31,8 +31,21 @@
 import { facilityDaysUntil } from "./dateUtils";
 import type { FacilityType } from "./facilityTypes";
 
-/** Human review date for this catalog. Surfaced in the UI so the library shows its own staleness. */
-export const PA_CITATIONS_LAST_VERIFIED = "2026-08-04";
+/**
+ * Human review date for this catalog. Surfaced in the UI so the library shows its own staleness.
+ *
+ * Moved 2026-08-04 -> 2026-09-06 on the owner's statement that they read the two published PA
+ * sources. Recorded that way on purpose: this constant is an assertion that a PERSON read
+ * pacodeandbulletin.gov, and the only thing that may move it is that person saying so. No script
+ * may move it, and nothing in this repository infers it -- `check-dhs-sources.mjs` only measures
+ * its age and confirms the links still resolve, which is a different claim entirely.
+ *
+ * Context for the next reviewer: SG-2 re-read both citation sources on 2026-09-04 while correcting
+ * the subsection attribution in the two PA rule-pack templates (`20260904010000`), and did not move
+ * this stamp -- which is the gap the 2026-09-06 readiness review recorded, because the gate would
+ * have gone red around 2026-09-18 for a reading that had been done. Next due 2026-10-21.
+ */
+export const PA_CITATIONS_LAST_VERIFIED = "2026-09-06";
 
 /**
  * Matches the review cadence `scripts/check-dhs-sources.mjs` enforces for the form library --

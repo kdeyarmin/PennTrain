@@ -177,13 +177,29 @@ export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters =
   return useQuery({
     queryKey: ["competency_records", filters],
     queryFn: async () => {
-      let query = supabase.from("competency_records").select("*").order("evaluation_date", { ascending: false });
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.templateId) query = query.eq("template_id", filters.templateId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // PostgREST caps a single response. Page until exhausted so an org-wide competency roster
+      // does not stop at the cap and read as "no record on file" for everyone past it.
+      // `evaluation_date` is a date, so a whole cohort evaluated on one day shares a key; the `id`
+      // tie-break makes the order total, otherwise rows repeat on one page and are dropped on
+      // another.
+      const pageSize = 1000;
+      const rows: CompetencyRecord[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("competency_records")
+          .select("*")
+          .order("evaluation_date", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.templateId) query = query.eq("template_id", filters.templateId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });

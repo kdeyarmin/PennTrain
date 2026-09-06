@@ -4,6 +4,8 @@
 // 503 {code:"VOICE_UNCONFIGURED"}. A clean 503 tells the operator exactly
 // what's wrong; a boot crash tells them nothing.
 
+import { PENDING_SESSION_TTL_MS } from "./session/pending-sessions.js";
+
 export interface GatewayConfig {
   openaiApiKey: string;
   /** Override for OpenAI's realtime model id (successor migrations). */
@@ -80,9 +82,32 @@ function intFromEnv(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-/** Hardest sane per-session cap: an hour of Realtime audio is already an
- *  operator mistake, not a use case. Boot validation clamps above this. */
-const MAX_SESSION_SECONDS_CEILING = 3_600;
+/**
+ * The access-token lifetime this gateway is built around. Supabase's default, and this project
+ * sets no `jwt_expiry`, so it is what a freshly refreshed browser token actually carries.
+ */
+const ASSUMED_ACCESS_TOKEN_SECONDS = 3_600;
+
+/** Room for the refresh round trip and for clock skew between the browser and this process. */
+const TOKEN_HANDOFF_SLACK_SECONDS = 30;
+
+/**
+ * Hardest sane per-session cap: an hour of Realtime audio is already an operator mistake, not a
+ * use case. Boot validation clamps above this.
+ *
+ * DERIVED, not chosen. `POST /sessions` refuses a token that cannot cover
+ * `maxSessionSeconds` plus the pending-ticket TTL, so a ceiling at the full token lifetime made
+ * the documented maximum impossible to start: an operator who set VOICE_MAX_SESSION_SECONDS=3600
+ * -- the value the README names as the top of the range -- needed a token with 3660 seconds left,
+ * which no token ever has. Every session request came back `token_expiring`, the browser hook
+ * refreshed once, got its ~3600 seconds, and was refused again. Browser voice was simply off, and
+ * nothing said why. Deriving the ceiling from the same constraint the route enforces means the
+ * largest configurable session is the largest startable one, and stays that way if the handoff
+ * window changes.
+ */
+const MAX_SESSION_SECONDS_CEILING = ASSUMED_ACCESS_TOKEN_SECONDS
+  - Math.ceil(PENDING_SESSION_TTL_MS / 1_000)
+  - TOKEN_HANDOFF_SLACK_SECONDS;
 
 function warn(event: string, fields: Record<string, unknown>): void {
   console.warn(JSON.stringify({ evt: event, ...fields }));
@@ -114,7 +139,7 @@ function validateConfig(config: GatewayConfig): GatewayConfig {
       field: "maxSessionSeconds",
       configured: config.maxSessionSeconds,
       clamped: MAX_SESSION_SECONDS_CEILING,
-      reason: "per-session cap above one hour defeats the cost control",
+      reason: "a session cannot outlast the access token it runs on, and an hour of Realtime audio defeats the cost control anyway",
     });
     config.maxSessionSeconds = MAX_SESSION_SECONDS_CEILING;
   }

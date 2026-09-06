@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * DATE-only columns must not be parsed as instants.
+ * A calendar date and an instant must not be mistaken for one another. Both directions.
+ *
+ * DATE-only columns must not be parsed as instants, and instants must not be sliced into dates.
+ * The second half was added after a review found the mirror image of the first living three files
+ * away; see "The other direction" below. One confusion, one gate.
  *
  * `new Date("2026-07-26")` is UTC midnight. West of Greenwich that renders as 25 July and sorts
  * before any same-day timestamp, so a DATE column compared against a `timestamptz` -- or simply
@@ -29,6 +33,37 @@
  * found no other instance, and the SQL forms that do appear (comparisons, sort keys, insert values)
  * are all cases where a uniform offset is harmless, so there is nothing to gate on yet. If that
  * pattern recurs, extend this check rather than starting a new one.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * THE OTHER DIRECTION: an instant must not be sliced into a date.
+ *
+ * PostgREST serialises `timestamptz` in UTC, so `row.attested_at.slice(0, 10)` is the UTC calendar
+ * date, not Pennsylvania's. Those agree for twenty hours a day and differ for four, which is the
+ * worst shape a date bug can take -- it survives every spot check anyone makes during business
+ * hours. `2026-01-02T01:00:00Z` is still January 1 in Pennsylvania.
+ *
+ * A review found it in `annualTrainingHours`, comparing a sliced `credited_at` against a training
+ * year: a course finished on a Pennsylvania evening counted against the following year and went
+ * missing from the one it was earned in. Reading the rest out found nine more (BACKLOG J83/J84),
+ * including a plan written the evening a resident came back from hospital being judged as
+ * predating the return, and an upload timestamp seeding a completion-date field with tomorrow.
+ *
+ * The fix is `facilityDateOf` in lib/dateUtils. It passes a bare `YYYY-MM-DD` through untouched,
+ * which is what makes it safe at the call sites fed by a union of a date column and a timestamptz
+ * -- converting a date column would walk it BACK a day, turning this check's own subject into its
+ * own defect.
+ *
+ * Not everything that slices is wrong, and the exemptions below say which and why. UTC arithmetic
+ * on a bare date string is correct and stays correct: it never asks what day it is now.
+ *
+ * WHAT THIS HALF DOES NOT CATCH, stated because a pass line that reads like full coverage is worse
+ * than no line. It matches on the receiver's trailing identifier being a derived timestamptz column
+ * name, so it sees `episode.return_time` and `doc.created_at` and does not see a computed field:
+ * `signal.windowEnd`, `card.since`, `entry.at`, a bare `at` prop. Six of the ten sites the J84
+ * sweep fixed were visible here; four were not, and were found by reading. That is the same limit
+ * the DATE half has and the same trade-off -- a name-based scan over a schema-derived list catches
+ * the shape a new query introduces, which is the one most likely to arrive without anyone thinking
+ * about timezones at all. It is a floor under the reading, not a substitute for it.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -147,6 +182,23 @@ const TYPE_COLLISION_ALLOWLIST = new Map([
   ],
 ]);
 
+// Instant-to-date truncations that are CORRECT, each with the reason. Listed rather than
+// pattern-matched, for the same reason SORT_ONLY_ALLOWLIST is: adding one should be a deliberate
+// act by somebody who has thought about it.
+//
+// Both entries do UTC arithmetic on a bare `YYYY-MM-DD` that was already decided -- they build a
+// Date at an explicit `T00:00:00Z`, shift it in UTC, and read the UTC date back. Nothing there ever
+// asks what day it is now, which is the only question the timezone can change the answer to.
+const UTC_DATE_ARITHMETIC_ALLOWLIST = new Map([
+  ["src/lib/scheduleDates.ts", "isoDate/addDaysIso/startOfWeekIso shift an already-decided date string in UTC; todayIso uses facilityToday"],
+  ["src/lib/calendarExport.ts", "addOneDay shifts an ICS date string built at T00:00:00Z"],
+]);
+
+// A floor for the timestamptz derivation, matching MINIMUM_EXPECTED_COLUMNS above. Without it a
+// broken parser would derive nothing and the slicing scan would pass by finding no columns to
+// look for -- exactly the vacuous pass the date-column floor exists to prevent.
+const MINIMUM_EXPECTED_TIMESTAMPTZ_COLUMNS = 100;
+
 // `foo timestamptz`, `foo timestamp with time zone`, and the `add column` form of each -- matched
 // mid-line as well as at line start, for the same reason as DECLARATION_PATTERNS.
 const TIMESTAMPTZ_PATTERNS = [
@@ -223,6 +275,51 @@ export function offendingCallSites(text, columns) {
 /** Column names only, for the self-test cases below. */
 export function offendingColumns(text, columns) {
   return offendingCallSites(text, columns).map((hit) => hit.column);
+}
+
+// Every shape that turns a string or a Date into a ten-character calendar date. Written out
+// rather than composed, because a backreference for the matching quote would renumber the moment
+// this is concatenated after a capture group -- and a regex that quietly matches the wrong thing is
+// how a gate stops gating.
+//
+// `foo.bar?.baz.slice(0, 10)`: the receiver is the identifier chain immediately before it.
+const SLICED_RECEIVER =
+  /([A-Za-z_$][\w$]*(?:(?:\?\.|\.)[A-Za-z_$][\w$]*)*)(?:\?\.|\.)(?:slice\(\s*0\s*,\s*10\s*\)|substring\(\s*0\s*,\s*10\s*\)|split\(["']T["']\)\[\s*0\s*\])/g;
+
+// `d.toISOString().slice(0, 10)`: no column name to match on, and wrong for the same reason
+// whatever produced the Date. Exempt only via UTC_DATE_ARITHMETIC_ALLOWLIST.
+const SLICED_ISO_STRING =
+  /toISOString\(\)\s*(?:\?\.|\.)(?:slice\(\s*0\s*,\s*10\s*\)|substring\(\s*0\s*,\s*10\s*\)|split\(["']T["']\)\[\s*0\s*\])/g;
+
+/**
+ * Instants truncated to a calendar date, as { what, index }.
+ *
+ * `columns` is the derived timestamptz set. A receiver is reported when its trailing identifier is
+ * one of those names -- the same name-based reasoning the DATE half uses, with the same
+ * over-inclusion trade-off: a local called `created_at` that never came from the database is worth
+ * a second look anyway.
+ */
+export function slicedInstantSites(text, columns) {
+  const names = columns instanceof Set ? columns : new Set(columns);
+  const hits = [];
+  SLICED_RECEIVER.lastIndex = 0;
+  let match;
+  while ((match = SLICED_RECEIVER.exec(text)) !== null) {
+    const receiver = match[1];
+    const trailing = receiver.split(/\?\.|\./).pop();
+    if (!names.has(trailing)) continue;
+    hits.push({ what: receiver, index: match.index });
+  }
+  SLICED_ISO_STRING.lastIndex = 0;
+  while ((match = SLICED_ISO_STRING.exec(text)) !== null) {
+    hits.push({ what: "toISOString()", index: match.index });
+  }
+  return hits.sort((a, b) => a.index - b.index);
+}
+
+/** Receiver names only, for the self-test cases below. */
+export function slicedInstants(text, columns) {
+  return slicedInstantSites(text, columns).map((hit) => hit.what);
 }
 
 if (process.argv.includes("--self-test")) {
@@ -303,8 +400,36 @@ if (process.argv.includes("--self-test")) {
     }
   }
 
+  // The slicing half. `columns` here stands in for the derived timestamptz set.
+  const tsCols = ["created_at", "attested_at", "return_time", "submitted_at"];
+  const sliceCases = [
+    // The defect, in each shape that expresses it.
+    ["doc.created_at.slice(0, 10)", ["doc.created_at"]],
+    ["a.attested_at?.slice(0, 10)", ["a.attested_at"]],
+    ["x.return_time.substring(0, 10)", ["x.return_time"]],
+    ['e.submitted_at.split("T")[0]', ["e.submitted_at"]],
+    ["d.toISOString().slice(0, 10)", ["toISOString()"]],
+    // A DATE column sliced is a no-op, not a defect -- and flagging it would push somebody toward
+    // a conversion that walks the value back a day.
+    ["row.effective_date.slice(0, 10)", []],
+    // Not every ten-character slice is a date. This one is a hash prefix.
+    ["item.payload_sha256.slice(0, 10)", []],
+    // The fix must not report itself.
+    ["formatDateForDisplay(facilityDateOf(a.attested_at))", []],
+    // A different width is a different operation.
+    ["doc.created_at.slice(0, 7)", []],
+  ];
+  for (const [source, expected] of sliceCases) {
+    const actual = slicedInstants(source, tsCols);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      fail(`${source} -> [${actual}], expected [${expected}]`);
+    }
+  }
+
   if (failures) throw new Error(`Date-only parsing self-test failed (${failures} case(s)).`);
-  process.stdout.write(`Date-only parsing self-test passed (${derived.length + ts.length + cases.length + 3} cases).\n`);
+  process.stdout.write(
+    `Date-only parsing self-test passed (${derived.length + ts.length + cases.length + sliceCases.length + 3} cases).\n`,
+  );
   process.exit(0);
 }
 
@@ -334,6 +459,16 @@ if (staleCollisions.length > 0) {
   process.exit(1);
 }
 
+const TIMESTAMPTZ_COLUMNS = new Set(deriveTimestamptzColumns(MIGRATION_TEXTS));
+if (TIMESTAMPTZ_COLUMNS.size < MINIMUM_EXPECTED_TIMESTAMPTZ_COLUMNS) {
+  console.error(
+    `Date-only parsing check aborted: derived only ${TIMESTAMPTZ_COLUMNS.size} timestamptz column(s) `
+    + `from supabase/migrations, below the ${MINIMUM_EXPECTED_TIMESTAMPTZ_COLUMNS} expected. The `
+    + `slicing half of this check would pass by having nothing to look for.`,
+  );
+  process.exit(1);
+}
+
 if (DATE_COLUMNS.length < MINIMUM_EXPECTED_COLUMNS) {
   console.error(
     `Date-only parsing check aborted: derived only ${DATE_COLUMNS.length} DATE column(s) from `
@@ -359,6 +494,16 @@ for (const file of walk(SRC)) {
       + `explicit local time, e.g. new Date(\`\${row.${column}}T00:00:00\`).`,
     );
   }
+  if (UTC_DATE_ARITHMETIC_ALLOWLIST.has(rel)) continue;
+  for (const { what, index } of slicedInstantSites(text, TIMESTAMPTZ_COLUMNS)) {
+    const line = text.slice(0, index).split("\n").length;
+    problems.push(
+      `${rel}:${line} truncates the instant \`${what}\` to a calendar date by slicing, which takes `
+      + `the UTC day rather than the facility's -- they differ after 20:00 ET. Use `
+      + `facilityDateOf(${what}) from lib/dateUtils; it passes a bare YYYY-MM-DD through unchanged, `
+      + `so it is safe on a field that may hold either.`,
+    );
+  }
 }
 
 if (problems.length > 0) {
@@ -368,7 +513,8 @@ if (problems.length > 0) {
 }
 const collisions = [...TYPE_COLLISION_ALLOWLIST.values()].reduce((n, m) => n + m.size, 0);
 console.log(
-  `Date-only parsing check passed (${DATE_COLUMNS.length} DATE columns derived from migrations, `
-  + `${SORT_ONLY_ALLOWLIST.size} sort-only file(s) allowlisted, `
+  `Date-only parsing check passed (${DATE_COLUMNS.length} DATE and ${TIMESTAMPTZ_COLUMNS.size} `
+  + `timestamptz columns derived from migrations, ${SORT_ONLY_ALLOWLIST.size} sort-only and `
+  + `${UTC_DATE_ARITHMETIC_ALLOWLIST.size} UTC-arithmetic file(s) allowlisted, `
   + `${collisions} of ${AMBIGUOUS_COLUMNS.size} date/timestamptz name collision(s) adjudicated).`,
 );

@@ -40,7 +40,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ArrowLeft,
+  Ban,
   Calendar,
   MapPin,
   Clock,
@@ -74,6 +78,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeClassAttendance } from "@/lib/classAttendance";
+import {
+  describeTrainingClassWriteBlock, trainingClassWriteBlock,
+} from "@/lib/trainingClassPermissions";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { errorText } from "@/lib/errorText";
 import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 import { absoluteAppUrl } from "@/lib/appUrl";
@@ -300,6 +308,13 @@ export default function ClassDetail() {
 
   const [showAddAttendees, setShowAddAttendees] = useState(false);
   const [empSearch, setEmpSearch] = useState("");
+  // BACKLOG.md J74 (Train). A class that is scheduled and then does not happen -- weather, an
+  // instructor off sick, nobody registered -- had no exit from the product at all: Delete existed
+  // only while the class was still `draft`, and `cancelled` was a status nothing could write. The
+  // trainer's only options were to leave a session sitting on the roster forever or to complete it
+  // with no attendees, which writes compliance records.
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [selectedEmps, setSelectedEmps] = useState<string[]>([]);
   const [addingAttendees, setAddingAttendees] = useState(false);
   const [uploadingRoster, setUploadingRoster] = useState(false);
@@ -339,6 +354,26 @@ export default function ClassDetail() {
   // in the owning organization. Showing it to anyone else would offer a button the server refuses.
   const canCorrectCompleted = cls?.status === "completed"
     && ["platform_admin", "org_admin"].includes(user?.role ?? "");
+
+  // Whether `training_classes_write` will accept this caller at all (BACKLOG.md J30). The policy
+  // shows a trainer their own cross-facility class through training_classes_select and then
+  // refuses every write to it, because its trainer branch requires `facility_id is not null`. The
+  // page cannot lift that, but it can say so once, up front, instead of letting the person work
+  // through the roster and meet a raw row-level-security error on the button at the end.
+  const { data: myFacilityAssignments } = useListMyFacilityAssignments(
+    user?.id,
+    user?.role === "facility_manager" || user?.role === "trainer",
+  );
+  const assignedFacilityIds = useMemo(
+    () => new Set((myFacilityAssignments ?? []).map((assignment) => assignment.facility_id)),
+    [myFacilityAssignments],
+  );
+  const writeBlock = cls
+    ? trainingClassWriteBlock(
+      { facility_id: cls.facility_id, trainer_profile_id: cls.trainer_profile_id },
+      { role: user?.role, profileId: user?.id, assignedFacilityIds },
+    )
+    : null;
 
   const existingEmpIds = new Set(allAttendees.map((a) => a.employee_id));
   const availableEmployees = (allEmployees ?? []).filter((e) => !existingEmpIds.has(e.id));
@@ -544,6 +579,45 @@ export default function ClassDetail() {
     }
   }
 
+  async function handleCancelClass() {
+    if (!classId) return;
+    try {
+      await updateTrainingClass.mutateAsync({
+        id: classId,
+        status: "cancelled",
+        cancellation_reason: cancelReason.trim(),
+      });
+      setCancelOpen(false);
+      setCancelReason("");
+      toast({ title: "Class cancelled", description: "Registered staff keep their records; no attendance was written." });
+    } catch (err) {
+      toast({
+        title: "Could not cancel this class",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    }
+  }
+
+  // `in_progress` is a real status in `training_classes_status_check` and in
+  // `useListTrainingClasses({ enrollableOnly })`, and until now nothing in the product ever wrote
+  // it -- so "scheduled" had to mean both "taking registrations" and "happening right now", and the
+  // trainer dashboard could not tell which session to put on screen. Marking a class in progress is
+  // the trainer saying the room is open.
+  async function handleStartClass() {
+    if (!classId) return;
+    try {
+      await updateTrainingClass.mutateAsync({ id: classId, status: "in_progress" });
+      toast({ title: "Class is in progress", description: "It stays open for check-in until you complete it." });
+    } catch (err) {
+      toast({
+        title: "Could not start this class",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    }
+  }
+
   if (!classId) {
     return (
       <div className="text-center py-20">
@@ -598,6 +672,18 @@ export default function ClassDetail() {
 
   return (
     <div className="space-y-6">
+      {writeBlock && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+          role="status"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">You cannot make changes to this session.</p>
+            <p>{describeTrainingClassWriteBlock(writeBlock)}</p>
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -615,6 +701,9 @@ export default function ClassDetail() {
             <Badge variant={statusColor}>{cls.status}</Badge>
           </div>
           <p className="text-muted-foreground">{trainingTypeName}</p>
+          {cls.status === "cancelled" && cls.cancellation_reason && (
+            <p className="mt-1 text-sm text-destructive">Cancelled — {cls.cancellation_reason}</p>
+          )}
         </div>
         {isDraft && (
           <div className="flex items-center gap-2">
@@ -658,6 +747,56 @@ export default function ClassDetail() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          </div>
+        )}
+        {isOpen && !writeBlock && (
+          <div className="flex items-center gap-2">
+            {cls.status === "scheduled" && (
+              <Button size="sm" variant="outline" disabled={updateTrainingClass.isPending} onClick={handleStartClass}>
+                <Monitor className="mr-1 h-4 w-4" />
+                Start class
+              </Button>
+            )}
+            <Dialog open={cancelOpen} onOpenChange={(next) => { setCancelOpen(next); if (!next) setCancelReason(""); }}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-destructive">
+                  <Ban className="mr-1 h-4 w-4" />
+                  Cancel class
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Cancel this class?</DialogTitle>
+                  <DialogDescription>
+                    The session stays on record as cancelled with the reason below. Registrations are
+                    kept and no attendance or training record is written. This cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-1.5">
+                  <Label htmlFor="class-cancel-reason">Reason</Label>
+                  <Textarea
+                    id="class-cancel-reason"
+                    rows={3}
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                    placeholder="e.g. Instructor unavailable; rescheduled for the following week"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    At least a sentence — registered staff and the training record both read this.
+                  </p>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setCancelOpen(false)}>Keep class</Button>
+                  <Button
+                    variant="destructive"
+                    disabled={cancelReason.trim().length < 10 || updateTrainingClass.isPending}
+                    onClick={handleCancelClass}
+                  >
+                    Cancel class
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </div>
@@ -805,6 +944,10 @@ export default function ClassDetail() {
               classId={classId}
               classStatus={cls?.status}
               capacity={cls?.capacity}
+              classDate={cls?.class_date}
+              startsAt={cls?.starts_at}
+              endsAt={cls?.ends_at}
+              durationHours={cls?.duration_hours}
               employees={(allEmployees ?? []).map((employee) => ({
                 id: employee.id,
                 name: `${employee.first_name} ${employee.last_name}`,

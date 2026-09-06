@@ -268,7 +268,7 @@ export function useApplyTrainingPlanToEmployee() {
       // rather than a Postgres embedded-resource select.
       const courseIds = [...new Set(courseItems.map((item) => item.course_id))];
       const { data: courses, error: coursesError } = courseIds.length
-        ? await supabase.from("courses").select("id, title, current_version_id").in("id", courseIds)
+        ? await supabase.from("courses").select("id, title, status, current_version_id").in("id", courseIds)
         : { data: [], error: null };
       if (coursesError) throw coursesError;
       const courseById = new Map((courses ?? []).map((c) => [c.id, c]));
@@ -286,6 +286,16 @@ export function useApplyTrainingPlanToEmployee() {
           if (!course) throw new Error("Training item not found");
           if (!course.current_version_id) {
             throw new Error(`"${course.title}" has no published version to assign`);
+          }
+          // A plan item can point at a course that was later unpublished or archived, and nothing
+          // stopped it being added while it was already in that state. `validate_course_assignment_version`
+          // then refuses each assignment with "cannot create a new assignment for an archived or
+          // draft course" -- a trigger sentence naming no course, repeated once per selected
+          // employee (BACKLOG.md J74, Train). Say which item and what to do about it.
+          if (course.status !== "published") {
+            throw new Error(
+              `"${course.title}" is ${course.status} and cannot be assigned. Publish it, or remove it from this plan.`,
+            );
           }
           return createCourseAssignment({
             employee_id: params.employeeId,

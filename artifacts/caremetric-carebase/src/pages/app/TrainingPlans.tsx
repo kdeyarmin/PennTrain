@@ -414,9 +414,15 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
         <div className="space-y-2">
           {sortedItems.map((item, idx) => {
             const isCourse = item.course_id !== null;
+            const itemCourse = isCourse ? courseById.get(item.course_id!) : undefined;
             const label = isCourse
-              ? courseById.get(item.course_id!)?.title ?? `Course #${item.course_id!.slice(0, 8)}`
+              ? itemCourse?.title ?? `Course #${item.course_id!.slice(0, 8)}`
               : trainingTypeById.get(item.training_type_id!)?.name ?? `Training Type #${item.training_type_id!.slice(0, 8)}`;
+            // A course can be unpublished or archived after the plan was built. Applying the plan
+            // then refuses this item for every selected employee, so the plan has to show it here
+            // rather than at the end of a fan-out (BACKLOG.md J74, Train).
+            const notAssignable = isCourse && !!itemCourse
+              && (itemCourse.status !== "published" || !itemCourse.current_version_id);
             return (
               <div key={item.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card">
                 <div className="flex items-center gap-3 min-w-0">
@@ -426,6 +432,11 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
                     <Badge variant="secondary" className="text-[10px] font-medium">Required</Badge>
                   ) : (
                     <Badge variant="outline" className="text-[10px] font-medium">Optional</Badge>
+                  )}
+                  {notAssignable && (
+                    <Badge variant="destructive" className="text-[10px] font-medium">
+                      {itemCourse?.status !== "published" ? `${itemCourse?.status} — will not apply` : "no published version"}
+                    </Badge>
                   )}
                 </div>
                 {canManage && (
@@ -489,9 +500,23 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
                 <Select value={addItemForm.targetId} onValueChange={(v) => setAddItemForm((f) => ({ ...f, targetId: v }))}>
                   <SelectTrigger id={`${__fieldIds}-training-content`} className="h-9"><SelectValue placeholder="Select training content" /></SelectTrigger>
                   <SelectContent>
-                    {(courses ?? []).map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.title}{c.status !== "published" ? ` (${c.status})` : ""}</SelectItem>
-                    ))}
+                    {/* A draft or archived course could be added to a plan, and applying the plan
+                        then failed once per employee with `validate_course_assignment_version`'s raw
+                        trigger sentence. It stays listed so the author can see it is there, but it
+                        cannot be chosen while the database would refuse it (BACKLOG.md J74, Train). */}
+                    {(courses ?? []).map((c) => {
+                      const assignable = c.status === "published" && !!c.current_version_id;
+                      return (
+                        <SelectItem key={c.id} value={c.id} disabled={!assignable}>
+                          {c.title}
+                          {c.status !== "published"
+                            ? ` — ${c.status}, cannot be assigned`
+                            : !c.current_version_id
+                              ? " — no published version"
+                              : ""}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

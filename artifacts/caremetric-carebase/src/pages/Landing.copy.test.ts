@@ -13,8 +13,15 @@ describe("Landing marketing copy", () => {
     expect(landingSource).toContain("PA regulations crosswalked to the records that prove them");
     expect(landingSource).toContain('eyebrow: "Education spend"');
     expect(landingSource).toContain('title: "Spend less on required education"');
-    expect(landingSource).toContain("AI-generated courses grounded in your own policies");
+    // The catalog is authored by the CareMetric platform team -- courses_insert is
+    // is_platform_admin() and generate-course-curriculum allows platform_admin only -- so the
+    // page must sell "built for you", never a builder the customer operates. The savings
+    // proposition (courses included, no per-seat LMS fees) is unchanged.
+    expect(landingSource).toContain("built and kept current for you by the CareMetric team");
+    expect(landingSource).toContain("AI-assisted courses grounded in your own policies");
     expect(landingSource).toContain("stop paying per-seat LMS fees");
+    expect(landingSource).not.toContain("course builder");
+    expect(landingSource).not.toContain("Course builder");
     expect(landingSource).toContain("Guest documentation portals");
     expect(landingSource).toContain("time-limited documentation rooms (or guest documentation portals)");
     expect(landingSource).not.toContain("SEE_LOCAL_FILE");

@@ -74,7 +74,7 @@ export default function MyShift() {
     callOff.mutate({ shiftAssignmentId: shift.id, category: "other", reason: "Employee reported call-off from My Shift" }, {
       onSuccess: () => {
         setShowCallOffConfirm(false);
-        toast({ title: "Call-off reported", description: "Coverage work was routed to the manager queue." });
+        toast({ title: "Call-off reported", description: "Coverage work was routed to the manager queue. The absence itself is pending your manager's decision." });
       },
       onError: (e: Error) => toast({ title: "Could not report call-off", description: e.message, variant: "destructive" }),
     });
@@ -287,6 +287,7 @@ export default function MyShift() {
             <AlertDialogTitle>Report this shift call-off?</AlertDialogTitle>
             <AlertDialogDescription>
               Your manager will be alerted immediately so they can arrange coverage for this shift.
+              The absence goes to them as a pending request — reporting it here does not approve it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -11,6 +11,13 @@ export type TrainingClassAttendeeInsert = TablesInsert<"training_class_attendees
 
 export interface ListTrainingClassesFilters {
   facilityId?: string;
+  /**
+   * Only classes with no facility of their own -- the "Any / Cross-facility" sessions the create
+   * form has always been able to produce. Without this there was no filter value that could show
+   * them: `facilityId` is an equality on a column that is null for exactly these rows, so picking
+   * any facility hid them and "All Facilities" buried them (BACKLOG.md J30).
+   */
+  crossFacilityOnly?: boolean;
   trainerProfileId?: string;
   /** When true, only scheduled/in_progress classes (enrollable). */
   enrollableOnly?: boolean;
@@ -21,7 +28,8 @@ export function useListTrainingClasses(filters: ListTrainingClassesFilters = {})
     queryKey: ["training_classes", filters],
     queryFn: async () => {
       let query = supabase.from("training_classes").select("*").order("class_date", { ascending: false });
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+      if (filters.crossFacilityOnly) query = query.is("facility_id", null);
+      else if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.trainerProfileId) query = query.eq("trainer_profile_id", filters.trainerProfileId);
       if (filters.enrollableOnly) query = query.in("status", ["scheduled", "in_progress"]);
       const { data, error } = await query;
@@ -505,6 +513,32 @@ export function useTrainingSessionRegistrations(classId: string | undefined) {
   });
 }
 
+/**
+ * The recorded seat time behind each registration's attendance (BACKLOG.md J25).
+ *
+ * `training_attendance_evidence` has no class_id -- it hangs off registration_id -- so this is
+ * scoped by the registration ids the caller already listed rather than by class. It exists because
+ * `approve_training_session_completion` credits `training_classes.duration_hours` to every attended
+ * registration without reading these columns, so the roster has to show the recorder what the
+ * evidence says before they approve hours it does not support.
+ */
+export function useTrainingAttendanceEvidence(registrationIds: readonly string[]) {
+  // Sorted so re-ordering the same registrations does not produce a new queryKey.
+  const stableIds = [...registrationIds].filter(Boolean).sort();
+  return useQuery({
+    queryKey: ["training_attendance_evidence", stableIds],
+    enabled: stableIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("training_attendance_evidence")
+        .select("registration_id,attendance_status,check_in_at,check_out_at,seat_minutes")
+        .in("registration_id", stableIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 /** The three the server accepts. Only `attended` demands a signature. */
 export const ATTENDANCE_STATUSES = [
   { value: "attended", label: "Attended" },
@@ -518,8 +552,13 @@ export function useRecordTrainingAttendance(classId: string | undefined) {
     mutationFn: async (input: {
       registrationId: string;
       attendanceStatus: string;
-      checkInAt: string;
-      checkOutAt: string;
+      /**
+       * Null for a `no_show`: `record_training_attendance` takes both stamps as nullable and
+       * derives `seat_minutes` only when it has a pair, so recording a window for somebody who was
+       * never in the room would manufacture seat time for them.
+       */
+      checkInAt: string | null;
+      checkOutAt: string | null;
       attendeeSignatureSha256: string;
       recorderSignatureSha256: string;
       evidence?: Record<string, unknown>;
@@ -538,6 +577,8 @@ export function useRecordTrainingAttendance(classId: string | undefined) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["training_session_registrations", classId ?? null] });
+      // The evidence row this just inserted is what the pre-approval credit preview reads.
+      void queryClient.invalidateQueries({ queryKey: ["training_attendance_evidence"] });
     },
   });
 }

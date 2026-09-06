@@ -55,10 +55,22 @@ export function staleMessage(draft: OfflineFloorDraft): string {
   return SYNC_OUTCOME_MESSAGES.stale;
 }
 
+/**
+ * When the server refused a draft it usually said why in a sentence written for the aide -- the
+ * discharge guards (20260905140000, BACKLOG.md I15) name the resident and say what to do instead.
+ * That sentence used to be parenthesised inside a generic one, which buried the only part that
+ * told the aide what happened. It leads now, with the generic advice after it.
+ *
+ * This is the second half of BACKLOG.md J74's "the I15 guard's refusal is reported to the aide as
+ * 'someone else documented this while your device was offline'": 20260906270000 stopped the service
+ * lane classifying a discharge as a conflict, so the guard's own sentence now reaches this function
+ * instead of that copy.
+ */
 function rejectedMessage(errorMessage: string | null): string {
-  return errorMessage
-    ? `This couldn't be submitted (${errorMessage}). Talk to your supervisor.`
-    : SYNC_OUTCOME_MESSAGES.rejected;
+  const detail = (errorMessage ?? "").trim();
+  if (!detail) return SYNC_OUTCOME_MESSAGES.rejected;
+  const sentence = /[.!?]$/.test(detail) ? detail : `${detail}.`;
+  return `${sentence} Your note wasn't submitted — talk to your supervisor.`;
 }
 
 /** Plain-text summary of a draft, for the "copy note" affordance on an overdue or flagged draft. */

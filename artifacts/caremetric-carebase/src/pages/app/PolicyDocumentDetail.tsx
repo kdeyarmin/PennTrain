@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { canWritePolicyDocuments } from "@/lib/policyPermissions";
 import { useToast } from "@/hooks/use-toast";
 import {
   useGetPolicyDocument, useListPolicyDocumentVersions, useUploadPolicyDocumentVersion,
@@ -68,6 +69,10 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const nextVersionNumber = (versions?.[0]?.version_number ?? 0) + 1;
+  // See policyPermissions.ts: policy_document_versions_update / _write admit org_admin and
+  // facility_manager only, while the select policy shows the whole organization -- so Upload and
+  // Publish rendered for an auditor and each one ended in a 42501 toast (BACKLOG.md J74, Policy).
+  const canWrite = canWritePolicyDocuments(user?.role);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,10 +116,14 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Versions</CardTitle>
-          <Button onClick={() => fileInputRef.current?.click()} disabled={uploadVersion.isPending}>
-            <Upload className="mr-2 h-4 w-4" /> {uploadVersion.isPending ? "Uploading..." : `Upload Version ${nextVersionNumber}`}
-          </Button>
-          <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleUpload} />
+          {canWrite && (
+            <>
+              <Button onClick={() => fileInputRef.current?.click()} disabled={uploadVersion.isPending}>
+                <Upload className="mr-2 h-4 w-4" /> {uploadVersion.isPending ? "Uploading..." : `Upload Version ${nextVersionNumber}`}
+              </Button>
+              <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleUpload} />
+            </>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -141,7 +150,7 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button size="sm" variant="outline" onClick={() => handleView(v)}>View</Button>
-                  {v.status === "draft" && (
+                  {canWrite && v.status === "draft" && (
                     <Button size="sm" onClick={() => handlePublish(v)} disabled={publishVersion.isPending}>Publish</Button>
                   )}
                 </div>
@@ -201,11 +210,16 @@ function CampaignQuestions({ campaignId }: { campaignId: string }) {
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Knowledge check ({rows.length} question{rows.length === 1 ? "" : "s"}) — correct answers shown
       </p>
-      {rows.map((question) => {
+      {/* `display_order` is 1-based -- create_policy_campaign_with_questions increments before its
+          first insert -- so `display_order + 1` printed "2." beside the question the employee's
+          PolicyKnowledgeCheck calls "1." (BACKLOG.md J74, Policy). The rows arrive ordered by
+          display_order, so the list position is the question number, exactly as the employee view
+          computes it. */}
+      {rows.map((question, index) => {
         const choices = Array.isArray(question.choices) ? (question.choices as string[]) : [];
         return (
           <div key={question.id} className="rounded border p-2 text-sm">
-            <p className="font-medium">{question.display_order + 1}. {question.prompt}</p>
+            <p className="font-medium">{index + 1}. {question.prompt}</p>
             <ul className="mt-1 space-y-0.5">
               {choices.map((choice, index) => (
                 <li
@@ -500,6 +514,11 @@ function CampaignRoster({ campaignId }: { campaignId: string }) {
 }
 
 function CampaignsTab({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
+  const { user } = useAuth();
+  // policy_attestation_campaigns_select names `auditor` explicitly -- reading campaigns is the
+  // auditor's job -- while every write branch stops at org_admin/facility_manager. See
+  // policyPermissions.ts.
+  const canWrite = canWritePolicyDocuments(user?.role);
   const { data: campaigns, isLoading, isError, error, refetch } = useListPolicyAttestationCampaigns({ policyDocumentId: documentId });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assignTarget, setAssignTarget] = useState<{ id: string; versionId: string; dueDate: string | null } | null>(null);
@@ -510,11 +529,11 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <CardTitle className="flex items-center gap-2"><Megaphone className="h-5 w-5" /> Campaigns</CardTitle>
-            <NewCampaignDialog documentId={documentId} currentVersionId={currentVersionId} />
+            {canWrite && <NewCampaignDialog documentId={documentId} currentVersionId={currentVersionId} />}
           </div>
         </CardHeader>
         <CardContent>
-          {!currentVersionId && (
+          {canWrite && !currentVersionId && (
             <p className="text-xs text-muted-foreground mb-3">Publish a version above before starting a campaign.</p>
           )}
           {isLoading ? (
@@ -538,12 +557,14 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
                         <p className="text-xs text-muted-foreground">{c.due_date ? `Due ${fmtDate(c.due_date)}` : "No due date"}</p>
                       </div>
                     </button>
-                    <Button
-                      size="sm"
-                      onClick={() => setAssignTarget({ id: c.id, versionId: c.policy_document_version_id, dueDate: c.due_date })}
-                    >
-                      Assign Employees
-                    </Button>
+                    {canWrite && (
+                      <Button
+                        size="sm"
+                        onClick={() => setAssignTarget({ id: c.id, versionId: c.policy_document_version_id, dueDate: c.due_date })}
+                      >
+                        Assign Employees
+                      </Button>
+                    )}
                   </div>
                   {c.last_spawn_skipped_reason && (
                     <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs">

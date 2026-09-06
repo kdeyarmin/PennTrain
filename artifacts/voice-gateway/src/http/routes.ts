@@ -7,7 +7,11 @@ import type { Request } from "express";
 import { z } from "zod";
 import type { GatewayConfig } from "../config.js";
 import type { AppRegistry } from "../apps/registry.js";
-import { orgAiAllowedForUser, verifyAppUser } from "../auth/verify-user.js";
+import {
+  accessTokenExpiry,
+  orgAiAllowedForUser,
+  verifyAppUser,
+} from "../auth/verify-user.js";
 import { corsHeaders, isOriginAllowed } from "./cors.js";
 import {
   PENDING_SESSION_TTL_MS,
@@ -287,6 +291,35 @@ export function buildHttpApp(deps: GatewayHttpDeps): express.Express {
       if (!aiAllowed) {
         res.status(403).json({ error: "org_ai_disabled" });
         return;
+      }
+
+      // A SESSION MUST NOT OUTLIVE THE TOKEN IT RUNS ON. The browser hands its
+      // access token over exactly once here; the gateway holds no refresh token
+      // and there is no control frame to hand it a new one, so a session opened
+      // in the last minutes of a token's hour keeps talking while `voice-tools`
+      // answers 401 to every tool call — which the model turns into an endless
+      // apology (the dispatcher now names it and ends the session, but by then
+      // the person has already been misled). Refuse up front instead: a token
+      // that cannot cover the whole session plus its handoff window is sent
+      // back with a distinct code, and the browser hook refreshes and retries
+      // once — it is the only party that CAN refresh.
+      //
+      // Permissive on an unreadable `exp`: verifyAppUser already established the
+      // token is good, and a token whose expiry we cannot read is left to behave
+      // exactly as it did before this check existed.
+      const tokenExpiry = accessTokenExpiry(jwt);
+      if (tokenExpiry !== null) {
+        const remainingSeconds = tokenExpiry - Math.floor(Date.now() / 1_000);
+        const neededSeconds =
+          deps.config.maxSessionSeconds + Math.ceil(PENDING_SESSION_TTL_MS / 1_000);
+        if (remainingSeconds < neededSeconds) {
+          res.status(401).json({
+            error: "token_expiring",
+            remainingSeconds: Math.max(0, remainingSeconds),
+            neededSeconds,
+          });
+          return;
+        }
       }
 
       // Daily minutes kill-switch (both channels share the budget). After

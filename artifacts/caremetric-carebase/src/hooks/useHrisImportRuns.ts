@@ -19,13 +19,25 @@ export type HrisImportRun = Tables<"hris_import_runs">;
 
 const HRIS_KEY = ["qualified-workforce", "hris"] as const;
 
-export function useHrisSourceSystems() {
+/**
+ * The source systems for ONE organization.
+ *
+ * Scoped explicitly rather than left to RLS. `hris_source_systems_select` deliberately lets a
+ * platform admin read every tenant's rows, and this hook is rendered on a platform-admin-only page
+ * -- so unparameterised it filled a card headed by one organization's name with every customer's
+ * sources, and changing the header's "Viewing as" selection did not change the list. The
+ * organization is in the query key as well as the filter, or switching tenants would serve the
+ * previous one's cache.
+ */
+export function useHrisSourceSystems(organizationId: string | null) {
   return useQuery({
-    queryKey: [...HRIS_KEY, "sources"],
+    queryKey: [...HRIS_KEY, "sources", organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("hris_source_systems")
         .select("*")
+        .eq("organization_id", organizationId!)
         // create_hris_import_run refuses any other status with P0002, so offering them would be
         // offering a button that cannot work.
         .in("status", ["pilot", "active"])
@@ -34,6 +46,85 @@ export function useHrisSourceSystems() {
       return data ?? [];
     },
   });
+}
+
+/**
+ * Registering a source system (RELEASE_READINESS_PLAN 4.3, imports D2).
+ *
+ * Step 1 of the adapter contract in PHASE3_OPERATIONS.md is "Register a source in
+ * `hris_source_systems`", and the product had no way to perform it: the only reader of that table
+ * was the run-start picker, so every tenant saw "No pilot or active source configured", Start run
+ * stayed disabled, and Validate / decisions / Apply were unreachable behind it. The RLS policy
+ * `hris_source_systems_manage` has always admitted this write -- org_admin, or
+ * `workforce.import.manage`, with a current `workforce_admin` identity assurance -- so this is a
+ * plain insert under the caller's own grants, not a new RPC.
+ *
+ * What this does NOT do is stage rows. `stage_hris_import_row` is service_role only by design and
+ * the adapter that calls it is deployed outside this repository ("The repository intentionally does
+ * not embed provider credentials or vendor-specific network clients", PHASE3_OPERATIONS.md). A
+ * registered source is the container that adapter fills.
+ */
+export function useCreateHrisSourceSystem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      organizationId: string;
+      sourceKey: string;
+      displayName: string;
+      providerType: string;
+      importMode: "delta" | "full";
+    }) => {
+      const { data, error } = await supabase
+        .from("hris_source_systems")
+        .insert({
+          organization_id: input.organizationId,
+          source_key: input.sourceKey.trim().toLowerCase(),
+          display_name: input.displayName.trim(),
+          provider_type: input.providerType,
+          import_mode: input.importMode,
+          status: "pilot",
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      return data.id as string;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: HRIS_KEY });
+    },
+  });
+}
+
+/** Mirrors `hris_source_systems_source_key_check`. */
+export const HRIS_SOURCE_KEY_PATTERN = /^[a-z][a-z0-9_.-]{1,99}$/;
+
+/** Mirrors `hris_source_systems_provider_type_check`. */
+export const HRIS_PROVIDER_TYPES = [
+  { value: "generic_csv", label: "Generic CSV extract" },
+  { value: "sftp", label: "SFTP drop" },
+  { value: "api", label: "Vendor API" },
+  { value: "webhook", label: "Vendor webhook" },
+] as const;
+
+/** What is wrong with a source-system registration, or an empty list when the server will take it. */
+export function hrisSourceSystemIssues(input: {
+  organizationId: string;
+  sourceKey: string;
+  displayName: string;
+}): string[] {
+  const issues: string[] = [];
+  // Names the control that fixes it. A platform admin -- the only role that reaches this screen
+  // -- has no organization of their own, so "select an organization" was true and useless
+  // until it said where.
+  if (!input.organizationId) {
+    issues.push("Choose the organization in the header's \"Viewing as\" picker before registering a source.");
+  }
+  if (!HRIS_SOURCE_KEY_PATTERN.test(input.sourceKey.trim().toLowerCase())) {
+    issues.push("The source key must start with a letter and use 2-100 lowercase letters, digits, dot, dash or underscore.");
+  }
+  const name = input.displayName.trim();
+  if (name.length < 2 || name.length > 200) issues.push("The display name must be 2-200 characters.");
+  return issues;
 }
 
 export function useHrisImportRuns() {

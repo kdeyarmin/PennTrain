@@ -5,6 +5,11 @@
 // In-memory is fine for single-instance. Postgres-backed swap lives in
 // phone/postgres-stores.ts (shared voice_gateway schema), enabled by
 // VOICE_STATE_DATABASE_URL — required before multi-replica browser voice.
+// That durable store holds a REFERENCE, never this struct as written: the row
+// is keyed by sha256(sessionId) and carries the token only as ciphertext
+// sealed under a key derived from the same ticket, deleted on claim. So `jwt`
+// below is a live credential that exists in this process's memory and in the
+// claiming process's memory, and nowhere else at rest.
 
 export interface PendingSession {
   sessionId: string;

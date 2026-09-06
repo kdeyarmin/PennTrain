@@ -7,6 +7,7 @@ import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
+import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
 import { useToast } from "@/hooks/use-toast";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -84,10 +85,32 @@ import {
   FileUp,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; viewOnly?: boolean };
 type NavSection = { title?: string; items: NavItem[] };
 
-function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): NavSection[] {
+/**
+ * Pages a role may open but may not change (BACKLOG J74, P3 tail).
+ *
+ * `canViewPath` is a read gate, so these three sit in the shared org_admin/facility_manager nav
+ * and a facility manager reaches every one of them -- and then finds no Create, no Edit and no
+ * Delete, because each page's own `canManage` is narrower than its route:
+ * TrainingTypes is `role === "org_admin"` (matching training_types_insert/_update/_delete),
+ * TrainingPlans is org_admin or trainer, CompetencyTemplates is org_admin or trainer. Nothing is
+ * broken -- the write controls are correctly hidden -- but the nav advertised them as manager
+ * tools, so the trip was a wasted one every time. Say so before the click instead.
+ *
+ * Deliberately only facility_manager. An auditor's whole surface is read-only by design and their
+ * nav reads that way already; badging every one of their entries would be noise, not information.
+ */
+const VIEW_ONLY_NAV_PATHS_BY_ROLE: Partial<Record<AuthUser["role"], readonly string[]>> = {
+  facility_manager: ["/app/training-types", "/app/training-plans", "/app/competency-templates"],
+};
+
+function getNavSections(
+  role: AuthUser["role"],
+  showPchAlrModules: boolean,
+  showSurveyDay: boolean,
+): NavSection[] {
   if (role === "platform_admin") {
     return [
       {
@@ -108,6 +131,9 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/facilities", label: "Facilities", icon: Grid },
           { href: "/admin/employees", label: "Employees", icon: Users },
           { href: "/admin/users", label: "Users", icon: Users },
+          // Every tenant's ledger, which is what user_invitation_lifecycle_select already returns
+          // to a platform admin. BACKLOG J74 (P3, identity).
+          { href: "/app/invitations", label: "Invitations", icon: Send },
         ]
       },
       {
@@ -183,7 +209,9 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules
             ? [
                 { href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar },
-                { href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck },
+                ...(showSurveyDay
+                  ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }]
+                  : []),
               ]
             : []),
         ],
@@ -254,7 +282,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance", icon: Wrench }] : []),
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
+          ...(showPchAlrModules && showSurveyDay ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -355,7 +383,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
+          ...(showPchAlrModules && showSurveyDay ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -519,6 +547,10 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const organizationSettings = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const navigation = useNavigationWorkspace();
   const moduleAccess = useProductModuleAccess();
+  // Survey Day needs the survey_day_mode entitlement AND a release_flags row on top of the PCH/ALF
+  // facility type. Without them the page renders "Survey Day isn't enabled for your organization
+  // yet" instead of a workspace, so leading the onboarding list with it advertises a dead end.
+  const surveyDayFeature = useOrgFeatureEnabled("survey_day_mode");
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     if (!user) return new Set(DEFAULT_COLLAPSED_SECTIONS);
@@ -546,8 +578,14 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   // section flicker out on every fresh page load, and a query error would permanently hide it.
   const showPchAlrModules = facilityTypesLoading || facilityTypesError
     || hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
+  // Same fail-open rule, for the same reason: the nav must not wait on this query, and a failed
+  // read must not hide a page the organization has actually bought. Only a resolved "false" hides
+  // it. Platform admins bypass the gate server-side and have no Survey Day nav entry either way.
+  const showSurveyDay = surveyDayFeature.isLoading || surveyDayFeature.isError
+    || surveyDayFeature.isEnabled;
   const hiddenSections = new Set(organizationSettings.data?.hidden_navigation_sections ?? []);
-  const navSections = getNavSections(user.role, showPchAlrModules)
+  const viewOnlyPaths: readonly string[] = VIEW_ONLY_NAV_PATHS_BY_ROLE[user.role] ?? [];
+  const navSections = getNavSections(user.role, showPchAlrModules, showSurveyDay)
     .filter((section) => !section.title || !hiddenSections.has(section.title))
     .map((section) => ({
       ...section,
@@ -555,7 +593,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       // /app/employees?action=add). canViewPage only accepts canonical page
       // entries, while canViewPath safely strips the query before checking the
       // role map.
-      items: section.items.filter((item) => canViewPath(item.href, user.role, moduleAccess.enabledModules)),
+      items: section.items
+        .filter((item) => canViewPath(item.href, user.role, moduleAccess.enabledModules))
+        .map((item) => (viewOnlyPaths.includes(item.href) ? { ...item, viewOnly: true } : item)),
     }))
     .filter((section) => section.items.length > 0);
 
@@ -717,6 +757,14 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                           (isActive || isExactActive) ? "text-sidebar-primary" : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/60"
                         )} />
                         <span className="flex-1">{item.label}</span>
+                        {item.viewOnly && (
+                          <span
+                            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/45 ring-1 ring-inset ring-sidebar-border"
+                            title="You can open this page, but only an organization administrator can change it."
+                          >
+                            View
+                          </span>
+                        )}
                         {(isActive || isExactActive) && (
                           <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/30" />
                         )}

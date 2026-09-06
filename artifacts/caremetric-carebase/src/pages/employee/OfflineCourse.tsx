@@ -119,6 +119,11 @@ export default function OfflineCourse() {
         assignmentId,
         percentComplete: viewedPercent,
         baseVersion: bundle.assignment.serverBaseVersion,
+        // The block the learner is actually on. Synced with the percentage so the live course
+        // resumes where the offline copy left off instead of at lesson one -- and so a
+        // comprehensive version's "reached the final step" evidence is the same fact here and
+        // there (BACKLOG.md J74, Train).
+        lastBlockId: blocks[nextIndex]?.id ?? null,
       });
       if (navigator.onLine) await syncProgress.mutateAsync(assignmentId);
     } catch (error) {
@@ -164,7 +169,7 @@ export default function OfflineCourse() {
         <Badge variant="outline" className="gap-1"><CloudOff className="h-3.5 w-3.5" />Offline mode</Badge>
       </div>
 
-      <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Device-bound learning copy</AlertTitle><AlertDescription>Course content is decrypted only for this signed-in employee on this device. Viewed progress is queued locally and can sync when connected. Quizzes, attestations, and regulated completion documentation require the live course.</AlertDescription></Alert>
+      <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Device-bound learning copy</AlertTitle><AlertDescription>Course content is decrypted only for this signed-in employee on this device. Viewed progress and the lesson you reach are queued locally, and the time you spend here counts toward this course's engagement requirement once they sync. Quizzes, written responses, attestations, and regulated completion documentation require the live course.</AlertDescription></Alert>
 
       <Card>
         <CardContent className="space-y-3 pt-6">

@@ -23,6 +23,8 @@ import {
 import {
   createPhoneStateStores,
   createPostgresPhoneStores,
+  openPendingJwt,
+  sealPendingJwt,
   type PhoneStateStores,
 } from "../src/phone/postgres-stores.js";
 import { FakeRealtimeSocket } from "./fake-realtime.js";
@@ -296,6 +298,101 @@ describe.skipIf(!scratch)("postgres phone stores (real Postgres)", () => {
       expect(transfers.rows[0].n).toBe(0);
     } finally {
       await client.end();
+    }
+  });
+});
+
+// The browser pending session used to write the end user's live access token
+// into this database in the clear, keyed by the ticket that opens it, claimed
+// with a plain UPDATE and swept an HOUR after expiry. These are the properties
+// that replaced it.
+describe("browser pending session holds a reference, not the token", () => {
+  const jwt = "header.payload.signature-that-is-a-live-access-token";
+
+  it("seals and opens under the session id, and opens under nothing else", () => {
+    const sessionId = crypto.randomUUID();
+    const sealed = sealPendingJwt(sessionId, jwt);
+    expect(sealed).not.toContain(jwt);
+    expect(openPendingJwt(sessionId, sealed)).toBe(jwt);
+    // A different ticket -- which is all an attacker holding the table has --
+    // decrypts to nothing rather than to something wrong.
+    expect(openPendingJwt(crypto.randomUUID(), sealed)).toBeNull();
+    expect(openPendingJwt(sessionId, "not-base64-ciphertext")).toBeNull();
+  });
+
+  it("seals differently every time (fresh IV), so equal tokens do not match", () => {
+    const sessionId = crypto.randomUUID();
+    expect(sealPendingJwt(sessionId, jwt)).not.toBe(sealPendingJwt(sessionId, jwt));
+  });
+
+  it.skipIf(!scratch)("stores no token and no session id, and deletes the row on claim", async () => {
+    const stores = createPhoneStateStores(scratch?.url);
+    const client = new pg.Client({ connectionString: scratch!.url });
+    try {
+      await stores.ready;
+      const sessionId = crypto.randomUUID();
+      await stores.browserPendingStore.register({
+        sessionId,
+        appId: "carebase",
+        userId: crypto.randomUUID(),
+        role: "org_admin",
+        facilityId: crypto.randomUUID(),
+        jwt,
+        expiresAt: Date.now() + 60_000,
+      });
+
+      await client.connect();
+      const stored = await client.query(
+        `SELECT * FROM voice_gateway.pending_sessions`,
+      );
+      expect(stored.rowCount).toBe(1);
+      const serialized = JSON.stringify(stored.rows[0]);
+      // Neither the credential nor the key that opens it is anywhere in the row.
+      expect(serialized).not.toContain(jwt);
+      expect(serialized).not.toContain("signature-that-is-a-live-access-token");
+      expect(serialized).not.toContain(sessionId);
+      expect(Object.keys(stored.rows[0] as object)).not.toContain("jwt");
+
+      const claimed = await stores.browserPendingStore.claim(sessionId);
+      expect(claimed?.jwt).toBe(jwt);
+      expect(claimed?.role).toBe("org_admin");
+      // Gone at claim, not an hour after expiry.
+      const after = await client.query(
+        `SELECT count(*)::int AS n FROM voice_gateway.pending_sessions`,
+      );
+      expect(after.rows[0].n).toBe(0);
+      expect(await stores.browserPendingStore.claim(sessionId)).toBeNull();
+    } finally {
+      await client.end().catch(() => undefined);
+      await stores.close();
+    }
+  });
+
+  it.skipIf(!scratch)("sweeps an unclaimed row at expiry, not an hour later", async () => {
+    const stores = createPhoneStateStores(scratch?.url);
+    const client = new pg.Client({ connectionString: scratch!.url });
+    try {
+      await stores.ready;
+      const sessionId = crypto.randomUUID();
+      await stores.browserPendingStore.register({
+        sessionId,
+        appId: "carebase",
+        userId: crypto.randomUUID(),
+        role: "org_admin",
+        facilityId: null,
+        jwt,
+        // Already past its 60s TTL: the old sweep kept this for another hour.
+        expiresAt: Date.now() - 1_000,
+      });
+      await stores.sweepNow();
+      await client.connect();
+      const rows = await client.query(
+        `SELECT count(*)::int AS n FROM voice_gateway.pending_sessions`,
+      );
+      expect(rows.rows[0].n).toBe(0);
+    } finally {
+      await client.end().catch(() => undefined);
+      await stores.close();
     }
   });
 });

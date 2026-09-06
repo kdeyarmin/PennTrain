@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { facilityDateOf } from "@/lib/dateUtils";
 import { CheckCircle2, Info, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +42,7 @@ function AttentionCard({ card }: { card: NeedsAttentionCard }) {
           <div className="flex gap-1"><dt className="font-medium">Due:</dt><dd>{formatDateOnly(card.dueDate)}</dd></div>
         ) : null}
         {card.since ? (
-          <div className="flex gap-1"><dt className="font-medium">Since:</dt><dd>{formatDateOnly(card.since.slice(0, 10))}</dd></div>
+          <div className="flex gap-1"><dt className="font-medium">Since:</dt><dd>{formatDateOnly(facilityDateOf(card.since))}</dd></div>
         ) : null}
       </dl>
     </div>

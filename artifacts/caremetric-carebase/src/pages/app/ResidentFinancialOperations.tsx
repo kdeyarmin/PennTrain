@@ -13,13 +13,16 @@ import {
 } from "lucide-react";
 import { hasRole, useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListResidents } from "@/hooks/useResidents";
+import { useGetResident, useListResidents } from "@/hooks/useResidents";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
 import {
   useResidentAccountingExports,
   useResidentFinancialWorkspace,
+  useUnsettledPersonalFundAccounts,
+  UNSETTLED_FUND_ACCOUNT_LIMIT,
 } from "@/hooks/useResidentFinancialOperations";
 import { monthlyChargePreviews, receivableAgingSummary } from "@/lib/residentBilling";
 import type { ResidentLike } from "@/lib/careLevelReview";
@@ -35,7 +38,13 @@ import BillingPlaybook from "./resident-financial-operations/BillingPlaybook";
 import { AgingSummary, RateAndLedger, Statements } from "./resident-financial-operations/ReceivablesSection";
 import { EntryDialog, MonthlyChargesDialog, RateDialog, StatementDialog } from "./resident-financial-operations/ReceivablesDialogs";
 import { PersonalFunds } from "./resident-financial-operations/PersonalFundsSection";
-import { FundEntryDialog, FundOpenDialog, PayeeDialog, ReconcileDialog } from "./resident-financial-operations/PersonalFundsDialogs";
+import {
+  FundEntryDialog,
+  FundOpenDialog,
+  FundSettlementDialog,
+  PayeeDialog,
+  ReconcileDialog,
+} from "./resident-financial-operations/PersonalFundsDialogs";
 import { ExportDialog, Exports } from "./resident-financial-operations/ExportsSection";
 import { HistoryList } from "./resident-financial-operations/HistorySection";
 import { CareLevelReviewSection } from "./resident-financial-operations/CareLevelReviewSection";
@@ -67,9 +76,18 @@ export default function ResidentFinancialOperations() {
     { facilityId, status: "active", organizationId },
     { enabled: !!facilityId },
   );
+  // Discharged and deceased residents whose funds are still held. The picker above lists active
+  // residents, which is right for everything else on this page and is exactly why a discharged
+  // resident's money became unreachable the moment their status changed: the ledger was intact and
+  // nothing on any screen could select them to read it, let alone return it (BACKLOG.md J37).
+  const unsettledFunds = useUnsettledPersonalFundAccounts(facilityId);
+  const unsettledAccounts = unsettledFunds.data?.accounts ?? [];
+  const selectedResident = useGetResident(residentId);
   const workspace = useResidentFinancialWorkspace(residentId);
   const exports = useResidentAccountingExports(facilityId);
   const data = workspace.data;
+  const residencyEnded = ["discharged", "deceased"].includes(selectedResident.data?.status ?? "");
+  const fundClosure = data?.fundClosure ?? null;
   const receivableBalance = useMemo(
     () =>
       data?.transactions.reduce(
@@ -96,6 +114,7 @@ export default function ResidentFinancialOperations() {
     | "statement"
     | "fund-open"
     | "fund-entry"
+    | "fund-settlement"
     | "reconcile"
     | "payee"
     | "export"
@@ -139,15 +158,69 @@ export default function ResidentFinancialOperations() {
             <Choice
               value={residentId}
               onChange={setResidentId}
-              values={(residents.data ?? []).map((item) => ({
-                value: item.id,
-                label: `${item.last_name}, ${item.first_name}${item.room ? ` · Room ${item.room}` : ""}`,
-              }))}
+              values={[
+                ...(residents.data ?? []).map((item) => ({
+                  value: item.id,
+                  label: `${item.last_name}, ${item.first_name}${item.room ? ` · Room ${item.room}` : ""}`,
+                })),
+                // Appended, not merged into the active query: these residents are deliberately
+                // outside the active roster and are listed here only because the facility is still
+                // holding their money.
+                ...unsettledAccounts
+                  .filter((account) => !(residents.data ?? []).some((item) => item.id === account.residentId))
+                  .map((account) => ({
+                    value: account.residentId,
+                    label: `${account.residentName} · ${account.residentStatus.replace(/_/g, " ")} · funds held`,
+                  })),
+              ]}
               placeholder="Select resident"
             />
           </Field>
         </CardContent>
       </Card>
+      {facilityId && unsettledAccounts.length > 0 && (
+        <Card className="border-amber-500/50">
+          <CardContent className="space-y-3 pt-6">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-medium">Personal funds still held after the residency ended</p>
+                <p className="text-sm text-muted-foreground">
+                  55 Pa. Code 2600.20 / 2800.20 are about this moment. Open each record and settle
+                  the account; the ledger stays readable afterwards.
+                </p>
+              </div>
+              <Badge variant="outline">{unsettledAccounts.length} account(s)</Badge>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {unsettledAccounts.map((account) => (
+                <button
+                  key={account.accountId}
+                  type="button"
+                  className="rounded-lg border p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => setResidentId(account.residentId)}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <strong>{account.residentName}</strong>
+                    <span className="font-medium">
+                      {account.balance === null ? "Balance unavailable" : money(account.balance)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {account.accountNumber} · {account.residentStatus.replace(/_/g, " ")}
+                    {account.room ? ` · Room ${account.room}` : ""}
+                  </p>
+                </button>
+              ))}
+            </div>
+            {unsettledFunds.data?.truncated && (
+              <p className="text-xs text-muted-foreground">
+                Showing the first {UNSETTLED_FUND_ACCOUNT_LIMIT}. More accounts are unsettled at this
+                facility than this list holds.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
       {facilityId && (
         <CareLevelReviewSection
           facilityId={facilityId}
@@ -292,6 +365,23 @@ export default function ResidentFinancialOperations() {
                         <UserCheck className="mr-2 h-4 w-4" />
                         Rep payee controls
                       </Button>
+                      {/* Offered only once, and only when the RPC would accept it: after the
+                          residency has ended and while the account is still open. A closed account
+                          shows its settlement date instead of a second button (BACKLOG.md J37). */}
+                      {fundClosure ? (
+                        <Badge variant="secondary" className="self-center">
+                          Settled {formatDateForDisplay(fundClosure.closed_on)} ·{" "}
+                          {money(fundClosure.amount_returned)} to {fundClosure.recipient}
+                        </Badge>
+                      ) : residencyEnded ? (
+                        <Button
+                          variant="destructive"
+                          onClick={() => setDialog("fund-settlement")}
+                        >
+                          <Landmark className="mr-2 h-4 w-4" />
+                          Settle and close
+                        </Button>
+                      ) : null}
                     </>
                   ))}
               </div>
@@ -361,6 +451,13 @@ export default function ResidentFinancialOperations() {
             onClose={() => setDialog(null)}
             residentId={residentId}
             balance={fundBalance}
+          />
+          <FundSettlementDialog
+            open={dialog === "fund-settlement"}
+            onClose={() => setDialog(null)}
+            residentId={residentId}
+            residentStatus={selectedResident.data?.status}
+            data={data!}
           />
           <PayeeDialog
             open={dialog === "payee"}

@@ -17,6 +17,7 @@ interface ContactFormData {
   lastName: string;
   phone: string;
   smsOptIn: boolean;
+  emailOptOut: boolean;
   preferredNotificationChannel: "email" | "sms" | "web_push";
 }
 
@@ -35,6 +36,7 @@ export default function NotificationSettings() {
     lastName: "",
     phone: "",
     smsOptIn: false,
+    emailOptOut: false,
     preferredNotificationChannel: "email",
   });
   // Hydrate once per profile row rather than on every refetch, so a background
@@ -47,6 +49,7 @@ export default function NotificationSettings() {
       lastName: profile.last_name ?? "",
       phone: profile.phone ?? "",
       smsOptIn: profile.sms_opt_in,
+      emailOptOut: profile.email_opt_out ?? false,
       preferredNotificationChannel: ["sms", "web_push"].includes(profile.preferred_notification_channel)
         ? profile.preferred_notification_channel as "sms" | "web_push"
         : "email",
@@ -100,6 +103,13 @@ export default function NotificationSettings() {
       toast({ title: "SMS can be preferred only after phone consent is enabled", variant: "destructive" });
       return;
     }
+    // NO guard on "email preferred while opted out". update_profile_contact_preferences permits
+    // that pairing on purpose -- it means in-app only, which is a coherent thing to want -- and
+    // this page used to refuse it. Combined with the checkbox below flipping the channel to
+    // web_push, a user with no SMS consent and no push subscription (the default a new account
+    // starts in) could not save the opt-out at all: web_push was refused for want of a
+    // subscription, and switching back to email was refused by this guard. The only honest reading
+    // of "stop emailing me" is to stop emailing them, so the page says what that leaves instead.
     if (
       form.preferredNotificationChannel === "web_push"
       && !pushActive
@@ -115,6 +125,7 @@ export default function NotificationSettings() {
         last_name: form.lastName.trim(),
         phone: form.phone.trim() || null,
         sms_opt_in: form.smsOptIn,
+        email_opt_out: form.emailOptOut,
         preferred_notification_channel: form.preferredNotificationChannel,
       },
       {
@@ -240,6 +251,36 @@ export default function NotificationSettings() {
                   </p>
                 </label>
               </div>
+              {/*
+                BACKLOG J79. profiles.email_opt_out has been honoured by the whole delivery
+                pipeline since it was added, and written by exactly one thing: the SendGrid consent
+                webhook. Nothing in the product could set it, so somebody who wanted CareBase to
+                stop emailing them had no way to say so. Framed as opting IN, because that is the
+                state most people are in and a checkbox that reads "stop emailing me" inverts the
+                meaning of every other control on this page.
+              */}
+              <div className="flex items-start gap-2 rounded-md border p-3">
+                <input
+                  type="checkbox"
+                  id="email-opt-in"
+                  checked={!form.emailOptOut}
+                  // Turning email off changes ONE thing: whether email is sent. It used to also
+                  // move the preferred channel to web_push, which is a channel most people have
+                  // not enabled and cannot be saved without -- see handleSave.
+                  onChange={e => setForm(f => ({ ...f, emailOptOut: !e.target.checked }))}
+                  className="h-4 w-4 mt-0.5"
+                />
+                <label htmlFor="email-opt-in" className="text-[13px] cursor-pointer">
+                  <span className="font-medium flex items-center gap-1.5">
+                    <Bell className="h-3.5 w-3.5" /> Email me training and compliance reminders
+                  </span>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Turning this off stops every product email to this address, including reminders about
+                    training and credentials that are coming due. Reminders still appear in the app, and your
+                    organization can still reach you about anything urgent by phone.
+                  </p>
+                </label>
+              </div>
               <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-3">
                 <div className="max-w-2xl text-[13px]">
                   <span className="font-medium flex items-center gap-1.5">
@@ -285,6 +326,12 @@ export default function NotificationSettings() {
                 <p className="text-[11px] text-muted-foreground">
                   SMS requires a mobile number and consent. Web push requires permission on this browser.
                 </p>
+                {form.preferredNotificationChannel === "email" && form.emailOptOut && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Email is turned off above, so nothing is sent to your inbox. Reminders wait for you
+                    in the app instead.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

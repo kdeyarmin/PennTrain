@@ -10,8 +10,11 @@ import { supabase } from "@/lib/supabase";
 import { Loader2, ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { absoluteAppUrl } from "@/lib/appUrl";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 export default function ForgotPassword() {
+  usePageMeta({ ...MARKETING_ROUTE_META["/forgot-password"], path: "/forgot-password" });
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
