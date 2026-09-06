@@ -18,10 +18,21 @@
 -- covers every write path including direct table writes and any RPC added later. Putting the check
 -- in set_package_entitlement and set_organization_entitlement_grant would leave the tables open.
 --
--- WHY THE CHECK IS INSERT-ONLY. The trigger also fires on UPDATE, and closing out an existing term
--- (`set effective_to = ...`) is exactly what an administrator must still be able to do AFTER a
--- feature is retired -- set_package_entitlement performs that update itself. Rejecting on UPDATE
--- would strand every open term for a retired feature with no way to end it.
+-- WHAT THE GUARD KEYS ON, and why a plain "reject any write naming an inactive key" is wrong. Three
+-- legitimate operations touch a retired key and must keep working, and review found all three:
+--   1. app_private.ingest_legacy_package_contract() re-inserts a term for EVERY key in
+--      packages.features on any package edit, so one retired key left in that document would make
+--      every later package save fail. That is the package editor, broken outright.
+--   2. Closing an existing term. Both entitlement RPCs close the current row and then INSERT its
+--      replacement, so a blanket refusal on the insert rolls the whole call back and leaves no
+--      supported way to end a retired term at all.
+--   3. An UPDATE that merely re-dates a term.
+-- What separates those from the defect is not the statement type -- it is whether this package or
+-- organization ALREADY CARRIES the key. A new sale introduces a retired feature where there was
+-- none; the three above all operate on one that is already there. So the guard refuses only to
+-- INTRODUCE a retired feature, on INSERT and on an UPDATE that changes feature_key (without the
+-- second, an UPDATE could switch an active term onto a retired key and recreate the inert term
+-- this migration exists to prevent -- verified: it succeeded).
 --
 -- A missing key also stops lying about itself. v_type came back null and the value-type comparison
 -- then failed, so `insert ... 'totally.made.up.key'` raised "Entitlement value does not match
@@ -43,6 +54,7 @@ declare
   v_active boolean;
   v_value jsonb;
   v_row jsonb;
+  v_already_carried boolean;
 begin
   select d.value_type, d.is_active into v_type, v_active
   from public.feature_definitions d
@@ -55,12 +67,25 @@ begin
       using errcode = '23503';
   end if;
 
-  -- INSERT only: a term for a retired feature must not be created, but an existing one must still
-  -- be closeable. get_effective_entitlements already ignores inactive definitions, so such a term
-  -- would confer nothing while reading as sold.
-  if tg_op = 'INSERT' and not v_active then
-    raise exception 'Feature % is retired and cannot be added to an entitlement', new.feature_key
-      using errcode = '22023';
+  -- Introducing a retired feature, as opposed to maintaining one already carried. On INSERT the
+  -- new row is not yet visible, and on a key-changing UPDATE the stored row still holds the OLD
+  -- key, so in both cases a match here is genuinely a pre-existing term for this key.
+  if not v_active and (tg_op = 'INSERT' or new.feature_key is distinct from old.feature_key) then
+    if tg_table_name = 'package_entitlements' then
+      select exists (
+        select 1 from public.package_entitlements e
+        where e.package_id = new.package_id and e.feature_key = new.feature_key
+      ) into v_already_carried;
+    else
+      select exists (
+        select 1 from public.organization_entitlement_grants g
+        where g.organization_id = new.organization_id and g.feature_key = new.feature_key
+      ) into v_already_carried;
+    end if;
+    if not v_already_carried then
+      raise exception 'Feature % is retired and cannot be added where it is not already carried',
+        new.feature_key using errcode = '22023';
+    end if;
   end if;
 
   v_row := to_jsonb(new);
