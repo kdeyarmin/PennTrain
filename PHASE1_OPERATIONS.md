@@ -453,9 +453,15 @@ It also reports each source's **origin write time** against the attestation date
 The digest diff can only speak from the previous digest forward, which is no help
 on the first run after a lapse; pa.gov sends `Last-Modified` on every form PDF, so
 that reaches back behind the baseline into the window the digests missed. That is
-what scoped this pass: **0 of 34 form documents written since 2026-07-13**, the
-newest write across the whole set being 2025-12-04, so the reading was confirming
-a static set rather than re-reading thirty-five documents.
+what scoped this pass: **0 of the 34 form PDFs written since 2026-07-13**, the
+newest write across those PDFs being 2025-12-04, so the reading was confirming
+they were static rather than opening each one.
+
+The 34 is the PDFs alone. The forms library holds 35 pa.gov sources — those 34
+plus the licensing landing page, which is a page rather than a document and whose
+write time tracks the site, so it is reported separately and excluded from the
+count. The two `pacodeandbulletin.gov` citation sources are pages as well, and on
+their own stamp.
 
 Neither signal is the attestation, and the gate ignores both by design:
 

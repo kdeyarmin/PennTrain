@@ -167,7 +167,11 @@ if (changedPages.length) {
 //   * it cannot see a form superseded at a DIFFERENT url while this one keeps serving the bytes
 //     it always had. Neither can the digest. Only a person against the DHS index can;
 //   * a source that sends no Last-Modified is UNKNOWN and prints as such. It is never counted
-//     among the unmodified.
+//     among the unmodified;
+//   * it reports the form PDFs only. The licensing landing page and the chapter TOCs are pages by
+//     the same rule the digest diff uses above, and their write times track the site rather than a
+//     form, so counting them would only dilute the number. Every printed count says PDFs so the
+//     report is never read as covering all 35 form sources.
 //
 // So this scopes the reading. It is not the reading, and it re-stamps nothing.
 const cutoff = attested ? Date.parse(`${attested}T00:00:00Z`) : NaN;
@@ -179,22 +183,26 @@ if (Number.isFinite(cutoff) && documents.length) {
   const known = documents.filter((url) => Number.isFinite(writeTime(url)));
   const newest = known.length ? new Date(Math.max(...known.map(writeTime))).toISOString().slice(0, 10) : null;
 
-  process.stdout.write(`\nOrigin write times against the ${attested} attestation:\n`);
+  process.stdout.write(
+    `\nOrigin write times for the ${documents.length} form PDF(s), against the ${attested} attestation:\n`,
+  );
   for (const url of modified) process.stdout.write(`MODIFIED  ${current[url].lastModified.slice(0, 10)}  ${url}\n`);
   for (const url of unknown) process.stdout.write(`UNKNOWN   no Last-Modified          ${url}\n`);
   process.stdout.write(
-    `${modified.length}/${documents.length} form document(s) written since ${attested}`
+    `${modified.length}/${documents.length} form PDF(s) written since ${attested}`
     + `${unknown.length ? `, ${unknown.length} with no Last-Modified` : ""}.`
-    + `${newest ? ` Newest write across all of them: ${newest}.` : ""}\n`,
+    + `${newest ? ` Newest write across those PDFs: ${newest}.` : ""}\n`,
   );
   if (modified.length) {
-    process.stdout.write("Those are the documents a re-attestation has to read.\n");
+    process.stdout.write("Those are the form PDFs a re-attestation has to read.\n");
   } else if (!unknown.length) {
     process.stdout.write(
-      "The origin reports no form document written since the attestation date, so the reading is "
-      + "the whole set confirmed static rather than any one document re-read. That is evidence "
-      + "for scoping the review, NOT the review: it cannot see a form replaced at another url, "
-      + "and only a person re-stamps DHS_FORMS_LAST_VERIFIED.\n",
+      `The origin reports no form PDF written since the attestation date, so the reading is those `
+      + `${documents.length} confirmed static rather than any one of them re-read. This covers the `
+      + "form PDFs only: the licensing landing page and the chapter table-of-contents pages are "
+      + "pages, not documents, and their write times track the site rather than a form. That is "
+      + "evidence for scoping the review, NOT the review: it cannot see a form replaced at another "
+      + "url, and only a person re-stamps DHS_FORMS_LAST_VERIFIED.\n",
     );
   }
 }
