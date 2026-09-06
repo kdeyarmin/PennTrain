@@ -42,13 +42,22 @@ describe("tool dispatcher failure translation", () => {
     expect(result.message).not.toContain("try again");
   });
 
-  it("treats 403 the same way", async () => {
+  it("ends the session on 403 too, but does not call it an expired sign-in", async () => {
+    // This test asserted the opposite, because the dispatcher did: 401 and 403 shared one message.
+    // They share an OUTCOME -- neither recovers inside this session, so both end it -- and not a
+    // cause. voice-tools answers 401 for an invalid or expired session and 403 for a profile that
+    // is inactive, a role no longer permitted, or a lookup that failed. Telling a deactivated user
+    // to sign in again sends them to do the one thing that cannot help.
     const onAuthRejected = vi.fn();
     const result = (await dispatcher(403, onAuthRejected).dispatch("t", {})) as {
+      error: string;
       message: string;
     };
     expect(onAuthRejected).toHaveBeenCalledTimes(1);
-    expect(result.message).toContain("sign-in has expired");
+    expect(result.error).toBe("tool_http_403");
+    expect(result.message).toContain("no longer permitted");
+    expect(result.message).not.toContain("sign-in has expired");
+    expect(result.message).not.toContain("try again");
   });
 
   it("leaves every other failure as the retryable, apologetic one", async () => {

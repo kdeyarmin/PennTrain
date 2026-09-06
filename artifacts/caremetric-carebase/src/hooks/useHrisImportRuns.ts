@@ -19,13 +19,25 @@ export type HrisImportRun = Tables<"hris_import_runs">;
 
 const HRIS_KEY = ["qualified-workforce", "hris"] as const;
 
-export function useHrisSourceSystems() {
+/**
+ * The source systems for ONE organization.
+ *
+ * Scoped explicitly rather than left to RLS. `hris_source_systems_select` deliberately lets a
+ * platform admin read every tenant's rows, and this hook is rendered on a platform-admin-only page
+ * -- so unparameterised it filled a card headed by one organization's name with every customer's
+ * sources, and changing the header's "Viewing as" selection did not change the list. The
+ * organization is in the query key as well as the filter, or switching tenants would serve the
+ * previous one's cache.
+ */
+export function useHrisSourceSystems(organizationId: string | null) {
   return useQuery({
-    queryKey: [...HRIS_KEY, "sources"],
+    queryKey: [...HRIS_KEY, "sources", organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("hris_source_systems")
         .select("*")
+        .eq("organization_id", organizationId!)
         // create_hris_import_run refuses any other status with P0002, so offering them would be
         // offering a button that cannot work.
         .in("status", ["pilot", "active"])

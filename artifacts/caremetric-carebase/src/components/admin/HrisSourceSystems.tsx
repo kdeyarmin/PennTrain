@@ -40,7 +40,7 @@ import {
 export function HrisSourceSystems({ organizationId }: { organizationId: string | null }) {
   const fieldIds = useId();
   const { toast } = useToast();
-  const sources = useHrisSourceSystems();
+  const sources = useHrisSourceSystems(organizationId);
   const create = useCreateHrisSourceSystem();
 
   const [sourceKey, setSourceKey] = useState("");

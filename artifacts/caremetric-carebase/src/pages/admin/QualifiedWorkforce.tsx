@@ -91,8 +91,12 @@ function CommandCard({
  * is the only thing that mints one and had no caller, so in practice neither command was reachable:
  * there was no way to obtain the ID they required.
  */
-function StartImportRunCard({ onStarted }: { onStarted: (runId: string) => void }) {
-  const sources = useHrisSourceSystems();
+function StartImportRunCard(
+  { onStarted, organizationId }: { onStarted: (runId: string) => void; organizationId: string | null },
+) {
+  // Scoped for the same reason the card above it is: a platform admin can read every tenant's
+  // sources, so an unscoped picker offered this run's source from a list spanning all customers.
+  const sources = useHrisSourceSystems(organizationId);
   const create = useCreateHrisImportRun();
   const { toast } = useToast();
   const [sourceSystemId, setSourceSystemId] = useState("");
@@ -197,7 +201,7 @@ function HrisCommands() {
           the product could register one -- so this tab opened on an empty picker and a disabled
           button for every tenant (RELEASE_READINESS_PLAN 4.3, imports D2). */}
       <HrisSourceSystems organizationId={sourceOrgId} />
-      <StartImportRunCard onStarted={setRunId} />
+      <StartImportRunCard onStarted={setRunId} organizationId={sourceOrgId} />
       <div className="space-y-2 lg:col-span-2">
         <Label htmlFor="phase3-run">Import run</Label>
         {runs.isLoading ? (

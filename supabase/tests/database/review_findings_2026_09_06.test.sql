@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(9);
+select plan(11);
 
 ------------------------------------------------------------------------------------------------
 -- Fixture
@@ -240,6 +240,66 @@ select is(
   1::bigint,
   'and re-derivation still touches exactly one row for the item'
 );
+
+------------------------------------------------------------------------------------------------
+-- A trainer may verify the corrective actions the policy says they own
+------------------------------------------------------------------------------------------------
+-- `corrective_actions_update` admits a facility-scoped trainer for an action backed by an
+-- inspection event or a violation. `verify_corrective_action` called assert_incident_manager,
+-- which knows only org_admin and facility_manager -- while InspectionItemDetail offers trainers
+-- the verify dialog. Every submission from that offered workflow came back 42501. The mirror of
+-- the auditor case above: there a guard was too wide, here it was too narrow, and both times it
+-- was a SECURITY DEFINER function reproducing only part of the policy it stands in for.
+reset role;
+insert into auth.users(
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+) values (
+  '00000000-0000-0000-0000-000000000000', '7c000000-0000-4000-8000-000000000103', 'authenticated',
+  'authenticated', 'north-trainer@test.local', 'x', now(), '{}', '{}', now(), now(),
+  '', '', '', '', '', '', false, false
+);
+select set_config('app.privileged_write', 'on', true);
+insert into public.profiles(id, organization_id, email, first_name, last_name, role, is_active) values
+  ('7c000000-0000-4000-8000-000000000103', '7c000000-0000-4000-8000-000000000001',
+   'north-trainer@test.local', 'North', 'Trainer', 'trainer', true)
+on conflict (id) do update set
+  organization_id = excluded.organization_id, role = excluded.role, is_active = excluded.is_active;
+select set_config('app.privileged_write', 'off', true);
+insert into public.facility_assignments(profile_id, facility_id) values
+  ('7c000000-0000-4000-8000-000000000103', '7c000000-0000-4000-8000-000000000011');
+
+insert into public.dhs_violations(id, organization_id, facility_id, inspection_date, description, poc_due_date) values
+  ('7c000000-0000-4000-8000-000000000061', '7c000000-0000-4000-8000-000000000001',
+   '7c000000-0000-4000-8000-000000000011', public.pa_today() - 10, 'North finding', public.pa_today() + 20),
+  ('7c000000-0000-4000-8000-000000000062', '7c000000-0000-4000-8000-000000000001',
+   '7c000000-0000-4000-8000-000000000012', public.pa_today() - 10, 'South finding', public.pa_today() + 20);
+
+insert into public.corrective_actions(
+  id, organization_id, facility_id, violation_id, description, due_date, status
+) values
+  ('7c000000-0000-4000-8000-000000000071', '7c000000-0000-4000-8000-000000000001',
+   '7c000000-0000-4000-8000-000000000011', '7c000000-0000-4000-8000-000000000061',
+   'Retrain the aide group on the cited practice', public.pa_today() + 10, 'in_progress'),
+  ('7c000000-0000-4000-8000-000000000072', '7c000000-0000-4000-8000-000000000001',
+   '7c000000-0000-4000-8000-000000000012', '7c000000-0000-4000-8000-000000000062',
+   'Retrain the aide group at the other site', public.pa_today() + 10, 'in_progress');
+
+select pg_temp.act_as('7c000000-0000-4000-8000-000000000103');
+select lives_ok($$
+  select public.verify_corrective_action(
+    '7c000000-0000-4000-8000-000000000071',
+    'Observed the retraining session and reviewed the sign-in sheet.')
+$$, 'a trainer may verify a violation-backed corrective action at their own site');
+select throws_ok($$
+  select public.verify_corrective_action(
+    '7c000000-0000-4000-8000-000000000072',
+    'Observed the retraining session and reviewed the sign-in sheet.')
+$$, '42501', null, 'and is still refused one at a site they are not assigned to');
+
+reset role;
 
 select * from finish();
 rollback;

@@ -49,15 +49,25 @@ export class HttpToolDispatcher implements ToolDispatcher {
         // tool call into a 401 — and the model, told only that something went
         // wrong, apologizes and offers to try again, forever. Name it, end the
         // session, and let the person hear why.
+        // 401 and 403 both end the session -- neither will start working again inside it -- but
+        // they are not the same fact and must not be told to the person as if they were.
+        // `voice-tools` answers 401 for an invalid or expired session and 403 for a profile that
+        // is inactive, a role no longer permitted, or a profile lookup that failed. Sending
+        // somebody to sign in again fixes the first and does nothing for the second, so the model
+        // was telling a deactivated user to do the one thing that could not help them.
         if (res.status === 401 || res.status === 403) {
           this.opts.onAuthRejected?.();
           return {
             ok: false,
             error: `tool_http_${res.status}`,
-            message:
-              "The user's sign-in has expired, so this cannot be looked up. Tell them their "
-              + "sign-in expired and that this session is ending; they can start voice again "
-              + "after signing back in. Do not offer to retry.",
+            message: res.status === 401
+              ? "The user's sign-in has expired, so this cannot be looked up. Tell them their "
+                + "sign-in expired and that this session is ending; they can start voice again "
+                + "after signing back in. Do not offer to retry."
+              : "The user's account is no longer permitted to use the voice assistant, so this "
+                + "cannot be looked up. Tell them their access has changed and that this session "
+                + "is ending, and that an administrator can tell them why. Do not tell them to "
+                + "sign in again, and do not offer to retry.",
           };
         }
         // Model-voiceable failure; the status code stays out of the spoken

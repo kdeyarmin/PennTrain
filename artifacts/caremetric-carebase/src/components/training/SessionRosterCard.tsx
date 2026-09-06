@@ -120,6 +120,13 @@ export function SessionRosterCard({
     [rows],
   );
   const evidenceQuery = useTrainingAttendanceEvidence(attendedRegistrationIds);
+  // Pending is not the same as empty, and the fallback makes them look identical. Until the query
+  // succeeds, `evidenceByRegistration` is empty and every attendee falls to the scheduled-hours
+  // branch -- so a slow or first fetch rendered exactly the overstated figures the error path was
+  // already fixed for, plus a roster-wide "unrecorded" warning about attendance that is on file.
+  // The hook is disabled when there is nothing to fetch, so it never resolves in that case; the
+  // count is what tells "nothing to load" apart from "not loaded yet".
+  const evidenceUnavailable = attendedRegistrationIds.length > 0 && !evidenceQuery.isSuccess;
   const evidenceByRegistration = useMemo(() => {
     const map = new Map<string, AttendanceEvidenceLike>();
     for (const row of evidenceQuery.data ?? []) map.set(row.registration_id, row);
@@ -389,9 +396,9 @@ export function SessionRosterCard({
                     aria-live="polite"
                   >
                     {draftSeatTimeInvalid
-                      ? "Check-out must be after check-in. A zero-length attendance records no seat time, and approval would still credit the full scheduled hours for it."
+                      ? "Check-out must be after check-in. A zero-length attendance records no seat time, and approval refuses the whole session until it is corrected."
                       : `Seat time ${formatSeatMinutes(draftSeatMinutes)}${
-                        scheduledHours > 0 ? ` · approval credits ${scheduledHours} h regardless` : ""
+                        scheduledHours > 0 ? ` · credited as entered, capped at the scheduled ${scheduledHours} h` : ""
                       }.`}
                   </p>
                   </>
@@ -432,21 +439,21 @@ export function SessionRosterCard({
                 approve_training_session_completion credits each attendee their own recorded seat
                 time, capped by training_classes.duration_hours -- so this preview is per-attendee
                 arithmetic, not one figure times a head count. */}
-            {/* No numeric preview when the evidence did not load. The figures would be the
-                scheduled-hours fallback for every attendee -- which is the exact promise J84 was
-                about, arriving again through the error path -- while approval reads the stored
-                seat_minutes and writes something smaller. A sentence saying the credit cannot be
-                previewed is worth more than a number that is wrong. */}
-            {evidenceQuery.isError ? (
+            {/* No numeric preview until the evidence is actually in hand. Without it the figures
+                are the scheduled-hours fallback for every attendee -- the exact promise J84 was
+                about -- while approval reads the stored seat_minutes and writes something smaller.
+                A sentence saying the credit cannot be shown yet is worth more than a wrong number. */}
+            {evidenceUnavailable ? (
               <div className="rounded border bg-muted/30 p-2 text-xs">
                 <p className="font-medium text-foreground">
-                  Recorded seat times could not be loaded, so what approval will credit cannot be
-                  shown here.
+                  {evidenceQuery.isError
+                    ? "Recorded seat times could not be loaded, so what approval will credit cannot be shown here."
+                    : "Loading the recorded seat times this approval will credit\u2026"}
                 </p>
                 <p className="mt-0.5 text-muted-foreground">
                   Approval credits each attendee their recorded seat time, capped at the class's
-                  scheduled {credit.scheduledHours} h. Reload before approving if you need to see
-                  the figures first.
+                  scheduled {credit.scheduledHours} h.
+                  {evidenceQuery.isError ? " Reload before approving if you need the figures first." : ""}
                 </p>
               </div>
             ) : (
@@ -471,9 +478,9 @@ export function SessionRosterCard({
               </p>
             </div>
             )}
-            {/* Every flagged row is derived from the same evidence, so with none loaded this list
+            {/* Every flagged row is derived from the same evidence, so with none in hand this list
                 would be a full roster of "unrecorded" that says nothing about the attendance. */}
-            {!evidenceQuery.isError && credit.flagged.length > 0 && (
+            {!evidenceUnavailable && credit.flagged.length > 0 && (
               <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="space-y-1">

@@ -79,9 +79,29 @@ begin
     raise exception 'Corrective action not found' using errcode = 'P0002';
   end if;
 
-  -- The same scope every incident, violation and inspection operation uses; a corrective action
-  -- carries exactly one of the three parents and all three live in the same facility.
-  perform app_private.assert_incident_manager(v_action.organization_id, v_action.facility_id);
+  -- `corrective_actions_update`, in full, rather than the incident scope that is narrower than it.
+  --
+  -- That policy admits org_admin and facility_manager for any action, AND a facility-scoped
+  -- trainer for one backed by an inspection event or a violation -- deliberately, because a
+  -- trainer owns remediation on those. `assert_incident_manager` knows only the first two, and
+  -- InspectionItemDetail offers this dialog to trainers, so the page handed a trainer a control
+  -- whose every submission came back 42501. A SECURITY DEFINER function that stands in for a
+  -- policy has to reproduce the whole policy, including the branch that is wider than its own
+  -- first instinct -- not only the branches that narrow it.
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' and not public.is_platform_admin() then
+    if auth.uid() is null
+       or (select public.current_org_id()) is distinct from v_action.organization_id
+       or not public.is_assigned_to_facility(v_action.facility_id) then
+      raise exception 'Corrective action is outside caller scope' using errcode = '42501';
+    end if;
+    if not (
+      (select public.current_role()) = any (array['org_admin', 'facility_manager'])
+      or ((select public.current_role()) = 'trainer'
+          and (v_action.inspection_event_id is not null or v_action.violation_id is not null))
+    ) then
+      raise exception 'This role may not verify corrective actions' using errcode = '42501';
+    end if;
+  end if;
 
   if v_notes is null or length(v_notes) < 10 then
     raise exception 'Record what was verified -- at least a sentence' using errcode = '22023';
