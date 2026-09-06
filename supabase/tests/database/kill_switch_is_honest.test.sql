@@ -8,7 +8,7 @@
 -- the alarm, not the job. Run with: supabase test db.
 
 begin;
-select plan(8);
+select plan(9);
 
 select has_function(
   'app_private', 'kill_switch_can_stop_job', array['text'],
@@ -17,24 +17,37 @@ select has_function(
 
 -- The predicate is the whole fix, so test it against the two real shapes rather than a fixture.
 select ok(
+  -- RETARGETED by 20260906170000 (BACKLOG J78). These two assertions used to pin the cron command
+  -- string: a switch works iff the entry routes through execute_registered_sql_job. That is one
+  -- layer short of where the switch is actually read. It is read inside
+  -- claim_system_job_execution, and every Edge worker claims before it works -- a raised claim
+  -- comes back as a 500 and the job does not run. So the switch stops all forty-three claiming
+  -- jobs, the old predicate said thirty-one, and the console told operators the switch was dead on
+  -- notification dispatch and certificate rendering, which it stops. What is pinned now is the
+  -- fact itself: the switch works for exactly the jobs whose worker claims.
   (select bool_and(app_private.kill_switch_can_stop_job(d.job_key))
    from app_private.system_job_definitions d
-   join cron.job j on j.jobname = d.cron_job_name
-   where j.command like '%execute_registered_sql_job%'),
-  'every job whose cron entry routes through execute_registered_sql_job reports a working switch'
+   where d.claims_before_running),
+  'every job whose worker claims an execution reports a working switch'
 );
 select ok(
   (select bool_and(not app_private.kill_switch_can_stop_job(d.job_key))
    from app_private.system_job_definitions d
-   join cron.job j on j.jobname = d.cron_job_name
-   where j.command not like '%execute_registered_sql_job%'),
-  'and every job that calls its function directly, or posts to an Edge Function, reports a dead one'
+   where not d.claims_before_running),
+  'and only a job that never claims reports a dead one'
+);
+select is(
+  (select coalesce(string_agg(d.job_key, ', ' order by d.job_key), '')
+   from app_private.system_job_definitions d
+   where not d.claims_before_running),
+  'system-job-watchdog',
+  'the watchdog is the one deliberate exemption -- disabling a job must not blind the thing that notices jobs have stopped'
 );
 select ok(
   (select count(*) from app_private.system_job_definitions d
    join cron.job j on j.jobname = d.cron_job_name
    where j.command not like '%execute_registered_sql_job%') > 0,
-  'there is at least one such job -- otherwise the assertion above proves nothing'
+  'and Edge-routed jobs do exist -- they are the ones the old cron-string predicate got wrong'
 );
 select is(
   app_switch_absent.n, 0,

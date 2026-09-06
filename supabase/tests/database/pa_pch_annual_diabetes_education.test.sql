@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(50);
+select plan(51);
 
 -- ---------------------------------------------------------------------------
 -- What the published course promises
@@ -722,8 +722,42 @@ set percent_complete = 100,
           and cb.body ->> 'activity_type' in ('scenario', 'practice')
       ),
       'confidence', '{}'::jsonb
+    ),
+    -- Every video block watched to the end. 20260906160000 (BACKLOG J27) made
+    -- complete_course_assignment read video_state when learning.video_watch_gate is released,
+    -- which it is globally: nothing on the server used to look at it, so a video-led course --
+    -- this one, with its generated blocks -- could be completed with no playback at all, and seat
+    -- time was the only pacing evidence there was.
+    video_state = (
+      select coalesce(
+        jsonb_object_agg(cb.id::text, jsonb_build_object(
+          'position', 0, 'maxWatched', 0, 'completedAt', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SSZ')
+        )),
+        '{}'::jsonb
+      )
+      from public.course_blocks cb
+      join public.course_assignments ca on ca.course_version_id = cb.course_version_id
+      where ca.id = 'd1a0e7e5-0000-4000-8000-000000000008'
+        and cb.block_type = 'video'
+        and coalesce(btrim(cb.video_url), '') <> ''
     )
 where assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008';
+
+-- And the gate is real: with one video unwatched the completion is refused.
+select throws_ok(
+  $$
+    with cleared as (
+      update public.course_progress
+      set video_state = '{}'::jsonb
+      where assignment_id = 'd1a0e7e5-0000-4000-8000-000000000008'
+      returning 1
+    )
+    select public.complete_course_assignment('d1a0e7e5-0000-4000-8000-000000000008') from cleared
+  $$,
+  '55000',
+  null,
+  'a video-led course cannot be completed with the videos unwatched (BACKLOG J27)'
+);
 
 select lives_ok(
   $$ select public.complete_course_assignment('d1a0e7e5-0000-4000-8000-000000000008') $$,

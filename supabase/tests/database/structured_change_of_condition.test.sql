@@ -91,15 +91,27 @@ select is(
   'frontline staff can capture a structured category and observations'
 );
 select pg_temp.act_as('59000000-0000-4000-8000-000000000101');
+-- The window comes from resident_compliance_rule_packs since 20260906140000 (BACKLOG J36). It used
+-- to be a literal `pa_today(), null, 2, 0` -- due today with no grace at all -- so the nightly
+-- recalculation marked the resident overdue the morning after any change of condition, before a
+-- RASP could plausibly have been redone. What this asserts now is that the item is raised, and
+-- that its deadline is the rule pack's rather than today.
 select ok(
   exists (
     select 1 from public.resident_compliance_items c
     join public.resident_change_events e on e.compliance_item_id = c.id
+    join public.resident_compliance_rule_packs rp
+      on rp.item_type = 'significant_change_reassessment'
+     and rp.state = 'PA'
+     and rp.is_active
+     and rp.organization_id is null
     where e.id = (select id from change_ids where key = 'event')
       and c.item_type = 'significant_change_reassessment'
-      and c.due_date = public.pa_today()
+      and c.due_date = public.pa_today() + rp.offset_days
+      and c.grace_period_days = rp.grace_period_days
+      and c.due_date > public.pa_today()
   ),
-  'human reassessment decision creates immediately due compliance work'
+  'a human reassessment decision raises the item on the rule pack''s window, not due the same day'
 );
 select ok(
   exists (

@@ -194,13 +194,13 @@ begin
   returning * into v_org;
   perform set_config('app.privileged_write', '', true);
 
-  insert into public.audit_logs (organization_id, user_id, action, entity_type, entity_id, metadata)
+  insert into public.audit_logs (organization_id, actor_profile_id, action, entity_type, entity_id, metadata)
   values (
     p_organization_id,
     auth.uid(),
     case when p_suspended then 'organization_suspended' else 'organization_reactivated' end,
     'organizations',
-    p_organization_id,
+    p_organization_id::text,
     jsonb_build_object(
       'reason', v_reason,
       'restoredState', v_restored,

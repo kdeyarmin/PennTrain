@@ -9,7 +9,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(25);
+select plan(48);
 
 insert into public.organizations(id, name, slug, subscription_status, trial_ends_at) values
   ('4c000000-0000-4000-8000-000000000001', 'Readiness Org', 'readiness-fix-org', 'trial', now() + interval '10 days'),
@@ -281,6 +281,155 @@ select ok(
   pg_get_functiondef('public.resolve_survey_packet_guest_token(text)'::regprocedure)
     like '%assert_guest_request_allowed(''survey_packet_guest''%',
   'the survey-packet guest surface goes through the shared guest gate (J61)'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- The second half of the fix pass. Same reasoning as above: assert the shape where
+-- reproducing the whole path costs more than it proves, and reproduce it where the rule is
+-- behavioural and the role matters.
+-- ---------------------------------------------------------------------------------------
+
+-- J2. A learner who exhausted the attempts had no way forward at all.
+select ok(
+  pg_get_functiondef('public.enforce_quiz_attempt_cap()'::regprocedure)
+    like '%additional_attempts_granted%',
+  'the attempt cap counts what a manager has granted on the assignment (J2)'
+);
+select has_function('public', 'grant_additional_quiz_attempt', array['uuid', 'text'],
+  'a manager can grant another attempt');
+select has_function('public', 'cancel_course_assignment', array['uuid', 'text'],
+  'and can close a dead assignment so a replacement can be assigned');
+
+-- J26. The bridge stops rewriting a finished cycle.
+select is(
+  (select count(*)::bigint from regexp_matches(
+     pg_get_functiondef('public.complete_course_assignment(uuid)'::regprocedure),
+     'status not in \(''compliant'', ''pending_review''\)', 'g')),
+  2::bigint,
+  'both compliance bridges refuse to overwrite a compliant record or an audience shell (J26)'
+);
+
+-- J27. The server reads video_state.
+select ok(
+  pg_get_functiondef('public.complete_course_assignment(uuid)'::regprocedure)
+    like '%course_video_blocks_watched%',
+  'completing a course asks whether its video blocks were watched (J27)'
+);
+
+-- J30. A cross-facility class is runnable by the trainer who owns it.
+select is(
+  (select count(*)::bigint from (values
+     ('checkin_via_kiosk_pin'), ('complete_training_class'), ('generate_class_checkin_token')
+   ) as t(fn)
+   where pg_get_functiondef(('public.' || t.fn)::regproc)
+     like '%v_class.facility_id is null%'),
+  3::bigint,
+  'all three trainer class gates admit a class with no facility (J30)'
+);
+
+-- J33. The compliance clock follows the admission date.
+select has_trigger('public', 'residents', 'rederive_compliance_due_dates',
+  'moving the admission date moves the deadlines measured from it (J33)');
+
+-- J34. The float aide at their second site.
+select ok(
+  public.employee_serves_facility(
+    '4c000000-0000-4000-8000-000000000201', '4c000000-0000-4000-8000-000000000011'),
+  'an employee serves their primary facility'
+);
+insert into public.facilities(id, organization_id, name, facility_type) values
+  ('4c000000-0000-4000-8000-000000000013', '4c000000-0000-4000-8000-000000000001', 'Second Site', 'PCH');
+insert into public.employee_facility_assignments(organization_id, employee_id, facility_id, is_primary) values
+  ('4c000000-0000-4000-8000-000000000001', '4c000000-0000-4000-8000-000000000201',
+   '4c000000-0000-4000-8000-000000000013', false)
+on conflict (employee_id, facility_id) do nothing;
+select ok(
+  public.employee_serves_facility(
+    '4c000000-0000-4000-8000-000000000201', '4c000000-0000-4000-8000-000000000013'),
+  'and every facility they are assigned to, which is what scheduling has always honoured (J34)'
+);
+select ok(
+  not has_function_privilege('authenticated', 'public.employee_serves_facility(uuid, uuid)', 'EXECUTE'),
+  'the helper is not reachable from the browser -- it takes an employee id and checks nothing itself'
+);
+
+-- J36. A change of condition no longer turns the resident red the next morning.
+select ok(
+  (select rp.offset_days from public.resident_compliance_rule_packs rp
+   where rp.item_type = 'significant_change_reassessment' and rp.facility_type = 'PCH'
+     and rp.organization_id is null) > 0,
+  'the significant-change reassessment has a window in the rule pack rather than being due today (J36)'
+);
+select ok(
+  pg_get_functiondef((
+    select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'create_resident_change_event'
+  )) like '%resident_compliance_rule_packs%',
+  'and create_resident_change_event reads it'
+);
+
+-- J37. The money can be given back.
+select has_function('public', 'close_resident_personal_fund_account',
+  array['uuid', 'text', 'text', 'timestamptz', 'uuid'],
+  'a discharged resident''s personal funds can be settled and the account closed (J37)');
+select ok(
+  (select pg_get_constraintdef(c.oid) from pg_constraint c
+   where c.conrelid = 'public.resident_personal_fund_transactions'::regclass
+     and c.conname = 'resident_personal_fund_transactions_transaction_kind_check')
+    like '%final_disbursement%',
+  'and the ledger has a terminal transaction kind to record it with'
+);
+
+-- J39, J50, J40. The import ledger, the external id, and the units.
+select has_column('public', 'residents', 'external_id',
+  'the import''s external id has its own column rather than living in preferred_name (J39)');
+select is(
+  (select module_key from app_private.product_module_resources
+   where resource_schema = 'public' and resource_name = 'facility_units'),
+  'modules.workforce',
+  'facility_units follows the shifts that reference it (J50)'
+);
+select is(
+  (select count(*)::bigint from pg_policy
+   where polname = 'import_ledger_facility_scope'),
+  3::bigint,
+  'the import ledger is scoped to the facilities a manager manages (J40)'
+);
+
+-- J56. The crosswalk can find a governed rule.
+select is(
+  (select count(*)::bigint from public.regulatory_rule_pack_templates
+   where applicability->>'crosswalkObligationId' = 'staff-training'),
+  3::bigint,
+  'every seeded personnel template names the crosswalk obligation it governs (J56)'
+);
+
+-- J78, J82. The kill switch and the watchdog.
+select ok(
+  app_private.kill_switch_can_stop_job('notification-dispatch'),
+  'the switch stops an Edge-cron job, which it always did and the console denied (J78)'
+);
+select ok(
+  not app_private.kill_switch_can_stop_job('system-job-watchdog'),
+  'and does not stop the watchdog, which is the one deliberate exemption'
+);
+select is(
+  (select retry_mode from app_private.system_job_definitions where job_key = 'system-job-watchdog'),
+  'none',
+  'the watchdog offers no manual re-run, so Run now stops writing a false failed run (J82)'
+);
+
+-- J80. One definition of compliant.
+select ok(
+  pg_get_functiondef((
+    select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'generate_paged_compliance_report'
+  )) like '%current_training_records%',
+  'the compliance report counts the current record per employee and type, as the dashboard does (J80)'
+);
+select ok(
+  pg_get_functiondef('public.get_platform_health()'::regprocedure) like '%is_demo, false)%',
+  'and the platform tiles stop counting demo tenants as customers (J80)'
 );
 
 select * from finish();

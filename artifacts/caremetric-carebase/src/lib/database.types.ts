@@ -4573,6 +4573,7 @@ export type Database = {
       }
       course_assignments: {
         Row: {
+          additional_attempts_granted: number
           assigned_at: string
           assigned_by: string | null
           canceled_at: string | null
@@ -4595,6 +4596,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          additional_attempts_granted?: number
           assigned_at?: string
           assigned_by?: string | null
           canceled_at?: string | null
@@ -4617,6 +4619,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          additional_attempts_granted?: number
           assigned_at?: string
           assigned_by?: string | null
           canceled_at?: string | null
@@ -27083,6 +27086,9 @@ export type Database = {
         Row: {
           account_number: string
           beginning_balance: number
+          closed_by: string | null
+          closed_on: string | null
+          closed_reason: string | null
           created_at: string
           created_by: string | null
           facility_id: string
@@ -27094,6 +27100,9 @@ export type Database = {
         Insert: {
           account_number: string
           beginning_balance?: number
+          closed_by?: string | null
+          closed_on?: string | null
+          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           facility_id: string
@@ -27105,6 +27114,9 @@ export type Database = {
         Update: {
           account_number?: string
           beginning_balance?: number
+          closed_by?: string | null
+          closed_on?: string | null
+          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           facility_id?: string
@@ -27114,6 +27126,13 @@ export type Database = {
           resident_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "resident_personal_fund_accounts_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "resident_personal_fund_accounts_created_by_fkey"
             columns: ["created_by"]
@@ -29443,6 +29462,7 @@ export type Database = {
           dietary_requirements: string | null
           discharge_date: string | null
           elopement_risk: string
+          external_id: string | null
           facility_id: string
           fall_risk: string
           first_name: string
@@ -29509,6 +29529,7 @@ export type Database = {
           dietary_requirements?: string | null
           discharge_date?: string | null
           elopement_risk?: string
+          external_id?: string | null
           facility_id: string
           fall_risk?: string
           first_name: string
@@ -29575,6 +29596,7 @@ export type Database = {
           dietary_requirements?: string | null
           discharge_date?: string | null
           elopement_risk?: string
+          external_id?: string | null
           facility_id?: string
           fall_risk?: string
           first_name?: string
@@ -36579,6 +36601,38 @@ export type Database = {
         Args: { p_facility_id: string; p_organization_id: string }
         Returns: boolean
       }
+      cancel_course_assignment: {
+        Args: { p_assignment_id: string; p_reason: string }
+        Returns: {
+          additional_attempts_granted: number
+          assigned_at: string
+          assigned_by: string | null
+          canceled_at: string | null
+          cancellation_reason: string | null
+          completed_at: string | null
+          completion_recorded_at: string | null
+          course_id: string
+          course_version_id: string
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          lifecycle_disposition: string | null
+          lifecycle_event_id: string | null
+          lifecycle_previous_status: string | null
+          organization_id: string
+          status: string
+          training_plan_id: string | null
+          training_plan_item_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "course_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cancel_employee_lifecycle_case: {
         Args: { p_case_id: string; p_reason: string }
         Returns: boolean
@@ -36864,6 +36918,43 @@ export type Database = {
       close_resident_change_event: {
         Args: { p_event_id: string; p_final_review_summary: string }
         Returns: boolean
+      }
+      close_resident_personal_fund_account: {
+        Args: {
+          p_purpose: string
+          p_receipt_document_id?: string
+          p_recipient: string
+          p_resident_id: string
+          p_transaction_at?: string
+        }
+        Returns: {
+          adjustment_reason: string | null
+          adjusts_transaction_id: string | null
+          amount: number
+          balance_after: number
+          direction: string
+          facility_id: string
+          id: string
+          organization_id: string
+          personal_fund_account_id: string
+          posted_at: string
+          posted_by: string | null
+          purpose: string
+          receipt_document_id: string | null
+          resident_acknowledged: boolean
+          resident_acknowledged_at: string | null
+          resident_acknowledgement_note: string | null
+          resident_id: string
+          staff_employee_id: string | null
+          transaction_at: string
+          transaction_kind: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "resident_personal_fund_transactions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       close_survey_day: {
         Args: { p_reason: string; p_session_id: string }
@@ -37750,6 +37841,10 @@ export type Database = {
           p_employee_id: string
           p_qualification_key: string
         }
+        Returns: boolean
+      }
+      employee_serves_facility: {
+        Args: { p_employee_id: string; p_facility_id: string }
         Returns: boolean
       }
       enable_my_training_passport: {
@@ -38866,6 +38961,38 @@ export type Database = {
         Returns: Json
       }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
+      grant_additional_quiz_attempt: {
+        Args: { p_assignment_id: string; p_reason: string }
+        Returns: {
+          additional_attempts_granted: number
+          assigned_at: string
+          assigned_by: string | null
+          canceled_at: string | null
+          cancellation_reason: string | null
+          completed_at: string | null
+          completion_recorded_at: string | null
+          course_id: string
+          course_version_id: string
+          due_date: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          lifecycle_disposition: string | null
+          lifecycle_event_id: string | null
+          lifecycle_previous_status: string | null
+          organization_id: string
+          status: string
+          training_plan_id: string | null
+          training_plan_item_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "course_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       grant_duty_eligibility_override: {
         Args: {
           p_duty_key: string
@@ -42830,6 +42957,7 @@ export type Database = {
       }
       update_profile_contact_preferences: {
         Args: {
+          p_email_opt_out?: boolean
           p_first_name: string
           p_last_name: string
           p_phone: string

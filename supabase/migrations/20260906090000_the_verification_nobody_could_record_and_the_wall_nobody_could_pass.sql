@@ -108,10 +108,10 @@ begin
   where id = v_action.id
   returning * into v_action;
 
-  insert into public.audit_logs(organization_id, user_id, action, entity_type, entity_id, metadata)
+  insert into public.audit_logs(organization_id, actor_profile_id, action, entity_type, entity_id, metadata)
   values (
     v_action.organization_id, auth.uid(), 'corrective_action.verified', 'corrective_actions',
-    v_action.id,
+    v_action.id::text,
     jsonb_build_object(
       'incidentId', v_action.incident_id,
       'violationId', v_action.violation_id,
