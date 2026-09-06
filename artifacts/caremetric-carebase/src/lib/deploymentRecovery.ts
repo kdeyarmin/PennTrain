@@ -86,6 +86,11 @@ export function showStaleShellNotice(doc: Document = document): void {
   bar.style.cssText = [
     "position:fixed", "left:50%", "bottom:16px", "transform:translateX(-50%)", "z-index:2147483647",
     "max-width:min(640px,calc(100vw - 24px))", "display:flex", "gap:12px", "align-items:center",
+    // The bar itself is transparent to the pointer; only its two buttons take clicks. Without this
+    // a fixed, full-width-on-mobile element at z-index 2147483647 swallows every click inside its
+    // rectangle -- CI caught it sitting on top of the Sign in button, and a real visitor would have
+    // hit the same wall with no idea what was eating the tap.
+    "pointer-events:none",
     "padding:12px 16px", "border-radius:10px", "border:1px solid #cfe2f4", "background:#0d2742",
     "color:#ffffff", "box-shadow:0 8px 24px rgba(13,39,66,0.28)",
     "font:600 14px/1.45 'Segoe UI',Helvetica,Arial,sans-serif",
@@ -97,14 +102,14 @@ export function showStaleShellNotice(doc: Document = document): void {
   reload.type = "button";
   reload.textContent = "Reload now";
   reload.style.cssText =
-    "flex:none;cursor:pointer;border:0;border-radius:8px;background:#1b6fc2;color:#ffffff;font:inherit;padding:8px 14px;";
+    "flex:none;pointer-events:auto;cursor:pointer;border:0;border-radius:8px;background:#1b6fc2;color:#ffffff;font:inherit;padding:8px 14px;";
   reload.addEventListener("click", () => window.location.reload());
   const dismiss = doc.createElement("button");
   dismiss.type = "button";
   dismiss.setAttribute("aria-label", "Dismiss update notice");
   dismiss.textContent = "\u00d7";
   dismiss.style.cssText =
-    "flex:none;cursor:pointer;border:0;background:transparent;color:#9fc4e8;font:inherit;font-size:18px;line-height:1;padding:4px 6px;";
+    "flex:none;pointer-events:auto;cursor:pointer;border:0;background:transparent;color:#9fc4e8;font:inherit;font-size:18px;line-height:1;padding:4px 6px;";
   dismiss.addEventListener("click", () => bar.remove());
   bar.append(text, reload, dismiss);
   doc.body.appendChild(bar);
@@ -155,7 +160,18 @@ export function installDeploymentRecovery(): () => void {
   // showed up. `controllerchange` is the moment that happens, and it is the moment to say so.
   // Never an automatic reload -- the visitor may be mid-form, and unlike a chunk miss nothing is
   // broken yet.
-  const onControllerChange = () => showStaleShellNotice();
+  //
+  // `controllerchange` also fires the FIRST time a service worker claims a tab that had none --
+  // an ordinary first visit, not a release replacing the code already running. Announcing there
+  // told every new visitor their brand-new page was out of date, and the notice sat on the login
+  // form while they read it. So the announcement is conditional on there having been a controller
+  // to replace, captured when the listener is installed rather than read at event time, because
+  // by then `controller` is already the new worker either way.
+  const hadControllerAtInstall = Boolean(navigator.serviceWorker?.controller);
+  const onControllerChange = () => {
+    if (!hadControllerAtInstall) return;
+    showStaleShellNotice();
+  };
   navigator.serviceWorker?.addEventListener("controllerchange", onControllerChange);
   const onPreloadError = (event: Event) => {
     const payload = event as Event & { payload?: unknown };

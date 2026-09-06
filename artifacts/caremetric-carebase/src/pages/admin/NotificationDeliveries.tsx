@@ -177,11 +177,34 @@ export default function NotificationDeliveries() {
       })
     : deliveries;
 
+  /**
+   * Which rows the retry control is offered for (RELEASE_READINESS_PLAN 4.4, row I13).
+   *
+   * A transport error or timeout finalizes a delivery as `status = 'failed'` with
+   * `final_outcome = 'unknown'`: the provider may or may not have sent it. So these rows looked
+   * exactly like permanent failures here and were offered a Retry button -- which
+   * `retry_notification_delivery` refused on every press, because it required
+   * `final_outcome = 'failed'`. A control that can only produce an error toast, over a row nothing
+   * could ever clear, while every one of them counted (unbounded) toward the
+   * phase1-synthetic-health check. The RPC now also accepts an ambiguous outcome finalized more
+   * than six hours ago with no provider event since, and still refuses anything younger, so the
+   * client applies the same six hours: the button appears exactly when it will work.
+   */
+  const UNKNOWN_RETRY_QUARANTINE_MS = 6 * 60 * 60 * 1000;
+  const isAmbiguousOutcome = (d: { final_outcome?: string | null }) => d.final_outcome === "unknown";
+  const retryOffered = (d: { status: string; final_outcome?: string | null; finalized_at?: string | null }) => {
+    if (d.status !== "failed") return false;
+    if (!isAmbiguousOutcome(d)) return true;
+    if (!d.finalized_at) return false;
+    const finalizedAt = new Date(d.finalized_at).getTime();
+    return Number.isFinite(finalizedAt) && Date.now() - finalizedAt > UNKNOWN_RETRY_QUARANTINE_MS;
+  };
+
   // Based on the full (unfiltered-by-search) fetch, not filteredDeliveries -- a row that scrolls
   // out of view because of the search box shouldn't silently vanish from the bulk-retry count.
-  const failedIds = new Set(deliveries.filter((d) => d.status === "failed").map((d) => d.id));
+  const failedIds = new Set(deliveries.filter(retryOffered).map((d) => d.id));
   const selectedFailedIds = Array.from(selectedIds).filter((id) => failedIds.has(id));
-  const visibleFailedIds = filteredDeliveries.filter((d) => d.status === "failed").map((d) => d.id);
+  const visibleFailedIds = filteredDeliveries.filter(retryOffered).map((d) => d.id);
   const allVisibleFailedSelected = visibleFailedIds.length > 0 && visibleFailedIds.every((id) => selectedIds.has(id));
 
   const handleRetry = (deliveryId: string) => {
@@ -523,10 +546,10 @@ export default function NotificationDeliveries() {
               {selectedFailedIds.length > 0 && (
                 <div className="flex items-center gap-3 px-4 py-2 mb-3 bg-muted rounded-md border flex-wrap">
                   <span className="text-sm font-medium">
-                    {selectedFailedIds.length} failed deliver{selectedFailedIds.length === 1 ? "y" : "ies"} selected
+                    {selectedFailedIds.length} retryable deliver{selectedFailedIds.length === 1 ? "y" : "ies"} selected
                   </span>
                   <Button size="sm" variant="outline" onClick={handleBulkRetry} disabled={anyRetryInFlight}>
-                    {bulkRetrying ? "Retrying..." : "Retry Selected Failed"}
+                    {bulkRetrying ? "Retrying..." : "Retry Selected"}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Clear Selection</Button>
                 </div>
@@ -600,11 +623,14 @@ export default function NotificationDeliveries() {
                             <Button size="sm" variant="ghost" onClick={() => setEvidenceDeliveryId(delivery.id)}>
                               <Eye className="h-4 w-4 mr-1" />Documentation
                             </Button>
-                            {delivery.status === "failed" && (
+                            {retryOffered(delivery) && (
                             <Button
                               size="sm"
                               variant="outline"
                               disabled={anyRetryInFlight}
+                              title={isAmbiguousOutcome(delivery)
+                                ? "The provider never reported on this delivery. Re-sending may duplicate it."
+                                : undefined}
                               onClick={() => handleRetry(delivery.id)}
                             >
                               Retry

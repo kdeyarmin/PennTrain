@@ -1,7 +1,10 @@
 -- One bad row that stranded an import, an archive that could be made twice, and two events in the
 -- same second applied backwards.
 --
--- RELEASE_READINESS_PLAN.md section 4.3, imports D1/D2/D5/D7 and platform L6/L7/L10.
+-- RELEASE_READINESS_PLAN.md section 4.3, imports D1/D2/D5/D7 and platform L6/L7/L10, plus the two
+-- section 4.4 status corrections that are real defects: row I5 (the import worker writes
+-- resident_contacts directly and never calls import_apply_resident_contact) and row I13 (the
+-- `unknown` dead end and the unbounded synthetic-check count). Those two are at the end of the file.
 --
 -- D1. A single failed row blocked Apply, Finalize AND re-run, and nothing could cancel or skip it.
 --     `finalize_data_import_job` refuses a receipt with `error_rows > 0` and says "Resolve or
@@ -457,5 +460,136 @@ $old$;
   -- L10). send_monday_digest() itself stays -- the retirement migration kept it deliberately for
   -- manual invocation and pgTAP coverage.
   execute replace(v_def, v_old, '');
+end
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- Section 4.4 row I5 -- the import worker's own resident-contact writes
+-- ---------------------------------------------------------------------------
+--
+-- `import_apply_resident_contact` was written for this exact purpose and granted to service_role,
+-- and the durable worker (`process-data-import-jobs`) never called it: it wrote `resident_contacts`
+-- directly under the blanket service_role table grant, so the worker's writes skipped the contact
+-- type vocabulary, the required name, the resident-in-organization check, and the derivation of
+-- `facility_id` from the resident rather than from browser-supplied payload. The browser processor
+-- (`bulk-import-resident-contacts`) has always used the RPC, so the same import had two write paths
+-- with different rules depending on whether the tab stayed open.
+--
+-- Of the two ways to close it, routing the worker through the RPC leaves the narrower surface.
+-- Dropping the unused grant would remove one grant and leave the unvalidated direct-write path as
+-- the ONLY path -- and service_role keeps blanket DML on resident_contacts regardless, because that
+-- grant is issued on every table, so nothing real would be narrowed. The RPC could not be used as
+-- it stood: `admission_row_visible` reads the caller's profile, which a service-role session does
+-- not have, so every worker call would have raised 42501. Its scope check for a trusted session is
+-- the job receipt -- `assert_import_manager` above returned the job's organization and the resident
+-- is verified against it -- which is the same reasoning `assert_import_manager` itself already uses
+-- for a trusted session.
+
+do $do$
+declare v_def text; v_old text; v_new text;
+begin
+  v_def := pg_get_functiondef('public.import_apply_resident_contact(uuid,uuid,jsonb,uuid)'::regprocedure);
+  v_old := $old$  if not app_private.admission_row_visible(v_resident.organization_id, v_resident.facility_id) then
+    raise exception 'resident is outside caller scope' using errcode = '42501';
+  end if;$old$;
+  if position(v_old in v_def) = 0 then
+    raise exception 'import_apply_resident_contact no longer contains the caller-scope check this migration patches';
+  end if;
+  v_new := $patch$  -- A trusted database session (the durable import worker, service_role) has no profile for
+  -- admission_row_visible to read, so this check refused it outright and the worker wrote the table
+  -- directly instead. Its scope is the job receipt: assert_import_manager above resolved the job's
+  -- organization and v_resident is checked against it just above (RELEASE_READINESS_PLAN 4.4, I5).
+  if not app_private.is_trusted_database_session()
+     and not app_private.admission_row_visible(v_resident.organization_id, v_resident.facility_id) then
+    raise exception 'resident is outside caller scope' using errcode = '42501';
+  end if;$patch$;
+  execute replace(v_def, v_old, v_new);
+end
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- Section 4.4 row I13 -- the `unknown` dead end and the unbounded health counter
+-- ---------------------------------------------------------------------------
+--
+-- A transport error or timeout finalizes a delivery as `status = 'failed'` with
+-- `final_outcome = 'unknown'` (complete_notification_delivery_attempt): the provider may or may not
+-- have sent it. Quarantining it rather than retrying immediately is right -- an immediate replay
+-- could double-send. Quarantining it FOREVER is not. Because `status` is `failed`, the deliveries
+-- console offered these rows the same Retry button as a real permanent failure, and
+-- `retry_notification_delivery` required `final_outcome = 'failed'` and refused every press: a
+-- control that could only produce an error toast. Meanwhile `run_phase1_synthetic_checks` counted
+-- every ambiguous outcome ever recorded, so a single fifteen-second timeout wrote a FAILED run
+-- against `phase1-synthetic-health` on every run thereafter until somebody edited the row in SQL.
+-- The two halves are one defect: nothing could clear the row, so nothing could clear the check.
+
+do $do$
+declare v_def text; v_old text; v_new text; v_patched text;
+begin
+  v_def := pg_get_functiondef('public.retry_notification_delivery(uuid)'::regprocedure);
+
+  v_old := $old$  where id = p_delivery_id
+    and status = 'failed'
+    and final_outcome = 'failed'
+    and attempt_count < 5;$old$;
+  if position(v_old in v_def) = 0 then
+    raise exception 'retry_notification_delivery no longer contains the retryable-failure predicate this migration patches';
+  end if;
+  v_new := $patch$  where id = p_delivery_id
+    and status = 'failed'
+    and attempt_count < 5
+    and (
+      final_outcome = 'failed'
+      -- Or a quarantined ambiguous outcome that the provider never spoke about again.
+      -- complete_notification_delivery_attempt writes `status = 'failed', final_outcome = 'unknown'`
+      -- for a transport error or timeout, so the console DID offer these rows a Retry button and
+      -- this predicate refused every press: a dead end with a control on it. A status callback for
+      -- a message that really went out arrives within minutes; six hours of silence, with no
+      -- provider event recorded against the delivery at all, is as close to "it did not send" as
+      -- this system can get, and a platform admin re-sending a compliance alert is a smaller harm
+      -- than the alert never arriving (RELEASE_READINESS_PLAN 4.4, row I13).
+      or (
+        final_outcome = 'unknown'
+        and finalized_at is not null
+        and finalized_at < now() - interval '6 hours'
+        and not exists (
+          select 1 from public.notification_provider_events e where e.delivery_id = p_delivery_id
+        )
+      )
+    );$patch$;
+  v_patched := replace(v_def, v_old, v_new);
+
+  v_old := $old$    raise exception 'Delivery % is not a safely retryable failure or its retry budget is exhausted', p_delivery_id
+      using errcode = 'P0002';$old$;
+  if position(v_old in v_patched) = 0 then
+    raise exception 'retry_notification_delivery no longer contains the refusal message this migration patches';
+  end if;
+  v_new := $patch$    raise exception 'Delivery % cannot be retried: it is not a permanent failure, its ambiguous outcome is still inside the six-hour quarantine or the provider has since reported on it, or its retry budget is exhausted', p_delivery_id
+      using errcode = 'P0002';$patch$;
+  v_patched := replace(v_patched, v_old, v_new);
+
+  execute v_patched;
+end
+$do$;
+
+do $do$
+declare v_def text; v_old text; v_new text;
+begin
+  v_def := pg_get_functiondef('public.run_phase1_synthetic_checks()'::regprocedure);
+  v_old := $old$    'notificationOutcomesUnknown', (
+      select count(*) from public.notification_deliveries n where n.final_outcome = 'unknown'
+    ),$old$;
+  if position(v_old in v_def) = 0 then
+    raise exception 'run_phase1_synthetic_checks no longer contains the unknown-outcome counter this migration patches';
+  end if;
+  -- execute_registered_sql_job turns a non-zero value here into a durable FAILED run for
+  -- phase1-synthetic-health, so an unbounded count meant one old timeout failed the critical health
+  -- check forever. What the check is for is "are deliveries going ambiguous NOW"; a 24-hour window
+  -- says that and clears itself once the condition passes (RELEASE_READINESS_PLAN 4.4, row I13).
+  v_new := $patch$    'notificationOutcomesUnknown', (
+      select count(*) from public.notification_deliveries n
+      where n.final_outcome = 'unknown'
+        and coalesce(n.finalized_at, n.updated_at, n.created_at) >= now() - interval '24 hours'
+    ),$patch$;
+  execute replace(v_def, v_old, v_new);
 end
 $do$;

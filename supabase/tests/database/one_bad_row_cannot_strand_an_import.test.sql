@@ -5,7 +5,7 @@
 -- Run with: supabase test db.
 
 begin;
-select plan(33);
+select plan(41);
 
 -- ---------------------------------------------------------------------------
 -- Surface
@@ -360,6 +360,117 @@ select is(
   'active',
   'and does not overwrite the newer state'
 );
+
+-- ---------------------------------------------------------------------------
+-- Section 4.4 row I5 -- the import worker's resident-contact writes go through the RPC
+-- ---------------------------------------------------------------------------
+
+select matches(
+  (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'import_apply_resident_contact'),
+  'is_trusted_database_session',
+  'the durable worker service-role session can reach the RPC the browser processor already used'
+);
+
+insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date)
+values ('4d000000-0000-4000-8000-000000000301', '4d000000-0000-4000-8000-000000000001',
+        '4d000000-0000-4000-8000-000000000011', 'Rose', 'Contact', public.pa_today() - 30);
+
+insert into strand_ids values ('contactjob', public.start_data_import_job(
+  'resident_contacts', 'contacts.csv', repeat('4', 64), 1, 'create', null,
+  '4d000000-0000-4000-8000-000000000001'
+));
+
+select is(
+  (public.import_apply_resident_contact(
+    (select id from strand_ids where key = 'contactjob'),
+    '4d000000-0000-4000-8000-000000000301',
+    jsonb_build_object('name', 'Ada Kin', 'contact_type', 'emergency_contact', 'is_primary', true)
+  )).facility_id,
+  '4d000000-0000-4000-8000-000000000011'::uuid,
+  'and the RPC derives facility_id from the resident rather than trusting the ledger payload'
+);
+
+select throws_ok(
+  format($fmt$select public.import_apply_resident_contact(%L, %L, '{"name":"Bad Kin","contact_type":"not_a_type"}'::jsonb)$fmt$,
+    (select id from strand_ids where key = 'contactjob'), '4d000000-0000-4000-8000-000000000301'),
+  '22023',
+  'Invalid contact type',
+  'which is the validation the direct table writes skipped entirely'
+);
+
+-- ---------------------------------------------------------------------------
+-- Section 4.4 row I13 -- the `unknown` dead end and the unbounded health counter
+-- ---------------------------------------------------------------------------
+
+select alike(
+  (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'run_phase1_synthetic_checks'),
+  '%interval ''24 hours''%',
+  'the synthetic health check counts recent ambiguous outcomes, not every one ever recorded'
+);
+
+insert into auth.users(
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+) values (
+  '00000000-0000-0000-0000-000000000000', '4d000000-0000-4000-8000-000000000102',
+  'authenticated', 'authenticated', 'stranded-platform@test.local', 'x', now(), '{}'::jsonb, '{}'::jsonb,
+  now(), now(), '', '', '', '', '', '', false, false
+);
+select set_config('app.privileged_write', 'on', true);
+insert into public.profiles(id, organization_id, email, first_name, last_name, role, is_active) values
+  ('4d000000-0000-4000-8000-000000000102', '4d000000-0000-4000-8000-000000000001',
+   'stranded-platform@test.local', 'Stranded', 'Platform', 'platform_admin', true)
+on conflict (id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
+select set_config('app.privileged_write', 'off', true);
+
+insert into public.notification_deliveries(
+  id, organization_id, profile_id, channel, recipient, status, attempt_count,
+  final_outcome, finalized_at
+) values
+  ('4d000000-0000-4000-8000-000000000401', '4d000000-0000-4000-8000-000000000001',
+   '4d000000-0000-4000-8000-000000000101', 'email', 'stranded-admin@test.local', 'failed', 1,
+   'unknown', now() - interval '9 hours'),
+  ('4d000000-0000-4000-8000-000000000402', '4d000000-0000-4000-8000-000000000001',
+   '4d000000-0000-4000-8000-000000000101', 'email', 'stranded-admin@test.local', 'failed', 1,
+   'unknown', now() - interval '1 hour');
+
+select is(
+  ((public.run_phase1_synthetic_checks()) ->> 'notificationOutcomesUnknown')::integer,
+  2,
+  'a fresh ambiguous outcome is what the health check is for'
+);
+update public.notification_deliveries
+set finalized_at = now() - interval '40 hours', updated_at = now() - interval '40 hours'
+where id in ('4d000000-0000-4000-8000-000000000401', '4d000000-0000-4000-8000-000000000402');
+select is(
+  ((public.run_phase1_synthetic_checks()) ->> 'notificationOutcomesUnknown')::integer,
+  0,
+  'and an old one no longer reddens phase1-synthetic-health on every run for ever'
+);
+update public.notification_deliveries
+set finalized_at = now() - interval '9 hours', updated_at = now() - interval '9 hours'
+where id = '4d000000-0000-4000-8000-000000000401';
+update public.notification_deliveries
+set finalized_at = now() - interval '1 hour', updated_at = now() - interval '1 hour'
+where id = '4d000000-0000-4000-8000-000000000402';
+
+select pg_temp.act_as('4d000000-0000-4000-8000-000000000102');
+select lives_ok(
+  $q$select public.retry_notification_delivery('4d000000-0000-4000-8000-000000000401')$q$,
+  'a platform admin can finally re-send an ambiguous delivery the provider never spoke about again'
+);
+select throws_ok(
+  $q$select public.retry_notification_delivery('4d000000-0000-4000-8000-000000000402')$q$,
+  'P0002',
+  null,
+  'while one still inside the six-hour quarantine is refused, so a late callback is not pre-empted'
+);
+reset role;
+select set_config('request.jwt.claims', '', true);
 
 select * from finish();
 rollback;

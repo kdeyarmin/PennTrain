@@ -163,15 +163,21 @@ verify_jwt = false
 # (the send-email hook secret below, SMTP credentials) stays behind the CLI's env() interpolation.
 [auth]
 enabled = true
-# DEPLOYMENT.md step 5 / "Limitations": Site URL https://cmcarebase.com.
-site_url = "https://cmcarebase.com"
+# Local, deliberately, and NOT the production Site URL. This file configures `supabase start` --
+# local and CI -- and nothing else; production Auth is configured in the hosted dashboard, which is
+# where DEPLOYMENT.md's https://cmcarebase.com belongs and already lives. Writing the production
+# origin here would not rehearse anything, because no local run reads it as a policy; it would only
+# point local confirmation and recovery links at production, so a developer's password reset would
+# leave their machine. What IS worth mirroring from the documented posture is behaviour -- signup
+# off, password floor, OTP lifetime, MFA -- and that is what the rest of this block does.
+site_url = "http://127.0.0.1:5173"
 # DEPLOYMENT.md: "Redirect URL https://cmcarebase.com/reset-password, plus the verified production
 # root URL for enterprise SSO." ForgotPassword.tsx sends redirectTo=<origin><base>/reset-password,
 # and Auth silently falls back to the bare Site URL -- no error anywhere -- when redirect_to is not
 # an exact allow-list match, which strands the user on the login page instead of the password form.
 additional_redirect_urls = [
-  "https://cmcarebase.com",
-  "https://cmcarebase.com/reset-password",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5173/reset-password",
 ]
 # Plain POST /auth/v1/signup stays off: ARCHITECTURE.md and DEPLOYMENT.md both record that the
 # self-service path is the hardened signup-organization function (Turnstile, hashed rate limits,
@@ -186,9 +192,14 @@ enable_manual_linking = false
 minimum_password_length = 8
 
 [auth.email]
-# The Providers -> Email "Allow new users to sign up" toggle DEPLOYMENT.md tells operators to keep
-# off. Set alongside auth.enable_signup because the two are separate switches in the dashboard.
-enable_signup = false
+# NOT `enable_signup = false` here, however much this table looks like the place for it. The CLI
+# maps auth.email.enable_signup onto GOTRUE_EXTERNAL_EMAIL_ENABLED -- the switch for the email
+# PROVIDER, not for registration -- so setting it false turns off password sign-in as well, and
+# every account in this product signs in with an email and a password. CI found it the direct way:
+# six browser journeys failed with "Email logins are disabled". Self-service registration is off
+# via auth.enable_signup above, which is GOTRUE_DISABLE_SIGNUP and blocks POST /auth/v1/signup
+# while leaving the password grant working. Leaving the key out here resolves to the CLI's default
+# of true -- which is what this project ran on before an [auth.email] table existed at all.
 # Set deliberately rather than inherited (PILOT_READINESS_PLAN I7). One hour is what this
 # deployment already runs -- src/lib/invitationLifecycle.ts records that the security advisor's
 # auth_otp_long_expiry lint fires above 3600s and does not fire here -- and it is the lifetime the

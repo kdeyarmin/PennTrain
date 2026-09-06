@@ -14,7 +14,8 @@ import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hoo
 import { useListNotificationDeliveries } from "@/hooks/useNotifications";
 import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 import { QueryError, QueryLoading } from "@/components/QueryState";
-import { exportArchiveHasExpired, exportIsInFlight, useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } from "@/hooks/useProductExperience";
+import { useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } from "@/hooks/useProductExperience";
+import { organizationExportArchiveHasExpired, organizationExportIsInFlight } from "@/lib/organizationExport";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetOrganization, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useNotificationReach } from "@/hooks/useNotificationReach";
@@ -760,12 +761,12 @@ export default function Settings() {
                   has already deleted; the click ended in a storage error. An expired archive now
                   says so and offers no download.
                 */}
-                <Button disabled={exports.request.isPending || exports.data?.some(exportIsInFlight)} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
-                {exports.data?.some(exportIsInFlight) && (
+                <Button disabled={exports.request.isPending || exports.data?.some(organizationExportIsInFlight)} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
+                {exports.data?.some(organizationExportIsInFlight) && (
                   <p className="text-xs text-muted-foreground">An export is already in progress or waiting to be retried; a new one can be requested once it settles.</p>
                 )}
                 <div className="space-y-2">{exports.data?.map((job) => {
-                  const expired = exportArchiveHasExpired(job);
+                  const expired = organizationExportArchiveHasExpired(job);
                   return <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">Requested {new Date(job.requested_at).toLocaleString()}</p><p className="text-xs text-muted-foreground">{job.status === "succeeded" ? `${job.table_count} tables · ${job.row_count} rows · ${expired ? "expired" : "expires"} ${new Date(job.expires_at!).toLocaleString()}` : job.last_error_message ?? "The background worker is preparing the archive."}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "failed" ? "destructive" : expired ? "secondary" : "outline"}>{expired ? "expired" : job.status}</Badge>{job.status === "succeeded" && (expired ? <span className="text-xs text-muted-foreground">Archive deleted — request a new export</span> : <Button size="sm" variant="outline" disabled={exports.download.isPending} onClick={() => exports.download.mutate(job, { onSuccess: (url) => openDocumentUrl(url), onError: (error: Error) => toast({ title: "Download failed", description: error.message, variant: "destructive" }) })}><Download className="mr-2 h-4 w-4" />Download</Button>)}</div></div>;
                 })}</div>
               </CardContent>

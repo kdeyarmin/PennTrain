@@ -1,28 +1,26 @@
 import type { Role } from "@/lib/auth";
 
 /**
- * Who may write to a training class, mirroring the `training_classes_write` policy
- * (20260714214435), so a screen can say what will happen instead of offering a control the
- * database refuses (BACKLOG.md J30).
+ * Who may write to a training class, mirroring the `training_classes_write` policy, so a screen can
+ * say what will happen instead of offering a control the database refuses (BACKLOG.md J30).
  *
- * The policy's trainer branch is:
+ * The policy's trainer branch is now:
  *
  *   current_role() = 'trainer'
  *   and trainer_profile_id = auth.uid()
- *   and facility_id is not null
- *   and is_assigned_to_facility(facility_id)
+ *   and (facility_id is null or is_assigned_to_facility(facility_id))
  *
- * `facility_id is not null` is the part that bites. A cross-facility class -- `facility_id` null,
- * which TrainerClasses.tsx offers as "Any / Cross-facility" and ClassKiosk.tsx already handles as a
- * first-class case -- fails it for the trainer who owns the class and for a facility_manager alike,
- * while `training_classes_select` happily shows it to them. So the class appears on the trainer's
- * own list and every action on it is refused: it cannot be opened for enrolment, completed,
- * edited, or have attendance corrected. Only an org_admin can run it, because the org_admin branch
- * has no facility test at all.
+ * It used to require `facility_id is not null`, which is the half of J30 that bit: a cross-facility
+ * class -- `facility_id` null, which TrainerClasses.tsx offers as "Any / Cross-facility" and
+ * ClassKiosk.tsx already handles as a first-class case -- failed it for the owning trainer and for
+ * a facility_manager alike, while `training_classes_select` happily showed it to them. This module
+ * mirrored that and told them so.
  *
- * This module does NOT loosen that. It reproduces the rule so the client can be honest about it
- * until the policy itself admits a null facility for the owning trainer; the shape of that change
- * is in the J30 report.
+ * `20260906220000` fixed the policy: ownership is the authorization for a class with no facility,
+ * and the facility test now scopes only a class that has one. Mirroring the OLD rule after that is
+ * the same defect pointing the other way -- the page banners "You cannot make changes to this
+ * session" and hides every control, including Cancel class, for a session the database would
+ * accept. The `cross_facility` block is gone with the rule it described.
  */
 
 /** Roles the policy admits without any facility test. */
@@ -46,8 +44,6 @@ export type TrainingClassWriteBlock =
   | "role"
   /** A trainer who does not own this class. */
   | "not_owner"
-  /** The class is cross-facility and the caller's branch requires a facility. */
-  | "cross_facility"
   /** A real facility, but outside the caller's assignments. */
   | "unassigned_facility";
 
@@ -66,7 +62,8 @@ export function trainingClassWriteBlock(
   if (FACILITY_EXEMPT_ROLES.has(role)) return null;
   if (role !== "facility_manager" && role !== "trainer") return "role";
   if (role === "trainer" && (!profileId || cls.trainer_profile_id !== profileId)) return "not_owner";
-  if (cls.facility_id === null) return "cross_facility";
+  // A class with no facility is scoped by ownership alone, exactly as the policy now scopes it.
+  if (cls.facility_id === null) return null;
   return assignedFacilityIds.has(cls.facility_id) ? null : "unassigned_facility";
 }
 
@@ -80,8 +77,6 @@ export function canWriteTrainingClass(
 /** One sentence naming the refusal and the way round it. */
 export function describeTrainingClassWriteBlock(block: TrainingClassWriteBlock): string {
   switch (block) {
-    case "cross_facility":
-      return "This session is not tied to a single facility, and only an organization administrator can run a cross-facility session. Ask an administrator to run it, or to set a facility on it so you can.";
     case "unassigned_facility":
       return "This session is at a facility you are not assigned to. Ask an administrator for an assignment to that facility, or to run the session for you.";
     case "not_owner":

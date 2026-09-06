@@ -23,30 +23,43 @@ describe("trainingClassWriteBlock", () => {
     ).toBeNull();
   });
 
-  it("blocks the owning trainer on their own cross-facility class", () => {
-    // The J30 defect: training_classes_select shows it to them, training_classes_write does not.
+  // RETARGETED: these two used to assert the J30 defect -- that the owning trainer and a facility
+  // manager were both refused their own cross-facility class. `20260906220000` changed the policy
+  // this module mirrors to `(facility_id is null or is_assigned_to_facility(facility_id))`, so
+  // asserting the old rule now makes the page refuse what the database accepts, and hides every
+  // control on the session including Cancel class.
+  it("lets the owning trainer write their own cross-facility class", () => {
     expect(
       trainingClassWriteBlock(crossFacilityClass, {
         role: "trainer",
         profileId: trainerId,
         assignedFacilityIds: assigned,
       }),
-    ).toBe("cross_facility");
+    ).toBeNull();
   });
 
-  it("blocks a facility manager on a cross-facility class for the same reason", () => {
+  it("lets a facility manager write a cross-facility class, which is scoped by organization alone", () => {
     expect(
       trainingClassWriteBlock(crossFacilityClass, {
         role: "facility_manager",
         profileId: "profile-manager",
         assignedFacilityIds: assigned,
       }),
-    ).toBe("cross_facility");
+    ).toBeNull();
+  });
+
+  it("still blocks a trainer who does not own the cross-facility class", () => {
+    expect(
+      trainingClassWriteBlock(crossFacilityClass, {
+        role: "trainer",
+        profileId: "someone-else",
+        assignedFacilityIds: assigned,
+      }),
+    ).toBe("not_owner");
   });
 
   it("lets an org admin run a cross-facility class", () => {
-    // The org_admin branch of the policy carries no facility test, which is why a cross-facility
-    // class is runnable at all today.
+    // The org_admin branch of the policy carries no facility test at all.
     expect(
       canWriteTrainingClass(crossFacilityClass, {
         role: "org_admin",
@@ -110,7 +123,7 @@ describe("trainingClassWriteBlock", () => {
 
 describe("describeTrainingClassWriteBlock", () => {
   it("gives every block a distinct next step", () => {
-    const blocks = ["cross_facility", "unassigned_facility", "not_owner", "role"] as const;
+    const blocks = ["unassigned_facility", "not_owner", "role"] as const;
     const messages = blocks.map(describeTrainingClassWriteBlock);
     expect(new Set(messages).size).toBe(blocks.length);
     for (const message of messages) expect(message.length).toBeGreaterThan(20);
