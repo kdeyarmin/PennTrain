@@ -147,7 +147,11 @@ begin
     end loop;
   end loop;
 
-  return (select pg_catalog.array_agg(distinct x) from pg_catalog.unnest(v_probes) as x);
+  -- Ordered explicitly. `array_agg(distinct ...)` happens to sort today because DISTINCT is
+  -- implemented by sorting, but that is an implementation detail and this function is
+  -- declared IMMUTABLE -- which is a promise about the value, array order included, and the
+  -- kind of promise a functional index would hold us to.
+  return (select pg_catalog.array_agg(distinct x order by x) from pg_catalog.unnest(v_probes) as x);
 end;
 $function$;
 
