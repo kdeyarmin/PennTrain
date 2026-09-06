@@ -43,8 +43,18 @@ begin
   end loop;
 end $$;
 
-delete from app_private.system_job_runs where job_key = 'exclusion-screening';
-delete from app_private.system_job_definitions where job_key = 'exclusion-screening';
+-- TWO job definitions, not one. `sam-sweep-continuation` (20260815132000) is the hourly resume
+-- tick for the SAM sweep: its cron entry is `resume-sam-exclusion-screening`, unscheduled just
+-- above, and its worker was `screen-exclusions`, deleted in this change set. Its key names what it
+-- does rather than the feature it belongs to, so a search for 'exclusion' or 'screen' among the
+-- job keys does not find it -- which is exactly how it was nearly left behind. Left active it
+-- would sit in /admin/system-jobs as a job that cannot run: the cron entry is gone, and "Run now"
+-- would fall through run-system-job's EDGE_JOBS map (its entry is removed here too) into
+-- execute_registered_sql_job and fail.
+delete from app_private.system_job_runs
+where job_key in ('exclusion-screening', 'sam-sweep-continuation');
+delete from app_private.system_job_definitions
+where job_key in ('exclusion-screening', 'sam-sweep-continuation');
 
 ------------------------------------------------------------------------------------------------
 -- 2. The three functions outside the feature that read into it
@@ -621,7 +631,7 @@ begin
     raise exception 'Employee is outside override facility' using errcode = '23514';
   end if;
   perform app_private.assert_phase3_admin(v_employee.organization_id, 'scheduling.eligibility.override', p_facility_id);
-  if p_block_code in ('lifecycle_inactive')
+  if p_block_code in ('lifecycle_inactive', 'oapsa_not_suitable')
      or p_scope_type not in ('facility','shift','class')
      or p_expires_at <= now() or p_expires_at > now() + interval '30 days' then
     raise exception 'Override is not permitted or is too broad' using errcode = '22023';
@@ -790,6 +800,13 @@ begin
 end;
 $function$;
 
+-- The function above now also refuses 'oapsa_not_suitable' in its own validation. That gap
+-- predates this change -- the function checked ('lifecycle_inactive', 'confirmed_exclusion') while
+-- the constraint forbade three codes -- so an override for an OAPSA determination was refused by
+-- the CHECK with a bare 23514 rather than by the function with its 22023 and its message. Closed
+-- here rather than left, because this migration is already rewriting both halves and leaving them
+-- disagreeing is how the next reader concludes one of them is wrong.
+--
 -- And the constraint that refused an override for it. Kept in step with the two functions above
 -- rather than left as harmless dead weight: a CHECK naming a block code nothing can emit reads,
 -- to the next person, as evidence the screen is still there.

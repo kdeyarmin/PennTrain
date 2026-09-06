@@ -13,7 +13,7 @@
 -- Run with: supabase test db.
 
 begin;
-select plan(15);
+select plan(16);
 
 ------------------------------------------------------------------------------------------------
 -- Gone
@@ -50,10 +50,25 @@ select is(
   'neither cron entry is scheduled'
 );
 
+-- Both of them. `sam-sweep-continuation` is the hourly resume tick for the SAM sweep -- same cron
+-- entry, same Edge Function -- and its key names what it does rather than the feature it serves,
+-- so a search for 'exclusion' or 'screen' among the job keys does not return it. Left active it
+-- would list in /admin/system-jobs as a job whose cron entry and worker are both gone.
 select is(
-  (select count(*)::int from app_private.system_job_definitions where job_key = 'exclusion-screening'),
+  (select count(*)::int from app_private.system_job_definitions
+   where job_key in ('exclusion-screening', 'sam-sweep-continuation')),
   0,
-  'and the job definition the control plane drew from is gone'
+  'and both job definitions the control plane drew from are gone'
+);
+
+-- The structural form of the same claim: no active definition may point at a cron entry that does
+-- not exist. This is what a name search cannot tell you.
+select is(
+  (select count(*)::int from app_private.system_job_definitions d
+   where d.is_active and d.cron_job_name is not null
+     and not exists (select 1 from cron.job c where c.jobname = d.cron_job_name)),
+  0,
+  'no active job definition is left pointing at an unscheduled cron entry'
 );
 
 select is(
