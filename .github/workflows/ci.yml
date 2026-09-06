@@ -274,10 +274,17 @@ jobs:
       # nothing failed, and the stale manual kept shipping. The output is reproducible: pdf-lib
       # names PDF resources from `SimpleRNG.withSeed(1)`, a fixed seed, so identical input gives
       # identical bytes on any machine. That is what makes this checkable rather than noisy.
+      #
+      # Scoped to what the build actually generates into the tracked tree. `deno.lock` is
+      # deliberately excluded: `check:edge-functions` runs Deno, which rewrites the lockfile as a
+      # side effect of resolving modules, and that churn is not a stale artifact -- folding it in
+      # would make this step fail on every run and teach everyone to ignore it, which is the exact
+      # failure being fixed here.
       - name: Fail if the release gate regenerated a committed file
         run: |
-          if ! git diff --exit-code --stat; then
-            echo "::error::The build regenerated a tracked file. Run the generator locally and commit the result."
+          generated='artifacts/caremetric-carebase/public/CareMetric-CareBase-User-Manual.pdf'
+          if ! git diff --exit-code --stat -- $generated; then
+            echo "::error::The build regenerated $generated. Run 'pnpm --filter @workspace/scripts run generate:manual' and commit the result."
             exit 1
           fi
 
