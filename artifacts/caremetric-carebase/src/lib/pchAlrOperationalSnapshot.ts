@@ -4,7 +4,7 @@ export interface SnapshotTrainingRecord { status?: string | null; due_date?: str
 export interface SnapshotResidentComplianceItem { status?: string | null; due_date?: string | null; item_type?: string | null }
 export interface SnapshotIncident { status?: string | null; final_report_submitted_at?: string | null; incident_type?: string | null }
 export interface SnapshotCorrectiveAction { status?: string | null; due_date?: string | null }
-export interface SnapshotPolicyAttestation { status?: string | null; due_date?: string | null }
+export interface SnapshotPolicyAttestation { status?: string | null; due_date?: string | null; superseded_at?: string | null }
 export interface SnapshotCredential { status?: string | null; credential_type?: string | null }
 
 export interface PchAlrSnapshotInput {
@@ -90,8 +90,11 @@ export function buildPchAlrOperationsQueue(input: PchAlrSnapshotInput): PchAlrOp
   const medicationFollowUps = (input.incidents ?? []).filter((incident) =>
     (incident.incident_type ?? "").toLowerCase().includes("med") && (!statusIn(incident.status, ["closed", "resolved"]) || !incident.final_report_submitted_at),
   ).length;
+  // Superseded rows are excluded for the same reason as in regulatoryCrosswalk: publishing a new
+  // version makes them unsignable, so counting them as gaps reports work nobody can do.
   const policyAttestationGaps = (input.policyAttestations ?? []).filter((attestation) =>
-    statusIn(attestation.status, ["pending", "overdue"]) && isOverdue(attestation.due_date, today),
+    !attestation.superseded_at
+    && statusIn(attestation.status, ["pending", "overdue"]) && isOverdue(attestation.due_date, today),
   ).length;
   const credentialGaps = (input.credentials ?? []).filter((credential) =>
     statusIn(credential.status, ["expired", "missing", "due_soon"]),

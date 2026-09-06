@@ -188,10 +188,20 @@ begin
     ) then
       v_last_block_id := null;
     end if;
+    -- The floor has to belong to THIS assignment. Taking the oldest manifest for the course
+    -- version on this device reached back into a download made for a previous assignment of the
+    -- same course -- an annual retraining pinned to an unchanged version is exactly that case --
+    -- so a learner could submit a startedAt old enough to clear the comprehensive course's
+    -- elapsed-time gate the moment the new assignment was issued. There is no manifest-to-
+    -- assignment link on the table, so the bound is the assignment's own issue time, and a
+    -- withdrawn or expired manifest is no longer a download anyone is studying from.
     select min(m.created_at) into v_downloaded_at
     from public.offline_content_manifests m
     where m.device_id = v_device.id
-      and m.course_version_id = v_assignment.course_version_id;
+      and m.course_version_id = v_assignment.course_version_id
+      and m.created_at >= v_assignment.assigned_at
+      and m.withdrawn_at is null
+      and (m.expires_at is null or m.expires_at > now());
     v_started_at := coalesce(
       v_progress.started_at,
       greatest(

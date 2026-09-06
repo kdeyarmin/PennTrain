@@ -68,12 +68,20 @@ begin
 
   v_old := '  insert into public.audit_logs(organization_id,actor_profile_id,entity_type,entity_id,action,new_values)';
   v_new := '  -- BACKLOG J4. The new plan''''s tasks exist the moment it goes active, not at 02:10 UTC.
-  -- Same call, same window, as the assessment-form materializer.
+  -- Same window as the assessment-form materializer.
+  --
+  -- Scoped to THIS resident''''s requirements, one call each. A null requirement id made
+  -- generate_resident_service_tasks walk every active requirement in the installation -- its only
+  -- narrowing predicate is `(p_requirement_id is null or r.id = p_requirement_id)` -- so activating
+  -- one tenant''''s plan materialized every other tenant''''s missing tasks, inside this
+  -- transaction, from a SECURITY DEFINER path, at a cost growing with the whole customer base.
   perform public.generate_resident_service_tasks(
     greatest(public.pa_today(), coalesce(v.effective_date, public.pa_today())),
     greatest(public.pa_today(), coalesce(v.effective_date, public.pa_today())) + 14,
-    null
-  );
+    r.id
+  )
+  from public.resident_service_requirements r
+  where r.resident_id = v.resident_id and r.status = ''''active'''';
 
   insert into public.audit_logs(organization_id,actor_profile_id,entity_type,entity_id,action,new_values)';
   if position(v_old in v_def) = 0 then

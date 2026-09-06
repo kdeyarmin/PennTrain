@@ -49,6 +49,12 @@ function AttestationStatusBadge({ attestation }: { attestation: PolicyAttestatio
   if (attestation.status === "attested") {
     return <Badge className="bg-success text-success-foreground hover:bg-success/80">Attested</Badge>;
   }
+  // Before Overdue: publishing a newer version stamps `superseded_at` and closes the campaign, and
+  // attest-policy refuses to sign the row afterwards. Calling it overdue asked somebody to do
+  // something the server would reject, and it stayed that way for ever because nothing can clear it.
+  if (attestation.superseded_at) {
+    return <Badge variant="outline">Superseded</Badge>;
+  }
   if (attestation.due_date && attestation.due_date < facilityToday()) {
     return <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">Overdue</Badge>;
   }

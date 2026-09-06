@@ -64,9 +64,9 @@ export function SessionRosterCard({
   startsAt?: string | null;
   endsAt?: string | null;
   /**
-   * `training_classes.duration_hours` -- the figure approval credits to every attendee, whatever
-   * the recorded seat time says. Shown before approval so nobody signs off hours they did not
-   * intend to grant.
+   * `training_classes.duration_hours` -- the CEILING on what approval credits each attendee, not
+   * the credit itself: since 20260906220000 the figure written is their own recorded seat time,
+   * capped by this. Shown before approval so nobody signs off hours the evidence does not support.
    */
   durationHours?: number | null;
   /** Active employees who could be registered, in display order. */
@@ -111,8 +111,8 @@ export function SessionRosterCard({
   );
   const full = capacity != null && seatsTaken >= capacity;
 
-  // What the class was scheduled to deliver. This is the number approval credits per attendee, so
-  // it is also the number the seat-time entry below is measured against.
+  // What the class was scheduled to deliver: the ceiling approval caps each attendee's recorded
+  // seat time at, and the number the seat-time entry below is measured against.
   const scheduledHours = durationHours ?? 0;
 
   const attendedRegistrationIds = useMemo(
@@ -183,7 +183,7 @@ export function SessionRosterCard({
       toast({
         title: "Check-out must be after check-in",
         description:
-          "An attendance with no time between check-in and check-out records zero seat minutes, and approval refuses the whole session until it is corrected.",
+          "An attendance with no time between check-in and check-out records zero seat minutes, which is not evidence that anybody was there. Recording it is refused; enter the real check-in and check-out.",
         variant: "destructive",
       });
       return;
@@ -396,7 +396,7 @@ export function SessionRosterCard({
                     aria-live="polite"
                   >
                     {draftSeatTimeInvalid
-                      ? "Check-out must be after check-in. A zero-length attendance records no seat time, and approval refuses the whole session until it is corrected."
+                      ? "Check-out must be after check-in. A zero-length attendance records no seat time, and cannot be signed."
                       : `Seat time ${formatSeatMinutes(draftSeatMinutes)}${
                         scheduledHours > 0 ? ` · credited as entered, capped at the scheduled ${scheduledHours} h` : ""
                       }.`}
@@ -502,16 +502,17 @@ export function SessionRosterCard({
                               : `${formatSeatMinutes(row.seatMinutes)} of seat time`}
                           {row.issue === "short"
                             ? ` · credited ${row.creditedHours} h of the scheduled ${credit.scheduledHours} h`
-                            : " · approval will refuse until this is corrected"}
+                            : " · recorded before seat time was required; credited the scheduled hours"}
                         </li>
                       );
                     })}
                   </ul>
                   <p>
                     A short attendance is credited what it records, so approving one is a decision
-                    about the person's hours, not about the class's. An unrecorded or zero-length
-                    one has to be corrected: approval refuses the whole session over it. These
-                    hours count toward the annual training totals a surveyor reads.
+                    about the person's hours, not about the class's. An unrecorded or zero-length one
+                    predates the requirement to enter seat time -- nothing can be signed that way now
+                    -- and is credited the scheduled hours, which is the rule it was recorded under.
+                    These hours count toward the annual training totals a surveyor reads.
                   </p>
                 </div>
               </div>

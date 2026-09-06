@@ -11,8 +11,10 @@
  *
  * Migration 20260906220000 fixed that at the source. Approval now credits each attendee
  * `least(round(max(seat_minutes) / 60, 2), duration_hours)` -- their own recorded time, with the
- * class's scheduled length as the ceiling, never the floor -- and refuses the whole approval if any
- * attended registration carries evidence with no seat time at all.
+ * class's scheduled length as the ceiling, never the floor. A row with no usable seat time falls
+ * back to the scheduled hours: those rows predate the requirement to enter one, the evidence table
+ * is append-only so they cannot be corrected, and crediting them zero would strip hours from people
+ * who did attend. `record_training_attendance` refuses to create any more of them.
  *
  * This module mirrors that rule so the "what will this credit" figure shown before approval is the
  * number the server will write. Mirroring it is the point: while these two disagreed, the roster
@@ -31,7 +33,7 @@ export interface AttendanceEvidenceLike {
 }
 
 export type AttendanceIssue =
-  /** check_out_at is at or before check_in_at. Approval refuses the whole session over this. */
+  /** check_out_at is at or before check_in_at. Recording one is refused; older rows still exist. */
   | "zero_length"
   /** Seat time is recorded but materially below the scheduled duration, so the credit is short. */
   | "short"

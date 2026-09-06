@@ -48,21 +48,13 @@ begin
     -- 1. Refuse an approval whose evidence carries no seat time, beside the check that already
     --    refuses one with no evidence at all.
     v_old := $q$  ) then raise exception 'Every attended registration requires signed evidence' using errcode = '23514'; end if;$q$;
-    v_new := $q$  ) then raise exception 'Every attended registration requires signed evidence' using errcode = '23514'; end if;
-  -- BACKLOG J25. Evidence that records no seat time is not evidence of attendance. The class page
-  -- used to send check-in equal to check-out on every attendance it recorded, and this function
-  -- credited the class's SCHEDULED hours regardless -- so a compliance record said somebody sat
-  -- through a training day they did not.
-  if exists (
-    select 1 from public.training_session_registrations r
-    join public.training_attendance_evidence a on a.registration_id = r.id
-    where r.class_id = p_class_id and r.registration_status = 'attended'
-      and a.attendance_status = 'attended'
-      and coalesce(a.seat_minutes, 0) <= 0
-  ) then
-    raise exception 'An attended registration with no recorded seat time cannot be approved: record the real check-in and check-out first'
-      using errcode = '23514';
-  end if;$q$;
+    -- BACKLOG J25 / J88. The refusal that used to live here has moved to
+    -- record_training_attendance, below. Approval was the wrong place for it: every attendance
+    -- recorded before this migration carries check-in == check-out, because that is exactly the
+    -- defect being fixed -- and the evidence table is append-only with one row per registration
+    -- and no update path, so refusing at approval left those sessions permanently unapprovable
+    -- with nothing anybody could do about it. A guard that cannot be satisfied is not a guard.
+    v_new := $q$  ) then raise exception 'Every attended registration requires signed evidence' using errcode = '23514'; end if;$q$;
     if position(v_old in v_def) = 0 then
       raise exception 'approve_training_session_completion no longer contains the evidence check this migration anchors on';
     end if;
@@ -85,7 +77,11 @@ begin
     select least(round(max(a.seat_minutes) / 60.0, 2), v_class.duration_hours)
     into v_seat_hours
     from public.training_attendance_evidence a
-    where a.registration_id = v_registration.id and a.attendance_status = 'attended';
+    where a.registration_id = v_registration.id and a.attendance_status = 'attended'
+      and coalesce(a.seat_minutes, 0) > 0;
+    -- A row with no usable seat time falls back to the scheduled hours, which is the rule it was
+    -- recorded under and the only defensible estimate for it -- not zero, which would silently
+    -- strip hours from people who did attend. New rows of that shape can no longer be created.
     v_seat_hours := coalesce(v_seat_hours, v_class.duration_hours);$q$;
     if position(v_old in v_def) = 0 then
       raise exception 'approve_training_session_completion no longer loops the registrations this migration patches';
@@ -202,5 +198,55 @@ begin
     end if;
     execute replace(v_def, v_old, v_new);
   end if;
+end;
+$do$;
+
+-- ---------------------------------------------------------------------------
+-- J88 -- zero-length attendance is refused where it is CREATED, not where it is credited
+-- ---------------------------------------------------------------------------
+--
+-- The refusal started life in approve_training_session_completion, and that was the wrong door.
+-- Every attendance recorded before this migration carries check-in == check-out -- that is the
+-- defect this file exists to fix -- and training_attendance_evidence is append-only, one row per
+-- registration, with no update path in the product. Refusing at approval therefore condemned every
+-- already-recorded session to be unapprovable for ever, with nothing an operator could do to
+-- correct it. A guard nobody can satisfy is not a guard; it is a dead end with a good reason.
+--
+-- Recording is where the bad row is born, and the only place a refusal both prevents it and leaves
+-- history alone. The roster card already refuses to submit a zero-length attendance, but that is a
+-- client, and record_training_attendance validated the status and the signatures without ever
+-- looking at the times it derives seat_minutes from -- so any direct caller could still write one.
+--
+-- `no_show` is exempt: it legitimately has no seat time, and its registration moves to no_show
+-- rather than to attended, so approval never credits it.
+do $do$
+declare
+  v_def text;
+  v_old text;
+  v_new text;
+begin
+  select pg_get_functiondef(p.oid) into v_def
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'record_training_attendance';
+  if v_def is null then
+    raise exception 'public.record_training_attendance is missing';
+  end if;
+  if position('records no seat time' in v_def) > 0 then
+    raise notice 'record_training_attendance already refuses a zero-length attendance';
+    return;
+  end if;
+
+  v_old := $patch$    raise exception 'Signed attendance evidence is required' using errcode = '22023';$patch$;
+  v_new := $patch$    raise exception 'Signed attendance evidence is required' using errcode = '22023';
+  end if;
+  if p_attendance_status in ('attended', 'partial')
+     and coalesce(extract(epoch from (p_check_out_at - p_check_in_at)) / 60.0, 0) <= 0 then
+    raise exception 'An attendance that records no seat time cannot be signed: enter the real check-in and check-out'
+      using errcode = '22023';$patch$;
+
+  if position(v_old in v_def) = 0 then
+    raise exception 'record_training_attendance no longer contains the evidence check this migration anchors on';
+  end if;
+  execute replace(v_def, v_old, v_new);
 end;
 $do$;

@@ -518,9 +518,14 @@ export function useTrainingSessionRegistrations(classId: string | undefined) {
  *
  * `training_attendance_evidence` has no class_id -- it hangs off registration_id -- so this is
  * scoped by the registration ids the caller already listed rather than by class. It exists because
- * `approve_training_session_completion` credits `training_classes.duration_hours` to every attended
- * registration without reading these columns, so the roster has to show the recorder what the
- * evidence says before they approve hours it does not support.
+ * `approve_training_session_completion` credits each attendee `least(round(max(seat_minutes) / 60,
+ * 2), duration_hours)` (20260906220000): their own recorded time, with the class's scheduled length
+ * as the CEILING rather than the credit. The roster shows the recorder what the evidence says
+ * before they approve hours derived from it.
+ *
+ * This comment said the opposite until the fourth review round on the PR that changed the rule --
+ * it described the behaviour the migration replaced. Anything here that asserts what approval does
+ * has to move when approval moves; nothing links the two.
  */
 export function useTrainingAttendanceEvidence(registrationIds: readonly string[]) {
   // Sorted so re-ordering the same registrations does not produce a new queryKey.

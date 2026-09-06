@@ -92,6 +92,42 @@ describe("satisfied evidence stops counting as a gap once its due date passes", 
     });
     expect(rows.some((row) => row.gapCount > 0)).toBe(false);
   });
+
+  // Publishing a new version stamps `superseded_at` on the pending attestations against older ones
+  // and closes their campaign (20260906100000), after which attest-policy refuses to sign them.
+  // Counted as gaps they sat overdue for ever with nothing that could clear them; counted as
+  // evidence, a fully signed old campaign made an obligation read covered by text nobody in force
+  // had read. The same rows were wrong in both directions at once.
+  it("does not count a superseded pending attestation as a gap", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      policyDocuments: [{ current_version_id: "v1" }],
+      policyAttestations: [
+        { status: "pending", due_date: "2026-07-01", superseded_at: "2026-07-15T00:00:00Z" },
+      ],
+    });
+    const policyRows = rows.filter((row) => row.evidenceSource === "policy");
+    expect(policyRows.length).toBeGreaterThan(0);
+    expect(policyRows.every((row) => row.gapCount === 0)).toBe(true);
+    expect(policyRows.some((row) => row.status === "overdue")).toBe(false);
+  });
+
+  it("does not count a superseded attested attestation as evidence either", () => {
+    const supersededOnly = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      policyDocuments: [{ current_version_id: "v1" }],
+      policyAttestations: [
+        { status: "attested", due_date: "2026-07-01", superseded_at: "2026-07-15T00:00:00Z" },
+      ],
+    }).filter((row) => row.evidenceSource === "policy");
+    const noneAtAll = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      policyDocuments: [{ current_version_id: "v1" }],
+      policyAttestations: [],
+    }).filter((row) => row.evidenceSource === "policy");
+    expect(supersededOnly.map((row) => row.evidenceCount))
+      .toEqual(noneAtAll.map((row) => row.evidenceCount));
+  });
 });
 
 describe("overdue is read off the gap records, not off every record", () => {

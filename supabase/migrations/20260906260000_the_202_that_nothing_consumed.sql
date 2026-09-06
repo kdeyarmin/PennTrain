@@ -515,6 +515,13 @@ begin
             revoked_at = null,
             revoked_by = null,
             revocation_reason = null,
+            -- The claim CLOCK restarts with the claim. Leaving created_at at the original
+            -- registration meant the >90-day expiry predicate was still satisfied the instant this
+            -- takeover finished, so a third organization could transfer the row again immediately,
+            -- rotate the new holder's challenge, and repeat that for as long as it liked -- each
+            -- transfer resetting the verification the previous holder was part-way through. The
+            -- age that matters is how long THIS organization has held an unverified claim.
+            created_at = now(),
             created_by = coalesce(auth.uid(), v_domain.created_by)
         where id = v_domain.id
         returning * into v_domain;

@@ -33,7 +33,7 @@ export interface CrosswalkEvidenceInput {
   inspectionItems?: Array<{ status?: string | null; due_date?: string | null }>;
   violations?: Array<{ status?: string | null; citation?: string | null }>;
   policyDocuments?: Array<{ current_version_id?: string | null }>;
-  policyAttestations?: Array<{ status?: string | null; due_date?: string | null }>;
+  policyAttestations?: Array<{ status?: string | null; due_date?: string | null; superseded_at?: string | null }>;
   evidenceCollections?: Array<{ status?: string | null; expires_at?: string | null }>;
 }
 
@@ -219,7 +219,13 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
   }
   if (obligation.evidenceSource === "policy") {
     const policies = input.policyDocuments ?? [];
-    const attestations = input.policyAttestations ?? [];
+    // A SUPERSEDED attestation is neither evidence nor a gap -- it is history. Publishing a new
+    // version stamps `superseded_at` on every pending attestation against an older one and closes
+    // its campaign (20260906100000), and those rows can no longer be signed. Counted as evidence,
+    // a fully signed old campaign made an obligation look covered by text nobody in force has read;
+    // counted as gaps, its unsignable pending rows sat overdue for ever with no action that could
+    // clear them. Both readings were wrong in the same rows, in opposite directions.
+    const attestations = (input.policyAttestations ?? []).filter((a) => !a.superseded_at);
     // `policy_attestations.status` is only 'pending' or 'attested', and signing does not move
     // due_date -- so without excluding the signed rows, every attestation counted as a gap forever
     // once its date passed, and an obligation whose evidence is fully signed still reported as

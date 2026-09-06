@@ -114,8 +114,14 @@ begin
       -- occupant column is null and whose hold is in reserved_for_prospect_id. Cancelling a
       -- reserved resident therefore left the bed reserved for somebody who is not coming, and
       -- nothing in the product could release it.
+      --
+      -- The hold names the PROSPECT, not the resident: start_move_in_workspace reserves the bed
+      -- against v_prospect.id and then creates a resident, so the two ids are different rows and
+      -- comparing them directly never matched either. The prospect is reached through its own
+      -- resident_id back-reference.
       and (occupied_by_resident_id = v.id
-        or (occupied_by_resident_id is null and reserved_for_prospect_id = v.id));';
+        or (occupied_by_resident_id is null and reserved_for_prospect_id in (
+              select p.id from public.admission_prospects p where p.resident_id = v.id)));';
   if position(v_old in v_def) = 0 then
     raise exception 'transition_resident_census no longer contains the bed-release predicate this migration patches';
   end if;
