@@ -445,8 +445,26 @@ separately and routinely change; a change there is not evidence a form moved.
 Read the documents it names, then re-stamp `DHS_FORMS_LAST_VERIFIED` in
 `dhsFormsLibrary.ts` and re-run the digest with `--write`.
 
-An unchanged digest is not an attestation. The current baseline was taken
-2026-09-05 and says nothing about the window before it.
+It also reports each source's **origin write time** against the attestation date.
+The digest diff can only speak from the previous digest forward, which is no help
+on the first run after a lapse; pa.gov sends `Last-Modified` on every form PDF, so
+that reaches back behind the baseline into the window the digests missed. As of
+2026-09-06 it reports **0 of 34 form documents written since 2026-07-13**, the
+newest write across the whole set being 2025-12-04 — so the reading this pass is
+confirming the set is static, not re-reading thirty-five documents.
+
+Neither signal is the attestation, and the gate ignores both by design:
+
+- A write time is blind to a form **superseded at a different url** while the url
+  on file keeps serving the bytes it always had. The digest is blind to it too.
+  Only a person against the DHS index sees that, and it is the failure mode that
+  actually matters to a customer holding an obsolete form.
+- The two `pacodeandbulletin.gov` citation pages send no `Last-Modified` at all.
+  They record as `null`, which means unknown — never unchanged.
+- The digest baseline was retaken 2026-09-06 and still says nothing about the
+  window before it.
+
+So the review is now small, but it is still a person's to do.
 
 **H13 — The one non-demo organization.** `subscription_status = 'trial'`,
 `trial_ends_at` null, no BAA stamp, created the day the project was. Decide
