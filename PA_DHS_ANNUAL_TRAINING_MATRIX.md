@@ -62,10 +62,18 @@ modules and their version-scoped, verified-only crosswalks.
 
 ## PCH and ALR direct-care annual modules
 
-PCH direct-care staff need at least 12 annual hours covering 55 Pa. Code
-§2600.65(f)-(g); no more than 6 hours may be on-the-job training. ALR direct-care
-staff need at least 16 annual hours covering §2800.65(i)-(j). The additional
-§2800.69 dementia hours do not count toward those 16 hours.
+PCH direct-care staff need at least 12 annual hours under 55 Pa. Code
+§2600.65(e), covering the topics in §2600.65(f)-(g); no more than 6 hours may be
+on-the-job training (§2600.65(e)(2)). ALF direct-care staff need at least 16
+annual hours under §2800.65(h), covering the topics in §2800.65(i)-(j). The
+additional §2800.69 dementia hours do not count toward those 16 hours.
+
+The hour floor and the topic list live in different subsections, and this
+document used to attribute the floors to the topic subsections. They do not
+state one: §2600.65(f)-(g) and §2800.65(i)-(j) enumerate subjects, while
+§2600.65(e) and §2800.65(h) are where "at least 12 hours" and "at least 16
+hours" are actually written. `20260904010000` corrected the same attribution in
+the two PA compliance templates; this is the last copy of it.
 
 The eleven unconditional modules total the full minimum. Conditional topics add
 hours only when applicable, so an N/A topic never produces fabricated credit.
@@ -161,7 +169,7 @@ apply to it.
 Code requires the fire-safety, abuse-reporting, resident-rights, infection
 control, and emergency preparedness *subjects*
 every year within the overall annual training hours (12 hours PCH under
-§2600.65(f)-(g); 16 hours ALF under §2800.65(i)-(j)). The regulation does not
+§2600.65(e); 16 hours ALF under §2800.65(h)). The regulation does not
 issue a per-topic hour split, so the 1.00-hour figure on each standalone type
 is — like every module allocation in this matrix — PennTrain curriculum design,
 not a regulator-issued hour allocation. The eleven unconditional annual modules

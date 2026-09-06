@@ -267,6 +267,20 @@ jobs:
       - name: Application release gate
         run: pnpm run check:all
 
+      # BACKLOG J74. `check:all` builds, and the build regenerates
+      # `public/CareMetric-CareBase-User-Manual.pdf` from the help-centre source. The committed copy
+      # had fallen behind it -- it still sold the exclusion screening that `20260906020000` removed
+      # -- so every `pnpm build` dirtied a contributor's worktree with a file they had not edited,
+      # nothing failed, and the stale manual kept shipping. The output is reproducible: pdf-lib
+      # names PDF resources from `SimpleRNG.withSeed(1)`, a fixed seed, so identical input gives
+      # identical bytes on any machine. That is what makes this checkable rather than noisy.
+      - name: Fail if the release gate regenerated a committed file
+        run: |
+          if ! git diff --exit-code --stat; then
+            echo "::error::The build regenerated a tracked file. Run the generator locally and commit the result."
+            exit 1
+          fi
+
       # Push-only. On a pull request `github.sha` is the ephemeral merge commit, which ceases to
       # exist once the branch merges -- so a per-PR copy is not a record of anything that will
       # still be identifiable later, and nothing in this repository (no workflow, no deploy path,
