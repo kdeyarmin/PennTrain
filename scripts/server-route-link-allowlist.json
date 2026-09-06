@@ -21,10 +21,14 @@
     "It is NOT a place to excuse a link that is genuinely broken. Declare the route or correct the",
     "link instead."
   ],
-
   "/admin/integrations": {
     "reason": "Superseded. `20260711200651_phase2_signed_integration_hub.sql` seeded this as the `operator_route` of the `integration-webhook-dispatch` system job, and it has never been a declared route -- the System Jobs page renders operator_route as an Open button, so it went to Not Found. `20260805020000_an_operator_route_has_to_go_somewhere.sql` updates the row to `/admin/enterprise`, which is where the integration register, credential rotation and webhook endpoint controls actually live. The original literal remains in the older migration because migration history is append-only.",
     "superseded_by": "20260805020000_an_operator_route_has_to_go_somewhere.sql",
     "backlog": "G17"
+  },
+  "/admin/exclusion-screening": {
+    "reason": "Superseded by deletion. `20260711155016_phase1_audit_job_control.sql` seeded this as the `console_route` of the `exclusion-screening` system-job definition, and it was a real route until `20260906020000_exclusion_screening_is_removed.sql` removed exclusion screening at the owner's direction -- that migration DELETEs the job-definition row that carries the literal, and the same change set removes the /admin/exclusion-screening route from App.tsx. So no row emits this path any more and there is nothing for a route to serve. The literal remains in the 2026-07-11 file because migration history is append-only and this check reads text rather than executing the schema. Unlike /admin/integrations below, the superseding migration deletes the row rather than repointing it: there is no correct destination for a console that no longer exists.",
+    "superseded_by": "20260906020000_exclusion_screening_is_removed.sql",
+    "backlog": "I32"
   }
 }
