@@ -8,7 +8,7 @@
 -- it could not bill for. Run with: supabase test db.
 
 begin;
-select plan(24);
+select plan(28);
 
 select has_function(
   'public', 'exclusion_name_key', array['text'],
@@ -176,6 +176,15 @@ select is(
 -- would silently restore the false negatives this migration exists to remove, on the screen that
 -- decides whether a facility may bill Medicare and Medicaid for a person's work.
 --
+-- The first version of that prefilter was wider but NOT answerable: it used `<%`, which
+-- gin_trgm_ops does not index, and one such branch in an OR costs the entire BitmapOr. It read
+-- as a fix, passed this file, and took production down a second time. The prefilter now uses only
+-- `=`, `%` and `%>` -- the three shapes the opclass answers with the indexed expression on the
+-- left -- and carries the containment direction `<%` used to express through the probe list
+-- instead. Which means this assertion has TWO jobs now: the prefilter must stay wider than the
+-- score, and it must stay expressible as index quals. exclusion_screen_scale.test.sql asserts
+-- the second half against a table large enough for the planner to have a choice.
+--
 -- So this asserts the property directly rather than trusting the two to stay aligned by reading.
 ------------------------------------------------------------------------------------------------
 set local pg_trgm.similarity_threshold = 0.30;
@@ -192,12 +201,15 @@ select is(
    select count(*)::int from (
      select
        public.exclusion_name_match_score(ef.f, e.n, xf.f, x.n) as score,
-       (
-         public.exclusion_name_key(x.n) = public.exclusion_name_key(e.n)
-         or pg_catalog.upper(x.n) operator(extensions.%) pg_catalog.upper(e.n)
-         or pg_catalog.upper(x.n) operator(extensions.<%) pg_catalog.upper(e.n)
-         or pg_catalog.upper(e.n) operator(extensions.<%) pg_catalog.upper(x.n)
-         or public.exclusion_name_key(x.n) operator(extensions.%) public.exclusion_name_key(e.n)
+       exists (
+         -- Exactly the per-probe OR the two screens run, with x standing for the entry row and
+         -- the probes coming from the employee surname.
+         select 1 from pg_catalog.unnest(public.exclusion_name_probes(e.n)) as probe
+         where public.exclusion_name_key(x.n) = public.exclusion_name_key(probe)
+            or pg_catalog.upper(x.n) operator(extensions.%) pg_catalog.upper(probe)
+            or public.exclusion_name_key(x.n) operator(extensions.%)
+               public.exclusion_name_key(probe)
+            or pg_catalog.upper(x.n) operator(extensions.%>) pg_catalog.upper(probe)
        ) as prefilter
      from names e cross join names x cross join firsts ef cross join firsts xf
    ) t
@@ -229,6 +241,52 @@ select is(
      and p.proconfig @> array['pg_trgm.word_similarity_threshold=0.60']),
   2,
   'both screens pin the trigram thresholds, so the prefilter cannot be narrowed from outside'
+);
+
+------------------------------------------------------------------------------------------------
+-- The probe list is what carries the containment direction the index cannot answer
+------------------------------------------------------------------------------------------------
+
+select is(
+  public.exclusion_name_probes('Smith'),
+  array['Smith'],
+  'a single-word surname offers exactly one probe, so the common case is one index lookup'
+);
+
+select ok(
+  public.exclusion_name_probes('Anderson-Lee-Washington') @> array['LEE', 'ANDERSON LEE'],
+  'a hyphenated surname offers its components and their contiguous runs, which is how an entry '
+  || 'contained in an employee surname still reaches an index qual'
+);
+
+-- The regression this file exists to prevent, stated as a property of the shipped bodies rather
+-- than of a copy of the predicate: `<%` puts the indexed expression on the wrong side of an
+-- operator gin_trgm_ops does not carry, and one of them anywhere in the OR restores the scan.
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where (n.nspname, p.proname) in
+         (('public','match_exclusion_list_against_roster_core'),
+          ('app_private','screen_employee_against_active_exclusions'))
+     and p.prosrc like '%<\%%'),
+  0,
+  'neither screen uses <%, which gin_trgm_ops cannot answer and which forces a full scan'
+);
+
+-- The other half of the same regression, and the reason the indexes went unused even where the
+-- operators were right: while the sweep JOINED exclusion_list_entries to exclusion_source_state,
+-- the planner resolved that pair first and handed the whole 157,192-row result to a nested loop
+-- over the roster. With the big table on the OUTER side, no predicate on an entry can be
+-- parameterised by an employee -- there is nothing for an index on entries to be an index FOR.
+-- The snapshot is resolved into a variable before the entry table is touched now, and this is
+-- what says so about the shipped bodies rather than about a copy of them.
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where (n.nspname, p.proname) in
+         (('public','match_exclusion_list_against_roster_core'),
+          ('app_private','screen_employee_against_active_exclusions'))
+     and p.prosrc like '%join public.exclusion_list_entries%'),
+  0,
+  'neither screen joins the entry table, which is what put it on the outer side of the loop'
 );
 
 select * from finish();
